@@ -23,6 +23,9 @@ import {
 import { PrivyUser, OnboardingData } from '@/lib/types';
 import { uploadImageToCloudinary } from '@/lib/cloudinary';
 import { getBase64Image } from '@/utils/imageHelpers';
+import avatar from '../../assets/images/avatar.png';
+import { usePrivy } from '@privy-io/react-auth';
+import { useToast } from '@/hooks/use-toast';
 
 interface RegistrationProps {
   user: PrivyUser;
@@ -33,12 +36,22 @@ export default function Registration({
   user,
   onComplete,
 }: RegistrationProps) {
-  const [profileImage, setProfileImage] = useState('/avatar.png');
+  console.log('user', user);
+  const { getAccessToken } = usePrivy();
+  const { toast } = useToast();
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [name, setName] = useState(user?.name || '');
+  const [bio, setBio] = useState('');
+  const [phone, setPhone] = useState('');
+  const [birthdate, setBirthdate] = useState(0);
+  const [apartment, setApartment] = useState('');
+  const [address, setAddress] = useState('');
+  const [profileImage, setProfileImage] = useState(avatar.src);
 
   // Fetch the base64 image when the component mounts
   useEffect(() => {
     const fetchAvatar = async () => {
-      const base64Image = await getBase64Image('/avatar.png');
+      const base64Image = await getBase64Image(profileImage);
       setProfileImage(base64Image);
     };
     fetchAvatar();
@@ -57,35 +70,63 @@ export default function Registration({
     }
   };
 
-  const [name, setName] = useState(user?.name || '');
-  const [bio, setBio] = useState('');
-  const [phone, setPhone] = useState('');
-  const [birthdate, setBirthdate] = useState('');
-  const [apartment, setApartment] = useState('');
-  const [address, setAddress] = useState('');
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim()) {
       alert('Name is required.');
       return; // Prevent form submission
     }
+    setIsSubmitting(true);
 
-    const avatarUrl = await uploadImageToCloudinary(profileImage);
+    try {
+      const avatarUrl = await uploadImageToCloudinary(profileImage);
+      const token = await getAccessToken();
 
-    onComplete({
-      userInfo: {
-        name,
-        bio,
-        phone,
-        email: user.email,
-        birthdate,
-        apartment,
-        address,
-        avatar: avatarUrl, // Use the uploaded image URL
-      },
-      walletInfo: user.wallet,
-    });
+      // Create user and smartsite
+      const response = await fetch('/api/user/create', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          name,
+          bio,
+          phone,
+          email: user.email,
+          birthdate,
+          apartment,
+          address,
+          avatar: avatarUrl,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to create user and smartsite');
+      }
+
+      const result = await response.json();
+
+      toast({
+        title: 'Success',
+        description: 'Account has been created successfully!',
+      });
+
+      // Pass the data to parent component
+      onComplete({
+        userInfo: result.data,
+      });
+    } catch (error) {
+      setIsSubmitting(false);
+      console.error('Error creating account:', error);
+      toast({
+        variant: 'destructive',
+        title: 'Error',
+        description: 'Failed to create Account. Please try again.',
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -202,8 +243,14 @@ export default function Registration({
               <Input
                 id="birthdate"
                 type="date"
-                value={birthdate}
-                onChange={(e) => setBirthdate(e.target.value)}
+                value={
+                  birthdate
+                    ? new Date(birthdate).toISOString().split('T')[0]
+                    : ''
+                }
+                onChange={(e) =>
+                  setBirthdate(new Date(e.target.value).getTime())
+                }
               />
             </div>
             <div className="space-y-2">
@@ -241,10 +288,11 @@ export default function Registration({
 
           <div className="flex justify-center col-span-2">
             <Button
-              className="bg-black text-white w-1/4 hover:bg-gray-800  "
+              className="bg-black text-white w-1/4 hover:bg-gray-800"
               type="submit"
+              disabled={isSubmitting}
             >
-              Next
+              {isSubmitting ? 'Creating...' : 'Next'}
             </Button>
           </div>
         </form>

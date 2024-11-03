@@ -15,6 +15,7 @@ export async function POST(request: NextRequest) {
     let req;
     try {
       req = await request.json();
+      console.log('🚀 ~ POST ~ req:', req);
     } catch (e) {
       console.error('Failed to parse request body:', e);
       return NextResponse.json(

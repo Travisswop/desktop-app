@@ -11,7 +11,7 @@ import {
   CardTitle,
 } from '@/components/ui/card';
 import { OnboardingData } from '@/lib/types';
-import { useWallets } from '@privy-io/react-auth';
+import { usePrivy, useWallets } from '@privy-io/react-auth';
 import { useToast } from '@/hooks/use-toast';
 import { useRouter } from 'next/navigation';
 
@@ -23,6 +23,7 @@ export default function CreateSwopID({
   userData,
 }: CreateSwopIDProps) {
   console.log('userdata', userData);
+  const { getAccessToken } = usePrivy();
   const { wallets } = useWallets();
   const { toast } = useToast();
   const router = useRouter();
@@ -127,6 +128,15 @@ export default function CreateSwopID({
             description: 'Failed to create Swop ID',
           });
         } else {
+          const token = await getAccessToken();
+          await fetch('/api/user/smartSite/social', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${token}`,
+            },
+            body: JSON.stringify(requestBody),
+          });
           console.log('Swop ID created successfully');
           toast({
             variant: 'default',

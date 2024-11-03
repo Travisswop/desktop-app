@@ -13,35 +13,49 @@ const Login: React.FC = () => {
   const { login } = useLogin({
     onComplete: async (user) => {
       console.log('🚀 ~ onComplete: ~ user:', user);
-      if (!user.email) {
-        router.replace('/onboard');
+      const email =
+        user.google?.email ||
+        user.email?.address ||
+        user.linkedAccounts.find(
+          (account) => account.type === 'email'
+        )?.address;
+
+      if (!email) {
+        console.log('No email found, redirecting to onboard');
+        loginInitiated.current = false;
+        router.push('/onboard');
         return;
       }
 
       try {
+        const token = await getAccessToken();
         const response = await fetch('/api/auth/verify', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            Authorization: `Bearer ${await getAccessToken()}`,
+            Authorization: `Bearer ${token}`,
           },
           body: JSON.stringify({
-            email: user.email.address,
+            email: email,
             userId: user.id,
           }),
         });
 
+        console.log('Verify response:', response.status);
+
         if (!response.ok) {
-          router.replace('/onboard');
+          console.log('User not found, redirecting to onboard');
+          loginInitiated.current = false;
+          router.push('/onboard');
           return;
         }
 
-        // User exists, redirect to home
-        router.replace('/');
+        console.log('User found, redirecting to home');
+        router.push('/');
       } catch (error) {
-        loginInitiated.current = false;
         console.error('Error verifying user:', error);
-        alert('Login verification failed. Please try again.');
+        loginInitiated.current = false;
+        router.push('/onboard');
       }
     },
     onError: (error) => {
@@ -51,7 +65,6 @@ const Login: React.FC = () => {
     },
   });
 
-  // Auto-initiate login when component mounts
   useEffect(() => {
     if (ready && !authenticated && !loginInitiated.current) {
       loginInitiated.current = true;

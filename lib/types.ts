@@ -1,12 +1,13 @@
 export interface UserInfo {
-  name: string;
-  bio: string;
-  phone: string;
   email: string;
-  birthdate: string;
-  apartment: string;
-  address: string;
-  avatar: string;
+  mobileNo: string;
+  apartment?: string;
+  address?: string;
+  bio?: string;
+  birthdate?: number;
+  avatar?: string;
+  name: string;
+  primaryMicrosite: string;
 }
 
 export interface SmartSiteInfo {
@@ -24,7 +25,7 @@ export interface SmartSiteInfo {
   website: string;
 }
 
-export interface walletInfo {
+export interface WalletInfo {
   address?: string;
   chainId?: string;
   chainType?: string;
@@ -33,12 +34,13 @@ export interface walletInfo {
 export interface OnboardingData {
   userInfo?: UserInfo;
   smartSiteInfo?: SmartSiteInfo;
-  walletInfo?: walletInfo;
+  walletInfo?: WalletInfo;
 }
 
 export interface PrivyUser {
   id: string;
   email: string;
   name?: string;
-  wallet?: walletInfo;
+
+  wallet?: WalletInfo;
 }

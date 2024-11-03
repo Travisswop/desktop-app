@@ -9,10 +9,15 @@ import { OnboardingData, PrivyUser } from '@/lib/types';
 
 const Onboard: React.FC = () => {
   const { authenticated, ready, user } = usePrivy();
+  console.log('🚀 ~ user:', user);
   const [step, setStep] = useState(0);
   const [userData, setUserData] = useState({});
 
-  console.log('privy', user);
+  const email =
+    user?.google?.email ||
+    user?.email?.address ||
+    user?.linkedAccounts.find((account) => account.type === 'email')
+      ?.address;
 
   const { linkEmail } = useLinkAccount({
     onSuccess: (user, linkMethod, linkedAccount) => {
@@ -24,26 +29,24 @@ const Onboard: React.FC = () => {
   });
 
   useEffect(() => {
-    if (ready && authenticated && !user?.email) {
+    if (ready && authenticated && !email) {
       linkEmail();
     }
-  }, [ready, authenticated, user?.email, linkEmail]);
+  }, [ready, authenticated, email, linkEmail]);
 
   const handleNextStep = (data: Partial<OnboardingData>) => {
     setUserData((prevData) => ({ ...prevData, ...data }));
     setStep((prevStep) => prevStep + 1);
   };
 
-  if (!user?.email) {
+  if (!email) {
     return <button onClick={linkEmail}>Link your email</button>;
   }
 
   const privyUser: PrivyUser = {
     ...user,
-    email:
-      typeof user.email === 'string'
-        ? user.email
-        : user.email.address,
+    email,
+    name: user?.google?.name || '',
     wallet: user.wallet
       ? {
           address: user.wallet.address,

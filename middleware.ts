@@ -68,7 +68,8 @@ async function verifyAuth(request: NextRequest) {
     }
 
     const email =
-      user.email ||
+      user.google?.email ||
+      user.email?.address ||
       user.linkedAccounts.find((account) => account.type === 'email')
         ?.address;
 
@@ -109,7 +110,7 @@ export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   // Always allow access to login page
-  if (pathname === '/login') {
+  if (pathname === '/login' || pathname === '/onboard') {
     return NextResponse.next();
   }
 

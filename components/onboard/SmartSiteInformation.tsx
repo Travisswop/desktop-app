@@ -19,6 +19,8 @@ import {
 import Image from 'next/image';
 import { useState } from 'react';
 import { OnboardingData } from '@/lib/types';
+import { usePrivy } from '@privy-io/react-auth';
+import { useToast } from '@/hooks/use-toast';
 
 interface SmartSiteInformationProps {
   userData: OnboardingData;
@@ -29,10 +31,15 @@ export default function SmartSiteInformation({
   userData,
   onComplete,
 }: SmartSiteInformationProps) {
-  console.log(userData);
+  console.log('🚀 ~ userData:', userData);
+  const { getAccessToken } = usePrivy();
+  const { toast } = useToast();
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
   const [data, setData] = useState({
+    name: userData.userInfo?.name || '',
     email: userData?.userInfo?.email || '',
-    phone: userData?.userInfo?.phone || '',
+    phone: userData?.userInfo?.mobileNo || '',
     whatsapp: '',
     textMessage: '',
     videoCall: '',
@@ -52,11 +59,52 @@ export default function SmartSiteInformation({
     }));
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    onComplete({
-      smartSiteInfo: data,
-    });
+    setIsSubmitting(true);
+
+    try {
+      const token = await getAccessToken();
+
+      // Create user and smartsite
+      const response = await fetch('/api/user/smartSite/social', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          micrositeId: userData?.userInfo?.primaryMicrosite,
+          social: data,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to create user and smartsite');
+      }
+
+      const result = await response.json();
+
+      toast({
+        title: 'Success',
+        description: 'Your SmartSite has been created successfully!',
+      });
+
+      // Pass the data to parent component
+      onComplete({
+        userInfo: result.data,
+        smartSiteInfo: data,
+      });
+    } catch (error) {
+      console.error('Error creating user and smartsite:', error);
+      toast({
+        variant: 'destructive',
+        title: 'Error',
+        description: 'Failed to create SmartSite. Please try again.',
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -217,10 +265,11 @@ export default function SmartSiteInformation({
           </div>
           <div className="flex justify-center col-span-2">
             <Button
-              className="bg-black text-white w-1/4 hover:bg-gray-800  "
+              className="bg-black text-white w-1/4 hover:bg-gray-800"
               type="submit"
+              disabled={isSubmitting}
             >
-              Next
+              {isSubmitting ? 'Creating...' : 'Next'}
             </Button>
           </div>
         </form>
