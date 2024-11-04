@@ -13,7 +13,8 @@ interface UserData {
   id: string;
   email: string;
   name?: string;
-  avatar?: string;
+  mobileNo?: string;
+  profilePic?: string;
   // Add other user fields as needed
 }
 
@@ -47,6 +48,16 @@ export function UserProvider({
   const [user, setUser] = useState<UserData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
+
+  const email =
+    privyUser?.google?.email ||
+    privyUser?.email?.address ||
+    privyUser?.linkedAccounts.find(
+      (account) => account.type === 'email'
+    )?.address ||
+    privyUser?.linkedAccounts.find(
+      (account) => account.type === 'google_oauth'
+    )?.email;
 
   const fetchUserData = useCallback(
     async (email: string, force = false) => {
@@ -89,10 +100,10 @@ export function UserProvider({
   );
 
   useEffect(() => {
-    if (ready && privyUser?.email?.address) {
-      fetchUserData(privyUser.email.address);
+    if (ready && email) {
+      fetchUserData(email);
     }
-  }, [ready, privyUser?.email?.address, fetchUserData]);
+  }, [ready, email, fetchUserData]);
 
   // Clean up expired cache entries
   useEffect(() => {

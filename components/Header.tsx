@@ -11,25 +11,40 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { useUser } from '@/lib/UserContext';
+import { Skeleton } from './ui/skeleton';
 
 export default function Header() {
-  const { user, logout } = usePrivy();
-  // const [isOpen, setIsOpen] = useState(false);
-
-  const userName = 'Travis Herron';
-  const avatarUrl = '/avatar.png';
+  const { logout } = usePrivy();
+  const { user, loading } = useUser();
 
   const handleLogout = async () => {
-    const res = await fetch(`/api/auth/logout`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-    });
-    if (res.ok) {
-      logout();
+    try {
+      const res = await fetch(`/api/auth/logout`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+      if (res.ok) {
+        logout();
+      }
+    } catch (error) {
+      console.error('Logout error:', error);
     }
   };
+
+  if (loading) {
+    return (
+      <header className="bg-white shadow-md p-6 flex justify-between items-center">
+        <Link href="/dashboard">
+          <Image src="/logo.png" alt="Logo" width={120} height={50} />
+        </Link>
+        <Skeleton className="h-14 w-48 rounded-full" />
+      </header>
+    );
+  }
+
   return (
     <header className="bg-white shadow-md p-6 flex justify-between items-center">
       <Link href="/dashboard">
@@ -44,13 +59,13 @@ export default function Header() {
             >
               <div className="relative h-8 w-8">
                 <Image
-                  src={avatarUrl}
-                  alt={`${userName}'s avatar`}
+                  src={user.profilePic || '/avatar.png'}
+                  alt={`${user.name}'s avatar`}
                   fill
                   className="rounded-full object-cover"
                 />
               </div>
-              <span className="text-sm font-medium">{userName}</span>
+              <span className="text-sm font-medium">{user.name}</span>
               <ChevronDown className="h-4 w-4 text-muted-foreground" />
             </Button>
           </DropdownMenuTrigger>

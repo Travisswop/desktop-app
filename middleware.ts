@@ -32,7 +32,7 @@ const authCache = new Map<
   string,
   { timestamp: number; isValid: boolean }
 >();
-const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes in milliseconds
+const CACHE_DURATION = 10 * 60 * 1000; // 10 minutes in milliseconds
 
 async function verifyAuth(request: NextRequest) {
   const privy_token = request.cookies.get('privy-token')?.value;
@@ -49,6 +49,7 @@ async function verifyAuth(request: NextRequest) {
   const now = Date.now();
 
   if (cachedResult && now - cachedResult.timestamp < CACHE_DURATION) {
+    console.log('hit here');
     return cachedResult.isValid;
   }
 
@@ -71,7 +72,12 @@ async function verifyAuth(request: NextRequest) {
       user.google?.email ||
       user.email?.address ||
       user.linkedAccounts.find((account) => account.type === 'email')
-        ?.address;
+        ?.address ||
+      user.linkedAccounts.find(
+        (account) => account.type === 'google_oauth'
+      )?.email;
+
+    console.log('🚀 ~ verifyAuth ~ email:', email);
 
     if (!email) {
       authCache.set(cacheKey, { timestamp: now, isValid: false });
@@ -121,6 +127,10 @@ export async function middleware(request: NextRequest) {
 
   try {
     const isAuthenticated = await verifyAuth(request);
+    console.log(
+      '🚀 ~ middleware ~ isAuthenticated:',
+      isAuthenticated
+    );
 
     // If user is authenticated and trying to access auth routes, redirect to home
     if (

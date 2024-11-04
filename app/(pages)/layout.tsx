@@ -1,7 +1,6 @@
 'use client';
 import Header from '@/components/Header';
 import Sidenav from '@/components/Sidenav';
-import { UserProvider } from '@/lib/UserContext';
 import { withAuth } from '@/lib/withAuth';
 
 const PageLayout = ({ children }: { children: React.ReactNode }) => {
@@ -10,9 +9,7 @@ const PageLayout = ({ children }: { children: React.ReactNode }) => {
       <Header />
       <div className="flex flex-1">
         <Sidenav className="w-1/5" />
-        <main className="w-4/5 p-4 bg-accent">
-          <UserProvider>{children}</UserProvider>
-        </main>
+        <main className="w-4/5 p-4 bg-accent">{children}</main>
       </div>
     </div>
   );

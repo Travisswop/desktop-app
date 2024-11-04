@@ -11,11 +11,7 @@ export async function POST(request: NextRequest) {
         { status: 401 }
       );
     }
-
     const data = await request.json();
-    console.log('🚀 ~ POST ~ data:', data);
-
-    // Call your backend API with the sanitized data
     const response = await fetch(
       `${process.env.NEXT_PUBLIC_API_URL}/api/v2/desktop/user/addSocial`,
       {
@@ -23,11 +19,7 @@ export async function POST(request: NextRequest) {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          contentType: 'ensDomain',
-          micrositeId: data.micrositeId,
-          socialData: data.social,
-        }),
+        body: JSON.stringify(data),
       }
     );
 

@@ -4,6 +4,7 @@ import { Skeleton } from '../ui/skeleton';
 
 export default function DashboardContent() {
   const { user, loading, error } = useUser();
+  console.log('🚀 ~ DashboardContent ~ user:', user);
 
   if (loading) {
     return <DashboardSkeleton />;

@@ -19,10 +19,14 @@ interface CreateSwopIDProps {
   userData: OnboardingData;
 }
 
+type AvailabilityMessage = {
+  type: 'error' | 'success' | null;
+  message: string;
+};
+
 export default function CreateSwopID({
   userData,
 }: CreateSwopIDProps) {
-  console.log('userdata', userData);
   const { getAccessToken } = usePrivy();
   const { wallets } = useWallets();
   const { toast } = useToast();
@@ -30,129 +34,162 @@ export default function CreateSwopID({
 
   const [swopID, setSwopID] = useState('');
   const [agreeToTerms, setAgreeToTerms] = useState(false);
-  const [availabilityMessage, setAvailabilityMessage] = useState({
-    error: false,
-    success: false,
-    message: '',
-  });
+  const [isChecking, setIsChecking] = useState(false);
+  const [availabilityMessage, setAvailabilityMessage] =
+    useState<AvailabilityMessage>({
+      type: null,
+      message: '',
+    });
+
+  const validateSwopID = (id: string): boolean => {
+    // Must be 3-10 characters, alphanumeric or hyphen only
+    return /^[a-z0-9-]{3,10}$/i.test(id) && !id.includes('.');
+  };
 
   useEffect(() => {
     const checkSwopIDAvailability = async () => {
-      if (
-        !swopID.match(/^[a-z0-9-]+$/i) ||
-        swopID.length < 3 ||
-        swopID.length > 10 ||
-        swopID.includes('.')
-      ) {
+      // Clear message if input is empty
+      if (!swopID) {
+        setAvailabilityMessage({ type: null, message: '' });
+        return;
+      }
+
+      // Validate input format first
+      if (!validateSwopID(swopID)) {
         setAvailabilityMessage({
-          error: true,
-          success: false,
-          message: 'Invalid Swop Id',
+          type: 'error',
+          message:
+            'SwopID must be 3-10 characters long and can only contain letters, numbers, and hyphens',
         });
         return;
       }
 
+      setIsChecking(true);
       try {
         const response = await fetch(
           `https://swop-id-ens-gateway.swop.workers.dev/get/${swopID}.swop.id`
         );
-        const data = await response.json();
-        console.log('swop id availability: ', data);
-        setAvailabilityMessage({
-          error: true,
-          success: false,
-          message: 'Swop Id Not Available',
-        });
+
+        if (response.ok) {
+          setAvailabilityMessage({
+            type: 'error',
+            message: 'This SwopID is already taken',
+          });
+        } else if (response.status === 404) {
+          setAvailabilityMessage({
+            type: 'success',
+            message: 'This SwopID is available!',
+          });
+        } else {
+          throw new Error('Failed to check availability');
+        }
       } catch (error) {
-        console.log('error', error);
+        console.error('Error checking SwopID:', error);
         setAvailabilityMessage({
-          error: false,
-          success: true,
-          message: 'Swop Id Available',
+          type: 'error',
+          message: 'Failed to check availability. Please try again.',
         });
+      } finally {
+        setIsChecking(false);
       }
     };
 
     const debounceTimeout = setTimeout(checkSwopIDAvailability, 500);
-
     return () => clearTimeout(debounceTimeout);
   }, [swopID]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (
+      !swopID ||
+      availabilityMessage.type !== 'success' ||
+      !agreeToTerms
+    ) {
+      return;
+    }
+
     const embededdedWallet = wallets.find(
       (wallet) => wallet.walletClientType === 'privy'
     );
 
-    if (embededdedWallet) {
-      try {
-        const provider = await embededdedWallet.getEthereumProvider();
-        const address = embededdedWallet.address;
-        const ens = `${swopID}.swop.id`;
-        const message = `Set ${ens} to ${address}`;
-        const signature = await provider.request({
-          method: 'personal_sign',
-          params: [message, address],
-        });
+    if (!embededdedWallet) {
+      toast({
+        variant: 'destructive',
+        title: 'Error',
+        description: 'No wallet found. Please try again.',
+      });
+      return;
+    }
 
-        console.log('signature', signature);
-        const requestBody = {
-          name: ens,
-          owner: address,
-          addresses: { 60: address, 501: '' },
-          texts: {
-            avatar: userData.userInfo?.avatar || '',
-          },
-          signature: {
-            hash: signature,
-            message: message,
-          },
-        };
+    try {
+      const provider = await embededdedWallet.getEthereumProvider();
+      const address = embededdedWallet.address;
+      const ens = `${swopID}.swop.id`;
+      const message = `Set ${ens} to ${address}`;
 
-        const apiUrl =
-          'https://swop-id-ens-gateway.swop.workers.dev/set';
+      const signature = await provider.request({
+        method: 'personal_sign',
+        params: [message, address],
+      });
 
-        const response = await fetch(apiUrl, {
+      const requestBody = {
+        name: ens,
+        owner: address,
+        addresses: { 60: address, 501: '' },
+        texts: {
+          avatar: userData.userInfo?.avatar || '',
+        },
+        signature: {
+          hash: signature,
+          message: message,
+        },
+      };
+
+      const response = await fetch(
+        'https://swop-id-ens-gateway.swop.workers.dev/set',
+        {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
           },
           body: JSON.stringify(requestBody),
-        });
-
-        if (!response.ok) {
-          console.error('Failed to create Swop ID');
-          toast({
-            variant: 'destructive',
-            title: 'Swop.ID',
-            description: 'Failed to create Swop ID',
-          });
-        } else {
-          const token = await getAccessToken();
-          await fetch('/api/user/smartSite/social', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              Authorization: `Bearer ${token}`,
-            },
-            body: JSON.stringify(requestBody),
-          });
-          console.log('Swop ID created successfully');
-          toast({
-            variant: 'default',
-            title: 'Success',
-            description: 'Swop ID created successfully',
-          });
-          router.replace('/');
         }
-      } catch (error) {
-        console.log('error', error);
-        toast({
-          variant: 'destructive',
-          title: 'Signing Message',
-          description: 'User rejected the request',
-        });
+      );
+
+      if (!response.ok) {
+        throw new Error('Failed to create Swop ID');
       }
+
+      const token = await getAccessToken();
+      await fetch('/api/user/smartSite/social', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          contentType: 'ensDomain',
+          micrositeId: userData.userInfo?.primaryMicrosite,
+          domain: ens,
+        }),
+      });
+
+      toast({
+        title: 'Success',
+        description: 'SwopID created successfully!',
+      });
+
+      router.push('/');
+    } catch (error) {
+      console.error('Error:', error);
+      toast({
+        variant: 'destructive',
+        title: 'Error',
+        description:
+          error instanceof Error
+            ? error.message
+            : 'Failed to create SwopID',
+      });
     }
   };
 
@@ -167,30 +204,34 @@ export default function CreateSwopID({
         </p>
       </CardHeader>
       <CardContent>
-        <form onSubmit={handleSubmit} className="space-y-6">
+        <form onSubmit={handleSubmit} className="space-y-4">
           <div className="relative">
             <Input
-              className="w-full text-lg py-6 mb-1"
-              placeholder="Enter your Swop.ID"
+              id="trackTitle"
               value={swopID}
               onChange={(e) => setSwopID(e.target.value)}
+              className="pr-20 text-lg py-6"
+              placeholder="Enter swop username"
+              disabled={isChecking}
             />
-            <div className="absolute right-0 top-1/3 -translate-y-1/2 pointer-events-none bg-accent py-3 px-4 ">
-              <span className="text-md font-bold text-muted-foreground">
-                .Swop.Id
-              </span>
+            <div className="absolute inset-y-0 right-0 flex items-center px-3 pointer-events-none ">
+              <div className="flex items-center space-x-2 text-muted-foreground">
+                <span className="text-md font-bold">.SWOP.ID</span>
+              </div>
             </div>
-            {availabilityMessage.error && (
-              <p className="text-sm text-red-500">
-                {availabilityMessage.message}
-              </p>
-            )}
-            {availabilityMessage.success && (
-              <p className="text-sm text-green-500">
-                {availabilityMessage.message}
-              </p>
-            )}
           </div>
+          {availabilityMessage.type && (
+            <p
+              className={`text-sm ${
+                availabilityMessage.type === 'error'
+                  ? 'text-red-500'
+                  : 'text-green-500'
+              }`}
+            >
+              {availabilityMessage.message}
+            </p>
+          )}
+
           <div className="flex items-center space-x-2">
             <Checkbox
               id="terms"
@@ -211,9 +252,14 @@ export default function CreateSwopID({
           <Button
             className="w-full bg-black text-white hover:bg-gray-800"
             type="submit"
-            disabled={!swopID || !agreeToTerms}
+            disabled={
+              !swopID ||
+              availabilityMessage.type !== 'success' ||
+              !agreeToTerms ||
+              isChecking
+            }
           >
-            Next
+            {isChecking ? 'Checking availability...' : 'Next'}
           </Button>
         </form>
       </CardContent>

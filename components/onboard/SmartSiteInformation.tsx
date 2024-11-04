@@ -67,7 +67,7 @@ export default function SmartSiteInformation({
       const token = await getAccessToken();
 
       // Create user and smartsite
-      const response = await fetch('/api/user/smartSite/social', {
+      const response = await fetch('/api/user/smartSite/create', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

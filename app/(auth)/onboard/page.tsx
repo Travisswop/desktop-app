@@ -17,7 +17,10 @@ const Onboard: React.FC = () => {
     user?.google?.email ||
     user?.email?.address ||
     user?.linkedAccounts.find((account) => account.type === 'email')
-      ?.address;
+      ?.address ||
+    user?.linkedAccounts.find(
+      (account) => account.type === 'google_oauth'
+    )?.email;
 
   const { linkEmail } = useLinkAccount({
     onSuccess: (user, linkMethod, linkedAccount) => {

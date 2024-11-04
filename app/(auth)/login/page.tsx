@@ -18,7 +18,10 @@ const Login: React.FC = () => {
         user.email?.address ||
         user.linkedAccounts.find(
           (account) => account.type === 'email'
-        )?.address;
+        )?.address ||
+        user.linkedAccounts.find(
+          (account) => account.type === 'google_oauth'
+        )?.email;
 
       if (!email) {
         console.log('No email found, redirecting to onboard');

@@ -11,7 +11,7 @@ export default function PrivyProvider({
     <Privy
       appId={process.env.NEXT_PUBLIC_PRIVY_APP_ID!}
       config={{
-        loginMethods: ['email', 'google', 'apple', 'wallet', 'sms'],
+        loginMethods: ['email', 'google', 'wallet'],
         appearance: {
           theme: 'light',
           accentColor: '#676FFF',
