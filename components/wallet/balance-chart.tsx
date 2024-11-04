@@ -59,7 +59,7 @@ const generateSmoothData = () => {
   return data;
 };
 
-export default function Component() {
+export default function BalanceChart() {
   return (
     <Card className="w-full rounded-xl border-0">
       <CardHeader>

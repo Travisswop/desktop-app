@@ -16,6 +16,7 @@ interface NFT {
   type: string;
   creator: string;
   image: string;
+  description: string;
 }
 
 const nfts: NFT[] = [
@@ -24,23 +25,33 @@ const nfts: NFT[] = [
     type: 'Watch',
     creator: 'AstrosWorld',
     image: '/assets/nfts/watch.png?height=300&width=300',
+    description:
+      'Ullamcorper feugiat morbi volutpat vulputate fringilla ultrices sceleris que eget amet, arcu nisl, diam proin hendrerit duis',
   },
   {
     id: '2',
     type: 'Nice T-Shirt',
     creator: 'Mask_man',
     image: '/assets/nfts/shirt.png?height=300&width=300',
+    description:
+      'Ullamcorper feugiat morbi volutpat vulputate fringilla ultrices sceleris que eget amet, arcu nisl, diam proin hendrerit duis',
   },
   {
     id: '3',
     type: 'Sunglass',
     creator: 'Jelly with monkey',
     image: '/assets/nfts/sunglass.png?height=300&width=300',
+    description:
+      'Ullamcorper feugiat morbi volutpat vulputate fringilla ultrices sceleris que eget amet, arcu nisl, diam proin hendrerit duis',
   },
   // Add more NFTs as needed
 ];
 
-export default function NFTSlider() {
+interface NftListProps {
+  onSelectNft: (nft: NFT) => void;
+}
+
+export default function NFTSlider({ onSelectNft }: NftListProps) {
   return (
     <div className="w-full max-w-6xl mx-auto p-4 bg-white rounded-xl">
       <div className="flex items-center justify-between mb-6">
@@ -62,7 +73,10 @@ export default function NFTSlider() {
               key={nft.id}
               className="pl-2 md:pl-4 md:basis-1/3 lg:basis-1/3"
             >
-              <Card className="border-0 shadow-sm">
+              <Card
+                className="border-0 shadow-sm cursor-pointer hover:shadow-lg transition-shadow"
+                onClick={() => onSelectNft(nft)}
+              >
                 <CardContent className="p-0">
                   <div className="relative aspect-square overflow-hidden rounded-t-lg">
                     <Image
@@ -94,3 +108,5 @@ export default function NFTSlider() {
     </div>
   );
 }
+
+export { nfts, type NFT };

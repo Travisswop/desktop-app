@@ -2,7 +2,6 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Search } from 'lucide-react';
 import Image from 'next/image';
-import avatar from '../../assets/images/sadit.png';
 interface MessageProps {
   id: string;
   name: string;
@@ -19,7 +18,7 @@ export default function MessageBox() {
       name: 'Sadit Ahsan',
       role: 'Graphics Designer',
       newMessages: 1,
-      avatar: `${avatar.src}?height=40&width=40`,
+      avatar: `/assets/images/sadit.png?height=32&width=32`,
       onView: () => console.log('View message'),
     },
   ];

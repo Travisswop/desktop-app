@@ -2,13 +2,14 @@
 import { useUser } from '@/lib/UserContext';
 import { Skeleton } from '../ui/skeleton';
 import ProfileHeader from './profile-header';
-import CashflowChart from './cashflow-chart';
+import BalanceChart from './balance-chart';
 import MessageBox from './message-interface';
-import TokenList, { Token } from './token-list';
-import NFTSlider from './nft-list';
-import TransactionList from './transaction-list';
+import TokenList, { Token } from './token/token-list';
+import NFTSlider, { NFT } from './nft/nft-list';
+import TransactionList from './transaction/transaction-list';
 import { useState } from 'react';
-import TokenDetails from './token-details-view';
+import TokenDetails from './token/token-details-view';
+import NFTDetailView from './nft/nft-details-view';
 
 export default function WalletContent() {
   const { user, loading, error } = useUser();
@@ -16,11 +17,22 @@ export default function WalletContent() {
   const [selectedToken, setSelectedToken] = useState<Token | null>(
     null
   );
+  const [selectedNFT, setSelectedNFT] = useState<NFT | null>(null);
+  const [isNFTModalOpen, setIsNFTModalOpen] = useState(false);
 
   const handleSelectToken = (token: Token) => {
     setSelectedToken(token);
   };
 
+  const handleSelectNFT = (nft: NFT) => {
+    setSelectedNFT(nft);
+    setIsNFTModalOpen(true);
+  };
+
+  const handleCloseNFTModal = () => {
+    setIsNFTModalOpen(false);
+    setSelectedNFT(null);
+  };
   const handleBack = () => {
     setSelectedToken(null);
   };
@@ -47,7 +59,7 @@ export default function WalletContent() {
       />
 
       <div className="grid grid-cols-2 gap-4 my-6">
-        <CashflowChart />
+        <BalanceChart />
         <MessageBox />
       </div>
       <div className="grid grid-cols-2 gap-4 my-6">
@@ -57,8 +69,15 @@ export default function WalletContent() {
           <TokenList onSelectToken={handleSelectToken} />
         )}
         <div>
-          <NFTSlider />
+          <NFTSlider onSelectNft={handleSelectNFT} />
           <TransactionList />
+          {selectedNFT && (
+            <NFTDetailView
+              isOpen={isNFTModalOpen}
+              onClose={handleCloseNFTModal}
+              nft={selectedNFT}
+            />
+          )}
         </div>
       </div>
     </div>
