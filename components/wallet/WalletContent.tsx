@@ -4,12 +4,26 @@ import { Skeleton } from '../ui/skeleton';
 import ProfileHeader from './profile-header';
 import CashflowChart from './cashflow-chart';
 import MessageBox from './message-interface';
-import Tokens from './token-list';
+import TokenList, { Token } from './token-list';
 import NFTSlider from './nft-list';
 import TransactionList from './transaction-list';
+import { useState } from 'react';
+import TokenDetails from './token-details-view';
 
 export default function WalletContent() {
   const { user, loading, error } = useUser();
+
+  const [selectedToken, setSelectedToken] = useState<Token | null>(
+    null
+  );
+
+  const handleSelectToken = (token: Token) => {
+    setSelectedToken(token);
+  };
+
+  const handleBack = () => {
+    setSelectedToken(null);
+  };
 
   if (loading) {
     return <DashboardSkeleton />;
@@ -37,7 +51,11 @@ export default function WalletContent() {
         <MessageBox />
       </div>
       <div className="grid grid-cols-2 gap-4 my-6">
-        <Tokens />
+        {selectedToken ? (
+          <TokenDetails token={selectedToken} onBack={handleBack} />
+        ) : (
+          <TokenList onSelectToken={handleSelectToken} />
+        )}
         <div>
           <NFTSlider />
           <TransactionList />

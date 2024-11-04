@@ -39,7 +39,7 @@ const tokens: Token[] = [
     name: 'Bitcoin',
     symbol: 'BTC',
     icon: '/assets/crypto-icons/BTC.png?height=32&width=32',
-    price: 29.8799,
+    price: 70000,
     amount: 2.29,
     change: 20,
     color: '#F7931A',
@@ -50,7 +50,7 @@ const tokens: Token[] = [
     name: 'Ethereum',
     symbol: 'ETH',
     icon: '/assets/crypto-icons/ETH.png?height=32&width=32',
-    price: 29.8799,
+    price: 26500,
     amount: 2.29,
     change: 20,
     color: '#627EEA',
@@ -61,7 +61,7 @@ const tokens: Token[] = [
     name: 'Polygon',
     symbol: 'Polygon',
     icon: '/assets/crypto-icons/MATIC.png?height=32&width=32',
-    price: 29.8799,
+    price: 0.5,
     amount: 2.29,
     change: 20,
     color: '#8247E5',
@@ -72,7 +72,7 @@ const tokens: Token[] = [
     name: 'USDT',
     symbol: 'tetherUS',
     icon: '/assets/crypto-icons/USDT.png?height=32&width=32',
-    price: 29.8799,
+    price: 1,
     amount: 2.29,
     change: 20,
     color: '#26A17B',
@@ -83,7 +83,7 @@ const tokens: Token[] = [
     name: 'USDC',
     symbol: 'USDC',
     icon: '/assets/crypto-icons/USDC.png?height=32&width=32',
-    price: 100.29,
+    price: 1,
     amount: 100.29,
     change: 0,
     color: '#2775CA',
@@ -91,7 +91,11 @@ const tokens: Token[] = [
   },
 ];
 
-export default function Tokens() {
+interface TokenListProps {
+  onSelectToken: (token: Token) => void;
+}
+
+export default function TokenList({ onSelectToken }: TokenListProps) {
   return (
     <div className="w-full max-w-4xl mx-auto p-4 bg-white rounded-xl">
       <div className="flex items-center justify-between mb-6">
@@ -118,16 +122,29 @@ export default function Tokens() {
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4">
         {tokens.map((token) => (
-          <TokenCard key={token.id} token={token} />
+          <TokenCard
+            key={token.id}
+            token={token}
+            onClick={() => onSelectToken(token)}
+          />
         ))}
       </div>
     </div>
   );
 }
 
-function TokenCard({ token }: { token: Token }) {
+function TokenCard({
+  token,
+  onClick,
+}: {
+  token: Token;
+  onClick: () => void;
+}) {
   return (
-    <Card className="p-4 rounded-3xl shadow-xl">
+    <Card
+      className="p-4 rounded-3xl shadow-xl cursor-pointer hover:shadow-2xl transition-shadow"
+      onClick={onClick}
+    >
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center space-x-3">
           <Image
@@ -203,3 +220,6 @@ function TokenCard({ token }: { token: Token }) {
     </Card>
   );
 }
+
+// Export tokens for use in other components
+export { tokens, type Token };

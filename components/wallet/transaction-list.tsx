@@ -20,7 +20,7 @@ const transactions: Transaction[] = [
     amount: 582.38,
     usdAmount: 8735.79,
     type: 'receive',
-    badge: '4',
+    badge: 'E',
   },
   {
     id: '2',
@@ -38,7 +38,7 @@ const transactions: Transaction[] = [
     amount: 168.26,
     usdAmount: 4256.98,
     type: 'receive',
-    badge: '4',
+    badge: 'M',
   },
   {
     id: '4',
