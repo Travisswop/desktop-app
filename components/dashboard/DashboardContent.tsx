@@ -1,6 +1,7 @@
 'use client';
 import { useUser } from '@/lib/UserContext';
 import { Skeleton } from '../ui/skeleton';
+import ProfileHeader from './profile-header';
 
 export default function DashboardContent() {
   const { user, loading, error } = useUser();
@@ -15,12 +16,17 @@ export default function DashboardContent() {
   }
   return (
     <div className="p-8">
-      <h1 className="text-2xl font-bold mb-4">
-        Welcome to your Dashboard
-      </h1>
-      <p className="mb-4">
-        Hello, {user?.name ? user.name : 'User'}!
-      </p>
+      <ProfileHeader
+        name={user?.name || 'Your Name'}
+        username={'Travis.Swop.ID'}
+        location={user?.address || ''}
+        followers={user?.connections.followers.length || 0}
+        following={user?.connections.following.length || 0}
+        messages={0}
+        orders={40}
+        points={31234}
+        imageUrl={user?.profilePic || '/images/avatar.png'}
+      />
 
       <div className="mt-8 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         <DashboardCard title="Total Users" value="1,234" />

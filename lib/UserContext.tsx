@@ -10,11 +10,15 @@ import {
 import { usePrivy } from '@privy-io/react-auth';
 
 interface UserData {
-  id: string;
   email: string;
-  name?: string;
+  name: string;
   mobileNo?: string;
   profilePic?: string;
+  address?: string;
+  connections: {
+    followers: string[];
+    following: string[];
+  };
   // Add other user fields as needed
 }
 
