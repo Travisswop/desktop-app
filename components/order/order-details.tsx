@@ -50,7 +50,7 @@ export default function OrderInfos() {
   };
 
   return (
-    <div className="container mx-auto p-6 max-w-7xl">
+    <div className="">
       <Card className="p-6">
         <div className="flex items-start justify-between mb-6">
           <div className="flex flex-col items-start gap-4">

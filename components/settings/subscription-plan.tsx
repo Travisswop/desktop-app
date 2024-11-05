@@ -99,7 +99,7 @@ const plans: Plan[] = [
 
 export default function Subscriptions() {
   return (
-    <div className="container mx-auto px-4 py-8">
+    <div className="px-4 py-8">
       <h2 className="text-xl font-semibold mb-8">All Plans</h2>
       <div className="grid md:grid-cols-3 gap-6">
         {plans.map((plan) => (

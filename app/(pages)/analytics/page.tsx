@@ -9,7 +9,7 @@ const Analytics: React.FC = () => {
   };
 
   return (
-    <div className="container mx-auto p-6 max-w-7xl">
+    <div className="">
       <h1>Analytics Overview</h1>
       <ul>
         <li>Total Users: {data.totalUsers}</li>

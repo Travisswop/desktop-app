@@ -8,7 +8,7 @@ import Subscriptions from './subscription-plan';
 
 export default function SettingContent() {
   return (
-    <div className="container mx-auto p-6 max-w-7xl bg-white rounded-xl">
+    <div className="bg-white rounded-xl p-6">
       <div className="space-y-6">
         <div>
           <h1 className="text-2xl font-semibold mb-4">Settings</h1>

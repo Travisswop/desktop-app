@@ -13,7 +13,7 @@ const Mint: React.FC = () => {
   };
 
   return (
-    <div className="container mx-auto p-6 max-w-7xl">
+    <div className="">
       <h2>Mint Your Token</h2>
       <button onClick={handleMint} disabled={isMinting}>
         {isMinting ? 'Minting...' : 'Mint Token'}

@@ -65,7 +65,7 @@ const orders: Order[] = [
 
 export default function OrderDashboard() {
   return (
-    <div className="container mx-auto p-6 max-w-7xl space-y-6">
+    <div className="space-y-6">
       <div className="grid grid-cols-5 gap-6">
         {/* Total Order Card */}
         <Card className=" col-span-1 border-none rounded-xl">
