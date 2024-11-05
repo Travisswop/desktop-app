@@ -7,7 +7,6 @@ import {
   Wallet,
   BarChart2,
   FileText,
-  LogOut,
   ShoppingBag,
   ImageIcon,
   LayoutDashboard,
@@ -81,13 +80,6 @@ export default function Sidenav() {
               Upgrade Plan
             </Button>
           </div>
-          <Button
-            variant="ghost"
-            className="w-full justify-start gap-2 text-gray-500"
-          >
-            <LogOut className="h-5 w-5" />
-            Logout
-          </Button>
         </div>
       </div>
     </aside>

@@ -13,11 +13,12 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { useUser } from '@/lib/UserContext';
 import { Skeleton } from './ui/skeleton';
+import { useRouter } from 'next/navigation';
 
 export default function Header() {
   const { logout } = usePrivy();
   const { user, loading } = useUser();
-
+  const router = useRouter();
   const handleLogout = async () => {
     try {
       const res = await fetch(`/api/auth/logout`, {
@@ -69,7 +70,7 @@ export default function Header() {
           <DropdownMenuContent align="end" className="w-48">
             <DropdownMenuItem
               onSelect={() => {
-                /* Handle settings */
+                router.replace('/account-billing');
               }}
             >
               Settings
