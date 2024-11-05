@@ -46,10 +46,7 @@ export default function Header() {
   }
 
   return (
-    <header className="bg-white shadow-md p-6 flex justify-between items-center">
-      <Link href="/dashboard">
-        <Image src="/logo.png" alt="Logo" width={120} height={50} />
-      </Link>
+    <header className="sticky top-0 z-30 h-20 items-center  border-b bg-white px-4 flex justify-end">
       {user && (
         <DropdownMenu>
           <DropdownMenuTrigger asChild>

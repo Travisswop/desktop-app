@@ -1,16 +1,16 @@
 'use client';
 
-import { withAuth } from '@/lib/withAuth';
+// import { withAuth } from '@/lib/withAuth';
 import DashboardContent from '@/components/dashboard/DashboardContent';
 import Header from '@/components/Header';
 import Sidenav from '@/components/Sidenav';
 function DashboardPage() {
   return (
-    <div className="flex flex-col min-h-screen">
+    <div className="min-h-screen bg-gray-100/40">
+      <Sidenav />
       <Header />
-      <div className="flex flex-1">
-        <Sidenav className="w-1/5" />
-        <main className="w-4/5 p-4 bg-accent">
+      <div className="pl-64">
+        <main className="p-6 bg-accent">
           <DashboardContent />
         </main>
       </div>
@@ -18,4 +18,5 @@ function DashboardPage() {
   );
 }
 
-export default withAuth(DashboardPage);
+// export default withAuth(DashboardPage);
+export default DashboardPage;

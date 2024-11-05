@@ -10,7 +10,7 @@ const Feed: React.FC = () => {
   ];
 
   return (
-    <div>
+    <div className="container mx-auto p-6 max-w-7xl">
       <h1>Feed</h1>
       <ul>
         {posts.map((post) => (

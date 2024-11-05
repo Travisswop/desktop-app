@@ -6,6 +6,7 @@ import {
   ResponsiveContainer,
   XAxis,
   YAxis,
+  Tooltip,
 } from 'recharts';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -15,23 +16,43 @@ import { Wallet, Send, ArrowRightLeft } from 'lucide-react';
 import Image from 'next/image';
 import { type ChartConfig } from '@/components/ui/chart';
 import { Token } from './token-list';
+import { format } from 'date-fns';
 
 const chartConfig = {
   desktop: {
     label: 'Desktop',
-    color: '#2563eb',
-  },
-  mobile: {
-    label: 'Mobile',
-    color: '#60a5fa',
+    color: 'hsl(var(--chart-1))',
   },
 } satisfies ChartConfig;
-// Sample data for the chart
+
 const generateChartData = () => {
-  return Array.from({ length: 100 }, (_, i) => ({
-    date: new Date(Date.now() - (100 - i) * 24 * 60 * 60 * 1000),
-    value: 5 + Math.sin(i / 10) * 2 + i / 10,
-  }));
+  const data = Array.from({ length: 24 }, (_, i) => {
+    const date = new Date();
+    date.setHours(date.getHours() - (24 - i));
+    return {
+      timestamp: date.getTime(),
+      value: 5 + Math.sin(i / 4) * 2 + i / 8,
+    };
+  });
+
+  return data;
+};
+// Custom tooltip component
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const CustomTooltip = ({ active, payload, label }: any) => {
+  if (active && payload && payload.length) {
+    return (
+      <div className="bg-white p-2 border rounded shadow-sm">
+        <p className="text-sm text-gray-600">
+          {format(new Date(label), 'MMM d, h:mm a')}
+        </p>
+        <p className="text-sm font-bold">
+          ${payload[0].value.toFixed(2)}
+        </p>
+      </div>
+    );
+  }
+  return null;
 };
 
 interface TokenDetailsProps {
@@ -88,7 +109,10 @@ export default function TokenDetails({
               className="h-[200px]"
             >
               <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={data}>
+                <AreaChart
+                  data={data}
+                  margin={{ top: 10, right: 30, left: 0, bottom: 0 }}
+                >
                   <defs>
                     <linearGradient
                       id="colorValue"
@@ -109,21 +133,41 @@ export default function TokenDetails({
                       />
                     </linearGradient>
                   </defs>
-                  <XAxis dataKey="date" hide />
-                  <YAxis hide domain={['dataMin', 'dataMax']} />
+                  <XAxis
+                    dataKey="timestamp"
+                    tickFormatter={(timestamp) =>
+                      format(new Date(timestamp), 'h:mm a')
+                    }
+                    type="number"
+                    scale="time"
+                    domain={['auto', 'auto']}
+                    tickLine={false}
+                    axisLine={false}
+                    minTickGap={30}
+                  />
+                  <YAxis
+                    domain={['dataMin - 1', 'dataMax + 1']}
+                    hide
+                  />
+                  <Tooltip
+                    content={<CustomTooltip />}
+                    cursor={{ stroke: '#4F46E5', strokeWidth: 1 }}
+                  />
                   <Area
                     type="monotone"
                     dataKey="value"
                     stroke="#4F46E5"
-                    fill="url(#colorValue)"
                     strokeWidth={2}
+                    fill="url(#colorValue)"
+                    isAnimationActive={true}
+                    animationDuration={1000}
                   />
                 </AreaChart>
               </ResponsiveContainer>
             </ChartContainer>
 
-            <Tabs defaultValue="1D" className="w-full mt-4 ">
-              <TabsList className="grid w-full grid-cols-5 ">
+            <Tabs defaultValue="1D" className="w-full mt-4">
+              <TabsList className="grid w-full grid-cols-5">
                 <TabsTrigger value="1H">1H</TabsTrigger>
                 <TabsTrigger value="1D">1D</TabsTrigger>
                 <TabsTrigger value="1W">1W</TabsTrigger>

@@ -45,7 +45,7 @@ export default function WalletContent() {
     return <div>Error loading dashboard: {error.message}</div>;
   }
   return (
-    <div className="p-8">
+    <div className="container mx-auto p-6 max-w-7xl">
       <ProfileHeader
         name={user?.name || 'Your Name'}
         username={'Travis.Swop.ID'}
