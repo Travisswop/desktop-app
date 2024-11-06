@@ -3,6 +3,7 @@ import { useUser } from '@/lib/UserContext';
 import { Skeleton } from '../ui/skeleton';
 import ProfileHeader from './profile-header';
 import CashflowChart from './cashflow-chart';
+import DashboardAnalytics from './analytics';
 
 export default function DashboardContent() {
   const { user, loading, error } = useUser();
@@ -30,6 +31,8 @@ export default function DashboardContent() {
       />
 
       <CashflowChart />
+
+      <DashboardAnalytics />
     </div>
   );
 }

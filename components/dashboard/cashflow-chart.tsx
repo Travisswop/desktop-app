@@ -15,20 +15,7 @@ import {
   CardTitle,
 } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { ChartContainer } from '@/components/ui/chart';
 import { ChevronDown } from 'lucide-react';
-import { type ChartConfig } from '@/components/ui/chart';
-
-const chartConfig = {
-  desktop: {
-    label: 'Desktop',
-    color: '#2563eb',
-  },
-  mobile: {
-    label: 'Mobile',
-    color: '#60a5fa',
-  },
-} satisfies ChartConfig;
 
 // Generate more data points for smoother curve
 const generateSmoothData = () => {
@@ -69,7 +56,7 @@ export default function Component() {
         <div className="text-3xl font-bold">$28,304.59</div>
       </CardHeader>
       <CardContent>
-        <ChartContainer config={chartConfig} className="h-[200px]">
+        <div className="h-[180px] mt-4">
           <ResponsiveContainer width="100%" height="100%">
             <AreaChart
               data={generateSmoothData()}
@@ -130,7 +117,7 @@ export default function Component() {
               />
             </AreaChart>
           </ResponsiveContainer>
-        </ChartContainer>
+        </div>
       </CardContent>
       <CardFooter>
         <div className="flex items-center gap-2 text-sm">

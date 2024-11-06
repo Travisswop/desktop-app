@@ -17,18 +17,25 @@ import { useRouter } from 'next/navigation';
 
 export default function Header() {
   const { logout } = usePrivy();
-  const { user, loading } = useUser();
+  const { user, loading, clearCache } = useUser();
   const router = useRouter();
+
   const handleLogout = async () => {
     try {
+      // Clear user cache first
+      clearCache();
+
+      // Call logout API
       const res = await fetch(`/api/auth/logout`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
       });
+
       if (res.ok) {
-        logout();
+        // Finally, logout from Privy
+        await logout();
       }
     } catch (error) {
       console.error('Logout error:', error);

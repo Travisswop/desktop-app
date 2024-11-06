@@ -142,6 +142,15 @@ export default function SmartSiteSlider() {
                       </div>
                     </div>
                   </div>
+                  <div className="mt-8 flex justify-center">
+                    <Image
+                      src="/assets/images/qrcode.png"
+                      alt="Qr code"
+                      height={120}
+                      width={120}
+                      className=" rounded-2xl border-black border-2"
+                    />
+                  </div>
                   <div className="flex justify-center mt-8">
                     <Button
                       variant="black"

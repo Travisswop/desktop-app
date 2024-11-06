@@ -32,7 +32,7 @@ const authCache = new Map<
   string,
   { timestamp: number; isValid: boolean }
 >();
-const CACHE_DURATION = 10 * 60 * 1000; // 10 minutes in milliseconds
+const CACHE_DURATION = 60 * 60 * 1000; // 60 minutes in milliseconds
 
 async function verifyAuth(request: NextRequest) {
   const privy_token = request.cookies.get('privy-token')?.value;
@@ -49,7 +49,7 @@ async function verifyAuth(request: NextRequest) {
   const now = Date.now();
 
   if (cachedResult && now - cachedResult.timestamp < CACHE_DURATION) {
-    console.log('hit here');
+    console.log('cachedResult', cachedResult.isValid);
     return cachedResult.isValid;
   }
 
@@ -145,6 +145,7 @@ export async function middleware(request: NextRequest) {
       !isAuthenticated &&
       protectedRoutes.some((route) => pathname.startsWith(route))
     ) {
+      console.log('Redirecting to login'); // Added logging
       // Clear any stale cookies
       const response = NextResponse.redirect(
         new URL('/login', request.url)

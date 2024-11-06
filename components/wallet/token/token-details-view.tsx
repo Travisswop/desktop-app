@@ -11,19 +11,10 @@ import {
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { ChartContainer } from '@/components/ui/chart';
 import { Wallet, Send, ArrowRightLeft } from 'lucide-react';
 import Image from 'next/image';
-import { type ChartConfig } from '@/components/ui/chart';
 import { Token } from './token-list';
 import { format } from 'date-fns';
-
-const chartConfig = {
-  desktop: {
-    label: 'Desktop',
-    color: 'hsl(var(--chart-1))',
-  },
-} satisfies ChartConfig;
 
 const generateChartData = () => {
   const data = Array.from({ length: 24 }, (_, i) => {
@@ -104,10 +95,7 @@ export default function TokenDetails({
         {/* Chart */}
         <Card className="border-0 shadow-none">
           <CardContent className="pt-6 px-0 pb-4">
-            <ChartContainer
-              config={chartConfig}
-              className="h-[200px]"
-            >
+            <div className="h-[200px]">
               <ResponsiveContainer width="100%" height="100%">
                 <AreaChart
                   data={data}
@@ -164,7 +152,7 @@ export default function TokenDetails({
                   />
                 </AreaChart>
               </ResponsiveContainer>
-            </ChartContainer>
+            </div>
 
             <Tabs defaultValue="1D" className="w-full mt-4">
               <TabsList className="grid w-full grid-cols-5">

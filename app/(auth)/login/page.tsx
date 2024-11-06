@@ -3,12 +3,16 @@
 import { usePrivy, useLogin } from '@privy-io/react-auth';
 import { useRouter } from 'next/navigation';
 import { Skeleton } from '@/components/ui/skeleton';
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { Card, CardContent, CardHeader } from '@/components/ui/card';
+
+import RotateEarth from '@/components/rotating-earth';
 
 const Login: React.FC = () => {
   const { ready, authenticated, getAccessToken } = usePrivy();
   const router = useRouter();
   const loginInitiated = useRef(false);
+  const [isLoading, setIsLoading] = useState(false);
 
   const { login } = useLogin({
     onComplete: async (user) => {
@@ -59,45 +63,57 @@ const Login: React.FC = () => {
         console.error('Error verifying user:', error);
         loginInitiated.current = false;
         router.push('/onboard');
+      } finally {
+        setIsLoading(false);
       }
     },
     onError: (error) => {
       console.error('Login error:', error);
       loginInitiated.current = false;
-      alert('Login failed. Please try again.');
+      setIsLoading(false);
     },
   });
 
   useEffect(() => {
     if (ready && !authenticated && !loginInitiated.current) {
       loginInitiated.current = true;
-      login();
+      handleLogin();
     }
-  }, [ready, authenticated, login]);
+  }, [ready, authenticated]);
+
+  const handleLogin = () => {
+    setIsLoading(true);
+    login();
+  };
 
   if (!ready) {
     return <LoginSkeleton />;
   }
 
-  return (
-    <div className="flex items-center justify-center min-h-screen bg-gray-100">
-      <div className="p-8 bg-white rounded-lg shadow-md w-full max-w-md">
-        <h1 className="text-2xl font-bold mb-4">Welcome</h1>
-        <p className="mb-4">Initiating login...</p>
-        <Skeleton className="h-10 w-full" />
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen ">
+        <RotateEarth />
       </div>
-    </div>
-  );
+    );
+  }
 };
 
 function LoginSkeleton() {
   return (
     <div className="flex items-center justify-center min-h-screen bg-gray-100">
-      <div className="p-8 bg-white rounded-lg shadow-md w-full max-w-md">
-        <Skeleton className="h-8 w-3/4 mb-4" />
-        <Skeleton className="h-4 w-full mb-4" />
-        <Skeleton className="h-10 w-full" />
-      </div>
+      <Card className="w-full max-w-md">
+        <CardHeader>
+          <Skeleton className="h-8 w-3/4 mb-2" />
+          <Skeleton className="h-4 w-full" />
+        </CardHeader>
+        <CardContent>
+          <Skeleton className="h-4 w-full mb-2" />
+          <Skeleton className="h-4 w-full mb-2" />
+          <Skeleton className="h-4 w-3/4 mb-4" />
+          <Skeleton className="h-10 w-full" />
+        </CardContent>
+      </Card>
     </div>
   );
 }

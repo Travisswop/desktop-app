@@ -27,6 +27,7 @@ interface UserContextType {
   loading: boolean;
   error: Error | null;
   refreshUser: () => Promise<void>;
+  clearCache: () => void;
 }
 
 const UserContext = createContext<UserContextType>({
@@ -34,6 +35,7 @@ const UserContext = createContext<UserContextType>({
   loading: true,
   error: null,
   refreshUser: async () => {},
+  clearCache: () => {},
 });
 
 // Create a cache to store user data
@@ -41,7 +43,7 @@ const userCache = new Map<
   string,
   { data: UserData; timestamp: number }
 >();
-const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
+const CACHE_DURATION = 60 * 60 * 1000; // 60 minutes
 
 export function UserProvider({
   children,
@@ -123,15 +125,20 @@ export function UserProvider({
     return () => clearInterval(cleanup);
   }, []);
 
+  const clearCache = useCallback(() => {
+    userCache.clear();
+    setUser(null);
+  }, []);
+
   const refreshUser = async () => {
-    if (!privyUser?.email?.address) return;
+    if (!email) return;
     setLoading(true);
-    await fetchUserData(privyUser.email.address, true); // Force refresh
+    await fetchUserData(email, true);
   };
 
   return (
     <UserContext.Provider
-      value={{ user, loading, error, refreshUser }}
+      value={{ user, loading, error, refreshUser, clearCache }}
     >
       {children}
     </UserContext.Provider>

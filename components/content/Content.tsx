@@ -1,10 +1,9 @@
 'use client';
 
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Card, CardContent, CardFooter } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 
 import { Music, User, Volume2 } from 'lucide-react';
-import Image from 'next/image';
 import VideoPlayer from './Video';
 import AudioPlayer from './Audio';
 import { TabsContent } from '@radix-ui/react-tabs';
@@ -39,6 +38,74 @@ const contentItems: ContentItem[] = [
     thumbnail: '/placeholder.svg?height=200&width=300',
     mediaUrl:
       'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4',
+  },
+  {
+    id: '3',
+    type: 'audio',
+    title: 'Imagine Dragons - Believer (Audio)',
+    author: 'Emma',
+    views: '45k',
+    mediaUrl:
+      'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-2.mp3',
+  },
+  {
+    id: '4',
+    type: 'video',
+    title: 'Sunset at the Beach',
+    author: 'Sarah',
+    views: '67k',
+    thumbnail: '/placeholder.svg?height=200&width=300',
+    mediaUrl:
+      'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ElephantsDream.mp4',
+  },
+
+  {
+    id: '6',
+    type: 'audio',
+    title: 'Coldplay - Fix You (Live)',
+    author: 'David',
+    views: '89k',
+    mediaUrl:
+      'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-3.mp3',
+  },
+  {
+    id: '7',
+    type: 'video',
+    title: 'Cooking Tutorial: Perfect Pasta',
+    author: 'Chef Julia',
+    views: '34k',
+    thumbnail: '/placeholder.svg?height=200&width=300',
+    mediaUrl:
+      'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4',
+  },
+
+  {
+    id: '9',
+    type: 'audio',
+    title: 'Podcast: Tech Trends 2024',
+    author: 'TechGuru',
+    views: '78k',
+    mediaUrl:
+      'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-4.mp3',
+  },
+  {
+    id: '10',
+    type: 'video',
+    title: 'Yoga for Beginners',
+    author: 'Zen Master',
+    views: '101k',
+    thumbnail: '/placeholder.svg?height=200&width=300',
+    mediaUrl:
+      'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerEscapes.mp4',
+  },
+  {
+    id: '12',
+    type: 'audio',
+    title: 'Classical Symphony No. 5',
+    author: 'Philharmonic Orchestra',
+    views: '67k',
+    mediaUrl:
+      'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-5.mp3',
   },
 ];
 
