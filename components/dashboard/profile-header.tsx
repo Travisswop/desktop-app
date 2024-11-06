@@ -37,7 +37,11 @@ export default function ProfileHeader({
         <div className="flex items-center gap-4">
           <div className="relative">
             <Image
-              src={imageUrl}
+              src={
+                imageUrl?.includes('https')
+                  ? imageUrl
+                  : `/assets/avatar/${imageUrl}`
+              }
               alt={name}
               width={80}
               height={80}

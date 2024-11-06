@@ -64,7 +64,11 @@ export default function Header() {
             >
               <div className="relative h-8 w-8">
                 <Image
-                  src={user.profilePic || '/avatar.png'}
+                  src={
+                    user.profilePic?.includes('https')
+                      ? user.profilePic
+                      : `/assets/avatar/${user.profilePic}`
+                  }
                   alt={`${user.name}'s avatar`}
                   fill
                   className="rounded-full object-cover"
