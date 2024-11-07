@@ -15,20 +15,14 @@ import {
   CardTitle,
 } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { ChartContainer } from '@/components/ui/chart';
-import { ChevronDown, QrCode, Rocket, Wallet } from 'lucide-react';
-import { type ChartConfig } from '@/components/ui/chart';
 
-const chartConfig = {
-  desktop: {
-    label: 'Desktop',
-    color: '#2563eb',
-  },
-  mobile: {
-    label: 'Mobile',
-    color: '#60a5fa',
-  },
-} satisfies ChartConfig;
+import {
+  BadgeDollarSign,
+  ChevronDown,
+  QrCode,
+  Rocket,
+  Wallet,
+} from 'lucide-react';
 
 // Generate more data points for smoother curve
 const generateSmoothData = () => {
@@ -61,33 +55,34 @@ const generateSmoothData = () => {
 
 export default function BalanceChart() {
   return (
-    <Card className="w-full rounded-xl border-0">
+    <Card className="w-full">
       <CardHeader>
-        <CardTitle className="text-lg font-medium">
-          <div className="flex justify-between">
-            <div>
-              <h2 className="text-xl font-semibold text-gray-800">
-                Balance
-              </h2>
-              <div className="text-xl font-semibold">$28,304.59</div>
+        <div className="flex justify-between">
+          <div>
+            <div className="flex items-center gap-2">
+              <BadgeDollarSign />
+              <CardTitle>Balance</CardTitle>
             </div>
-
-            <div className="flex gap-2">
-              <Button variant="black" size="icon">
-                <Rocket />
-              </Button>
-              <Button variant="black" size="icon">
-                <Wallet />
-              </Button>
-              <Button variant="black" size="icon">
-                <QrCode />
-              </Button>
+            <div className="text-xl font-semibold ml-8 mt-2">
+              $28,304.59
             </div>
           </div>
-        </CardTitle>
+
+          <div className="flex gap-2">
+            <Button variant="black" size="icon">
+              <Rocket />
+            </Button>
+            <Button variant="black" size="icon">
+              <Wallet />
+            </Button>
+            <Button variant="black" size="icon">
+              <QrCode />
+            </Button>
+          </div>
+        </div>
       </CardHeader>
       <CardContent>
-        <ChartContainer config={chartConfig} className="h-[200px]">
+        <div className="h-[200px]">
           <ResponsiveContainer width="100%" height="100%">
             <AreaChart
               data={generateSmoothData()}
@@ -148,7 +143,7 @@ export default function BalanceChart() {
               />
             </AreaChart>
           </ResponsiveContainer>
-        </ChartContainer>
+        </div>
       </CardContent>
       <CardFooter>
         <div className="flex items-center gap-2 text-sm">

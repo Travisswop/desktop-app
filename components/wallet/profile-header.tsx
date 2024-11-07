@@ -1,39 +1,29 @@
-import { Card } from '@/components/ui/card';
-import {
-  MessageCircle,
-  FileText,
-  Star,
-  CheckCircle2,
-} from 'lucide-react';
+'use client';
+
+import { Card, CardContent, CardHeader } from '@/components/ui/card';
+import { Sparkles } from 'lucide-react';
 import Image from 'next/image';
+import { useState } from 'react';
+import { Button } from '../ui/button';
 
 interface ProfileHeaderProps {
   name: string;
   username: string;
-  location: string;
-  followers: number;
-  following: number;
-  messages: number;
-  orders: number;
-  points: number;
   imageUrl: string;
+  points: number;
 }
 
 export default function ProfileHeader({
   name,
   username,
-  location,
-  followers,
-  following,
-  messages,
-  orders,
-  points,
   imageUrl,
+  points = 31234,
 }: ProfileHeaderProps) {
+  const [isHovered, setIsHovered] = useState(false);
   return (
-    <div className="w-full">
-      <div className="flex flex-col md:flex-row items-start md:items-center gap-6 bg-white p-6 rounded-lg">
-        {/* Profile Section */}
+    <Card className="w-full max-w-sm">
+      <CardHeader></CardHeader>
+      <CardContent>
         <div className="flex items-center gap-4">
           <div className="relative">
             <Image
@@ -43,76 +33,58 @@ export default function ProfileHeader({
               height={80}
               className="rounded-full"
             />
-            <CheckCircle2 className="absolute bottom-0 right-0 text-blue-500 bg-white rounded-full w-5 h-5" />
           </div>
           <div className="space-y-1">
             <div className="flex items-center gap-2">
-              <h1 className="text-md font-semibold">{name}</h1>
+              <h1 className="text-lg font-semibold">{name}</h1>
             </div>
-            <p className="text-muted-foreground">{username}</p>
-            <p className="text-sm text-muted-foreground">
-              {location}
+            <p className="text-sm font-bold text-muted-foreground">
+              {username}
             </p>
           </div>
         </div>
 
-        {/* Followers Section */}
-        <div className="flex gap-4 ml-0 md:ml-8">
-          <div className="text-center">
-            <p className="font-semibold">
-              {followers.toLocaleString()}
-            </p>
-            <p className="text-sm ">Followers</p>
-          </div>
-          <div className="border-l-2 border-gray-700 h-5 " />
-          <div className="text-center">
-            <p className="font-semibold">
-              {following.toLocaleString()}
-            </p>
-            <p className="text-sm ">Following</p>
+        {/* Swopple Points Section */}
+        <div className="mt-6">
+          <div
+            className="relative w-full aspect-square max-w-[200px] mx-auto cursor-pointer"
+            onMouseEnter={() => setIsHovered(true)}
+            onMouseLeave={() => setIsHovered(false)}
+          >
+            {/* Animated Background Ring */}
+            <div className="absolute inset-0 rounded-full bg-gradient-to-r from-purple-400 via-pink-400  to-red-500 animate-spin-slow opacity-20"></div>
+
+            {/* Main Circle */}
+            <div
+              className="absolute inset-2 rounded-full bg-white shadow-lg flex flex-col items-center justify-center transition-transform duration-300"
+              style={{
+                transform: isHovered ? 'scale(1.05)' : 'scale(1)',
+              }}
+            >
+              <Sparkles className="w-6 h-6 text-yellow-400 animate-pulse mb-2" />
+              <p className="text-sm text-gray-600">
+                My Swopple Points
+              </p>
+              <div className="flex items-center gap-2 mt-1">
+                <span className="text-2xl font-bold bg-gradient-to-r from-purple-600 to-pink-600 bg-clip-text text-transparent">
+                  {points.toLocaleString()}
+                </span>
+              </div>
+
+              {/* Hover Effect */}
+              {isHovered && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="mt-2 text-xs text-purple-600 hover:text-purple-700"
+                >
+                  View History
+                </Button>
+              )}
+            </div>
           </div>
         </div>
-
-        {/* Stats Cards */}
-        <div className="flex flex-wrap gap-4 ml-0 md:ml-auto">
-          <StatCard
-            icon={<MessageCircle className="w-5 h-5" />}
-            value={messages}
-            label="Messages"
-          />
-          <StatCard
-            icon={<FileText className="w-5 h-5" />}
-            value={orders}
-            label="Orders"
-          />
-          <StatCard
-            icon={<Star className="w-5 h-5" />}
-            value={points.toLocaleString()}
-            label="Swopple Points"
-          />
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function StatCard({
-  icon,
-  value,
-  label,
-}: {
-  icon: React.ReactNode;
-  value: number | string;
-  label: string;
-}) {
-  return (
-    <Card className="flex flex-col items-center gap-2 p-4 min-w-[160px]">
-      <div className="flex w-full justify-center items-center bg-gray-100 rounded-md py-2">
-        {icon} <span className="text-2xl font-bold">{value}</span>
-      </div>
-      <div>
-        <p className="text-sm ">{label}</p>
-      </div>
+      </CardContent>
     </Card>
   );
 }

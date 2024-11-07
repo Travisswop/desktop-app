@@ -1,7 +1,7 @@
 'use client';
 import { useUser } from '@/lib/UserContext';
 import { Skeleton } from '../ui/skeleton';
-import ProfileHeader from './profile-header';
+
 import BalanceChart from './balance-chart';
 import MessageBox from './message-interface';
 import TokenList, { Token } from './token/token-list';
@@ -10,6 +10,9 @@ import TransactionList from './transaction/transaction-list';
 import { useState } from 'react';
 import TokenDetails from './token/token-details-view';
 import NFTDetailView from './nft/nft-details-view';
+import WalletManager from './wallet-manager';
+import EmbeddedWallet from './embedded-wallet';
+import ProfileHeader from './profile-header';
 
 export default function WalletContent() {
   const { user, loading, error } = useUser();
@@ -46,23 +49,22 @@ export default function WalletContent() {
   }
   return (
     <div className="">
-      <ProfileHeader
-        name={user?.name || 'Your Name'}
-        username={'Travis.Swop.ID'}
-        location={user?.address || ''}
-        followers={user?.connections.followers.length || 0}
-        following={user?.connections.following.length || 0}
-        messages={0}
-        orders={40}
-        points={31234}
-        imageUrl={user?.profilePic || '/images/avatar.png'}
-      />
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 my-6">
+        <ProfileHeader
+          name={user?.name || 'Your Name'}
+          username={'Travis.Swop.ID'}
+          imageUrl={user?.profilePic || '/images/avatar.png'}
+          points={3200}
+        />
+        <WalletManager />
 
-      <div className="grid grid-cols-2 gap-4 my-6">
+        <EmbeddedWallet />
+      </div>
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 my-6">
         <BalanceChart />
         <MessageBox />
       </div>
-      <div className="grid grid-cols-2 gap-4 my-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 my-6">
         {selectedToken ? (
           <TokenDetails token={selectedToken} onBack={handleBack} />
         ) : (

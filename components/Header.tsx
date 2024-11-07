@@ -36,6 +36,7 @@ export default function Header() {
       if (res.ok) {
         // Finally, logout from Privy
         await logout();
+        router.replace('/login');
       }
     } catch (error) {
       console.error('Logout error:', error);

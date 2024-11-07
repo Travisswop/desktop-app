@@ -1,7 +1,13 @@
 import { Button } from '@/components/ui/button';
-import { Card } from '@/components/ui/card';
-import { Search } from 'lucide-react';
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card';
+import { MessageCircle, Search } from 'lucide-react';
 import Image from 'next/image';
+import { Input } from '../ui/input';
 interface MessageProps {
   id: string;
   name: string;
@@ -24,26 +30,38 @@ export default function MessageBox() {
   ];
 
   return (
-    <div className="w-full max-w-2xl mx-auto p-4 bg-white rounded-xl ">
-      <div className="flex items-center justify-between mb-6">
-        <h2 className="text-xl font-semibold text-gray-800">
-          Messages
-        </h2>
-        <Button
-          variant="ghost"
-          size="icon"
-          className="text-muted-foreground"
-        >
-          <Search className="h-5 w-5" />
-        </Button>
-      </div>
-
-      <div className="space-y-3">
-        {messages.map((message) => (
-          <MessageCard key={message.id} {...message} />
-        ))}
-      </div>
-    </div>
+    <Card className="">
+      <CardHeader>
+        <div className="flex items-center gap-2">
+          <MessageCircle className="h-5 w-5" />
+          <CardTitle>Messages</CardTitle>
+        </div>
+        <p className="text-sm text-muted-foreground">
+          Chat with your connection.
+        </p>
+      </CardHeader>
+      <CardContent>
+        <div className="flex items-center mb-6">
+          <Input
+            type="text"
+            placeholder="Search messages..."
+            className="border rounded-e-none  p-2 text-sm focus-visible:ring-0 focus-visible:ring-offset-0"
+          />
+          <Button
+            variant="black"
+            size="icon"
+            className="rounded-s-none px-6 font-bold"
+          >
+            <Search className="h-5 w-5" />
+          </Button>
+        </div>
+        <div className="space-y-3">
+          {messages.map((message) => (
+            <MessageCard key={message.id} {...message} />
+          ))}
+        </div>
+      </CardContent>
+    </Card>
   );
 }
 

@@ -90,7 +90,7 @@ const Login: React.FC = () => {
     return <LoginSkeleton />;
   }
 
-  if (isLoading) {
+  if (isLoading || ready) {
     return (
       <div className="flex items-center justify-center min-h-screen ">
         <RotateEarth />

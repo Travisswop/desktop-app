@@ -59,11 +59,17 @@ const config: Config = {
       animation: {
         'spin-slow': 'spin 2s linear infinite',
         twinkle: 'twinkle 1s ease-in-out infinite',
+        float: 'float 3s ease-in-out infinite',
+        pulse: 'pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite',
       },
       keyframes: {
         twinkle: {
           '0%, 100%': { opacity: '1' },
           '50%': { opacity: '0.3' },
+        },
+        float: {
+          '0%, 100%': { transform: 'translateY(0) scale(1)' },
+          '50%': { transform: 'translateY(-10px) scale(1.1)' },
         },
       },
     },
