@@ -4,26 +4,105 @@ import { Skeleton } from '../ui/skeleton';
 
 import BalanceChart from './balance-chart';
 import MessageBox from './message-interface';
-import TokenList, { Token } from './token/token-list';
+import TokenList from './token/token-list';
 import NFTSlider, { NFT } from './nft/nft-list';
 import TransactionList from './transaction/transaction-list';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import TokenDetails from './token/token-details-view';
 import NFTDetailView from './nft/nft-details-view';
 import WalletManager from './wallet-manager';
 import EmbeddedWallet from './embedded-wallet';
 import ProfileHeader from './profile-header';
+import {
+  usePrivy,
+  useSolanaWallets,
+  useWallets,
+  WalletWithMetadata,
+} from '@privy-io/react-auth';
+import { WalletItem } from '@/types/wallet';
+import { TokenData } from '@/lib/hooks/useTokenBalance';
+
+const WALLET_INFO = [
+  {
+    address: '0x....',
+    isActive: true,
+    isEVM: true,
+  },
+  {
+    address: 'Solana...',
+    isActive: false,
+    isEVM: false,
+  },
+];
 
 export default function WalletContent() {
-  const { user, loading, error } = useUser();
-
-  const [selectedToken, setSelectedToken] = useState<Token | null>(
+  const [walletData, setWalletData] = useState<WalletItem[] | null>(
     null
   );
+  const { user, loading, error } = useUser();
+  const { authenticated, ready, user: PrivyUser } = usePrivy();
+  const { createWallet } = useSolanaWallets();
+  const { wallets } = useWallets();
+
+  const [selectedToken, setSelectedToken] =
+    useState<TokenData | null>(null);
+
   const [selectedNFT, setSelectedNFT] = useState<NFT | null>(null);
   const [isNFTModalOpen, setIsNFTModalOpen] = useState(false);
 
-  const handleSelectToken = (token: Token) => {
+  useEffect(() => {
+    const linkWallet = PrivyUser?.linkedAccounts
+      .map((item) => {
+        if (item.type === 'wallet') {
+          if (item.chainType === 'ethereum') {
+            return {
+              address: item.address,
+              isActive: true,
+              isEVM: true,
+            };
+          } else if (item.chainType === 'solana') {
+            return {
+              address: item.address,
+              isActive: false,
+              isEVM: false,
+            };
+          }
+        }
+      })
+      .filter(Boolean);
+
+    setWalletData(linkWallet as WalletItem[]);
+  }, [PrivyUser]);
+
+  useEffect(() => {
+    if (authenticated && ready && PrivyUser) {
+      const hasExistingSolanaWallet = !!PrivyUser.linkedAccounts.find(
+        (account): account is WalletWithMetadata =>
+          account.type === 'wallet' &&
+          account.walletClientType === 'privy' &&
+          account.chainType === 'solana'
+      );
+
+      if (!hasExistingSolanaWallet) {
+        createWallet();
+      }
+    }
+  }, [ready, authenticated, PrivyUser]);
+
+  useEffect(() => {
+    const fetchBalances = async () => {
+      const ethereumWallet = wallets.find(
+        (item) => item.walletClientType === 'privy'
+      );
+      console.log(
+        '🚀 ~ fetchBalances ~ ethereumWallet:',
+        ethereumWallet
+      );
+    };
+    fetchBalances();
+  }, [wallets, walletData]);
+
+  const handleSelectToken = (token: TokenData) => {
     setSelectedToken(token);
   };
 
@@ -56,7 +135,7 @@ export default function WalletContent() {
           imageUrl={user?.profilePic || '/images/avatar.png'}
           points={3200}
         />
-        <WalletManager />
+        <WalletManager walletData={walletData || WALLET_INFO} />
 
         <EmbeddedWallet />
       </div>
@@ -68,7 +147,10 @@ export default function WalletContent() {
         {selectedToken ? (
           <TokenDetails token={selectedToken} onBack={handleBack} />
         ) : (
-          <TokenList onSelectToken={handleSelectToken} />
+          <TokenList
+            onSelectToken={handleSelectToken}
+            walletData={walletData || WALLET_INFO}
+          />
         )}
         <div>
           <NFTSlider onSelectNft={handleSelectNFT} />

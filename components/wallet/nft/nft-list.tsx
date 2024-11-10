@@ -2,7 +2,12 @@
 
 import * as React from 'react';
 import Image from 'next/image';
-import { Card, CardContent } from '@/components/ui/card';
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card';
 import {
   Carousel,
   CarouselContent,
@@ -53,59 +58,59 @@ interface NftListProps {
 
 export default function NFTSlider({ onSelectNft }: NftListProps) {
   return (
-    <div className="w-full max-w-6xl mx-auto p-4 bg-white rounded-xl">
-      <div className="flex items-center justify-between mb-6">
-        <h2 className="text-xl font-semibold text-gray-800">
-          Digitals (NFTs)
-        </h2>
-      </div>
+    <Card className="w-full">
+      <CardHeader>
+        <CardTitle>Digitals (NFTs)</CardTitle>
+      </CardHeader>
 
-      <Carousel
-        opts={{
-          align: 'start',
-          loop: true,
-        }}
-        className="w-full"
-      >
-        <CarouselContent className="-ml-2 md:-ml-4">
-          {nfts.map((nft) => (
-            <CarouselItem
-              key={nft.id}
-              className="pl-2 md:pl-4 md:basis-1/3 lg:basis-1/3"
-            >
-              <Card
-                className="border-0 shadow-sm cursor-pointer hover:shadow-lg transition-shadow"
-                onClick={() => onSelectNft(nft)}
+      <CardContent>
+        <Carousel
+          opts={{
+            align: 'start',
+            loop: true,
+          }}
+          className="w-full"
+        >
+          <CarouselContent className="-ml-2 md:-ml-4">
+            {nfts.map((nft) => (
+              <CarouselItem
+                key={nft.id}
+                className="pl-2 md:pl-4 md:basis-1/3 lg:basis-1/3"
               >
-                <CardContent className="p-0">
-                  <div className="relative aspect-square overflow-hidden rounded-t-lg">
-                    <Image
-                      src={nft.image}
-                      alt={nft.type}
-                      fill
-                      className="object-cover"
-                      sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
-                    />
-                  </div>
-                  <div className="p-4">
-                    <div className="flex items-center space-x-2">
-                      <div className="w-2 h-2 rounded-full bg-blue-600"></div>
-                      <h3 className="font-medium">{nft.type}</h3>
+                <Card
+                  className="border-0 shadow-sm cursor-pointer hover:shadow-lg transition-shadow"
+                  onClick={() => onSelectNft(nft)}
+                >
+                  <CardContent className="p-0">
+                    <div className="relative aspect-square overflow-hidden rounded-t-lg">
+                      <Image
+                        src={nft.image}
+                        alt={nft.type}
+                        fill
+                        className="object-cover"
+                        sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+                      />
                     </div>
-                    <p className="text-sm text-muted-foreground mt-1">
-                      {nft.creator}
-                    </p>
-                  </div>
-                </CardContent>
-              </Card>
-            </CarouselItem>
-          ))}
-        </CarouselContent>
-        <CarouselNext className="hidden md:flex -right-12 bg-white shadow-lg border-0">
-          <ChevronRight className="h-4 w-4" />
-        </CarouselNext>
-      </Carousel>
-    </div>
+                    <div className="p-4">
+                      <div className="flex items-center space-x-2">
+                        <div className="w-2 h-2 rounded-full bg-blue-600"></div>
+                        <h3 className="font-medium">{nft.type}</h3>
+                      </div>
+                      <p className="text-sm text-muted-foreground mt-1">
+                        {nft.creator}
+                      </p>
+                    </div>
+                  </CardContent>
+                </Card>
+              </CarouselItem>
+            ))}
+          </CarouselContent>
+          <CarouselNext className="hidden md:flex -right-12 bg-white shadow-lg border-0">
+            <ChevronRight className="h-4 w-4" />
+          </CarouselNext>
+        </Carousel>
+      </CardContent>
+    </Card>
   );
 }
 

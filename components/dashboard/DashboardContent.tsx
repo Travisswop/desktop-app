@@ -4,16 +4,9 @@ import { Skeleton } from '../ui/skeleton';
 import ProfileHeader from './profile-header';
 import CashflowChart from './cashflow-chart';
 import DashboardAnalytics from './analytics';
-import { usePrivy, useWallets } from '@privy-io/react-auth';
 
 export default function DashboardContent() {
   const { user, loading, error } = useUser();
-  const { wallets } = useWallets();
-  const { user: PrivyUser } = usePrivy();
-  console.log('🚀 ~ DashboardContent ~ PrivyUser:', PrivyUser);
-  console.log('🚀 ~ DashboardContent ~ wallets:', wallets);
-
-  console.log('🚀 ~ DashboardContent ~ user:', user);
 
   if (loading) {
     return <DashboardSkeleton />;

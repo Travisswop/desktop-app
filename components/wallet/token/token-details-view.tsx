@@ -8,27 +8,15 @@ import {
   YAxis,
   Tooltip,
 } from 'recharts';
-import { Card, CardContent } from '@/components/ui/card';
+import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Wallet, Send, ArrowRightLeft } from 'lucide-react';
 import Image from 'next/image';
-import { Token } from './token-list';
 import { format } from 'date-fns';
+import { TokenData } from '@/lib/hooks/useTokenBalance';
+import { useState } from 'react';
 
-const generateChartData = () => {
-  const data = Array.from({ length: 24 }, (_, i) => {
-    const date = new Date();
-    date.setHours(date.getHours() - (24 - i));
-    return {
-      timestamp: date.getTime(),
-      value: 5 + Math.sin(i / 4) * 2 + i / 8,
-    };
-  });
-
-  return data;
-};
-// Custom tooltip component
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const CustomTooltip = ({ active, payload, label }: any) => {
   if (active && payload && payload.length) {
@@ -47,7 +35,7 @@ const CustomTooltip = ({ active, payload, label }: any) => {
 };
 
 interface TokenDetailsProps {
-  token: Token;
+  token: TokenData;
   onBack: () => void;
 }
 
@@ -55,16 +43,16 @@ export default function TokenDetails({
   token,
   onBack,
 }: TokenDetailsProps) {
-  const data = generateChartData();
+  const [dataPoint, setDataPoint] = useState('1D');
 
   return (
-    <div className="w-full max-w-4xl mx-auto p-4 bg-white rounded-xl">
+    <Card className="w-full">
       {/* Header */}
-      <div className="mb-6">
+      <CardHeader>
         <div className="flex items-center gap-2 mb-2">
           <div className="w-8 h-8 rounded-full">
             <Image
-              src={token.icon}
+              src={token.logoURI}
               alt={token.name}
               width={32}
               height={32}
@@ -81,24 +69,31 @@ export default function TokenDetails({
           </div>
           <div
             className={`text-sm ${
-              token.change > 0 ? 'text-green-500' : 'text-red-500'
+              token.overview.priceChangePercentage24h > 0
+                ? 'text-green-500'
+                : 'text-red-500'
             }`}
           >
             <span className="font-medium">
-              {token.change > 0 ? '+' : ''}
-              {token.change}%
+              {token.overview.priceChangePercentage24h > 0 ? '+' : ''}
+              {token.overview.priceChangePercentage24h}%
             </span>
             <div className="text-xs">Today</div>
           </div>
         </div>
-
+      </CardHeader>
+      <CardContent>
         {/* Chart */}
         <Card className="border-0 shadow-none">
           <CardContent className="pt-6 px-0 pb-4">
             <div className="h-[200px]">
               <ResponsiveContainer width="100%" height="100%">
                 <AreaChart
-                  data={data}
+                  data={
+                    token.marketData[
+                      dataPoint as keyof typeof token.marketData
+                    ]
+                  }
                   margin={{ top: 10, right: 30, left: 0, bottom: 0 }}
                 >
                   <defs>
@@ -154,13 +149,38 @@ export default function TokenDetails({
               </ResponsiveContainer>
             </div>
 
-            <Tabs defaultValue="1D" className="w-full mt-4">
+            <Tabs defaultValue={dataPoint} className="w-full mt-4">
               <TabsList className="grid w-full grid-cols-5">
-                <TabsTrigger value="1H">1H</TabsTrigger>
-                <TabsTrigger value="1D">1D</TabsTrigger>
-                <TabsTrigger value="1W">1W</TabsTrigger>
-                <TabsTrigger value="1M">1M</TabsTrigger>
-                <TabsTrigger value="1Y">1Y</TabsTrigger>
+                <TabsTrigger
+                  value="1H"
+                  onClick={() => setDataPoint('1H')}
+                >
+                  1H
+                </TabsTrigger>
+                <TabsTrigger
+                  value="1D"
+                  onClick={() => setDataPoint('1D')}
+                >
+                  1D
+                </TabsTrigger>
+                <TabsTrigger
+                  value="1W"
+                  onClick={() => setDataPoint('1W')}
+                >
+                  1W
+                </TabsTrigger>
+                <TabsTrigger
+                  value="1M"
+                  onClick={() => setDataPoint('1M')}
+                >
+                  1M
+                </TabsTrigger>
+                <TabsTrigger
+                  value="1Y"
+                  onClick={() => setDataPoint('1Y')}
+                >
+                  1Y
+                </TabsTrigger>
               </TabsList>
             </Tabs>
           </CardContent>
@@ -176,7 +196,7 @@ export default function TokenDetails({
           <div className="flex items-center gap-2">
             <div className="w-6 h-6 rounded-full">
               <Image
-                src={token.icon}
+                src={token.logoURI}
                 alt={token.name}
                 width={24}
                 height={24}
@@ -184,10 +204,12 @@ export default function TokenDetails({
               />
             </div>
             <span>
-              {token.amount} {token.symbol}
+              {token.balance} {token.symbol}
             </span>
           </div>
-          <span>${(token.price * token.amount).toFixed(2)}</span>
+          <span>
+            ${(parseFloat(token.balance) * token.price).toFixed(2)}
+          </span>
         </div>
 
         {/* Action Buttons */}
@@ -239,7 +261,7 @@ export default function TokenDetails({
         >
           Back to Wallet
         </Button>
-      </div>
-    </div>
+      </CardContent>
+    </Card>
   );
 }

@@ -10,6 +10,7 @@ import RotateEarth from '@/components/rotating-earth';
 
 const Login: React.FC = () => {
   const { ready, authenticated, getAccessToken } = usePrivy();
+
   const router = useRouter();
   const loginInitiated = useRef(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -85,6 +86,8 @@ const Login: React.FC = () => {
     setIsLoading(true);
     login();
   };
+
+  console.log(ready, authenticated);
 
   if (!ready) {
     return <LoginSkeleton />;

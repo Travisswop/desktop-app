@@ -1,6 +1,10 @@
-import { Card } from '@/components/ui/card';
-import { ArrowUpRight, ArrowDownRight, Search } from 'lucide-react';
-import { Button } from '@/components/ui/button';
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card';
+import { ArrowUpRight, ArrowDownRight } from 'lucide-react';
 
 interface Transaction {
   id: string;
@@ -62,25 +66,22 @@ const transactions: Transaction[] = [
 
 export default function TransactionList() {
   return (
-    <div className="w-full max-w-3xl mx-auto p-4 bg-white mt-6 rounded-xl">
-      <div className="flex items-center justify-between mb-6">
-        <h2 className="text-xl font-semibold text-gray-800">
-          Transactions
-        </h2>
-        <Button variant="ghost" size="icon">
-          <Search className="h-5 w-5 text-muted-foreground" />
-        </Button>
-      </div>
+    <Card className="w-full mt-4">
+      <CardHeader>
+        <CardTitle>Transactions</CardTitle>
+      </CardHeader>
 
-      <div className="space-y-3">
-        {transactions.map((transaction) => (
-          <TransactionItem
-            key={transaction.id}
-            transaction={transaction}
-          />
-        ))}
-      </div>
-    </div>
+      <CardContent>
+        <div className="space-y-3">
+          {transactions.map((transaction) => (
+            <TransactionItem
+              key={transaction.id}
+              transaction={transaction}
+            />
+          ))}
+        </div>
+      </CardContent>
+    </Card>
   );
 }
 

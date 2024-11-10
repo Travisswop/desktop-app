@@ -1,225 +1,126 @@
 'use client';
+import { ethers } from 'ethers';
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card';
 
-import { Card } from '@/components/ui/card';
-import { Area, AreaChart, ResponsiveContainer } from 'recharts';
-import Image from 'next/image';
-
-interface Token {
-  id: string;
-  name: string;
-  symbol: string;
-  icon: string;
-  price: number;
-  amount: number;
-  change: number;
-  color: string;
-  data: { value: number }[];
-}
-
-const generateChartData = () => {
-  return Array.from({ length: 20 }, (_, i) => ({
-    value: 50 + Math.random() * 20 + i,
-  }));
-};
-
-const tokens: Token[] = [
-  {
-    id: 'swop',
-    name: 'SWOP',
-    symbol: 'Swopple',
-    icon: '/assets/crypto-icons/Swop.png?height=32&width=32',
-    price: 29.8799,
-    amount: 2.29,
-    change: 20,
-    color: '#00BCD4',
-    data: generateChartData(),
-  },
-  {
-    id: 'bitcoin',
-    name: 'Bitcoin',
-    symbol: 'BTC',
-    icon: '/assets/crypto-icons/BTC.png?height=32&width=32',
-    price: 70000,
-    amount: 2.29,
-    change: 20,
-    color: '#F7931A',
-    data: generateChartData(),
-  },
-  {
-    id: 'ethereum',
-    name: 'Ethereum',
-    symbol: 'ETH',
-    icon: '/assets/crypto-icons/ETH.png?height=32&width=32',
-    price: 26500,
-    amount: 2.29,
-    change: 20,
-    color: '#627EEA',
-    data: generateChartData(),
-  },
-  {
-    id: 'polygon',
-    name: 'Polygon',
-    symbol: 'Polygon',
-    icon: '/assets/crypto-icons/MATIC.png?height=32&width=32',
-    price: 0.5,
-    amount: 2.29,
-    change: 20,
-    color: '#8247E5',
-    data: generateChartData(),
-  },
-  {
-    id: 'usdt',
-    name: 'USDT',
-    symbol: 'tetherUS',
-    icon: '/assets/crypto-icons/USDT.png?height=32&width=32',
-    price: 1,
-    amount: 2.29,
-    change: 20,
-    color: '#26A17B',
-    data: generateChartData(),
-  },
-  {
-    id: 'usdc',
-    name: 'USDC',
-    symbol: 'USDC',
-    icon: '/assets/crypto-icons/USDC.png?height=32&width=32',
-    price: 1,
-    amount: 100.29,
-    change: 0,
-    color: '#2775CA',
-    data: generateChartData(),
-  },
-];
+import { WalletItem } from '@/types/wallet';
+import {
+  TokenData,
+  useTokenBalance,
+} from '@/lib/hooks/useTokenBalance';
+import { AlertCircle, Loader2 } from 'lucide-react';
+import TokenCard from './token-card';
 
 interface TokenListProps {
-  onSelectToken: (token: Token) => void;
+  onSelectToken: (token: TokenData) => void;
+  walletData: WalletItem[];
 }
 
-export default function TokenList({ onSelectToken }: TokenListProps) {
-  return (
-    <div className="w-full max-w-4xl mx-auto p-4 bg-white rounded-xl">
-      <div className="flex items-center justify-between mb-6">
-        <h2 className="text-xl font-semibold text-gray-800">
-          Tokens
-        </h2>
-        <button className="p-2 hover:bg-gray-100 rounded-lg">
-          <svg
-            width="24"
-            height="24"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          >
-            <line x1="4" y1="6" x2="20" y2="6" />
-            <line x1="4" y1="12" x2="20" y2="12" />
-            <line x1="4" y1="18" x2="20" y2="18" />
-          </svg>
-        </button>
-      </div>
+export default function TokenList({
+  onSelectToken,
+  walletData,
+}: TokenListProps) {
+  const evmWallet = walletData.find((wallet) => wallet.isEVM);
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4">
-        {tokens.map((token) => (
-          <TokenCard
-            key={token.id}
-            token={token}
-            onClick={() => onSelectToken(token)}
-          />
-        ))}
-      </div>
-    </div>
+  const alchemyApiUrl = process.env.NEXT_PUBLIC_ALCHEMY_API_URL;
+  const evmProvider =
+    evmWallet && alchemyApiUrl
+      ? new ethers.providers.JsonRpcProvider(alchemyApiUrl)
+      : undefined;
+
+  const {
+    tokens: evmTokens,
+    loading: loadingEVM,
+    error: evmError,
+  } = useTokenBalance(
+    '0x16ebc062A049631074257a1d0c62E1Ed5BCFB1b3',
+    true,
+    evmProvider
   );
-}
 
-function TokenCard({
-  token,
-  onClick,
-}: {
-  token: Token;
-  onClick: () => void;
-}) {
+  // const {
+  //   tokens: solanaTokens,
+  //   loading: loadingSolana,
+  //   error: solanaError,
+  // } = useTokenBalance(solanaWallet?.address, false);
+
+  // const allTokens = [...(evmTokens || []), ...(solanaTokens || [])];
+  // const isLoading = loadingEVM || loadingSolana;
+  // const error = evmError || solanaError;
+
+  const allTokens = [...evmTokens];
+  console.log('🚀 ~ TokenList ~ allTokens:', allTokens);
+  const isLoading = loadingEVM;
+  const error = evmError;
+
+  if (error) {
+    console.log('🚀 ~ TokenList ~ error:', error);
+    const errorMessage = evmError
+      ? "EVM tokens couldn't be loaded."
+      : "Solana tokens couldn't be loaded.";
+    console.error(errorMessage);
+  }
+
   return (
-    <Card
-      className="p-4 rounded-3xl shadow-xl cursor-pointer hover:shadow-2xl transition-shadow"
-      onClick={onClick}
-    >
-      <div className="flex items-center justify-between mb-4">
-        <div className="flex items-center space-x-3">
-          <Image
-            src={token.icon}
-            alt={token.name}
-            width={32}
-            height={32}
-            className="rounded-full"
-          />
-          <div>
-            <h3 className="font-medium">{token.name}</h3>
-            <p className="text-sm text-muted-foreground">
-              {token.symbol}
+    <Card className="w-full">
+      <CardHeader>
+        <div className="flex items-center justify-between mb-6">
+          <CardTitle>
+            Tokens{' '}
+            {isLoading && (
+              <Loader2 className="w-5 h-5 text-gray-400 animate-spin" />
+            )}
+          </CardTitle>
+
+          <button className="p-2 hover:bg-gray-100 rounded-lg">
+            <svg
+              width="24"
+              height="24"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <line x1="4" y1="6" x2="20" y2="6" />
+              <line x1="4" y1="12" x2="20" y2="12" />
+              <line x1="4" y1="18" x2="20" y2="18" />
+            </svg>
+          </button>
+        </div>
+      </CardHeader>
+      <CardContent>
+        {error && (
+          <div className="mb-4 p-4 bg-red-50 rounded-lg flex items-center gap-2">
+            <AlertCircle className="w-5 h-5 text-red-500" />
+            <p className="text-sm text-red-600">
+              Some tokens couldn&apos;t be loaded. Please try again
+              later.
             </p>
           </div>
-        </div>
-      </div>
+        )}
 
-      <div className="h-[60px] mb-4">
-        <ResponsiveContainer width="100%" height="100%">
-          <AreaChart data={token.data}>
-            <defs>
-              <linearGradient
-                id={`gradient-${token.id}`}
-                x1="0"
-                y1="0"
-                x2="0"
-                y2="1"
-              >
-                <stop
-                  offset="0%"
-                  stopColor={token.color}
-                  stopOpacity={0.2}
-                />
-                <stop
-                  offset="100%"
-                  stopColor={token.color}
-                  stopOpacity={0}
-                />
-              </linearGradient>
-            </defs>
-            <Area
-              type="monotone"
-              dataKey="value"
-              stroke={token.color}
-              fill={`url(#gradient-${token.id})`}
-              strokeWidth={2}
-              isAnimationActive={false}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {allTokens.map((token) => (
+            <TokenCard
+              key={`${token.chain}-${token.address}`}
+              token={token}
+              onClick={() => onSelectToken(token)}
             />
-          </AreaChart>
-        </ResponsiveContainer>
-      </div>
+          ))}
 
-      <div className="flex items-end justify-between">
-        <div>
-          <p className="text-lg font-semibold">
-            ${token.price.toFixed(4)}
-          </p>
-          <p className="text-sm text-muted-foreground">
-            {token.amount.toFixed(2)}{' '}
-            {token.symbol === 'USDC' ? 'USDC' : 'BTC'}
-          </p>
+          {!isLoading && allTokens.length === 0 && (
+            <div className="text-center py-8 text-gray-500">
+              No tokens found in your wallet
+            </div>
+          )}
         </div>
-        <div
-          className={`text-sm ${
-            token.change > 0 ? 'text-green-500' : 'text-red-500'
-          }`}
-        >
-          {token.change > 0 ? '+' : ''}
-          {token.change}%
-        </div>
-      </div>
+      </CardContent>
     </Card>
   );
 }
-
-// Export tokens for use in other components
-export { tokens, type Token };
