@@ -1,9 +1,6 @@
-'use client';
-
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { ethers } from 'ethers';
-import { Connection, PublicKey } from '@solana/web3.js';
-
+import { TokenData } from '@/types/token';
 const ERC20_ABI = [
   'function balanceOf(address owner) view returns (uint256)',
   'function decimals() view returns (uint8)',
@@ -11,392 +8,222 @@ const ERC20_ABI = [
   'function name() view returns (string)',
 ];
 
-const RATE_LIMIT_DELAY = 1000; // 1000ms between requests
-const COINGECKO_API_BASE = 'https://api.coingecko.com/api/v3';
 const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
-
-interface MarketData {
+const BATCH_SIZE = 5; // Number of tokens to fetch in parallel
+const RETRY_DELAY = 1000; // 1 second delay between retries
+interface TokenCache {
+  data: TokenData;
   timestamp: number;
-  value: number;
 }
 
-interface TimeSeriesData {
-  '1H': MarketData[];
-  '1D': MarketData[];
-  '1W': MarketData[];
-  '1M': MarketData[];
-  '1Y': MarketData[];
-}
+// In-memory cache
+const tokenCache = new Map<string, TokenCache>();
 
-interface TokenOverview {
-  currentPrice: number;
-  priceChange24h: number;
-  priceChangePercentage24h: number;
-  marketCap: number;
-  totalVolume: number;
-  circulatingSupply: number;
-  totalSupply: number;
-}
-
-export interface TokenData {
-  symbol: string;
-  name: string;
-  balance: string;
-  decimals: number;
-  chainId?: number;
-  address: string;
-  logoURI: string;
-  price: number;
-  value?: number;
-  chain: 'evm' | 'solana';
-  color?: string;
-  marketData: TimeSeriesData;
-  overview: TokenOverview;
-  coingeckoId: string;
-}
-
-// Cache for token data
-const tokenCache = new Map<string, TokenData>();
-const lastFetchTime = new Map<string, number>();
-const marketDataCache = new Map<
-  string,
-  { data: any; timestamp: number }
->();
-
-// Helper function to get CoinGecko ID for a token
-async function getCoinGeckoId(
-  tokenAddress: string,
-  chain: 'evm' | 'solana'
-): Promise<string | null> {
+const fetchTimeSeriesData = async (uuid: string) => {
+  // console.log('Token is ', token);
   try {
-    const platform = chain === 'evm' ? 'ethereum' : 'solana';
     const response = await fetch(
-      `${COINGECKO_API_BASE}/simple/token_price/${platform}?contract_addresses=${tokenAddress}&vs_currencies=usd`
+      `https://api.coinranking.com/v2/coin/${uuid}/history?timePeriod=1h`
     );
-    const data = await response.json();
-    return Object.keys(data)[0] || null;
-  } catch (error) {
-    console.error('Error fetching CoinGecko ID:', error);
-    return null;
-  }
-}
-
-// Fetch market data fro CoinGecko
-async function fetchCoinGeckoMarketData(coingeckoId: string) {
-  const cacheKey = `market-${coingeckoId}`;
-  const cachedData = marketDataCache.get(cacheKey);
-
-  if (
-    cachedData &&
-    Date.now() - cachedData.timestamp < CACHE_DURATION
-  ) {
-    return cachedData.data;
-  }
-
-  try {
-    // Fetch current price and overview data
-    const overviewResponse = await fetch(
-      `${COINGECKO_API_BASE}/coins/${coingeckoId}?localization=false&tickers=false&community_data=false&developer_data=false`
-    );
-    const overviewData = await overviewResponse.json();
-
-    // Fetch historical data for different time periods
-    const [
-      hourlyData,
-      dailyData,
-      weeklyData,
-      monthlyData,
-      yearlyData,
-    ] = await Promise.all([
-      fetch(
-        `${COINGECKO_API_BASE}/coins/${coingeckoId}/market_chart?vs_currency=usd&days=1&interval=minute`
-      ),
-      fetch(
-        `${COINGECKO_API_BASE}/coins/${coingeckoId}/market_chart?vs_currency=usd&days=1`
-      ),
-      fetch(
-        `${COINGECKO_API_BASE}/coins/${coingeckoId}/market_chart?vs_currency=usd&days=7`
-      ),
-      fetch(
-        `${COINGECKO_API_BASE}/coins/${coingeckoId}/market_chart?vs_currency=usd&days=30`
-      ),
-      fetch(
-        `${COINGECKO_API_BASE}/coins/${coingeckoId}/market_chart?vs_currency=usd&days=365`
-      ),
-    ]).then((responses) =>
-      Promise.all(responses.map((r) => r.json()))
-    );
-
-    const marketData = {
-      overview: {
-        currentPrice: overviewData.market_data.current_price.usd,
-        priceChange24h: overviewData.market_data.price_change_24h,
-        priceChangePercentage24h:
-          overviewData.market_data.price_change_percentage_24h,
-        marketCap: overviewData.market_data.market_cap.usd,
-        totalVolume: overviewData.market_data.total_volume.usd,
-        circulatingSupply:
-          overviewData.market_data.circulating_supply,
-        totalSupply: overviewData.market_data.total_supply,
-      },
-      marketData: {
-        '1H': hourlyData.prices
-          .slice(-60)
-          .map(([timestamp, price]: [number, number]) => ({
-            timestamp,
-            price,
-          })),
-        '1D': dailyData.prices.map(
-          ([timestamp, price]: [number, number]) => ({
-            timestamp,
-            price,
-          })
-        ),
-        '1W': weeklyData.prices.map(
-          ([timestamp, price]: [number, number]) => ({
-            timestamp,
-            price,
-          })
-        ),
-        '1M': monthlyData.prices.map(
-          ([timestamp, price]: [number, number]) => ({
-            timestamp,
-            price,
-          })
-        ),
-        '1Y': yearlyData.prices.map(
-          ([timestamp, price]: [number, number]) => ({
-            timestamp,
-            price,
-          })
-        ),
-      },
-    };
-
-    marketDataCache.set(cacheKey, {
-      data: marketData,
-      timestamp: Date.now(),
-    });
-    return marketData;
-  } catch (error) {
-    console.error('Error fetching market data:', error);
-    return null;
-  }
-}
-// Helper function to generate fake market data for demonstration
-const generateMarketData = (period: string): MarketData[] => {
-  const now = Date.now();
-  const dataPoints = {
-    '1H': 60, // 1 point per minute
-    '1D': 24, // 1 point per hour
-    '1W': 7, // 1 point per day
-    '1M': 30, // 1 point per day
-    '1Y': 365, // 1 point per day
-  };
-
-  const points = dataPoints[period as keyof typeof dataPoints];
-  const interval = {
-    '1H': 60 * 1000, // 1 minute
-    '1D': 60 * 60 * 1000, // 1 hour
-    '1W': 24 * 60 * 60 * 1000, // 1 day
-    '1M': 24 * 60 * 60 * 1000, // 1 day
-    '1Y': 24 * 60 * 60 * 1000, // 1 day
-  };
-
-  return Array.from({ length: points }, (_, i) => ({
-    timestamp:
-      now - (points - i) * interval[period as keyof typeof interval],
-    value: 2 + Math.sin(i / (points / (2 * Math.PI))) * 0.2,
-  }));
-};
-
-// Generate overview data for a token
-const generateOverviewData = (basePrice: number) => ({
-  currentPrice: basePrice,
-  priceChange24h: basePrice * 0.05 * (Math.random() > 0.5 ? 1 : -1),
-  priceChangePercentage24h: 5 * (Math.random() > 0.5 ? 1 : -1),
-  marketCap: basePrice * 1000000000,
-  totalVolume: basePrice * 100000000,
-  circulatingSupply: 1000000000,
-  totalSupply: 1000000000,
-});
-
-const fetchTokenWithRetry = async (
-  contract: ethers.Contract,
-  walletAddress: string,
-  tokenAddress: string,
-  retries = 3
-): Promise<TokenData | null> => {
-  const cacheKey = `${walletAddress}-${tokenAddress}`;
-
-  try {
-    if (
-      tokenCache.has(cacheKey) &&
-      Date.now() - (lastFetchTime.get(cacheKey) || 0) < CACHE_DURATION
-    ) {
-      return tokenCache.get(cacheKey)!;
+    if (!response.ok) {
+      const error = await response.json();
+      throw error;
+    } else {
+      const result = await response.json();
+      return result.data;
     }
-
-    if (retries < 3) {
-      await new Promise((resolve) =>
-        setTimeout(resolve, RATE_LIMIT_DELAY * (3 - retries))
-      );
-    }
-
-    const [balance, decimals, symbol, name] = await Promise.all([
-      contract.balanceOf(walletAddress),
-      contract.decimals(),
-      contract.symbol(),
-      contract.name(),
-    ]);
-
-    // Get CoinGecko ID for the token
-    const coingeckoId = await getCoinGeckoId(tokenAddress, 'evm');
-    let marketData = null;
-
-    if (coingeckoId) {
-      marketData = await fetchCoinGeckoMarketData(coingeckoId);
-    }
-
-    const tokenData: TokenData = {
-      symbol,
-      name,
-      balance: ethers.utils.formatUnits(balance, decimals),
-      decimals,
-      address: tokenAddress,
-      chain: 'evm',
-      color: '#00BCD4',
-      price: marketData?.overview.currentPrice || 0,
-      logoURI: `/assets/crypto-icons/${symbol}.png?height=32&width=32`,
-      coingeckoId: coingeckoId || '',
-      marketData: marketData?.marketData || {
-        '1H': [],
-        '1D': [],
-        '1W': [],
-        '1M': [],
-        '1Y': [],
-      },
-      overview: marketData?.overview || {
-        currentPrice: 0,
-        priceChange24h: 0,
-        priceChangePercentage24h: 0,
-        marketCap: 0,
-        totalVolume: 0,
-        circulatingSupply: 0,
-        totalSupply: 0,
-      },
-    };
-
-    tokenCache.set(cacheKey, tokenData);
-    lastFetchTime.set(cacheKey, Date.now());
-
-    return tokenData;
   } catch (err) {
-    if (retries > 0) {
-      return fetchTokenWithRetry(
-        contract,
-        walletAddress,
-        tokenAddress,
-        retries - 1
-      );
-    }
-    console.error(`Failed to fetch token ${tokenAddress}:`, err);
-    return null;
+    console.log(err);
   }
 };
 
-export const useTokenBalance = (
+async function fetchMarketData(address: string) {
+  try {
+    const response = await fetch(
+      `https://api.coinranking.com/v2/coins?contractAddresses[]=${address}`
+    );
+    const result = await response.json();
+    return result.data.coins[0];
+  } catch (err) {
+    console.log('🚀 ~ fetchCoinMarketData ~ err:', err);
+    return [];
+  }
+}
+
+export const useTokenData = (
   walletAddress: string | undefined,
-  isEVM: boolean,
   provider?: ethers.providers.JsonRpcProvider
 ) => {
   const [tokens, setTokens] = useState<TokenData[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
-  const isMounted = useRef(true);
-  const fetchingRef = useRef(false);
+  const abortControllerRef = useRef<AbortController | null>(null);
+
+  const fetchTokenAddresses = useCallback(async () => {
+    if (!process.env.NEXT_PUBLIC_ALCHEMY_API_URL) return [];
+    try {
+      const response = await fetch(
+        process.env.NEXT_PUBLIC_ALCHEMY_API_URL,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            jsonrpc: '2.0',
+            method: 'alchemy_getTokenBalances',
+            params: [walletAddress],
+            id: 42,
+          }),
+          signal: abortControllerRef.current?.signal,
+        }
+      );
+
+      const { result } = await response.json();
+      return (
+        result.tokenBalances
+          ?.filter((token: { tokenBalance: string }) =>
+            ethers.BigNumber.from(token.tokenBalance).gt(0)
+          )
+          .map(
+            (token: { contractAddress: string }) =>
+              token.contractAddress
+          ) || []
+      );
+    } catch (err) {
+      if (err instanceof Error && err.name === 'AbortError')
+        return [];
+      throw err;
+    }
+  }, [walletAddress]);
+
+  const fetchTokenDetails = useCallback(
+    async (
+      address: string,
+      contract: ethers.Contract
+    ): Promise<TokenData | null> => {
+      const cacheKey = `${walletAddress}-${address}`;
+      const cached = tokenCache.get(cacheKey);
+      if (cached && Date.now() - cached.timestamp < CACHE_DURATION) {
+        console.log('cached data', cached.data);
+        return cached.data;
+      }
+
+      try {
+        const [balance, decimals, symbol, name] = await Promise.all([
+          contract.balanceOf(walletAddress),
+          contract.decimals(),
+          contract.symbol(),
+          contract.name(),
+        ]);
+
+        const marketData = await fetchMarketData(address);
+        const { change, history } = await fetchTimeSeriesData(
+          marketData.uuid
+        );
+
+        const sparklineData = history
+          .map(
+            (data: { price: string | null; timestamp: number }) => {
+              const price =
+                data.price !== null ? parseFloat(data.price) : null;
+
+              return price !== null
+                ? { timestamp: data.timestamp, value: price }
+                : null;
+            }
+          )
+          .filter(Boolean); // Filter out null entries
+
+        const tokenData: TokenData = {
+          name,
+          symbol,
+          balance: ethers.utils.formatUnits(balance, decimals),
+          decimals,
+          address,
+          chain: 'evm',
+          logoURI: `/assets/crypto-icons/${symbol}.png`,
+          marketData: {
+            ...marketData,
+            change,
+            sparkline: sparklineData,
+          },
+          timeSeriesData: {
+            '1H': sparklineData,
+            '1D': [],
+            '1W': [],
+            '1M': [],
+            '1Y': [],
+          },
+        };
+
+        tokenCache.set(cacheKey, {
+          data: tokenData,
+          timestamp: Date.now(),
+        });
+        return tokenData;
+      } catch (err) {
+        console.error(`Error fetching token ${address}:`, err);
+        return null;
+      }
+    },
+    [walletAddress]
+  );
+
+  const fetchTokensInBatches = useCallback(
+    async (
+      addresses: string[],
+      provider: ethers.providers.JsonRpcProvider
+    ) => {
+      const tokens: TokenData[] = [];
+
+      for (let i = 0; i < addresses.length; i += BATCH_SIZE) {
+        const batch = addresses.slice(i, i + BATCH_SIZE);
+        const batchPromises = batch.map((address) => {
+          const contract = new ethers.Contract(
+            address,
+            ERC20_ABI,
+            provider
+          );
+          return fetchTokenDetails(address, contract);
+        });
+
+        const batchResults = await Promise.all(batchPromises);
+        tokens.push(
+          ...batchResults.filter((t): t is TokenData => t !== null)
+        );
+
+        // Add delay between batches to avoid rate limiting
+        if (i + BATCH_SIZE < addresses.length) {
+          await new Promise((resolve) =>
+            setTimeout(resolve, RETRY_DELAY)
+          );
+        }
+      }
+
+      return tokens;
+    },
+    [fetchTokenDetails]
+  );
 
   useEffect(() => {
-    if (!walletAddress || fetchingRef.current) return;
+    if (!walletAddress || !provider) return;
 
     const fetchTokens = async () => {
-      if (!isMounted.current) return;
-      fetchingRef.current = true;
+      abortControllerRef.current = new AbortController();
       setLoading(true);
       setError(null);
 
       try {
-        if (isEVM && provider) {
-          const tokenAddresses = await fetchTokenAddresses(
-            walletAddress
-          );
-          const tokenPromises = tokenAddresses.map(
-            async (address: string) => {
-              const contract = new ethers.Contract(
-                address,
-                ERC20_ABI,
-                provider
-              );
-              return fetchTokenWithRetry(
-                contract,
-                walletAddress,
-                address
-              );
-            }
-          );
+        const addresses = await fetchTokenAddresses();
+        const tokens = await fetchTokensInBatches(
+          addresses,
+          provider
+        );
 
-          const results = await Promise.all(tokenPromises);
-          const validTokens = results.filter(
-            (t): t is TokenData => t !== null
-          );
-          console.log('🚀 ~ validTokens ~ results:', validTokens);
-          setTokens(validTokens);
-          setLoading(false);
-        } else {
-          // Solana tokens fetch logic
-          const connection = new Connection(
-            'https://api.mainnet-beta.solana.com'
-          );
-          const pubKey = new PublicKey(walletAddress);
-          const balance = await connection.getBalance(pubKey);
-          const solanaMarketData = await fetchCoinGeckoMarketData(
-            'solana'
-          );
-          if (isMounted.current) {
-            setTokens([
-              {
-                symbol: 'SOL',
-                name: 'Solana',
-                balance: (balance / 1e9).toString(),
-                decimals: 9,
-                address: 'SOL',
-                chain: 'solana',
-                price: solanaMarketData?.overview.currentPrice || 0,
-                logoURI:
-                  'https://raw.githubusercontent.com/trustwallet/assets/master/blockchains/solana/info/logo.png',
-                coingeckoId: 'solana',
-                marketData: solanaMarketData?.marketData || {
-                  '1H': [],
-                  '1D': [],
-                  '1W': [],
-                  '1M': [],
-                  '1Y': [],
-                },
-                overview: solanaMarketData?.overview || {
-                  currentPrice: 0,
-                  priceChange24h: 0,
-                  priceChangePercentage24h: 0,
-                  marketCap: 0,
-                  totalVolume: 0,
-                  circulatingSupply: 0,
-                  totalSupply: 0,
-                },
-              },
-            ]);
-          }
+        if (!abortControllerRef.current.signal.aborted) {
+          setTokens(tokens);
         }
       } catch (err) {
-        if (isMounted.current) {
+        if (!abortControllerRef.current.signal.aborted) {
           setError(
             err instanceof Error
               ? err
@@ -404,58 +231,23 @@ export const useTokenBalance = (
           );
         }
       } finally {
-        if (isMounted.current) {
+        if (!abortControllerRef.current.signal.aborted) {
           setLoading(false);
         }
-        fetchingRef.current = false;
       }
     };
 
     fetchTokens();
 
     return () => {
-      isMounted.current = false;
+      abortControllerRef.current?.abort();
     };
-  }, [walletAddress, isEVM, provider]);
+  }, [
+    walletAddress,
+    provider,
+    fetchTokenAddresses,
+    fetchTokensInBatches,
+  ]);
 
   return { tokens, loading, error };
-};
-
-const fetchTokenAddresses = async (walletAddress: string) => {
-  const apiUrl = process.env.NEXT_PUBLIC_ALCHEMY_API_URL || '';
-  const data = JSON.stringify({
-    jsonrpc: '2.0',
-    method: 'alchemy_getTokenBalances',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    params: [`${walletAddress}`],
-    id: 42,
-  });
-
-  const options = {
-    method: 'post',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: data,
-  };
-
-  try {
-    const response = await fetch(apiUrl, options);
-    if (!response.ok) {
-      console.error('Backend API error:', await response.json());
-      return [];
-    }
-
-    const { result } = await response.json();
-    return (
-      result.tokenBalances?.map(
-        (token: { contractAddress: string }) => token.contractAddress
-      ) || []
-    );
-  } catch (error) {
-    console.error('Error fetching token addresses:', error);
-    return [];
-  }
 };

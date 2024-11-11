@@ -3,7 +3,7 @@ import React from 'react';
 import { Card } from '@/components/ui/card';
 import { Area, AreaChart, ResponsiveContainer } from 'recharts';
 import Image from 'next/image';
-import { TokenData } from '@/lib/hooks/useTokenBalance';
+import { TokenData } from '@/types/token';
 
 interface TokenCardProps {
   token: TokenData;
@@ -39,7 +39,7 @@ export default function TokenCard({
 
       <div className="h-[60px] mb-4">
         <ResponsiveContainer width="100%" height="100%">
-          <AreaChart data={token.marketData['1D']}>
+          <AreaChart data={token.marketData.sparkline}>
             <defs>
               <linearGradient
                 id={`gradient-${token.symbol}`}
@@ -50,12 +50,12 @@ export default function TokenCard({
               >
                 <stop
                   offset="0%"
-                  stopColor={token.color}
+                  stopColor={token.marketData.color}
                   stopOpacity={0.2}
                 />
                 <stop
                   offset="100%"
-                  stopColor={token.color}
+                  stopColor={token.marketData.color}
                   stopOpacity={0}
                 />
               </linearGradient>
@@ -63,7 +63,7 @@ export default function TokenCard({
             <Area
               type="monotone"
               dataKey="value"
-              stroke={token.color}
+              stroke={token.marketData.color}
               fill={`url(#gradient-${token.symbol})`}
               strokeWidth={2}
               isAnimationActive={false}
@@ -75,7 +75,9 @@ export default function TokenCard({
       <div className="flex items-end justify-between">
         <div>
           <p className="text-lg font-semibold">
-            ${token.price && token.price.toFixed(4)}
+            $
+            {token.marketData.price &&
+              parseFloat(token.marketData.price).toFixed(4)}
           </p>
           <p className="text-sm text-muted-foreground">
             {parseFloat(token.balance).toFixed(4)}{' '}
@@ -84,13 +86,13 @@ export default function TokenCard({
         </div>
         <div
           className={`text-sm ${
-            token.overview.priceChangePercentage24h > 0
+            parseFloat(token.marketData.change) > 0
               ? 'text-green-500'
               : 'text-red-500'
           }`}
         >
-          {token.overview.priceChangePercentage24h > 0 ? '+' : ''}
-          {token.overview.priceChangePercentage24h}%
+          {parseFloat(token.marketData.change) > 0 ? '+' : ''}
+          {parseFloat(token.marketData.change)}%
         </div>
       </div>
     </Card>

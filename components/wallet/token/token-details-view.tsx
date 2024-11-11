@@ -14,8 +14,8 @@ import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Wallet, Send, ArrowRightLeft } from 'lucide-react';
 import Image from 'next/image';
 import { format } from 'date-fns';
-import { TokenData } from '@/lib/hooks/useTokenBalance';
 import { useState } from 'react';
+import { TokenData } from '@/types/token';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const CustomTooltip = ({ active, payload, label }: any) => {
@@ -43,8 +43,8 @@ export default function TokenDetails({
   token,
   onBack,
 }: TokenDetailsProps) {
-  const [dataPoint, setDataPoint] = useState('1D');
-
+  const [dataPoint, setDataPoint] = useState('1H');
+  const [chage, setChange] = useState(token.marketData.change);
   return (
     <Card className="w-full">
       {/* Header */}
@@ -61,7 +61,7 @@ export default function TokenDetails({
           </div>
           <div className="flex-1">
             <h1 className="text-2xl font-bold">
-              ${token.price.toFixed(2)}
+              ${parseFloat(token.marketData.price).toFixed(2)}
             </h1>
             <p className="text-sm text-muted-foreground">
               {token.name}
@@ -69,14 +69,14 @@ export default function TokenDetails({
           </div>
           <div
             className={`text-sm ${
-              token.overview.priceChangePercentage24h > 0
+              parseFloat(chage) > 0
                 ? 'text-green-500'
                 : 'text-red-500'
             }`}
           >
             <span className="font-medium">
-              {token.overview.priceChangePercentage24h > 0 ? '+' : ''}
-              {token.overview.priceChangePercentage24h}%
+              {parseFloat(chage) > 0 ? '+' : ''}
+              {parseFloat(chage)}%
             </span>
             <div className="text-xs">Today</div>
           </div>
@@ -90,8 +90,8 @@ export default function TokenDetails({
               <ResponsiveContainer width="100%" height="100%">
                 <AreaChart
                   data={
-                    token.marketData[
-                      dataPoint as keyof typeof token.marketData
+                    token.timeSeriesData[
+                      dataPoint as keyof typeof token.timeSeriesData
                     ]
                   }
                   margin={{ top: 10, right: 30, left: 0, bottom: 0 }}
@@ -208,7 +208,11 @@ export default function TokenDetails({
             </span>
           </div>
           <span>
-            ${(parseFloat(token.balance) * token.price).toFixed(2)}
+            $
+            {(
+              parseFloat(token.balance) *
+              parseFloat(token.marketData.price)
+            ).toFixed(2)}
           </span>
         </div>
 
