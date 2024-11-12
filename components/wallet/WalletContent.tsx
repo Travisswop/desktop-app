@@ -1,5 +1,4 @@
 'use client';
-import { ethers } from 'ethers';
 import { useUser } from '@/lib/UserContext';
 import { Skeleton } from '../ui/skeleton';
 import BalanceChart from './balance-chart';
@@ -19,8 +18,13 @@ import {
   WalletWithMetadata,
 } from '@privy-io/react-auth';
 import { WalletItem } from '@/types/wallet';
-import { useTokenData } from '@/lib/hooks/useTokenBalance';
+import { useMultiChainTokenData } from '@/lib/hooks/useTokenBalance';
 import { TokenData } from '@/types/token';
+import {
+  QueryClient,
+  QueryClientProvider,
+} from '@tanstack/react-query';
+import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
 
 const WALLET_INFO = [
   {
@@ -35,7 +39,28 @@ const WALLET_INFO = [
   },
 ];
 
+// Initialize React Query client
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 5 * 60 * 1000, // 5 minutes
+      cacheTime: 10 * 60 * 1000, // 10 minutes
+      retry: 2,
+      refetchOnWindowFocus: false,
+    },
+  },
+});
+
 export default function WalletContent() {
+  return (
+    <QueryClientProvider client={queryClient}>
+      <WalletContentInner />
+      <ReactQueryDevtools initialIsOpen={false} />
+    </QueryClientProvider>
+  );
+}
+
+function WalletContentInner() {
   const [walletData, setWalletData] = useState<WalletItem[] | null>(
     null
   );
@@ -48,26 +73,16 @@ export default function WalletContent() {
   const [selectedNFT, setSelectedNFT] = useState<NFT | null>(null);
   const [isNFTModalOpen, setIsNFTModalOpen] = useState(false);
 
-  // Memoize evmWallet to prevent unnecessary re-renders
   const evmWallet = useMemo(
     () => walletData?.find((wallet) => wallet.isEVM),
     [walletData]
   );
 
-  // Memoize provider creation to prevent unnecessary re-renders
-  const evmProvider = useMemo(() => {
-    const alchemyApiUrl = process.env.NEXT_PUBLIC_ALCHEMY_API_URL;
-    return evmWallet && alchemyApiUrl
-      ? new ethers.JsonRpcProvider(alchemyApiUrl)
-      : undefined;
-  }, [evmWallet]);
-
-  // Use the actual wallet address instead of hardcoding it
   const {
     tokens,
-    loading: loadingToken,
+    loading: tokenLoading,
     error: tokenError,
-  } = useTokenData(evmWallet?.address, evmProvider);
+  } = useMultiChainTokenData(evmWallet?.address, ['ETHEREUM']);
 
   useEffect(() => {
     const linkWallet = PrivyUser?.linkedAccounts
@@ -161,7 +176,7 @@ export default function WalletContent() {
         ) : (
           <TokenList
             tokens={tokens}
-            loading={loadingToken}
+            loading={tokenLoading}
             error={tokenError}
             onSelectToken={handleTokenSelect}
           />
