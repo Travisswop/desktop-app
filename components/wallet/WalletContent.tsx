@@ -58,7 +58,7 @@ export default function WalletContent() {
   const evmProvider = useMemo(() => {
     const alchemyApiUrl = process.env.NEXT_PUBLIC_ALCHEMY_API_URL;
     return evmWallet && alchemyApiUrl
-      ? new ethers.providers.JsonRpcProvider(alchemyApiUrl)
+      ? new ethers.JsonRpcProvider(alchemyApiUrl)
       : undefined;
   }, [evmWallet]);
 

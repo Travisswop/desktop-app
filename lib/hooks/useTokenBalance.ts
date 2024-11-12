@@ -7,7 +7,8 @@ const ERC20_ABI = [
   'function symbol() view returns (string)',
   'function name() view returns (string)',
 ];
-
+const COIN_RANKING_API_KEY =
+  process.env.NEXT_PUBLIC_COIN_RANKING_API_KEY;
 const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
 const BATCH_SIZE = 5; // Number of tokens to fetch in parallel
 const RETRY_DELAY = 1000; // 1 second delay between retries
@@ -20,16 +21,22 @@ interface TokenCache {
 const tokenCache = new Map<string, TokenCache>();
 
 const fetchTimeSeriesData = async (uuid: string) => {
-  // console.log('Token is ', token);
   try {
     const response = await fetch(
-      `https://api.coinranking.com/v2/coin/${uuid}/history?timePeriod=1h`
+      `https://api.coinranking.com/v2/coin/${uuid}/history?timePeriod=1h`,
+      {
+        headers: {
+          'x-access-token': COIN_RANKING_API_KEY || '',
+        },
+      }
     );
+
     if (!response.ok) {
       const error = await response.json();
       throw error;
     } else {
       const result = await response.json();
+      console.log('🚀 ~ fetchTimeSeriesData ~ result:', result);
       return result.data;
     }
   } catch (err) {
@@ -41,22 +48,38 @@ const fetchTimeSeriesData = async (uuid: string) => {
 async function fetchMarketData(address: string) {
   try {
     const response = await fetch(
-      `https://api.coinranking.com/v2/coins?contractAddresses[]=${address}`
+      `https://api.coinranking.com/v2/coins?contractAddresses[]=${address}`,
+      {
+        headers: {
+          'x-access-token': COIN_RANKING_API_KEY || '',
+        },
+      }
     );
-    const result = await response.json();
-    return result.data.coins[0];
+    const { data } = await response.json();
+    console.log('🚀 ~ fetchMarketData ~ result:', data);
+    if (data && data.coins.length > 0) {
+      return data.coins[0];
+    }
+
+    throw new Error('Data not found');
   } catch (err) {
     console.log('🚀 ~ fetchCoinMarketData ~ err:', err);
-    return [];
+    return null;
   }
 }
 
 const fetchTokenDataByUUID = async (uuid: string) => {
   try {
     const response = await fetch(
-      `https://api.coinranking.com/v2/coins?uuids[]=${uuid}`
+      `https://api.coinranking.com/v2/coins?uuids[]=${uuid}`,
+      {
+        headers: {
+          'x-access-token': COIN_RANKING_API_KEY || '',
+        },
+      }
     );
     const result = await response.json();
+    console.log('🚀 ~ fetchTokenDataByUUID ~ result:', result.data);
     return result.data.coins[0];
   } catch (error) {
     console.log('🚀 ~ fetchTokenDataByUUID ~ error:', error);
@@ -68,7 +91,7 @@ const fetchNativeTokenData = async (
   walletAddress: string,
   uuid: string,
   tokenDecimals: number,
-  provider: ethers.providers.JsonRpcProvider
+  provider: ethers.JsonRpcProvider
 ): Promise<TokenData | null> => {
   try {
     const [balance, token, timeSeriesData] = await Promise.all([
@@ -100,7 +123,7 @@ const fetchNativeTokenData = async (
     const tokenData: TokenData = {
       name: 'Ethereum',
       symbol: marketData.symbol.toUpperCase(),
-      balance: ethers.utils.formatUnits(balance, tokenDecimals),
+      balance: ethers.formatUnits(balance, tokenDecimals),
       decimals: tokenDecimals,
       address: walletAddress, // Using wallet address as a placeholder
       chain: 'evm',
@@ -128,7 +151,7 @@ const fetchNativeTokenData = async (
 
 export const useTokenData = (
   walletAddress: string | undefined,
-  provider?: ethers.providers.JsonRpcProvider
+  provider?: ethers.JsonRpcProvider
 ) => {
   const [tokens, setTokens] = useState<TokenData[]>([]);
   const [loading, setLoading] = useState(true);
@@ -154,16 +177,24 @@ export const useTokenData = (
       );
 
       const { result } = await response.json();
-      return (
+
+      const filterTokens =
         result.tokenBalances
-          ?.filter((token: { tokenBalance: string }) =>
-            ethers.BigNumber.from(token.tokenBalance).gt(0)
+          ?.filter(
+            (token: { tokenBalance: string }) =>
+              BigInt(token.tokenBalance) > 0
           )
           .map(
             (token: { contractAddress: string }) =>
               token.contractAddress
-          ) || []
+          ) || [];
+
+      console.log(
+        '🚀 ~ fetchTokenAddresses ~ filterTokens:',
+        filterTokens
       );
+
+      return filterTokens;
     } catch (err) {
       if (err instanceof Error && err.name === 'AbortError')
         return [];
@@ -192,6 +223,9 @@ export const useTokenData = (
         ]);
 
         const marketData = await fetchMarketData(address);
+        if (!marketData) {
+          return null;
+        }
         const timeSeriesData = await fetchTimeSeriesData(
           marketData.uuid
         );
@@ -219,7 +253,7 @@ export const useTokenData = (
         const tokenData: TokenData = {
           name,
           symbol,
-          balance: ethers.utils.formatUnits(balance, decimals),
+          balance: ethers.formatUnits(balance, decimals),
           decimals,
           address,
           chain: 'evm',
@@ -252,10 +286,7 @@ export const useTokenData = (
   );
 
   const fetchTokensInBatches = useCallback(
-    async (
-      addresses: string[],
-      provider: ethers.providers.JsonRpcProvider
-    ) => {
+    async (addresses: string[], provider: ethers.JsonRpcProvider) => {
       const tokens: TokenData[] = [];
 
       for (let i = 0; i < addresses.length; i += BATCH_SIZE) {
