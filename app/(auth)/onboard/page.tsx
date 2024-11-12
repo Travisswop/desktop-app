@@ -24,10 +24,10 @@ const Onboard: React.FC = () => {
 
   const { linkEmail } = useLinkAccount({
     onSuccess: (user, linkMethod, linkedAccount) => {
-      console.log(user, linkMethod, linkedAccount);
+      console.log('on success', user, linkMethod, linkedAccount);
     },
     onError: (error, details) => {
-      console.log(error, details);
+      console.log('on error', error, details);
     },
   });
 

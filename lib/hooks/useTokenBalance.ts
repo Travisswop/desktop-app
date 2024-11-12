@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { ethers } from 'ethers';
-import { TokenData } from '@/types/token';
+import { MarketData, TokenData } from '@/types/token';
 const ERC20_ABI = [
   'function balanceOf(address owner) view returns (uint256)',
   'function decimals() view returns (uint8)',
@@ -34,6 +34,7 @@ const fetchTimeSeriesData = async (uuid: string) => {
     }
   } catch (err) {
     console.log(err);
+    return null;
   }
 };
 
@@ -49,6 +50,81 @@ async function fetchMarketData(address: string) {
     return [];
   }
 }
+
+const fetchTokenDataByUUID = async (uuid: string) => {
+  try {
+    const response = await fetch(
+      `https://api.coinranking.com/v2/coins?uuids[]=${uuid}`
+    );
+    const result = await response.json();
+    return result.data.coins[0];
+  } catch (error) {
+    console.log('🚀 ~ fetchTokenDataByUUID ~ error:', error);
+    return null;
+  }
+};
+
+const fetchNativeTokenData = async (
+  walletAddress: string,
+  uuid: string,
+  tokenDecimals: number,
+  provider: ethers.providers.JsonRpcProvider
+): Promise<TokenData | null> => {
+  try {
+    const [balance, token, timeSeriesData] = await Promise.all([
+      provider.getBalance(walletAddress),
+      fetchTokenDataByUUID(uuid),
+      fetchTimeSeriesData(uuid),
+    ]);
+
+    if (!balance && !token && !timeSeriesData) {
+      console.log('🚀 ~ timeSeriesData:', timeSeriesData);
+      return null;
+    }
+
+    const marketData: MarketData = token;
+
+    const { change, history } = timeSeriesData;
+
+    const sparklineData = history
+      .map((data: { price: string | null; timestamp: number }) => {
+        const price =
+          data.price !== null ? parseFloat(data.price) : null;
+
+        return price !== null
+          ? { timestamp: data.timestamp, value: price }
+          : null;
+      })
+      .filter(Boolean); // Filter out null entries
+
+    const tokenData: TokenData = {
+      name: 'Ethereum',
+      symbol: marketData.symbol.toUpperCase(),
+      balance: ethers.utils.formatUnits(balance, tokenDecimals),
+      decimals: tokenDecimals,
+      address: walletAddress, // Using wallet address as a placeholder
+      chain: 'evm',
+      logoURI: `/assets/crypto-icons/${marketData.symbol.toUpperCase()}.png`,
+      marketData: {
+        ...marketData,
+        change,
+        sparkline: sparklineData,
+      },
+      timeSeriesData: {
+        '1H': sparklineData,
+        '1D': [],
+        '1W': [],
+        '1M': [],
+        '1Y': [],
+      },
+    };
+
+    return tokenData;
+  } catch (err) {
+    console.error('Error fetching native token data:', err);
+    return null;
+  }
+};
 
 export const useTokenData = (
   walletAddress: string | undefined,
@@ -116,9 +192,16 @@ export const useTokenData = (
         ]);
 
         const marketData = await fetchMarketData(address);
-        const { change, history } = await fetchTimeSeriesData(
+        const timeSeriesData = await fetchTimeSeriesData(
           marketData.uuid
         );
+        if (!timeSeriesData) {
+          console.log(
+            `No time series data for UUID: ${marketData.uuid}`
+          );
+          return null;
+        }
+        const { change, history } = timeSeriesData;
 
         const sparklineData = history
           .map(
@@ -218,6 +301,17 @@ export const useTokenData = (
           addresses,
           provider
         );
+
+        const nativeTokenData = await fetchNativeTokenData(
+          walletAddress,
+          'razxDUgYGNAdQ',
+          18,
+          provider
+        );
+
+        if (nativeTokenData) {
+          tokens.unshift(nativeTokenData);
+        }
 
         if (!abortControllerRef.current.signal.aborted) {
           setTokens(tokens);

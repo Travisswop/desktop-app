@@ -141,7 +141,11 @@ export default function WalletContent() {
         <ProfileHeader
           name={user?.name || 'Your Name'}
           username={'Travis.Swop.ID'}
-          imageUrl={user?.profilePic || '/images/avatar.png'}
+          imageUrl={
+            user?.profilePic?.includes('https://')
+              ? user.profilePic
+              : `/assets/avatar/${user?.profilePic}.png`
+          }
           points={3200}
         />
         <WalletManager walletData={walletData || WALLET_INFO} />

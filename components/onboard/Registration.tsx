@@ -23,7 +23,6 @@ import {
 import { PrivyUser, OnboardingData } from '@/lib/types';
 import { uploadImageToCloudinary } from '@/lib/cloudinary';
 import { getBase64Image } from '@/utils/imageHelpers';
-import avatar from '../../assets/images/avatar.png';
 import { usePrivy } from '@privy-io/react-auth';
 import { useToast } from '@/hooks/use-toast';
 
@@ -46,7 +45,9 @@ export default function Registration({
   const [birthdate, setBirthdate] = useState(0);
   const [apartment, setApartment] = useState('');
   const [address, setAddress] = useState('');
-  const [profileImage, setProfileImage] = useState(avatar.src);
+  const [profileImage, setProfileImage] = useState(
+    '/assets/images/avatar.png?height=32&width=32'
+  );
 
   // Fetch the base64 image when the component mounts
   useEffect(() => {

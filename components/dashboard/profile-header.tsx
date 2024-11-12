@@ -40,7 +40,7 @@ export default function ProfileHeader({
               src={
                 imageUrl?.includes('https')
                   ? imageUrl
-                  : `/assets/avatar/${imageUrl}`
+                  : `/assets/avatar/${imageUrl}.png?height=32&width=32`
               }
               alt={name}
               width={80}

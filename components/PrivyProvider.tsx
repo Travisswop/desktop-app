@@ -17,19 +17,9 @@ export default function PrivyProvider({
           accentColor: '#676FFF',
           showWalletLoginFirst: false,
           logo: 'https://res.cloudinary.com/bayshore/image/upload/v1729560495/z8grcj0jvpgsrvab1q4i.jpg',
-          walletChainType: 'ethereum-and-solana',
-        },
-        fundingMethodConfig: {
-          moonpay: {
-            useSandbox: true,
-          },
         },
         embeddedWallets: {
           createOnLogin: 'users-without-wallets',
-          requireUserPasswordOnCreate: false,
-        },
-        mfa: {
-          noPromptOnMfaRequired: false,
         },
       }}
     >

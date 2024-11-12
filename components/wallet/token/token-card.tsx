@@ -80,8 +80,7 @@ export default function TokenCard({
               parseFloat(token.marketData.price).toFixed(4)}
           </p>
           <p className="text-sm text-muted-foreground">
-            {parseFloat(token.balance).toFixed(4)}{' '}
-            {token.symbol === 'USDC' ? 'USDC' : 'BTC'}
+            {parseFloat(token.balance).toFixed(4)} {token.symbol}
           </p>
         </div>
         <div

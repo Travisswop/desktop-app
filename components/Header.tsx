@@ -68,7 +68,7 @@ export default function Header() {
                   src={
                     user.profilePic?.includes('https')
                       ? user.profilePic
-                      : `/assets/avatar/${user.profilePic}`
+                      : `/assets/avatar/${user.profilePic}.png`
                   }
                   alt={`${user.name}'s avatar`}
                   fill

@@ -61,7 +61,7 @@ export default function TokenDetails({
           </div>
           <div className="flex-1">
             <h1 className="text-2xl font-bold">
-              ${parseFloat(token.marketData.price).toFixed(2)}
+              ${parseFloat(token.marketData.price).toFixed(4)}
             </h1>
             <p className="text-sm text-muted-foreground">
               {token.name}
@@ -204,7 +204,7 @@ export default function TokenDetails({
               />
             </div>
             <span>
-              {token.balance} {token.symbol}
+              {parseFloat(token.balance).toFixed(4)} {token.symbol}
             </span>
           </div>
           <span>
