@@ -7,9 +7,10 @@ export default function PrivyProvider({
 }: {
   children: React.ReactNode;
 }) {
+  const privyId = process.env.NEXT_PUBLIC_PRIVY_APP_ID;
   return (
     <Privy
-      appId={process.env.NEXT_PUBLIC_PRIVY_APP_ID!}
+      appId={privyId as string}
       config={{
         loginMethods: ['email', 'google', 'wallet'],
         appearance: {
