@@ -1,40 +1,37 @@
-'use client';
-import { useUser } from '@/lib/UserContext';
-import { Skeleton } from '../ui/skeleton';
-import BalanceChart from './balance-chart';
-import MessageBox from './message-interface';
-import TokenList from './token/token-list';
-import NFTSlider, { NFT } from './nft/nft-list';
-import TransactionList from './transaction/transaction-list';
-import { useEffect, useState, useMemo } from 'react';
-import TokenDetails from './token/token-details-view';
-import NFTDetailView from './nft/nft-details-view';
-import WalletManager from './wallet-manager';
-import EmbeddedWallet from './embedded-wallet';
-import ProfileHeader from './profile-header';
+"use client";
+import { useUser } from "@/lib/UserContext";
+import { Skeleton } from "../ui/skeleton";
+import BalanceChart from "./balance-chart";
+import MessageBox from "./message-interface";
+import TokenList from "./token/token-list";
+import NFTSlider, { NFT } from "./nft/nft-list";
+import TransactionList from "./transaction/transaction-list";
+import { useEffect, useState, useMemo } from "react";
+import TokenDetails from "./token/token-details-view";
+import NFTDetailView from "./nft/nft-details-view";
+import WalletManager from "./wallet-manager";
+import EmbeddedWallet from "./embedded-wallet";
+import ProfileHeader from "./profile-header";
 import {
   usePrivy,
   useSolanaWallets,
   WalletWithMetadata,
-} from '@privy-io/react-auth';
-import { WalletItem } from '@/types/wallet';
-import { useMultiChainTokenData } from '@/lib/hooks/useTokenBalance';
-import { TokenData } from '@/types/token';
-import {
-  QueryClient,
-  QueryClientProvider,
-} from '@tanstack/react-query';
-import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
-import WalletProfile from './wallet-profile';
+} from "@privy-io/react-auth";
+import { WalletItem } from "@/types/wallet";
+import { useMultiChainTokenData } from "@/lib/hooks/useTokenBalance";
+import { TokenData } from "@/types/token";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { ReactQueryDevtools } from "@tanstack/react-query-devtools";
+import WalletProfile from "./wallet-profile";
 
 const WALLET_INFO = [
   {
-    address: '0x....',
+    address: "0x....",
     isActive: true,
     isEVM: true,
   },
   {
-    address: 'Solana...',
+    address: "Solana...",
     isActive: false,
     isEVM: false,
   },
@@ -62,15 +59,12 @@ export default function WalletContent() {
 }
 
 function WalletContentInner() {
-  const [walletData, setWalletData] = useState<WalletItem[] | null>(
-    null
-  );
+  const [walletData, setWalletData] = useState<WalletItem[] | null>(null);
   const { user, loading, error } = useUser();
   const { authenticated, ready, user: PrivyUser } = usePrivy();
   const { createWallet } = useSolanaWallets();
 
-  const [selectedToken, setSelectedToken] =
-    useState<TokenData | null>(null);
+  const [selectedToken, setSelectedToken] = useState<TokenData | null>(null);
   const [selectedNFT, setSelectedNFT] = useState<NFT | null>(null);
   const [isNFTModalOpen, setIsNFTModalOpen] = useState(false);
 
@@ -83,19 +77,19 @@ function WalletContentInner() {
     tokens,
     loading: tokenLoading,
     error: tokenError,
-  } = useMultiChainTokenData(evmWallet?.address, ['ETHEREUM']);
+  } = useMultiChainTokenData(evmWallet?.address, ["ETHEREUM"]);
 
   useEffect(() => {
     const linkWallet = PrivyUser?.linkedAccounts
       .map((item) => {
-        if (item.type === 'wallet') {
-          if (item.chainType === 'ethereum') {
+        if (item.type === "wallet") {
+          if (item.chainType === "ethereum") {
             return {
               address: item.address,
               isActive: true,
               isEVM: true,
             };
-          } else if (item.chainType === 'solana') {
+          } else if (item.chainType === "solana") {
             return {
               address: item.address,
               isActive: false,
@@ -114,9 +108,9 @@ function WalletContentInner() {
     if (authenticated && ready && PrivyUser) {
       const hasExistingSolanaWallet = !!PrivyUser.linkedAccounts.find(
         (account): account is WalletWithMetadata =>
-          account.type === 'wallet' &&
-          account.walletClientType === 'privy' &&
-          account.chainType === 'solana'
+          account.type === "wallet" &&
+          account.walletClientType === "privy" &&
+          account.chainType === "solana"
       );
 
       if (!hasExistingSolanaWallet) {
@@ -158,7 +152,7 @@ function WalletContentInner() {
           name={user?.name || 'Your Name'}
           username={'Travis.Swop.ID'}
           imageUrl={
-            user?.profilePic?.includes('https://')
+            user?.profilePic?.includes("https://")
               ? user.profilePic
               : `/assets/avatar/${user?.profilePic}.png`
           }
@@ -168,15 +162,15 @@ function WalletContentInner() {
         <EmbeddedWallet />
       </div> */}
       <ProfileHeader
-        name={user?.name || 'Your Name'}
-        username={'Travis.Swop.ID'}
-        location={user?.address || ''}
+        name={user?.name || "Your Name"}
+        username={"Travis.Swop.ID"}
+        location={user?.address || ""}
         followers={user?.connections.followers.length || 0}
         following={user?.connections.following.length || 0}
         messages={0}
         orders={40}
         points={31234}
-        imageUrl={user?.profilePic || '/images/avatar.png'}
+        imageUrl={user?.profilePic || "/images/avatar.png"}
       />
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 my-6">
         <BalanceChart />
