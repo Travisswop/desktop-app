@@ -152,7 +152,7 @@ export default function Registration({ user, onComplete }: RegistrationProps) {
             You Can Edit After Site Is Generated.
           </p>
         </CardHeader>
-        <CardContent>
+        <CardContent className="px-8">
           <div>
             <form className="space-y-6" onSubmit={handleSubmit}>
               <div className="flex flex-col items-center">
