@@ -12,6 +12,18 @@ import { useToast } from "@/hooks/use-toast";
 import astronot from "@/public/onboard/astronot.svg";
 import bluePlanet from "@/public/onboard/blue-planet.svg";
 import yellowPlanet from "@/public/onboard/yellow-planet.svg";
+import whatsapp from "@/public/onboard/whatsapp.png";
+import gmail from "@/public/onboard/gmail.png";
+import facebook from "@/public/onboard/facebook.png";
+import instagram from "@/public/onboard/instagram.png";
+import linkedin from "@/public/onboard/linkedin.png";
+import location from "@/public/onboard/location.png";
+import message from "@/public/onboard/message.png";
+import phone from "@/public/onboard/phone.png";
+import tiktok from "@/public/onboard/tiktok.png";
+import twitter from "@/public/onboard/twitter.png";
+import video from "@/public/onboard/video.png";
+import website from "@/public/onboard/website.png";
 
 interface SmartSiteInformationProps {
   userData: OnboardingData;
@@ -114,7 +126,6 @@ export default function SmartSiteInformation({
       <div className="absolute -top-14 -right-24">
         <Image src={bluePlanet} alt="astronot image" className="w-56 h-auto" />
       </div>
-      <div className="bg-gradient-to-br from-purple-200 to-blue-300 w-52 h-52 rounded-full absolute bottom-32 left-16 z-0 opacity-80"></div>
       <div className="backdrop-blur-[50px] bg-white bg-opacity-25 shadow-uniform rounded-xl">
         <CardHeader className="text-center">
           <CardTitle className="text-2xl font-bold">
@@ -126,32 +137,27 @@ export default function SmartSiteInformation({
             You Can Edit After Site Is Generated.
           </p>
         </CardHeader>
-        <CardContent>
+        <CardContent className="px-8">
           <h2 className="text-xl font-semibold mb-4 text-gray-700">
             Contact Details
           </h2>
-          <form className="grid grid-cols-2 gap-4" onSubmit={handleSubmit}>
+          <form className="grid grid-cols-2 gap-6" onSubmit={handleSubmit}>
             <div className="space-y-4">
               <ContactField
-                icon={<Mail className="text-blue-500" />}
+                icon={<Image src={gmail} alt="gmail" className="w-7 h-auto" />}
                 placeholder="Email"
                 defaultValue={data.email}
                 onChange={(value: string) => handleInputChange("email", value)}
               />
               <ContactField
-                icon={<Phone className="text-green-500" />}
+                icon={<Image src={phone} alt="gmail" className="w-7 h-auto" />}
                 placeholder="Phone"
                 defaultValue={data.phone}
                 onChange={(value: string) => handleInputChange("phone", value)}
               />
               <ContactField
                 icon={
-                  <Image
-                    src="/whatsapp-icon.png"
-                    width={24}
-                    height={24}
-                    alt="WhatsApp"
-                  />
+                  <Image src={whatsapp} alt="gmail" className="w-7 h-auto" />
                 }
                 placeholder="WhatsApp"
                 defaultValue={data.whatsapp}
@@ -160,7 +166,9 @@ export default function SmartSiteInformation({
                 }
               />
               <ContactField
-                icon={<MessageSquare className="text-blue-600" />}
+                icon={
+                  <Image src={message} alt="gmail" className="w-7 h-auto" />
+                }
                 placeholder="Text Message"
                 defaultValue={data.textMessage}
                 onChange={(value: string) =>
@@ -168,7 +176,7 @@ export default function SmartSiteInformation({
                 }
               />
               <ContactField
-                icon={<Video className="text-green-400" />}
+                icon={<Image src={video} alt="gmail" className="w-7 h-auto" />}
                 placeholder="Video Call"
                 defaultValue={data.videoCall}
                 onChange={(value: string) =>
@@ -176,7 +184,9 @@ export default function SmartSiteInformation({
                 }
               />
               <ContactField
-                icon={<MapPin className="text-red-400" />}
+                icon={
+                  <Image src={location} alt="gmail" className="w-7 h-auto" />
+                }
                 placeholder="Office Address"
                 defaultValue={data.officeAddress}
                 onChange={(value: string) =>
@@ -187,12 +197,7 @@ export default function SmartSiteInformation({
             <div className="space-y-4">
               <ContactField
                 icon={
-                  <Image
-                    src="/facebook-icon.png"
-                    width={24}
-                    height={24}
-                    alt="Facebook"
-                  />
+                  <Image src={facebook} alt="gmail" className="w-7 h-auto" />
                 }
                 placeholder="Facebook"
                 onChange={(value: string) =>
@@ -201,12 +206,7 @@ export default function SmartSiteInformation({
               />
               <ContactField
                 icon={
-                  <Image
-                    src="/instagram-icon.png"
-                    width={24}
-                    height={24}
-                    alt="Instagram"
-                  />
+                  <Image src={instagram} alt="gmail" className="w-7 h-auto" />
                 }
                 placeholder="Instagram"
                 onChange={(value: string) =>
@@ -215,12 +215,7 @@ export default function SmartSiteInformation({
               />
               <ContactField
                 icon={
-                  <Image
-                    src="/twitter-icon.png"
-                    width={24}
-                    height={24}
-                    alt="Twitter"
-                  />
+                  <Image src={twitter} alt="gmail" className="w-7 h-auto" />
                 }
                 placeholder="Twitter"
                 onChange={(value: string) =>
@@ -229,12 +224,7 @@ export default function SmartSiteInformation({
               />
               <ContactField
                 icon={
-                  <Image
-                    src="/linkedin-icon.png"
-                    width={24}
-                    height={24}
-                    alt="LinkedIn"
-                  />
+                  <Image src={linkedin} alt="gmail" className="w-7 h-auto" />
                 }
                 placeholder="LinkedIn"
                 onChange={(value: string) =>
@@ -242,19 +232,14 @@ export default function SmartSiteInformation({
                 }
               />
               <ContactField
-                icon={
-                  <Image
-                    src="/tiktok-icon.png"
-                    width={24}
-                    height={24}
-                    alt="TikTok"
-                  />
-                }
+                icon={<Image src={tiktok} alt="gmail" className="w-7 h-auto" />}
                 placeholder="TikTok"
                 onChange={(value: string) => handleInputChange("tiktok", value)}
               />
               <ContactField
-                icon={<Globe className="text-blue-400" />}
+                icon={
+                  <Image src={website} alt="gmail" className="w-7 h-auto" />
+                }
                 placeholder="Website"
                 onChange={(value: string) =>
                   handleInputChange("website", value)
@@ -298,10 +283,10 @@ function ContactField({
   };
 
   return (
-    <div className="flex items-center space-x-2 bg-white rounded-md shadow-sm">
-      <div className="p-2">{icon}</div>
+    <div className="flex items-center space-x-2 bg-white rounded-md shadow-sm overflow-hidden">
+      <div className="p-2 border-r border-gray-300 h-full">{icon}</div>
       <Input
-        className="flex-grow border-0 focus-visible:ring-0"
+        className="flex-grow border-0 focus-visible:!ring-0 rounded-none px-1"
         placeholder={placeholder}
         value={value}
         onChange={handleChange}

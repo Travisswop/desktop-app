@@ -74,9 +74,9 @@ const OnboardingFlow: React.FC<{
   userData: OnboardingData;
 }> = ({ user, step, onNextStep, userData }) => {
   switch (step) {
-    case 1:
-      return <Registration user={user} onComplete={onNextStep} />;
     case 0:
+      return <Registration user={user} onComplete={onNextStep} />;
+    case 1:
       return (
         <SmartSiteInformation onComplete={onNextStep} userData={userData} />
       );
