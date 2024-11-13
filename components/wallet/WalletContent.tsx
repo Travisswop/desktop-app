@@ -9,8 +9,6 @@ import TransactionList from './transaction/transaction-list';
 import { useEffect, useState, useMemo } from 'react';
 import TokenDetails from './token/token-details-view';
 import NFTDetailView from './nft/nft-details-view';
-import WalletManager from './wallet-manager';
-import EmbeddedWallet from './embedded-wallet';
 import ProfileHeader from './profile-header';
 import {
   usePrivy,
@@ -25,27 +23,12 @@ import {
   QueryClientProvider,
 } from '@tanstack/react-query';
 import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
-import WalletProfile from './wallet-profile';
-
-const WALLET_INFO = [
-  {
-    address: '0x....',
-    isActive: true,
-    isEVM: true,
-  },
-  {
-    address: 'Solana...',
-    isActive: false,
-    isEVM: false,
-  },
-];
 
 // Initialize React Query client
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
       staleTime: 5 * 60 * 1000, // 5 minutes
-      cacheTime: 10 * 60 * 1000, // 10 minutes
       retry: 2,
       refetchOnWindowFocus: false,
     },
@@ -189,7 +172,7 @@ function WalletContentInner() {
           <TokenList
             tokens={tokens}
             loading={tokenLoading}
-            error={tokenError}
+            error={tokenError!}
             onSelectToken={handleTokenSelect}
           />
         )}

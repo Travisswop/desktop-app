@@ -16,7 +16,7 @@ export default function TokenCard({
 }: TokenCardProps) {
   return (
     <Card
-      className="p-4 rounded-3xl shadow-xl cursor-pointer hover:shadow-2xl transition-shadow"
+      className="p-4 rounded-3xl shadow-2xl hover:shadow-3xl border-none transition-all duration-300 group cursor-pointer hover:translate-x-0.5"
       onClick={onClick}
     >
       <div className="flex items-center justify-between mb-4">

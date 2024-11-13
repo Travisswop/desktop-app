@@ -11,6 +11,8 @@ import { TokenData } from '@/types/token';
 import { AlertCircle, Loader2 } from 'lucide-react';
 import TokenCard from './token-card';
 import React from 'react';
+import PortfolioBalance from '../portfolio-balance';
+import PortfolioBalanceSkeleton from '../portfolio-balance-skelton';
 
 interface TokenListProps {
   tokens: TokenData[];
@@ -28,11 +30,11 @@ const TokenList = ({
   return (
     <Card className="w-full border-none rounded-xl">
       <CardHeader>
-        <div className="flex items-center justify-between mb-6">
-          <CardTitle>
-            Tokens{' '}
+        <div className="flex items-center justify-between">
+          <CardTitle className="flex items-center">
+            <span>Tokens</span>
             {loading && (
-              <Loader2 className="w-5 h-5 text-gray-400 animate-spin" />
+              <Loader2 className="w-6 h-6 text-gray-600 animate-spin" />
             )}
           </CardTitle>
 
@@ -65,6 +67,12 @@ const TokenList = ({
           </div>
         )}
 
+        {!loading && tokens.length > 0 && (
+          <PortfolioBalance tokens={tokens} />
+        )}
+
+        {loading && <PortfolioBalanceSkeleton />}
+
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {loading ? (
             Array(4)
@@ -72,7 +80,7 @@ const TokenList = ({
               .map((_, i) => (
                 <div
                   key={i}
-                  className="h-[200px] bg-gray-100 animate-pulse rounded-xl"
+                  className="h-[200px] bg-gray-300 animate-pulse rounded-xl"
                 />
               ))
           ) : tokens.length > 0 ? (

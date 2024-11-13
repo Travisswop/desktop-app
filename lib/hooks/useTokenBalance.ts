@@ -102,7 +102,7 @@ const fetchers = {
 };
 
 // Custom hook for token contract interactions
-const useTokenContract = (
+const tokenContract = (
   address: string,
   provider?: ethers.JsonRpcProvider
 ) => {
@@ -176,7 +176,7 @@ export const useMultiChainTokenData = (
           walletAddress,
         ],
         queryFn: async () => {
-          const contract = useTokenContract(
+          const contract = tokenContract(
             token.contractAddress,
             providers[chain]
           );
@@ -220,7 +220,7 @@ export const useMultiChainTokenData = (
             logoURI: `/assets/crypto-icons/${details?.symbol}.png`,
             marketData: {
               ...marketData,
-              change,
+              change: parseFloat(change),
               sparkline: sparklineData,
             },
             timeSeriesData: {
@@ -277,7 +277,7 @@ export const useMultiChainTokenData = (
           logoURI: `/assets/crypto-icons/${nativeToken.symbol}.png`,
           marketData: {
             ...marketData,
-            change,
+            change: parseFloat(change),
             sparkline: sparklineData,
           },
           timeSeriesData: {
