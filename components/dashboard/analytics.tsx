@@ -7,7 +7,7 @@ import QrcodeGenerator from './qrcode-generator';
 
 export default function DashboardAnalytics() {
   return (
-    <div className="bg-white rounded-lg p-8">
+    <div className="bg-white rounded-xl p-8">
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
         {/* Left Column */}
         <div className="space-y-6">

@@ -26,7 +26,7 @@ const TokenList = ({
   onSelectToken,
 }: TokenListProps) => {
   return (
-    <Card className="w-full">
+    <Card className="w-full border-none rounded-xl">
       <CardHeader>
         <div className="flex items-center justify-between mb-6">
           <CardTitle>

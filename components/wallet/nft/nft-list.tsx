@@ -58,7 +58,7 @@ interface NftListProps {
 
 export default function NFTSlider({ onSelectNft }: NftListProps) {
   return (
-    <Card className="w-full">
+    <Card className="w-full border-none rounded-xl">
       <CardHeader>
         <CardTitle>Digitals (NFTs)</CardTitle>
       </CardHeader>

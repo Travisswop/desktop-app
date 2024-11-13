@@ -25,6 +25,7 @@ import {
   QueryClientProvider,
 } from '@tanstack/react-query';
 import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
+import WalletProfile from './wallet-profile';
 
 const WALLET_INFO = [
   {
@@ -152,8 +153,8 @@ function WalletContentInner() {
 
   return (
     <div className="">
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 my-6">
-        <ProfileHeader
+      {/* <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 my-6">
+        <WalletProfile
           name={user?.name || 'Your Name'}
           username={'Travis.Swop.ID'}
           imageUrl={
@@ -165,7 +166,18 @@ function WalletContentInner() {
         />
         <WalletManager walletData={walletData || WALLET_INFO} />
         <EmbeddedWallet />
-      </div>
+      </div> */}
+      <ProfileHeader
+        name={user?.name || 'Your Name'}
+        username={'Travis.Swop.ID'}
+        location={user?.address || ''}
+        followers={user?.connections.followers.length || 0}
+        following={user?.connections.following.length || 0}
+        messages={0}
+        orders={40}
+        points={31234}
+        imageUrl={user?.profilePic || '/images/avatar.png'}
+      />
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 my-6">
         <BalanceChart />
         <MessageBox />

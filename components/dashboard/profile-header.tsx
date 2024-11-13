@@ -31,7 +31,7 @@ export default function ProfileHeader({
   imageUrl,
 }: ProfileHeaderProps) {
   return (
-    <div className="w-full">
+    <div className="w-full border-none rounded-xl">
       <div className="flex flex-col md:flex-row items-start md:items-center gap-6 bg-white p-6 rounded-lg">
         {/* Profile Section */}
         <div className="flex items-center gap-4">

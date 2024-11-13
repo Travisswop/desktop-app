@@ -55,7 +55,7 @@ const generateSmoothData = () => {
 
 export default function BalanceChart() {
   return (
-    <Card className="w-full">
+    <Card className="w-full border-none rounded-xl">
       <CardHeader>
         <div className="flex justify-between">
           <div>

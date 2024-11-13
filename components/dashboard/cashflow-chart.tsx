@@ -48,7 +48,7 @@ const generateSmoothData = () => {
 
 export default function Component() {
   return (
-    <Card className="w-full my-6">
+    <Card className="w-full border-none rounded-xl my-6">
       <CardHeader>
         <CardTitle className="text-lg font-medium">
           Cashflow

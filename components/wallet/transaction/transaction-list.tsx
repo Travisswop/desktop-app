@@ -66,7 +66,7 @@ const transactions: Transaction[] = [
 
 export default function TransactionList() {
   return (
-    <Card className="w-full mt-4">
+    <Card className="w-full border-none rounded-xl mt-4">
       <CardHeader>
         <CardTitle>Transactions</CardTitle>
       </CardHeader>

@@ -30,7 +30,7 @@ export default function MessageBox() {
   ];
 
   return (
-    <Card className="">
+    <Card className="w-full border-none rounded-xl">
       <CardHeader>
         <div className="flex items-center gap-2">
           <MessageCircle className="h-5 w-5" />
