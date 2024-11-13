@@ -70,3 +70,18 @@ body {
     @apply bg-background text-foreground;
   }
 }
+
+/* input[type="date"]::-webkit-calendar-picker-indicator {
+  display: none;
+  -webkit-appearance: none;
+} */
+
+/* Hide the native date picker icon for this specific input */
+.custom-date-input::-webkit-calendar-picker-indicator {
+  display: none;
+  -webkit-appearance: none;
+}
+
+.custom-date-input::-moz-calendar-picker-indicator {
+  display: none;
+}

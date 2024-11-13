@@ -1,33 +1,31 @@
-'use client';
+"use client";
 
-import React, { useEffect, useState } from 'react';
-import Registration from '@/components/onboard/Registration';
-import SmartSiteInformation from '@/components/onboard/SmartSiteInformation';
-import CreateSwopID from '@/components/onboard/CreateSwopID';
-import { useLinkAccount, usePrivy } from '@privy-io/react-auth';
-import { OnboardingData, PrivyUser } from '@/lib/types';
+import React, { useEffect, useState } from "react";
+import Registration from "@/components/onboard/Registration";
+import SmartSiteInformation from "@/components/onboard/SmartSiteInformation";
+import CreateSwopID from "@/components/onboard/CreateSwopID";
+import { useLinkAccount, usePrivy } from "@privy-io/react-auth";
+import { OnboardingData, PrivyUser } from "@/lib/types";
 
 const Onboard: React.FC = () => {
   const { authenticated, ready, user } = usePrivy();
-  console.log('🚀 ~ user:', user);
+  console.log("🚀 ~ user:", user);
   const [step, setStep] = useState(0);
   const [userData, setUserData] = useState({});
 
   const email =
     user?.google?.email ||
     user?.email?.address ||
-    user?.linkedAccounts.find((account) => account.type === 'email')
-      ?.address ||
-    user?.linkedAccounts.find(
-      (account) => account.type === 'google_oauth'
-    )?.email;
+    user?.linkedAccounts.find((account) => account.type === "email")?.address ||
+    user?.linkedAccounts.find((account) => account.type === "google_oauth")
+      ?.email;
 
   const { linkEmail } = useLinkAccount({
     onSuccess: (user, linkMethod, linkedAccount) => {
-      console.log('on success', user, linkMethod, linkedAccount);
+      console.log("on success", user, linkMethod, linkedAccount);
     },
     onError: (error, details) => {
-      console.log('on error', error, details);
+      console.log("on error", error, details);
     },
   });
 
@@ -49,7 +47,7 @@ const Onboard: React.FC = () => {
   const privyUser: PrivyUser = {
     ...user,
     email,
-    name: user?.google?.name || '',
+    name: user?.google?.name || "",
     wallet: user.wallet
       ? {
           address: user.wallet.address,
@@ -76,14 +74,11 @@ const OnboardingFlow: React.FC<{
   userData: OnboardingData;
 }> = ({ user, step, onNextStep, userData }) => {
   switch (step) {
-    case 0:
-      return <Registration user={user} onComplete={onNextStep} />;
     case 1:
+      return <Registration user={user} onComplete={onNextStep} />;
+    case 0:
       return (
-        <SmartSiteInformation
-          onComplete={onNextStep}
-          userData={userData}
-        />
+        <SmartSiteInformation onComplete={onNextStep} userData={userData} />
       );
     case 2:
       return <CreateSwopID userData={userData} />;
