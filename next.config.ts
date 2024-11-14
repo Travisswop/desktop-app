@@ -1,9 +1,22 @@
-import type { NextConfig } from 'next';
+import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   /* config options here */
   images: {
-    domains: ['res.cloudinary.com'], // Allow images from Cloudinary
+    remotePatterns: [
+      {
+        protocol: "https", // Allow any protocol
+        hostname: "*", // Allow any hostname
+      },
+      {
+        protocol: "http", // Allow any protocol
+        hostname: "*", // Allow any hostname
+      },
+      {
+        protocol: "https",
+        hostname: "res.cloudinary.com",
+      },
+    ],
   },
 };
 

@@ -1,11 +1,7 @@
-import { Card } from '@/components/ui/card';
-import {
-  MessageCircle,
-  FileText,
-  Star,
-  CheckCircle2,
-} from 'lucide-react';
-import Image from 'next/image';
+import { Card } from "@/components/ui/card";
+import isUrl from "@/lib/isUrl";
+import { MessageCircle, FileText, Star, CheckCircle2 } from "lucide-react";
+import Image from "next/image";
 
 interface ProfileHeaderProps {
   name: string;
@@ -31,22 +27,29 @@ export default function ProfileHeader({
   imageUrl,
 }: ProfileHeaderProps) {
   return (
-    <div className="w-full border-none rounded-xl">
-      <div className="flex flex-col md:flex-row items-start md:items-center gap-6 bg-white p-6 rounded-lg">
+    <div className="w-full border-none rounded-xl font-[roboto]">
+      <div className="flex flex-col md:flex-row items-start 2xl:items-center gap-6 bg-white p-6 rounded-lg">
         {/* Profile Section */}
         <div className="flex items-center gap-4">
           <div className="relative">
-            <Image
-              src={
-                imageUrl?.includes('https')
-                  ? imageUrl
-                  : `/assets/avatar/${imageUrl}.png?height=32&width=32`
-              }
-              alt={name}
-              width={80}
-              height={80}
-              className="rounded-full"
-            />
+            {isUrl(imageUrl) ? (
+              <Image
+                src={imageUrl}
+                alt={name}
+                width={80}
+                height={80}
+                className="rounded-full w-16 h-16"
+              />
+            ) : (
+              <Image
+                src={`/images/user_avator/${imageUrl}.png`}
+                alt={name}
+                width={80}
+                height={80}
+                className="rounded-full w-16 h-16"
+              />
+            )}
+
             <CheckCircle2 className="absolute bottom-0 right-0 text-blue-500 bg-white rounded-full w-5 h-5" />
           </div>
           <div className="space-y-1">
@@ -54,25 +57,19 @@ export default function ProfileHeader({
               <h1 className="text-md font-semibold">{name}</h1>
             </div>
             <p className="text-muted-foreground">{username}</p>
-            <p className="text-sm text-muted-foreground">
-              {location}
-            </p>
+            <p className="text-sm text-muted-foreground">{location}</p>
           </div>
         </div>
 
         {/* Followers Section */}
-        <div className="flex gap-4 ml-0 md:ml-8">
+        <div className="flex gap-4">
           <div className="text-center">
-            <p className="font-semibold">
-              {followers.toLocaleString()}
-            </p>
+            <p className="font-semibold">{followers.toLocaleString()}</p>
             <p className="text-sm ">Followers</p>
           </div>
           <div className="border-l-2 border-gray-700 h-5 " />
           <div className="text-center">
-            <p className="font-semibold">
-              {following.toLocaleString()}
-            </p>
+            <p className="font-semibold">{following.toLocaleString()}</p>
             <p className="text-sm ">Following</p>
           </div>
         </div>

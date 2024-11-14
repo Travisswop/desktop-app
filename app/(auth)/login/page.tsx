@@ -1,12 +1,12 @@
-'use client';
+"use client";
 
-import { usePrivy, useLogin } from '@privy-io/react-auth';
-import { useRouter } from 'next/navigation';
-import { Skeleton } from '@/components/ui/skeleton';
-import { useEffect, useRef, useState } from 'react';
-import { Card, CardContent, CardHeader } from '@/components/ui/card';
+import { usePrivy, useLogin } from "@privy-io/react-auth";
+import { useRouter } from "next/navigation";
+import { Skeleton } from "@/components/ui/skeleton";
+import { useEffect, useRef, useState } from "react";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
 
-import RotateEarth from '@/components/rotating-earth';
+import RotateEarth from "@/components/rotating-earth";
 
 const Login: React.FC = () => {
   const { ready, authenticated, getAccessToken } = usePrivy();
@@ -17,30 +17,28 @@ const Login: React.FC = () => {
 
   const { login } = useLogin({
     onComplete: async (user) => {
-      console.log('🚀 ~ onComplete: ~ user:', user);
+      console.log("🚀 ~ onComplete: ~ user:", user);
       const email =
         user.google?.email ||
         user.email?.address ||
-        user.linkedAccounts.find(
-          (account) => account.type === 'email'
-        )?.address ||
-        user.linkedAccounts.find(
-          (account) => account.type === 'google_oauth'
-        )?.email;
+        user.linkedAccounts.find((account) => account.type === "email")
+          ?.address ||
+        user.linkedAccounts.find((account) => account.type === "google_oauth")
+          ?.email;
 
       if (!email) {
-        console.log('No email found, redirecting to onboard');
+        console.log("No email found, redirecting to onboard");
         loginInitiated.current = false;
-        router.push('/onboard');
+        router.push("/onboard");
         return;
       }
 
       try {
         const token = await getAccessToken();
-        const response = await fetch('/api/auth/verify', {
-          method: 'POST',
+        const response = await fetch("/api/auth/verify", {
+          method: "POST",
           headers: {
-            'Content-Type': 'application/json',
+            "Content-Type": "application/json",
             Authorization: `Bearer ${token}`,
           },
           body: JSON.stringify({
@@ -49,27 +47,27 @@ const Login: React.FC = () => {
           }),
         });
 
-        console.log('Verify response:', response.status);
+        console.log("Verify response:", response.status);
 
         if (!response.ok) {
-          console.log('User not found, redirecting to onboard');
+          console.log("User not found, redirecting to onboard");
           loginInitiated.current = false;
-          router.push('/onboard');
+          router.push("/onboard");
           return;
         }
 
-        console.log('User found, redirecting to home');
-        router.push('/');
+        console.log("User found, redirecting to home");
+        router.push("/");
       } catch (error) {
-        console.error('Error verifying user:', error);
+        console.error("Error verifying user:", error);
         loginInitiated.current = false;
-        router.push('/onboard');
+        router.push("/onboard");
       } finally {
         setIsLoading(false);
       }
     },
     onError: (error) => {
-      console.error('Login error:', error);
+      console.error("Login error:", error);
       loginInitiated.current = false;
       setIsLoading(false);
     },
@@ -95,7 +93,7 @@ const Login: React.FC = () => {
 
   if (isLoading || ready) {
     return (
-      <div className="flex items-center justify-center min-h-screen ">
+      <div className="flex items-center justify-center min-h-screen">
         <RotateEarth />
       </div>
     );

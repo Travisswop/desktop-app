@@ -1,6 +1,6 @@
-'use client';
-import Header from '@/components/Header';
-import Sidenav from '@/components/Sidenav';
+"use client";
+import Header from "@/components/Header";
+import Sidenav from "@/components/Sidenav";
 // import { withAuth } from '@/lib/withAuth';
 
 const PageLayout = ({ children }: { children: React.ReactNode }) => {
@@ -9,7 +9,7 @@ const PageLayout = ({ children }: { children: React.ReactNode }) => {
       <Sidenav />
       <Header />
       <div className="pl-64">
-        <main className="container mx-auto p-10 max-w-7xl">
+        <main className="container mx-auto p-6 max-w-7xl 2xl:max-w-full">
           {children}
         </main>
       </div>
