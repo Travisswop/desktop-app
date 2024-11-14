@@ -85,3 +85,64 @@ body {
 .custom-date-input::-moz-calendar-picker-indicator {
   display: none;
 }
+
+/* for feed */
+.break-text {
+  overflow-wrap: anywhere;
+}
+
+/* motion for love react in feed  */
+@keyframes ping-heart {
+  0% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  50% {
+    transform: scale(1.5);
+    opacity: 0.6;
+  }
+  100% {
+    transform: scale(2);
+    opacity: 0;
+  }
+}
+
+.animate-ping-heart {
+  animation: ping-heart 0.6s ease-out;
+}
+
+/* custom scrollbar design  */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 6px; /* Width of the scrollbar */
+  height: 4px; /* Height of the scrollbar (for horizontal scrolling) */
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background-color: rgba(0, 0, 0, 0.2); /* Color of the scrollbar thumb */
+  border-radius: 10px; /* Roundness of the scrollbar thumb */
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+  background-color: rgba(0, 0, 0, 0.1); /* Color of the scrollbar track */
+}
+
+.custom-scrollbar {
+  scrollbar-width: thin; /* For Firefox */
+  scrollbar-color: rgba(0, 0, 0, 0.2) rgba(0, 0, 0, 0.1); /* For Firefox */
+}
+
+/* more  */
+::-webkit-scrollbar {
+  height: 12px;
+  width: 4px;
+  background: rgb(199, 199, 199);
+}
+
+::-webkit-scrollbar-thumb {
+  background: gray;
+  -webkit-border-radius: 1ex;
+}
+
+::-webkit-scrollbar-corner {
+  background: rgb(199, 199, 199);
+}
