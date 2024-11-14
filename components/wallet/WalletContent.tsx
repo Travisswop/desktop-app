@@ -62,11 +62,14 @@ function WalletContentInner() {
     [walletData]
   );
 
+  const walletAddress = evmWallet?.address || '';
+  const network = 'POLYGON';
+
   const {
     tokens,
     loading: tokenLoading,
     error: tokenError,
-  } = useMultiChainTokenData(evmWallet?.address, ['ETHEREUM']);
+  } = useMultiChainTokenData(walletAddress, [network]);
 
   useEffect(() => {
     const linkWallet = PrivyUser?.linkedAccounts
@@ -178,7 +181,10 @@ function WalletContentInner() {
         )}
         <div>
           <NFTSlider onSelectNft={handleSelectNFT} />
-          <TransactionList />
+          <TransactionList
+            address={walletAddress}
+            network={network}
+          />
           {selectedNFT && (
             <NFTDetailView
               isOpen={isNFTModalOpen}

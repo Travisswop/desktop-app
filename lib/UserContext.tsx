@@ -43,7 +43,7 @@ const userCache = new Map<
   string,
   { data: UserData; timestamp: number }
 >();
-const CACHE_DURATION = 60 * 60 * 1000; // 60 minutes
+const CACHE_DURATION = 120 * 60 * 1000; // 60 minutes
 
 export function UserProvider({
   children,

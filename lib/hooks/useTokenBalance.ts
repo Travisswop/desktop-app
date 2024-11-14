@@ -5,6 +5,8 @@ import { MarketData, TokenData } from '@/types/token';
 const COIN_RANKING_API_KEY =
   process.env.NEXT_PUBLIC_COIN_RANKING_API_KEY;
 
+let apiCall = 0;
+
 // Constants
 const CHAINS = {
   ETHEREUM: {
@@ -42,6 +44,7 @@ const CHAINS = {
 // API fetchers
 const fetchers = {
   async tokenBalances(chain: keyof typeof CHAINS, address: string) {
+    apiCall += 1;
     const response = await fetch(CHAINS[chain].alchemyUrl!, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -62,6 +65,7 @@ const fetchers = {
   },
 
   async marketData(address: string) {
+    apiCall += 1;
     const response = await fetch(
       `https://api.coinranking.com/v2/coins?contractAddresses[]=${address}`,
       {
@@ -75,6 +79,7 @@ const fetchers = {
   },
 
   async marketDataByUUID(uuid: string) {
+    apiCall += 1;
     const response = await fetch(
       `https://api.coinranking.com/v2/coins?uuids[]=${uuid}`,
       {
@@ -88,6 +93,7 @@ const fetchers = {
   },
 
   async timeSeriesData(uuid: string, period: string = '1h') {
+    apiCall += 1;
     const response = await fetch(
       `https://api.coinranking.com/v2/coin/${uuid}/history?timePeriod=${period}`,
       {
@@ -246,7 +252,6 @@ export const useMultiChainTokenData = (
         const provider = providers[chain];
         const balance = await provider.getBalance(walletAddress!);
         const nativeToken = CHAINS[chain].nativeToken;
-        console.log('nativetoken', nativeToken);
         const [marketData, timeSeriesData] = await Promise.all([
           fetchers.marketDataByUUID(nativeToken.uuid),
           fetchers.timeSeriesData(nativeToken.uuid),
@@ -308,7 +313,7 @@ export const useMultiChainTokenData = (
     chainQueries.find((query) => query.error)?.error ||
     tokenQueries.find((query) => query.error)?.error ||
     nativeTokenQueries.find((query) => query.error)?.error;
-
+  console.log(`Total api call amount is ${apiCall}`);
   return {
     tokens: allTokens,
     loading: isLoading,
