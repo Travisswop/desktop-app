@@ -10,7 +10,7 @@ interface TokenCardProps {
   onClick: () => void;
 }
 
-export default function TokenCard({
+export default function TokenCardView({
   token,
   onClick,
 }: TokenCardProps) {
