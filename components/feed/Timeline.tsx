@@ -58,7 +58,7 @@ const Timeline = ({
     }
   }, [user]);
 
-  console.log("smartsiteId", typeof smartsiteId);
+  // console.log("smartsiteId", typeof smartsiteId);
 
   dayjs.extend(relativeTime);
 
@@ -72,11 +72,19 @@ const Timeline = ({
       }/api/v1/feed/smartsite/${smartsiteId}?page=${reset ? 1 : page}&limit=5`;
       const newFeedData = await getSmartsiteFeed(url, accessToken);
 
-      console.log("reset", reset);
+      // console.log("reset", reset);
 
-      console.log("new feed datsss", newFeedData);
+      // console.log("has more", hasMore);
+
+      // console.log("new feed datsss", newFeedData);
+
+      if (newFeedData.data.length < 5) {
+        setHasMore(false);
+      }
 
       if (reset) {
+        // console.log("trigger reset");
+
         setFeedData(newFeedData.data); // Reset data when refetching
         setPage(2); // Set page to 2 after initial load for pagination
         setHasMore(newFeedData.data.length > 0); // Update hasMore based on response
@@ -93,7 +101,7 @@ const Timeline = ({
 
       isFetching.current = false;
     },
-    [userId, page, accessToken, setIsPostLoading, smartsiteId]
+    [page, accessToken, setIsPostLoading, smartsiteId]
   );
 
   // Initial fetch and fetch on page increment
