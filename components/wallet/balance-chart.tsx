@@ -17,6 +17,7 @@ import {
 import { Button } from '@/components/ui/button';
 
 import {
+  ArrowLeftRight,
   BadgeDollarSign,
   ChevronDown,
   QrCode,
@@ -74,6 +75,9 @@ export default function BalanceChart() {
             </Button>
             <Button variant="black" size="icon">
               <Wallet />
+            </Button>
+            <Button variant="black" size="icon">
+              <ArrowLeftRight />
             </Button>
             <Button variant="black" size="icon">
               <QrCode />

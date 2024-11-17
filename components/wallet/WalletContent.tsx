@@ -155,7 +155,7 @@ function WalletContentInner() {
       </div> */}
       <ProfileHeader
         name={user?.name || 'Your Name'}
-        username={'Travis.Swop.ID'}
+        username={'Rakib.Swop.ID'}
         location={user?.address || ''}
         followers={user?.connections.followers.length || 0}
         following={user?.connections.following.length || 0}

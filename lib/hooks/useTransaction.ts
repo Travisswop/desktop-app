@@ -9,6 +9,7 @@ export interface Transaction {
   value: string;
   gas: string;
   gasPrice: string;
+  networkFee: string;
   txreceipt_status?: string;
   contractAddress?: string;
   status?: string;
@@ -16,6 +17,23 @@ export interface Transaction {
   tokenDecimal?: number;
   tokenSymbol?: string;
   network?: string;
+  isSwapped?: boolean;
+  swapped?: {
+    from: {
+      symbol: string;
+      decimal: number;
+      value: string;
+      price: number;
+    };
+    to: {
+      symbol: string;
+      decimal: number;
+      value: string;
+      price: number;
+    };
+  };
+  currentPrice: number;
+  nativeTokenPrice: number;
 }
 
 // Constants
@@ -23,6 +41,7 @@ const CHAINS = {
   ETHEREUM: {
     baseUrl: 'https://api.etherscan.io',
     accessToken: process.env.NEXT_PUBLIC_ETHERSCAN_API_KEY_TOKEN,
+    alchemyUrl: process.env.NEXT_PUBLIC_ALCHEMY_ETH_URL,
     decimal: 18,
     name: 'Ethereum',
     symbol: 'ETH',
@@ -30,6 +49,7 @@ const CHAINS = {
   POLYGON: {
     baseUrl: 'https://api.polygonscan.com',
     accessToken: process.env.NEXT_PUBLIC_POLYGONSCAN_API_KEY_TOKEN,
+    alchemyUrl: process.env.NEXT_PUBLIC_ALCHEMY_POLYGON_URL,
     decimal: 18,
     name: 'POL (ex-MATIC)',
     symbol: 'POL',
@@ -37,6 +57,7 @@ const CHAINS = {
   BASE: {
     baseUrl: 'https://api.basescan.org',
     accessToken: process.env.NEXT_PUBLIC_BASESCAN_API_KEY_TOKEN,
+    alchemyUrl: process.env.NEXT_PUBLIC_ALCHEMY_BASE_URL,
     decimal: 18,
     name: 'Ethereum',
     symbol: 'ETH',
@@ -86,6 +107,7 @@ const fetchers = {
         `${CHAINS[chain].baseUrl}/api?module=account&action=tokentx&address=${address}&startblock=0&endblock=99999999&sort=asc&apikey=${CHAINS[chain].accessToken}`
       );
       const data = await response.json();
+      console.log('🚀 ~ data:', data);
 
       // Check for API errors
       if (
@@ -116,16 +138,26 @@ const formatTransaction = (
   chain: keyof typeof CHAINS
 ): Transaction => {
   try {
-    // Handle potential invalid value strings
     let formattedValue = '0';
     try {
-      formattedValue = ethers.formatEther(tx.value || '0');
+      const tokenDecimal = tx.tokenDecimal
+        ? Number(tx.tokenDecimal)
+        : CHAINS[chain].decimal;
+      formattedValue = ethers.formatUnits(tx.value, tokenDecimal);
     } catch (error) {
       console.warn(
         `Error formatting transaction value: ${tx.value}`,
         error
       );
     }
+
+    // Calculate network fee in native token
+    const gasUsed = BigInt(tx.gas);
+    const gasPrice = BigInt(tx.gasPrice);
+    const networkFee = ethers.formatUnits(
+      gasUsed * gasPrice,
+      CHAINS[chain].decimal
+    );
 
     return {
       hash: tx.hash,
@@ -135,11 +167,14 @@ const formatTransaction = (
       timeStamp: tx.timeStamp,
       gas: tx.gas,
       gasPrice: tx.gasPrice,
+      networkFee,
       status: tx.txreceipt_status,
       tokenName: tx.tokenName || CHAINS[chain].name,
       tokenDecimal: tx.tokenDecimal || CHAINS[chain].decimal,
       tokenSymbol: tx.tokenSymbol || CHAINS[chain].symbol,
       network: chain,
+      currentPrice: 0,
+      nativeTokenPrice: 0,
     };
   } catch (error) {
     console.error('Error formatting transaction:', error);
@@ -168,7 +203,7 @@ export const useMultiChainTransactionData = (
           return [...nativeTxs, ...erc20Txs]
             .sort(
               (a, b) => parseInt(b.timeStamp) - parseInt(a.timeStamp)
-            ) // Fixed parsing
+            )
             .map((data) => formatTransaction(data, chain));
         } catch (error) {
           console.error(
@@ -187,6 +222,32 @@ export const useMultiChainTransactionData = (
   const allTransactions = transactionQueries
     .filter((query) => query.data)
     .flatMap((query) => query.data as Transaction[])
+    .filter((tx) => parseFloat(tx.value) > 0)
+    .reduce((acc, tx) => {
+      const existingTx = acc.find(
+        (existing) => existing.hash === tx.hash
+      );
+      if (existingTx) {
+        existingTx.isSwapped = true;
+        existingTx.swapped = {
+          from: {
+            symbol: tx.tokenSymbol!,
+            decimal: tx.tokenDecimal!,
+            value: tx.value,
+            price: 0,
+          },
+          to: {
+            symbol: existingTx.tokenSymbol!,
+            decimal: existingTx.tokenDecimal!,
+            value: existingTx.value,
+            price: 0,
+          },
+        };
+      } else {
+        acc.push(tx);
+      }
+      return acc;
+    }, [] as Transaction[])
     .sort((a, b) => parseInt(b.timeStamp) - parseInt(a.timeStamp));
 
   const paginatedTransactions = allTransactions.slice(
