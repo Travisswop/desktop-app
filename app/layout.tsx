@@ -4,6 +4,7 @@ import "./globals.css";
 import PrivyProvider from "@/components/PrivyProvider";
 import { UserProvider } from "@/lib/UserContext";
 import { Roboto } from "next/font/google";
+import { TanstackProvider } from "@/components/providers/tanstackProvider";
 
 // const geistSans = localFont({
 //   src: "./fonts/GeistVF.woff",
@@ -38,9 +39,11 @@ export default function RootLayout({
         className={`font-[roboto] bg-accent`}
         // className={`${geistSans.variable} ${geistMono.variable} antialiased bg-accent`}
       >
-        <PrivyProvider>
-          <UserProvider>{children}</UserProvider>
-        </PrivyProvider>
+        <TanstackProvider>
+          <PrivyProvider>
+            <UserProvider>{children}</UserProvider>
+          </PrivyProvider>
+        </TanstackProvider>
       </body>
     </html>
   );

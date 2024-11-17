@@ -1,7 +1,7 @@
 import { Card, Skeleton } from "@nextui-org/react";
 import React from "react";
-import AnimateButton from "../Button/AnimateButton";
 import { CiSettings } from "react-icons/ci";
+import AnimateButton from "../ui/Button/AnimateButton";
 
 const HomepageSmartsiteLoading = () => {
   return (
