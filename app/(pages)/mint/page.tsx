@@ -1,6 +1,6 @@
 import React from "react";
 import MintCart from "@/components/MintCart";
-// import Link from "next/link";
+import Link from "next/link";
 import PushToMintCollectionButton from "@/components/Button/PushToMintCollectionButton";
 import SaveToLocalAndNavigate from "@/components/SaveToLocalAndNavigate";
 
@@ -29,9 +29,11 @@ const MintDashboard = () => {
         </div>
 
         <div className="flex justify-center">
-          <PushToMintCollectionButton className="!py-2">
-            Create Collection
-          </PushToMintCollectionButton>
+          <Link href="/mint/createCollection">
+            <PushToMintCollectionButton className="!py-2">
+              Create Collection
+            </PushToMintCollectionButton>
+          </Link>
         </div>
       </div>
     </main>
