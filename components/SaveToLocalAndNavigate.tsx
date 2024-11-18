@@ -19,7 +19,7 @@ const SaveToLocalAndNavigate: React.FC<SaveToLocalAndNavigateProps> = ({ collect
       className="shadow-medium rounded-lg px-5 py-6 flex flex-col items-center justify-center cursor-pointer hover:bg-gray-100 h-full w-full"
       onClick={handleClick}
     >
-      <PlusCircle className="w-24 h-24 text-gray-500 mb-4" />
+      <PlusCircle className="w-24 h-24 text-gray-400 mb-4 stroke-1" />
       <p className="text-lg font-semibold text-gray-700">Add NFTs To This Collection</p>
     </div>
   );
