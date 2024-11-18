@@ -52,8 +52,14 @@ const MintDashboard = () => {
         </div>
 
         {isModalOpen && (
-          <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50">
-            <div className="bg-white p-6 rounded-lg w-1/3">
+          <div
+            className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50"
+            onClick={handleModalClose}
+          >
+            <div
+              className="bg-white p-6 rounded-lg w-1/3"
+              onClick={(e) => e.stopPropagation()}
+            >
               <h3 className="text-xl font-bold mb-4">Select Type</h3>
               <select
                 value={selectedOption}
