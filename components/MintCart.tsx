@@ -22,7 +22,7 @@ const MintCart = ({
       <Link href={`/mint/${collectionId}/${templateId}`} className="flex justify-center mb-3">
         <Image alt="coupon mit image" src={img} width={220} height={220} />
       </Link>
-      <div className="flex flex-col gap-1 items-start">
+      <div className="flex flex-col gap-1 items-center">
         <h4 className="text-lg font-bold text-gray-700">{title}</h4>
         {subtitle ? (
           <p className="text-green-500 font-semibold">{subtitle}</p>
