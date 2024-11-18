@@ -31,6 +31,14 @@ const MintDashboard = () => {
     setIsModalOpen(false);
   };
 
+  const handleConfirmClick = () => {
+    if (selectedOption === "Collectible") {
+      window.location.href = "/mint/createCollectible";
+    } else if (selectedOption === "Coupon") {
+      window.location.href = "/mint/createCoupon";
+    }
+  };
+
   const handleOptionChange = (event: ChangeEvent<HTMLSelectElement>) => {
     setSelectedOption(event.target.value);
   };
@@ -88,7 +96,7 @@ const MintDashboard = () => {
                 <option value="Phygital">Phygital</option>
               </select>
               <button
-                onClick={handleModalClose}
+                onClick={handleConfirmClick}
                 className="w-full bg-black text-white px-4 py-2 rounded-lg"
               >
                 Confirm
