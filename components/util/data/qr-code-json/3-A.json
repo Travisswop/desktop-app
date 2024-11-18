@@ -1,0 +1,57 @@
+{
+  "width": 550,
+  "height": 550,
+  "data": "https://www.swopme.app/njmilon",
+  "margin": 50,
+  "qrOptions": {
+    "typeNumber": "0",
+    "mode": "Byte",
+    "errorCorrectionLevel": "Q"
+  },
+  "imageOptions": { "hideBackgroundDots": true, "imageSize": 0.5, "margin": 6 },
+  "dotsOptions": { "type": "classy-rounded", "color": "#f99d36" },
+  "backgroundOptions": { "color": "#ffffff00" },
+  "image": "https://res.cloudinary.com/bayshore/image/upload/v1727760981/qr-logo_mwasoz_oqmux8.png",
+  "dotsOptionsHelper": {
+    "colorType": { "single": true, "gradient": false },
+    "gradient": {
+      "linear": true,
+      "radial": false,
+      "color1": "#6a1a4c",
+      "color2": "#6a1a4c",
+      "rotation": "0"
+    }
+  },
+  "cornersSquareOptions": { "type": "", "color": "#f99d36" },
+  "cornersSquareOptionsHelper": {
+    "colorType": { "single": true, "gradient": false },
+    "gradient": {
+      "linear": true,
+      "radial": false,
+      "color1": "#000000",
+      "color2": "#000000",
+      "rotation": "0"
+    }
+  },
+  "cornersDotOptions": { "type": "", "color": "#f99d36" },
+  "cornersDotOptionsHelper": {
+    "colorType": { "single": true, "gradient": false },
+    "gradient": {
+      "linear": true,
+      "radial": false,
+      "color1": "#000000",
+      "color2": "#000000",
+      "rotation": "0"
+    }
+  },
+  "backgroundOptionsHelper": {
+    "colorType": { "single": true, "gradient": false },
+    "gradient": {
+      "linear": true,
+      "radial": false,
+      "color1": "#ffffff",
+      "color2": "#ffffff",
+      "rotation": "0"
+    }
+  }
+}

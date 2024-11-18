@@ -5,12 +5,15 @@ import Swal from "sweetalert2";
 import { MdDelete, MdQrCodeScanner } from "react-icons/md";
 import { TbEdit } from "react-icons/tb";
 import { handleDeleteSmartSite } from "@/actions/deleteSmartsite";
-import { useRouter } from "next/navigation";
+// import { useRouter } from "next/navigation";
 import AnimateButton from "../ui/Button/AnimateButton";
+import { useDesktopUserData } from "../tanstackQueryApi/getUserData";
 
-const ButtonList = ({ microsite, token }: any) => {
+const ButtonList = ({ microsite, token, id }: any) => {
+  const { refetch } = useDesktopUserData(id);
+
   const [deleteLoading, setDeleteLoading] = useState(false);
-  const router = useRouter();
+  // const router = useRouter();
 
   const handleDeleteSmartsite = async () => {
     const result = await Swal.fire({
@@ -28,30 +31,40 @@ const ButtonList = ({ microsite, token }: any) => {
         setDeleteLoading(true);
         const data = await handleDeleteSmartSite(microsite._id, token);
 
-        if (data) {
+        // console.log("data delte", data);
+
+        refetch();
+
+        if (data?.state === "success") {
           setDeleteLoading(false);
           await Swal.fire({
             title: "Deleted!",
             text: "Your smartsite has been deleted.",
             icon: "success",
           });
-          router.refresh();
+          // router.refresh();
+        } else if (data?.state === "fail") {
+          await Swal.fire({
+            title: "Error!",
+            text: data.message,
+            icon: "error",
+          });
         }
         // Check if the deleted microsite is the one stored in localStorage
         // const selectedSmartsite = localStorage.getItem("selected-smartsite");
         // Ensure localStorage is accessed only on the client side
-        if (typeof window !== "undefined") {
-          // console.log("hit");
+        // if (typeof window !== "undefined") {
+        //   // console.log("hit");
 
-          const selectedSmartsite = localStorage.getItem("selected smartsite");
-          // console.log("selected smartsite", selectedSmartsite);
+        //   const selectedSmartsite = localStorage.getItem("selected smartsite");
+        //   // console.log("selected smartsite", selectedSmartsite);
 
-          if (selectedSmartsite === microsite._id) {
-            // console.log("true hit");
-            localStorage.removeItem("selected smartsite");
-            router.push("/select-smartsite");
-          }
-        }
+        //   if (selectedSmartsite === microsite._id) {
+        //     // console.log("true hit");
+        //     localStorage.removeItem("selected smartsite");
+        //     router.push("/select-smartsite");
+        //   }
+        // }
         setDeleteLoading(false);
       } catch (error) {
         // Handle error if the delete operation fails
