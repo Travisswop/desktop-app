@@ -12,14 +12,11 @@ const SaveToLocalAndNavigate: React.FC<SaveToLocalAndNavigateProps> = ({ collect
   const handleClick = () => {
     // Save the collectionId to localStorage
     localStorage.setItem("swop_desktop_collectionId_for_createTemplate", collectionId);
-
-    // Navigate using window.location.href
-    window.location.href = "/mint/createTemplate";
   };
 
   return (
     <div
-      className="shadow-medium rounded-lg px-5 py-6 flex flex-col items-center justify-center cursor-pointer hover:bg-gray-100"
+      className="shadow-medium rounded-lg px-5 py-6 flex flex-col items-center justify-center cursor-pointer hover:bg-gray-100 h-full w-full"
       onClick={handleClick}
     >
       <PlusCircle className="w-24 h-24 text-gray-500 mb-4" />
