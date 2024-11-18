@@ -10,7 +10,7 @@ const MintCart = ({
   collectionId,
   templateId,
 }: {
-  img: any;
+  img: string; // Updated to specify a string type for the image URL
   title: string;
   subtitle?: string;
   text?: string;

@@ -1,6 +1,7 @@
 "use client"; // Ensures this is a client-side component
 
 import React from "react";
+import { PlusCircle } from "lucide-react";
 
 interface SaveToLocalAndNavigateProps {
   collectionId: string;
@@ -17,12 +18,13 @@ const SaveToLocalAndNavigate: React.FC<SaveToLocalAndNavigateProps> = ({ collect
   };
 
   return (
-    <button
-      className="px-4 py-2 text-sm font-medium border border-gray-400 rounded-lg"
+    <div
+      className="shadow-medium rounded-lg px-5 py-6 flex flex-col items-center justify-center cursor-pointer hover:bg-gray-100"
       onClick={handleClick}
     >
-      Add NFTs To This Collection
-    </button>
+      <PlusCircle className="w-24 h-24 text-gray-500 mb-4" />
+      <p className="text-lg font-semibold text-gray-700">Add NFTs To This Collection</p>
+    </div>
   );
 };
 

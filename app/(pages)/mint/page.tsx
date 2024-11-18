@@ -10,7 +10,7 @@ const MintDashboard = () => {
       <div className="bg-white p-4">
         {/* Render collections dynamically */}
         <div>
-          <h6 className="heading-4 mb-4">Collection Name</h6>
+          <h2 className="text-2xl font-bold mb-4">Collection Name</h2>
           <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 xl:gap-10 2xl:gap-16">
             <MintCart
               key="template-id"
@@ -20,15 +20,11 @@ const MintDashboard = () => {
               collectionId="collection-id"
               templateId="template-id"
             />
-          </div>
-
-          {/* Use the new client-side component for handling localStorage and navigation */}
-          <div className="flex justify-center my-6">
             <SaveToLocalAndNavigate collectionId="collection-id" />
           </div>
         </div>
 
-        <div className="flex justify-center">
+        <div className="flex justify-center mt-8">
           <Link href="/mint/createCollection">
             <PushToMintCollectionButton className="!py-2">
               Create Collection
