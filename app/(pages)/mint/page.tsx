@@ -1,14 +1,27 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, ChangeEvent } from "react";
 import MintCart from "@/components/MintCart";
 import Link from "next/link";
 import PushToMintCollectionButton from "@/components/Button/PushToMintCollectionButton";
 import SaveToLocalAndNavigate from "@/components/SaveToLocalAndNavigate";
+import { useUser } from "@/lib/UserContext";
+import HomePageLoading from "@/components/loading/HomePageLoading";
 
 const MintDashboard = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedOption, setSelectedOption] = useState("");
+  const { user, loading, error } = useUser();
+
+  if (loading) {
+    return <HomePageLoading />;
+  }
+
+  if (error) {
+    return <div>Error loading dashboard: {error.message}</div>;
+  }
+
+  console.log("user", user);
 
   const handleSaveClick = () => {
     setIsModalOpen(true);
@@ -18,7 +31,7 @@ const MintDashboard = () => {
     setIsModalOpen(false);
   };
 
-  const handleOptionChange = (event) => {
+  const handleOptionChange = (event: ChangeEvent<HTMLSelectElement>) => {
     setSelectedOption(event.target.value);
   };
 
@@ -66,9 +79,10 @@ const MintDashboard = () => {
                 onChange={handleOptionChange}
                 className="w-full mb-4 border border-gray-300 rounded-lg px-4 py-2"
               >
-                <option value="">Select an option</option>
+                <option value="" disabled>Select an option</option>
                 <option value="Collectible">Collectible</option>
                 <option value="Subscription">Subscription</option>
+                <option value="Membership">Membership</option>
                 <option value="Coupon">Coupon</option>
                 <option value="Menu Item">Menu Item</option>
                 <option value="Phygital">Phygital</option>
