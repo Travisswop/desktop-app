@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useState, DragEvent } from "react";
 import PushToMintCollectionButton from "@/components/Button/PushToMintCollectionButton";
 import Image from "next/image";
 import DatePicker from "react-datepicker";
@@ -65,10 +65,28 @@ const CreateSubscriptionPage = () => {
     }
   };
 
-  const handleDateChange = (date: Date, field: "startDate" | "endDate") => {
+  const handleDateChange = (date: Date, field: "startDate") => {
     setFormData((prevState) => ({
       ...prevState,
       [field]: date,
+    }));
+  };
+
+  const handleDurationChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const duration = e.target.value;
+    const newEndDate = new Date(formData.startDate);
+
+    if (duration === "Weekly") {
+      newEndDate.setDate(newEndDate.getDate() + 7);
+    } else if (duration === "Monthly") {
+      newEndDate.setMonth(newEndDate.getMonth() + 1);
+    } else if (duration === "Yearly") {
+      newEndDate.setFullYear(newEndDate.getFullYear() + 1);
+    }
+
+    setFormData((prevState) => ({
+      ...prevState,
+      endDate: newEndDate,
     }));
   };
 
@@ -82,6 +100,23 @@ const CreateSubscriptionPage = () => {
 
   const handleImageUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
+    if (!file) return;
+
+    setSelectedImageName(file.name);
+
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      setFormData((prevState) => ({
+        ...prevState,
+        imageUrl: reader.result as string,
+      }));
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleImageDrop = (event: DragEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    const file = event.dataTransfer.files?.[0];
     if (!file) return;
 
     setSelectedImageName(file.name);
@@ -142,7 +177,11 @@ const CreateSubscriptionPage = () => {
             <label htmlFor="imageUrl" className="mb-1 block font-medium">
               Image (JPEG, JPG, PNG)
             </label>
-            <div className="bg-gray-100 p-4 rounded-lg border border-dashed border-gray-300 text-center">
+            <div
+              className="bg-gray-100 p-4 rounded-lg border border-dashed border-gray-300 text-center"
+              onDragOver={(e) => e.preventDefault()}
+              onDrop={handleImageDrop}
+            >
               {formData.imageUrl ? (
                 <div className="flex flex-col items-center">
                   <Image
@@ -231,15 +270,23 @@ const CreateSubscriptionPage = () => {
                 />
               </div>
               <div className="flex-1">
-                <label htmlFor="endDate" className="mb-1 block font-medium">
-                  End Date
+                <label htmlFor="duration" className="mb-1 block font-medium">
+                  Duration
                 </label>
-                <DatePicker
-                  selected={formData.endDate}
-                  onChange={(date) => handleDateChange(date as Date, "endDate")}
+                <select
+                  id="duration"
+                  name="duration"
+                  onChange={handleDurationChange}
                   className="w-full border border-gray-300 rounded-lg px-4 py-2"
-                  dateFormat="yyyy-MM-dd"
-                />
+                  defaultValue=""
+                >
+                  <option value="" disabled>
+                    Select an option
+                  </option>
+                  <option value="Weekly">Weekly</option>
+                  <option value="Monthly">Monthly</option>
+                  <option value="Yearly">Yearly</option>
+                </select>
               </div>
             </div>
 
@@ -327,7 +374,7 @@ const CreateSubscriptionPage = () => {
                 />
               )}
               <p className="text-sm text-gray-500 mt-1">
-                Limit the number of times this subscription can be purchased
+                Limit the number of times this digital good can be purchased
               </p>
 
               <div className="mt-4">
