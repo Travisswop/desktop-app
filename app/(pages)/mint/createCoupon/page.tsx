@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useState, DragEvent } from "react";
 import PushToMintCollectionButton from "@/components/Button/PushToMintCollectionButton";
 import Image from "next/image";
 
@@ -75,6 +75,23 @@ const CreateCouponPage = () => {
 
   const handleImageUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
+    if (!file) return;
+
+    setSelectedImageName(file.name);
+
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      setFormData((prevState) => ({
+        ...prevState,
+        imageUrl: reader.result as string,
+      }));
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleImageDrop = (event: DragEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    const file = event.dataTransfer.files?.[0];
     if (!file) return;
 
     setSelectedImageName(file.name);
@@ -165,7 +182,11 @@ const CreateCouponPage = () => {
             <label htmlFor="imageUrl" className="mb-1 block font-medium">
               Image (JPEG, JPG, PNG)
             </label>
-            <div className="bg-gray-100 p-4 rounded-lg border border-dashed border-gray-300 text-center">
+            <div
+              className="bg-gray-100 p-4 rounded-lg border border-dashed border-gray-300 text-center"
+              onDragOver={(e) => e.preventDefault()}
+              onDrop={handleImageDrop}
+            >
               {formData.imageUrl ? (
                 <div className="flex flex-col items-center">
                   <Image
@@ -186,7 +207,7 @@ const CreateCouponPage = () => {
               ) : (
                 <div>
                   <div className="flex flex-col items-center justify-center h-32 cursor-pointer">
-                    <div className="text-6xl text-gray-400">📷</div>
+                    <div className="text-6xl text-gray-400">🖼️</div>
                     <p className="text-gray-500">
                       Browse or drag and drop an image here.
                     </p>
