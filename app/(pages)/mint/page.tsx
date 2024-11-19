@@ -36,6 +36,14 @@ const MintDashboard = () => {
       window.location.href = "/mint/createCollectible";
     } else if (selectedOption === "Coupon") {
       window.location.href = "/mint/createCoupon";
+    } else if (selectedOption === "Subscription") {
+      window.location.href = "/mint/createSubscription";
+    } else if (selectedOption === "Membership") {
+      window.location.href = "/mint/createMembership";
+    } else if (selectedOption === "Menu Item") {
+      window.location.href = "/mint/createMenuItem";
+    } else if (selectedOption === "Phygital") {
+      window.location.href = "/mint/createPhygital";
     }
   };
 
