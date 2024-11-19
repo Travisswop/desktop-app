@@ -62,6 +62,14 @@ const CHAINS = {
     name: 'Ethereum',
     symbol: 'ETH',
   },
+  SOLANA: {
+    baseUrl: 'https://api.basescan.org',
+    accessToken: process.env.NEXT_PUBLIC_BASESCAN_API_KEY_TOKEN,
+    alchemyUrl: process.env.NEXT_PUBLIC_ALCHEMY_BASE_URL,
+    decimal: 18,
+    name: 'Ethereum',
+    symbol: 'ETH',
+  },
 } as const;
 
 const fetchers = {
@@ -69,6 +77,7 @@ const fetchers = {
     chain: keyof typeof CHAINS,
     address: string
   ): Promise<Transaction[]> {
+    console.log('🚀 ~ address:', address);
     try {
       const response = await fetch(
         `${CHAINS[chain].baseUrl}/api?module=account&action=txlist&address=${address}&startblock=0&endblock=99999999&sort=asc&apikey=${CHAINS[chain].accessToken}`

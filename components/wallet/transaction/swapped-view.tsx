@@ -34,6 +34,11 @@ const CHAINS = {
     symbol: 'ETH',
     explorer: 'https://basescan.org/',
   },
+  SOLANA: {
+    name: 'Ethereum',
+    symbol: 'ETH',
+    explorer: 'https://basescan.org/',
+  },
 } as const;
 
 interface TransactionDetailsProps {

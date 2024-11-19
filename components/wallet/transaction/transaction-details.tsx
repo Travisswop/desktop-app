@@ -4,11 +4,11 @@ import { Transaction } from '@/lib/hooks/useTransaction';
 import SwappedView from './swapped-view';
 import SentReceivedView from './sent-received-view';
 
-type CHAINS = 'ETHEREUM' | 'POLYGON' | 'BASE';
+type Network = 'ETHEREUM' | 'POLYGON' | 'BASE' | 'SOLANA';
 interface TransactionDetailsProps {
   transaction: Transaction | null;
   userAddress: string;
-  network: CHAINS;
+  network: Network;
   isOpen: boolean;
   onClose: () => void;
 }

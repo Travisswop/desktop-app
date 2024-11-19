@@ -17,7 +17,7 @@ import TransactionDetails from './transaction-details';
 import Image from 'next/image';
 import { useMultiChainTokenData } from '@/lib/hooks/useTokenBalance';
 
-type CHAINS = 'ETHEREUM' | 'POLYGON' | 'BASE';
+type Network = 'ETHEREUM' | 'POLYGON' | 'BASE' | 'SOLANA';
 
 // Constants
 const ITEMS_PER_PAGE = 20;
@@ -214,7 +214,7 @@ export default function TransactionList({
   network,
 }: {
   address: string | undefined;
-  network: CHAINS;
+  network: Network;
 }) {
   const [selectedTransaction, setSelectedTransaction] =
     useState<Transaction | null>(null);
@@ -344,11 +344,13 @@ export default function TransactionList({
                 )}
               </div>
 
-              {!loading && processedTransactions.length === 0 && (
-                <div className="text-center py-8 text-muted-foreground">
-                  No transactions found
-                </div>
-              )}
+              {!loading &&
+                !error &&
+                processedTransactions.length === 0 && (
+                  <div className="text-center py-8 text-muted-foreground">
+                    No transactions found
+                  </div>
+                )}
 
               {hasMore && (
                 <div className="mt-4 flex justify-center sticky bottom-0 bg-white py-4">

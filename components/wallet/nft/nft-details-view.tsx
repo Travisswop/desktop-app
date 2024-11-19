@@ -8,7 +8,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import Image from 'next/image';
-import { NFT } from './nft-list';
+import { NFT } from '@/types/token';
 
 interface NFTDetailProps {
   isOpen: boolean;

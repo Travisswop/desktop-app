@@ -1,6 +1,6 @@
 'use client';
 
-import { Eye, EyeOff } from 'lucide-react';
+import { Eye, EyeOff, AlertCircle } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { TokenData } from '@/types/token';
 import { useMemo, useState } from 'react';
@@ -61,6 +61,23 @@ export default function PortfolioBalance({
       tokenShares,
     };
   }, [tokens]);
+
+  if (portfolioData.totalBalance === 0) {
+    return (
+      <div className="flex flex-col items-center gap-6 mb-10">
+        <div className="text-center space-y-4">
+          <div className="flex flex-col items-center">
+            <AlertCircle className="h-12 w-12 text-muted-foreground mb-4" />
+            <h3 className="text-lg font-medium">Empty Portfolio</h3>
+            <p className="text-sm text-muted-foreground max-w-[300px] mt-2">
+              Your portfolio is currently empty. Add some tokens to
+              start tracking your investments.
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   // Calculate the stroke dash array and offset for each segment
   const radius = 85;

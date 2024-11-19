@@ -23,7 +23,9 @@ import {
   QueryClientProvider,
 } from '@tanstack/react-query';
 import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
+import NetworkDock from './network-dock';
 
+type Network = 'ETHEREUM' | 'POLYGON' | 'BASE' | 'SOLANA';
 // Initialize React Query client
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -48,28 +50,52 @@ function WalletContentInner() {
   const [walletData, setWalletData] = useState<WalletItem[] | null>(
     null
   );
+  const [network, setNetwork] = useState<Network>('ETHEREUM');
+  console.log('🚀 ~ WalletContentInner ~ network:', network);
+
   const { user, loading, error } = useUser();
   const { authenticated, ready, user: PrivyUser } = usePrivy();
-  const { createWallet } = useSolanaWallets();
-
+  console.log('🚀 ~ WalletContentInner ~ PrivyUser:', PrivyUser);
+  const { createWallet, wallets } = useSolanaWallets();
   const [selectedToken, setSelectedToken] =
     useState<TokenData | null>(null);
   const [selectedNFT, setSelectedNFT] = useState<NFT | null>(null);
   const [isNFTModalOpen, setIsNFTModalOpen] = useState(false);
 
-  const evmWallet = useMemo(
-    () => walletData?.find((wallet) => wallet.isEVM),
-    [walletData]
-  );
+  console.log('🚀 ~ WalletContentInner ~ wallets:', wallets);
 
-  const walletAddress = evmWallet?.address || '';
-  const network = 'POLYGON';
+  // Get current wallet address based on network
+  const currentWalletAddress = useMemo(() => {
+    if (!walletData) return undefined;
+
+    switch (network) {
+      case 'SOLANA':
+        return '5puTjx1LRnXFANfN7LMG7y4eyRT9qyfncLTJFffbcNq6';
+      // return walletData.find((w) => !w.isEVM)?.address;
+      case 'ETHEREUM':
+      case 'POLYGON':
+      case 'BASE':
+        return walletData.find((w) => w.isEVM)?.address;
+      default:
+        return undefined;
+    }
+  }, [network, walletData]);
 
   const {
     tokens,
     loading: tokenLoading,
     error: tokenError,
-  } = useMultiChainTokenData(walletAddress, [network]);
+  } = useMultiChainTokenData(currentWalletAddress, [network]);
+  console.log('🚀 ~ WalletContentInner ~ tokens:', tokens);
+
+  const totalBalance = useMemo(() => {
+    return tokens.reduce((total, token) => {
+      const value =
+        parseFloat(token.balance) *
+        parseFloat(token.marketData.price);
+      return total + value;
+    }, 0);
+  }, [tokens]);
 
   useEffect(() => {
     const linkWallet = PrivyUser?.linkedAccounts
@@ -104,7 +130,6 @@ function WalletContentInner() {
           account.walletClientType === 'privy' &&
           account.chainType === 'solana'
       );
-
       if (!hasExistingSolanaWallet) {
         createWallet();
       }
@@ -139,20 +164,6 @@ function WalletContentInner() {
 
   return (
     <div className="">
-      {/* <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 my-6">
-        <WalletProfile
-          name={user?.name || 'Your Name'}
-          username={'Travis.Swop.ID'}
-          imageUrl={
-            user?.profilePic?.includes('https://')
-              ? user.profilePic
-              : `/assets/avatar/${user?.profilePic}.png`
-          }
-          points={3200}
-        />
-        <WalletManager walletData={walletData || WALLET_INFO} />
-        <EmbeddedWallet />
-      </div> */}
       <ProfileHeader
         name={user?.name || 'Your Name'}
         username={'Rakib.Swop.ID'}
@@ -165,7 +176,10 @@ function WalletContentInner() {
         imageUrl={user?.profilePic || '/images/avatar.png'}
       />
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 my-6">
-        <BalanceChart />
+        <BalanceChart
+          walletData={walletData || []}
+          totalBalance={totalBalance}
+        />
         <MessageBox />
       </div>
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 my-6">
@@ -181,10 +195,12 @@ function WalletContentInner() {
         )}
         <div>
           <NFTSlider onSelectNft={handleSelectNFT} />
-          <TransactionList
-            address={walletAddress}
-            network={network}
-          />
+          {currentWalletAddress && (
+            <TransactionList
+              address={currentWalletAddress}
+              network={network}
+            />
+          )}
           {selectedNFT && (
             <NFTDetailView
               isOpen={isNFTModalOpen}
@@ -194,6 +210,7 @@ function WalletContentInner() {
           )}
         </div>
       </div>
+      <NetworkDock network={network} setNetwork={setNetwork} />
     </div>
   );
 }

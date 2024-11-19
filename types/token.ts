@@ -34,7 +34,7 @@ export interface TokenData {
   chainId?: number;
   address: string;
   logoURI: string;
-  chain: 'evm' | 'solana';
+  chain: 'ETHEREUM' | 'POLYGON' | 'BASE' | 'SOLANA';
   marketData: MarketData;
   timeSeriesData: {
     '1H': Array<{ timestamp: number; value: number }>;
@@ -43,4 +43,12 @@ export interface TokenData {
     '1M': Array<{ timestamp: number; value: number }>;
     '1Y': Array<{ timestamp: number; value: number }>;
   };
+}
+
+export interface NFT {
+  id: string;
+  type: string;
+  creator: string;
+  image: string;
+  description: string;
 }
