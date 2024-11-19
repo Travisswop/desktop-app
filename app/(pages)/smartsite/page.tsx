@@ -23,7 +23,7 @@ import SmartSitePageLoading from "@/components/loading/SmartSitePageLoading";
 const SmartsitePage = () => {
   const { user, loading } = useUser();
 
-  const token =
+  const demoToken =
     "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJfaWQiOiI2NjM4NjMyMDIzMDQxMDMyODAyOTk4MmIiLCJpYXQiOjE3MjcxNTI4MzB9.CsHnZAgUzsfkc_g_CZZyQMXc02Ko_LhnQcCVpeCwroY";
 
   const {
@@ -96,7 +96,11 @@ const SmartsitePage = () => {
                   </h3>
                   <p className="font-medium text-gray-500">{microsite.bio}</p>
                 </div>
-                <ButtonList microsite={microsite} token={token} id={user._id} />
+                <ButtonList
+                  microsite={microsite}
+                  token={demoToken}
+                  id={user._id}
+                />
               </div>
             </div>
           ))}

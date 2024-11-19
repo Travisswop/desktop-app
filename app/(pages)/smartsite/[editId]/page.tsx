@@ -1,29 +1,20 @@
 import React from "react";
-import EditSmartSite from "./mainContent";
-import getSingleSmartsiteData from "@/util/fetchingData/singleSmartsiteDataFetching";
-import isUserAuthenticate from "@/util/isUserAuthenticate";
-import ForceSignOut from "@/components/ForceSignOut";
+import EditSmartSite from "../../../../components/smartsite/EditMicrosite/mainContent";
+import getSingleSmartsiteData from "@/actions/singleSmartsiteDataFetching";
 
 const SmartsiteUpdatePage = async ({
   params,
 }: {
   params: { editId: string };
 }) => {
-  const session: any = await isUserAuthenticate();
-  const data = await getSingleSmartsiteData(
-    params.editId,
-    session.accessToken as string
-  );
+  const demoToken =
+    "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJfaWQiOiI2NjM4NjMyMDIzMDQxMDMyODAyOTk4MmIiLCJpYXQiOjE3MjcxNTI4MzB9.CsHnZAgUzsfkc_g_CZZyQMXc02Ko_LhnQcCVpeCwroY";
 
-  if (data && data.state === "fail") {
-    return <ForceSignOut />;
+  if (params) {
+    const data = await getSingleSmartsiteData(params.editId, demoToken);
+
+    return <EditSmartSite token={demoToken} data={data} />;
   }
-
-  // console.log("data", data);
-
-  return (
-    <EditSmartSite token={session.accessToken} session={session} data={data} />
-  );
 };
 
 export default SmartsiteUpdatePage;

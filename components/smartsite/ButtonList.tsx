@@ -86,17 +86,17 @@ const ButtonList = ({ microsite, token, id }: any) => {
 
   return (
     <div className="flex flex-wrap items-center justify-center gap-1">
-      <Link href={`/smartsites/${microsite._id}`} className="text-sm">
+      <Link href={`/smartsite/${microsite._id}`} className="text-sm">
         <AnimateButton width="w-[6.5rem]">
           <TbEdit size={18} /> Details
         </AnimateButton>
       </Link>
-      <Link href={`/smartsites/icons/${microsite._id}`} className="text-sm">
+      <Link href={`/smartsite/icons/${microsite._id}`} className="text-sm">
         <AnimateButton width="w-[5.8rem]">
           <TbEdit size={18} /> Icons
         </AnimateButton>
       </Link>
-      <Link href={`/smartsites/qr-code/${microsite._id}`} className="text-sm">
+      <Link href={`/smartsite/qr-code/${microsite._id}`} className="text-sm">
         <AnimateButton width="w-[4.6rem]">
           <MdQrCodeScanner size={18} /> QR
         </AnimateButton>

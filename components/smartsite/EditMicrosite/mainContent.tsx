@@ -5,32 +5,46 @@ import editIcon from "@/public/images/websites/edit-icon.svg";
 import { FiUser } from "react-icons/fi";
 import { TbUserSquare } from "react-icons/tb";
 import { Spinner, Switch, useDisclosure } from "@nextui-org/react";
-import EditMicrositeBtn from "@/components/Button/EditMicrositeBtn";
+// import EditMicrositeBtn from "@/components/Button/EditMicrositeBtn";
 import { LiaFileMedicalSolid } from "react-icons/lia";
 import { IoMdLink } from "react-icons/io";
-import DynamicPrimaryBtn from "@/components/Button/DynamicPrimaryBtn";
-import LivePreview from "@/components/LivePreview";
-import SelectBackgroudOrBannerModal from "@/components/SelectBackgroudOrBannerModal/SelectBackgroudOrBannerModal";
-import isUrl from "@/util/isUrl";
+// import DynamicPrimaryBtn from "@/components/Button/DynamicPrimaryBtn";
+// import LivePreview from "@/components/LivePreview";
+// import SelectBackgroudOrBannerModal from "@/components/SelectBackgroudOrBannerModal/SelectBackgroudOrBannerModal";
+// import isUrl from "@/util/isUrl";
 import { PiAddressBook } from "react-icons/pi";
 import SelectAvatorModal from "@/components/modal/SelectAvatorModal";
-import userProfileImages from "@/util/data/userProfileImage";
-import { sendCloudinaryImage } from "@/util/SendCloudineryImage";
-import smatsiteBackgroundImageList from "@/util/data/smatsiteBackgroundImageList";
-import smatsiteBannerImageList from "@/util/data/smartsiteBannerImageList";
+// import userProfileImages from "@/util/data/userProfileImage";
+// import { sendCloudinaryImage } from "@/util/SendCloudineryImage";
+// import smatsiteBackgroundImageList from "@/util/data/smatsiteBackgroundImageList";
+// import smatsiteBannerImageList from "@/util/data/smartsiteBannerImageList";
 import useSmartsiteFormStore from "@/zustandStore/EditSmartsiteInfo";
 import { handleSmartSiteUpdate } from "@/actions/update";
-import { toast } from "react-toastify";
+// import { toast } from "react-toastify";
 import useSmallIconToggleStore from "@/zustandStore/SmallIconModalToggle";
 import useUpdateSmartIcon from "@/zustandStore/UpdateSmartIcon";
-import UpdateModalComponents from "@/components/EditMicrosite/UpdateModalComponents";
+// import UpdateModalComponents from "@/components/EditMicrosite/UpdateModalComponents";
 import useSmartSiteApiDataStore from "@/zustandStore/UpdateSmartsiteInfo";
 import useLoggedInUserStore from "@/zustandStore/SetLogedInUserSession";
 import { useRouter } from "next/navigation";
-import AnimateButton from "@/components/Button/AnimateButton";
+// import AnimateButton from "@/components/Button/AnimateButton";
+import { useToast } from "@/hooks/use-toast";
+import DynamicPrimaryBtn from "@/components/ui/Button/DynamicPrimaryBtn";
+// import SmartsiteIconLivePreview from "../SmartsiteIconLivePreview";
+import SelectBackgroudOrBannerModal from "@/components/modal/SelectBackgroudOrBannerModal";
+import isUrl from "@/lib/isUrl";
+import userProfileImages from "@/components/util/data/userProfileImage";
+import smatsiteBannerImageList from "@/components/util/data/smartsiteBannerImageList";
+import smatsiteBackgroundImageList from "@/components/util/data/smatsiteBackgroundImageList";
+// import UpdateModalComponents from "./UpdateModalComponents";
+import AnimateButton from "@/components/ui/Button/AnimateButton";
+import { sendCloudinaryImage } from "@/lib/SendCloudineryImage";
+import SmartsiteIconLivePreview from "../SmartsiteIconLivePreview";
 
 const EditSmartSite = ({ data, token, session }: any) => {
   const [selectedImage, setSelectedImage] = useState(null); // get user avator image
+
+  const { toast } = useToast();
 
   const { formData: smartSiteEditFormData, setFormData }: any =
     useSmartsiteFormStore();
@@ -245,10 +259,16 @@ const EditSmartSite = ({ data, token, session }: any) => {
 
       if (response.state === "success") {
         router.push("/smartsites");
-        toast.success("Smartsite updated successfully");
+        toast({
+          title: "Success",
+          description: "Smartsite updated successfully",
+        });
       }
-    } catch (error: any) {
-      toast.error(error.message);
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Something went wrong!",
+      });
     } finally {
       setIsFormSubmitLoading(false);
     }
@@ -323,12 +343,13 @@ const EditSmartSite = ({ data, token, session }: any) => {
                           alt="user image"
                           src={
                             selectedImage
-                              ? `/images/user_avator/${selectedImage}.png`
-                              : `/images/user_avator/1.png`
+                              ? `/images/user_avator/${selectedImage}@3x.png`
+                              : `/images/user_avator/1@3x.png`
                           }
-                          width={160}
-                          height={160}
-                          className="rounded-full shadow-medium p-1"
+                          quality={100}
+                          width={300}
+                          height={300}
+                          className="rounded-full shadow-medium p-1 w-44 h-44"
                         />
                       ) : (
                         <div className="relative overflow-hidden rounded-full w-28 xl:w-36 2xl:w-44 h-28 xl:h-36 2xl:h-44 p-1 bg-white shadow-medium">
@@ -353,10 +374,10 @@ const EditSmartSite = ({ data, token, session }: any) => {
                       ) : (
                         <Image
                           alt="user image"
-                          src={`/images/user_avator/${data.data.profilePic}.png`}
-                          width={160}
-                          height={160}
-                          className="rounded-full shadow-medium p-1"
+                          src={`/images/user_avator/${data.data.profilePic}@3x.png`}
+                          width={300}
+                          height={300}
+                          className="rounded-full shadow-medium p-1 w-44 h-44"
                         />
                       )}
                     </>
@@ -581,7 +602,7 @@ const EditSmartSite = ({ data, token, session }: any) => {
           </form>
         </div>
         {/* <div style={{ height: "90%" }} className="w-[38%] overflow-y-auto"> */}
-        <LivePreview data={data.data} />
+        <SmartsiteIconLivePreview data={data.data} />
         {/* </div> */}
       </div>
 
@@ -608,7 +629,7 @@ const EditSmartSite = ({ data, token, session }: any) => {
       )}
 
       {/* Update modal component list here  */}
-      <UpdateModalComponents isOn={isOn} iconData={iconData} setOff={setOff} />
+      {/* <UpdateModalComponents isOn={isOn} iconData={iconData} setOff={setOff} /> */}
     </main>
   );
 };
