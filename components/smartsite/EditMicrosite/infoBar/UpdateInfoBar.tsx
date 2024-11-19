@@ -11,22 +11,26 @@ import {
 import { AiOutlineDownCircle } from "react-icons/ai";
 import { IoLinkOutline } from "react-icons/io5";
 import { LiaFileMedicalSolid } from "react-icons/lia";
-import { icon, newIcons } from "@/util/data/smartsiteIconData";
-import { isEmptyObject } from "@/util/checkIsEmptyObject";
-import useLoggedInUserStore from "@/zustandStore/SetLogedInUserSession";
-import { toast } from "react-toastify";
+// import { icon, newIcons } from "@/util/data/smartsiteIconData";
+// import { isEmptyObject } from "@/util/checkIsEmptyObject";
+// import useLoggedInUserStore from "@/zustandStore/SetLogedInUserSession";
+// import { toast } from "react-toastify";
 import { FaTimes } from "react-icons/fa";
 import { MdDelete } from "react-icons/md";
-import AnimateButton from "@/components/Button/AnimateButton";
+// import AnimateButton from "@/components/Button/AnimateButton";
 // import { handleDeleteAppIcon, handleUpdateAppIcon } from "@/actions/appIcon";
 import { deleteInfoBar, postInfoBar, updateInfoBar } from "@/actions/infoBar";
 import useSmartSiteApiDataStore from "@/zustandStore/UpdateSmartsiteInfo";
+import { icon, newIcons } from "@/components/util/data/smartsiteIconData";
+import { useToast } from "@/hooks/use-toast";
+import { isEmptyObject } from "@/components/util/checkIsEmptyObject";
+import AnimateButton from "@/components/ui/Button/AnimateButton";
 // import { deleteEmbedLink } from "@/actions/embedLink";
 // import AnimateButton from "../Button/AnimateButton";
 
 const UpdateInfoBar = ({ iconDataObj, isOn, setOff }: any) => {
   const state: any = useSmartSiteApiDataStore((state) => state); //get small icon store value
-  const sesstionState = useLoggedInUserStore((state) => state.state.user); //get session value
+  //const sesstionState = useLoggedInUserStore((state) => state.state.user); //get session value
   const [selectedIconType, setSelectedIconType] = useState("");
   const [selectedIcon, setSelectedIcon] = useState({
     name: "Amazon Music",
@@ -42,6 +46,8 @@ const UpdateInfoBar = ({ iconDataObj, isOn, setOff }: any) => {
 
   const modalRef = useRef<HTMLDivElement>(null);
 
+  const { toast } = useToast();
+
   // console.log("selected icon type", selectedIconType);
   // console.log("selected icon name", selectedIcon);
   // console.log("selected icon data", selectedIconData);
@@ -49,6 +55,9 @@ const UpdateInfoBar = ({ iconDataObj, isOn, setOff }: any) => {
 
   const iconData: any = newIcons[1];
   // console.log("iconData", iconData);
+
+  const demoToken =
+    "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJfaWQiOiI2NjM4NjMyMDIzMDQxMDMyODAyOTk4MmIiLCJpYXQiOjE3MjcxNTI4MzB9.CsHnZAgUzsfkc_g_CZZyQMXc02Ko_LhnQcCVpeCwroY";
 
   // Function to close the modal
   const closeModal = () => {
@@ -122,14 +131,20 @@ const UpdateInfoBar = ({ iconDataObj, isOn, setOff }: any) => {
     };
     // console.log("smallIconInfo", infobarInfo);
     try {
-      const data = await updateInfoBar(infobarInfo, sesstionState.accessToken);
+      const data = await updateInfoBar(infobarInfo, demoToken);
       // console.log("data", data);
 
       if ((data.state = "success")) {
         setOff();
-        toast.success("info bar updated successfully");
+        toast({
+          title: "Error",
+          description: "Info bar updated successfully",
+        });
       } else {
-        toast.error("something went wrong");
+        toast({
+          title: "Error",
+          description: "Something went wrong!",
+        });
       }
     } catch (error) {
       console.error(error);
@@ -161,17 +176,20 @@ const UpdateInfoBar = ({ iconDataObj, isOn, setOff }: any) => {
     // console.log("submit data", submitData);
 
     try {
-      const data: any = await deleteInfoBar(
-        submitData,
-        sesstionState.accessToken
-      );
+      const data: any = await deleteInfoBar(submitData, demoToken);
       // console.log("data,", data);
 
       if (data && data?.state === "success") {
         setOff();
-        toast.success("info bar deleted successfully");
+        toast({
+          title: "Success",
+          description: "Info bar deleted successfully",
+        });
       } else {
-        toast.error("something went wrong");
+        toast({
+          title: "Error",
+          description: "Something went wrong!",
+        });
       }
     } catch (error) {
       console.error(error);

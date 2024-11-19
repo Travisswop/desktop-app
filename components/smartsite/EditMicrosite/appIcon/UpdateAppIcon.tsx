@@ -11,22 +11,28 @@ import {
 import { AiOutlineDownCircle } from "react-icons/ai";
 import { IoLinkOutline } from "react-icons/io5";
 import { LiaFileMedicalSolid } from "react-icons/lia";
-import { icon, newIcons } from "@/util/data/smartsiteIconData";
-import { isEmptyObject } from "@/util/checkIsEmptyObject";
+// import { icon, newIcons } from "@/util/data/smartsiteIconData";
+// import { isEmptyObject } from "@/util/checkIsEmptyObject";
 // import {
 //   handleDeleteSmallIcon,
 //   handleUpdateSmallIcon,
 // } from "@/actions/createSmallIcon";
 import useLoggedInUserStore from "@/zustandStore/SetLogedInUserSession";
-import { toast } from "react-toastify";
+// import { toast } from "react-toastify";
 import { FaTimes } from "react-icons/fa";
 import { MdDelete } from "react-icons/md";
-import AnimateButton from "@/components/Button/AnimateButton";
+// import AnimateButton from "@/components/Button/AnimateButton";
 import { handleDeleteAppIcon, handleUpdateAppIcon } from "@/actions/appIcon";
+import { icon, newIcons } from "@/components/util/data/smartsiteIconData";
+import { useToast } from "@/hooks/use-toast";
+import { isEmptyObject } from "@/components/util/checkIsEmptyObject";
+import AnimateButton from "@/components/ui/Button/AnimateButton";
 // import AnimateButton from "../Button/AnimateButton";
 
 const UpdateAppIcon = ({ iconDataObj, isOn, setOff }: any) => {
-  const sesstionState = useLoggedInUserStore((state) => state.state.user); //get session value
+  //const sesstionState = useLoggedInUserStore((state) => state.state.user); //get session value
+  const demoToken =
+    "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJfaWQiOiI2NjM4NjMyMDIzMDQxMDMyODAyOTk4MmIiLCJpYXQiOjE3MjcxNTI4MzB9.CsHnZAgUzsfkc_g_CZZyQMXc02Ko_LhnQcCVpeCwroY";
 
   const [selectedIconType, setSelectedIconType] = useState("Link");
   const [selectedIcon, setSelectedIcon] = useState({
@@ -52,6 +58,8 @@ const UpdateAppIcon = ({ iconDataObj, isOn, setOff }: any) => {
   // console.log("selected icon", selectedIcon);
   // console.log("open", open);
   // console.log("icondataobj", iconDataObj);
+
+  const { toast } = useToast();
 
   const iconData: any = newIcons[1];
   // console.log("selectedIconByLivePreview", selectedIconByLivePreview);
@@ -145,17 +153,20 @@ const UpdateAppIcon = ({ iconDataObj, isOn, setOff }: any) => {
       group: selectedIconData.category,
     };
     try {
-      const data: any = await handleUpdateAppIcon(
-        appIconInfo,
-        sesstionState.accessToken
-      );
+      const data: any = await handleUpdateAppIcon(appIconInfo, demoToken);
       // console.log("data,", data);
 
       if (data && data?.state === "success") {
-        toast.success("app icon updated successfully");
+        toast({
+          title: "Success",
+          description: "App icon updated successfully",
+        });
         setOff();
       } else {
-        toast.error("something went wrong");
+        toast({
+          title: "Error",
+          description: "Something went wrong!",
+        });
       }
     } catch (error) {
       console.error(error);
@@ -189,17 +200,20 @@ const UpdateAppIcon = ({ iconDataObj, isOn, setOff }: any) => {
       micrositeId: iconDataObj.data.micrositeId,
     };
     try {
-      const data: any = await handleDeleteAppIcon(
-        submitData,
-        sesstionState.accessToken
-      );
+      const data: any = await handleDeleteAppIcon(submitData, demoToken);
       // console.log("data,", data);
 
       if (data && data?.state === "success") {
-        toast.success("app icon deleted successfully");
+        toast({
+          title: "Success",
+          description: "App icon deleted successfully",
+        });
         setOff();
       } else {
-        toast.error("something went wrong");
+        toast({
+          title: "Error",
+          description: "Something went wrong!",
+        });
       }
     } catch (error) {
       console.error(error);

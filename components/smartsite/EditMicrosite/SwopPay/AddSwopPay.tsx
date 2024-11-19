@@ -4,15 +4,15 @@ import React, { useState } from "react";
 import { LiaFileMedicalSolid } from "react-icons/lia";
 import useSmartSiteApiDataStore from "@/zustandStore/UpdateSmartsiteInfo";
 import useLoggedInUserStore from "@/zustandStore/SetLogedInUserSession";
-import { toast } from "react-toastify";
-import AnimateButton from "@/components/Button/AnimateButton";
+// import { toast } from "react-toastify";
+// import AnimateButton from "@/components/Button/AnimateButton";
 import imagePlaceholder from "@/public/images/image_placeholder.png";
-import ReactQuill from "react-quill";
-import "react-quill/dist/quill.snow.css";
-import CustomFileInput from "@/components/CustomFileInput";
-import { sendCloudinaryImage } from "@/util/SendCloudineryImage";
-import { postBlog } from "@/actions/blog";
-import { currencyItems, icon, newIcons } from "@/util/data/smartsiteIconData";
+// import ReactQuill from "react-quill";
+// import "react-quill/dist/quill.snow.css";
+// import CustomFileInput from "@/components/CustomFileInput";
+// import { sendCloudinaryImage } from "@/util/SendCloudineryImage";
+// import { postBlog } from "@/actions/blog";
+// import { currencyItems, icon, newIcons } from "@/util/data/smartsiteIconData";
 import {
   Dropdown,
   DropdownItem,
@@ -23,10 +23,17 @@ import { AiOutlineDownCircle } from "react-icons/ai";
 import { describe } from "node:test";
 import { postSwopPay } from "@/actions/swopPay";
 import { FaTimes } from "react-icons/fa";
+import { currencyItems, icon } from "@/components/util/data/smartsiteIconData";
+import { sendCloudinaryImage } from "@/lib/SendCloudineryImage";
+import { useToast } from "@/hooks/use-toast";
+import AnimateButton from "@/components/ui/Button/AnimateButton";
+import CustomFileInput from "@/components/CustomFileInput";
 
 const AddSwopPay = ({ handleRemoveIcon }: any) => {
   const state: any = useSmartSiteApiDataStore((state) => state);
-  const sesstionState = useLoggedInUserStore((state) => state.state.user); //get session value
+  //const sesstionState = useLoggedInUserStore((state) => state.state.user); //get session value
+  const demoToken =
+    "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJfaWQiOiI2NjM4NjMyMDIzMDQxMDMyODAyOTk4MmIiLCJpYXQiOjE3MjcxNTI4MzB9.CsHnZAgUzsfkc_g_CZZyQMXc02Ko_LhnQcCVpeCwroY";
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [inputError, setInputError] = useState<any>({});
   const [imageFile, setImageFile] = useState<any>(null);
@@ -37,6 +44,8 @@ const AddSwopPay = ({ handleRemoveIcon }: any) => {
     icon: icon.appIconSolana,
     characterText: "$",
   });
+
+  const { toast } = useToast();
 
   // console.log("file error", fileError);
 
@@ -113,16 +122,25 @@ const AddSwopPay = ({ handleRemoveIcon }: any) => {
       try {
         const imageUrl = await sendCloudinaryImage(info.imageUrl);
         if (!imageUrl) {
-          return toast.error("photo upload failed!");
+          return toast({
+            title: "Error",
+            description: "photo upload failed!",
+          });
         }
         info.imageUrl = imageUrl;
-        const data = await postSwopPay(info, sesstionState.accessToken);
+        const data = await postSwopPay(info, demoToken);
         // console.log("data", data);
 
         if ((data.state = "success")) {
-          toast.success("product created successfully");
+          toast({
+            title: "Success",
+            description: "product created successfully",
+          });
         } else {
-          toast.error("something went wrong");
+          toast({
+            title: "Error",
+            description: "Something went wrong!",
+          });
         }
       } catch (error) {
         console.error(error);

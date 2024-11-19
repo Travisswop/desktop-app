@@ -1,35 +1,43 @@
-import Image from "next/image";
-import React, { useEffect, useRef, useState } from "react";
-import {
-  Dropdown,
-  DropdownItem,
-  DropdownMenu,
-  DropdownTrigger,
-  Switch,
-} from "@nextui-org/react";
-import { AiOutlineDownCircle } from "react-icons/ai";
-import { IoLinkOutline } from "react-icons/io5";
+// import Image from "next/image";
+import React, { useRef, useState } from "react";
+// import {
+//   Dropdown,
+//   DropdownItem,
+//   DropdownMenu,
+//   DropdownTrigger,
+//   Switch,
+// } from "@nextui-org/react";
+// import { AiOutlineDownCircle } from "react-icons/ai";
+// import { IoLinkOutline } from "react-icons/io5";
 import { LiaFileMedicalSolid } from "react-icons/lia";
-import { embedItems, icon } from "@/util/data/smartsiteIconData";
-import useLoggedInUserStore from "@/zustandStore/SetLogedInUserSession";
-import { toast } from "react-toastify";
+// import { embedItems, icon } from "@/util/data/smartsiteIconData";
+// import useLoggedInUserStore from "@/zustandStore/SetLogedInUserSession";
+// import { toast } from "react-toastify";
 import { FaTimes } from "react-icons/fa";
 import { MdDelete } from "react-icons/md";
-import AnimateButton from "@/components/Button/AnimateButton";
-import { deleteEmbedLink, updateEmbedLink } from "@/actions/embedLink";
-import { sendCloudinaryVideo } from "@/util/sendCloudineryVideo";
-import { deleteVideo, postVideo, updateVideo } from "@/actions/video";
-import placeholder from "@/public/images/video_player_placeholder.gif";
+// import AnimateButton from "@/components/Button/AnimateButton";
+// import { deleteEmbedLink, updateEmbedLink } from "@/actions/embedLink";
+// import { sendCloudinaryVideo } from "@/util/sendCloudineryVideo";
+import { deleteVideo, updateVideo } from "@/actions/video";
+// import placeholder from "@/public/images/video_player_placeholder.gif";
+// import CustomFileInput from "@/components/CustomFileInput";
+import { useToast } from "@/hooks/use-toast";
+import { sendCloudinaryVideo } from "@/lib/sendCloudineryVideo";
 import CustomFileInput from "@/components/CustomFileInput";
+import AnimateButton from "@/components/ui/Button/AnimateButton";
 
 const UpdateVideo = ({ iconDataObj, isOn, setOff }: any) => {
-  const sesstionState = useLoggedInUserStore((state) => state.state.user); //get session value
+  //const sesstionState = useLoggedInUserStore((state) => state.state.user); //get session value
+  const demoToken =
+    "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJfaWQiOiI2NjM4NjMyMDIzMDQxMDMyODAyOTk4MmIiLCJpYXQiOjE3MjcxNTI4MzB9.CsHnZAgUzsfkc_g_CZZyQMXc02Ko_LhnQcCVpeCwroY";
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [isDeleteLoading, setIsDeleteLoading] = useState<boolean>(false);
   const modalRef = useRef<HTMLDivElement>(null);
   const [inputError, setInputError] = useState<any>({});
   const [videoFile, setVideoFile] = useState<any>(null);
   const [fileError, setFileError] = useState<string>("");
+
+  const { toast } = useToast();
 
   const handleFileChange = (event: any) => {
     const file = event.target.files[0];
@@ -84,19 +92,29 @@ const UpdateVideo = ({ iconDataObj, isOn, setOff }: any) => {
         if (videoFile) {
           const videoUrl = await sendCloudinaryVideo(info.file);
           if (!videoUrl) {
-            toast.error("image upload failed!");
+            toast({
+              title: "Error",
+              description: "Image upload failed!",
+            });
+            // toast.error("image upload failed!");
           }
           info.file = videoUrl;
         }
 
-        const data = await updateVideo(info, sesstionState.accessToken);
+        const data = await updateVideo(info, demoToken);
         // console.log("data", data);
 
         if ((data.state = "success")) {
           setOff();
-          toast.success("video updated successfully");
+          toast({
+            title: "Success",
+            description: "Video updated successfully",
+          });
         } else {
-          toast.error("something went wrong");
+          toast({
+            title: "Error",
+            description: "Something went wrong!",
+          });
         }
       } catch (error) {
         console.error(error);
@@ -127,18 +145,21 @@ const UpdateVideo = ({ iconDataObj, isOn, setOff }: any) => {
       micrositeId: iconDataObj.data.micrositeId,
     };
     try {
-      const data: any = await deleteVideo(
-        submitData,
-        sesstionState.accessToken
-      );
+      const data: any = await deleteVideo(submitData, demoToken);
       // console.log("data,", data);
 
       if (data && data?.state === "success") {
         setOff();
-        toast.success("video deleted successfully");
+        toast({
+          title: "Success",
+          description: "Video deleted successfully",
+        });
         setOff();
       } else {
-        toast.error("something went wrong");
+        toast({
+          title: "Error",
+          description: "Something went wrong!",
+        });
       }
     } catch (error) {
       console.error(error);

@@ -1,24 +1,31 @@
 import Image from "next/image";
-import React, { ChangeEvent, useState } from "react";
+import React, { useState } from "react";
 import { LiaFileMedicalSolid } from "react-icons/lia";
 import useSmartSiteApiDataStore from "@/zustandStore/UpdateSmartsiteInfo";
-import useLoggedInUserStore from "@/zustandStore/SetLogedInUserSession";
-import { toast } from "react-toastify";
-import AnimateButton from "@/components/Button/AnimateButton";
+// import useLoggedInUserStore from "@/zustandStore/SetLogedInUserSession";
+// import { toast } from "react-toastify";
+// import AnimateButton from "@/components/Button/AnimateButton";
 import placeholder from "@/public/images/video_player_placeholder.gif";
-import "react-quill/dist/quill.snow.css";
-import CustomFileInput from "@/components/CustomFileInput";
+// import "react-quill/dist/quill.snow.css";
+// import CustomFileInput from "@/components/CustomFileInput";
 import { postVideo } from "@/actions/video";
-import { sendCloudinaryVideo } from "@/util/sendCloudineryVideo";
+// import { sendCloudinaryVideo } from "@/util/sendCloudineryVideo";
 import { FaTimes } from "react-icons/fa";
+import { sendCloudinaryVideo } from "@/lib/sendCloudineryVideo";
+import { useToast } from "@/hooks/use-toast";
+import CustomFileInput from "@/components/CustomFileInput";
+import AnimateButton from "@/components/ui/Button/AnimateButton";
 
 const AddVideo = ({ handleRemoveIcon }: any) => {
   const state: any = useSmartSiteApiDataStore((state) => state);
-  const sesstionState = useLoggedInUserStore((state) => state.state.user); //get session value
+  //const sesstionState = useLoggedInUserStore((state) => state.state.user); //get session value
+  const demoToken =
+    "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJfaWQiOiI2NjM4NjMyMDIzMDQxMDMyODAyOTk4MmIiLCJpYXQiOjE3MjcxNTI4MzB9.CsHnZAgUzsfkc_g_CZZyQMXc02Ko_LhnQcCVpeCwroY";
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [inputError, setInputError] = useState<any>({});
   const [videoFile, setVideoFile] = useState<any>(null);
   const [fileError, setFileError] = useState<string>("");
+  const { toast } = useToast();
 
   const handleFileChange = (event: any) => {
     const file = event.target.files[0];
@@ -70,18 +77,27 @@ const AddVideo = ({ handleRemoveIcon }: any) => {
       try {
         const videoUrl = await sendCloudinaryVideo(info.file);
         if (!videoUrl) {
-          toast.error("image upload failed!");
+          toast({
+            title: "Error",
+            description: "Image upload failed!",
+          });
         }
         info.file = videoUrl;
         // console.log("videee", info);
 
-        const data = await postVideo(info, sesstionState.accessToken);
+        const data = await postVideo(info, demoToken);
         // console.log("data", data);
 
         if ((data.state = "success")) {
-          toast.success("video created successfully");
+          toast({
+            title: "Success",
+            description: "Video created successfully",
+          });
         } else {
-          toast.error("something went wrong");
+          toast({
+            title: "Error",
+            description: "Something went wrong!",
+          });
         }
       } catch (error) {
         console.error(error);

@@ -4,24 +4,31 @@ import React, { useState } from "react";
 import { LiaFileMedicalSolid } from "react-icons/lia";
 import useSmartSiteApiDataStore from "@/zustandStore/UpdateSmartsiteInfo";
 import useLoggedInUserStore from "@/zustandStore/SetLogedInUserSession";
-import { toast } from "react-toastify";
-import AnimateButton from "@/components/Button/AnimateButton";
+// import { toast } from "react-toastify";
+// import AnimateButton from "@/components/Button/AnimateButton";
 import imagePlaceholder from "@/public/images/image_placeholder.png";
 import ReactQuill from "react-quill";
 import "react-quill/dist/quill.snow.css";
 import CustomFileInput from "@/components/CustomFileInput";
-import { sendCloudinaryImage } from "@/util/SendCloudineryImage";
+// import { sendCloudinaryImage } from "@/util/SendCloudineryImage";
 import { postBlog } from "@/actions/blog";
 import { FaTimes } from "react-icons/fa";
+import { useToast } from "@/hooks/use-toast";
+import { sendCloudinaryImage } from "@/lib/SendCloudineryImage";
+import AnimateButton from "@/components/ui/Button/AnimateButton";
 
 const AddBlog = ({ handleRemoveIcon }: any) => {
   const state: any = useSmartSiteApiDataStore((state) => state);
-  const sesstionState = useLoggedInUserStore((state) => state.state.user); //get session value
+  //const sesstionState = useLoggedInUserStore((state) => state.state.user); //get session value
+  const demoToken =
+    "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJfaWQiOiI2NjM4NjMyMDIzMDQxMDMyODAyOTk4MmIiLCJpYXQiOjE3MjcxNTI4MzB9.CsHnZAgUzsfkc_g_CZZyQMXc02Ko_LhnQcCVpeCwroY";
   const [value, setValue] = useState("");
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [inputError, setInputError] = useState<any>({});
   const [imageFile, setImageFile] = useState<any>(null);
   const [fileError, setFileError] = useState<string>("");
+
+  const { toast } = useToast();
 
   // console.log("file error", fileError);
 
@@ -103,11 +110,17 @@ const AddBlog = ({ handleRemoveIcon }: any) => {
       //   console.log("contactCardInfo", contactCardInfo);
 
       try {
-        const data = await postBlog(info, sesstionState.accessToken);
+        const data = await postBlog(info, demoToken);
         if ((data.state = "success")) {
-          toast.success("blog created successfully");
+          toast({
+            title: "Error",
+            description: "Blog created successfully",
+          });
         } else {
-          toast.error("something went wrong");
+          toast({
+            title: "Error",
+            description: "Something went wrong!",
+          });
         }
       } catch (error) {
         console.error(error);

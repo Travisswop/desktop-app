@@ -11,18 +11,25 @@ import {
 import { AiOutlineDownCircle } from "react-icons/ai";
 import { IoLinkOutline } from "react-icons/io5";
 import { LiaFileMedicalSolid } from "react-icons/lia";
-import { icon, newIcons } from "@/util/data/smartsiteIconData";
-import { isEmptyObject } from "@/util/checkIsEmptyObject";
+// import { icon, newIcons } from "@/util/data/smartsiteIconData";
+// import { isEmptyObject } from "@/util/checkIsEmptyObject";
 import useSmartSiteApiDataStore from "@/zustandStore/UpdateSmartsiteInfo";
-import useLoggedInUserStore from "@/zustandStore/SetLogedInUserSession";
-import { toast } from "react-toastify";
-import AnimateButton from "../../Button/AnimateButton";
+// import useLoggedInUserStore from "@/zustandStore/SetLogedInUserSession";
+// import { toast } from "react-toastify";
+// import AnimateButton from "../../Button/AnimateButton";
 import { postInfoBar } from "@/actions/infoBar";
 import { FaTimes } from "react-icons/fa";
+import { icon, newIcons } from "@/components/util/data/smartsiteIconData";
+import { useToast } from "@/hooks/use-toast";
+import { isEmptyObject } from "@/components/util/checkIsEmptyObject";
+import AnimateButton from "@/components/ui/Button/AnimateButton";
 
 const AddInfoBar = ({ handleRemoveIcon }: any) => {
+  const demoToken =
+    "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJfaWQiOiI2NjM4NjMyMDIzMDQxMDMyODAyOTk4MmIiLCJpYXQiOjE3MjcxNTI4MzB9.CsHnZAgUzsfkc_g_CZZyQMXc02Ko_LhnQcCVpeCwroY";
+  const { toast } = useToast();
   const state: any = useSmartSiteApiDataStore((state) => state); //get small icon store value
-  const sesstionState = useLoggedInUserStore((state) => state.state.user); //get session value
+  //const sesstionState = useLoggedInUserStore((state) => state.state.user); //get session value
   const [selectedIconType, setSelectedIconType] = useState("Link");
   const [selectedIcon, setSelectedIcon] = useState({
     name: "Amazon Music",
@@ -87,13 +94,19 @@ const AddInfoBar = ({ handleRemoveIcon }: any) => {
     };
     // console.log("smallIconInfo", infobarInfo);
     try {
-      const data = await postInfoBar(infobarInfo, sesstionState.accessToken);
+      const data = await postInfoBar(infobarInfo, demoToken);
       // console.log("data", data);
 
       if ((data.state = "success")) {
-        toast.success("info bar created successfully");
+        toast({
+          title: "Success",
+          description: "Info bar created successfully",
+        });
       } else {
-        toast.error("something went wrong");
+        toast({
+          title: "Error",
+          description: "Something went wrong!",
+        });
       }
     } catch (error) {
       console.error(error);

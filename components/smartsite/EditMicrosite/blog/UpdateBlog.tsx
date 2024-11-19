@@ -1,31 +1,38 @@
 import React, { useState, useRef, useEffect } from "react";
 import { LiaFileMedicalSolid } from "react-icons/lia";
 import useLoggedInUserStore from "@/zustandStore/SetLogedInUserSession";
-import { toast } from "react-toastify";
+// import { toast } from "react-toastify";
 import { FaTimes } from "react-icons/fa";
-import AnimateButton from "@/components/Button/AnimateButton";
-import { handleDeleteAppIcon } from "@/actions/appIcon";
-import {
-  handleDeleteContactCard,
-  updateContactCard,
-} from "@/actions/contactCard";
+// import AnimateButton from "@/components/Button/AnimateButton";
+// import { handleDeleteAppIcon } from "@/actions/appIcon";
+// import {
+//   handleDeleteContactCard,
+//   updateContactCard,
+// } from "@/actions/contactCard";
 import { MdDelete } from "react-icons/md";
-import { sendCloudinaryImage } from "@/util/SendCloudineryImage";
+// import { sendCloudinaryImage } from "@/util/SendCloudineryImage";
 import "react-quill/dist/quill.snow.css"; // Add this line if not already present
 import ReactQuill from "react-quill";
 import Image from "next/image";
 import CustomFileInput from "@/components/CustomFileInput";
-import { icon } from "@/util/data/smartsiteIconData";
+// import { icon } from "@/util/data/smartsiteIconData";
 import { deleteBlog, updateBlog } from "@/actions/blog";
+import { useToast } from "@/hooks/use-toast";
+import { sendCloudinaryImage } from "@/lib/SendCloudineryImage";
+import AnimateButton from "@/components/ui/Button/AnimateButton";
 
 const UpdateBlog = ({ iconDataObj, isOn, setOff }: any) => {
-  const sesstionState = useLoggedInUserStore((state) => state.state.user); //get session value
+  //const sesstionState = useLoggedInUserStore((state) => state.state.user); //get session value
+  const demoToken =
+    "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJfaWQiOiI2NjM4NjMyMDIzMDQxMDMyODAyOTk4MmIiLCJpYXQiOjE3MjcxNTI4MzB9.CsHnZAgUzsfkc_g_CZZyQMXc02Ko_LhnQcCVpeCwroY";
   const [value, setValue] = useState("");
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [inputError, setInputError] = useState<any>({});
   const [imageFile, setImageFile] = useState<any>(null);
   const [fileError, setFileError] = useState<string>("");
   const [isDeleteLoading, setIsDeleteLoading] = useState<boolean>(false);
+
+  const { toast } = useToast();
 
   const modalRef = useRef<HTMLDivElement>(null);
   const closeModal = () => {
@@ -107,14 +114,20 @@ const UpdateBlog = ({ iconDataObj, isOn, setOff }: any) => {
       //   console.log("contactCardInfo", contactCardInfo);
 
       try {
-        const data = await updateBlog(info, sesstionState.accessToken);
+        const data = await updateBlog(info, demoToken);
         // console.log("data for update blog", data);
 
         if ((data.state = "success")) {
           setOff();
-          toast.success("blog updated successfully");
+          toast({
+            title: "Success",
+            description: "Blog updated successfully",
+          });
         } else {
-          toast.error("something went wrong");
+          toast({
+            title: "Error",
+            description: "Something went wrong!",
+          });
         }
       } catch (error) {
         console.error(error);
@@ -131,13 +144,19 @@ const UpdateBlog = ({ iconDataObj, isOn, setOff }: any) => {
       micrositeId: iconDataObj.data.micrositeId,
     };
     try {
-      const data: any = await deleteBlog(submitData, sesstionState.accessToken);
+      const data: any = await deleteBlog(submitData, demoToken);
 
       if (data && data?.state === "success") {
         setOff();
-        toast.success("blog deleted successfully");
+        toast({
+          title: "Success",
+          description: "Blog deleted successfully",
+        });
       } else {
-        toast.error("Something went wrong");
+        toast({
+          title: "Error",
+          description: "Something went wrong!",
+        });
       }
     } catch (error) {
       console.error(error);

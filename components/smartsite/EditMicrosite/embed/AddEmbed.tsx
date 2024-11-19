@@ -10,19 +10,27 @@ import {
 import { AiOutlineDownCircle } from "react-icons/ai";
 import { IoLinkOutline } from "react-icons/io5";
 import { LiaFileMedicalSolid } from "react-icons/lia";
-import { embedItems, icon } from "@/util/data/smartsiteIconData";
+// import { embedItems, icon } from "@/util/data/smartsiteIconData";
 import useSmartSiteApiDataStore from "@/zustandStore/UpdateSmartsiteInfo";
-import useLoggedInUserStore from "@/zustandStore/SetLogedInUserSession";
-import AnimateButton from "../../Button/AnimateButton";
-import { toast } from "react-toastify";
+// import useLoggedInUserStore from "@/zustandStore/SetLogedInUserSession";
+// import AnimateButton from "../../Button/AnimateButton";
+// import { toast } from "react-toastify";
 import { postEmbedLink } from "@/actions/embedLink";
 import { FaTimes } from "react-icons/fa";
+import { embedItems, icon } from "@/components/util/data/smartsiteIconData";
+import { useToast } from "@/hooks/use-toast";
+import AnimateButton from "@/components/ui/Button/AnimateButton";
 
 const AddEmbed = ({ handleRemoveIcon }: any) => {
   const state: any = useSmartSiteApiDataStore((state) => state); //get small icon store value
   // console.log("state", state);
 
-  const sesstionState = useLoggedInUserStore((state) => state.state.user); //get session value
+  const { toast } = useToast();
+
+  const demoToken =
+    "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJfaWQiOiI2NjM4NjMyMDIzMDQxMDMyODAyOTk4MmIiLCJpYXQiOjE3MjcxNTI4MzB9.CsHnZAgUzsfkc_g_CZZyQMXc02Ko_LhnQcCVpeCwroY";
+
+  //const sesstionState = useLoggedInUserStore((state) => state.state.user); //get session value
 
   const [selectedIcon, setSelectedIcon] = useState({
     category: "X",
@@ -50,13 +58,19 @@ const AddEmbed = ({ handleRemoveIcon }: any) => {
     };
 
     try {
-      const data = await postEmbedLink(embedInfo, sesstionState.accessToken);
+      const data = await postEmbedLink(embedInfo, demoToken);
       // console.log("data", data);
 
       if ((data.state = "success")) {
-        toast.success("embed created successfully");
+        toast({
+          title: "Success",
+          description: "Embed created successfully",
+        });
       } else {
-        toast.error("something went wrong");
+        toast({
+          title: "Error",
+          description: "Something went wrong!",
+        });
       }
     } catch (error) {
       console.error(error);

@@ -1,20 +1,27 @@
 import React, { useState, useRef } from "react";
 import { LiaFileMedicalSolid } from "react-icons/lia";
 import useLoggedInUserStore from "@/zustandStore/SetLogedInUserSession";
-import { toast } from "react-toastify";
+// import { toast } from "react-toastify";
 import { FaTimes } from "react-icons/fa";
-import AnimateButton from "@/components/Button/AnimateButton";
+// import AnimateButton from "@/components/Button/AnimateButton";
 import { MdDelete } from "react-icons/md";
-import { sendCloudinaryImage } from "@/util/SendCloudineryImage";
+// import { sendCloudinaryImage } from "@/util/SendCloudineryImage";
 import Image from "next/image";
-import CustomFileInput from "@/components/CustomFileInput";
+// import CustomFileInput from "@/components/CustomFileInput";
 import { deleteAudio, updateAudio } from "@/actions/audio";
 import "react-h5-audio-player/lib/styles.css";
 import AudioPlayer from "react-h5-audio-player";
-import { sendCloudinaryAudio } from "@/util/sendCloudineryAudio";
+import { useToast } from "@/hooks/use-toast";
+import { sendCloudinaryAudio } from "@/lib/sendCloudineryAudio";
+import { sendCloudinaryImage } from "@/lib/SendCloudineryImage";
+import CustomFileInput from "@/components/CustomFileInput";
+import AnimateButton from "@/components/ui/Button/AnimateButton";
+// import { sendCloudinaryAudio } from "@/util/sendCloudineryAudio";
 
 const UpdateAudio = ({ iconDataObj, isOn, setOff }: any) => {
-  const sesstionState = useLoggedInUserStore((state) => state.state.user); //get session value
+  //const sesstionState = useLoggedInUserStore((state) => state.state.user); //get session value
+  const demoToken =
+    "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJfaWQiOiI2NjM4NjMyMDIzMDQxMDMyODAyOTk4MmIiLCJpYXQiOjE3MjcxNTI4MzB9.CsHnZAgUzsfkc_g_CZZyQMXc02Ko_LhnQcCVpeCwroY";
   const [isDeleteLoading, setIsDeleteLoading] = useState<boolean>(false);
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [inputError, setInputError] = useState<any>({});
@@ -22,6 +29,8 @@ const UpdateAudio = ({ iconDataObj, isOn, setOff }: any) => {
   const [imageFile, setImageFile] = useState<any>(null);
   const [fileError, setFileError] = useState<string>("");
   const [imageFileError, setImageFileError] = useState<string>("");
+
+  const { toast } = useToast();
 
   // console.log("icon data", iconDataObj);
 
@@ -103,7 +112,10 @@ const UpdateAudio = ({ iconDataObj, isOn, setOff }: any) => {
         if (audioFile) {
           const audioUrl = await sendCloudinaryAudio(info.file); //need to sure
           if (!audioUrl) {
-            toast.error("audio upload failed!");
+            toast({
+              title: "Error",
+              description: "Audio upload failed!",
+            });
           }
           info.file = audioUrl;
         }
@@ -111,21 +123,30 @@ const UpdateAudio = ({ iconDataObj, isOn, setOff }: any) => {
         if (imageFile) {
           const imageUrl = await sendCloudinaryImage(info.coverPhoto);
           if (!imageUrl) {
-            return toast.error("cover photo upload failed!");
+            return toast({
+              title: "Error",
+              description: "Cover photo upload failed!",
+            });
           }
           info.coverPhoto = imageUrl;
         }
 
         // console.log("videee", info);
 
-        const data = await updateAudio(info, sesstionState.accessToken);
+        const data = await updateAudio(info, demoToken);
         // console.log("data", data);
 
         if ((data.state = "success")) {
           setOff();
-          toast.success("audio updated successfully");
+          toast({
+            title: "Success",
+            description: "Audio updated successfully",
+          });
         } else {
-          toast.error("something went wrong");
+          toast({
+            title: "Error",
+            description: "Something went wrong!",
+          });
         }
       } catch (error) {
         console.error(error);
@@ -155,17 +176,19 @@ const UpdateAudio = ({ iconDataObj, isOn, setOff }: any) => {
       micrositeId: iconDataObj.data.micrositeId,
     };
     try {
-      const data: any = await deleteAudio(
-        submitData,
-        sesstionState.accessToken
-      );
+      const data: any = await deleteAudio(submitData, demoToken);
 
       if (data && data?.state === "success") {
-        setOff();
-        toast.success("music deleted successfully");
+        toast({
+          title: "Success",
+          description: "Music deleted successfully",
+        });
         setOff();
       } else {
-        toast.error("Something went wrong");
+        toast({
+          title: "Error",
+          description: "Something went wrong!",
+        });
       }
     } catch (error) {
       console.error(error);

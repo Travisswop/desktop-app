@@ -1,11 +1,13 @@
 import React, { useRef, useState } from "react";
 import { LiaFileMedicalSolid } from "react-icons/lia";
-import useLoggedInUserStore from "@/zustandStore/SetLogedInUserSession";
-import { toast } from "react-toastify";
+// import useLoggedInUserStore from "@/zustandStore/SetLogedInUserSession";
+// import { toast } from "react-toastify";
 import { FaTimes } from "react-icons/fa";
 import { MdDelete } from "react-icons/md";
-import AnimateButton from "@/components/Button/AnimateButton";
+// import AnimateButton from "@/components/Button/AnimateButton";
 import { deleteReferral, updateReferral } from "@/actions/referral";
+import { useToast } from "@/hooks/use-toast";
+import AnimateButton from "@/components/ui/Button/AnimateButton";
 
 const UpdateReferral = ({ iconDataObj, isOn, setOff }: any) => {
   const modalRef = useRef<HTMLDivElement>(null);
@@ -13,7 +15,11 @@ const UpdateReferral = ({ iconDataObj, isOn, setOff }: any) => {
   const [error, setError] = useState<any>({});
   const [isDeleteLoading, setIsDeleteLoading] = useState<boolean>(false);
 
-  const sesstionState = useLoggedInUserStore((state) => state.state.user); //get session value
+  //const sesstionState = useLoggedInUserStore((state) => state.state.user); //get session value
+  const demoToken =
+    "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJfaWQiOiI2NjM4NjMyMDIzMDQxMDMyODAyOTk4MmIiLCJpYXQiOjE3MjcxNTI4MzB9.CsHnZAgUzsfkc_g_CZZyQMXc02Ko_LhnQcCVpeCwroY";
+
+  const { toast } = useToast();
 
   //   console.log("error", error);
 
@@ -49,15 +55,18 @@ const UpdateReferral = ({ iconDataObj, isOn, setOff }: any) => {
       // console.log("contactCardInfo", submitInfo);
 
       try {
-        const data = await updateReferral(
-          submitInfo,
-          sesstionState.accessToken
-        );
+        const data = await updateReferral(submitInfo, demoToken);
         if ((data.state = "success")) {
           setOff();
-          toast.success("referral created successfully");
+          toast({
+            title: "Success",
+            description: "Referral created successfully",
+          });
         } else {
-          toast.error("something went wrong");
+          toast({
+            title: "Error",
+            description: "Something went wrong!",
+          });
         }
       } catch (error) {
         console.error(error);
@@ -88,17 +97,20 @@ const UpdateReferral = ({ iconDataObj, isOn, setOff }: any) => {
       micrositeId: iconDataObj.data.micrositeId,
     };
     try {
-      const data: any = await deleteReferral(
-        submitData,
-        sesstionState.accessToken
-      );
+      const data: any = await deleteReferral(submitData, demoToken);
       // console.log("data,", data);
 
       if (data && data?.state === "success") {
         setOff();
-        toast.success("referral deleted successfully");
+        toast({
+          title: "Success",
+          description: "Referral deleted successfully",
+        });
       } else {
-        toast.error("something went wrong");
+        toast({
+          title: "Error",
+          description: "Something went wrong!",
+        });
       }
     } catch (error) {
       console.error(error);

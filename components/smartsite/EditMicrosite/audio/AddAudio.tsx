@@ -3,27 +3,36 @@ import React, { useState } from "react";
 import { LiaFileMedicalSolid } from "react-icons/lia";
 import useSmartSiteApiDataStore from "@/zustandStore/UpdateSmartsiteInfo";
 import useLoggedInUserStore from "@/zustandStore/SetLogedInUserSession";
-import { toast } from "react-toastify";
-import AnimateButton from "@/components/Button/AnimateButton";
-import "react-quill/dist/quill.snow.css";
-import CustomFileInput from "@/components/CustomFileInput";
+// import { toast } from "react-toastify";
+// import AnimateButton from "@/components/Button/AnimateButton";
+// import "react-quill/dist/quill.snow.css";
+// import CustomFileInput from "@/components/CustomFileInput";
 import imagePlaceholder from "@/public/images/image_placeholder.png";
 import AudioPlayer from "react-h5-audio-player";
 import "react-h5-audio-player/lib/styles.css";
-import { sendCloudinaryImage } from "@/util/SendCloudineryImage";
+// import { sendCloudinaryImage } from "@/util/SendCloudineryImage";
 import { postAudio } from "@/actions/audio";
-import { sendCloudinaryAudio } from "@/util/sendCloudineryAudio";
+// import { sendCloudinaryAudio } from "@/util/sendCloudineryAudio";
 import { FaTimes } from "react-icons/fa";
+import { useToast } from "@/hooks/use-toast";
+import { sendCloudinaryAudio } from "@/lib/sendCloudineryAudio";
+import { sendCloudinaryImage } from "@/lib/SendCloudineryImage";
+import CustomFileInput from "@/components/CustomFileInput";
+import AnimateButton from "@/components/ui/Button/AnimateButton";
 
 const AddAudio = ({ handleRemoveIcon }: any) => {
   const state: any = useSmartSiteApiDataStore((state) => state);
-  const sesstionState = useLoggedInUserStore((state) => state.state.user); //get session value
+  //const sesstionState = useLoggedInUserStore((state) => state.state.user); //get session value
+  const demoToken =
+    "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJfaWQiOiI2NjM4NjMyMDIzMDQxMDMyODAyOTk4MmIiLCJpYXQiOjE3MjcxNTI4MzB9.CsHnZAgUzsfkc_g_CZZyQMXc02Ko_LhnQcCVpeCwroY";
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [inputError, setInputError] = useState<any>({});
   const [audioFile, setAudioFile] = useState<any>(null);
   const [imageFile, setImageFile] = useState<any>(null);
   const [fileError, setFileError] = useState<string>("");
   const [imageFileError, setImageFileError] = useState<string>("");
+
+  const { toast } = useToast();
 
   const handleFileChange = (event: any) => {
     // get audio file
@@ -101,13 +110,19 @@ const AddAudio = ({ handleRemoveIcon }: any) => {
       try {
         const audioUrl = await sendCloudinaryAudio(info.file);
         if (!audioUrl) {
-          toast.error("audio upload failed!");
+          toast({
+            title: "Error",
+            description: "Audio upload failed!",
+          });
         }
         info.file = audioUrl;
 
         const imageUrl = await sendCloudinaryImage(info.coverPhoto);
         if (!imageUrl) {
-          return toast.error("cover photo upload failed!");
+          return toast({
+            title: "Error",
+            description: "Cover photo upload failed!",
+          });
         }
         info.coverPhoto = imageUrl;
 
@@ -116,13 +131,19 @@ const AddAudio = ({ handleRemoveIcon }: any) => {
         if (imageUrl) {
           // console.log("post hocche");
 
-          const data = await postAudio(info, sesstionState.accessToken);
+          const data = await postAudio(info, demoToken);
           // console.log("data", data);
 
           if ((data.state = "success")) {
-            toast.success("music created successfully");
+            toast({
+              title: "Error",
+              description: "Music created successfully",
+            });
           } else {
-            toast.error("something went wrong");
+            toast({
+              title: "Error",
+              description: "Something went wrong!",
+            });
           }
         }
       } catch (error) {

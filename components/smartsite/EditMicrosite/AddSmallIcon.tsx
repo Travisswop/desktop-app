@@ -6,25 +6,30 @@ import {
   DropdownItem,
   DropdownMenu,
   DropdownTrigger,
-  Spinner,
   Switch,
 } from "@nextui-org/react";
 import { AiOutlineDownCircle } from "react-icons/ai";
 import { IoLinkOutline } from "react-icons/io5";
 import { LiaFileMedicalSolid } from "react-icons/lia";
-import EditMicrositeBtn from "../Button/EditMicrositeBtn";
-import { icon, newIcons } from "@/util/data/smartsiteIconData";
-import { isEmptyObject } from "@/util/checkIsEmptyObject";
+// import { icon, newIcons } from "@/util/data/smartsiteIconData";
+// import { isEmptyObject } from "@/util/checkIsEmptyObject";
 import useSmartSiteApiDataStore from "@/zustandStore/UpdateSmartsiteInfo";
 import { handleSmallIcon } from "@/actions/createSmallIcon";
-import useLoggedInUserStore from "@/zustandStore/SetLogedInUserSession";
-import { toast } from "react-toastify";
-import AnimateButton from "../Button/AnimateButton";
+// import useLoggedInUserStore from "@/zustandStore/SetLogedInUserSession";
+// import { toast } from "react-toastify";
+// import AnimateButton from "../Button/AnimateButton";
 import { FaTimes } from "react-icons/fa";
+import { icon, newIcons } from "@/components/util/data/smartsiteIconData";
+import { useToast } from "@/hooks/use-toast";
+import { isEmptyObject } from "@/components/util/checkIsEmptyObject";
+import AnimateButton from "@/components/ui/Button/AnimateButton";
 
 const AddSmallIcon = ({ handleRemoveIcon }: any) => {
   const state: any = useSmartSiteApiDataStore((state) => state); //get small icon store value
-  const sesstionState = useLoggedInUserStore((state) => state.state.user); //get session value
+  //const sesstionState = useLoggedInUserStore((state) => state.state.user); //get session value
+
+  const demoToken =
+    "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJfaWQiOiI2NjM4NjMyMDIzMDQxMDMyODAyOTk4MmIiLCJpYXQiOjE3MjcxNTI4MzB9.CsHnZAgUzsfkc_g_CZZyQMXc02Ko_LhnQcCVpeCwroY";
   const [selectedIconType, setSelectedIconType] = useState("Social Media");
   const [selectedIcon, setSelectedIcon] = useState({
     name: "X",
@@ -39,6 +44,8 @@ const AddSmallIcon = ({ handleRemoveIcon }: any) => {
   // console.log("selected icon data", selectedIconData);
   // console.log("selected icon", selectedIcon);
 
+  const { toast } = useToast();
+
   const iconData: any = newIcons[0];
   // console.log("iconData", iconData);
 
@@ -49,7 +56,7 @@ const AddSmallIcon = ({ handleRemoveIcon }: any) => {
       );
       setSelectedIconData(data);
     }
-  }, [selectedIconType]);
+  }, [iconData.icons, selectedIconType]);
 
   const tintStyle = {
     filter: "brightness(0) invert(0)",
@@ -100,17 +107,20 @@ const AddSmallIcon = ({ handleRemoveIcon }: any) => {
     // console.log("smallIconInfo", smallIconInfo);
     // console.log("token", sesstionState.accessToken);
     try {
-      const data = await handleSmallIcon(
-        smallIconInfo,
-        sesstionState.accessToken
-      );
+      const data = await handleSmallIcon(smallIconInfo, demoToken);
 
       // console.log("create small icon", data);
 
       if ((data.state = "success")) {
-        toast.success("small icon created successfully");
+        toast({
+          title: "Success",
+          description: "Small icon created successfully",
+        });
       } else {
-        toast.error("something went wrong");
+        toast({
+          title: "Error",
+          description: "Something went wrong!",
+        });
       }
     } catch (error) {
       console.error(error);

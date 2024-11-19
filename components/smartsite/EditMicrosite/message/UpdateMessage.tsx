@@ -1,22 +1,29 @@
 import React, { useRef, useState } from "react";
 import { LiaFileMedicalSolid } from "react-icons/lia";
-import useLoggedInUserStore from "@/zustandStore/SetLogedInUserSession";
-import { toast } from "react-toastify";
+// import useLoggedInUserStore from "@/zustandStore/SetLogedInUserSession";
+// import { toast } from "react-toastify";
 import { FaTimes } from "react-icons/fa";
 import { MdDelete } from "react-icons/md";
-import AnimateButton from "@/components/Button/AnimateButton";
+// import AnimateButton from "@/components/Button/AnimateButton";
 import {
   deleteMessage,
   isENSAvailable,
   updateMessage,
 } from "@/actions/message";
+import { useToast } from "@/hooks/use-toast";
+import AnimateButton from "@/components/ui/Button/AnimateButton";
 
 const UpdateENS = ({ iconDataObj, isOn, setOff }: any) => {
   const modalRef = useRef<HTMLDivElement>(null);
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [error, setError] = useState<any>({});
   const [isDeleteLoading, setIsDeleteLoading] = useState<boolean>(false);
-  const sesstionState = useLoggedInUserStore((state) => state.state.user); //get session value
+  //const sesstionState = useLoggedInUserStore((state) => state.state.user); //get session value
+
+  const demoToken =
+    "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJfaWQiOiI2NjM4NjMyMDIzMDQxMDMyODAyOTk4MmIiLCJpYXQiOjE3MjcxNTI4MzB9.CsHnZAgUzsfkc_g_CZZyQMXc02Ko_LhnQcCVpeCwroY";
+
+  const { toast } = useToast();
 
   // Function to close the modal
   const closeModal = () => {
@@ -54,22 +61,28 @@ const UpdateENS = ({ iconDataObj, isOn, setOff }: any) => {
     } else {
       setError("");
       try {
-        const isAvailable = await isENSAvailable(
-          submitInfo.domain,
-          sesstionState.accessToken
-        );
+        const isAvailable = await isENSAvailable(submitInfo.domain, demoToken);
         // console.log("isAvailable", isAvailable);
 
         if (isAvailable?.message === "Name not found") {
-          return toast.error("ENS name not found");
+          return toast({
+            title: "Error",
+            description: "ENS name not found!",
+          });
         }
 
-        const data = await updateMessage(submitInfo, sesstionState.accessToken);
+        const data = await updateMessage(submitInfo, demoToken);
         if ((data.state = "success")) {
           setOff();
-          toast.success("Successfully updated");
+          toast({
+            title: "Error",
+            description: "Successfully updated",
+          });
         } else {
-          toast.error("something went wrong");
+          toast({
+            title: "Error",
+            description: "Something went wrong!",
+          });
         }
       } catch (error) {
         console.error(error);
@@ -86,17 +99,20 @@ const UpdateENS = ({ iconDataObj, isOn, setOff }: any) => {
       micrositeId: iconDataObj.data.micrositeId,
     };
     try {
-      const data: any = await deleteMessage(
-        submitData,
-        sesstionState.accessToken
-      );
+      const data: any = await deleteMessage(submitData, demoToken);
       // console.log("data,", data);
 
       if (data && data?.state === "success") {
         setOff();
-        toast.success("deleted successfully");
+        toast({
+          title: "Success",
+          description: "Deleted successfully",
+        });
       } else {
-        toast.error("something went wrong");
+        toast({
+          title: "Error",
+          description: "Something went wrong!",
+        });
       }
     } catch (error) {
       console.error(error);

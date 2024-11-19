@@ -1,18 +1,25 @@
 import React, { useState, useRef } from "react";
 import { LiaFileMedicalSolid } from "react-icons/lia";
-import useLoggedInUserStore from "@/zustandStore/SetLogedInUserSession";
-import { toast } from "react-toastify";
+// import useLoggedInUserStore from "@/zustandStore/SetLogedInUserSession";
+// import { toast } from "react-toastify";
 import { FaTimes } from "react-icons/fa";
-import AnimateButton from "@/components/Button/AnimateButton";
-import { handleDeleteAppIcon } from "@/actions/appIcon";
+// import AnimateButton from "@/components/Button/AnimateButton";
+// import { handleDeleteAppIcon } from "@/actions/appIcon";
 import {
   handleDeleteContactCard,
   updateContactCard,
 } from "@/actions/contactCard";
 import { MdDelete } from "react-icons/md";
+import { useToast } from "@/hooks/use-toast";
+import AnimateButton from "@/components/ui/Button/AnimateButton";
 
 const UpdateContactCard = ({ iconDataObj, isOn, setOff }: any) => {
-  const sesstionState = useLoggedInUserStore((state) => state.state.user); //get session value
+  //const sesstionState = useLoggedInUserStore((state) => state.state.user); //get session value
+
+  const demoToken =
+    "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJfaWQiOiI2NjM4NjMyMDIzMDQxMDMyODAyOTk4MmIiLCJpYXQiOjE3MjcxNTI4MzB9.CsHnZAgUzsfkc_g_CZZyQMXc02Ko_LhnQcCVpeCwroY";
+
+  const { toast } = useToast();
 
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [isDeleteLoading, setIsDeleteLoading] = useState<boolean>(false);
@@ -54,15 +61,19 @@ const UpdateContactCard = ({ iconDataObj, isOn, setOff }: any) => {
       // console.log("contactCardInfo", contactCardInfo);
 
       try {
-        const data = await updateContactCard(
-          contactCardInfo,
-          sesstionState.accessToken
-        );
+        const data = await updateContactCard(contactCardInfo, demoToken);
         if (data.state === "success") {
           setOff();
+          toast({
+            title: "Error",
+            description: "Something went wrong!",
+          });
           toast.success("Contact card updated successfully");
         } else {
-          toast.error("Something went wrong");
+          toast({
+            title: "Error",
+            description: "Something went wrong!",
+          });
         }
       } catch (error) {
         console.error(error);
@@ -92,16 +103,19 @@ const UpdateContactCard = ({ iconDataObj, isOn, setOff }: any) => {
       micrositeId: iconDataObj.data.micrositeId,
     };
     try {
-      const data: any = await handleDeleteContactCard(
-        submitData,
-        sesstionState.accessToken
-      );
+      const data: any = await handleDeleteContactCard(submitData, demoToken);
 
       if (data && data?.state === "success") {
-        toast.success("Contact card deleted successfully");
+        toast({
+          title: "Success",
+          description: "Contact card deleted successfully",
+        });
         setOff();
       } else {
-        toast.error("Something went wrong");
+        toast({
+          title: "Error",
+          description: "Something went wrong!",
+        });
       }
     } catch (error) {
       console.error(error);

@@ -11,18 +11,24 @@ import {
 import { AiOutlineDownCircle } from "react-icons/ai";
 import { IoLinkOutline } from "react-icons/io5";
 import { LiaFileMedicalSolid } from "react-icons/lia";
-import { icon, newIcons } from "@/util/data/smartsiteIconData";
-import { isEmptyObject } from "@/util/checkIsEmptyObject";
+// import { icon, newIcons } from "@/util/data/smartsiteIconData";
+// import { isEmptyObject } from "@/util/checkIsEmptyObject";
 import useSmartSiteApiDataStore from "@/zustandStore/UpdateSmartsiteInfo";
-import useLoggedInUserStore from "@/zustandStore/SetLogedInUserSession";
-import { toast } from "react-toastify";
-import AnimateButton from "../../Button/AnimateButton";
+// import useLoggedInUserStore from "@/zustandStore/SetLogedInUserSession";
+// import { toast } from "react-toastify";
+// import AnimateButton from "../../Button/AnimateButton";
 import { postAppIcon } from "@/actions/appIcon";
 import { FaTimes } from "react-icons/fa";
+import { icon, newIcons } from "@/components/util/data/smartsiteIconData";
+import { useToast } from "@/hooks/use-toast";
+import { isEmptyObject } from "@/components/util/checkIsEmptyObject";
+import AnimateButton from "@/components/ui/Button/AnimateButton";
 
 const AddAppIcon = ({ handleRemoveIcon }: any) => {
   const state: any = useSmartSiteApiDataStore((state) => state); //get small icon store value
-  const sesstionState = useLoggedInUserStore((state) => state.state.user); //get session value
+  //const sesstionState = useLoggedInUserStore((state) => state.state.user); //get session value
+  const demoToken =
+    "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJfaWQiOiI2NjM4NjMyMDIzMDQxMDMyODAyOTk4MmIiLCJpYXQiOjE3MjcxNTI4MzB9.CsHnZAgUzsfkc_g_CZZyQMXc02Ko_LhnQcCVpeCwroY";
   const [selectedIconType, setSelectedIconType] = useState("Link");
   const [selectedIcon, setSelectedIcon] = useState({
     name: "Amazon Music",
@@ -40,6 +46,8 @@ const AddAppIcon = ({ handleRemoveIcon }: any) => {
   const iconData: any = newIcons[1];
   // console.log("iconData", iconData);
 
+  const { toast } = useToast();
+
   useEffect(() => {
     if (selectedIconType) {
       const data = iconData.icons.find(
@@ -47,7 +55,7 @@ const AddAppIcon = ({ handleRemoveIcon }: any) => {
       );
       setSelectedIconData(data);
     }
-  }, [selectedIconType]);
+  }, [iconData.icons, selectedIconType]);
 
   const handleSelectIconType = (category: string) => {
     setSelectedIconType(category);
@@ -134,11 +142,17 @@ const AddAppIcon = ({ handleRemoveIcon }: any) => {
     };
     // console.log("smallIconInfo", smallIconInfo);
     try {
-      const data = await postAppIcon(appIconInfo, sesstionState.accessToken);
+      const data = await postAppIcon(appIconInfo, demoToken);
       if ((data.state = "success")) {
-        toast.success("app icon created successfully");
+        toast({
+          title: "Success",
+          description: "App icon created successfully",
+        });
       } else {
-        toast.error("something went wrong");
+        toast({
+          title: "Error",
+          description: "Something went wrong!",
+        });
       }
     } catch (error) {
       console.error(error);

@@ -10,16 +10,22 @@ import {
 import { AiOutlineDownCircle } from "react-icons/ai";
 import { IoLinkOutline } from "react-icons/io5";
 import { LiaFileMedicalSolid } from "react-icons/lia";
-import { embedItems, icon } from "@/util/data/smartsiteIconData";
-import useLoggedInUserStore from "@/zustandStore/SetLogedInUserSession";
-import { toast } from "react-toastify";
+// import { embedItems, icon } from "@/util/data/smartsiteIconData";
+// import useLoggedInUserStore from "@/zustandStore/SetLogedInUserSession";
+// import { toast } from "react-toastify";
 import { FaTimes } from "react-icons/fa";
 import { MdDelete } from "react-icons/md";
-import AnimateButton from "@/components/Button/AnimateButton";
+// import AnimateButton from "@/components/Button/AnimateButton";
 import { deleteEmbedLink, updateEmbedLink } from "@/actions/embedLink";
+import { embedItems, icon } from "@/components/util/data/smartsiteIconData";
+import { useToast } from "@/hooks/use-toast";
+import AnimateButton from "@/components/ui/Button/AnimateButton";
 
 const UpdateEmbed = ({ iconDataObj, isOn, setOff }: any) => {
-  const sesstionState = useLoggedInUserStore((state) => state.state.user); //get session value
+  const demoToken =
+    "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJfaWQiOiI2NjM4NjMyMDIzMDQxMDMyODAyOTk4MmIiLCJpYXQiOjE3MjcxNTI4MzB9.CsHnZAgUzsfkc_g_CZZyQMXc02Ko_LhnQcCVpeCwroY";
+
+  const { toast } = useToast();
 
   const [selectedIcon, setSelectedIcon] = useState({
     category: "X",
@@ -42,7 +48,7 @@ const UpdateEmbed = ({ iconDataObj, isOn, setOff }: any) => {
     if (data) {
       setSelectedIcon(data);
     }
-  }, [iconDataObj]);
+  }, [getEmbedItems, iconDataObj]);
 
   const handleUpdateEmbed = async (e: any) => {
     setIsLoading(true);
@@ -58,17 +64,20 @@ const UpdateEmbed = ({ iconDataObj, isOn, setOff }: any) => {
           : selectedIcon.category.toLowerCase(),
     };
     try {
-      const data: any = await updateEmbedLink(
-        embedInfo,
-        sesstionState.accessToken
-      );
+      const data: any = await updateEmbedLink(embedInfo, demoToken);
       // console.log("data,", data);
 
       if (data && data?.state === "success") {
         setOff();
-        toast.success("embed updated successfully");
+        toast({
+          title: "Success",
+          description: "Embed updated successfully",
+        });
       } else {
-        toast.error("something went wrong");
+        toast({
+          title: "Error",
+          description: "Something went wrong!",
+        });
       }
     } catch (error) {
       console.error(error);
@@ -99,17 +108,20 @@ const UpdateEmbed = ({ iconDataObj, isOn, setOff }: any) => {
       micrositeId: iconDataObj.data.micrositeId,
     };
     try {
-      const data: any = await deleteEmbedLink(
-        submitData,
-        sesstionState.accessToken
-      );
+      const data: any = await deleteEmbedLink(submitData, demoToken);
       // console.log("data,", data);
 
       if (data && data?.state === "success") {
         setOff();
-        toast.success("embed deleted successfully");
+        toast({
+          title: "Error",
+          description: "Embed deleted successfully",
+        });
       } else {
-        toast.error("something went wrong");
+        toast({
+          title: "Error",
+          description: "Something went wrong!",
+        });
       }
     } catch (error) {
       console.error(error);

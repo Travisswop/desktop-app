@@ -5,27 +5,34 @@ import {
   DropdownItem,
   DropdownMenu,
   DropdownTrigger,
-  Switch,
+  // Switch,
 } from "@nextui-org/react";
 import { AiOutlineDownCircle } from "react-icons/ai";
-import { IoLinkOutline } from "react-icons/io5";
+// import { IoLinkOutline } from "react-icons/io5";
 import { LiaFileMedicalSolid } from "react-icons/lia";
-import { currencyItems, embedItems, icon } from "@/util/data/smartsiteIconData";
+// import { currencyItems, embedItems, icon } from "@/util/data/smartsiteIconData";
 import useLoggedInUserStore from "@/zustandStore/SetLogedInUserSession";
-import { toast } from "react-toastify";
+// import { toast } from "react-toastify";
 import { FaTimes } from "react-icons/fa";
 import { MdDelete } from "react-icons/md";
-import AnimateButton from "@/components/Button/AnimateButton";
-import { deleteEmbedLink, updateEmbedLink } from "@/actions/embedLink";
-import { sendCloudinaryVideo } from "@/util/sendCloudineryVideo";
-import { deleteVideo, postVideo, updateVideo } from "@/actions/video";
-import placeholder from "@/public/images/video_player_placeholder.gif";
-import CustomFileInput from "@/components/CustomFileInput";
-import { sendCloudinaryImage } from "@/util/SendCloudineryImage";
+// import AnimateButton from "@/components/Button/AnimateButton";
+// import { deleteEmbedLink, updateEmbedLink } from "@/actions/embedLink";
+// import { sendCloudinaryVideo } from "@/util/sendCloudineryVideo";
+// import { deleteVideo, postVideo, updateVideo } from "@/actions/video";
+// import placeholder from "@/public/images/video_player_placeholder.gif";
+// import CustomFileInput from "@/components/CustomFileInput";
+// import { sendCloudinaryImage } from "@/util/SendCloudineryImage";
 import { deleteSwopPay, updateSwopPay } from "@/actions/swopPay";
+import { currencyItems, icon } from "@/components/util/data/smartsiteIconData";
+import { sendCloudinaryImage } from "@/lib/SendCloudineryImage";
+import { useToast } from "@/hooks/use-toast";
+import CustomFileInput from "@/components/CustomFileInput";
+import AnimateButton from "@/components/ui/Button/AnimateButton";
 
 const UpdateSwopPay = ({ iconDataObj, isOn, setOff }: any) => {
-  const sesstionState = useLoggedInUserStore((state) => state.state.user); //get session value
+  //const sesstionState = useLoggedInUserStore((state) => state.state.user); //get session value
+  const demoToken =
+    "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJfaWQiOiI2NjM4NjMyMDIzMDQxMDMyODAyOTk4MmIiLCJpYXQiOjE3MjcxNTI4MzB9.CsHnZAgUzsfkc_g_CZZyQMXc02Ko_LhnQcCVpeCwroY";
   const [isDeleteLoading, setIsDeleteLoading] = useState<boolean>(false);
   const modalRef = useRef<HTMLDivElement>(null);
   const [isLoading, setIsLoading] = useState<boolean>(false);
@@ -41,6 +48,8 @@ const UpdateSwopPay = ({ iconDataObj, isOn, setOff }: any) => {
 
   // console.log("file error", fileError);
   // console.log("icon data ggg", iconDataObj);
+
+  const { toast } = useToast();
 
   const currencyList: any = currencyItems;
 
@@ -126,18 +135,27 @@ const UpdateSwopPay = ({ iconDataObj, isOn, setOff }: any) => {
         if (imageFile) {
           const imageUrl = await sendCloudinaryImage(info.imageUrl);
           if (!imageUrl) {
-            return toast.error("photo upload failed!");
+            return toast({
+              title: "Error",
+              description: "photo upload failed!",
+            });
           }
           info.imageUrl = imageUrl;
         }
-        const data = await updateSwopPay(info, sesstionState.accessToken);
+        const data = await updateSwopPay(info, demoToken);
         // console.log("data", data);
 
         if ((data.state = "success")) {
           setOff();
-          toast.success("product created successfully");
+          toast({
+            title: "Success",
+            description: "product created successfully",
+          });
         } else {
-          toast.error("something went wrong");
+          toast({
+            title: "Error",
+            description: "something went wrong",
+          });
         }
       } catch (error) {
         console.error(error);
@@ -170,17 +188,20 @@ const UpdateSwopPay = ({ iconDataObj, isOn, setOff }: any) => {
       micrositeId: iconDataObj.data.micrositeId,
     };
     try {
-      const data: any = await deleteSwopPay(
-        submitData,
-        sesstionState.accessToken
-      );
+      const data: any = await deleteSwopPay(submitData, demoToken);
       // console.log("data,", data);
 
       if (data && data?.state === "success") {
         setOff();
-        toast.success("product deleted successfully");
+        toast({
+          title: "Success",
+          description: "product deleted successfully",
+        });
       } else {
-        toast.error("something went wrong");
+        toast({
+          title: "Error",
+          description: "something went wrong",
+        });
       }
     } catch (error) {
       console.error(error);

@@ -1,18 +1,23 @@
 import React, { useState } from "react";
 import { LiaFileMedicalSolid } from "react-icons/lia";
 import useSmartSiteApiDataStore from "@/zustandStore/UpdateSmartsiteInfo";
-import useLoggedInUserStore from "@/zustandStore/SetLogedInUserSession";
-import { toast } from "react-toastify";
-import AnimateButton from "@/components/Button/AnimateButton";
+// import useLoggedInUserStore from "@/zustandStore/SetLogedInUserSession";
+// import { toast } from "react-toastify";
+// import AnimateButton from "@/components/Button/AnimateButton";
 import { isENSAvailable, postMessage } from "@/actions/message";
 import { FaTimes } from "react-icons/fa";
+import { useToast } from "@/hooks/use-toast";
+import AnimateButton from "@/components/ui/Button/AnimateButton";
 
 const AddMessage = ({ handleRemoveIcon }: any) => {
   const state: any = useSmartSiteApiDataStore((state) => state); //get small icon store value
-  const sesstionState = useLoggedInUserStore((state) => state.state.user); //get session value
-
+  //const sesstionState = useLoggedInUserStore((state) => state.state.user); //get session value
+  const demoToken =
+    "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJfaWQiOiI2NjM4NjMyMDIzMDQxMDMyODAyOTk4MmIiLCJpYXQiOjE3MjcxNTI4MzB9.CsHnZAgUzsfkc_g_CZZyQMXc02Ko_LhnQcCVpeCwroY";
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [error, setError] = useState<any>({});
+
+  const { toast } = useToast();
 
   const handleFormSubmit = async (e: any) => {
     setIsLoading(true);
@@ -35,21 +40,27 @@ const AddMessage = ({ handleRemoveIcon }: any) => {
     } else {
       setError("");
       try {
-        const isAvailable = await isENSAvailable(
-          submitInfo.domain,
-          sesstionState.accessToken
-        );
+        const isAvailable = await isENSAvailable(submitInfo.domain, demoToken);
         // console.log("isAvailable", isAvailable);
 
         if (isAvailable?.message === "Name not found") {
-          return toast.error("ENS name not found");
+          return toast({
+            title: "Error",
+            description: "ENS name not found!",
+          });
         }
 
-        const data = await postMessage(submitInfo, sesstionState.accessToken);
+        const data = await postMessage(submitInfo, demoToken);
         if ((data.state = "success")) {
-          toast.success("Successfully created");
+          toast({
+            title: "Success",
+            description: "Successfully created",
+          });
         } else {
-          toast.error("something went wrong");
+          toast({
+            title: "Error",
+            description: "Something went wrong!",
+          });
         }
       } catch (error) {
         console.error(error);

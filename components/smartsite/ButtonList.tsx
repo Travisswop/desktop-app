@@ -75,13 +75,14 @@ const ButtonList = ({ microsite, token, id }: any) => {
         });
         setDeleteLoading(false);
       }
-    } else if (result.dismiss === Swal.DismissReason.cancel) {
-      await Swal.fire({
-        title: "Cancelled",
-        text: "Your smartsite is safe :)",
-        icon: "error",
-      });
     }
+    // else if (result.dismiss === Swal.DismissReason.cancel) {
+    //   await Swal.fire({
+    //     title: "Cancelled",
+    //     text: "Your smartsite is safe :)",
+    //     icon: "error",
+    //   });
+    // }
   };
 
   return (
