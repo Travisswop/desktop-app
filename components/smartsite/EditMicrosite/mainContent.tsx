@@ -25,7 +25,7 @@ import useSmallIconToggleStore from "@/zustandStore/SmallIconModalToggle";
 import useUpdateSmartIcon from "@/zustandStore/UpdateSmartIcon";
 // import UpdateModalComponents from "@/components/EditMicrosite/UpdateModalComponents";
 import useSmartSiteApiDataStore from "@/zustandStore/UpdateSmartsiteInfo";
-import useLoggedInUserStore from "@/zustandStore/SetLogedInUserSession";
+// import useLoggedInUserStore from "@/zustandStore/SetLogedInUserSession";
 import { useRouter } from "next/navigation";
 // import AnimateButton from "@/components/Button/AnimateButton";
 import { useToast } from "@/hooks/use-toast";
@@ -40,9 +40,14 @@ import smatsiteBackgroundImageList from "@/components/util/data/smatsiteBackgrou
 import AnimateButton from "@/components/ui/Button/AnimateButton";
 import { sendCloudinaryImage } from "@/lib/SendCloudineryImage";
 import SmartsiteIconLivePreview from "../SmartsiteIconLivePreview";
+import { useDesktopUserData } from "@/components/tanstackQueryApi/getUserData";
 
-const EditSmartSite = ({ data, token, session }: any) => {
+const EditSmartSite = ({ data, token }: any) => {
   const [selectedImage, setSelectedImage] = useState(null); // get user avator image
+
+  const { refetch } = useDesktopUserData(data?.data?.parentId);
+
+  // console.log("hola data", data);
 
   const { toast } = useToast();
 
@@ -155,7 +160,7 @@ const EditSmartSite = ({ data, token, session }: any) => {
           console.error("Error uploading image:", err);
         });
     }
-  }, [galleryImage]);
+  }, [galleryImage, setFormData]);
 
   const handleFileChange = (event: any) => {
     const file = event.target.files[0];
@@ -258,7 +263,8 @@ const EditSmartSite = ({ data, token, session }: any) => {
       // console.log("response", response);
 
       if (response.state === "success") {
-        router.push("/smartsites");
+        refetch();
+        router.push("/smartsite");
         toast({
           title: "Success",
           description: "Smartsite updated successfully",
@@ -292,9 +298,7 @@ const EditSmartSite = ({ data, token, session }: any) => {
     (state: any) => state.setSmartSiteData
   ); //get setter for setting smartsite info from zustand store
 
-  const setLoggedInUserInfo = useLoggedInUserStore(
-    (state: any) => state.setUser
-  ); //get setter for setting session info from zustand store
+  //get setter for setting session info from zustand store
 
   // const { isOn, setOff }: any = useSmallIconToggleStore();
 
@@ -308,15 +312,7 @@ const EditSmartSite = ({ data, token, session }: any) => {
     if (data) {
       setSmartSiteData(data);
     }
-    if (session) {
-      // console.log("session", session);
-
-      setLoggedInUserInfo(session);
-    }
-    // if (iconData) {
-    //   setOpen(true);
-    // }
-  }, [data, session, iconData, setLoggedInUserInfo, setSmartSiteData]);
+  }, [data, setSmartSiteData]);
 
   // console.log("open", open);
 

@@ -116,7 +116,7 @@ const MicrositeEditMainContentPage = ({ data }: any) => {
               <LiaFileMedicalSolid size={20} />
               Customize QR
             </EditMicrositeBtn> */}
-            <Link href={`/smartsites/qr-code/${data.data._id}`}>
+            <Link href={`/smartsite/qr-code/${data.data._id}`}>
               <AnimateButton
                 type="button"
                 width="w-48"
@@ -127,7 +127,7 @@ const MicrositeEditMainContentPage = ({ data }: any) => {
               </AnimateButton>
             </Link>
 
-            <Link href={`/smartsites/${data.data._id}`}>
+            <Link href={`/smartsite/${data.data._id}`}>
               <AnimateButton
                 type="button"
                 width="w-48"
@@ -141,7 +141,7 @@ const MicrositeEditMainContentPage = ({ data }: any) => {
               <LiaFileMedicalSolid size={20} />
               Edit Background
             </EditMicrositeBtn> */}
-            <Link href={`/smartsites/${data.data._id}`}>
+            <Link href={`/smartsite/${data.data._id}`}>
               <AnimateButton
                 type="button"
                 // width="w-44"
