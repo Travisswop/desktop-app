@@ -15,7 +15,7 @@ import { AlertCircle, Loader2 } from 'lucide-react';
 import { useState, useMemo } from 'react';
 import TransactionDetails from './transaction-details';
 import Image from 'next/image';
-import { useMultiChainTokenData } from '@/lib/hooks/useTokenBalance';
+import { useMultiChainTokenData } from '@/lib/hooks/useToken';
 
 type Network = 'ETHEREUM' | 'POLYGON' | 'BASE' | 'SOLANA';
 
@@ -230,7 +230,8 @@ export default function TransactionList({
       (token) =>
         (network === 'ETHEREUM' && token.symbol === 'ETH') ||
         (network === 'POLYGON' && token.symbol === 'POL') ||
-        (network === 'BASE' && token.symbol === 'ETH')
+        (network === 'BASE' && token.symbol === 'ETH') ||
+        (network === 'SOLANA' && token.symbol === 'SOL')
     );
   }, [tokens, network]);
 

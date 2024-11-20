@@ -23,13 +23,8 @@ export default function PrivyProvider({
           logo: 'https://res.cloudinary.com/bayshore/image/upload/v1729560495/z8grcj0jvpgsrvab1q4i.jpg',
           walletChainType: 'ethereum-and-solana',
         },
-        // embeddedWallets: {
-        //   createOnLogin: 'users-without-wallets',
-        // },
-        externalWallets: {
-          solana: {
-            connectors: solanaConnectors,
-          },
+        embeddedWallets: {
+          createOnLogin: 'users-without-wallets',
         },
       }}
     >

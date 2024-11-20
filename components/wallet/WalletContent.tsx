@@ -16,7 +16,7 @@ import {
   WalletWithMetadata,
 } from '@privy-io/react-auth';
 import { WalletItem } from '@/types/wallet';
-import { useMultiChainTokenData } from '@/lib/hooks/useTokenBalance';
+import { useMultiChainTokenData } from '@/lib/hooks/useToken';
 import { TokenData } from '@/types/token';
 import {
   QueryClient,

@@ -31,9 +31,9 @@ const CHAINS = {
     explorer: 'https://basescan.org/',
   },
   SOLANA: {
-    name: 'Ethereum',
-    symbol: 'ETH',
-    explorer: 'https://basescan.org/',
+    name: 'SOLANA',
+    symbol: 'SOL',
+    explorer: 'https://solscan.io/',
   },
 } as const;
 

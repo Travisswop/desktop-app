@@ -210,6 +210,12 @@ class TokenContractService {
   ) {
     try {
       const contract = this.getContract(address, provider);
+      // Check if the contract is deployed and has the expected methods
+      const isContract = (await provider.getCode(address)) !== '0x';
+      if (!isContract) {
+        console.error('Address is not a contract:', address);
+        return null;
+      }
       const [balance, decimals, symbol, name] = await Promise.all([
         contract.balanceOf(walletAddress),
         contract.decimals(),
@@ -434,7 +440,6 @@ export const useMultiChainTokenData = (
             walletAddress!
           );
           const provider = evmProviders[chain];
-          console.log('🚀 ~ queryFn: ~ tokens:', tokens);
 
           return Promise.all(
             tokens.map(async (token: { contractAddress: string }) => {
@@ -445,7 +450,6 @@ export const useMultiChainTokenData = (
                   provider
                 );
               if (!details) return null;
-
               const marketData = await TokenAPIService.getMarketData({
                 address: token.contractAddress,
               });
