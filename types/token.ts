@@ -32,10 +32,11 @@ export interface TokenData {
   balance: string;
   decimals: number;
   chainId?: number;
-  address: string;
+  address: string | null;
   logoURI: string;
   chain: 'ETHEREUM' | 'POLYGON' | 'BASE' | 'SOLANA';
   marketData: MarketData;
+  sparklineData: Array<{ timestamp: number; value: number }>;
   timeSeriesData: {
     '1H': Array<{ timestamp: number; value: number }>;
     '1D': Array<{ timestamp: number; value: number }>;
@@ -51,4 +52,20 @@ export interface NFT {
   creator: string;
   image: string;
   description: string;
+}
+
+export interface SolanaTokenData {
+  data: {
+    parsed: {
+      info: {
+        mint: string;
+        tokenAmount: {
+          amount: string;
+          decimals: number;
+          uiAmount: number;
+          uiAmountString: string;
+        };
+      };
+    };
+  };
 }

@@ -1,17 +1,49 @@
 import { ethers } from 'ethers';
 import { useQueries } from '@tanstack/react-query';
 import { Connection, PublicKey } from '@solana/web3.js';
-import { MarketData, TokenData } from '@/types/token';
+import { MarketData, SolanaTokenData } from '@/types/token';
+import { useMemo } from 'react';
 
-const COIN_RANKING_API_KEY =
-  process.env.NEXT_PUBLIC_COIN_RANKING_API_KEY;
-const HELIUS_API_KEY = process.env.NEXT_PUBLIC_HELIUS_API_KEY;
-const SOLANA_RPC_URL = process.env.NEXT_PUBLIC_ALCHEMY_SOLANA_URL;
+type ChainType = 'ETHEREUM' | 'POLYGON' | 'BASE' | 'SOLANA';
+type EVMChain = Exclude<ChainType, 'SOLANA'>;
 
-let apiCall = 0;
+interface NativeToken {
+  uuid: string;
+  symbol: string;
+  name: string;
+  decimals: number;
+  color?: string;
+}
+
+interface ChainConfig {
+  id: number;
+  alchemyUrl: string | undefined;
+  nativeToken: NativeToken;
+}
+
+interface TimeSeriesDataPoint {
+  price: string | null;
+  timestamp: number;
+}
+
+export interface TokenMetadata {
+  chain: ChainType;
+  address: string;
+  symbol: string;
+  name: string;
+  decimals: number;
+  balance: string;
+  marketData: MarketData;
+  sparklineData: Array<{ timestamp: number; value: number }>;
+}
+
+interface TokenAccount {
+  account: SolanaTokenData;
+  pubkey: PublicKey;
+}
 
 // Constants
-const CHAINS = {
+const CHAINS: Record<ChainType, ChainConfig> = {
   ETHEREUM: {
     id: 1,
     alchemyUrl: process.env.NEXT_PUBLIC_ALCHEMY_ETH_URL,
@@ -55,206 +87,111 @@ const CHAINS = {
   },
 } as const;
 
-const NATIVE_SOL_METADATA = {
-  name: 'Solana',
-  symbol: 'SOL',
-  decimals: 9,
-  color: '#66F9A1',
-  uuid: 'zNZHO_Sjf',
-};
+// API Service class
 
-// API fetchers
-const fetchers = {
-  async tokenBalances(chain: keyof typeof CHAINS, address: string) {
-    apiCall += 1;
-    const response = await fetch(CHAINS[chain].alchemyUrl!, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        jsonrpc: '2.0',
-        method: 'alchemy_getTokenBalances',
-        params: [address],
-        id: 42,
-      }),
-    });
+class TokenAPIService {
+  private static async fetchWithRetry(
+    url: string,
+    options: RequestInit,
+    retries = 3
+  ): Promise<Response> {
+    try {
+      const response = await fetch(url, options);
+      if (!response.ok)
+        throw new Error(`HTTP error! status: ${response.status}`);
+      return response;
+    } catch (error) {
+      if (retries > 0) {
+        await new Promise((resolve) => setTimeout(resolve, 1000));
+        return this.fetchWithRetry(url, options, retries - -1);
+      }
+      throw error;
+    }
+  }
+
+  static async getTokenBalances(chain: EVMChain, address: string) {
+    const response = await this.fetchWithRetry(
+      CHAINS[chain].alchemyUrl!,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          jsonrpc: '2.0',
+          method: 'alchemy_getTokenBalances',
+          params: [address],
+          id: 42,
+        }),
+      }
+    );
     const { result } = await response.json();
+
     return (
       result.tokenBalances?.filter(
         (token: { tokenBalance: string }) =>
           BigInt(token.tokenBalance) > 0
       ) || []
     );
-  },
+  }
 
-  async marketData(address: string) {
-    apiCall += 1;
-    const response = await fetch(
-      `https://api.coinranking.com/v2/coins?contractAddresses[]=${address}`,
+  static async getMarketData(params: {
+    address?: string;
+    uuid?: string;
+  }): Promise<MarketData | null> {
+    const queryParam = params.address
+      ? `contractAddresses[]=${params.address}`
+      : `uuids[]=${params.uuid}`;
+
+    const response = await this.fetchWithRetry(
+      `https://api.coinranking.com/v2/coins?${queryParam}`,
       {
         headers: {
-          'x-access-token': COIN_RANKING_API_KEY || '',
+          'x-access-token':
+            process.env.NEXT_PUBLIC_COIN_RANKING_API_KEY || '',
         },
       }
     );
     const result = await response.json();
-    return result.data.coins[0];
-  },
+    return result.data.coins[0] || null;
+  }
 
-  async marketDataByUUID(uuid: string) {
-    apiCall += 1;
-    const response = await fetch(
-      `https://api.coinranking.com/v2/coins?uuids[]=${uuid}`,
-      {
-        headers: {
-          'x-access-token': COIN_RANKING_API_KEY || '',
-        },
-      }
-    );
+  static async getTokensData(address: string[]) {
+    const url = `https://api.coinranking.com/v2/coins?contractAddresses[]=${address.join(
+      '&contractAddresses[]='
+    )}`;
+
+    const response = await fetch(url, {
+      headers: {
+        'x-access-token':
+          process.env.NEXT_PUBLIC_COIN_RANKING_API_KEY || '',
+      },
+    });
+
     const result = await response.json();
-    return result.data.coins[0];
-  },
+    return result.data.coins;
+  }
 
-  async timeSeriesData(uuid: string, period: string = '1h') {
-    apiCall += 1;
-    const response = await fetch(
+  static async getTimeSeriesData(uuid: string, period = '1h') {
+    const response = await this.fetchWithRetry(
       `https://api.coinranking.com/v2/coin/${uuid}/history?timePeriod=${period}`,
       {
         headers: {
-          'x-access-token': COIN_RANKING_API_KEY || '',
+          'x-access-token':
+            process.env.NEXT_PUBLIC_COIN_RANKING_API_KEY || '',
         },
       }
     );
     const result = await response.json();
     return result.data;
-  },
+  }
+}
 
-  async fetchCoinRankingUUID(address: string[]) {
-    const url = `https://api.coinranking.com/v2/coins?contractAddresses[]=${address.join(
-      '&contractAddresses[]='
-    )}`;
-    console.log('🚀 ~ fetchCoinRankingUUID ~ url:', url);
-    const response = await fetch(url, {
-      headers: {
-        'x-access-token': COIN_RANKING_API_KEY || '',
-      },
-    });
-    const result = await response.json();
-    return result.data.coins;
-  },
-};
-
-// Solana token fetchers
-const solanaFetchers = {
-  async getTokenMetadata(contractAddress: string) {
-    try {
-      const response = await fetch(
-        `https://mainnet.helius-rpc.com/?api-key=${HELIUS_API_KEY}`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            jsonrpc: '2.0',
-            method: 'getAsset',
-            id: 'my-id',
-            params: { id: contractAddress },
-          }),
-        }
-      );
-
-      const { result } = await response.json();
-      return result;
-    } catch (error) {
-      console.error('Error fetching token metadata:', error);
-      return null;
-    }
-  },
-
-  async getSplTokens(address: string) {
-    if (!address) return [];
-
-    try {
-      const publicKey = new PublicKey(address);
-      const connection = new Connection(SOLANA_RPC_URL!, 'confirmed');
-
-      // Get SOL balance
-      const balance = await connection.getBalance(publicKey);
-      const formatBalance =
-        balance / 10 ** NATIVE_SOL_METADATA.decimals;
-
-      const nativeSol = CHAINS['SOLANA'].nativeToken;
-
-      const nativeToken = {
-        symbol: nativeSol.symbol,
-        name: nativeSol.name,
-        decimals: nativeSol.decimals,
-        balance: formatBalance.toString(),
-        address: 'SOL',
-        chain: 'solana' as const,
-        logoURI: '/assets/crypto-icons/SOL.png',
-        marketData: {
-          uuid: nativeSol.uuid,
-          price: '0',
-          change: 0,
-          sparkline: [],
-          color: nativeSol.color,
-        },
-      };
-
-      // Get SPL tokens
-      const tokenAccounts =
-        await connection.getParsedTokenAccountsByOwner(publicKey, {
-          programId: new PublicKey(
-            'TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA'
-          ),
-        });
-
-      const tokenData = tokenAccounts.value
-        .map(async (token) => {
-          const { info } = token.account.data.parsed;
-          return {
-            decimals: info.tokenAmount.decimals,
-            balance: info.tokenAmount.uiAmountString,
-            address: info.mint,
-          };
-        })
-        .filter(Boolean);
-
-      const tokens = await Promise.all(tokenData);
-
-      const tokenAddresses = tokens.map((item) => item.address);
-
-      const marketData = await fetchers.fetchCoinRankingUUID(
-        tokenAddresses
-      );
-
-      const formatData = marketData.map((item, index) => {
-        return {
-          ...tokens[index],
-          name: item.name,
-          symbol: item.symbol,
-          marketData: {
-            ...item,
-            uuid: item.uuid,
-          },
-        };
-      });
-
-      return [nativeToken, ...formatData];
-    } catch (error) {
-      console.error('Error fetching Solana tokens:', error);
-      return [];
-    }
-  },
-};
-
-// Custom hook for token contract interactions
-const tokenContract = (
-  address: string,
-  provider?: ethers.JsonRpcProvider
-) => {
-  const contract =
-    provider &&
-    new ethers.Contract(
+// Token Contract Class
+class TokenContractService {
+  private static getContract(
+    address: string,
+    provider: ethers.JsonRpcProvider
+  ) {
+    return new ethers.Contract(
       address,
       [
         'function balanceOf(address) view returns (uint256)',
@@ -264,11 +201,15 @@ const tokenContract = (
       ],
       provider
     );
+  }
 
-  return {
-    async getTokenDetails(walletAddress: string) {
-      if (!contract) return null;
-
+  static async getTokenDetails(
+    address: string,
+    walletAddress: string,
+    provider: ethers.JsonRpcProvider
+  ) {
+    try {
+      const contract = this.getContract(address, provider);
       const [balance, decimals, symbol, name] = await Promise.all([
         contract.balanceOf(walletAddress),
         contract.decimals(),
@@ -282,197 +223,153 @@ const tokenContract = (
         symbol,
         name,
       };
-    },
-  };
-};
+    } catch (error) {
+      console.error('Error fetching token details:', error);
+      return null;
+    }
+  }
 
-// Main hook for fetching token data across multiple chains
-export const useMultiChainTokenData = (
-  walletAddress?: string,
-  chains: ('ETHEREUM' | 'POLYGON' | 'BASE' | 'SOLANA')[] = [
-    'ETHEREUM',
-  ]
-) => {
-  const evmProviders = chains
-    .filter((chain) => chain !== 'SOLANA')
-    .reduce(
-      (acc, chain) => ({
-        ...acc,
-        [chain]: new ethers.JsonRpcProvider(CHAINS[chain].alchemyUrl),
-      }),
-      {} as Record<string, ethers.JsonRpcProvider>
+  static async getNativeTokens(chain: ChainType) {
+    if (!chain) return null;
+
+    try {
+      const nativeToken = await this.formatNativeToken(chain);
+      return nativeToken;
+    } catch (error) {
+      console.error('Error fetching Solana tokens:', error);
+      return null;
+    }
+  }
+
+  private static async formatNativeToken(chain: ChainType) {
+    const nativeToken = CHAINS[chain].nativeToken;
+    const marketData = await TokenAPIService.getMarketData({
+      uuid: nativeToken.uuid,
+    });
+
+    const timeSeriesData = await TokenAPIService.getTimeSeriesData(
+      nativeToken.uuid
     );
 
-  const evmChains = chains.filter((chain) => chain !== 'SOLANA');
-  const hasSolana = chains.includes('SOLANA');
+    return {
+      symbol: nativeToken.symbol,
+      name: nativeToken.name,
+      decimals: nativeToken.decimals,
+      address: null,
+      chain,
+      logoURI: `/assets/crypto-icons/${nativeToken.symbol}.png`,
+      marketData: marketData,
+      sparklineData: processSparklineData(timeSeriesData),
+    };
+  }
+}
 
-  // Fetch EVM token balances
-  const evmChainQueries = useQueries({
-    queries: evmChains.map((chain) => ({
-      queryKey: ['tokenBalances', chain, walletAddress],
-      queryFn: () => fetchers.tokenBalances(chain, walletAddress!),
-      enabled: !!walletAddress,
-    })),
-  });
+// Solana Service Class
+class SolanaService {
+  static async getSplTokens(walletAddress: string) {
+    if (!walletAddress) return [];
 
-  // Fetch Solana tokens
-  const solanaTokenQuery = useQueries({
-    queries: hasSolana
-      ? [
-          {
-            queryKey: ['solanaTokens', walletAddress],
-            queryFn: () =>
-              solanaFetchers.getSplTokens(walletAddress!),
-            enabled: !!walletAddress,
-          },
-        ]
-      : [],
-  });
+    try {
+      const connection = new Connection(
+        process.env.NEXT_PUBLIC_ALCHEMY_SOLANA_URL!,
+        'confirmed'
+      );
+      const publicKey = new PublicKey(walletAddress);
 
-  // Process EVM token data
-  const evmTokenQueries = useQueries({
-    queries: evmChainQueries.flatMap((query, chainIndex) => {
-      const chain = chains[chainIndex];
-      const tokens = query.data || [];
+      const [balance, tokenAccounts] = await Promise.all([
+        connection.getBalance(publicKey),
+        connection.getParsedTokenAccountsByOwner(publicKey, {
+          programId: new PublicKey(
+            'TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA'
+          ),
+        }),
+      ]);
 
-      return tokens.map((token: { contractAddress: string }) => ({
-        queryKey: [
-          'tokenDetails',
-          chain,
-          token.contractAddress,
-          walletAddress,
-        ],
-        queryFn: async () => {
-          const contract = tokenContract(
-            token.contractAddress,
-            evmProviders[chain]
-          );
-          const details = await contract.getTokenDetails(
-            walletAddress!
-          );
-          const marketData: MarketData = await fetchers.marketData(
-            token.contractAddress
-          );
+      const nativeToken = await this.getNativeSolToken();
+      const tokenData = await this.getTokenAccountsData(
+        tokenAccounts.value
+      );
 
-          if (!details || !marketData) return null;
+      const solToken = {
+        ...nativeToken,
+        balance: (balance / Math.pow(10, 9)).toString(),
+      };
 
-          const timeSeriesData = await fetchers.timeSeriesData(
-            marketData.uuid
-          );
+      return [solToken, ...tokenData];
+    } catch (error) {
+      console.error('Error fetching Solana tokens:', error);
+      return [];
+    }
+  }
 
-          const sparklineData = processSparklineData(timeSeriesData);
+  private static async getNativeSolToken() {
+    const nativeSol = CHAINS.SOLANA.nativeToken;
+    const marketData = await TokenAPIService.getMarketData({
+      uuid: nativeSol.uuid,
+    });
 
-          return formatTokenData({
-            ...details,
-            chain,
-            address: token.contractAddress,
-            marketData,
-            sparklineData,
-          });
-        },
-        enabled: !!query.data,
-      }));
-    }),
-  });
+    if (!marketData) return null;
 
-  // Fetch native token data for EVM chain
-  const evmNativeTokenQueries = useQueries({
-    queries: evmChains.map((chain) => ({
-      queryKey: ['nativeToken', chain, walletAddress],
-      queryFn: async () => {
-        const provider = evmProviders[chain];
-        const balance = await provider.getBalance(walletAddress!);
-        const nativeToken = CHAINS[chain].nativeToken;
+    const timeSeriesData = await TokenAPIService.getTimeSeriesData(
+      marketData.uuid
+    );
 
-        const [marketData, timeSeriesData] = await Promise.all([
-          fetchers.marketDataByUUID(nativeToken.uuid),
-          fetchers.timeSeriesData(nativeToken.uuid),
-        ]);
+    return {
+      symbol: nativeSol.symbol,
+      name: nativeSol.name,
+      decimals: nativeSol.decimals,
+      address: null,
+      chain: 'SOLANA',
+      marketData,
+      sparklineData: processSparklineData(timeSeriesData),
+    };
+  }
 
-        const sparklineData = processSparklineData(timeSeriesData);
+  private static async getTokenAccountsData(
+    tokenAccounts: TokenAccount[]
+  ) {
+    const tokens = tokenAccounts.map((token: TokenAccount) => {
+      const { tokenAmount, mint } = token.account.data.parsed.info;
+      return {
+        decimals: tokenAmount.decimals,
+        balance: tokenAmount.uiAmountString,
+        address: mint,
+      };
+    });
 
-        return formatTokenData({
-          ...nativeToken,
-          balance: ethers.formatUnits(balance, nativeToken.decimals),
-          chain,
-          marketData,
-          sparklineData,
+    return Promise.all(
+      tokens.map(async (token: { address: string }) => {
+        const marketData = await TokenAPIService.getMarketData({
+          address: token.address,
         });
-      },
-      enabled: !!walletAddress,
-    })),
-  });
 
-  // Solana token data with market data
-  const solanaTokensWithMarketData = useQueries({
-    queries: solanaTokenQuery[0]?.data
-      ? solanaTokenQuery[0].data.map((token: any) => ({
-          queryKey: ['solanaMarketData', token.address],
-          queryFn: async () => {
-            if (token.marketData.uuid) {
-              const [marketData, timeSeriesData] = await Promise.all([
-                fetchers.marketDataByUUID(token.marketData.uuid),
-                fetchers.timeSeriesData(token.marketData.uuid),
-              ]);
+        if (!marketData) return null;
 
-              const sparklineData =
-                processSparklineData(timeSeriesData);
+        const timeSeriesData =
+          await TokenAPIService.getTimeSeriesData(marketData.uuid);
 
-              return formatTokenData({
-                ...token,
-                marketData,
-                sparklineData,
-              });
-            }
-            return token;
-          },
-          enabled: !!token,
-        }))
-      : [],
-  });
+        return {
+          ...token,
+          chain: 'SOLANA',
+          name: marketData.name,
+          symbol: marketData.symbol,
+          marketData,
+          sparklineData: processSparklineData(timeSeriesData),
+        };
+      })
+    );
+  }
+}
 
-  const allTokens = [
-    ...evmNativeTokenQueries,
-    ...evmTokenQueries,
-    ...solanaTokensWithMarketData,
-  ]
-    .filter((query) => query.data)
-    .map((query) => query.data as TokenData);
+// Utility functions
+const processSparklineData = (timeSeriesData: {
+  change: string;
+  history: TimeSeriesDataPoint[];
+}) => {
+  if (!timeSeriesData?.history) return [];
 
-  const isLoading =
-    evmChainQueries.some((query) => query.isLoading) ||
-    evmTokenQueries.some((query) => query.isLoading) ||
-    evmNativeTokenQueries.some((query) => query.isLoading) ||
-    (solanaTokenQuery[0]?.isLoading ?? false) ||
-    solanaTokensWithMarketData.some((query) => query.isLoading);
-
-  const error =
-    evmChainQueries.find((query) => query.error)?.error ||
-    evmTokenQueries.find((query) => query.error)?.error ||
-    evmNativeTokenQueries.find((query) => query.error)?.error ||
-    solanaTokenQuery[0]?.error ||
-    solanaTokensWithMarketData.find((query) => query.error)?.error;
-
-  return {
-    tokens: allTokens,
-    loading: isLoading,
-    error,
-    refetch: () => {
-      evmChainQueries.forEach((query) => query.refetch());
-      evmTokenQueries.forEach((query) => query.refetch());
-      evmNativeTokenQueries.forEach((query) => query.refetch());
-      solanaTokenQuery[0]?.refetch();
-      solanaTokensWithMarketData.forEach((query) => query.refetch());
-    },
-  };
-};
-
-const processSparklineData = (timeSeriesData: any) => {
-  if (!timeSeriesData) return [];
-
-  const { history } = timeSeriesData;
-  return history
-    .map((data: { price: string | null; timestamp: number }) => {
+  return timeSeriesData.history
+    .map((data: TimeSeriesDataPoint) => {
       const price =
         data.price !== null ? parseFloat(data.price) : null;
       return price !== null
@@ -482,33 +379,134 @@ const processSparklineData = (timeSeriesData: any) => {
     .filter(Boolean);
 };
 
-const formatTokenData = ({
-  chain,
-  address,
-  symbol,
-  name,
-  decimals,
-  balance,
-  marketData,
-  sparklineData,
-}: any): TokenData => ({
-  symbol,
-  name,
-  decimals,
-  balance,
-  address,
-  chain,
-  logoURI: `/assets/crypto-icons/${symbol}.png`,
-  marketData: {
-    ...marketData,
-    change: parseFloat(marketData.change || '0'),
-    sparkline: sparklineData,
-  },
-  timeSeriesData: {
-    '1H': sparklineData,
-    '1D': [],
-    '1W': [],
-    '1M': [],
-    '1Y': [],
-  },
-});
+// Main hook
+export const useMultiChainTokenData = (
+  walletAddress?: string,
+  chains: ChainType[] = ['ETHEREUM']
+) => {
+  const evmChains = chains.filter(
+    (chain): chain is EVMChain => chain !== 'SOLANA'
+  );
+  const hasSolana = chains.includes('SOLANA');
+
+  // Initialize providers
+  const evmProviders = useMemo(
+    () =>
+      evmChains.reduce(
+        (acc, chain) => ({
+          ...acc,
+          [chain]: new ethers.JsonRpcProvider(
+            CHAINS[chain].alchemyUrl
+          ),
+        }),
+        {} as Record<EVMChain, ethers.JsonRpcProvider>
+      ),
+    [evmChains]
+  );
+
+  // Define queries with proper error boundaries
+  const queries = useQueries({
+    queries: [
+      // EVM Chain Queries
+      ...evmChains.map((chain) => ({
+        queryKey: ['nativeToken', chain, walletAddress],
+        queryFn: async () => {
+          const provider = evmProviders[chain];
+          const balance = await provider.getBalance(walletAddress!);
+
+          const token = await TokenContractService.getNativeTokens(
+            chain
+          );
+
+          return {
+            ...token,
+            balance: ethers.formatUnits(balance, 18),
+          };
+        },
+        enabled: !!walletAddress,
+      })),
+
+      ...evmChains.map((chain) => ({
+        queryKey: ['evmTokens', chain, walletAddress],
+        queryFn: async () => {
+          const tokens = await TokenAPIService.getTokenBalances(
+            chain,
+            walletAddress!
+          );
+          const provider = evmProviders[chain];
+          console.log('🚀 ~ queryFn: ~ tokens:', tokens);
+
+          return Promise.all(
+            tokens.map(async (token: { contractAddress: string }) => {
+              const details =
+                await TokenContractService.getTokenDetails(
+                  token.contractAddress,
+                  walletAddress!,
+                  provider
+                );
+              if (!details) return null;
+
+              const marketData = await TokenAPIService.getMarketData({
+                address: token.contractAddress,
+              });
+              if (!marketData) return null;
+
+              const timeSeriesData =
+                await TokenAPIService.getTimeSeriesData(
+                  marketData.uuid
+                );
+
+              return {
+                ...details,
+                chain,
+                address: token.contractAddress,
+                marketData,
+                sparklineData: processSparklineData(timeSeriesData),
+              };
+            })
+          );
+        },
+        enabled: !!walletAddress,
+      })),
+
+      // Solana Query
+      ...(hasSolana
+        ? [
+            {
+              queryKey: ['solanaTokens', walletAddress],
+              queryFn: async () =>
+                await SolanaService.getSplTokens(walletAddress!),
+              enabled: !!walletAddress,
+            },
+          ]
+        : []),
+    ],
+  });
+
+  // Process results
+  const processedData = useMemo(() => {
+    const allTokens = queries
+      .flatMap((query) => query.data || [])
+      .filter(Boolean)
+      .map((token) => ({
+        ...token,
+        logoURI: `/assets/crypto-icons/${token.symbol}.png`,
+        timeSeriesData: {
+          '1H': token.sparklineData || [],
+          '1D': [],
+          '1W': [],
+          '1M': [],
+          '1Y': [],
+        },
+      }));
+
+    return {
+      tokens: allTokens,
+      loading: queries.some((query) => query.isLoading),
+      error: queries.find((query) => query.error)?.error,
+      refetch: () => queries.forEach((query) => query.refetch()),
+    };
+  }, [queries]);
+
+  return processedData;
+};

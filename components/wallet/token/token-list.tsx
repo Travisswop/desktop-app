@@ -126,7 +126,7 @@ const TokenContent = ({
     <div className={containerClass}>
       {tokens.map((token) => (
         <TokenComponent
-          key={`${token.chain}-${token.address}`}
+          key={`${token.chain}-${token.symbol}`}
           token={token}
           onClick={() => onSelectToken(token)}
         />

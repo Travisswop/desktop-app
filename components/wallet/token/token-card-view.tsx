@@ -39,7 +39,7 @@ export default function TokenCardView({
 
       <div className="h-[60px] mb-4">
         <ResponsiveContainer width="100%" height="100%">
-          <AreaChart data={token.marketData.sparkline}>
+          <AreaChart data={token.sparklineData}>
             <defs>
               <linearGradient
                 id={`gradient-${token.symbol}`}

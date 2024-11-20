@@ -55,7 +55,7 @@ function WalletContentInner() {
 
   const { user, loading, error } = useUser();
   const { authenticated, ready, user: PrivyUser } = usePrivy();
-  console.log('🚀 ~ WalletContentInner ~ PrivyUser:', PrivyUser);
+
   const { createWallet, wallets } = useSolanaWallets();
   const [selectedToken, setSelectedToken] =
     useState<TokenData | null>(null);

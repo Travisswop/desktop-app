@@ -14,7 +14,7 @@ export default function TokenListView({
   token,
   onClick,
 }: TokenCardProps) {
-  const data = token.marketData.sparkline;
+  const data = token.sparklineData;
 
   const TokenSparkline = () => (
     <ResponsiveContainer width="100%" height="100%">
