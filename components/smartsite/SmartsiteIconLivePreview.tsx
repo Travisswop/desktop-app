@@ -26,13 +26,14 @@ import getSmallIconImage from "./retriveIconImage/getSmallIconImage";
 import AnimateButton from "../ui/Button/AnimateButton";
 import EmbedPlayer from "./embed/renderEmbedPlayer";
 import getAllSmartsitesIcon from "./retriveIconImage/getAllSmartsiteIcon";
+import { fontMap } from "@/app/layout";
 
 const SmartsiteIconLivePreview = ({ data }: { data?: any }) => {
   const setSmartSiteData = useUpdateSmartIcon((state: any) => state.setState);
   const { toggle } = useSideBarToggleStore();
 
   // console.log("data form live", data.info.socialLarge);
-  const { formData, setFormData }: any = useSmartsiteFormStore();
+  const { formData, setFormData } = useSmartsiteFormStore();
 
   // console.log("form data from live preview", formData);
 
@@ -54,6 +55,10 @@ const SmartsiteIconLivePreview = ({ data }: { data?: any }) => {
   useEffect(() => {
     if (data) {
       setFormData("theme", data.theme);
+      setFormData("fontType", data.fontFamily);
+      setFormData("fontColor", data.fontColor);
+      setFormData("templateColor", data.themeColor);
+      setFormData("backgroundColor", data.backgroundColor);
       setFormData("backgroundImg", data.backgroundImg);
       setFormData("profileImg", data.profilePic);
     }
@@ -123,11 +128,23 @@ const SmartsiteIconLivePreview = ({ data }: { data?: any }) => {
               !formData.theme && "mt-[4.5rem] xl:mt-20 2xl:mt-28"
             }  flex flex-col gap-6 mt-6 h-full justify-start`}
           >
-            <div className="flex flex-col items-center text-center">
-              <p className="text-lg font-bold text-gray-700">
+            <div
+              className={`flex flex-col items-center text-center ${
+                formData.fontType && fontMap[formData.fontType.toLowerCase()]
+              }`}
+            >
+              <p
+                className={`text-lg font-bold ${
+                  formData.fontColor ? formData.fontColor : "text-gray-700"
+                }`}
+              >
                 {formData.name || data?.name}
               </p>
-              <p className="text-gray-500 font-medium text-sm">
+              <p
+                className={`font-medium text-sm ${
+                  formData.fontColor ? formData.fontColor : "text-gray-500"
+                }`}
+              >
                 {formData.bio || data?.bio}
               </p>
             </div>

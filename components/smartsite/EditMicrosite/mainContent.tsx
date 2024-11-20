@@ -55,7 +55,7 @@ const EditSmartSite = ({ data, token }: any) => {
     useSmartsiteFormStore();
 
   // console.log("selected image", selectedImage);
-  //console.log("formData from edit page", smartSiteEditFormData);
+  console.log("formData from edit page", smartSiteEditFormData);
 
   const [galleryImage, setGalleryImage] = useState(null); // get upload image base64 data
   const [uploadedImageUrl, setUploadedImageUrl] = useState(""); // get uploaded url from cloudinery
@@ -109,10 +109,12 @@ const EditSmartSite = ({ data, token }: any) => {
     setFormData("galleryImg", "");
     setFormData("name", data.data.name);
     setFormData("theme", data.data.theme);
+    setFormData("backgroundColor", data.data.backgroundColor);
     if (!selectedImage && !galleryImage) {
       setFormData("profileImg", data.data.profilePic);
     }
   }, [
+    data.data.backgroundColor,
     data.data.backgroundImg,
     data.data.bio,
     data.data.name,

@@ -1,15 +1,21 @@
 import { create } from "zustand";
-
+export type FontType =
+  | "roboto"
+  | "poppins"
+  | "opensans"
+  | "montserrat"
+  | "rubik";
 // Define the type for form data
 interface FormData {
   name: string;
   bio: string;
   profileImg: string;
   backgroundImg: string;
+  backgroundColor: string;
   theme: boolean;
   galleryImg: string;
   fontColor: string;
-  fontType: string;
+  fontType: FontType;
   templateColor: string;
 }
 
@@ -28,8 +34,9 @@ const useSmartsiteFormStore = create<SmartsiteFormStore>((set) => ({
     backgroundImg: "",
     theme: true,
     galleryImg: "",
+    backgroundColor: "",
     fontColor: "",
-    fontType: "",
+    fontType: "roboto",
     templateColor: "",
   },
   setFormData: (field, value) =>

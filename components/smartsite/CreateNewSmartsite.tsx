@@ -2,29 +2,23 @@
 import Image from "next/image";
 import React, { useEffect, useState } from "react";
 import profileEditIcon from "@/public/images/websites/profile-edit.png";
-import { FiUser } from "react-icons/fi";
+import { FiMinus, FiPlus, FiUser } from "react-icons/fi";
 import { TbUserSquare } from "react-icons/tb";
-import { Spinner, Switch, useDisclosure } from "@nextui-org/react";
-// import EditMicrositeBtn from "@/components/Button/EditMicrositeBtn";
+import {
+  Select,
+  SelectItem,
+  Spinner,
+  Switch,
+  useDisclosure,
+} from "@nextui-org/react";
 import { LiaFileMedicalSolid } from "react-icons/lia";
 import { IoMdLink } from "react-icons/io";
-// import DynamicPrimaryBtn from "@/components/Button/DynamicPrimaryBtn";
-// import SelectBackgroudOrBannerModal from "@/components/SelectBackgroudOrBannerModal/SelectBackgroudOrBannerModal";
 import { PiAddressBook } from "react-icons/pi";
-// import SelectAvatorModal from "@/components/modal/SelectAvatorModal";
-// import userProfileImages from "@/util/data/userProfileImage";
-// import { sendCloudinaryImage } from "@/util/SendCloudineryImage";
-// import smatsiteBackgroundImageList from "@/util/data/smatsiteBackgroundImageList";
-// import smatsiteBannerImageList from "@/util/data/smartsiteBannerImageList";
 import useSmartsiteFormStore from "@/zustandStore/EditSmartsiteInfo";
-import { handleCreateSmartSite, handleSmartSiteUpdate } from "@/actions/update";
-// import { toast } from "react-toastify";
+import { handleCreateSmartSite } from "@/actions/update";
 import useSmallIconToggleStore from "@/zustandStore/SmallIconModalToggle";
 import useUpdateSmartIcon from "@/zustandStore/UpdateSmartIcon";
-// import UpdateModalComponents from "@/components/EditMicrosite/UpdateModalComponents";
-// import useSmartSiteApiDataStore from "@/zustandStore/UpdateSmartsiteInfo";
-import useLoggedInUserStore from "@/zustandStore/SetLogedInUserSession";
-import { MdAssignmentAdd } from "react-icons/md";
+import { MdAssignmentAdd, MdDone } from "react-icons/md";
 import { useRouter } from "next/navigation";
 import EditMicrositeBtn from "../ui/Button/EditMicrositeBtn";
 import DynamicPrimaryBtn from "../ui/Button/DynamicPrimaryBtn";
@@ -33,22 +27,21 @@ import SelectAvatorModal from "../modal/SelectAvatorModal";
 import userProfileImages from "../util/data/userProfileImage";
 import smatsiteBannerImageList from "../util/data/smartsiteBannerImageList";
 import smatsiteBackgroundImageList from "../util/data/smatsiteBackgroundImageList";
-import UpdateModalComponents from "./EditMicrosite/UpdateModalComponents";
 import SmartsiteLivePreview from "./CreateSmartsiteLivePreview";
 import { sendCloudinaryImage } from "@/lib/SendCloudineryImage";
 import { useUser } from "@/lib/UserContext";
+import { FaPlus } from "react-icons/fa";
+import { HexColorPicker } from "react-colorful";
+import { useDesktopUserData } from "../tanstackQueryApi/getUserData";
 
 const CreateSmartSite = ({ token }: { token: string }) => {
   const { formData, setFormData } = useSmartsiteFormStore();
 
-  // const setLoggedInUserInfo = useLoggedInUserStore(
-  //   (state: any) => state.setUser
-  // ); //get setter for setting session info from zustand store
-
-  //console.log("formData from create smartsite", formData);
-
   const { user } = useUser();
   console.log("user", user);
+  console.log("formData", formData);
+
+  const { refetch } = useDesktopUserData(user?._id);
 
   const [selectedImage, setSelectedImage] = useState(null); // get user avator image
   const [galleryImage, setGalleryImage] = useState(null); // get upload image base64 data
@@ -62,6 +55,9 @@ const CreateSmartSite = ({ token }: { token: string }) => {
   });
   const [isPrimaryMicrosite, setIsPrimaryMicrosite] = useState(false);
   const [brandImage, setBrandImage] = useState(""); //need to set brand image
+
+  const [isTemplateColorPickerOpen, setIsTemplateColorPickerOpen] =
+    useState(false);
 
   // const [profileImage, setProfileImage] = useState("");
   const [backgroundImage, setBackgroundImage] = useState({
@@ -234,6 +230,9 @@ const CreateSmartSite = ({ token }: { token: string }) => {
       //   ens: data.data.ens || "",
       primary: isPrimaryMicrosite,
       //   web3enabled: data.data.web3enabled,
+      fontColor: formData.fontColor,
+      fontFamily: formData.fontType,
+      themeColor: formData.templateColor,
     };
 
     console.log("smartsite info", smartSiteInfo);
@@ -247,6 +246,7 @@ const CreateSmartSite = ({ token }: { token: string }) => {
         // const micrositeId =
         //   response?.data?.microsites[response?.data?.microsites.length - 1]._id;
         // router.push(`/ens-swop-id?id=${micrositeId}`);
+        refetch();
         router.push(`/smartsite`);
         // toast.success("Smartsite created successfully");
       }
@@ -276,6 +276,14 @@ const CreateSmartSite = ({ token }: { token: string }) => {
   // console.log("open", open);
 
   // console.log("icon data obbbjj", iconData);
+
+  const fontType = [
+    { key: "roboto", label: "Roboto" },
+    { key: "poppins", label: "Poppins" },
+    { key: "openSans", label: "OpenSans" },
+    { key: "montserrat", label: "Montserrat" },
+    { key: "rubik", label: "Rubik" },
+  ];
 
   return (
     <main className="main-container">
@@ -385,6 +393,127 @@ const CreateSmartSite = ({ token }: { token: string }) => {
                       className="w-full border border-[#ede8e8] focus:border-[#e5e0e0] rounded-xl focus:outline-none pl-10 py-2 text-gray-700 bg-white"
                       rows={4}
                     />
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div className="flex items-start justify-between gap-6">
+              <Select
+                variant="bordered"
+                selectedKeys={[formData.fontType]}
+                onChange={(e) => setFormData("fontType", e.target.value)}
+                label={
+                  <span className="text-gray-600 font-medium">Select Font</span>
+                }
+                className="max-w-40 bg-white rounded-xl"
+              >
+                {fontType.map((font) => (
+                  <SelectItem key={font.key}>{font.label}</SelectItem>
+                ))}
+              </Select>
+              <div>
+                <p className="text-sm font-medium">Font Color</p>
+                <div className="flex items-center gap-2 mt-1">
+                  <button
+                    type="button"
+                    onClick={() => setFormData("fontColor", "#000000")}
+                    className="bg-black w-[22px] h-[22px] rounded-full flex items-center justify-center"
+                  >
+                    {formData.fontColor === "#000000" && (
+                      <MdDone color="white" size={16} />
+                    )}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setFormData("fontColor", "#808080")}
+                    className="bg-gray-400 w-[22px] h-[22px] rounded-full flex items-center justify-center"
+                  >
+                    {formData.fontColor === "#808080" && (
+                      <MdDone color="white" size={16} />
+                    )}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setFormData("fontColor", "#D3D3D3")}
+                    className="bg-[#D3D3D3] w-[22px] h-[22px] rounded-full flex items-center justify-center"
+                  >
+                    {formData.fontColor === "#D3D3D3" && (
+                      <MdDone color="black" size={16} />
+                    )}
+                  </button>
+                </div>
+              </div>
+              <div>
+                <p className="text-sm font-medium text-end">Templates Color</p>
+                <div className="flex items-center justify-end gap-2 mt-1 w-36">
+                  <button
+                    type="button"
+                    onClick={() => setFormData("templateColor", "#000000")}
+                    className="bg-black w-[22px] h-[22px] rounded-full flex items-center justify-center"
+                  >
+                    {formData.templateColor === "#000000" && (
+                      <MdDone color="white" size={16} />
+                    )}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setFormData("templateColor", "#808080")}
+                    className="bg-gray-400 w-[22px] h-[22px] rounded-full flex items-center justify-center"
+                  >
+                    {formData.templateColor === "#808080" && (
+                      <MdDone color="white" size={16} />
+                    )}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setFormData("templateColor", "#FFFFFF")}
+                    className="bg-white w-[22px] h-[22px] rounded-full flex items-center justify-center border border-gray-300"
+                  >
+                    {formData.templateColor === "#FFFFFF" && (
+                      <MdDone color="black" size={16} />
+                    )}
+                  </button>
+                  {formData.templateColor !== "#FFFFFF" &&
+                    formData.templateColor !== "#808080" &&
+                    formData.templateColor !== "#000000" &&
+                    formData.templateColor !== "" && (
+                      <button
+                        type="button"
+                        style={{ backgroundColor: formData.templateColor }}
+                        className={`w-[22px] h-[22px] rounded-full flex items-center justify-center`}
+                      >
+                        <MdDone color="black" size={16} />
+                      </button>
+                    )}
+
+                  <div className="relative">
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setIsTemplateColorPickerOpen(!isTemplateColorPickerOpen)
+                      }
+                      className="bg-white w-[22px] h-[22px] rounded-full flex items-center justify-center border border-gray-500"
+                    >
+                      {isTemplateColorPickerOpen ? (
+                        <FiMinus color="black" size={16} />
+                      ) : (
+                        <FiPlus color="black" size={16} />
+                      )}
+                    </button>
+                    {isTemplateColorPickerOpen && (
+                      <div className="absolute top-8 right-0 w-52 h-48 bg-white p-2 rounded-lg shadow-medium pb-8 z-50">
+                        <p className="font-semibold text-sm text-center mb-1">
+                          Select Template Color
+                        </p>
+                        <HexColorPicker
+                          color={formData.templateColor}
+                          onChange={(color) =>
+                            setFormData("templateColor", color)
+                          }
+                          className="max-w-full max-h-full"
+                        />
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>

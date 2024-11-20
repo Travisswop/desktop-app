@@ -4,6 +4,9 @@ import swop from "@/public/images/live-preview/swop.svg";
 import { BiSolidEdit } from "react-icons/bi";
 import useSmartsiteFormStore from "@/zustandStore/EditSmartsiteInfo";
 import isUrl from "@/lib/isUrl";
+import { fontMap } from "@/app/layout";
+// import { fontMap } from "../util/customFonts";
+
 // import useUpdateSmartIcon from "@/zustandStore/UpdateSmartIcon";
 // import useSmallIconToggleStore from "@/zustandStore/SmallIconModalToggle";
 // import useSideBarToggleStore from "@/zustandStore/SideBarToggleStore";
@@ -13,7 +16,7 @@ const SmartsiteLivePreview = () => {
   //   const { toggle } = useSideBarToggleStore();
 
   // console.log("data form live", data);
-  const { formData, setFormData }: any = useSmartsiteFormStore();
+  const { formData, setFormData } = useSmartsiteFormStore();
   //   const { setOn }: any = useSmallIconToggleStore();
 
   //   const handleTriggerUpdate = (data: {
@@ -26,7 +29,7 @@ const SmartsiteLivePreview = () => {
 
   // console.log("audio", data.info.audio);
 
-  // console.log("formdata", formData);
+  console.log("formdata live site", formData);
   // console.log("data", data);
 
   useEffect(() => {
@@ -125,11 +128,26 @@ const SmartsiteLivePreview = () => {
             !formData.theme && "mt-[4.5rem] xl:mt-20 2xl:mt-28"
           }  flex flex-col gap-6 mt-6`}
         >
-          <div className="flex flex-col items-center">
-            <p className="text-lg font-bold text-gray-700">
+          <div
+            className={`flex flex-col items-center ${
+              formData.fontType && fontMap[formData.fontType.toLowerCase()]
+            }`}
+          >
+            <p
+              style={{
+                color: formData.fontColor ? formData.fontColor : "gray",
+                // fontFamily: "monospace",
+              }}
+              className={`text-lg font-bold`}
+            >
               {formData.name ? formData.name : "Example Name"}
             </p>
-            <p className="text-gray-500 font-medium text-sm">
+            <p
+              style={{
+                color: formData.fontColor && formData.fontColor,
+              }}
+              className="text-gray-500 font-medium text-sm"
+            >
               {formData.bio ? formData.bio : "Example Bio"}
             </p>
           </div>
