@@ -5,6 +5,12 @@ import Image from "next/image";
 import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
 
+interface ContentFile {
+  url: string;
+  name: string;
+  type: string;
+}
+
 interface FormData {
   name: string;
   description: string;
@@ -14,6 +20,7 @@ interface FormData {
   currency: string;
   type: string;
   benefits: string[];
+  content: ContentFile[];
   enableCreditCard: boolean;
   verifyIdentity: boolean;
   limitQuantity: boolean;
@@ -35,6 +42,7 @@ const CreateSubscriptionPage = () => {
     currency: "usdc",
     type: "Subscription",
     benefits: [],
+    content: [],
     enableCreditCard: false,
     verifyIdentity: false,
     limitQuantity: false,
@@ -131,6 +139,28 @@ const CreateSubscriptionPage = () => {
     reader.readAsDataURL(file);
   };
 
+  const handleContentUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(event.target.files || []);
+    if (files.length === 0) return;
+
+    const uploadedFiles = files.map((file) => {
+      const reader = new FileReader();
+      return new Promise<ContentFile | null>((resolve) => {
+        reader.onloadend = () => {
+          resolve({ url: reader.result as string, name: file.name, type: file.type });
+        };
+        reader.readAsDataURL(file);
+      });
+    });
+
+    Promise.all(uploadedFiles).then((successfulUploads) => {
+      setFormData((prevState) => ({
+        ...prevState,
+        content: [...prevState.content, ...(successfulUploads.filter(Boolean) as ContentFile[])],
+      }));
+    });
+  };
+
   const handleAddBenefit = () => {
     if (newBenefit.trim()) {
       setFormData((prevState) => ({
@@ -146,6 +176,14 @@ const CreateSubscriptionPage = () => {
       ...prevState,
       benefits: prevState.benefits.filter((_, i) => i !== index),
     }));
+  };
+
+  const getFileTypeIcon = (type: string) => {
+    if (type.startsWith("image")) return "🖼️";
+    if (type.startsWith("audio")) return "🎵";
+    if (type.startsWith("video")) return "🎥";
+    if (type === "application/pdf") return "📄";
+    return "📁";
   };
 
   return (
@@ -184,14 +222,12 @@ const CreateSubscriptionPage = () => {
             >
               {formData.imageUrl ? (
                 <div className="flex flex-col items-center">
-                  <div
-                    style={{
-                      width: '200px',
-                      height: '200px',
-                      backgroundImage: `url(${formData.imageUrl})`,
-                      backgroundSize: 'cover',
-                      clipPath: 'polygon(50% 0%, 93.3% 25%, 93.3% 75%, 50% 100%, 6.7% 75%, 6.7% 25%)',
-                    }}
+                  <Image
+                    src={formData.imageUrl}
+                    width={100}
+                    height={100}
+                    alt="Preview"
+                    className="rounded-lg object-cover"
                   />
                   <p className="text-sm mt-2 text-gray-700">{selectedImageName}</p>
                   <label
@@ -223,6 +259,34 @@ const CreateSubscriptionPage = () => {
                 onChange={handleImageUpload}
                 className="hidden"
               />
+            </div>
+
+            <div>
+              <label htmlFor="content" className="mb-1 block font-medium">
+                Upload Additional Content (Images, Audio, Video, PDFs)
+              </label>
+              <input
+                type="file"
+                id="content"
+                name="content"
+                multiple
+                accept="*/*"
+                onChange={handleContentUpload}
+                className="w-full border border-dashed border-gray-300 rounded-lg px-4 py-2 mt-2"
+              />
+              <div className="grid grid-cols-3 gap-4 mt-4">
+                {formData.content.map((file, index) => (
+                  <div
+                    key={index}
+                    className="flex flex-col items-center p-2 bg-white border rounded shadow-sm w-full"
+                  >
+                    <div className="text-2xl">{getFileTypeIcon(file.type)}</div>
+                    <p className="text-xs text-gray-600 mt-1 text-center truncate w-full overflow-hidden text-ellipsis whitespace-nowrap">
+                      {file.name}
+                    </p>
+                  </div>
+                ))}
+              </div>
             </div>
 
             <div>
@@ -329,6 +393,57 @@ const CreateSubscriptionPage = () => {
               </div>
             </div>
 
+            <div className="bg-gray-100 p-4 rounded-lg border border-gray-300 mt-4">
+              <h3 className="text-md font-medium">Enable Pay with Credit Card</h3>
+              <p className="text-sm text-gray-600 mb-2">Let fans buy this subscription with a credit card</p>
+              <input
+                type="checkbox"
+                id="enableCreditCard"
+                name="enableCreditCard"
+                checked={formData.enableCreditCard}
+                onChange={handleChange}
+              /> Enable
+
+              <div className="mt-4">
+                <h3 className="text-md font-medium">Verify Identity</h3>
+                <p className="text-sm text-gray-600">Verify your identity to enable credit card payments. You only complete this process once.</p>
+                <button
+                  type="button"
+                  onClick={() => alert("Verification triggered!")}
+                  className="bg-black text-white px-4 py-2 rounded-lg mt-2"
+                >
+                  Verify
+                </button>
+              </div>
+            </div>
+
+            <div className="bg-gray-100 p-4 rounded-lg border border-gray-300 mt-4">
+              <h3 className="text-md font-medium">Advanced Settings</h3>
+              <div className="flex items-center justify-between mt-2">
+                <span className="text-sm font-medium">Limit quantity</span>
+                <input
+                  type="checkbox"
+                  id="limitQuantity"
+                  name="limitQuantity"
+                  checked={formData.limitQuantity}
+                  onChange={handleChange}
+                />
+              </div>
+              {formData.limitQuantity && (
+                <input
+                  type="number"
+                  min="1"
+                  placeholder="Enter quantity"
+                  value={formData.quantity || ""}
+                  onChange={handleQuantityChange}
+                  className="w-full border border-gray-300 rounded-lg px-4 py-2 mt-2"
+                />
+              )}
+              <p className="text-sm text-gray-500 mt-1">
+                Limit the number of times this subscription can be purchased
+              </p>
+            </div>
+
             <PushToMintCollectionButton className="w-max mt-4">
               Create
             </PushToMintCollectionButton>
@@ -340,14 +455,12 @@ const CreateSubscriptionPage = () => {
         <div className="bg-white p-4 rounded-lg shadow-md border border-gray-300 w-full max-w-md aspect-[3/4] flex flex-col items-start">
           <div className="w-full aspect-square bg-gray-200 flex items-center justify-center rounded-t-lg mb-4">
             {formData.imageUrl ? (
-              <div
-                style={{
-                  width: '300px',
-                  height: '300px',
-                  backgroundImage: `url(${formData.imageUrl})`,
-                  backgroundSize: 'cover',
-                  clipPath: 'polygon(50% 0%, 93.3% 25%, 93.3% 75%, 50% 100%, 6.7% 75%, 6.7% 25%)',
-                }}
+              <Image
+                src={formData.imageUrl}
+                width={300}
+                height={300}
+                alt="Preview"
+                className="w-full h-full object-cover rounded-t-lg"
               />
             ) : (
               <p className="text-gray-500">No Image</p>
