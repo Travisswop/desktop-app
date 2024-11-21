@@ -30,7 +30,6 @@ import smatsiteBackgroundImageList from "../util/data/smatsiteBackgroundImageLis
 import SmartsiteLivePreview from "./CreateSmartsiteLivePreview";
 import { sendCloudinaryImage } from "@/lib/SendCloudineryImage";
 import { useUser } from "@/lib/UserContext";
-import { FaPlus } from "react-icons/fa";
 import { HexColorPicker } from "react-colorful";
 import { useDesktopUserData } from "../tanstackQueryApi/getUserData";
 

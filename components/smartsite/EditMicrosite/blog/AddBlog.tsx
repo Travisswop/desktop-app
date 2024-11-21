@@ -3,19 +3,14 @@ import Image from "next/image";
 import React, { useState } from "react";
 import { LiaFileMedicalSolid } from "react-icons/lia";
 import useSmartSiteApiDataStore from "@/zustandStore/UpdateSmartsiteInfo";
-import useLoggedInUserStore from "@/zustandStore/SetLogedInUserSession";
-// import { toast } from "react-toastify";
-// import AnimateButton from "@/components/Button/AnimateButton";
 import imagePlaceholder from "@/public/images/image_placeholder.png";
-import ReactQuill from "react-quill";
-import "react-quill/dist/quill.snow.css";
 import CustomFileInput from "@/components/CustomFileInput";
-// import { sendCloudinaryImage } from "@/util/SendCloudineryImage";
 import { postBlog } from "@/actions/blog";
 import { FaTimes } from "react-icons/fa";
 import { useToast } from "@/hooks/use-toast";
 import { sendCloudinaryImage } from "@/lib/SendCloudineryImage";
 import AnimateButton from "@/components/ui/Button/AnimateButton";
+import { Editor } from "@tinymce/tinymce-react";
 
 const AddBlog = ({ handleRemoveIcon }: any) => {
   const state: any = useSmartSiteApiDataStore((state) => state);
@@ -23,25 +18,15 @@ const AddBlog = ({ handleRemoveIcon }: any) => {
   const demoToken =
     "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJfaWQiOiI2NjM4NjMyMDIzMDQxMDMyODAyOTk4MmIiLCJpYXQiOjE3MjcxNTI4MzB9.CsHnZAgUzsfkc_g_CZZyQMXc02Ko_LhnQcCVpeCwroY";
   const [value, setValue] = useState("");
+  // const [editorState, setEditorState] = React.useState(() =>
+  //   EditorState.createEmpty()
+  // );
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [inputError, setInputError] = useState<any>({});
   const [imageFile, setImageFile] = useState<any>(null);
   const [fileError, setFileError] = useState<string>("");
 
   const { toast } = useToast();
-
-  // console.log("file error", fileError);
-
-  // const handleFileChange = (event: any) => {
-  //   const file = event.target.files[0];
-  //   if (file) {
-  //     const reader = new FileReader();
-  //     reader.onloadend = () => {
-  //       setImageFile(reader.result as any);
-  //     };
-  //     reader.readAsDataURL(file);
-  //   }
-  // };
 
   const handleFileChange = (event: any) => {
     const file = event.target.files[0];
@@ -263,11 +248,32 @@ const AddBlog = ({ handleRemoveIcon }: any) => {
           Description
           <span className="text-red-600 font-medium text-sm mt-1">*</span>
         </p>
-        <ReactQuill
-          placeholder="Enter Description"
-          theme="snow"
-          value={value}
-          onChange={setValue}
+        <Editor
+          apiKey="njethe5lk1z21je67jjdi9v3wimfducwhl6jnnuip46yxwxh"
+          value={value} // Bind the state to the editor
+          onEditorChange={(content) => setValue(content)} // Update state on change
+          init={{
+            height: 300,
+            plugins: [
+              "autolink",
+              "lists",
+              "link",
+              // "image",
+              "charmap",
+              "preview",
+              "anchor",
+              "searchreplace",
+              "visualblocks",
+              "code",
+              "fullscreen",
+              "insertdatetime",
+              // "media",
+              "table",
+              "help",
+            ],
+            toolbar:
+              "undo redo | bold italic underline | link image | alignleft aligncenter alignright alignjustify | bullist numlist | code",
+          }}
         />
         {inputError.description && (
           <p className="text-red-600 font-medium text-sm">

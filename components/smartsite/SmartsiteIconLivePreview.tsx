@@ -23,7 +23,6 @@ import message from "@/public/images/social-icon/message.png";
 import isUrl from "@/lib/isUrl";
 import { tintStyle } from "../util/IconTintStyle";
 import getSmallIconImage from "./retriveIconImage/getSmallIconImage";
-import AnimateButton from "../ui/Button/AnimateButton";
 import EmbedPlayer from "./embed/renderEmbedPlayer";
 import getAllSmartsitesIcon from "./retriveIconImage/getAllSmartsiteIcon";
 import { fontMap } from "@/app/layout";
@@ -35,7 +34,7 @@ const SmartsiteIconLivePreview = ({ data }: { data?: any }) => {
   // console.log("data form live", data.info.socialLarge);
   const { formData, setFormData } = useSmartsiteFormStore();
 
-  // console.log("form data from live preview", formData);
+  console.log("form data from live preview", formData);
 
   const { setOn }: any = useSmallIconToggleStore();
 
@@ -67,12 +66,14 @@ const SmartsiteIconLivePreview = ({ data }: { data?: any }) => {
   return (
     <section
       style={{
-        backgroundImage:
-          formData.theme &&
-          `url(/images/smartsite-background/${formData.backgroundImg}.png)`,
+        backgroundImage: formData.theme
+          ? `url(/images/smartsite-background/${formData.backgroundImg}.png)`
+          : "",
         height: "100%",
       }}
-      className="w-[38%] overflow-y-auto custom-scrollbar shadow-md bg-white bg-cover "
+      className={`w-[38%] overflow-y-auto custom-scrollbar shadow-md bg-white bg-cover ${
+        formData.fontType && fontMap[formData.fontType.toLowerCase()]
+      }`}
     >
       {/* <p className="text-sm text-gray-500 mb-2">Preview</p> */}
       <div className={`flex flex-col justify-between min-h-full`}>
@@ -134,16 +135,14 @@ const SmartsiteIconLivePreview = ({ data }: { data?: any }) => {
               }`}
             >
               <p
-                className={`text-lg font-bold ${
-                  formData.fontColor ? formData.fontColor : "text-gray-700"
-                }`}
+                style={{ color: formData.fontColor && formData.fontColor }}
+                className={`text-lg font-bold text-gray-700`}
               >
                 {formData.name || data?.name}
               </p>
               <p
-                className={`font-medium text-sm ${
-                  formData.fontColor ? formData.fontColor : "text-gray-500"
-                }`}
+                style={{ color: formData.fontColor && formData.fontColor }}
+                className={`font-medium text-sm text-gray-500`}
               >
                 {formData.bio || data?.bio}
               </p>
@@ -179,7 +178,12 @@ const SmartsiteIconLivePreview = ({ data }: { data?: any }) => {
                 {data.info.blog.map((item: any, index: number) => (
                   <div
                     key={index}
-                    className="shadow-small hover:shadow-medium p-3 2xl:p-4 rounded-lg bg-white"
+                    style={{
+                      backgroundColor: formData.templateColor
+                        ? formData.templateColor
+                        : "white",
+                    }}
+                    className="shadow-small hover:shadow-medium p-3 2xl:p-4 rounded-lg"
                   >
                     <div>
                       <div>
@@ -192,14 +196,20 @@ const SmartsiteIconLivePreview = ({ data }: { data?: any }) => {
                             className="w-full h-32 2xl:h-60 object-cover rounded-lg"
                           />
                         </div>
-                        <div>
+                        <div
+                          style={{
+                            color: formData.fontColor
+                              ? formData.fontColor
+                              : "black",
+                          }}
+                        >
                           {item?.title && (
-                            <p className="text-lg font-bold text-gray-700 mt-2 mb-1">
+                            <p className="text-lg font-bold mt-2 mb-1">
                               {item.title}
                             </p>
                           )}
                           {item?.headline && (
-                            <p className="text-sm font-medium text-gray-600 truncate">
+                            <p className="text-sm font-medium truncate">
                               {item.headline}
                             </p>
                           )}
@@ -207,7 +217,7 @@ const SmartsiteIconLivePreview = ({ data }: { data?: any }) => {
                       </div>
                     </div>
                     <div className="flex flex-wrap justify-center lg:justify-between items-center mt-3 gap-2">
-                      <AnimateButton
+                      <button
                         type="button"
                         onClick={() =>
                           handleTriggerUpdate({
@@ -215,13 +225,18 @@ const SmartsiteIconLivePreview = ({ data }: { data?: any }) => {
                             categoryForTrigger: "blog",
                           })
                         }
-                        width="w-28"
-                        className="!rounded-lg"
+                        style={{
+                          backgroundColor:
+                            formData.templateColor && formData.fontColor,
+
+                          color: formData.templateColor,
+                        }}
+                        className="rounded-lg bg-white flex items-center gap-1 px-5 py-1.5"
                       >
                         <FaEdit /> Edit
-                      </AnimateButton>
+                      </button>
 
-                      <AnimateButton
+                      <button
                         type="button"
                         onClick={() =>
                           handleTriggerUpdate({
@@ -229,18 +244,23 @@ const SmartsiteIconLivePreview = ({ data }: { data?: any }) => {
                             categoryForTrigger: "showBlog",
                           })
                         }
-                        width="w-40"
-                        className="!rounded-lg"
+                        style={{
+                          backgroundColor:
+                            formData.templateColor && formData.fontColor,
+
+                          color: formData.templateColor,
+                        }}
+                        className="rounded-lg bg-white flex items-center gap-1 px-5 py-1.5"
                       >
                         <FaEye size={18} /> Read More
-                      </AnimateButton>
+                      </button>
                     </div>
                   </div>
                 ))}
               </div>
             )}
-
             {/* blog display here end */}
+
             {/* app icon display here start */}
             {data.info.socialLarge.length > 0 && (
               <div className="flex gap-x-5 gap-y-3 justify-center items-center flex-wrap px-10">
@@ -306,24 +326,45 @@ const SmartsiteIconLivePreview = ({ data }: { data?: any }) => {
                         categoryForTrigger: "ens",
                       })
                     }
-                    className="flex items-center gap-3 bg-white py-2 px-3 rounded-lg shadow-medium"
+                    style={{
+                      backgroundColor: formData.templateColor
+                        ? formData.templateColor
+                        : "white",
+                    }}
+                    className="flex items-center gap-3 py-2 px-3 rounded-lg shadow-medium"
                   >
                     <Image
                       src={message}
-                      // style={tintStyle}
+                      style={{
+                        filter:
+                          formData.templateColor === "#000000" &&
+                          ("brightness(1) invert(1)" as any),
+                      }}
                       alt="icon"
                       quality={100}
                       className="w-9 h-9"
                     />
-                    <div className="flex flex-col items-start gap-0.5 text-start">
-                      <p className="font-semibold text-gray-700">Message Me</p>
-                      <p className="text-xs text-gray-400">
+                    <div
+                      style={{
+                        color: formData.fontColor
+                          ? formData.fontColor
+                          : "black",
+                      }}
+                      className="flex flex-col items-start gap-0.5 text-start"
+                    >
+                      <p className="font-semibold">Message Me</p>
+                      <p
+                        className={`text-xs ${
+                          !formData.fontColor && "text-gray-400"
+                        }`}
+                      >
                         Message me using the Swop wallet
                       </p>
                     </div>
                   </button>
                 </div>
               )}
+
               {/* referral display here start */}
               {data.info.referral.length > 0 && (
                 <div className="flex flex-col gap-y-3 px-4">
@@ -336,20 +377,34 @@ const SmartsiteIconLivePreview = ({ data }: { data?: any }) => {
                           categoryForTrigger: "referral",
                         })
                       }
-                      className="flex items-center gap-3 bg-white py-2 px-3 rounded-lg shadow-medium"
+                      style={{
+                        backgroundColor: formData.templateColor
+                          ? formData.templateColor
+                          : "white",
+                      }}
+                      className="flex items-center gap-3 py-2 px-3 rounded-lg shadow-medium"
                     >
                       <Image
                         src={referral}
                         alt="icon"
                         quality={100}
-                        className="w-9 h-9"
+                        className="w-9 h-9 rounded-lg"
                         // style={tintStyle}
                       />
-                      <div className="flex flex-col items-start gap-0.5 text-start">
-                        <p className="font-semibold text-gray-700">
-                          {data.buttonName}
-                        </p>
-                        <p className="text-xs text-gray-400">
+                      <div
+                        style={{
+                          color: formData.fontColor
+                            ? formData.fontColor
+                            : "black",
+                        }}
+                        className="flex flex-col items-start gap-0.5 text-start"
+                      >
+                        <p className="font-semibold">{data.buttonName}</p>
+                        <p
+                          className={`text-xs ${
+                            !formData.fontColor && "text-gray-400"
+                          }`}
+                        >
                           {data.description}
                         </p>
                       </div>
@@ -357,8 +412,8 @@ const SmartsiteIconLivePreview = ({ data }: { data?: any }) => {
                   ))}
                 </div>
               )}
-
               {/* referral display here end */}
+
               {/* contact card display here start */}
               {data.info.contact.length > 0 && (
                 <div className="flex flex-col gap-y-3 px-4">
@@ -371,20 +426,40 @@ const SmartsiteIconLivePreview = ({ data }: { data?: any }) => {
                           categoryForTrigger: "contactCard",
                         })
                       }
-                      className="flex items-center gap-3 bg-white py-2 px-3 rounded-lg shadow-medium"
+                      style={{
+                        backgroundColor: formData.templateColor
+                          ? formData.templateColor
+                          : "white",
+                      }}
+                      className="flex items-center gap-3 py-2 px-3 rounded-lg shadow-medium"
                     >
                       <Image
                         src={card}
                         alt="icon"
                         quality={100}
                         className="w-9 h-9"
-                        style={tintStyle}
+                        style={{
+                          filter:
+                            formData.templateColor === "#000000" &&
+                            ("brightness(1) invert(1)" as any),
+                        }}
                       />
-                      <div className="flex flex-col items-start gap-0.5 text-start">
-                        <p className="font-semibold text-gray-700">
-                          {data.name}
+                      <div
+                        style={{
+                          color: formData.fontColor
+                            ? formData.fontColor
+                            : "black",
+                        }}
+                        className="flex flex-col items-start gap-0.5 text-start"
+                      >
+                        <p className="font-semibold">{data.name}</p>
+                        <p
+                          className={`text-xs ${
+                            !formData.fontColor && "text-gray-400"
+                          }`}
+                        >
+                          {data.mobileNo}
                         </p>
-                        <p className="text-xs text-gray-400">{data.mobileNo}</p>
                       </div>
                     </button>
                   ))}
@@ -435,23 +510,43 @@ const SmartsiteIconLivePreview = ({ data }: { data?: any }) => {
                         categoryForTrigger: "ens",
                       })
                     }
-                    className="flex items-center gap-3 bg-white py-2 px-3 rounded-lg shadow-medium"
+                    style={{
+                      backgroundColor: formData.templateColor
+                        ? formData.templateColor
+                        : "white",
+                    }}
+                    className="flex items-center gap-3 py-2 px-3 rounded-lg shadow-medium"
                   >
                     <Image
                       src={ethereum}
-                      style={tintStyle}
+                      style={{
+                        filter:
+                          formData.templateColor === "#000000" &&
+                          ("brightness(1) invert(1)" as any),
+                      }}
                       alt="icon"
                       quality={100}
                       className="w-9 h-9"
                     />
-                    <div className="flex flex-col items-start gap-0.5 text-start">
-                      <p className="font-semibold text-gray-700">
+                    <div
+                      style={{
+                        color: formData.fontColor
+                          ? formData.fontColor
+                          : "black",
+                      }}
+                      className="flex flex-col items-start gap-0.5 text-start"
+                    >
+                      <p className="font-semibold">
                         {
                           data.info.ensDomain[data.info.ensDomain.length - 1]
                             .domain
                         }
                       </p>
-                      <p className="text-xs text-gray-400">
+                      <p
+                        className={`text-xs ${
+                          !formData.fontColor && "text-gray-400"
+                        }`}
+                      >
                         Pay me using my Swop.ID
                       </p>
                     </div>
@@ -473,7 +568,12 @@ const SmartsiteIconLivePreview = ({ data }: { data?: any }) => {
                         })
                       }
                       disabled={isUrl(data.iconName)}
-                      className={`flex items-center gap-3 bg-white py-2 px-3 rounded-lg shadow-medium ${
+                      style={{
+                        backgroundColor: formData.templateColor
+                          ? formData.templateColor
+                          : "white",
+                      }}
+                      className={`flex items-center gap-3 py-2 px-3 rounded-lg shadow-medium ${
                         isUrl(data.iconName) && "cursor-not-allowed"
                       }`}
                     >
@@ -496,11 +596,22 @@ const SmartsiteIconLivePreview = ({ data }: { data?: any }) => {
                         />
                       )}
 
-                      <div className="flex flex-col items-start gap-0.5 text-start">
-                        <p className="font-semibold text-gray-700">
+                      <div
+                        style={{
+                          color: formData.fontColor
+                            ? formData.fontColor
+                            : "black",
+                        }}
+                        className="flex flex-col items-start gap-0.5 text-start"
+                      >
+                        <p className="font-semibold">
                           {data.buttonName ? data.buttonName : data.iconName}
                         </p>
-                        <p className="text-xs text-gray-400">
+                        <p
+                          className={`text-xs ${
+                            !formData.fontColor && "text-gray-400"
+                          }`}
+                        >
                           {data.description}
                         </p>
                       </div>
@@ -519,7 +630,16 @@ const SmartsiteIconLivePreview = ({ data }: { data?: any }) => {
                       className="flex items-center gap-2 w-full"
                     >
                       <div
-                        className={`w-full h-full bg-white py-2 px-3 rounded-lg shadow-medium`}
+                        style={{
+                          color: formData.fontColor
+                            ? formData.fontColor
+                            : "black",
+
+                          backgroundColor: formData.templateColor
+                            ? formData.templateColor
+                            : "white",
+                        }}
+                        className={`w-full h-full py-2 px-3 rounded-lg shadow-medium`}
                       >
                         <button
                           onClick={() =>
@@ -542,9 +662,7 @@ const SmartsiteIconLivePreview = ({ data }: { data?: any }) => {
                             </div>
                             <div className="text-left">
                               <p className="font-medium">{data.title}</p>
-                              <p className="text-sm text-gray-600">
-                                {data.description}
-                              </p>
+                              <p className="text-sm">{data.description}</p>
                             </div>
                           </div>
                           <div className="custom-audio">${data.price}</div>
@@ -578,10 +696,20 @@ const SmartsiteIconLivePreview = ({ data }: { data?: any }) => {
                       className="flex items-center gap-2 w-full"
                     >
                       <div
-                        className={`w-full h-full bg-white py-2 px-3 rounded-lg shadow-medium`}
+                        style={{
+                          backgroundColor: formData.templateColor
+                            ? formData.templateColor
+                            : "white",
+                        }}
+                        className={`w-full h-full py-2 px-3 rounded-lg shadow-medium`}
                       >
                         <div className="flex items-center justify-between">
                           <button
+                            style={{
+                              color: formData.fontColor
+                                ? formData.fontColor
+                                : "black",
+                            }}
                             onClick={() =>
                               handleTriggerUpdate({
                                 data: audioData,

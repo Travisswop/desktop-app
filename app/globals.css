@@ -146,3 +146,20 @@ body {
 ::-webkit-scrollbar-corner {
   background: rgb(199, 199, 199);
 }
+
+/* remove water mark from tinymice editor  */
+.tox .tox-statusbar {
+  align-items: center;
+  background-color: #fff;
+  border-top: 1px solid #e3e3e3;
+  color: rgba(34, 47, 62, 0.7);
+  display: none !important;
+  flex: 0 0 auto;
+  font-size: 14px;
+  font-weight: 400;
+  height: 25px;
+  overflow: hidden;
+  padding: 0 8px;
+  position: relative;
+  text-transform: none;
+}
