@@ -333,56 +333,82 @@ const CreateMembershipPage = () => {
               </div>
             </div>
 
-            <div className="bg-gray-100 p-4 rounded-lg border border-gray-300 mt-4">
-              <h3 className="text-md font-medium">Advanced Settings</h3>
-              <div className="flex items-center justify-between mt-2">
-                <span className="text-sm font-medium">Limit quantity</span>
-                <input
-                  type="checkbox"
-                  id="limitQuantity"
-                  name="limitQuantity"
-                  checked={formData.limitQuantity}
-                  onChange={handleChange}
-                />
-              </div>
-              {formData.limitQuantity && (
-                <input
-                  type="number"
-                  min="1"
-                  placeholder="Enter quantity"
-                  value={formData.quantity || ""}
-                  onChange={handleQuantityChange}
-                  className="w-full border border-gray-300 rounded-lg px-4 py-2 mt-2"
-                />
-              )}
-              <p className="text-sm text-gray-500 mt-1">
-                Limit the number of times this digital good can be purchased
-              </p>
-            </div>
 
             <div className="bg-gray-100 p-4 rounded-lg border border-gray-300 mt-4">
-              <h3 className="text-md font-medium">Enable Pay with Credit Card</h3>
-              <p className="text-sm text-gray-600 mb-2">Let users buy this membership with a credit card</p>
-              <input
-                type="checkbox"
-                id="enableCreditCard"
-                name="enableCreditCard"
-                checked={formData.enableCreditCard}
-                onChange={handleChange}
-              /> Enable
+  <h3 className="text-md font-medium">Enable Pay with Credit Card</h3>
+  <p className="text-sm text-gray-600 mb-2">
+    Let users buy this membership with a credit card.
+  </p>
+  <div
+    className={`w-14 h-8 flex items-center rounded-full p-1 cursor-pointer ${
+      formData.enableCreditCard ? "bg-black" : "bg-gray-300"
+    }`}
+    onClick={() =>
+      setFormData((prevState) => ({
+        ...prevState,
+        enableCreditCard: !prevState.enableCreditCard,
+      }))
+    }
+  >
+    <div
+      className={`h-6 w-6 bg-white rounded-full shadow-md transform duration-300 ${
+        formData.enableCreditCard ? "translate-x-6" : ""
+      }`}
+    ></div>
+  </div>
 
-              <div className="mt-4">
-                <h3 className="text-md font-medium">Verify Identity</h3>
-                <p className="text-sm text-gray-600">Verify your identity to enable credit card payments. You only complete this process once.</p>
-                <button
-                  type="button"
-                  onClick={() => alert("Verification triggered!")}
-                  className="bg-black text-white px-4 py-2 rounded-lg mt-2"
-                >
-                  Verify
-                </button>
-              </div>
-            </div>
+  <div className="mt-4">
+    <h3 className="text-md font-medium">Verify Identity</h3>
+    <p className="text-sm text-gray-600">
+      Verify your identity to enable credit card payments. You only complete this process once.
+    </p>
+    <button
+      type="button"
+      onClick={() => alert("Verification process started!")}
+      className="bg-black text-white px-4 py-2 rounded-lg mt-2"
+    >
+      Verify Identity
+    </button>
+  </div>
+</div>
+
+<div className="bg-gray-100 p-4 rounded-lg border border-gray-300 mt-4">
+  <h3 className="text-md font-medium">Advanced Settings</h3>
+  <div className="flex items-center justify-between mt-2">
+    <span className="text-sm font-medium">Limit quantity</span>
+    <div
+      className={`w-14 h-8 flex items-center rounded-full p-1 cursor-pointer ${
+        formData.limitQuantity ? "bg-black" : "bg-gray-300"
+      }`}
+      onClick={() =>
+        setFormData((prevState) => ({
+          ...prevState,
+          limitQuantity: !prevState.limitQuantity,
+        }))
+      }
+    >
+      <div
+        className={`h-6 w-6 bg-white rounded-full shadow-md transform duration-300 ${
+          formData.limitQuantity ? "translate-x-6" : ""
+        }`}
+      ></div>
+    </div>
+  </div>
+  {formData.limitQuantity && (
+    <input
+      type="number"
+      min="1"
+      placeholder="Enter quantity"
+      value={formData.quantity || ""}
+      onChange={handleQuantityChange}
+      className="w-full border border-gray-300 rounded-lg px-4 py-2 mt-2"
+    />
+  )}
+  <p className="text-sm text-gray-500 mt-1">
+    Limit the number of times this digital good can be purchased.
+  </p>
+</div>
+
 
             <div className="mt-4">
               <input type="checkbox" required /> I agree with swop Minting Privacy & Policy
