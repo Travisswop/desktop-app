@@ -419,7 +419,7 @@ const CreateMembershipPage = () => {
             </PushToMintCollectionButton>
           </div>
         </div>
-      </div>
+      </div> 
 
       <div className="w-1/2 flex justify-center items-center p-5">
         <div className="bg-white p-4 rounded-lg shadow-md border border-gray-300 w-full max-w-md aspect-[3/4] flex flex-col items-start">
