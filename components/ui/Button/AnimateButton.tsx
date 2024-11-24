@@ -40,7 +40,7 @@ const AnimateButton: React.FC<AnimateButtonProps> = ({
         <Spinner
           size="sm"
           className="py-0.5"
-          color={isHovered ? "white" : "secondary"}
+          color={isHovered ? "white" : "primary"}
         />
       ) : (
         children

@@ -75,9 +75,9 @@ const Transaction = ({
       }&limit=5`;
       const newFeedData = await getSmartsiteFeed(url, accessToken);
 
-      console.log("reset", reset);
-
-      console.log("new feed datsssg", newFeedData);
+      if (newFeedData.data.length < 5) {
+        setHasMore(false);
+      }
 
       if (reset) {
         setFeedData(newFeedData.data); // Reset data when refetching

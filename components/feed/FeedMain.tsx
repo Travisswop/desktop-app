@@ -41,7 +41,7 @@ const FeedMain = () => {
         ComponentToRender = (
           <Feed
             accessToken={accessToken}
-            userId={user._id}
+            userId={user?._id}
             setIsPosting={setIsPosting}
             isPosting={isPosting}
             setIsPostLoading={setIsPostLoading}

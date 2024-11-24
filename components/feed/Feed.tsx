@@ -50,9 +50,9 @@ const Feed = ({
       }/api/v1/feed/user/connect/${userId}?page=${reset ? 1 : page}&limit=5`;
       const newFeedData = await getUserFeed(url, accessToken);
 
-      console.log("reset", reset);
-
-      console.log("new feed data", newFeedData);
+      if (newFeedData.data.length < 5) {
+        setHasMore(false);
+      }
 
       if (reset) {
         setFeedData(newFeedData.data); // Reset data when refetching
