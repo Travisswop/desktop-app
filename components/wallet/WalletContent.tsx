@@ -4,12 +4,13 @@ import { Skeleton } from '../ui/skeleton';
 import BalanceChart from './balance-chart';
 import MessageBox from './message-interface';
 import TokenList from './token/token-list';
-import NFTSlider, { NFT } from './nft/nft-list';
+import NFTSlider from './nft/nft-list';
 import TransactionList from './transaction/transaction-list';
 import { useEffect, useState, useMemo } from 'react';
 import TokenDetails from './token/token-details-view';
 import NFTDetailView from './nft/nft-details-view';
 import ProfileHeader from './profile-header';
+import { NFT } from '@/types/nft';
 import {
   usePrivy,
   useSolanaWallets,
@@ -70,12 +71,13 @@ function WalletContentInner() {
 
     switch (network) {
       case 'SOLANA':
-        return '5puTjx1LRnXFANfN7LMG7y4eyRT9qyfncLTJFffbcNq6';
+        return '5bkg3dG81ThCtXhFfn81NNApftihRg6ZukosL31M6uiD';
       // return walletData.find((w) => !w.isEVM)?.address;
       case 'ETHEREUM':
       case 'POLYGON':
       case 'BASE':
-        return walletData.find((w) => w.isEVM)?.address;
+        // return walletData.find((w) => w.isEVM)?.address;
+        return '0x16ebc062a049631074257a1d0c62e1ed5bcfb1b3';
       default:
         return undefined;
     }
@@ -194,7 +196,11 @@ function WalletContentInner() {
           />
         )}
         <div>
-          <NFTSlider onSelectNft={handleSelectNFT} />
+          <NFTSlider
+            onSelectNft={handleSelectNFT}
+            address={currentWalletAddress}
+            network={network}
+          />
           {currentWalletAddress && (
             <TransactionList
               address={currentWalletAddress}

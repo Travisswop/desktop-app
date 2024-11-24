@@ -1,5 +1,7 @@
 import { ethers } from 'ethers';
 import { useQueries } from '@tanstack/react-query';
+
+// Types
 export interface Transaction {
   hash: string;
   timeStamp: string;
@@ -22,21 +24,18 @@ export interface Transaction {
   isClaimed?: boolean;
   tokenPrice?: number;
   swapped?: {
-    from: {
-      symbol: string;
-      decimal: number;
-      value: string;
-      price: number;
-    };
-    to: {
-      symbol: string;
-      decimal: number;
-      value: string;
-      price: number;
-    };
+    from: TokenSwapInfo;
+    to: TokenSwapInfo;
   };
   currentPrice: number;
   nativeTokenPrice: number;
+}
+
+interface TokenSwapInfo {
+  symbol: string;
+  decimal: number;
+  value: string;
+  price: number;
 }
 
 interface SolanaTransfer {
@@ -72,11 +71,21 @@ interface SolTxDetails {
   parsedInstruction: ParsedInstruction[];
   logMessage: string[];
   solTransfers: SolanaTransfer[];
-  tokenBalanes?: TokenBalance[];
+  tokenBalances?: TokenBalance[];
+}
+
+interface ChainConfig {
+  baseUrl: string;
+  accessToken: string | undefined;
+  alchemyUrl: string | undefined;
+  decimal: number;
+  name: string;
+  symbol: string;
+  type: 'evm' | 'solana';
 }
 
 // Constants
-const CHAINS = {
+const CHAINS: Record<string, ChainConfig> = {
   ETHEREUM: {
     baseUrl: 'https://api.etherscan.io',
     accessToken: process.env.NEXT_PUBLIC_ETHERSCAN_API_KEY_TOKEN,
@@ -105,6 +114,9 @@ const CHAINS = {
     type: 'evm',
   },
   SOLANA: {
+    baseUrl: '',
+    accessToken: undefined,
+    alchemyUrl: undefined,
     decimal: 9,
     name: 'Solana',
     symbol: 'SOL',
@@ -112,42 +124,61 @@ const CHAINS = {
   },
 } as const;
 
-const solTxDetails = async (signature: string) => {
-  try {
-    const response = await fetch(
-      `https://pro-api.solscan.io/v1.0/transaction/${signature}`,
-      {
-        headers: {
-          'Content-Type': 'application/json',
-          token: process.env.NEXT_PUBLIC_SOLSCAN_API_KEY || '',
-        },
+// API Handlers
+class TransactionAPI {
+  private static async fetchWithRetry(
+    url: string,
+    options: RequestInit = {},
+    retries = 3
+  ): Promise<Response> {
+    for (let i = 0; i < retries; i++) {
+      try {
+        const response = await fetch(url, options);
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        return response;
+      } catch (error) {
+        if (i === retries - 1) throw error;
+        await new Promise((resolve) =>
+          setTimeout(resolve, 1000 * Math.pow(2, i))
+        );
       }
-    );
-
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
     }
-
-    const data = await response.json();
-
-    return data || {};
-  } catch (error) {
-    console.log('🚀 ~ solTxDetails ~ error:', error);
-    return {};
+    throw new Error('Fetch failed after retries');
   }
-};
 
-const fetchers = {
-  async getNativeTransactions(
+  static async getSolTxDetails(
+    signature: string
+  ): Promise<SolTxDetails> {
+    try {
+      const response = await this.fetchWithRetry(
+        `https://pro-api.solscan.io/v1.0/transaction/${signature}`,
+        {
+          headers: {
+            'Content-Type': 'application/json',
+            token: process.env.NEXT_PUBLIC_SOLSCAN_API_KEY || '',
+          },
+        }
+      );
+      return await response.json();
+    } catch (error) {
+      console.error(
+        'Error fetching Solana transaction details:',
+        error
+      );
+      return {} as SolTxDetails;
+    }
+  }
+
+  static async getNativeTransactions(
     chain: keyof typeof CHAINS,
     address: string
   ): Promise<Transaction[]> {
-    if (CHAINS[chain].type === 'solana') {
-      return [];
-    }
+    if (CHAINS[chain].type === 'solana') return [];
 
     try {
-      const response = await fetch(
+      const response = await this.fetchWithRetry(
         `${CHAINS[chain].baseUrl}/api?module=account&action=txlist&address=${address}&startblock=0&endblock=99999999&sort=asc&apikey=${CHAINS[chain].accessToken}`
       );
       const data = await response.json();
@@ -172,18 +203,16 @@ const fetchers = {
       );
       throw error;
     }
-  },
+  }
 
-  async getERC20Transactions(
+  static async getERC20Transactions(
     chain: keyof typeof CHAINS,
     address: string
   ): Promise<Transaction[]> {
-    if (CHAINS[chain].type === 'solana') {
-      return [];
-    }
+    if (CHAINS[chain].type === 'solana') return [];
 
     try {
-      const response = await fetch(
+      const response = await this.fetchWithRetry(
         `${CHAINS[chain].baseUrl}/api?module=account&action=tokentx&address=${address}&startblock=0&endblock=99999999&sort=asc&apikey=${CHAINS[chain].accessToken}`
       );
       const data = await response.json();
@@ -208,13 +237,13 @@ const fetchers = {
       );
       throw error;
     }
-  },
+  }
 
-  async getSolanaTransactions(
+  static async getSolanaTransactions(
     address: string
   ): Promise<Transaction[]> {
     try {
-      const response = await fetch(
+      const response = await this.fetchWithRetry(
         `https://pro-api.solscan.io/v1.0/account/transactions?account=${address}&limit=50`,
         {
           headers: {
@@ -224,123 +253,93 @@ const fetchers = {
         }
       );
 
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-
       const data = await response.json();
-
-      const transactionData = await Promise.all(
+      return await Promise.all(
         data.map(async (item: SolTxDetails) => {
-          const { blockTime, slot, txHash, fee, status } = item;
-
-          const networkFee = fee / 10 ** 9;
-
-          const txDetails = await solTxDetails(txHash);
-          console.log('🚀 ~ data.map ~ txDetails:', txDetails);
-
-          if (
-            txDetails.parsedInstruction &&
-            txDetails.parsedInstruction.length > 0
-          ) {
-            const parsedInstruction = txDetails.parsedInstruction[0];
-
-            if (parsedInstruction.type === 'sol-transfer') {
-              const { source, destination, amount } =
-                txDetails.solTransfers[0];
-
-              const sentAmount = Number(amount) / 10 ** 9;
-              const tokenSymbol = 'SOL';
-
-              const tx = {
-                hash: txHash,
-                from: source,
-                to: destination,
-                value: sentAmount,
-                timeStamp: blockTime,
-                blockNumber: slot,
-                gas: fee,
-                gasPrice: fee,
-                networkFee: networkFee,
-                status,
-                tokenName: 'Solana',
-                tokenSymbol,
-                tokenDecimal: 9,
-                network: 'Solana',
-                currentPrice: 0,
-                nativeTokenPrice: 0,
-              };
-              return tx;
-            }
-            if (parsedInstruction.extra) {
-              if (
-                txDetails.tokenBalances &&
-                txDetails.tokenBalances.length > 0
-              ) {
-                console.log('txdetails', parsedInstruction.extra);
-                const { name, symbol, decimals } =
-                  txDetails.tokenBalances[0].token;
-
-                const { sourceOwner, destinationOwner, amount } =
-                  parsedInstruction.extra;
-
-                const sentAmount = Number(amount) / 10 ** decimals;
-                const tokenSymbol = symbol || 'NFT';
-
-                const tx = {
-                  hash: txHash,
-                  from: sourceOwner,
-                  to: destinationOwner,
-                  value: sentAmount,
-                  timeStamp: blockTime,
-                  blockNumber: slot,
-                  gas: fee,
-                  gasPrice: fee,
-                  networkFee: networkFee,
-                  status,
-                  tokenName: name,
-                  tokenSymbol,
-                  tokenDecimal: decimals,
-                  network: 'Solana',
-                  currentPrice: 0,
-                  nativeTokenPrice: 0,
-                };
-                return tx;
-              }
-            }
-          }
+          const txDetails = await this.getSolTxDetails(item.txHash);
+          return this.formatSolanaTransaction(item, txDetails);
         })
-      );
-      return transactionData.filter(Boolean);
+      ).then((transactions) => transactions.filter(Boolean));
     } catch (error) {
       console.error('Error fetching Solana transactions:', error);
       return [];
     }
-  },
-};
+  }
 
-const formatTransaction = (
+  private static formatSolanaTransaction(
+    item: SolTxDetails,
+    txDetails: SolTxDetails
+  ): Transaction | null {
+    const { blockTime, txHash, fee, status } = item;
+    const networkFee = fee / 10 ** 9;
+
+    if (!txDetails.parsedInstruction?.length) return null;
+
+    const instruction = txDetails.parsedInstruction[0];
+
+    if (instruction.type === 'sol-transfer') {
+      const { source, destination, amount } =
+        txDetails.solTransfers[0];
+      return {
+        hash: txHash,
+        from: source,
+        to: destination,
+        value: String(amount / 10 ** 9),
+        timeStamp: String(blockTime),
+        gas: String(fee),
+        gasPrice: String(fee),
+        networkFee: String(networkFee),
+        status,
+        tokenName: 'Solana',
+        tokenSymbol: 'SOL',
+        tokenDecimal: 9,
+        network: 'Solana',
+        currentPrice: 0,
+        nativeTokenPrice: 0,
+      };
+    }
+
+    if (instruction.extra && txDetails.tokenBalances?.[0]) {
+      const { name, symbol, decimals } =
+        txDetails.tokenBalances[0].token;
+      const { sourceOwner, destinationOwner, amount } =
+        instruction.extra;
+
+      return {
+        hash: txHash,
+        from: sourceOwner,
+        to: destinationOwner,
+        value: String(amount / 10 ** decimals),
+        timeStamp: String(blockTime),
+        gas: String(fee),
+        gasPrice: String(fee),
+        networkFee: String(networkFee),
+        status,
+        tokenName: name,
+        tokenSymbol: symbol || 'NFT',
+        tokenDecimal: decimals,
+        network: 'Solana',
+        currentPrice: 0,
+        nativeTokenPrice: 0,
+      };
+    }
+
+    return null;
+  }
+}
+
+// Transaction Formatting
+const formatEvmTransaction = (
   tx: Transaction,
   chain: keyof typeof CHAINS
 ): Transaction => {
   try {
-    if (CHAINS[chain].type === 'solana') {
-      return tx;
-    }
-
     // Format EVM transactions
     let formattedValue = '0';
-    try {
-      const tokenDecimal = tx.tokenDecimal
-        ? Number(tx.tokenDecimal)
-        : CHAINS[chain].decimal;
-      formattedValue = ethers.formatUnits(tx.value, tokenDecimal);
-    } catch (error) {
-      console.warn(
-        `Error formatting transaction value: ${tx.value}`,
-        error
-      );
-    }
+    const tokenDecimal = tx.tokenDecimal
+      ? Number(tx.tokenDecimal)
+      : CHAINS[chain].decimal;
+    formattedValue = ethers.formatUnits(tx.value, tokenDecimal);
 
     const gasUsed = BigInt(tx.gas);
     const gasPrice = BigInt(tx.gasPrice);
@@ -350,15 +349,9 @@ const formatTransaction = (
     );
 
     return {
-      hash: tx.hash,
-      from: tx.from,
-      to: tx.to,
+      ...tx,
       value: formattedValue,
-      timeStamp: tx.timeStamp,
-      gas: tx.gas,
-      gasPrice: tx.gasPrice,
       networkFee,
-      status: tx.txreceipt_status,
       tokenName: tx.tokenName || CHAINS[chain].name,
       tokenDecimal: tx.tokenDecimal || CHAINS[chain].decimal,
       tokenSymbol: tx.tokenSymbol || CHAINS[chain].symbol,
@@ -372,65 +365,63 @@ const formatTransaction = (
   }
 };
 
+// Hook Implementation
+interface TransactionOptions {
+  limit?: number;
+  offset?: number;
+}
+
+interface TransactionResult {
+  transactions: Transaction[];
+  loading: boolean;
+  error: Error | null;
+  hasMore: boolean;
+  totalCount: number;
+  refetch: () => void;
+}
+
 export const useMultiChainTransactionData = (
   walletAddress?: string,
   chains: (keyof typeof CHAINS)[] = ['ETHEREUM'],
-  options = { limit: 100, offset: 0 }
-) => {
-  // Fetch transaction lists for each chain
+  options: TransactionOptions = { limit: 100, offset: 0 }
+): TransactionResult => {
   const transactionQueries = useQueries({
     queries: chains.map((chain) => ({
       queryKey: ['transactions', chain, walletAddress],
       queryFn: async () => {
         if (!walletAddress) return [];
 
-        try {
-          if (chain === 'SOLANA') {
-            const solanaTransactions =
-              await fetchers.getSolanaTransactions(walletAddress);
-
-            console.log(
-              '🚀 ~ queryFn: ~ solanaTransactions:',
-              solanaTransactions
-            );
-            return solanaTransactions;
-          }
-
-          const [nativeTxs, erc20Txs] = await Promise.all([
-            fetchers.getNativeTransactions(chain, walletAddress),
-            fetchers.getERC20Transactions(chain, walletAddress),
-          ]);
-
-          return [...nativeTxs, ...erc20Txs]
-            .sort(
-              (a, b) => parseInt(b.timeStamp) - parseInt(a.timeStamp)
-            )
-            .map((data) => formatTransaction(data, chain));
-        } catch (error) {
-          console.error(
-            `Error fetching transactions for ${chain}:`,
-            error
-          );
-          throw error;
+        if (chain === 'SOLANA') {
+          return TransactionAPI.getSolanaTransactions(walletAddress);
         }
+
+        const [nativeTxs, erc20Txs] = await Promise.all([
+          TransactionAPI.getNativeTransactions(chain, walletAddress),
+          TransactionAPI.getERC20Transactions(chain, walletAddress),
+        ]);
+
+        return [...nativeTxs, ...erc20Txs]
+          .sort(
+            (a, b) => parseInt(b.timeStamp) - parseInt(a.timeStamp)
+          )
+          .map((tx) => formatEvmTransaction(tx, chain));
       },
       enabled: !!walletAddress,
-      retry: 2, // Add retry logic
     })),
   });
 
-  // Process and paginate transactions
-  const allTransactions = transactionQueries
-    .filter((query) => query.data)
-    .flatMap((query) => query.data as Transaction[])
-    .filter((tx) => parseFloat(tx.value) > 0)
-    .reduce((acc, tx) => {
-      const existingTx = acc.find(
-        (existing) => existing.hash === tx.hash
-      );
-      if (existingTx) {
-        existingTx.isSwapped = true;
-        existingTx.swapped = {
+  const processTransactions = (
+    transactions: Transaction[]
+  ): Transaction[] => {
+    const processed = new Map<string, Transaction>();
+
+    transactions.forEach((tx) => {
+      if (parseFloat(tx.value) <= 0) return;
+
+      const existing = processed.get(tx.hash);
+      if (existing) {
+        existing.isSwapped = true;
+        existing.swapped = {
           from: {
             symbol: tx.tokenSymbol!,
             decimal: tx.tokenDecimal!,
@@ -438,32 +429,35 @@ export const useMultiChainTransactionData = (
             price: 0,
           },
           to: {
-            symbol: existingTx.tokenSymbol!,
-            decimal: existingTx.tokenDecimal!,
-            value: existingTx.value,
+            symbol: existing.tokenSymbol!,
+            decimal: existing.tokenDecimal!,
+            value: existing.value,
             price: 0,
           },
         };
       } else {
-        acc.push(tx);
+        processed.set(tx.hash, tx);
       }
-      return acc;
-    }, [] as Transaction[])
-    .sort((a, b) => parseInt(b.timeStamp) - parseInt(a.timeStamp));
+    });
 
-  const paginatedTransactions = allTransactions.slice(
-    options.offset,
-    options.offset + options.limit
+    return Array.from(processed.values()).sort(
+      (a, b) => parseInt(b.timeStamp) - parseInt(a.timeStamp)
+    );
+  };
+
+  const allTransactions = processTransactions(
+    transactionQueries
+      .filter((query) => query.data)
+      .flatMap((query) => query.data as Transaction[])
   );
 
-  const isLoading = transactionQueries.some((q) => q.isLoading);
-  const error = transactionQueries.find((q) => q.error)?.error;
+  const { limit = 100, offset = 0 } = options;
 
   return {
-    transactions: paginatedTransactions,
-    loading: isLoading,
-    error,
-    hasMore: allTransactions.length > options.offset + options.limit,
+    transactions: allTransactions.slice(offset, offset + limit),
+    loading: transactionQueries.some((q) => q.isLoading),
+    error: transactionQueries.find((q) => q.error)?.error || null,
+    hasMore: allTransactions.length > offset + limit,
     totalCount: allTransactions.length,
     refetch: () => transactionQueries.forEach((q) => q.refetch()),
   };
