@@ -10,7 +10,7 @@ function DashboardPage() {
       <Sidenav />
       <Header />
       <div className="pl-64">
-        <main className="container mx-auto p-6 max-w-7xl 2xl:max-w-full">
+        <main className="container mx-auto px-6 pt-6 max-w-7xl 2xl:max-w-full">
           <DashboardContent />
         </main>
       </div>

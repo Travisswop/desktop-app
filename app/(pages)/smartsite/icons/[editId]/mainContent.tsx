@@ -2,11 +2,11 @@
 import AddIcon from "@/components/smartsite/EditMicrosite/AddIcon";
 import IconMaker from "@/components/smartsite/EditMicrosite/IconMaker";
 import UpdateModalComponents from "@/components/smartsite/EditMicrosite/UpdateModalComponents";
+import ParentProfileCard from "@/components/smartsite/ParentProfileCard";
 import SmartsiteIconLivePreview from "@/components/smartsite/SmartsiteIconLivePreview";
 import SmartSiteUrlShareModal from "@/components/smartsite/socialShare/SmartsiteShareModal";
 import AnimateButton from "@/components/ui/Button/AnimateButton";
 import DynamicPrimaryBtn from "@/components/ui/Button/DynamicPrimaryBtn";
-import EditMicrositeBtn from "@/components/ui/Button/EditMicrositeBtn";
 // import AnimateButton from "@/components/Button/AnimateButton";
 // import DynamicPrimaryBtn from "@/components/Button/DynamicPrimaryBtn";
 // import EditMicrositeBtn from "@/components/Button/EditMicrositeBtn";
@@ -20,13 +20,17 @@ import useSmallIconToggleStore from "@/zustandStore/SmallIconModalToggle";
 import useUpdateSmartIcon from "@/zustandStore/UpdateSmartIcon";
 import useSmartSiteApiDataStore from "@/zustandStore/UpdateSmartsiteInfo";
 import { Switch, useDisclosure } from "@nextui-org/react";
+import Image from "next/image";
 import Link from "next/link";
 import React, { useEffect, useState } from "react";
-import { BsSend } from "react-icons/bs";
 import { LiaFileMedicalSolid } from "react-icons/lia";
+import templates from "@/public/images/smartsite_icon/templates.png";
+import { IoIosSend } from "react-icons/io";
 
 const MicrositeEditMainContentPage = ({ data }: any) => {
   const [toggleIcon, setToggleIcon] = useState<any>([]);
+  const [isPrimaryMicrosite, setIsPrimaryMicrosite] = useState<boolean>(false);
+  const [isLeadCapture, setIsLeadCapture] = useState<boolean>(false);
   const [smartsiteProfileUrl, setSmartSiteProfileUrl] = useState<any>(null);
   const { isOpen, onOpen, onOpenChange } = useDisclosure();
 
@@ -44,15 +48,23 @@ const MicrositeEditMainContentPage = ({ data }: any) => {
 
   // console.log("iconData", iconData);
 
-  const handleAddIcon = (title: { title: string }) => {
-    setToggleIcon([...toggleIcon, title]);
-  };
+  // const handleAddIcon = (title: { title: string }) => {
+  //   setToggleIcon([...toggleIcon, title]);
+  // };
   const handleRemoveIcon = (title: { title: string }) => {
     // console.log("title", title);
     const filteredIcon = toggleIcon.filter((data: any) => data != title);
     // console.log("filteredIcon", filteredIcon);
 
     setToggleIcon(filteredIcon);
+  };
+
+  const handleToggleIcon = (title: string) => {
+    if (toggleIcon.includes(title)) {
+      setToggleIcon(toggleIcon.filter((icon) => icon !== title)); // Remove the icon
+    } else {
+      setToggleIcon([...toggleIcon, title]); // Add the icon
+    }
   };
 
   //set smartsite info into zustand store
@@ -93,84 +105,85 @@ const MicrositeEditMainContentPage = ({ data }: any) => {
 
   return (
     <main className="main-container overflow-hidden">
-      <div className="flex gap-6 items-start h-[90vh]">
+      <div
+        style={{ height: "calc(100vh - 108px)" }}
+        className="flex gap-6 items-start"
+      >
         <div
           style={{ height: "100%" }}
-          className="w-[62%] relative border-r border-gray-200 pr-8 flex flex-col gap-4 overflow-y-auto custom-scrollbar"
+          className="w-[62%] relative border-r border-gray-200 pr-8 flex flex-col gap-4 overflow-y-auto custom-scrollbar pb-6"
         >
-          <div className="flex items-center justify-between">
+          {/* <div className="flex items-center justify-between">
             <h5 className="heading-3">Microsite Builder</h5>
             <EditMicrositeBtn
               onClick={() => handleOpenShareModal(data.data.profileUrl)}
             >
               <BsSend /> Share
             </EditMicrositeBtn>
+          </div> */}
+          <ParentProfileCard />
+          <div className="flex items-center gap-1 bg-white rounded-xl w-max mx-auto px-6 py-1 font-medium shadow-medium mb-2">
+            <Image
+              src={templates}
+              alt="template image"
+              className="w-10 h-auto"
+            />
+            <p>Templates</p>
           </div>
-          <IconMaker
-            handleAddIcon={handleAddIcon}
-            handleRemoveIcon={handleRemoveIcon}
-            toggleIcon={toggleIcon}
-          />
+          <section className="px-4">
+            <IconMaker
+              handleToggleIcon={handleToggleIcon}
+              toggleIcon={toggleIcon}
+            />
+          </section>
           <div className="flex flex-wrap items-center justify-center gap-2">
-            {/* <EditMicrositeBtn>
-              <LiaFileMedicalSolid size={20} />
-              Customize QR
-            </EditMicrositeBtn> */}
             <Link href={`/smartsite/qr-code/${data.data._id}`}>
-              <AnimateButton
+              <button
                 type="button"
-                width="w-48"
-                className="!rounded-full bg-white"
+                className="rounded-full bg-white border border-gray-300 px-6 py-2 text-gray-500 font-medium flex items-center gap-1 hover:bg-gray-300"
               >
                 <LiaFileMedicalSolid size={20} />
                 Customize QR
-              </AnimateButton>
+              </button>
             </Link>
-
-            <Link href={`/smartsite/${data.data._id}`}>
-              <AnimateButton
-                type="button"
-                width="w-48"
-                className="!rounded-full bg-white"
-              >
-                <LiaFileMedicalSolid size={20} />
-                Edit Background
-              </AnimateButton>
-            </Link>
-            {/* <EditMicrositeBtn>
-              <LiaFileMedicalSolid size={20} />
-              Edit Background
-            </EditMicrositeBtn> */}
-            <Link href={`/smartsite/${data.data._id}`}>
-              <AnimateButton
-                type="button"
-                // width="w-44"
-                className="!rounded-full bg-white"
-              >
-                <LiaFileMedicalSolid size={20} />
-                Microsite Settings
-              </AnimateButton>
-            </Link>
-            {/* <Link href={`/smartsites/travis-herron`}>
-              <EditMicrositeBtn>
-                <LiaFileMedicalSolid size={20} />
-                Microsite Settings
-              </EditMicrositeBtn>
-            </Link> */}
+            <button
+              type="button"
+              className="rounded-full bg-white border border-gray-300 px-6 py-2 text-gray-500 font-medium flex items-center gap-1 hover:bg-gray-300"
+            >
+              <IoIosSend color="gray" size={18} />
+              Share
+            </button>
           </div>
-          <a href={data.data.profileUrl} target="_blank">
-            <DynamicPrimaryBtn className="w-full !rounded-full mt-2">
-              <LiaFileMedicalSolid size={20} /> Publish
-            </DynamicPrimaryBtn>
-          </a>
-          <div className="flex items-center gap-8 border border-gray-300 rounded-xl pl-4 pr-3 py-2 text-lg font-medium text-gray-600 w-max">
-            <p>Lead Capture</p>
-            <Switch
-              color="default"
-              size="sm"
-              defaultSelected
-              aria-label="Lead Captures"
-            />
+          <div className="flex justify-center items-center gap-3">
+            <div className="flex items-center gap-8 border border-gray-300 rounded-full pl-5 pr-4 py-2 text-lg font-medium text-gray-600 w-max bg-white">
+              <p className="text-base text-gray-500 font-medium">
+                Lead Capture
+              </p>
+              <Switch
+                size="sm"
+                isSelected={isLeadCapture}
+                onValueChange={setIsLeadCapture}
+                aria-label="Lead Captures"
+              />
+            </div>
+            <div className="flex items-center gap-8 border border-gray-300 rounded-full pl-5 pr-4 py-2 text-lg font-medium text-gray-600 w-max bg-white">
+              <p className="text-base text-gray-500 font-medium">
+                Make Primary Microsite
+              </p>
+              <Switch
+                size="sm"
+                isSelected={isPrimaryMicrosite}
+                onValueChange={setIsPrimaryMicrosite}
+                aria-label="Lead Captures"
+              />
+            </div>
+          </div>
+          <div className="flex justify-center w-72 mx-auto">
+            <a href={data.data.profileUrl} target="_blank" className="w-full">
+              <DynamicPrimaryBtn className="w-full !rounded-full mt-2">
+                <LiaFileMedicalSolid size={20} /> Publish
+              </DynamicPrimaryBtn>
+            </a>
           </div>
 
           {/* Update modal component list here  */}
@@ -180,7 +193,8 @@ const MicrositeEditMainContentPage = ({ data }: any) => {
             setOff={setOff}
           />
 
-          <div className="flex flex-col-reverse gap-4">
+          {/* create new icon  */}
+          <div className="flex flex-col-reverse gap-4 px-20 xl:px-32 2xl:px-36">
             {toggleIcon.map((info: any, index: number) => (
               <AddIcon
                 key={index}

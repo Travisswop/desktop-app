@@ -6,7 +6,10 @@ import {
   DropdownItem,
   DropdownMenu,
   DropdownTrigger,
+  Select,
+  SelectItem,
   Switch,
+  Tooltip,
 } from "@nextui-org/react";
 import { AiOutlineDownCircle } from "react-icons/ai";
 import { IoLinkOutline } from "react-icons/io5";
@@ -23,6 +26,7 @@ import { icon, newIcons } from "@/components/util/data/smartsiteIconData";
 import { useToast } from "@/hooks/use-toast";
 import { isEmptyObject } from "@/components/util/checkIsEmptyObject";
 import AnimateButton from "@/components/ui/Button/AnimateButton";
+import { MdInfoOutline } from "react-icons/md";
 
 const AddSmallIcon = ({ handleRemoveIcon }: any) => {
   const state: any = useSmartSiteApiDataStore((state) => state); //get small icon store value
@@ -132,11 +136,145 @@ const AddSmallIcon = ({ handleRemoveIcon }: any) => {
   // console.log("smartSiteData", state);
   // console.log("sesstionState", sesstionState);
 
+  const animals = [
+    { key: "cat", label: "Cat" },
+    { key: "dog", label: "Dog" },
+    { key: "elephant", label: "Elephant" },
+    { key: "lion", label: "Lion" },
+    { key: "tiger", label: "Tiger" },
+    { key: "giraffe", label: "Giraffe" },
+    { key: "dolphin", label: "Dolphin" },
+    { key: "penguin", label: "Penguin" },
+    { key: "zebra", label: "Zebra" },
+    { key: "shark", label: "Shark" },
+    { key: "whale", label: "Whale" },
+    { key: "otter", label: "Otter" },
+    { key: "crocodile", label: "Crocodile" },
+  ];
+
   return (
     <div className="bg-white rounded-xl shadow-small p-6 flex flex-col gap-4">
+      <div className="flex items-end gap-1 justify-center">
+        <h2 className="font-semibold text-gray-700 text-xl text-center">
+          Small Icon
+        </h2>
+        <div className="translate-y-0.5">
+          <Tooltip
+            size="sm"
+            content={
+              <span className="font-medium">
+                Select the icon type and icon then find your username or link
+                that you want to share to create your small icon
+              </span>
+            }
+            className={`max-w-40 h-auto`}
+          >
+            <button>
+              <MdInfoOutline />
+            </button>
+          </Tooltip>
+        </div>
+      </div>
+      <div className="flex justify-center">
+        {selectedIcon && selectedIcon?.icon ? (
+          <Image
+            alt="app-icon"
+            src={selectedIcon?.icon}
+            className="w-12 h-auto"
+            style={tintStyle}
+            quality={100}
+          />
+        ) : (
+          <>
+            {selectedIconType === "Social Media" && (
+              <Image
+                alt="app-icon"
+                src={icon.SocialIconType}
+                className="w-12 h-auto"
+                quality={100}
+              />
+            )}
+            {selectedIconType === "Chat Links" && (
+              <Image
+                alt="app-icon"
+                src={icon.ChatlinkType}
+                className="w-12 h-auto"
+                quality={100}
+              />
+            )}
+            {selectedIconType === "Commands" && (
+              <Image
+                alt="app-icon"
+                src={icon.CommandType}
+                className="w-12 h-auto"
+                quality={100}
+              />
+            )}
+          </>
+        )}
+      </div>
+
+      <div className="flex flex-col gap-2 mt-4 px-[20%]">
+        <div className="flex items-center gap-3 w-full">
+          <p className="font-semibold w-32">Select Icon Type</p>
+          <select
+            id="countries"
+            className="bg-white shadow-medium text-gray-700 font-medium text-sm rounded-lg focus:ring-gray-400 focus:border-gray-400 focus:outline-none block w-56 p-2.5"
+          >
+            <option selected>Choose a country</option>
+            <option value="US">United States</option>
+            <option value="CA">Canada</option>
+            <option value="FR">France</option>
+            <option value="DE">Germany</option>
+          </select>
+        </div>
+        <div className="flex items-center gap-3 w-full">
+          <p className="font-semibold w-32">Select Icon</p>
+          <select
+            id="countries"
+            className="bg-white shadow-medium text-gray-700 font-medium text-sm rounded-lg focus:ring-gray-400 focus:border-gray-400 focus:outline-none block w-56 p-2.5"
+          >
+            <option selected>Choose a country</option>
+            <option value="US">United States</option>
+            <option value="CA">Canada</option>
+            <option value="FR">France</option>
+            <option value="DE">Germany</option>
+          </select>
+        </div>
+        <div className="w-full">
+          <p className="font-semibold text-gray-700 mb-1">
+            {selectedIcon.inputText} :
+          </p>
+          <div className="relative">
+            <IoLinkOutline
+              className="absolute left-4 top-1/2 -translate-y-[50%] font-bold text-gray-600"
+              size={20}
+            />
+            <input
+              type="text"
+              name="url"
+              className="w-full border border-[#ede8e8] focus:border-[#e5e0e0] rounded-xl focus:outline-none pl-11 py-2 text-gray-700 bg-gray-100"
+              placeholder={selectedIcon.placeHolder}
+              required
+            />
+          </div>
+          <div className="flex justify-center mt-5">
+            <AnimateButton
+              isLoading={isLoading}
+              width={"w-52"}
+              className="bg-black text-white py-2 !border-0"
+            >
+              <LiaFileMedicalSolid size={20} />
+              Create
+            </AnimateButton>
+          </div>
+        </div>
+      </div>
+
+      {/* old */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <h3 className="font-semibold text-gray-700">Small Icon Type</h3>
+          <h3 className="font-semibold text-gray-700 text-lg">Small Icon</h3>
           {!selectedIconType && (
             <Image alt="app-icon" src={appIconImg} className="w-8 h-auto" />
           )}

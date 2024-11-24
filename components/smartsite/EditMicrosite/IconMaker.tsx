@@ -1,28 +1,39 @@
 "use client";
 import React from "react";
-import Slider from "react-slick";
-import "slick-carousel/slick/slick.css";
-import "slick-carousel/slick/slick-theme.css";
+// import Slider from "react-slick";
+// import "slick-carousel/slick/slick.css";
+// import "slick-carousel/slick/slick-theme.css";
 import Image from "next/image";
-import { MdOutlineAddBox } from "react-icons/md";
-import twitter from "@/public/images/websites/edit-microsite/twitter.svg";
-import youtube from "@/public/images/websites/edit-microsite/youtube.svg";
-import linkedin from "@/public/images/websites/edit-microsite/linkedin.svg";
-import swopPay from "@/public/images/websites/edit-microsite/swop-pay.svg";
-import contactCard from "@/public/images/websites/edit-microsite/contact-card.svg";
-import x from "@/public/images/IconShop/x@3x.png";
-import mp4 from "@/public/images/websites/edit-microsite/mp4.svg";
-import photosVideos from "@/public/images/websites/edit-microsite/photos-videos.svg";
-import redeemLink from "@/public/images/websites/edit-microsite/redeem-link.svg";
-import appIcon from "@/public/images/websites/edit-microsite/updated/app-icon.svg";
-import blog from "@/public/images/websites/edit-microsite/updated/blog.svg";
-import contact from "@/public/images/websites/edit-microsite/updated/contact-card.svg";
-import embedIcon from "@/public/images/websites/edit-microsite/updated/embed-icon.svg";
-import infoBar from "@/public/images/websites/edit-microsite/updated/info-bar.svg";
-import referral from "@/public/images/websites/edit-microsite/updated/referral.svg";
-import message from "@/public/images/websites/edit-microsite/updated/message.svg";
-import feed from "@/public/images/feed.png";
+import { MdInfoOutline, MdOutlineAddBox } from "react-icons/md";
+// import twitter from "@/public/images/websites/edit-microsite/twitter.svg";
+// import youtube from "@/public/images/websites/edit-microsite/youtube.svg";
+// import linkedin from "@/public/images/websites/edit-microsite/linkedin.svg";
+// import swopPay from "@/public/images/websites/edit-microsite/swop-pay.svg";
+// import contactCard from "@/public/images/websites/edit-microsite/contact-card.svg";
+// import x from "@/public/images/IconShop/x@3x.png";
+// import mp4 from "@/public/images/websites/edit-microsite/mp4.svg";
+// import photosVideos from "@/public/images/websites/edit-microsite/photos-videos.svg";
+// import redeemLink from "@/public/images/websites/edit-microsite/redeem-link.svg";
+// import appIcon from "@/public/images/websites/edit-microsite/updated/app-icon.svg"
+import smallIcon from "@/public/images/smartsite_icon/small-icon.png";
+import appIcon from "@/public/images/smartsite_icon/app-icon.png";
+import embedIcon from "@/public/images/smartsite_icon/embeed.png";
+import blogIcon from "@/public/images/smartsite_icon/blog.png";
+import redeemIcon from "@/public/images/smartsite_icon/redeem-link.png";
+import marketPlaceIcon from "@/public/images/smartsite_icon/marketplace.png";
+import photoIcon from "@/public/images/smartsite_icon/photo.png";
+import mp3Icon from "@/public/images/smartsite_icon/audio.png";
+import videoIcon from "@/public/images/smartsite_icon/video.png";
+// import blog from "@/public/images/websites/edit-microsite/updated/blog.svg";
+// import contact from "@/public/images/websites/edit-microsite/updated/contact-card.svg";
+import infobarIcon from "@/public/images/smartsite_icon/info-bar.png";
+// import embedIcon from "@/public/images/websites/edit-microsite/updated/embed-icon.svg";
+// import infoBar from "@/public/images/websites/edit-microsite/updated/info-bar.svg";
+// import referral from "@/public/images/websites/edit-microsite/updated/referral.svg";
+// import message from "@/public/images/websites/edit-microsite/updated/message.svg";
+// import feed from "@/public/images/feed.png";
 import { FaRegSquareMinus } from "react-icons/fa6";
+import { Tooltip } from "@nextui-org/react";
 
 function SampleNextArrow(props: any) {
   const { className, style, onClick } = props;
@@ -52,7 +63,7 @@ function SamplePrevArrow(props: any) {
   );
 }
 
-const IconMaker = ({ handleAddIcon, handleRemoveIcon, toggleIcon }: any) => {
+const IconMaker = ({ handleToggleIcon, toggleIcon }: any) => {
   const settings = {
     // dots: true,
     infinite: true,
@@ -95,77 +106,144 @@ const IconMaker = ({ handleAddIcon, handleRemoveIcon, toggleIcon }: any) => {
 
   const iconBuilderArry = [
     {
-      _id: 1234,
-      src: x,
+      _id: 1,
+      src: smallIcon,
       title: "Small Icon",
+      toolTip:
+        "Select the icon type and icon then find your username or link that you want to share to create your small icon.",
     },
 
     {
-      _id: 45234,
+      _id: 2,
       src: appIcon,
       title: "App Icon",
+      toolTip:
+        "Select the icon ype and icon you want to use then upload the account information.",
     },
     {
-      _id: 4555234,
-      src: blog,
+      _id: 3,
+      src: infobarIcon,
+      title: "Info Bar",
+      toolTip:
+        "You will be able to set the icon type, choose an icon , specify a button name, provide a link, and add a description.",
+    },
+    {
+      _id: 4,
+      src: blogIcon,
       title: "Blog",
+      toolTip: "Write a blog and host it right on your swop smart site.",
+    },
+    {
+      _id: 5,
+      src: embedIcon,
+      title: "Embed",
+      toolTip: "Select which platform you want to embed and paste the link",
     },
 
     {
-      _id: 1238,
-      src: contact,
-      title: "Contact Card",
+      _id: 6,
+      src: redeemIcon,
+      title: "Redeem Link",
+      toolTip:
+        "Create a portal that people can click to collect tokens and collectables.",
+    },
+
+    {
+      _id: 7,
+      src: marketPlaceIcon,
+      title: "Marketplace",
+      toolTip: "Buy and Sell any products.",
     },
     {
-      _id: 1235,
-      src: embedIcon,
-      title: "Embed",
+      _id: 8,
+      src: mp3Icon,
+      title: "Mp3",
+      toolTip: "Embed music to your smart site that people can listen to.",
     },
     {
-      _id: 1236,
-      src: infoBar,
-      title: "Info Bar",
+      _id: 9,
+      src: photoIcon,
+      title: "Photo",
+      toolTip: "Select the icon to upload a new photo.",
     },
     {
-      _id: 126338,
-      src: message,
-      title: "Message",
-    },
-    {
-      _id: 1239,
-      src: mp4,
-      title: "Music File",
-    },
-    {
-      _id: 1244,
-      src: photosVideos,
+      _id: 10,
+      src: videoIcon,
       title: "Video",
-    },
-    // {
-    //   _id: 1254,
-    //   src: redeemLink,
-    //   title: "Redeem Link",
-    // },
-    {
-      _id: 1237,
-      src: swopPay,
-      title: "Swop Pay",
-    },
-    {
-      _id: 1254,
-      src: referral,
-      title: "Referral",
-    },
-    {
-      _id: 12542,
-      src: feed,
-      title: "Feed",
+      toolTip:
+        "You can embed a video by either uploading it directly or sharing an external link, along with providing a title for the content.",
     },
   ];
 
   return (
     <div className="w-full">
-      <div className="slider-container">
+      <div className="grid grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-3">
+        {iconBuilderArry.map((data) => (
+          <div key={data._id} className="">
+            <div
+              onClick={() => handleToggleIcon(data.title)}
+              className="bg-white cursor-pointer py-4 rounded-2xl flex flex-col items-center gap-1 shadow-small relative"
+            >
+              <div className="absolute top-1 right-2">
+                <Tooltip
+                  size="sm"
+                  content={data.toolTip}
+                  className={`${
+                    data.title === "Marketplace" ? "max-w-32" : "max-w-40"
+                  } h-auto `}
+                >
+                  <button>
+                    <MdInfoOutline />
+                  </button>
+                </Tooltip>
+              </div>
+
+              <p className="text-center text-sm font-medium">{data.title}</p>
+              <div className="h-10 my-auto w-full flex justify-center items-center">
+                <Image
+                  alt="icon"
+                  src={data.src}
+                  quality={100}
+                  className={`w-auto ${
+                    data.title === "Small Icon"
+                      ? "h-5"
+                      : data.title === "Info Bar"
+                      ? "h-7"
+                      : data.title === "Photo"
+                      ? "h-14"
+                      : "h-full"
+                  }`}
+                />
+              </div>
+              {toggleIcon.find((item: any) => item == data.title) ? (
+                <button
+                  onClick={() => handleRemoveIcon(data.title)}
+                  className=""
+                >
+                  <FaRegSquareMinus size={18} />
+                </button>
+              ) : (
+                <button className="">
+                  <MdOutlineAddBox size={20} />
+                </button>
+              )}
+              {/* <button
+                  onClick={() => handleAddIcon(data.title)}
+                  className="h-[10%] "
+                >
+                  <MdOutlineAddBox size={20} />
+                </button> */}
+              {/* // <button
+                //   onClick={() => handleRemoveIcon(data.title)}
+                //   className="h-[10%] "
+                // >
+                //   <FaRegSquareMinus size={18} />
+                // </button> */}
+            </div>
+          </div>
+        ))}
+      </div>
+      {/* <div className="slider-container">
         <Slider {...settings}>
           {iconBuilderArry.map((data) => (
             <div key={data._id} className="px-2 py-2">
@@ -198,23 +276,11 @@ const IconMaker = ({ handleAddIcon, handleRemoveIcon, toggleIcon }: any) => {
                     <MdOutlineAddBox size={20} />
                   </button>
                 )}
-                {/* <button
-                  onClick={() => handleAddIcon(data.title)}
-                  className="h-[10%] "
-                >
-                  <MdOutlineAddBox size={20} />
-                </button> */}
-                {/* // <button
-                //   onClick={() => handleRemoveIcon(data.title)}
-                //   className="h-[10%] "
-                // >
-                //   <FaRegSquareMinus size={18} />
-                // </button> */}
               </div>
             </div>
           ))}
         </Slider>
-      </div>
+      </div> */}
     </div>
   );
 };
