@@ -18,7 +18,6 @@ interface FormData {
   price: string;
   recipientAddress: string;
   currency: string;
-  type: string;
   benefits: string[];
   content: ContentFile[];
   enableCreditCard: boolean;
@@ -40,7 +39,6 @@ const CreateSubscriptionPage = () => {
     price: "",
     recipientAddress: "",
     currency: "usdc",
-    type: "Subscription",
     benefits: [],
     content: [],
     enableCreditCard: false,
@@ -53,6 +51,7 @@ const CreateSubscriptionPage = () => {
   });
 
   const [newBenefit, setNewBenefit] = useState("");
+  const [imageUploading, setImageUploading] = useState(false);
   const [selectedImageName, setSelectedImageName] = useState<string | null>(null);
 
   const handleChange = (
@@ -259,34 +258,7 @@ const CreateSubscriptionPage = () => {
                 onChange={handleImageUpload}
                 className="hidden"
               />
-            </div>
-
-            <div>
-              <label htmlFor="content" className="mb-1 block font-medium">
-                Upload Additional Content (Images, Audio, Video, PDFs)
-              </label>
-              <input
-                type="file"
-                id="content"
-                name="content"
-                multiple
-                accept="*/*"
-                onChange={handleContentUpload}
-                className="w-full border border-dashed border-gray-300 rounded-lg px-4 py-2 mt-2"
-              />
-              <div className="grid grid-cols-3 gap-4 mt-4">
-                {formData.content.map((file, index) => (
-                  <div
-                    key={index}
-                    className="flex flex-col items-center p-2 bg-white border rounded shadow-sm w-full"
-                  >
-                    <div className="text-2xl">{getFileTypeIcon(file.type)}</div>
-                    <p className="text-xs text-gray-600 mt-1 text-center truncate w-full overflow-hidden text-ellipsis whitespace-nowrap">
-                      {file.name}
-                    </p>
-                  </div>
-                ))}
-              </div>
+              {imageUploading && <p>Uploading image...</p>}
             </div>
 
             <div>
@@ -393,9 +365,39 @@ const CreateSubscriptionPage = () => {
               </div>
             </div>
 
+            <div className="bg-gray-100 p-4 rounded-lg border border-gray-300">
+              <h3 className="text-lg font-medium text-black-600">Content</h3>
+              <p className="text-sm text-gray-600">
+                Add content to sell. You can upload images, audio, video, PDFs, or other digital files.
+              </p>
+              <input
+                type="file"
+                id="content"
+                name="content"
+                multiple
+                accept="*/*"
+                onChange={handleContentUpload}
+                className="w-full border border-dashed border-gray-300 rounded-lg px-4 py-2 mt-2"
+              />
+
+              <div className="grid grid-cols-3 gap-4 mt-4">
+                {formData.content.map((file, index) => (
+                  <div
+                    key={index}
+                    className="flex flex-col items-center p-2 bg-white border rounded shadow-sm w-full"
+                  >
+                    <div className="text-2xl">{getFileTypeIcon(file.type)}</div>
+                    <p className="text-xs text-gray-600 mt-1 text-center truncate w-full overflow-hidden text-ellipsis whitespace-nowrap">
+                      {file.name}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            </div>
+
             <div className="bg-gray-100 p-4 rounded-lg border border-gray-300 mt-4">
               <h3 className="text-md font-medium">Enable Pay with Credit Card</h3>
-              <p className="text-sm text-gray-600 mb-2">Let fans buy this subscription with a credit card</p>
+              <p className="text-sm text-gray-600 mb-2">Let users buy this subscription with a credit card</p>
               <input
                 type="checkbox"
                 id="enableCreditCard"
@@ -440,8 +442,31 @@ const CreateSubscriptionPage = () => {
                 />
               )}
               <p className="text-sm text-gray-500 mt-1">
-                Limit the number of times this subscription can be purchased
+                Limit the number of times this digital good can be purchased
               </p>
+
+              <div className="mt-4">
+                <label htmlFor="royaltyPercentage" className="block font-medium mb-1">
+                  Royalty Percentage
+                </label>
+                <div className="flex items-center">
+                  <input
+                    type="number"
+                    id="royaltyPercentage"
+                    name="royaltyPercentage"
+                    value={formData.royaltyPercentage}
+                    onChange={handleChange}
+                    className="w-full border border-gray-300 rounded-lg px-4 py-2"
+                    min="0"
+                    max="100"
+                  />
+                  <span className="ml-2">%</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="mt-4">
+              <input type="checkbox" required /> I agree with swop Minting Privacy & Policy
             </div>
 
             <PushToMintCollectionButton className="w-max mt-4">
