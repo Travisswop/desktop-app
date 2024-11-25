@@ -1,6 +1,6 @@
 'use client';
 
-import { Transaction } from '@/lib/hooks/useTransaction';
+import { Transaction } from '@/types/transaction';
 import SwappedView from './swapped-view';
 import SentReceivedView from './sent-received-view';
 

@@ -1,3 +1,6 @@
+export type ChainType = 'ETHEREUM' | 'POLYGON' | 'BASE' | 'SOLANA';
+export type EVMChain = Exclude<ChainType, 'SOLANA'>;
+
 export interface MarketData {
   uuid: string;
   symbol: string;
@@ -46,14 +49,6 @@ export interface TokenData {
   };
 }
 
-export interface NFT {
-  id: string;
-  type: string;
-  creator: string;
-  image: string;
-  description: string;
-}
-
 export interface SolanaTokenData {
   data: {
     parsed: {
@@ -68,4 +63,20 @@ export interface SolanaTokenData {
       };
     };
   };
+}
+
+export interface TimeSeriesDataPoint {
+  price: string | null;
+  timestamp: number;
+}
+
+export interface TokenMetadata {
+  chain: ChainType;
+  address: string;
+  symbol: string;
+  name: string;
+  decimals: number;
+  balance: string;
+  marketData: MarketData;
+  sparklineData: Array<{ timestamp: number; value: number }>;
 }

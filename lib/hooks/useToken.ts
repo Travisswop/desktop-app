@@ -1,93 +1,20 @@
 import { ethers } from 'ethers';
 import { useQueries } from '@tanstack/react-query';
 import { Connection, PublicKey } from '@solana/web3.js';
-import { MarketData, SolanaTokenData } from '@/types/token';
+import {
+  ChainType,
+  EVMChain,
+  MarketData,
+  TimeSeriesDataPoint,
+  SolanaTokenData,
+} from '@/types/token';
 import { useMemo } from 'react';
-
-type ChainType = 'ETHEREUM' | 'POLYGON' | 'BASE' | 'SOLANA';
-type EVMChain = Exclude<ChainType, 'SOLANA'>;
-
-interface NativeToken {
-  uuid: string;
-  symbol: string;
-  name: string;
-  decimals: number;
-  color?: string;
-}
-
-interface ChainConfig {
-  id: number;
-  alchemyUrl: string | undefined;
-  nativeToken: NativeToken;
-}
-
-interface TimeSeriesDataPoint {
-  price: string | null;
-  timestamp: number;
-}
-
-export interface TokenMetadata {
-  chain: ChainType;
-  address: string;
-  symbol: string;
-  name: string;
-  decimals: number;
-  balance: string;
-  marketData: MarketData;
-  sparklineData: Array<{ timestamp: number; value: number }>;
-}
+import { CHAINS } from '@/types/config';
 
 interface TokenAccount {
   account: SolanaTokenData;
   pubkey: PublicKey;
 }
-
-// Constants
-const CHAINS: Record<ChainType, ChainConfig> = {
-  ETHEREUM: {
-    id: 1,
-    alchemyUrl: process.env.NEXT_PUBLIC_ALCHEMY_ETH_URL,
-    nativeToken: {
-      uuid: 'razxDUgYGNAdQ',
-      symbol: 'ETH',
-      name: 'Ethereum',
-      decimals: 18,
-    },
-  },
-  POLYGON: {
-    id: 137,
-    alchemyUrl: process.env.NEXT_PUBLIC_ALCHEMY_POLYGON_URL,
-    nativeToken: {
-      uuid: 'iDZ0tG-wI',
-      symbol: 'POL',
-      name: 'Polygon',
-      decimals: 18,
-    },
-  },
-  BASE: {
-    id: 8453,
-    alchemyUrl: process.env.NEXT_PUBLIC_ALCHEMY_BASE_URL,
-    nativeToken: {
-      uuid: 'razxDUgYGNAdQ', // ETH on Base
-      symbol: 'ETH',
-      name: 'Ethereum',
-      decimals: 18,
-    },
-  },
-  SOLANA: {
-    id: 0,
-    alchemyUrl: process.env.NEXT_PUBLIC_ALCHEMY_SOLANA_URL,
-    nativeToken: {
-      uuid: 'zNZHO_Sjf', // ETH on Base
-      symbol: 'SOL',
-      name: 'SOLANA',
-      decimals: 9,
-      color: '#66F9A1',
-    },
-  },
-} as const;
-
-// API Service class
 
 class TokenAPIService {
   private static async fetchWithRetry(

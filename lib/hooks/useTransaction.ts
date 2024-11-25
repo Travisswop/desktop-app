@@ -1,167 +1,38 @@
 import { ethers } from 'ethers';
 import { useQueries } from '@tanstack/react-query';
+import {
+  ERC20ApiResponse,
+  SolTxDetails,
+  Transaction,
+} from '@/types/transaction';
+import { CHAINS } from '@/types/config';
+import { APIUtils } from '@/utils/api';
 
-// Types
-export interface Transaction {
-  hash: string;
-  timeStamp: string;
-  from: string;
-  to: string;
-  value: string;
-  gas: string;
-  gasPrice: string;
-  networkFee: string;
-  txreceipt_status?: string;
-  contractAddress?: string;
-  status?: string;
-  tokenName?: string;
-  tokenDecimal?: number;
-  tokenSymbol?: string;
-  network?: string;
-  isSwapped?: boolean;
-  isRedeemable?: boolean;
-  redeemLink?: string;
-  isClaimed?: boolean;
-  tokenPrice?: number;
-  swapped?: {
-    from: TokenSwapInfo;
-    to: TokenSwapInfo;
-  };
-  currentPrice: number;
-  nativeTokenPrice: number;
+function isTransaction(
+  value: Transaction | null
+): value is Transaction {
+  return value !== null;
 }
 
-interface TokenSwapInfo {
-  symbol: string;
-  decimal: number;
-  value: string;
-  price: number;
-}
-
-interface SolanaTransfer {
-  source: string;
-  destination: string;
-  amount: number;
-}
-
-interface TokenBalance {
-  token: {
-    name: string;
-    symbol: string;
-    decimals: number;
-  };
-}
-
-interface ParsedInstruction {
-  programId: string;
-  type: string;
-  extra?: {
-    sourceOwner: string;
-    destinationOwner: string;
-    amount: number;
-  };
-}
-
-interface SolTxDetails {
-  blockTime: number;
-  slot: number;
-  txHash: string;
-  fee: number;
-  status: string;
-  parsedInstruction: ParsedInstruction[];
-  logMessage: string[];
-  solTransfers: SolanaTransfer[];
-  tokenBalances?: TokenBalance[];
-}
-
-interface ChainConfig {
-  baseUrl: string;
-  accessToken: string | undefined;
-  alchemyUrl: string | undefined;
-  decimal: number;
-  name: string;
-  symbol: string;
-  type: 'evm' | 'solana';
-}
-
-// Constants
-const CHAINS: Record<string, ChainConfig> = {
-  ETHEREUM: {
-    baseUrl: 'https://api.etherscan.io',
-    accessToken: process.env.NEXT_PUBLIC_ETHERSCAN_API_KEY_TOKEN,
-    alchemyUrl: process.env.NEXT_PUBLIC_ALCHEMY_ETH_URL,
-    decimal: 18,
-    name: 'Ethereum',
-    symbol: 'ETH',
-    type: 'evm',
-  },
-  POLYGON: {
-    baseUrl: 'https://api.polygonscan.com',
-    accessToken: process.env.NEXT_PUBLIC_POLYGONSCAN_API_KEY_TOKEN,
-    alchemyUrl: process.env.NEXT_PUBLIC_ALCHEMY_POLYGON_URL,
-    decimal: 18,
-    name: 'POL (ex-MATIC)',
-    symbol: 'POL',
-    type: 'evm',
-  },
-  BASE: {
-    baseUrl: 'https://api.basescan.org',
-    accessToken: process.env.NEXT_PUBLIC_BASESCAN_API_KEY_TOKEN,
-    alchemyUrl: process.env.NEXT_PUBLIC_ALCHEMY_BASE_URL,
-    decimal: 18,
-    name: 'Ethereum',
-    symbol: 'ETH',
-    type: 'evm',
-  },
-  SOLANA: {
-    baseUrl: '',
-    accessToken: undefined,
-    alchemyUrl: undefined,
-    decimal: 9,
-    name: 'Solana',
-    symbol: 'SOL',
-    type: 'solana',
-  },
-} as const;
-
-// API Handlers
 class TransactionAPI {
-  private static async fetchWithRetry(
-    url: string,
-    options: RequestInit = {},
-    retries = 3
-  ): Promise<Response> {
-    for (let i = 0; i < retries; i++) {
-      try {
-        const response = await fetch(url, options);
-        if (!response.ok) {
-          throw new Error(`HTTP error! status: ${response.status}`);
-        }
-        return response;
-      } catch (error) {
-        if (i === retries - 1) throw error;
-        await new Promise((resolve) =>
-          setTimeout(resolve, 1000 * Math.pow(2, i))
-        );
-      }
-    }
-    throw new Error('Fetch failed after retries');
-  }
-
   static async getSolTxDetails(
     signature: string
   ): Promise<SolTxDetails> {
     try {
-      const response = await this.fetchWithRetry(
-        `https://pro-api.solscan.io/v1.0/transaction/${signature}`,
-        {
-          headers: {
-            'Content-Type': 'application/json',
-            token: process.env.NEXT_PUBLIC_SOLSCAN_API_KEY || '',
-          },
-        }
-      );
-      return await response.json();
+      const url = `https://pro-api.solscan.io/v1.0/transaction/${signature}`;
+      const options = {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          token: process.env.NEXT_PUBLIC_SOLSCAN_API_KEY || '',
+        },
+      };
+
+      const result = (await APIUtils.fetchWithRetry(
+        url,
+        options
+      )) as SolTxDetails;
+      return result;
     } catch (error) {
       console.error(
         'Error fetching Solana transaction details:',
@@ -178,24 +49,31 @@ class TransactionAPI {
     if (CHAINS[chain].type === 'solana') return [];
 
     try {
-      const response = await this.fetchWithRetry(
-        `${CHAINS[chain].baseUrl}/api?module=account&action=txlist&address=${address}&startblock=0&endblock=99999999&sort=asc&apikey=${CHAINS[chain].accessToken}`
-      );
-      const data = await response.json();
+      const url = `${CHAINS[chain].transactionApiUrl}/api?module=account&action=txlist&address=${address}&startblock=0&endblock=99999999&sort=asc&apikey=${CHAINS[chain].accessToken}`;
+
+      const options = {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      };
+
+      const response =
+        await APIUtils.fetchWithRetry<ERC20ApiResponse>(url, options);
 
       if (
-        data.status === '0' &&
-        data.message === 'No transactions found'
+        response.status === '0' &&
+        response.message === 'No transactions found'
       ) {
         return [];
       }
-      if (data.status === '0') {
+      if (response.status === '0') {
         throw new Error(
-          data.message || 'Failed to fetch native transactions'
+          response.message || 'Failed to fetch native transactions'
         );
       }
 
-      return data.result || [];
+      return response.result || [];
     } catch (error) {
       console.error(
         `Error fetching native transactions for ${chain}:`,
@@ -212,24 +90,31 @@ class TransactionAPI {
     if (CHAINS[chain].type === 'solana') return [];
 
     try {
-      const response = await this.fetchWithRetry(
-        `${CHAINS[chain].baseUrl}/api?module=account&action=tokentx&address=${address}&startblock=0&endblock=99999999&sort=asc&apikey=${CHAINS[chain].accessToken}`
-      );
-      const data = await response.json();
+      const url = `${CHAINS[chain].transactionApiUrl}/api?module=account&action=tokentx&address=${address}&startblock=0&endblock=99999999&sort=asc&apikey=${CHAINS[chain].accessToken}`;
+
+      const options = {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      };
+
+      const response =
+        await APIUtils.fetchWithRetry<ERC20ApiResponse>(url, options);
 
       if (
-        data.status === '0' &&
-        data.message === 'No transactions found'
+        response.status === '0' &&
+        response.message === 'No transactions found'
       ) {
         return [];
       }
-      if (data.status === '0') {
+      if (response.status === '0') {
         throw new Error(
-          data.message || 'Failed to fetch ERC20 transactions'
+          response.message || 'Failed to fetch ERC20 transactions'
         );
       }
 
-      return data.result || [];
+      return response.result || [];
     } catch (error) {
       console.error(
         `Error fetching ERC20 transactions for ${chain}:`,
@@ -243,23 +128,29 @@ class TransactionAPI {
     address: string
   ): Promise<Transaction[]> {
     try {
-      const response = await this.fetchWithRetry(
-        `https://pro-api.solscan.io/v1.0/account/transactions?account=${address}&limit=50`,
-        {
-          headers: {
-            'Content-Type': 'application/json',
-            token: process.env.NEXT_PUBLIC_SOLSCAN_API_KEY || '',
-          },
-        }
+      const url = `https://pro-api.solscan.io/v1.0/account/transactions?account=${address}&limit=50`;
+
+      const options = {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          token: process.env.NEXT_PUBLIC_SOLSCAN_API_KEY || '',
+        },
+      };
+
+      const response = await APIUtils.fetchWithRetry<SolTxDetails[]>(
+        url,
+        options
       );
 
-      const data = await response.json();
-      return await Promise.all(
-        data.map(async (item: SolTxDetails) => {
+      const transactions = await Promise.all(
+        response.map(async (item: SolTxDetails) => {
           const txDetails = await this.getSolTxDetails(item.txHash);
           return this.formatSolanaTransaction(item, txDetails);
         })
-      ).then((transactions) => transactions.filter(Boolean));
+      );
+
+      return transactions.filter(isTransaction);
     } catch (error) {
       console.error('Error fetching Solana transactions:', error);
       return [];
@@ -338,23 +229,24 @@ const formatEvmTransaction = (
     let formattedValue = '0';
     const tokenDecimal = tx.tokenDecimal
       ? Number(tx.tokenDecimal)
-      : CHAINS[chain].decimal;
+      : CHAINS[chain].nativeToken.decimals;
     formattedValue = ethers.formatUnits(tx.value, tokenDecimal);
 
     const gasUsed = BigInt(tx.gas);
     const gasPrice = BigInt(tx.gasPrice);
     const networkFee = ethers.formatUnits(
       gasUsed * gasPrice,
-      CHAINS[chain].decimal
+      CHAINS[chain].nativeToken.decimals
     );
 
     return {
       ...tx,
       value: formattedValue,
       networkFee,
-      tokenName: tx.tokenName || CHAINS[chain].name,
-      tokenDecimal: tx.tokenDecimal || CHAINS[chain].decimal,
-      tokenSymbol: tx.tokenSymbol || CHAINS[chain].symbol,
+      tokenName: tx.tokenName || CHAINS[chain].nativeToken.name,
+      tokenDecimal:
+        tx.tokenDecimal || CHAINS[chain].nativeToken.decimals,
+      tokenSymbol: tx.tokenSymbol || CHAINS[chain].nativeToken.symbol,
       network: chain,
       currentPrice: 0,
       nativeTokenPrice: 0,

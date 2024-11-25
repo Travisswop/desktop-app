@@ -9,7 +9,10 @@
     "lint": "next lint"
   },
   "dependencies": {
-    "@privy-io/react-auth": "^1.94.0",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "@headlessui/react": "1.7.17",
+    "@privy-io/react-auth": "^1.95.0",
     "@privy-io/server-auth": "^1.15.2",
     "@privy-io/wagmi-connector": "^0.1.13",
     "@radix-ui/react-checkbox": "^1.1.2",
@@ -34,8 +37,6 @@
     "lucide-react": "^0.453.0",
     "next": "15.0.1",
     "qrcode.react": "^4.1.0",
-    "react": "^18.3.0",
-    "react-dom": "^18.2.0",
     "recharts": "^2.13.3",
     "swr": "^2.2.5",
     "tailwind-merge": "^2.5.4",

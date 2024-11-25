@@ -15,3 +15,55 @@ export const CHAIN_CONFIG = {
     alchemyUrl: process.env.NEXT_PUBLIC_ALCHEMY_BASE_API_KEY,
   },
 } as const;
+
+export const CHAINS = {
+  ETHEREUM: {
+    transactionApiUrl: 'https://api.etherscan.io',
+    accessToken: process.env.NEXT_PUBLIC_ETHERSCAN_API_KEY_TOKEN,
+    alchemyUrl: process.env.NEXT_PUBLIC_ALCHEMY_ETH_URL,
+    nativeToken: {
+      uuid: 'razxDUgYGNAdQ',
+      symbol: 'ETH',
+      name: 'Ethereum',
+      decimals: 18,
+    },
+    type: 'evm',
+  },
+  POLYGON: {
+    transactionApiUrl: 'https://api.polygonscan.com',
+    accessToken: process.env.NEXT_PUBLIC_POLYGONSCAN_API_KEY_TOKEN,
+    alchemyUrl: process.env.NEXT_PUBLIC_ALCHEMY_POLYGON_URL,
+    nativeToken: {
+      uuid: 'iDZ0tG-wI',
+      symbol: 'POL',
+      name: 'Polygon',
+      decimals: 18,
+    },
+    type: 'evm',
+  },
+  BASE: {
+    transactionApiUrl: 'https://api.basescan.org',
+    accessToken: process.env.NEXT_PUBLIC_BASESCAN_API_KEY_TOKEN,
+    alchemyUrl: process.env.NEXT_PUBLIC_ALCHEMY_BASE_URL,
+    nativeToken: {
+      uuid: 'razxDUgYGNAdQ', // ETH on Base
+      symbol: 'ETH',
+      name: 'Ethereum',
+      decimals: 18,
+    },
+    type: 'evm',
+  },
+  SOLANA: {
+    transactionApiUrl: '',
+    accessToken: undefined,
+    alchemyUrl: process.env.NEXT_PUBLIC_ALCHEMY_SOLANA_URL,
+    nativeToken: {
+      uuid: 'zNZHO_Sjf', // ETH on Base
+      symbol: 'SOL',
+      name: 'SOLANA',
+      decimals: 9,
+      color: '#66F9A1',
+    },
+    type: 'solana',
+  },
+} as const;

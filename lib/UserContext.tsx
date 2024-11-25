@@ -7,7 +7,7 @@ import {
   useEffect,
   useCallback,
 } from 'react';
-import { usePrivy } from '@privy-io/react-auth';
+import { useAuth } from './hooks/useAuth';
 
 interface UserData {
   email: string;
@@ -19,7 +19,6 @@ interface UserData {
     followers: string[];
     following: string[];
   };
-  // Add other user fields as needed
 }
 
 interface UserContextType {
@@ -43,14 +42,14 @@ const userCache = new Map<
   string,
   { data: UserData; timestamp: number }
 >();
-const CACHE_DURATION = 120 * 60 * 1000; // 60 minutes
+const CACHE_DURATION = 120 * 60 * 1000; // 120 minutes
 
 export function UserProvider({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  const { user: privyUser, ready } = usePrivy();
+  const { user: privyUser, ready } = useAuth();
   const [user, setUser] = useState<UserData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);

@@ -7,10 +7,8 @@ import {
   CardTitle,
 } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import {
-  Transaction,
-  useMultiChainTransactionData,
-} from '@/lib/hooks/useTransaction';
+import { useMultiChainTransactionData } from '@/lib/hooks/useTransaction';
+import { Transaction } from '@/types/transaction';
 import { AlertCircle, Loader2 } from 'lucide-react';
 import { useState, useMemo } from 'react';
 import TransactionDetails from './transaction-details';

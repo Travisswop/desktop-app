@@ -9,8 +9,8 @@ import {
 
 import { format } from 'date-fns';
 import { ArrowLeft, ExternalLink, Wallet } from 'lucide-react';
-import { Transaction } from '@/lib/hooks/useTransaction';
 import { Card, CardContent } from '@/components/ui/card';
+import { Transaction } from '@/types/transaction';
 import Link from 'next/link';
 
 // Constants
