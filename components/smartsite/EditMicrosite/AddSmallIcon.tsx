@@ -25,6 +25,7 @@ import { useToast } from "@/hooks/use-toast";
 import { isEmptyObject } from "@/components/util/checkIsEmptyObject";
 import AnimateButton from "@/components/ui/Button/AnimateButton";
 import { MdInfoOutline } from "react-icons/md";
+import { IconMap, SelectedIconType } from "@/types/smallIcon";
 
 const AddSmallIcon = ({ handleRemoveIcon }: any) => {
   const state: any = useSmartSiteApiDataStore((state) => state); //get small icon store value
@@ -32,7 +33,8 @@ const AddSmallIcon = ({ handleRemoveIcon }: any) => {
 
   const demoToken =
     "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJfaWQiOiI2NjM4NjMyMDIzMDQxMDMyODAyOTk4MmIiLCJpYXQiOjE3MjcxNTI4MzB9.CsHnZAgUzsfkc_g_CZZyQMXc02Ko_LhnQcCVpeCwroY";
-  const [selectedIconType, setSelectedIconType] = useState("Social Media");
+  const [selectedIconType, setSelectedIconType] =
+    useState<SelectedIconType>("Social Media");
   const [selectedIcon, setSelectedIcon] = useState({
     name: "X",
     icon: icon.SmallIconTwitter,
@@ -64,7 +66,7 @@ const AddSmallIcon = ({ handleRemoveIcon }: any) => {
     filter: "brightness(0) invert(0)",
   };
 
-  const handleSelectIconType = (category: string) => {
+  const handleSelectIconType = (category: SelectedIconType) => {
     setSelectedIconType(category);
     if (category === "Social Media") {
       setSelectedIcon({
@@ -134,6 +136,12 @@ const AddSmallIcon = ({ handleRemoveIcon }: any) => {
   // console.log("smartSiteData", state);
   // console.log("sesstionState", sesstionState);
 
+  const iconMap: IconMap = {
+    "Social Media": icon.SocialIconType,
+    "Chat Links": icon.ChatlinkType,
+    Commands: icon.CommandType,
+  };
+
   return (
     <div className="bg-white rounded-xl shadow-small p-6 flex flex-col gap-4">
       <div className="flex items-end gap-1 justify-center">
@@ -195,14 +203,30 @@ const AddSmallIcon = ({ handleRemoveIcon }: any) => {
           </>
         )}
       </div>
-
-      <div className="flex flex-col gap-2 mt-4 px-[20%]">
+      {/* <form onSubmit={handleSmallIconFormSubmit}> */}
+      <form
+        onSubmit={handleSmallIconFormSubmit}
+        className="flex flex-col gap-2 mt-4 px-[20%]"
+      >
         <div className="flex items-center gap-3 w-full">
           <p className="font-semibold w-32">Select Icon Type</p>
           <Dropdown className="w-max rounded-lg" placement="bottom-start">
             <DropdownTrigger>
-              <button className="bg-white w-40 flex justify-between items-center rounded px-2 py-1.5 text-sm font-medium shadow-small">
-                {selectedIconType} <FaAngleDown />
+              <button
+                type="button"
+                className="bg-white w-48 flex justify-between items-center rounded px-2 py-2 text-sm font-medium shadow-small"
+              >
+                <span className="flex items-center gap-2">
+                  {selectedIconType && (
+                    <Image
+                      alt="app-icon"
+                      src={iconMap[selectedIconType]}
+                      className="w-5 h-auto"
+                    />
+                  )}
+                  {selectedIconType}
+                </span>{" "}
+                <FaAngleDown />
               </button>
             </DropdownTrigger>
             <DropdownMenu
@@ -237,42 +261,80 @@ const AddSmallIcon = ({ handleRemoveIcon }: any) => {
         </div>
         <div className="flex items-center gap-3 w-full">
           <p className="font-semibold w-32">Select Icon</p>
-          <select
-            id="countries"
-            className="bg-white shadow-medium text-gray-700 font-medium text-sm rounded-lg focus:ring-gray-400 focus:border-gray-400 focus:outline-none block w-56 p-2.5"
-          >
-            {iconData.icons.map((data: any, index: number) => (
-              // <DropdownItem
-              //   key={index}
-              //   onClick={() => handleSelectIconType(data.category)}
-              //   className="border-b rounded-none hover:rounded-md"
-              // >
-              //   <div className="flex items-center gap-2 font-semibold text-sm">
-              //     <Image
-              //       src={data.categoryIcon}
-              //       alt={data.category}
-              //       className="w-5 h-auto"
-              //     />{" "}
-              //     {data.category}
-              //   </div>
-              // </DropdownItem>
-              <option key={index} value={data.category}>
-                <div className="flex items-center gap-1">
-                  <Image
-                    src={data.categoryIcon}
-                    alt={data.category}
-                    className="w-5 h-auto"
-                  />{" "}
-                  {data.category}
-                </div>
-              </option>
-            ))}
-            {/* <option selected>Choose a country</option>
-            <option value="US">United States</option>
-            <option value="CA">Canada</option>
-            <option value="FR">France</option>
-            <option value="DE">Germany</option> */}
-          </select>
+          <Dropdown className="w-max rounded-lg" placement="bottom-start">
+            <DropdownTrigger>
+              <div
+                className={`flex items-center ${
+                  isEmptyObject(selectedIconData) && "relative group"
+                }`}
+              >
+                <button
+                  type="button"
+                  disabled={isEmptyObject(selectedIconData)}
+                  className={`bg-white w-48 flex justify-between items-center rounded px-2 py-2 text-sm font-medium shadow-small ${
+                    isEmptyObject(selectedIconData) && "cursor-not-allowed"
+                  } `}
+                >
+                  <span className="flex items-center gap-2">
+                    <Image
+                      src={selectedIcon.icon}
+                      alt={selectedIcon.inputText}
+                      className="w-4 h-auto"
+                      quality={100}
+                      style={tintStyle}
+                    />
+                    {selectedIcon.name}
+                  </span>{" "}
+                  <FaAngleDown />
+                </button>
+                {isEmptyObject(selectedIconData) && (
+                  <div className="hidden text-xs text-gray-600 px-2 w-28 py-1.5 bg-slate-200 shadow-medium z-50 absolute left-6 top-0 group-hover:flex justify-center">
+                    <p>select icon type</p>
+                  </div>
+                )}
+              </div>
+            </DropdownTrigger>
+            {selectedIconData && selectedIconData?.icons?.length > 0 && (
+              <DropdownMenu
+                disabledKeys={["title"]}
+                aria-label="Static Actions"
+                className="p-2"
+              >
+                <DropdownItem
+                  key={"title"}
+                  className=" hover:!bg-white opacity-100 cursor-text disabled dropDownTitle"
+                >
+                  <p>Choose Icon</p>
+                </DropdownItem>
+                {selectedIconData.icons.map((data: any) => (
+                  <DropdownItem
+                    key={data._id}
+                    onClick={() =>
+                      setSelectedIcon({
+                        name: data.name,
+                        icon: data.icon,
+                        placeHolder: data.placeHolder,
+                        inputText: data.inputText,
+                        url: data.url,
+                      })
+                    }
+                    className="border-b rounded-none hover:rounded-md"
+                  >
+                    <div className="flex items-center gap-2 font-semibold text-sm">
+                      <Image
+                        src={data.icon}
+                        alt={data.inputText}
+                        className="w-4 h-auto"
+                        quality={100}
+                        style={tintStyle}
+                      />
+                      {data.name}
+                    </div>
+                  </DropdownItem>
+                ))}
+              </DropdownMenu>
+            )}
+          </Dropdown>
         </div>
         <div className="w-full">
           <p className="font-semibold text-gray-700 mb-1">
@@ -294,6 +356,7 @@ const AddSmallIcon = ({ handleRemoveIcon }: any) => {
           <div className="flex justify-center mt-5">
             <AnimateButton
               isLoading={isLoading}
+              whiteLoading={true}
               width={"w-52"}
               className="bg-black text-white py-2 !border-0"
             >
@@ -302,10 +365,10 @@ const AddSmallIcon = ({ handleRemoveIcon }: any) => {
             </AnimateButton>
           </div>
         </div>
-      </div>
+      </form>
 
       {/* old */}
-      <div className="flex items-center justify-between">
+      {/* <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <h3 className="font-semibold text-gray-700 text-lg">Small Icon</h3>
           {!selectedIconType && (
@@ -512,7 +575,7 @@ const AddSmallIcon = ({ handleRemoveIcon }: any) => {
             </AnimateButton>
           </div>
         </form>
-      </div>
+      </div> */}
     </div>
   );
 };
