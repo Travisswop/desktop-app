@@ -115,11 +115,12 @@ const AddSmallIcon = ({ handleRemoveIcon }: any) => {
 
       // console.log("create small icon", data);
 
-      if ((data.state = "success")) {
+      if (data.state === "success") {
         toast({
           title: "Success",
           description: "Small icon created successfully",
         });
+        handleRemoveIcon("Small Icon");
       } else {
         toast({
           title: "Error",
@@ -143,7 +144,7 @@ const AddSmallIcon = ({ handleRemoveIcon }: any) => {
   };
 
   return (
-    <div className="bg-white rounded-xl shadow-small p-6 flex flex-col gap-4">
+    <div className="relative bg-white rounded-xl shadow-small p-6 flex flex-col gap-4">
       <div className="flex items-end gap-1 justify-center">
         <h2 className="font-semibold text-gray-700 text-xl text-center">
           Small Icon
@@ -165,6 +166,13 @@ const AddSmallIcon = ({ handleRemoveIcon }: any) => {
           </Tooltip>
         </div>
       </div>
+      <button
+        className="absolute top-3 right-3"
+        type="button"
+        onClick={() => handleRemoveIcon("Small Icon")}
+      >
+        <FaTimes size={18} />
+      </button>
       <div className="flex justify-center">
         {selectedIcon && selectedIcon?.icon ? (
           <Image
@@ -206,15 +214,15 @@ const AddSmallIcon = ({ handleRemoveIcon }: any) => {
       {/* <form onSubmit={handleSmallIconFormSubmit}> */}
       <form
         onSubmit={handleSmallIconFormSubmit}
-        className="flex flex-col gap-2 mt-4 px-[20%]"
+        className="flex flex-col gap-2 mt-4 px-10 2xl:px-[10%]"
       >
         <div className="flex items-center gap-3 w-full">
-          <p className="font-semibold w-32">Select Icon Type</p>
+          <p className="font-semibold w-36">Select Icon Type</p>
           <Dropdown className="w-max rounded-lg" placement="bottom-start">
             <DropdownTrigger>
               <button
                 type="button"
-                className="bg-white w-48 flex justify-between items-center rounded px-2 py-2 text-sm font-medium shadow-small"
+                className="bg-white w-48 2xl:w-64 flex justify-between items-center rounded px-2 py-2 text-sm font-medium shadow-small"
               >
                 <span className="flex items-center gap-2">
                   {selectedIconType && (
@@ -260,7 +268,7 @@ const AddSmallIcon = ({ handleRemoveIcon }: any) => {
           </Dropdown>
         </div>
         <div className="flex items-center gap-3 w-full">
-          <p className="font-semibold w-32">Select Icon</p>
+          <p className="font-semibold w-36">Select Icon</p>
           <Dropdown className="w-max rounded-lg" placement="bottom-start">
             <DropdownTrigger>
               <div
@@ -271,7 +279,7 @@ const AddSmallIcon = ({ handleRemoveIcon }: any) => {
                 <button
                   type="button"
                   disabled={isEmptyObject(selectedIconData)}
-                  className={`bg-white w-48 flex justify-between items-center rounded px-2 py-2 text-sm font-medium shadow-small ${
+                  className={`bg-white w-48 2xl:w-64 flex justify-between items-center rounded px-2 py-2 text-sm font-medium shadow-small ${
                     isEmptyObject(selectedIconData) && "cursor-not-allowed"
                   } `}
                 >

@@ -139,7 +139,7 @@ const MicrositeEditMainContentPage = ({ data }: any) => {
           />
 
           {/* create new icon  */}
-          <div className="flex flex-col-reverse gap-4 px-20 xl:px-32 2xl:px-36">
+          <div className="flex flex-col-reverse gap-4 px-10 xl:px-14 2xl:px-24">
             {toggleIcon.map((info: any, index: number) => (
               <AddIcon
                 key={index}
