@@ -351,10 +351,7 @@ const EditSmartSite = ({ data, token }: any) => {
   return (
     <main className="main-container">
       <div className="flex gap-7 items-start h-[90vh]">
-        <div
-          style={{ height: "100%" }}
-          className="w-[62%] overflow-y-auto custom-scrollbar"
-        >
+        <div style={{ height: "100%" }} className="w-[62%] overflow-y-auto">
           <form
             onSubmit={handleSmartSiteUpdateInfo}
             className=" border-r border-gray-300 pr-8 flex flex-col gap-4 overflow-auto"
@@ -633,7 +630,7 @@ const EditSmartSite = ({ data, token }: any) => {
               />
             </div>
             <div>
-              <p className="text-gray-700 font-semibold">Your ENS Name</p>
+              <p className="text-gray-700 font-medium">Your ENS Name</p>
               <div className="relative flex-1 mt-1">
                 {/* <TbUserSquare
                   className="absolute left-4 top-1/2 -translate-y-1/2 font-bold text-gray-600"
@@ -763,7 +760,10 @@ const EditSmartSite = ({ data, token }: any) => {
           </form>
         </div>
         {/* <div style={{ height: "90%" }} className="w-[38%] overflow-y-auto"> */}
-        <SmartsiteIconLivePreview data={data.data} />
+        <SmartsiteIconLivePreview
+          isEditDetailsLivePreview={true}
+          data={data.data}
+        />
         {/* </div> */}
       </div>
 

@@ -33,7 +33,13 @@ import { Switch } from "@nextui-org/react";
 import { IoIosSend } from "react-icons/io";
 import Link from "next/link";
 
-const SmartsiteIconLivePreview = ({ data }: { data?: any }) => {
+const SmartsiteIconLivePreview = ({
+  isEditDetailsLivePreview = false,
+  data,
+}: {
+  isEditDetailsLivePreview?: boolean;
+  data?: any;
+}) => {
   const setSmartSiteData = useUpdateSmartIcon((state: any) => state.setState);
   const { toggle } = useSideBarToggleStore();
 
@@ -197,7 +203,7 @@ const SmartsiteIconLivePreview = ({ data }: { data?: any }) => {
                   {/* small icon display here end */}
                   {/* blog display here start */}
                   {data.info.blog.length > 0 && (
-                    <div className="flex flex-col gap-y-3 px-4">
+                    <div className="flex flex-col gap-y-3 px-3">
                       {data.info.blog.map((item: any, index: number) => (
                         <div
                           key={index}
@@ -337,7 +343,7 @@ const SmartsiteIconLivePreview = ({ data }: { data?: any }) => {
                   <div className="flex flex-col gap-y-3">
                     {/* message me display here start */}
                     {data.info.ensDomain.length > 0 && (
-                      <div className="flex flex-col gap-y-3 px-4">
+                      <div className="flex flex-col gap-y-3 px-3">
                         <button
                           // key={data._id}
                           onClick={() =>
@@ -390,7 +396,7 @@ const SmartsiteIconLivePreview = ({ data }: { data?: any }) => {
 
                     {/* referral display here start */}
                     {data.info.referral.length > 0 && (
-                      <div className="flex flex-col gap-y-3 px-4">
+                      <div className="flex flex-col gap-y-3 px-3">
                         {data.info.referral.map((data: any) => (
                           <button
                             key={data._id}
@@ -439,7 +445,7 @@ const SmartsiteIconLivePreview = ({ data }: { data?: any }) => {
 
                     {/* contact card display here start */}
                     {data.info.contact.length > 0 && (
-                      <div className="flex flex-col gap-y-3 px-4">
+                      <div className="flex flex-col gap-y-3 px-3">
                         {data.info.contact.map((data: any) => (
                           <button
                             key={data._id}
@@ -492,7 +498,7 @@ const SmartsiteIconLivePreview = ({ data }: { data?: any }) => {
 
                     {/* ENS display here start */}
                     {data.info.ensDomain.length > 0 && (
-                      <div className="flex flex-col gap-y-3 px-4">
+                      <div className="flex flex-col gap-y-3 px-3">
                         {/* {data.info.ensDomain.map((data: any) => (
                     <button
                       key={data._id}
@@ -581,7 +587,7 @@ const SmartsiteIconLivePreview = ({ data }: { data?: any }) => {
 
                     {/* info bar display here start */}
                     {data.info.infoBar.length > 0 && (
-                      <div className="flex flex-col gap-y-3 px-4">
+                      <div className="flex flex-col gap-y-3 px-3">
                         {data.info.infoBar.map((data: any) => (
                           <button
                             key={data._id}
@@ -649,7 +655,7 @@ const SmartsiteIconLivePreview = ({ data }: { data?: any }) => {
 
                     {/* swop pay display here start */}
                     {data.info.product.length > 0 && (
-                      <div className="flex flex-col gap-y-3 px-4">
+                      <div className="flex flex-col gap-y-3 px-3">
                         {data.info.product.map((data: any) => (
                           <div
                             key={data._id}
@@ -719,7 +725,7 @@ const SmartsiteIconLivePreview = ({ data }: { data?: any }) => {
 
                     {/* audio||music display here start */}
                     {data.info.audio.length > 0 && (
-                      <div className="flex flex-col gap-y-3 px-4">
+                      <div className="flex flex-col gap-y-3 px-3">
                         {data.info.audio.map((audioData: any) => (
                           <div
                             key={audioData._id}
@@ -801,7 +807,7 @@ const SmartsiteIconLivePreview = ({ data }: { data?: any }) => {
                   </div>
                   {/* video display here start */}
                   {data.info.video.length > 0 && (
-                    <div key={"video"} className="flex flex-col gap-y-3 px-4">
+                    <div key={"video"} className="flex flex-col gap-y-3 px-3">
                       {data.info.video.map((videoData: any) => (
                         <div
                           key={videoData._id}
@@ -848,7 +854,7 @@ const SmartsiteIconLivePreview = ({ data }: { data?: any }) => {
                   {data.info.videoUrl && (
                     <div
                       key={"embed"}
-                      className="flex flex-col gap-y-3 px-4 w-full"
+                      className="flex flex-col gap-y-3 px-3 w-full"
                     >
                       <EmbedPlayer
                         items={data.info.videoUrl}
@@ -872,58 +878,60 @@ const SmartsiteIconLivePreview = ({ data }: { data?: any }) => {
           </div>
         </div>
       </div>
-      <div className="flex flex-col gap-2 mt-4 pb-4">
-        <p className="text-gray-600 font-medium text-center">Live Preview</p>
-        <div className="flex flex-wrap items-center justify-center gap-2">
-          <Link href={`/smartsite/qr-code/${data?.data?._id}`}>
+      {!isEditDetailsLivePreview && (
+        <div className="flex flex-col gap-2 mt-4 pb-4">
+          <p className="text-gray-600 font-medium text-center">Live Preview</p>
+          <div className="flex flex-wrap items-center justify-center gap-2">
+            <Link href={`/smartsite/qr-code/${data?.data?._id}`}>
+              <button
+                type="button"
+                className="rounded-full bg-white border border-gray-300 px-6 py-2 text-gray-500 font-medium flex items-center gap-1 hover:bg-gray-300"
+              >
+                <LiaFileMedicalSolid size={20} />
+                Customize QR
+              </button>
+            </Link>
             <button
               type="button"
               className="rounded-full bg-white border border-gray-300 px-6 py-2 text-gray-500 font-medium flex items-center gap-1 hover:bg-gray-300"
             >
-              <LiaFileMedicalSolid size={20} />
-              Customize QR
+              <IoIosSend color="gray" size={18} />
+              Share
             </button>
-          </Link>
-          <button
-            type="button"
-            className="rounded-full bg-white border border-gray-300 px-6 py-2 text-gray-500 font-medium flex items-center gap-1 hover:bg-gray-300"
-          >
-            <IoIosSend color="gray" size={18} />
-            Share
-          </button>
-        </div>
-        <div className="flex justify-center items-center gap-1 2xl:gap-3 flex-wrap overflow-x-hidden">
-          <div className="flex items-center gap-2 2xl:gap-8 border border-gray-300 rounded-full pl-3 2xl:pl-5 pr-1 2xl:pr-4 py-2 text-lg font-medium text-gray-600 w-max bg-white">
-            <p className="text-sm 2xl:text-base text-gray-500 font-medium w-max">
-              Lead Capture
-            </p>
-            <Switch
-              size="sm"
-              isSelected={isLeadCapture}
-              onValueChange={setIsLeadCapture}
-              aria-label="Lead Captures"
-            />
           </div>
-          <div className="flex items-center gap-2 2xl:gap-8 border border-gray-300 rounded-full pl-3 2xl:pl-5 pr-1 2xl:pr-4 py-2 text-lg font-medium text-gray-600 w-max bg-white">
-            <p className="text-sm 2xl:text-base text-gray-500 font-medium w-max">
-              Make Primary Microsite
-            </p>
-            <Switch
-              size="sm"
-              isSelected={isPrimaryMicrosite}
-              onValueChange={setIsPrimaryMicrosite}
-              aria-label="Lead Captures"
-            />
+          <div className="flex justify-center items-center gap-1 2xl:gap-3 flex-wrap overflow-x-hidden">
+            <div className="flex items-center gap-2 2xl:gap-8 border border-gray-300 rounded-full pl-3 2xl:pl-5 pr-1 2xl:pr-4 py-2 text-lg font-medium text-gray-600 w-max bg-white">
+              <p className="text-sm 2xl:text-base text-gray-500 font-medium w-max">
+                Lead Capture
+              </p>
+              <Switch
+                size="sm"
+                isSelected={isLeadCapture}
+                onValueChange={setIsLeadCapture}
+                aria-label="Lead Captures"
+              />
+            </div>
+            <div className="flex items-center gap-2 2xl:gap-8 border border-gray-300 rounded-full pl-3 2xl:pl-5 pr-1 2xl:pr-4 py-2 text-lg font-medium text-gray-600 w-max bg-white">
+              <p className="text-sm 2xl:text-base text-gray-500 font-medium w-max">
+                Make Primary Microsite
+              </p>
+              <Switch
+                size="sm"
+                isSelected={isPrimaryMicrosite}
+                onValueChange={setIsPrimaryMicrosite}
+                aria-label="Lead Captures"
+              />
+            </div>
+          </div>
+          <div className="flex justify-center w-64 mx-auto">
+            <a href={data?.data?.profileUrl} target="_blank" className="w-full">
+              <DynamicPrimaryBtn className="w-full !rounded-full mt-2">
+                <LiaFileMedicalSolid size={20} /> Publish
+              </DynamicPrimaryBtn>
+            </a>
           </div>
         </div>
-        <div className="flex justify-center w-64 mx-auto">
-          <a href={data?.data?.profileUrl} target="_blank" className="w-full">
-            <DynamicPrimaryBtn className="w-full !rounded-full mt-2">
-              <LiaFileMedicalSolid size={20} /> Publish
-            </DynamicPrimaryBtn>
-          </a>
-        </div>
-      </div>
+      )}
     </main>
   );
 };
