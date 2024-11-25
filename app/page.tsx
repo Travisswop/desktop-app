@@ -1,9 +1,6 @@
-"use client";
-
-// import { withAuth } from '@/lib/withAuth';
-import DashboardContent from "@/components/dashboard/DashboardContent";
-import Header from "@/components/Header";
-import Sidenav from "@/components/Sidenav";
+import DashboardContent from '@/components/dashboard/DashboardContent';
+import Header from '@/components/Header';
+import Sidenav from '@/components/Sidenav';
 function DashboardPage() {
   return (
     <div className="min-h-screen">
@@ -18,5 +15,4 @@ function DashboardPage() {
   );
 }
 
-// export default withAuth(DashboardPage);
 export default DashboardPage;

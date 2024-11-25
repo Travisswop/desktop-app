@@ -10,13 +10,13 @@ interface TokenCardProps {
   onClick: () => void;
 }
 
-export default function TokenCard({
+export default function TokenCardView({
   token,
   onClick,
 }: TokenCardProps) {
   return (
     <Card
-      className="p-4 rounded-3xl shadow-xl cursor-pointer hover:shadow-2xl transition-shadow"
+      className="p-4 rounded-3xl shadow-2xl hover:shadow-3xl border-none transition-all duration-300 group cursor-pointer hover:translate-x-0.5"
       onClick={onClick}
     >
       <div className="flex items-center justify-between mb-4">
@@ -39,7 +39,7 @@ export default function TokenCard({
 
       <div className="h-[60px] mb-4">
         <ResponsiveContainer width="100%" height="100%">
-          <AreaChart data={token.marketData.sparkline}>
+          <AreaChart data={token.sparklineData}>
             <defs>
               <linearGradient
                 id={`gradient-${token.symbol}`}

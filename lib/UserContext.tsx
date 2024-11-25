@@ -6,8 +6,8 @@ import {
   useState,
   useEffect,
   useCallback,
-} from "react";
-import { usePrivy } from "@privy-io/react-auth";
+} from 'react';
+import { useAuth } from './hooks/useAuth';
 
 interface UserData {
   email: string;
@@ -19,7 +19,6 @@ interface UserData {
     followers: string[];
     following: string[];
   };
-  // Add other user fields as needed
 }
 
 interface UserContextType {
@@ -39,11 +38,18 @@ const UserContext = createContext<UserContextType>({
 });
 
 // Create a cache to store user data
-const userCache = new Map<string, { data: UserData; timestamp: number }>();
-const CACHE_DURATION = 60 * 60 * 1000; // 60 minutes
+const userCache = new Map<
+  string,
+  { data: UserData; timestamp: number }
+>();
+const CACHE_DURATION = 120 * 60 * 1000; // 120 minutes
 
-export function UserProvider({ children }: { children: React.ReactNode }) {
-  const { user: privyUser, ready } = usePrivy();
+export function UserProvider({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
+  const { user: privyUser, ready } = useAuth();
   const [user, setUser] = useState<UserData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);

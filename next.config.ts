@@ -17,6 +17,13 @@ const nextConfig: NextConfig = {
         hostname: "res.cloudinary.com",
       },
     ],
+    domains: [
+      '*',
+      'i.seadn.io',
+      'ipfs.io',
+      'i.ibb.co',
+      'nftstorage.link',
+    ], // Allow images from all domains
   },
 };
 

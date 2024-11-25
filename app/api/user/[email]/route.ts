@@ -3,10 +3,10 @@ import type { NextRequest } from 'next/server';
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { email: string } }
+  { params }: { params: Promise<{ email: string }> }
 ) {
   try {
-    const { email } = await params;
+    const email = (await params).email;
 
     const response = await fetch(
       `${

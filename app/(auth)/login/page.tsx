@@ -35,8 +35,8 @@ const Login: React.FC = () => {
 
       try {
         const token = await getAccessToken();
-        const response = await fetch("/api/auth/verify", {
-          method: "POST",
+        const response = await fetch('/api/auth/verify-user', {
+          method: 'POST',
           headers: {
             "Content-Type": "application/json",
             Authorization: `Bearer ${token}`,
