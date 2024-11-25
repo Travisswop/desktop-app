@@ -1,5 +1,5 @@
 import Image from "next/image";
-import React, { useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import swop from "@/public/images/live-preview/swop.svg";
 import useSmartsiteFormStore from "@/zustandStore/EditSmartsiteInfo";
 // import isUrl from "@/util/isUrl";
@@ -26,10 +26,25 @@ import getSmallIconImage from "./retriveIconImage/getSmallIconImage";
 import EmbedPlayer from "./embed/renderEmbedPlayer";
 import getAllSmartsitesIcon from "./retriveIconImage/getAllSmartsiteIcon";
 import { fontMap } from "@/app/layout";
+import mockupBtn from "@/public/images/mockup-bottom-button.png";
+import DynamicPrimaryBtn from "../ui/Button/DynamicPrimaryBtn";
+import { LiaFileMedicalSolid } from "react-icons/lia";
+import { Switch } from "@nextui-org/react";
+import { IoIosSend } from "react-icons/io";
+import Link from "next/link";
 
-const SmartsiteIconLivePreview = ({ data }: { data?: any }) => {
+const SmartsiteIconLivePreview = ({
+  isEditDetailsLivePreview = false,
+  data,
+}: {
+  isEditDetailsLivePreview?: boolean;
+  data?: any;
+}) => {
   const setSmartSiteData = useUpdateSmartIcon((state: any) => state.setState);
   const { toggle } = useSideBarToggleStore();
+
+  const [isPrimaryMicrosite, setIsPrimaryMicrosite] = useState<boolean>(false);
+  const [isLeadCapture, setIsLeadCapture] = useState<boolean>(false);
 
   // console.log("data form live", data.info.socialLarge);
   const { formData, setFormData } = useSmartsiteFormStore();
@@ -64,413 +79,427 @@ const SmartsiteIconLivePreview = ({ data }: { data?: any }) => {
   }, [data, setFormData]);
 
   return (
-    <section
-      style={{
-        backgroundImage: formData.theme
-          ? `url(/images/smartsite-background/${formData.backgroundImg}.png)`
-          : "",
-        height: "100%",
-      }}
-      className={`w-[38%] overflow-y-auto custom-scrollbar shadow-md bg-white bg-cover ${
-        formData.fontType && fontMap[formData.fontType.toLowerCase()]
-      }`}
-    >
-      {/* <p className="text-sm text-gray-500 mb-2">Preview</p> */}
-      <div className={`flex flex-col justify-between min-h-full`}>
-        <div>
-          <div className="relative">
-            {!formData.theme && (
-              <div className="bg-white p-2 rounded-xl shadow-md">
-                <Image
-                  alt="banner image"
-                  src={`/images/smartsite-banner/${formData.backgroundImg}.png`}
-                  width={900}
-                  height={400}
-                  quality={100}
-                  className="rounded-xl w-full h-auto"
-                />
-              </div>
-            )}
-
-            <div
-              className={`${
-                !formData.theme
-                  ? "absolute top-full -translate-y-1/2 left-1/2 -translate-x-1/2"
-                  : "flex justify-center pt-16"
-              } `}
-            >
-              {formData.profileImg && (
-                <>
-                  {isUrl(formData.profileImg) ? (
-                    <div className="relative overflow-hidden rounded-full w-28 xl:w-36 2xl:w-44 h-28 xl:h-36 2xl:h-44 p-1 bg-white shadow-medium">
-                      <Image
-                        alt="user image"
-                        src={formData.profileImg}
-                        quality={100}
-                        fill
-                      />
-                    </div>
-                  ) : (
-                    <Image
-                      alt="user image"
-                      src={`/images/user_avator/${formData.profileImg}@3x.png`}
-                      width={420}
-                      height={420}
-                      quality={100}
-                      className="rounded-full w-28 xl:w-36 2xl:w-44 h-auto p-1 bg-white shadow-medium border-2 border-gray-200"
-                    />
-                  )}
-                </>
-              )}
-            </div>
-          </div>
-          <div
-            className={`${
-              !formData.theme && "mt-[4.5rem] xl:mt-20 2xl:mt-28"
-            }  flex flex-col gap-6 mt-6 h-full justify-start`}
+    <main className="w-[38%] h-full overflow-y-auto overflow-x-hidden">
+      <div className="relative mx-auto border-gray-800 dark:border-gray-800 bg-gray-800 border-[14px] rounded-[2.5rem] h-[600px] xl:h-[660px] w-[300px] xl:w-[360px]">
+        <div className="h-[32px] w-[3px] bg-gray-800 dark:bg-gray-800 absolute -start-[17px] top-[72px] rounded-s-lg"></div>
+        <div className="h-[46px] w-[3px] bg-gray-800 dark:bg-gray-800 absolute -start-[17px] top-[124px] rounded-s-lg"></div>
+        <div className="h-[46px] w-[3px] bg-gray-800 dark:bg-gray-800 absolute -start-[17px] top-[178px] rounded-s-lg"></div>
+        <div className="h-[64px] w-[3px] bg-gray-800 dark:bg-gray-800 absolute -end-[17px] top-[142px] rounded-e-lg"></div>
+        <div className="flex flex-col rounded-[2rem] overflow-hidden w-[272px] xl:w-[334px] h-[572px] xl:h-[636px] bg-white dark:bg-gray-800">
+          <section
+            style={{
+              backgroundImage: formData.theme
+                ? `url(/images/smartsite-background/${formData.backgroundImg}.png)`
+                : "",
+              height: "100%",
+            }}
+            className={` overflow-y-auto shadow-md bg-white bg-cover hide-scrollbar ${
+              formData.fontType && fontMap[formData.fontType.toLowerCase()]
+            }`}
           >
-            <div
-              className={`flex flex-col items-center text-center ${
-                formData.fontType && fontMap[formData.fontType.toLowerCase()]
-              }`}
-            >
-              <p
-                style={{ color: formData.fontColor && formData.fontColor }}
-                className={`text-lg font-bold text-gray-700`}
-              >
-                {formData.name || data?.name}
-              </p>
-              <p
-                style={{ color: formData.fontColor && formData.fontColor }}
-                className={`font-medium text-sm text-gray-500`}
-              >
-                {formData.bio || data?.bio}
-              </p>
-            </div>
-            {/* small icon display here start */}
-            {data.info.socialTop.length > 0 && (
-              <div className="flex gap-x-4 gap-y-2 justify-center items-center flex-wrap px-16">
-                {data.info.socialTop.map((data: any, index: number) => (
-                  <button
-                    key={index}
-                    onClick={() =>
-                      handleTriggerUpdate({
-                        data,
-                        categoryForTrigger: "socialTop",
-                      })
-                    }
-                  >
-                    <Image
-                      src={getSmallIconImage(data.name, data.group) as any}
-                      alt="icon"
-                      style={tintStyle}
-                      className="w-5"
-                      quality={100}
-                    />
-                  </button>
-                ))}
-              </div>
-            )}
-            {/* small icon display here end */}
-            {/* blog display here start */}
-            {data.info.blog.length > 0 && (
-              <div className="flex flex-col gap-y-3 px-4">
-                {data.info.blog.map((item: any, index: number) => (
+            {/* <p className="text-sm text-gray-500 mb-2">Preview</p> */}
+            <div className={`flex flex-col justify-between min-h-full`}>
+              <div>
+                <div className="relative">
+                  {!formData.theme && (
+                    <div className="bg-white p-2 rounded-xl shadow-md mt-2">
+                      <Image
+                        alt="banner image"
+                        src={`/images/smartsite-banner/${formData.backgroundImg}.png`}
+                        width={900}
+                        height={400}
+                        quality={100}
+                        className="rounded-xl w-full h-auto"
+                      />
+                    </div>
+                  )}
+
                   <div
-                    key={index}
-                    style={{
-                      backgroundColor: formData.templateColor
-                        ? formData.templateColor
-                        : "white",
-                    }}
-                    className="shadow-small hover:shadow-medium p-3 2xl:p-4 rounded-lg"
+                    className={`${
+                      !formData.theme
+                        ? "absolute top-full -translate-y-1/2 left-1/2 -translate-x-1/2"
+                        : "flex justify-center pt-10"
+                    } `}
                   >
-                    <div>
-                      <div>
-                        <div className="relative">
+                    {formData.profileImg && (
+                      <>
+                        {isUrl(formData.profileImg) ? (
+                          <div className="relative overflow-hidden rounded-full w-28 xl:w-36 h-28 xl:h-36 p-1 bg-white shadow-medium">
+                            <Image
+                              alt="user image"
+                              src={formData.profileImg}
+                              quality={100}
+                              fill
+                            />
+                          </div>
+                        ) : (
                           <Image
-                            src={item.image}
-                            alt={item.title}
-                            width={400}
-                            height={300}
-                            className="w-full h-32 2xl:h-60 object-cover rounded-lg"
+                            alt="user image"
+                            src={`/images/user_avator/${formData.profileImg}@3x.png`}
+                            width={420}
+                            height={420}
+                            quality={100}
+                            className="rounded-full w-28 xl:w-32 h-auto p-1 bg-white shadow-medium border-2 border-gray-200"
                           />
-                        </div>
-                        <div
-                          style={{
-                            color: formData.fontColor
-                              ? formData.fontColor
-                              : "black",
-                          }}
-                        >
-                          {item?.title && (
-                            <p className="text-lg font-bold mt-2 mb-1">
-                              {item.title}
-                            </p>
-                          )}
-                          {item?.headline && (
-                            <p className="text-sm font-medium truncate">
-                              {item.headline}
-                            </p>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                    <div className="flex flex-wrap justify-center lg:justify-between items-center mt-3 gap-2">
-                      <button
-                        type="button"
-                        onClick={() =>
-                          handleTriggerUpdate({
-                            data: item,
-                            categoryForTrigger: "blog",
-                          })
-                        }
-                        style={{
-                          backgroundColor:
-                            formData.templateColor && formData.fontColor,
-
-                          color: formData.templateColor,
-                        }}
-                        className="rounded-lg bg-white flex items-center gap-1 px-5 py-1.5"
-                      >
-                        <FaEdit /> Edit
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() =>
-                          handleTriggerUpdate({
-                            data: item,
-                            categoryForTrigger: "showBlog",
-                          })
-                        }
-                        style={{
-                          backgroundColor:
-                            formData.templateColor && formData.fontColor,
-
-                          color: formData.templateColor,
-                        }}
-                        className="rounded-lg bg-white flex items-center gap-1 px-5 py-1.5"
-                      >
-                        <FaEye size={18} /> Read More
-                      </button>
-                    </div>
+                        )}
+                      </>
+                    )}
                   </div>
-                ))}
-              </div>
-            )}
-            {/* blog display here end */}
-
-            {/* app icon display here start */}
-            {data.info.socialLarge.length > 0 && (
-              <div className="flex gap-x-5 gap-y-3 justify-center items-center flex-wrap px-10">
-                {data.info.socialLarge.map((data: any, index: number) => (
+                </div>
+                <div
+                  className={`${
+                    !formData.theme && "mt-[4.5rem] xl:mt-20"
+                  }  flex flex-col gap-6 mt-4 h-full justify-start`}
+                >
                   <div
-                    className={`flex flex-col items-center gap-1 ${
-                      isUrl(data.iconName) && "cursor-not-allowed"
+                    className={`flex flex-col items-center text-center ${
+                      formData.fontType &&
+                      fontMap[formData.fontType.toLowerCase()]
                     }`}
-                    key={index}
                   >
-                    <button
-                      onClick={() =>
-                        handleTriggerUpdate({
-                          data,
-                          categoryForTrigger: "socialLarge",
-                        })
-                      }
-                      disabled={isUrl(data.iconName)}
-                      className={`${
-                        isUrl(data.iconName) && "cursor-not-allowed"
-                      }`}
+                    <p
+                      style={{
+                        color: formData.fontColor && formData.fontColor,
+                      }}
+                      className={`text-lg font-bold text-gray-700`}
                     >
-                      {isUrl(data.iconName) ? (
-                        <Image
-                          src={data.iconName}
-                          alt="icon"
-                          // style={tintStyle}
-                          className="w-[4.2rem] rounded-lg"
-                          quality={100}
-                          width={200}
-                          height={200}
-                        />
-                      ) : (
-                        <Image
-                          src={getAllSmartsitesIcon(data.iconName) as any}
-                          alt="icon"
-                          // style={tintStyle}
-                          className="w-[4.2rem]"
-                          quality={100}
-                        />
-                      )}
-                    </button>
-                    <p className="text-sm">{data.name}</p>
+                      {formData.name || data?.name}
+                    </p>
+                    <p
+                      style={{
+                        color: formData.fontColor && formData.fontColor,
+                      }}
+                      className={`font-medium text-sm text-gray-500`}
+                    >
+                      {formData.bio || data?.bio}
+                    </p>
                   </div>
-                ))}
-              </div>
-            )}
-
-            {/* app icon display here end */}
-            {/* card here  */}
-            <div className="flex flex-col gap-y-3">
-              {/* message me display here start */}
-              {data.info.ensDomain.length > 0 && (
-                <div className="flex flex-col gap-y-3 px-4">
-                  <button
-                    // key={data._id}
-                    onClick={() =>
-                      handleTriggerUpdate({
-                        // data,
-                        data: data.info.ensDomain[
-                          data.info.ensDomain.length - 1
-                        ],
-                        categoryForTrigger: "ens",
-                      })
-                    }
-                    style={{
-                      backgroundColor: formData.templateColor
-                        ? formData.templateColor
-                        : "white",
-                    }}
-                    className="flex items-center gap-3 py-2 px-3 rounded-lg shadow-medium"
-                  >
-                    <Image
-                      src={message}
-                      style={{
-                        filter:
-                          formData.templateColor === "#000000" &&
-                          ("brightness(1) invert(1)" as any),
-                      }}
-                      alt="icon"
-                      quality={100}
-                      className="w-9 h-9"
-                    />
-                    <div
-                      style={{
-                        color: formData.fontColor
-                          ? formData.fontColor
-                          : "black",
-                      }}
-                      className="flex flex-col items-start gap-0.5 text-start"
-                    >
-                      <p className="font-semibold">Message Me</p>
-                      <p
-                        className={`text-xs ${
-                          !formData.fontColor && "text-gray-400"
-                        }`}
-                      >
-                        Message me using the Swop wallet
-                      </p>
+                  {/* small icon display here start */}
+                  {data.info.socialTop.length > 0 && (
+                    <div className="flex gap-x-4 gap-y-2 justify-center items-center flex-wrap px-16">
+                      {data.info.socialTop.map((data: any, index: number) => (
+                        <button
+                          key={index}
+                          onClick={() =>
+                            handleTriggerUpdate({
+                              data,
+                              categoryForTrigger: "socialTop",
+                            })
+                          }
+                        >
+                          <Image
+                            src={
+                              getSmallIconImage(data.name, data.group) as any
+                            }
+                            alt="icon"
+                            style={tintStyle}
+                            className="w-5"
+                            quality={100}
+                          />
+                        </button>
+                      ))}
                     </div>
-                  </button>
-                </div>
-              )}
-
-              {/* referral display here start */}
-              {data.info.referral.length > 0 && (
-                <div className="flex flex-col gap-y-3 px-4">
-                  {data.info.referral.map((data: any) => (
-                    <button
-                      key={data._id}
-                      onClick={() =>
-                        handleTriggerUpdate({
-                          data,
-                          categoryForTrigger: "referral",
-                        })
-                      }
-                      style={{
-                        backgroundColor: formData.templateColor
-                          ? formData.templateColor
-                          : "white",
-                      }}
-                      className="flex items-center gap-3 py-2 px-3 rounded-lg shadow-medium"
-                    >
-                      <Image
-                        src={referral}
-                        alt="icon"
-                        quality={100}
-                        className="w-9 h-9 rounded-lg"
-                        // style={tintStyle}
-                      />
-                      <div
-                        style={{
-                          color: formData.fontColor
-                            ? formData.fontColor
-                            : "black",
-                        }}
-                        className="flex flex-col items-start gap-0.5 text-start"
-                      >
-                        <p className="font-semibold">{data.buttonName}</p>
-                        <p
-                          className={`text-xs ${
-                            !formData.fontColor && "text-gray-400"
-                          }`}
+                  )}
+                  {/* small icon display here end */}
+                  {/* blog display here start */}
+                  {data.info.blog.length > 0 && (
+                    <div className="flex flex-col gap-y-3 px-3">
+                      {data.info.blog.map((item: any, index: number) => (
+                        <div
+                          key={index}
+                          style={{
+                            backgroundColor: formData.templateColor
+                              ? formData.templateColor
+                              : "white",
+                          }}
+                          className="shadow-small hover:shadow-medium p-3 2xl:p-4 rounded-lg"
                         >
-                          {data.description}
-                        </p>
-                      </div>
-                    </button>
-                  ))}
-                </div>
-              )}
-              {/* referral display here end */}
+                          <div>
+                            <div>
+                              <div className="relative">
+                                <Image
+                                  src={item.image}
+                                  alt={item.title}
+                                  width={400}
+                                  height={300}
+                                  className="w-full h-32 2xl:h-60 object-cover rounded-lg"
+                                />
+                              </div>
+                              <div
+                                style={{
+                                  color: formData.fontColor
+                                    ? formData.fontColor
+                                    : "black",
+                                }}
+                              >
+                                {item?.title && (
+                                  <p className="text-lg font-bold mt-2 mb-1">
+                                    {item.title}
+                                  </p>
+                                )}
+                                {item?.headline && (
+                                  <p className="text-sm font-medium truncate">
+                                    {item.headline}
+                                  </p>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                          <div className="flex flex-wrap justify-center lg:justify-between items-center mt-3 gap-2">
+                            <button
+                              type="button"
+                              onClick={() =>
+                                handleTriggerUpdate({
+                                  data: item,
+                                  categoryForTrigger: "blog",
+                                })
+                              }
+                              style={{
+                                backgroundColor:
+                                  formData.templateColor && formData.fontColor,
 
-              {/* contact card display here start */}
-              {data.info.contact.length > 0 && (
-                <div className="flex flex-col gap-y-3 px-4">
-                  {data.info.contact.map((data: any) => (
-                    <button
-                      key={data._id}
-                      onClick={() =>
-                        handleTriggerUpdate({
-                          data,
-                          categoryForTrigger: "contactCard",
-                        })
-                      }
-                      style={{
-                        backgroundColor: formData.templateColor
-                          ? formData.templateColor
-                          : "white",
-                      }}
-                      className="flex items-center gap-3 py-2 px-3 rounded-lg shadow-medium"
-                    >
-                      <Image
-                        src={card}
-                        alt="icon"
-                        quality={100}
-                        className="w-9 h-9"
-                        style={{
-                          filter:
-                            formData.templateColor === "#000000" &&
-                            ("brightness(1) invert(1)" as any),
-                        }}
-                      />
-                      <div
-                        style={{
-                          color: formData.fontColor
-                            ? formData.fontColor
-                            : "black",
-                        }}
-                        className="flex flex-col items-start gap-0.5 text-start"
-                      >
-                        <p className="font-semibold">{data.name}</p>
-                        <p
-                          className={`text-xs ${
-                            !formData.fontColor && "text-gray-400"
+                                color: formData.templateColor,
+                              }}
+                              className="rounded-lg bg-white flex items-center gap-1 px-5 py-1.5"
+                            >
+                              <FaEdit /> Edit
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={() =>
+                                handleTriggerUpdate({
+                                  data: item,
+                                  categoryForTrigger: "showBlog",
+                                })
+                              }
+                              style={{
+                                backgroundColor:
+                                  formData.templateColor && formData.fontColor,
+
+                                color: formData.templateColor,
+                              }}
+                              className="rounded-lg bg-white flex items-center gap-1 px-5 py-1.5"
+                            >
+                              <FaEye size={18} /> Read More
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  {/* blog display here end */}
+
+                  {/* app icon display here start */}
+                  {data.info.socialLarge.length > 0 && (
+                    <div className="flex gap-x-5 gap-y-3 justify-center items-center flex-wrap px-10">
+                      {data.info.socialLarge.map((data: any, index: number) => (
+                        <div
+                          className={`flex flex-col items-center gap-1 ${
+                            isUrl(data.iconName) && "cursor-not-allowed"
                           }`}
+                          key={index}
                         >
-                          {data.mobileNo}
-                        </p>
-                      </div>
-                    </button>
-                  ))}
-                </div>
-              )}
-              {/* contact card display here end */}
+                          <button
+                            onClick={() =>
+                              handleTriggerUpdate({
+                                data,
+                                categoryForTrigger: "socialLarge",
+                              })
+                            }
+                            disabled={isUrl(data.iconName)}
+                            className={`${
+                              isUrl(data.iconName) && "cursor-not-allowed"
+                            }`}
+                          >
+                            {isUrl(data.iconName) ? (
+                              <Image
+                                src={data.iconName}
+                                alt="icon"
+                                // style={tintStyle}
+                                className="w-[4.2rem] rounded-lg"
+                                quality={100}
+                                width={200}
+                                height={200}
+                              />
+                            ) : (
+                              <Image
+                                src={getAllSmartsitesIcon(data.iconName) as any}
+                                alt="icon"
+                                // style={tintStyle}
+                                className="w-[4.2rem]"
+                                quality={100}
+                              />
+                            )}
+                          </button>
+                          <p className="text-sm">{data.name}</p>
+                        </div>
+                      ))}
+                    </div>
+                  )}
 
-              {/* ENS display here start */}
-              {data.info.ensDomain.length > 0 && (
-                <div className="flex flex-col gap-y-3 px-4">
-                  {/* {data.info.ensDomain.map((data: any) => (
+                  {/* app icon display here end */}
+                  {/* card here  */}
+                  <div className="flex flex-col gap-y-3">
+                    {/* message me display here start */}
+                    {data.info.ensDomain.length > 0 && (
+                      <div className="flex flex-col gap-y-3 px-3">
+                        <button
+                          // key={data._id}
+                          onClick={() =>
+                            handleTriggerUpdate({
+                              // data,
+                              data: data.info.ensDomain[
+                                data.info.ensDomain.length - 1
+                              ],
+                              categoryForTrigger: "ens",
+                            })
+                          }
+                          style={{
+                            backgroundColor: formData.templateColor
+                              ? formData.templateColor
+                              : "white",
+                          }}
+                          className="flex items-center gap-3 py-2 px-3 rounded-lg shadow-medium"
+                        >
+                          <Image
+                            src={message}
+                            style={{
+                              filter:
+                                formData.templateColor === "#000000" &&
+                                ("brightness(1) invert(1)" as any),
+                            }}
+                            alt="icon"
+                            quality={100}
+                            className="w-9 h-9"
+                          />
+                          <div
+                            style={{
+                              color: formData.fontColor
+                                ? formData.fontColor
+                                : "black",
+                            }}
+                            className="flex flex-col items-start gap-0.5 text-start"
+                          >
+                            <p className="font-semibold">Message Me</p>
+                            <p
+                              className={`text-xs ${
+                                !formData.fontColor && "text-gray-400"
+                              }`}
+                            >
+                              Message me using the Swop wallet
+                            </p>
+                          </div>
+                        </button>
+                      </div>
+                    )}
+
+                    {/* referral display here start */}
+                    {data.info.referral.length > 0 && (
+                      <div className="flex flex-col gap-y-3 px-3">
+                        {data.info.referral.map((data: any) => (
+                          <button
+                            key={data._id}
+                            onClick={() =>
+                              handleTriggerUpdate({
+                                data,
+                                categoryForTrigger: "referral",
+                              })
+                            }
+                            style={{
+                              backgroundColor: formData.templateColor
+                                ? formData.templateColor
+                                : "white",
+                            }}
+                            className="flex items-center gap-3 py-2 px-3 rounded-lg shadow-medium"
+                          >
+                            <Image
+                              src={referral}
+                              alt="icon"
+                              quality={100}
+                              className="w-9 h-9 rounded-lg"
+                              // style={tintStyle}
+                            />
+                            <div
+                              style={{
+                                color: formData.fontColor
+                                  ? formData.fontColor
+                                  : "black",
+                              }}
+                              className="flex flex-col items-start gap-0.5 text-start"
+                            >
+                              <p className="font-semibold">{data.buttonName}</p>
+                              <p
+                                className={`text-xs ${
+                                  !formData.fontColor && "text-gray-400"
+                                }`}
+                              >
+                                {data.description}
+                              </p>
+                            </div>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                    {/* referral display here end */}
+
+                    {/* contact card display here start */}
+                    {data.info.contact.length > 0 && (
+                      <div className="flex flex-col gap-y-3 px-3">
+                        {data.info.contact.map((data: any) => (
+                          <button
+                            key={data._id}
+                            onClick={() =>
+                              handleTriggerUpdate({
+                                data,
+                                categoryForTrigger: "contactCard",
+                              })
+                            }
+                            style={{
+                              backgroundColor: formData.templateColor
+                                ? formData.templateColor
+                                : "white",
+                            }}
+                            className="flex items-center gap-3 py-2 px-3 rounded-lg shadow-medium"
+                          >
+                            <Image
+                              src={card}
+                              alt="icon"
+                              quality={100}
+                              className="w-9 h-9"
+                              style={{
+                                filter:
+                                  formData.templateColor === "#000000" &&
+                                  ("brightness(1) invert(1)" as any),
+                              }}
+                            />
+                            <div
+                              style={{
+                                color: formData.fontColor
+                                  ? formData.fontColor
+                                  : "black",
+                              }}
+                              className="flex flex-col items-start gap-0.5 text-start"
+                            >
+                              <p className="font-semibold">{data.name}</p>
+                              <p
+                                className={`text-xs ${
+                                  !formData.fontColor && "text-gray-400"
+                                }`}
+                              >
+                                {data.mobileNo}
+                              </p>
+                            </div>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                    {/* contact card display here end */}
+
+                    {/* ENS display here start */}
+                    {data.info.ensDomain.length > 0 && (
+                      <div className="flex flex-col gap-y-3 px-3">
+                        {/* {data.info.ensDomain.map((data: any) => (
                     <button
                       key={data._id}
                       onClick={() =>
@@ -499,256 +528,183 @@ const SmartsiteIconLivePreview = ({ data }: { data?: any }) => {
                       </div>
                     </button>
                   ))} */}
-                  <button
-                    // key={data._id}
-                    onClick={() =>
-                      handleTriggerUpdate({
-                        // data,
-                        data: data.info.ensDomain[
-                          data.info.ensDomain.length - 1
-                        ],
-                        categoryForTrigger: "ens",
-                      })
-                    }
-                    style={{
-                      backgroundColor: formData.templateColor
-                        ? formData.templateColor
-                        : "white",
-                    }}
-                    className="flex items-center gap-3 py-2 px-3 rounded-lg shadow-medium"
-                  >
-                    <Image
-                      src={ethereum}
-                      style={{
-                        filter:
-                          formData.templateColor === "#000000" &&
-                          ("brightness(1) invert(1)" as any),
-                      }}
-                      alt="icon"
-                      quality={100}
-                      className="w-9 h-9"
-                    />
-                    <div
-                      style={{
-                        color: formData.fontColor
-                          ? formData.fontColor
-                          : "black",
-                      }}
-                      className="flex flex-col items-start gap-0.5 text-start"
-                    >
-                      <p className="font-semibold">
-                        {
-                          data.info.ensDomain[data.info.ensDomain.length - 1]
-                            .domain
-                        }
-                      </p>
-                      <p
-                        className={`text-xs ${
-                          !formData.fontColor && "text-gray-400"
-                        }`}
-                      >
-                        Pay me using my Swop.ID
-                      </p>
-                    </div>
-                  </button>
-                </div>
-              )}
-              {/* ENS display here end */}
-
-              {/* info bar display here start */}
-              {data.info.infoBar.length > 0 && (
-                <div className="flex flex-col gap-y-3 px-4">
-                  {data.info.infoBar.map((data: any) => (
-                    <button
-                      key={data._id}
-                      onClick={() =>
-                        handleTriggerUpdate({
-                          data,
-                          categoryForTrigger: "infoBar",
-                        })
-                      }
-                      disabled={isUrl(data.iconName)}
-                      style={{
-                        backgroundColor: formData.templateColor
-                          ? formData.templateColor
-                          : "white",
-                      }}
-                      className={`flex items-center gap-3 py-2 px-3 rounded-lg shadow-medium ${
-                        isUrl(data.iconName) && "cursor-not-allowed"
-                      }`}
-                    >
-                      {isUrl(data.iconName) ? (
-                        <Image
-                          src={data.iconName}
-                          // src={getAppIconImage(data.iconName, data.group) as any}
-                          alt="icon"
-                          quality={100}
-                          className="w-9 h-9 rounded-lg"
-                          width={100}
-                          height={100}
-                        />
-                      ) : (
-                        <Image
-                          src={getAllSmartsitesIcon(data.iconName) as any}
-                          alt="icon"
-                          quality={100}
-                          className="w-9 h-9"
-                        />
-                      )}
-
-                      <div
-                        style={{
-                          color: formData.fontColor
-                            ? formData.fontColor
-                            : "black",
-                        }}
-                        className="flex flex-col items-start gap-0.5 text-start"
-                      >
-                        <p className="font-semibold">
-                          {data.buttonName ? data.buttonName : data.iconName}
-                        </p>
-                        <p
-                          className={`text-xs ${
-                            !formData.fontColor && "text-gray-400"
-                          }`}
-                        >
-                          {data.description}
-                        </p>
-                      </div>
-                    </button>
-                  ))}
-                </div>
-              )}
-              {/* info bar display here end */}
-
-              {/* swop pay display here start */}
-              {data.info.product.length > 0 && (
-                <div className="flex flex-col gap-y-3 px-4">
-                  {data.info.product.map((data: any) => (
-                    <div
-                      key={data._id}
-                      className="flex items-center gap-2 w-full"
-                    >
-                      <div
-                        style={{
-                          color: formData.fontColor
-                            ? formData.fontColor
-                            : "black",
-
-                          backgroundColor: formData.templateColor
-                            ? formData.templateColor
-                            : "white",
-                        }}
-                        className={`w-full h-full py-2 px-3 rounded-lg shadow-medium`}
-                      >
                         <button
+                          // key={data._id}
                           onClick={() =>
                             handleTriggerUpdate({
-                              data: data,
-                              categoryForTrigger: "swopPay",
+                              // data,
+                              data: data.info.ensDomain[
+                                data.info.ensDomain.length - 1
+                              ],
+                              categoryForTrigger: "ens",
                             })
                           }
-                          className="flex items-center justify-between gap-3 w-full"
+                          style={{
+                            backgroundColor: formData.templateColor
+                              ? formData.templateColor
+                              : "white",
+                          }}
+                          className="flex items-center gap-3 py-2 px-3 rounded-lg shadow-medium"
                         >
-                          <div className="flex items-center gap-3 w-full">
-                            <div className="relative">
-                              <Image
-                                src={data.imageUrl}
-                                alt="cover photo"
-                                width={120}
-                                height={60}
-                                className="w-11 h-11 rounded-md object-cover"
-                              />
-                            </div>
-                            <div className="text-left">
-                              <p className="font-medium">{data.title}</p>
-                              <p className="text-sm">{data.description}</p>
-                            </div>
-                          </div>
-                          <div className="custom-audio">${data.price}</div>
-                        </button>
-                      </div>
-                      {/* <div className="w-[4%]">
-                  <button
-                    onClick={() =>
-                      handleTriggerUpdate({
-                        data: audioData,
-                        categoryForTrigger: "audio",
-                      })
-                    }
-                    className=""
-                  >
-                    <FaEdit size={18} />
-                  </button>
-                </div> */}
-                    </div>
-                  ))}
-                </div>
-              )}
-              {/* swop pay display here end */}
-
-              {/* audio||music display here start */}
-              {data.info.audio.length > 0 && (
-                <div className="flex flex-col gap-y-3 px-4">
-                  {data.info.audio.map((audioData: any) => (
-                    <div
-                      key={audioData._id}
-                      className="flex items-center gap-2 w-full"
-                    >
-                      <div
-                        style={{
-                          backgroundColor: formData.templateColor
-                            ? formData.templateColor
-                            : "white",
-                        }}
-                        className={`w-full h-full py-2 px-3 rounded-lg shadow-medium`}
-                      >
-                        <div className="flex items-center justify-between">
-                          <button
+                          <Image
+                            src={ethereum}
+                            style={{
+                              filter:
+                                formData.templateColor === "#000000" &&
+                                ("brightness(1) invert(1)" as any),
+                            }}
+                            alt="icon"
+                            quality={100}
+                            className="w-9 h-9"
+                          />
+                          <div
                             style={{
                               color: formData.fontColor
                                 ? formData.fontColor
                                 : "black",
                             }}
+                            className="flex flex-col items-start gap-0.5 text-start"
+                          >
+                            <p className="font-semibold">
+                              {
+                                data.info.ensDomain[
+                                  data.info.ensDomain.length - 1
+                                ].domain
+                              }
+                            </p>
+                            <p
+                              className={`text-xs ${
+                                !formData.fontColor && "text-gray-400"
+                              }`}
+                            >
+                              Pay me using my Swop.ID
+                            </p>
+                          </div>
+                        </button>
+                      </div>
+                    )}
+                    {/* ENS display here end */}
+
+                    {/* info bar display here start */}
+                    {data.info.infoBar.length > 0 && (
+                      <div className="flex flex-col gap-y-3 px-3">
+                        {data.info.infoBar.map((data: any) => (
+                          <button
+                            key={data._id}
                             onClick={() =>
                               handleTriggerUpdate({
-                                data: audioData,
-                                categoryForTrigger: "audio",
+                                data,
+                                categoryForTrigger: "infoBar",
                               })
                             }
-                            className="flex items-center gap-3"
+                            disabled={isUrl(data.iconName)}
+                            style={{
+                              backgroundColor: formData.templateColor
+                                ? formData.templateColor
+                                : "white",
+                            }}
+                            className={`flex items-center gap-3 py-2 px-3 rounded-lg shadow-medium ${
+                              isUrl(data.iconName) && "cursor-not-allowed"
+                            }`}
                           >
-                            <div className="relative">
+                            {isUrl(data.iconName) ? (
                               <Image
-                                src={audioData.coverPhoto}
-                                alt="cover photo"
-                                width={120}
-                                height={60}
-                                className="w-11 h-11 rounded-md object-cover"
+                                src={data.iconName}
+                                // src={getAppIconImage(data.iconName, data.group) as any}
+                                alt="icon"
+                                quality={100}
+                                className="w-9 h-9 rounded-lg"
+                                width={100}
+                                height={100}
                               />
-                            </div>
-                            <div className="text-left">
-                              <p className="font-medium">{audioData.name}</p>
-                              <p className="text-sm">
-                                Tap play button to listen the audio
+                            ) : (
+                              <Image
+                                src={getAllSmartsitesIcon(data.iconName) as any}
+                                alt="icon"
+                                quality={100}
+                                className="w-9 h-9"
+                              />
+                            )}
+
+                            <div
+                              style={{
+                                color: formData.fontColor
+                                  ? formData.fontColor
+                                  : "black",
+                              }}
+                              className="flex flex-col items-start gap-0.5 text-start"
+                            >
+                              <p className="font-semibold">
+                                {data.buttonName
+                                  ? data.buttonName
+                                  : data.iconName}
+                              </p>
+                              <p
+                                className={`text-xs ${
+                                  !formData.fontColor && "text-gray-400"
+                                }`}
+                              >
+                                {data.description}
                               </p>
                             </div>
                           </button>
-                          <div className="custom-audio">
-                            <AudioPlayer
-                              key={audioData.fileUrl}
-                              autoPlay={false}
-                              src={audioData.fileUrl}
-                              showJumpControls={false}
-                              customAdditionalControls={[]}
-                              customVolumeControls={[]}
-                              layout="stacked-reverse"
-                              className="!w-max !p-0 !shadow-none translate-y-1"
-                            />
-                          </div>
-                        </div>
+                        ))}
                       </div>
-                      {/* <div className="w-[4%]">
+                    )}
+                    {/* info bar display here end */}
+
+                    {/* swop pay display here start */}
+                    {data.info.product.length > 0 && (
+                      <div className="flex flex-col gap-y-3 px-3">
+                        {data.info.product.map((data: any) => (
+                          <div
+                            key={data._id}
+                            className="flex items-center gap-2 w-full"
+                          >
+                            <div
+                              style={{
+                                color: formData.fontColor
+                                  ? formData.fontColor
+                                  : "black",
+
+                                backgroundColor: formData.templateColor
+                                  ? formData.templateColor
+                                  : "white",
+                              }}
+                              className={`w-full h-full py-2 px-3 rounded-lg shadow-medium`}
+                            >
+                              <button
+                                onClick={() =>
+                                  handleTriggerUpdate({
+                                    data: data,
+                                    categoryForTrigger: "swopPay",
+                                  })
+                                }
+                                className="flex items-center justify-between gap-3 w-full"
+                              >
+                                <div className="flex items-center gap-3 w-full">
+                                  <div className="relative">
+                                    <Image
+                                      src={data.imageUrl}
+                                      alt="cover photo"
+                                      width={120}
+                                      height={60}
+                                      className="w-11 h-11 rounded-md object-cover"
+                                    />
+                                  </div>
+                                  <div className="text-left">
+                                    <p className="font-medium">{data.title}</p>
+                                    <p className="text-sm">
+                                      {data.description}
+                                    </p>
+                                  </div>
+                                </div>
+                                <div className="custom-audio">
+                                  ${data.price}
+                                </div>
+                              </button>
+                            </div>
+                            {/* <div className="w-[4%]">
                   <button
                     onClick={() =>
                       handleTriggerUpdate({
@@ -761,77 +717,222 @@ const SmartsiteIconLivePreview = ({ data }: { data?: any }) => {
                     <FaEdit size={18} />
                   </button>
                 </div> */}
-                    </div>
-                  ))}
-                </div>
-              )}
-              {/* audio||music display here end */}
-            </div>
-            {/* video display here start */}
-            {data.info.video.length > 0 && (
-              <div key={"video"} className="flex flex-col gap-y-3 px-4">
-                {data.info.video.map((videoData: any) => (
-                  <div
-                    key={videoData._id}
-                    className="flex items-center gap-2 w-full"
-                  >
-                    <div
-                      className={`w-[96%] h-full border-4 border-[#c685ff] rounded-2xl overflow-hidden`}
-                    >
-                      <video
-                        key={videoData.link as string}
-                        className="w-full h-auto"
-                        controls
-                      >
-                        <source src={videoData.link} type="video/mp4" />
-                        <track
-                          src={videoData.link}
-                          kind="subtitles"
-                          srcLang="en"
-                          label="English"
-                        />
-                        Your browser does not support the video tag.
-                      </video>
-                    </div>
-                    <div className="w-[4%]">
-                      <button
-                        onClick={() =>
-                          handleTriggerUpdate({
-                            data: videoData,
-                            categoryForTrigger: "video",
-                          })
-                        }
-                        className=""
-                      >
-                        <FaEdit size={18} />
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    {/* swop pay display here end */}
 
-            {/* video display here end */}
-            {/* embed link display here start */}
-            {data.info.videoUrl && (
-              <div key={"embed"} className="flex flex-col gap-y-3 px-4 w-full">
-                <EmbedPlayer
-                  items={data.info.videoUrl}
-                  toggle={toggle}
-                  handleTriggerUpdate={handleTriggerUpdate}
-                />
+                    {/* audio||music display here start */}
+                    {data.info.audio.length > 0 && (
+                      <div className="flex flex-col gap-y-3 px-3">
+                        {data.info.audio.map((audioData: any) => (
+                          <div
+                            key={audioData._id}
+                            className="flex items-center gap-2 w-full"
+                          >
+                            <div
+                              style={{
+                                backgroundColor: formData.templateColor
+                                  ? formData.templateColor
+                                  : "white",
+                              }}
+                              className={`w-full h-full py-2 px-3 rounded-lg shadow-medium`}
+                            >
+                              <div className="flex items-center justify-between">
+                                <button
+                                  style={{
+                                    color: formData.fontColor
+                                      ? formData.fontColor
+                                      : "black",
+                                  }}
+                                  onClick={() =>
+                                    handleTriggerUpdate({
+                                      data: audioData,
+                                      categoryForTrigger: "audio",
+                                    })
+                                  }
+                                  className="flex items-center gap-3"
+                                >
+                                  <div className="relative">
+                                    <Image
+                                      src={audioData.coverPhoto}
+                                      alt="cover photo"
+                                      width={120}
+                                      height={60}
+                                      className="w-11 h-11 rounded-md object-cover"
+                                    />
+                                  </div>
+                                  <div className="text-left">
+                                    <p className="font-medium">
+                                      {audioData.name}
+                                    </p>
+                                    <p className="text-sm">
+                                      Tap play button to listen the audio
+                                    </p>
+                                  </div>
+                                </button>
+                                <div className="custom-audio">
+                                  <AudioPlayer
+                                    key={audioData.fileUrl}
+                                    autoPlay={false}
+                                    src={audioData.fileUrl}
+                                    showJumpControls={false}
+                                    customAdditionalControls={[]}
+                                    customVolumeControls={[]}
+                                    layout="stacked-reverse"
+                                    className="!w-max !p-0 !shadow-none translate-y-1"
+                                  />
+                                </div>
+                              </div>
+                            </div>
+                            {/* <div className="w-[4%]">
+                  <button
+                    onClick={() =>
+                      handleTriggerUpdate({
+                        data: audioData,
+                        categoryForTrigger: "audio",
+                      })
+                    }
+                    className=""
+                  >
+                    <FaEdit size={18} />
+                  </button>
+                </div> */}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    {/* audio||music display here end */}
+                  </div>
+                  {/* video display here start */}
+                  {data.info.video.length > 0 && (
+                    <div key={"video"} className="flex flex-col gap-y-3 px-3">
+                      {data.info.video.map((videoData: any) => (
+                        <div
+                          key={videoData._id}
+                          className="flex items-center gap-2 w-full"
+                        >
+                          <div
+                            className={`w-[96%] h-full border-4 border-[#c685ff] rounded-2xl overflow-hidden`}
+                          >
+                            <video
+                              key={videoData.link as string}
+                              className="w-full h-auto"
+                              controls
+                            >
+                              <source src={videoData.link} type="video/mp4" />
+                              <track
+                                src={videoData.link}
+                                kind="subtitles"
+                                srcLang="en"
+                                label="English"
+                              />
+                              Your browser does not support the video tag.
+                            </video>
+                          </div>
+                          <div className="w-[4%]">
+                            <button
+                              onClick={() =>
+                                handleTriggerUpdate({
+                                  data: videoData,
+                                  categoryForTrigger: "video",
+                                })
+                              }
+                              className=""
+                            >
+                              <FaEdit size={18} />
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* video display here end */}
+                  {/* embed link display here start */}
+                  {data.info.videoUrl && (
+                    <div
+                      key={"embed"}
+                      className="flex flex-col gap-y-3 px-3 w-full"
+                    >
+                      <EmbedPlayer
+                        items={data.info.videoUrl}
+                        toggle={toggle}
+                        handleTriggerUpdate={handleTriggerUpdate}
+                      />
+                    </div>
+                  )}
+                  {/* embed link display here end */}
+                </div>
               </div>
-            )}
-            {/* embed link display here end */}
+
+              <div className="flex items-center justify-center gap-2 h-16">
+                <Image alt="swop logo" src={swop} />
+                {/* <BiSolidEdit /> */}
+              </div>
+            </div>
+          </section>
+          <div>
+            <Image src={mockupBtn} alt="navigation button" />
           </div>
         </div>
-
-        <div className="flex items-center justify-center gap-2 h-16">
-          <Image alt="swop logo" src={swop} />
-          {/* <BiSolidEdit /> */}
-        </div>
       </div>
-    </section>
+      {!isEditDetailsLivePreview && (
+        <div className="flex flex-col gap-2 mt-4 pb-4">
+          <p className="text-gray-600 font-medium text-center">Live Preview</p>
+          <div className="flex flex-wrap items-center justify-center gap-2">
+            <Link href={`/smartsite/qr-code/${data?.data?._id}`}>
+              <button
+                type="button"
+                className="rounded-full bg-white border border-gray-300 px-6 py-2 text-gray-500 font-medium flex items-center gap-1 hover:bg-gray-300"
+              >
+                <LiaFileMedicalSolid size={20} />
+                Customize QR
+              </button>
+            </Link>
+            <button
+              type="button"
+              className="rounded-full bg-white border border-gray-300 px-6 py-2 text-gray-500 font-medium flex items-center gap-1 hover:bg-gray-300"
+            >
+              <IoIosSend color="gray" size={18} />
+              Share
+            </button>
+          </div>
+          <div className="flex justify-center items-center gap-1 2xl:gap-3 flex-wrap overflow-x-hidden">
+            <div className="flex items-center gap-2 2xl:gap-8 border border-gray-300 rounded-full pl-3 2xl:pl-5 pr-1 2xl:pr-4 py-2 text-lg font-medium text-gray-600 w-max bg-white">
+              <p className="text-sm 2xl:text-base text-gray-500 font-medium w-max">
+                Lead Capture
+              </p>
+              <Switch
+                size="sm"
+                isSelected={isLeadCapture}
+                onValueChange={setIsLeadCapture}
+                aria-label="Lead Captures"
+              />
+            </div>
+            <div className="flex items-center gap-2 2xl:gap-8 border border-gray-300 rounded-full pl-3 2xl:pl-5 pr-1 2xl:pr-4 py-2 text-lg font-medium text-gray-600 w-max bg-white">
+              <p className="text-sm 2xl:text-base text-gray-500 font-medium w-max">
+                Make Primary Microsite
+              </p>
+              <Switch
+                size="sm"
+                isSelected={isPrimaryMicrosite}
+                onValueChange={setIsPrimaryMicrosite}
+                aria-label="Lead Captures"
+              />
+            </div>
+          </div>
+          <div className="flex justify-center w-64 mx-auto">
+            <a href={data?.data?.profileUrl} target="_blank" className="w-full">
+              <DynamicPrimaryBtn className="w-full !rounded-full mt-2">
+                <LiaFileMedicalSolid size={20} /> Publish
+              </DynamicPrimaryBtn>
+            </a>
+          </div>
+        </div>
+      )}
+    </main>
   );
 };
 
