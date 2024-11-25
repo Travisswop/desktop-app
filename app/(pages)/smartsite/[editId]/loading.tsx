@@ -2,7 +2,7 @@ import { Card, Skeleton } from "@nextui-org/react";
 
 export default function Loading() {
   return (
-    <Card className="h-screen shadow-none rounded-none m-8 overflow-hidden bg-[#F3F4F6]">
+    <Card className="h-screen shadow-none rounded-none overflow-hidden bg-[#F3F4F6]">
       <div className="flex gap-10 mb-6">
         <div className="w-[60%] bg-white p-6 rounded-xl">
           <Skeleton className="flex rounded-full w-40 h-40 mx-auto mb-9" />
