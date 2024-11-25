@@ -2,11 +2,9 @@
 
 import isUrl from "@/lib/isUrl";
 import { useUser } from "@/lib/UserContext";
-import { Card, Skeleton } from "@nextui-org/react";
-import { CheckCircle2 } from "lucide-react";
+import { Skeleton } from "@nextui-org/react";
 import Image from "next/image";
 import Link from "next/link";
-import { join } from "path";
 import { TbEdit } from "react-icons/tb";
 
 const ParentProfileCard = () => {

@@ -6,8 +6,6 @@ import {
   DropdownItem,
   DropdownMenu,
   DropdownTrigger,
-  Select,
-  SelectItem,
   Switch,
   Tooltip,
 } from "@nextui-org/react";
@@ -21,7 +19,7 @@ import { handleSmallIcon } from "@/actions/createSmallIcon";
 // import useLoggedInUserStore from "@/zustandStore/SetLogedInUserSession";
 // import { toast } from "react-toastify";
 // import AnimateButton from "../Button/AnimateButton";
-import { FaTimes } from "react-icons/fa";
+import { FaAngleDown, FaTimes } from "react-icons/fa";
 import { icon, newIcons } from "@/components/util/data/smartsiteIconData";
 import { useToast } from "@/hooks/use-toast";
 import { isEmptyObject } from "@/components/util/checkIsEmptyObject";
@@ -51,7 +49,7 @@ const AddSmallIcon = ({ handleRemoveIcon }: any) => {
   const { toast } = useToast();
 
   const iconData: any = newIcons[0];
-  // console.log("iconData", iconData);
+  console.log("iconData", iconData);
 
   useEffect(() => {
     if (selectedIconType) {
@@ -136,22 +134,6 @@ const AddSmallIcon = ({ handleRemoveIcon }: any) => {
   // console.log("smartSiteData", state);
   // console.log("sesstionState", sesstionState);
 
-  const animals = [
-    { key: "cat", label: "Cat" },
-    { key: "dog", label: "Dog" },
-    { key: "elephant", label: "Elephant" },
-    { key: "lion", label: "Lion" },
-    { key: "tiger", label: "Tiger" },
-    { key: "giraffe", label: "Giraffe" },
-    { key: "dolphin", label: "Dolphin" },
-    { key: "penguin", label: "Penguin" },
-    { key: "zebra", label: "Zebra" },
-    { key: "shark", label: "Shark" },
-    { key: "whale", label: "Whale" },
-    { key: "otter", label: "Otter" },
-    { key: "crocodile", label: "Crocodile" },
-  ];
-
   return (
     <div className="bg-white rounded-xl shadow-small p-6 flex flex-col gap-4">
       <div className="flex items-end gap-1 justify-center">
@@ -217,16 +199,41 @@ const AddSmallIcon = ({ handleRemoveIcon }: any) => {
       <div className="flex flex-col gap-2 mt-4 px-[20%]">
         <div className="flex items-center gap-3 w-full">
           <p className="font-semibold w-32">Select Icon Type</p>
-          <select
-            id="countries"
-            className="bg-white shadow-medium text-gray-700 font-medium text-sm rounded-lg focus:ring-gray-400 focus:border-gray-400 focus:outline-none block w-56 p-2.5"
-          >
-            <option selected>Choose a country</option>
-            <option value="US">United States</option>
-            <option value="CA">Canada</option>
-            <option value="FR">France</option>
-            <option value="DE">Germany</option>
-          </select>
+          <Dropdown className="w-max rounded-lg" placement="bottom-start">
+            <DropdownTrigger>
+              <button className="bg-white w-40 flex justify-between items-center rounded px-2 py-1.5 text-sm font-medium shadow-small">
+                {selectedIconType} <FaAngleDown />
+              </button>
+            </DropdownTrigger>
+            <DropdownMenu
+              disabledKeys={["title"]}
+              aria-label="Static Actions"
+              className="p-2"
+            >
+              <DropdownItem
+                key={"title"}
+                className=" hover:!bg-white opacity-100 cursor-text disabled dropDownTitle"
+              >
+                <p>Choose Icon Type</p>
+              </DropdownItem>
+              {iconData.icons.map((data: any, index: number) => (
+                <DropdownItem
+                  key={index}
+                  onClick={() => handleSelectIconType(data.category)}
+                  className="border-b rounded-none hover:rounded-md"
+                >
+                  <div className="flex items-center gap-2 font-semibold text-sm">
+                    <Image
+                      src={data.categoryIcon}
+                      alt={data.category}
+                      className="w-5 h-auto"
+                    />{" "}
+                    {data.category}
+                  </div>
+                </DropdownItem>
+              ))}
+            </DropdownMenu>
+          </Dropdown>
         </div>
         <div className="flex items-center gap-3 w-full">
           <p className="font-semibold w-32">Select Icon</p>
@@ -234,11 +241,37 @@ const AddSmallIcon = ({ handleRemoveIcon }: any) => {
             id="countries"
             className="bg-white shadow-medium text-gray-700 font-medium text-sm rounded-lg focus:ring-gray-400 focus:border-gray-400 focus:outline-none block w-56 p-2.5"
           >
-            <option selected>Choose a country</option>
+            {iconData.icons.map((data: any, index: number) => (
+              // <DropdownItem
+              //   key={index}
+              //   onClick={() => handleSelectIconType(data.category)}
+              //   className="border-b rounded-none hover:rounded-md"
+              // >
+              //   <div className="flex items-center gap-2 font-semibold text-sm">
+              //     <Image
+              //       src={data.categoryIcon}
+              //       alt={data.category}
+              //       className="w-5 h-auto"
+              //     />{" "}
+              //     {data.category}
+              //   </div>
+              // </DropdownItem>
+              <option key={index} value={data.category}>
+                <div className="flex items-center gap-1">
+                  <Image
+                    src={data.categoryIcon}
+                    alt={data.category}
+                    className="w-5 h-auto"
+                  />{" "}
+                  {data.category}
+                </div>
+              </option>
+            ))}
+            {/* <option selected>Choose a country</option>
             <option value="US">United States</option>
             <option value="CA">Canada</option>
             <option value="FR">France</option>
-            <option value="DE">Germany</option>
+            <option value="DE">Germany</option> */}
           </select>
         </div>
         <div className="w-full">
