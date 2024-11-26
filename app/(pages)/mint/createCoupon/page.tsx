@@ -45,12 +45,12 @@ const CreateCouponPage = () => {
       HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement
     >
   ) => {
-    const { name, value, type, checked } = e.target;
-
+    const { name, value, type } = e.target;
+  
     if (type === "checkbox") {
       setFormData((prevState) => ({
         ...prevState,
-        [name]: checked,
+        [name]: (e.target as HTMLInputElement).checked, // Explicitly cast to HTMLInputElement
       }));
     } else {
       setFormData((prevState) => ({
@@ -59,7 +59,7 @@ const CreateCouponPage = () => {
       }));
     }
   };
-
+          
   const handleQuantityChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = parseInt(e.target.value, 10);
     setFormData((prevState) => ({
