@@ -182,6 +182,7 @@ const CreateCollectiblePage = () => {
             </label>
             <div
               className="bg-gray-100 p-4 rounded-lg border border-dashed border-gray-300 text-center"
+              style={{ minWidth: '300px', width: '50%' }}
               onDragOver={(e) => e.preventDefault()}
               onDrop={handleImageDrop}
             >
@@ -227,7 +228,6 @@ const CreateCollectiblePage = () => {
                 className="hidden"
               />
             </div>
-
             <div>
               <label htmlFor="description" className="mb-1 block font-medium">
                 Description
@@ -262,7 +262,10 @@ const CreateCollectiblePage = () => {
               </p>
             </div>
 
-            <div className="bg-gray-100 p-4 rounded-lg border border-gray-300">
+            <div
+              className="bg-gray-100 p-4 rounded-lg border border-gray-300"
+              style={{ minWidth: '300px', width: '50%' }}
+            >
               <h3 className="text-lg font-medium text-black-600">Content</h3>
               <p className="text-sm text-gray-600">
                 Add content to sell. You can upload images, audio, video, PDFs, or other digital files.
@@ -290,9 +293,7 @@ const CreateCollectiblePage = () => {
                   </div>
                 ))}
               </div>
-            </div>
-
-            <div>
+            </div>            <div>
               <label htmlFor="benefits" className="mb-1 block font-medium">
                 Benefits
               </label>
@@ -333,9 +334,8 @@ const CreateCollectiblePage = () => {
               <h3 className="text-md font-medium">Enable Pay with Credit Card</h3>
               <p className="text-sm text-gray-600 mb-2">Let fans buy this pass with a credit card</p>
               <div
-                className={`w-14 h-8 flex items-center rounded-full p-1 cursor-pointer ${
-                  formData.enableCreditCard ? "bg-black" : "bg-gray-300"
-                }`}
+                className={`w-14 h-8 flex items-center rounded-full p-1 cursor-pointer ${formData.enableCreditCard ? "bg-black" : "bg-gray-300"
+                  }`}
                 onClick={() =>
                   setFormData((prevState) => ({
                     ...prevState,
@@ -344,9 +344,8 @@ const CreateCollectiblePage = () => {
                 }
               >
                 <div
-                  className={`h-6 w-6 bg-white rounded-full shadow-md transform duration-300 ${
-                    formData.enableCreditCard ? "translate-x-6" : ""
-                  }`}
+                  className={`h-6 w-6 bg-white rounded-full shadow-md transform duration-300 ${formData.enableCreditCard ? "translate-x-6" : ""
+                    }`}
                 ></div>
               </div>
 
@@ -368,9 +367,8 @@ const CreateCollectiblePage = () => {
               <div className="flex items-center justify-between mt-2">
                 <span className="text-sm font-medium">Limit quantity</span>
                 <div
-                  className={`w-14 h-8 flex items-center rounded-full p-1 cursor-pointer ${
-                    formData.limitQuantity ? "bg-black" : "bg-gray-300"
-                  }`}
+                  className={`w-14 h-8 flex items-center rounded-full p-1 cursor-pointer ${formData.limitQuantity ? "bg-black" : "bg-gray-300"
+                    }`}
                   onClick={() =>
                     setFormData((prevState) => ({
                       ...prevState,
@@ -379,9 +377,8 @@ const CreateCollectiblePage = () => {
                   }
                 >
                   <div
-                    className={`h-6 w-6 bg-white rounded-full shadow-md transform duration-300 ${
-                      formData.limitQuantity ? "translate-x-6" : ""
-                    }`}
+                    className={`h-6 w-6 bg-white rounded-full shadow-md transform duration-300 ${formData.limitQuantity ? "translate-x-6" : ""
+                      }`}
                   ></div>
                 </div>
               </div>
@@ -447,8 +444,8 @@ const CreateCollectiblePage = () => {
             <ul className="list-disc list-inside text-sm text-gray-500">
               {formData.benefits.length > 0
                 ? formData.benefits.map((benefit, index) => (
-                    <li key={index}>{benefit}</li>
-                  ))
+                  <li key={index}>{benefit}</li>
+                ))
                 : <li>No benefits added</li>}
             </ul>
           </div>
