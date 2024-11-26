@@ -3,12 +3,6 @@ import { useState, DragEvent } from "react";
 import PushToMintCollectionButton from "@/components/Button/PushToMintCollectionButton";
 import Image from "next/image";
 
-interface ContentFile {
-  url: string;
-  name: string;
-  type: string;
-}
-
 interface FormData {
   name: string;
   description: string;
@@ -18,11 +12,11 @@ interface FormData {
   currency: string;
   type: string;
   benefits: string[];
-  content: ContentFile[];
   enableCreditCard: boolean;
   verifyIdentity: boolean;
   limitQuantity: boolean;
   quantity?: number;
+  royaltyPercentage: number; // Added field
 }
 
 const CreateMembershipPage = () => {
@@ -35,11 +29,11 @@ const CreateMembershipPage = () => {
     currency: "usdc",
     type: "Membership",
     benefits: [],
-    content: [],
     enableCreditCard: false,
     verifyIdentity: false,
     limitQuantity: false,
     quantity: undefined,
+    royaltyPercentage: 10, // Default royalty percentage
   });
 
   const [newBenefit, setNewBenefit] = useState("");
@@ -60,7 +54,7 @@ const CreateMembershipPage = () => {
     } else {
       setFormData((prevState) => ({
         ...prevState,
-        [name]: value,
+        [name]: type === "number" ? parseFloat(value) : value,
       }));
     }
   };
@@ -106,30 +100,6 @@ const CreateMembershipPage = () => {
     reader.readAsDataURL(file);
   };
 
-  const handleContentUpload = (
-    event: React.ChangeEvent<HTMLInputElement>
-  ) => {
-    const files = Array.from(event.target.files || []);
-    if (files.length === 0) return;
-
-    const uploadedFiles = files.map((file) => {
-      const reader = new FileReader();
-      return new Promise<ContentFile | null>((resolve) => {
-        reader.onloadend = () => {
-          resolve({ url: reader.result as string, name: file.name, type: file.type });
-        };
-        reader.readAsDataURL(file);
-      });
-    });
-
-    Promise.all(uploadedFiles).then((successfulUploads) => {
-      setFormData((prevState) => ({
-        ...prevState,
-        content: [...prevState.content, ...(successfulUploads.filter(Boolean) as ContentFile[])],
-      }));
-    });
-  };
-
   const handleAddBenefit = () => {
     if (newBenefit.trim()) {
       setFormData((prevState) => ({
@@ -147,14 +117,6 @@ const CreateMembershipPage = () => {
     }));
   };
 
-  const getFileTypeIcon = (type: string) => {
-    if (type.startsWith("image")) return "🖼️";
-    if (type.startsWith("audio")) return "🎵";
-    if (type.startsWith("video")) return "🎥";
-    if (type === "application/pdf") return "📄";
-    return "📁";
-  };
-
   return (
     <div className="main-container flex">
       <div className="w-1/2 p-5">
@@ -162,6 +124,7 @@ const CreateMembershipPage = () => {
           <div className="flex flex-col gap-4">
             <h2 className="text-2xl font-bold">Create Membership</h2>
 
+            {/* Name Input */}
             <div>
               <label htmlFor="name" className="mb-1 block font-medium">
                 Name
@@ -181,11 +144,13 @@ const CreateMembershipPage = () => {
               </p>
             </div>
 
+            {/* Image Upload */}
             <label htmlFor="imageUrl" className="mb-1 block font-medium">
               Image (JPEG, JPG, PNG)
             </label>
             <div
               className="bg-gray-100 p-4 rounded-lg border border-dashed border-gray-300 text-center"
+              style={{ minWidth: "300px", width: "50%" }}
               onDragOver={(e) => e.preventDefault()}
               onDrop={handleImageDrop}
             >
@@ -198,7 +163,9 @@ const CreateMembershipPage = () => {
                     alt="Preview"
                     className="rounded-lg object-cover"
                   />
-                  <p className="text-sm mt-2 text-gray-700">{selectedImageName}</p>
+                  <p className="text-sm mt-2 text-gray-700">
+                    {selectedImageName}
+                  </p>
                   <label
                     htmlFor="imageUrl"
                     className="inline-block bg-black text-white px-4 py-2 rounded-lg mt-2 cursor-pointer"
@@ -232,6 +199,7 @@ const CreateMembershipPage = () => {
               />
             </div>
 
+            {/* Description */}
             <div>
               <label htmlFor="description" className="mb-1 block font-medium">
                 Description
@@ -247,6 +215,7 @@ const CreateMembershipPage = () => {
               />
             </div>
 
+            {/* Price */}
             <div>
               <label htmlFor="price" className="mb-1 block font-medium">
                 Price
@@ -266,36 +235,7 @@ const CreateMembershipPage = () => {
               </p>
             </div>
 
-            <div className="bg-gray-100 p-4 rounded-lg border border-gray-300">
-              <h3 className="text-lg font-medium text-black-600">Content</h3>
-              <p className="text-sm text-gray-600">
-                Add content to sell. You can upload images, audio, video, PDFs, or other digital files.
-              </p>
-              <input
-                type="file"
-                id="content"
-                name="content"
-                multiple
-                accept="*/*"
-                onChange={handleContentUpload}
-                className="w-full border border-dashed border-gray-300 rounded-lg px-4 py-2 mt-2"
-              />
-
-              <div className="grid grid-cols-3 gap-4 mt-4">
-                {formData.content.map((file, index) => (
-                  <div
-                    key={index}
-                    className="flex flex-col items-center p-2 bg-white border rounded shadow-sm w-full"
-                  >
-                    <div className="text-2xl">{getFileTypeIcon(file.type)}</div>
-                    <p className="text-xs text-gray-600 mt-1 text-center truncate w-full overflow-hidden text-ellipsis whitespace-nowrap">
-                      {file.name}
-                    </p>
-                  </div>
-                ))}
-              </div>
-            </div>
-
+            {/* Benefits */}
             <div>
               <label htmlFor="benefits" className="mb-1 block font-medium">
                 Benefits
@@ -333,94 +273,121 @@ const CreateMembershipPage = () => {
               </div>
             </div>
 
-
+            {/* Enable Credit Card & Verify Identity */}
             <div className="bg-gray-100 p-4 rounded-lg border border-gray-300 mt-4">
-  <h3 className="text-md font-medium">Enable Pay with Credit Card</h3>
-  <p className="text-sm text-gray-600 mb-2">
-    Let users buy this membership with a credit card.
-  </p>
-  <div
-    className={`w-14 h-8 flex items-center rounded-full p-1 cursor-pointer ${
-      formData.enableCreditCard ? "bg-black" : "bg-gray-300"
-    }`}
-    onClick={() =>
-      setFormData((prevState) => ({
-        ...prevState,
-        enableCreditCard: !prevState.enableCreditCard,
-      }))
-    }
-  >
-    <div
-      className={`h-6 w-6 bg-white rounded-full shadow-md transform duration-300 ${
-        formData.enableCreditCard ? "translate-x-6" : ""
-      }`}
-    ></div>
-  </div>
+              <h3 className="text-md font-medium">
+                Enable Pay with Credit Card
+              </h3>
+              <p className="text-sm text-gray-600 mb-2">
+                Let users buy this membership with a credit card.
+              </p>
+              <div
+                className={`w-14 h-8 flex items-center rounded-full p-1 cursor-pointer ${
+                  formData.enableCreditCard ? "bg-black" : "bg-gray-300"
+                }`}
+                onClick={() =>
+                  setFormData((prevState) => ({
+                    ...prevState,
+                    enableCreditCard: !prevState.enableCreditCard,
+                  }))
+                }
+              >
+                <div
+                  className={`h-6 w-6 bg-white rounded-full shadow-md transform duration-300 ${
+                    formData.enableCreditCard ? "translate-x-6" : ""
+                  }`}
+                ></div>
+              </div>
 
-  <div className="mt-4">
-    <h3 className="text-md font-medium">Verify Identity</h3>
-    <p className="text-sm text-gray-600">
-      Verify your identity to enable credit card payments. You only complete this process once.
-    </p>
-    <button
-      type="button"
-      onClick={() => alert("Verification process started!")}
-      className="bg-black text-white px-4 py-2 rounded-lg mt-2"
-    >
-      Verify Identity
-    </button>
-  </div>
-</div>
-
-<div className="bg-gray-100 p-4 rounded-lg border border-gray-300 mt-4">
-  <h3 className="text-md font-medium">Advanced Settings</h3>
-  <div className="flex items-center justify-between mt-2">
-    <span className="text-sm font-medium">Limit quantity</span>
-    <div
-      className={`w-14 h-8 flex items-center rounded-full p-1 cursor-pointer ${
-        formData.limitQuantity ? "bg-black" : "bg-gray-300"
-      }`}
-      onClick={() =>
-        setFormData((prevState) => ({
-          ...prevState,
-          limitQuantity: !prevState.limitQuantity,
-        }))
-      }
-    >
-      <div
-        className={`h-6 w-6 bg-white rounded-full shadow-md transform duration-300 ${
-          formData.limitQuantity ? "translate-x-6" : ""
-        }`}
-      ></div>
-    </div>
-  </div>
-  {formData.limitQuantity && (
-    <input
-      type="number"
-      min="1"
-      placeholder="Enter quantity"
-      value={formData.quantity || ""}
-      onChange={handleQuantityChange}
-      className="w-full border border-gray-300 rounded-lg px-4 py-2 mt-2"
-    />
-  )}
-  <p className="text-sm text-gray-500 mt-1">
-    Limit the number of times this digital good can be purchased.
-  </p>
-</div>
-
-
-            <div className="mt-4">
-              <input type="checkbox" required /> I agree with swop Minting Privacy & Policy
+              <div className="mt-4">
+                <h3 className="text-md font-medium">Verify Identity</h3>
+                <p className="text-sm text-gray-600">
+                  Verify your identity to enable credit card payments. You only
+                  complete this process once.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => alert("Verification process started!")}
+                  className="bg-black text-white px-4 py-2 rounded-lg mt-2"
+                >
+                  Verify Identity
+                </button>
+              </div>
             </div>
 
+            {/* Advanced Settings with Royalty */}
+            <div className="bg-gray-100 p-4 rounded-lg border border-gray-300 mt-4">
+              <h3 className="text-md font-medium">Advanced Settings</h3>
+              <div className="flex items-center justify-between mt-2">
+                <span className="text-sm font-medium">Limit quantity</span>
+                <div
+                  className={`w-14 h-8 flex items-center rounded-full p-1 cursor-pointer ${
+                    formData.limitQuantity ? "bg-black" : "bg-gray-300"
+                  }`}
+                  onClick={() =>
+                    setFormData((prevState) => ({
+                      ...prevState,
+                      limitQuantity: !prevState.limitQuantity,
+                    }))
+                  }
+                >
+                  <div
+                    className={`h-6 w-6 bg-white rounded-full shadow-md transform duration-300 ${
+                      formData.limitQuantity ? "translate-x-6" : ""
+                    }`}
+                  ></div>
+                </div>
+              </div>
+              {formData.limitQuantity && (
+                <input
+                  type="number"
+                  min="1"
+                  placeholder="Enter quantity"
+                  value={formData.quantity || ""}
+                  onChange={handleQuantityChange}
+                  className="w-full border border-gray-300 rounded-lg px-4 py-2 mt-2"
+                />
+              )}
+              <p className="text-sm text-gray-500 mt-1">
+                Limit the number of times this digital good can be purchased.
+              </p>
+
+              {/* Royalty Percentage */}
+              <div className="mt-4">
+                <label htmlFor="royaltyPercentage" className="block font-medium mb-1">
+                  Royalty Percentage
+                </label>
+                <div className="flex items-center">
+                  <input
+                    type="number"
+                    id="royaltyPercentage"
+                    name="royaltyPercentage"
+                    value={formData.royaltyPercentage}
+                    onChange={handleChange}
+                    className="w-full border border-gray-300 rounded-lg px-4 py-2"
+                    min="0"
+                    max="100"
+                  />
+                  <span className="ml-2">%</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Privacy Policy Agreement */}
+            <div className="mt-4">
+              <input type="checkbox" required /> I agree with Swop Minting
+              Privacy & Policy
+            </div>
+
+            {/* Submit Button */}
             <PushToMintCollectionButton className="w-max mt-4">
               Create
             </PushToMintCollectionButton>
           </div>
         </div>
-      </div> 
+      </div>
 
+      {/* Preview Section */}
       <div className="w-1/2 flex justify-center items-center p-5">
         <div className="bg-white p-4 rounded-lg shadow-md border border-gray-300 w-full max-w-md aspect-[3/4] flex flex-col items-start">
           <div className="w-full aspect-square bg-gray-200 flex items-center justify-center rounded-t-lg mb-4">
@@ -439,27 +406,43 @@ const CreateMembershipPage = () => {
 
           <div className="mb-2">
             <p className="text-lg font-bold">Name</p>
-            <p className="text-sm text-gray-500">{formData.name || "Name will appear here"}</p>
+            <p className="text-sm text-gray-500">
+              {formData.name || "Name will appear here"}
+            </p>
           </div>
 
           <div className="mb-2">
             <p className="text-lg font-bold">Price</p>
-            <p className="text-sm text-gray-500">{formData.price ? `$${formData.price}` : "Free"}</p>
+            <p className="text-sm text-gray-500">
+              {formData.price ? `$${formData.price}` : "Free"}
+            </p>
           </div>
 
           <div className="mb-2">
             <p className="text-lg font-bold">Description</p>
-            <p className="text-sm text-gray-500">{formData.description || "Description will appear here"}</p>
+            <p className="text-sm text-gray-500">
+              {formData.description || "Description will appear here"}
+            </p>
+          </div>
+
+          {/* Royalty Percentage in Preview */}
+          <div className="mb-2">
+            <p className="text-lg font-bold">Royalty Percentage</p>
+            <p className="text-sm text-gray-500">
+              {formData.royaltyPercentage}%
+            </p>
           </div>
 
           <div className="mt-4 w-full">
             <p className="text-lg font-bold">Benefits</p>
             <ul className="list-disc list-inside text-sm text-gray-500">
-              {formData.benefits.length > 0
-                ? formData.benefits.map((benefit, index) => (
-                    <li key={index}>{benefit}</li>
-                  ))
-                : <li>No benefits added</li>}
+              {formData.benefits.length > 0 ? (
+                formData.benefits.map((benefit, index) => (
+                  <li key={index}>{benefit}</li>
+                ))
+              ) : (
+                <li>No benefits added</li>
+              )}
             </ul>
           </div>
         </div>
