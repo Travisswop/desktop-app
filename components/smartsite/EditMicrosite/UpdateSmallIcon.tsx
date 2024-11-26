@@ -1,16 +1,12 @@
 import Image from "next/image";
 import React, { useEffect, useState } from "react";
-import appIconImg from "@/public/images/websites/edit-microsite/add-icon/app-icon.svg";
 import {
   Dropdown,
   DropdownItem,
   DropdownMenu,
   DropdownTrigger,
-  // Spinner,
-  Switch,
   Tooltip,
 } from "@nextui-org/react";
-import { AiOutlineDownCircle } from "react-icons/ai";
 import { IoLinkOutline } from "react-icons/io5";
 import { LiaFileMedicalSolid } from "react-icons/lia";
 // import EditMicrositeBtn from "../Button/EditMicrositeBtn";
@@ -20,7 +16,6 @@ import {
   handleDeleteSmallIcon,
   handleUpdateSmallIcon,
 } from "@/actions/createSmallIcon";
-import useLoggedInUserStore from "@/zustandStore/SetLogedInUserSession";
 // import { toast } from "react-toastify";
 import { FaAngleDown, FaTimes } from "react-icons/fa";
 import { MdDelete, MdInfoOutline } from "react-icons/md";
@@ -301,7 +296,7 @@ const UpdateSmallIcon = ({ iconDataObj, isOn, setOff }: any) => {
                 )}
               </div>
               {/* icon select  */}
-              <div className="flex flex-col gap-2 mt-4 px-10 xl:px-[10%]">
+              <div className="flex flex-col gap-3 mt-4 px-10 xl:px-[10%]">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <h3 className="font-semibold text-gray-700 w-32">
@@ -478,7 +473,7 @@ const UpdateSmallIcon = ({ iconDataObj, isOn, setOff }: any) => {
                         required
                       />
                     </div>
-                    <div className="flex justify-between mt-6">
+                    <div className="flex justify-between mt-4">
                       <AnimateButton
                         whiteLoading={true}
                         className="bg-black text-white py-2 !border-0"
