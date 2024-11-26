@@ -332,13 +332,23 @@ const CreateCollectiblePage = () => {
             <div className="bg-gray-100 p-4 rounded-lg border border-gray-300 mt-4">
               <h3 className="text-md font-medium">Enable Pay with Credit Card</h3>
               <p className="text-sm text-gray-600 mb-2">Let fans buy this pass with a credit card</p>
-              <input
-                type="checkbox"
-                id="enableCreditCard"
-                name="enableCreditCard"
-                checked={formData.enableCreditCard}
-                onChange={handleChange}
-              /> Enable
+              <div
+                className={`w-14 h-8 flex items-center rounded-full p-1 cursor-pointer ${
+                  formData.enableCreditCard ? "bg-black" : "bg-gray-300"
+                }`}
+                onClick={() =>
+                  setFormData((prevState) => ({
+                    ...prevState,
+                    enableCreditCard: !prevState.enableCreditCard,
+                  }))
+                }
+              >
+                <div
+                  className={`h-6 w-6 bg-white rounded-full shadow-md transform duration-300 ${
+                    formData.enableCreditCard ? "translate-x-6" : ""
+                  }`}
+                ></div>
+              </div>
 
               <div className="mt-4">
                 <h3 className="text-md font-medium">Verify Identity</h3>
@@ -357,13 +367,23 @@ const CreateCollectiblePage = () => {
               <h3 className="text-md font-medium">Advanced Settings</h3>
               <div className="flex items-center justify-between mt-2">
                 <span className="text-sm font-medium">Limit quantity</span>
-                <input
-                  type="checkbox"
-                  id="limitQuantity"
-                  name="limitQuantity"
-                  checked={formData.limitQuantity}
-                  onChange={handleChange}
-                />
+                <div
+                  className={`w-14 h-8 flex items-center rounded-full p-1 cursor-pointer ${
+                    formData.limitQuantity ? "bg-black" : "bg-gray-300"
+                  }`}
+                  onClick={() =>
+                    setFormData((prevState) => ({
+                      ...prevState,
+                      limitQuantity: !prevState.limitQuantity,
+                    }))
+                  }
+                >
+                  <div
+                    className={`h-6 w-6 bg-white rounded-full shadow-md transform duration-300 ${
+                      formData.limitQuantity ? "translate-x-6" : ""
+                    }`}
+                  ></div>
+                </div>
               </div>
               {formData.limitQuantity && (
                 <input
