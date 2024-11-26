@@ -118,31 +118,74 @@ body {
 }
 
 .custom-scrollbar::-webkit-scrollbar-thumb {
-  background-color: rgba(0, 0, 0, 0.2); /* Color of the scrollbar thumb */
+  background-color: rgba(
+    251,
+    131,
+    131,
+    0.601
+  ); /* Color of the scrollbar thumb */
   border-radius: 10px; /* Roundness of the scrollbar thumb */
 }
 
 .custom-scrollbar::-webkit-scrollbar-track {
-  background-color: rgba(0, 0, 0, 0.1); /* Color of the scrollbar track */
+  background-color: rgba(
+    128,
+    128,
+    128,
+    0.749
+  ); /* Color of the scrollbar track */
 }
 
 .custom-scrollbar {
   scrollbar-width: thin; /* For Firefox */
-  scrollbar-color: rgba(0, 0, 0, 0.2) rgba(0, 0, 0, 0.1); /* For Firefox */
+  scrollbar-color: rgba(112, 112, 112, 0.823) rgba(157, 156, 156, 0.1); /* For Firefox */
 }
 
 /* more  */
 ::-webkit-scrollbar {
   height: 12px;
   width: 4px;
-  background: rgb(199, 199, 199);
+  background: rgb(219, 219, 219);
 }
-
+/* effective  */
 ::-webkit-scrollbar-thumb {
-  background: gray;
+  background: rgb(173, 173, 173);
   -webkit-border-radius: 1ex;
 }
 
 ::-webkit-scrollbar-corner {
   background: rgb(199, 199, 199);
+}
+
+.hide-scrollbar {
+  -ms-overflow-style: none; /* Internet Explorer 10+ */
+  scrollbar-width: none; /* Firefox */
+}
+
+.hide-scrollbar::-webkit-scrollbar {
+  display: none; /* Chrome, Safari, and Edge */
+}
+
+/* remove water mark from tinymice editor  */
+.tox .tox-statusbar {
+  align-items: center;
+  background-color: #fff;
+  border-top: 1px solid #e3e3e3;
+  color: rgba(34, 47, 62, 0.7);
+  display: none !important;
+  flex: 0 0 auto;
+  font-size: 14px;
+  font-weight: 400;
+  height: 25px;
+  overflow: hidden;
+  padding: 0 8px;
+  position: relative;
+  text-transform: none;
+}
+
+.truncate-2-lines {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
 }

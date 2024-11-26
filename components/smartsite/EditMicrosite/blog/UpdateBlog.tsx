@@ -11,8 +11,8 @@ import { FaTimes } from "react-icons/fa";
 // } from "@/actions/contactCard";
 import { MdDelete } from "react-icons/md";
 // import { sendCloudinaryImage } from "@/util/SendCloudineryImage";
-import "react-quill/dist/quill.snow.css"; // Add this line if not already present
-import ReactQuill from "react-quill";
+// import "react-quill/dist/quill.snow.css"; // Add this line if not already present
+// import ReactQuill from "react-quill";
 import Image from "next/image";
 import CustomFileInput from "@/components/CustomFileInput";
 // import { icon } from "@/util/data/smartsiteIconData";
@@ -20,6 +20,7 @@ import { deleteBlog, updateBlog } from "@/actions/blog";
 import { useToast } from "@/hooks/use-toast";
 import { sendCloudinaryImage } from "@/lib/SendCloudineryImage";
 import AnimateButton from "@/components/ui/Button/AnimateButton";
+import { Editor } from "@tinymce/tinymce-react";
 
 const UpdateBlog = ({ iconDataObj, isOn, setOff }: any) => {
   //const sesstionState = useLoggedInUserStore((state) => state.state.user); //get session value
@@ -320,12 +321,39 @@ const UpdateBlog = ({ iconDataObj, isOn, setOff }: any) => {
                       *
                     </span>
                   </p>
-                  <ReactQuill
+                  {/* <ReactQuill
                     // key={value}
                     placeholder="Enter Description"
                     theme="snow"
                     value={value}
                     onChange={setValue}
+                  /> */}
+                  <Editor
+                    apiKey="njethe5lk1z21je67jjdi9v3wimfducwhl6jnnuip46yxwxh"
+                    value={value} // Bind the state to the editor
+                    onEditorChange={(content) => setValue(content)} // Update state on change
+                    init={{
+                      height: 300,
+                      plugins: [
+                        "autolink",
+                        "lists",
+                        "link",
+                        // "image",
+                        "charmap",
+                        "preview",
+                        "anchor",
+                        "searchreplace",
+                        "visualblocks",
+                        "code",
+                        "fullscreen",
+                        "insertdatetime",
+                        // "media",
+                        "table",
+                        "help",
+                      ],
+                      toolbar:
+                        "undo redo | bold italic underline | link image | alignleft aligncenter alignright alignjustify | bullist numlist | code",
+                    }}
                   />
                   {inputError.description && (
                     <p className="text-red-600 font-medium text-sm">

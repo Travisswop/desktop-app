@@ -1,6 +1,5 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
-import { PrivyClient } from '@privy-io/server-auth';
 
 // Define which routes should be protected
 const protectedRoutes = [
@@ -32,7 +31,7 @@ const authCache = new Map<
   string,
   { timestamp: number; isValid: boolean }
 >();
-const CACHE_DURATION = 60 * 60 * 1000; // 60 minutes in milliseconds
+const CACHE_DURATION = 720 * 60 * 1000; // 720 minutes in milliseconds
 
 async function verifyAuth(request: NextRequest) {
   const privy_token = request.cookies.get('privy-token')?.value;
@@ -54,39 +53,35 @@ async function verifyAuth(request: NextRequest) {
   }
 
   try {
-    const privy = new PrivyClient(
-      process.env.NEXT_PUBLIC_PRIVY_APP_ID || '',
-      process.env.NEXT_PUBLIC_PRIVY_APP_SECRET || ''
+    const verifyResponse = await fetch(
+      `${request.nextUrl.origin}/api/auth/verify-tokens`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          privyToken: privy_token,
+          privyIdToken: privy_id_token,
+        }),
+      }
     );
 
-    // Verify both tokens
-    const { userId } = await privy.verifyAuthToken(privy_token);
-    const user = await privy.getUser({ idToken: privy_id_token });
-
-    if (!userId || !user) {
+    if (!verifyResponse.ok) {
       authCache.set(cacheKey, { timestamp: now, isValid: false });
       return false;
     }
 
-    const email =
-      user.google?.email ||
-      user.email?.address ||
-      user.linkedAccounts.find((account) => account.type === 'email')
-        ?.address ||
-      user.linkedAccounts.find(
-        (account) => account.type === 'google_oauth'
-      )?.email;
+    const { isValid, email, userId } = await verifyResponse.json();
 
-    console.log('🚀 ~ verifyAuth ~ email:', email);
-
-    if (!email) {
+    if (!isValid || !email) {
       authCache.set(cacheKey, { timestamp: now, isValid: false });
       return false;
     }
 
     // Verify user in your database
     const userResponse = await fetch(
-      `${request.nextUrl.origin}/api/auth/verify`,
+      `${request.nextUrl.origin}/api/auth/verify-user`,
       {
         method: 'POST',
         headers: {

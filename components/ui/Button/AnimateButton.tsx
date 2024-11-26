@@ -1,7 +1,7 @@
 "use client";
 import { MotionButton } from "@/components/Motion";
 import { Spinner } from "@nextui-org/react";
-import React, { useState, ReactNode } from "react";
+import React, { useState, ReactNode, MouseEvent } from "react";
 
 interface AnimateButtonProps {
   children: ReactNode;
@@ -10,12 +10,14 @@ interface AnimateButtonProps {
   width?: string;
   className?: string;
   paddingY?: string;
-  onClick?: any;
+  onClick?: (event: MouseEvent<HTMLButtonElement>) => void;
+  whiteLoading?: boolean;
 }
 
 const AnimateButton: React.FC<AnimateButtonProps> = ({
   children,
   isLoading = false,
+  whiteLoading = false,
   type = "submit",
   width = "w-52",
   onClick,
@@ -40,7 +42,7 @@ const AnimateButton: React.FC<AnimateButtonProps> = ({
         <Spinner
           size="sm"
           className="py-0.5"
-          color={isHovered ? "white" : "primary"}
+          color={whiteLoading ? "white" : isHovered ? "white" : "primary"}
         />
       ) : (
         children

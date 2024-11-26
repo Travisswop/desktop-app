@@ -21,6 +21,7 @@ export default function PrivyProvider({
         },
         embeddedWallets: {
           createOnLogin: 'users-without-wallets',
+          noPromptOnSignature: false,
         },
       }}
     >

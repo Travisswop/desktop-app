@@ -1,5 +1,7 @@
 'use client';
 
+import { useState, useEffect } from 'react';
+import { useTokenTimeSeries } from '@/lib/hooks/useTokenTimeSeries';
 import {
   Area,
   AreaChart,
@@ -14,16 +16,19 @@ import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Wallet, Send, ArrowRightLeft } from 'lucide-react';
 import Image from 'next/image';
 import { format } from 'date-fns';
-import { useState } from 'react';
-import { TokenData } from '@/types/token';
+import { TimeSeriesData, TokenData } from '@/types/token';
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const CustomTooltip = ({ active, payload, label }: any) => {
+const CustomTooltip = ({
+  active,
+  payload,
+  label,
+}: // eslint-disable-next-line @typescript-eslint/no-explicit-any
+any) => {
   if (active && payload && payload.length) {
     return (
       <div className="bg-white p-2 border rounded shadow-sm">
         <p className="text-sm text-gray-600">
-          {format(new Date(label), 'MMM d, h:mm a')}
+          {format(new Date(label * 1000), 'MMM d, h:mm a')}
         </p>
         <p className="text-sm font-bold">
           ${payload[0].value.toFixed(2)}
@@ -43,10 +48,54 @@ export default function TokenDetails({
   token,
   onBack,
 }: TokenDetailsProps) {
-  const [dataPoint, setDataPoint] = useState('1H');
-  const [chage, setChange] = useState(token.marketData.change);
+  const [selectedPeriod, setSelectedPeriod] = useState('1H');
+  const [chartData, setChartData] = useState(
+    token.timeSeriesData['1H']
+  );
+  const [changePercentage, setChangePercentage] = useState(
+    token.marketData.change
+  );
+
+  const day = useTokenTimeSeries(token.marketData.uuid, '24h');
+  const week = useTokenTimeSeries(token.marketData.uuid, '7d');
+  const month = useTokenTimeSeries(token.marketData.uuid, '30d');
+  const year = useTokenTimeSeries(token.marketData.uuid, '1y');
+
+  const strokeColor = token.marketData.color;
+
+  // Update chart data when period changes or data is fetched
+  useEffect(() => {
+    const timeSeriesMap: TimeSeriesData = {
+      '1H': token.timeSeriesData['1H'],
+      '1D': day.data?.sparklineData,
+      '1W': week.data?.sparklineData,
+      '1M': month.data?.sparklineData,
+      '1Y': year.data?.sparklineData,
+    };
+
+    const changePercentageMap = {
+      '1H': token.marketData.change,
+      '1D': day.data?.change,
+      '1W': week.data?.change,
+      '1M': month.data?.change,
+      '1Y': year.data?.change,
+    };
+
+    const newData =
+      timeSeriesMap[selectedPeriod as keyof typeof timeSeriesMap];
+    const newChange =
+      changePercentageMap[
+        selectedPeriod as keyof typeof changePercentageMap
+      ];
+
+    if (newData) {
+      setChartData(newData);
+      setChangePercentage(newChange);
+    }
+  }, [selectedPeriod, day.data, week.data, month.data, year.data]);
+
   return (
-    <Card className="w-full">
+    <Card className="w-full border-none rounded-xl">
       {/* Header */}
       <CardHeader>
         <div className="flex items-center gap-2 mb-2">
@@ -69,16 +118,16 @@ export default function TokenDetails({
           </div>
           <div
             className={`text-sm ${
-              parseFloat(chage) > 0
+              parseFloat(changePercentage) > 0
                 ? 'text-green-500'
                 : 'text-red-500'
             }`}
           >
             <span className="font-medium">
-              {parseFloat(chage) > 0 ? '+' : ''}
-              {parseFloat(chage)}%
+              {parseFloat(changePercentage) > 0 ? '+' : ''}
+              {parseFloat(changePercentage).toFixed(2)}%
             </span>
-            <div className="text-xs">Today</div>
+            <div className="text-xs">{selectedPeriod}</div>
           </div>
         </div>
       </CardHeader>
@@ -89,11 +138,7 @@ export default function TokenDetails({
             <div className="h-[200px]">
               <ResponsiveContainer width="100%" height="100%">
                 <AreaChart
-                  data={
-                    token.timeSeriesData[
-                      dataPoint as keyof typeof token.timeSeriesData
-                    ]
-                  }
+                  data={chartData}
                   margin={{ top: 10, right: 30, left: 0, bottom: 0 }}
                 >
                   <defs>
@@ -106,18 +151,19 @@ export default function TokenDetails({
                     >
                       <stop
                         offset="5%"
-                        stopColor="#4F46E5"
-                        stopOpacity={0.1}
+                        stopColor={strokeColor}
+                        stopOpacity={0.3}
                       />
                       <stop
                         offset="95%"
-                        stopColor="#4F46E5"
+                        stopColor={strokeColor}
                         stopOpacity={0}
                       />
                     </linearGradient>
                   </defs>
                   <XAxis
                     dataKey="timestamp"
+                    hide={true}
                     tickFormatter={(timestamp) =>
                       format(new Date(timestamp), 'h:mm a')
                     }
@@ -134,12 +180,15 @@ export default function TokenDetails({
                   />
                   <Tooltip
                     content={<CustomTooltip />}
-                    cursor={{ stroke: '#4F46E5', strokeWidth: 1 }}
+                    cursor={{
+                      stroke: `${strokeColor}`,
+                      strokeWidth: 1,
+                    }}
                   />
                   <Area
                     type="monotone"
                     dataKey="value"
-                    stroke="#4F46E5"
+                    stroke={strokeColor}
                     strokeWidth={2}
                     fill="url(#colorValue)"
                     isAnimationActive={true}
@@ -149,35 +198,35 @@ export default function TokenDetails({
               </ResponsiveContainer>
             </div>
 
-            <Tabs defaultValue={dataPoint} className="w-full mt-4">
+            <Tabs value={selectedPeriod} className="w-full mt-4">
               <TabsList className="grid w-full grid-cols-5">
                 <TabsTrigger
                   value="1H"
-                  onClick={() => setDataPoint('1H')}
+                  onClick={() => setSelectedPeriod('1H')}
                 >
                   1H
                 </TabsTrigger>
                 <TabsTrigger
                   value="1D"
-                  onClick={() => setDataPoint('1D')}
+                  onClick={() => setSelectedPeriod('1D')}
                 >
                   1D
                 </TabsTrigger>
                 <TabsTrigger
                   value="1W"
-                  onClick={() => setDataPoint('1W')}
+                  onClick={() => setSelectedPeriod('1W')}
                 >
                   1W
                 </TabsTrigger>
                 <TabsTrigger
                   value="1M"
-                  onClick={() => setDataPoint('1M')}
+                  onClick={() => setSelectedPeriod('1M')}
                 >
                   1M
                 </TabsTrigger>
                 <TabsTrigger
                   value="1Y"
-                  onClick={() => setDataPoint('1Y')}
+                  onClick={() => setSelectedPeriod('1Y')}
                 >
                   1Y
                 </TabsTrigger>

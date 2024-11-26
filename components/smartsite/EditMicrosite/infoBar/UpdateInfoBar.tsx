@@ -340,7 +340,7 @@ const UpdateInfoBar = ({ iconDataObj, isOn, setOff }: any) => {
                     <DropdownMenu
                       disabledKeys={["title"]}
                       aria-label="Static Actions"
-                      className="p-2 overflow-y-auto custom-scrollbar max-h-[30rem]"
+                      className="p-2 overflow-y-auto max-h-[30rem]"
                     >
                       <DropdownItem
                         key={"title"}

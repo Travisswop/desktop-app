@@ -1,3 +1,6 @@
+export type ChainType = 'ETHEREUM' | 'POLYGON' | 'BASE' | 'SOLANA';
+export type EVMChain = Exclude<ChainType, 'SOLANA'>;
+
 export interface MarketData {
   uuid: string;
   symbol: string;
@@ -32,10 +35,11 @@ export interface TokenData {
   balance: string;
   decimals: number;
   chainId?: number;
-  address: string;
+  address: string | null;
   logoURI: string;
-  chain: 'evm' | 'solana';
+  chain: 'ETHEREUM' | 'POLYGON' | 'BASE' | 'SOLANA';
   marketData: MarketData;
+  sparklineData: Array<{ timestamp: number; value: number }>;
   timeSeriesData: {
     '1H': Array<{ timestamp: number; value: number }>;
     '1D': Array<{ timestamp: number; value: number }>;
@@ -43,4 +47,36 @@ export interface TokenData {
     '1M': Array<{ timestamp: number; value: number }>;
     '1Y': Array<{ timestamp: number; value: number }>;
   };
+}
+
+export interface SolanaTokenData {
+  data: {
+    parsed: {
+      info: {
+        mint: string;
+        tokenAmount: {
+          amount: string;
+          decimals: number;
+          uiAmount: number;
+          uiAmountString: string;
+        };
+      };
+    };
+  };
+}
+
+export interface TimeSeriesDataPoint {
+  price: string | null;
+  timestamp: number;
+}
+
+export interface TokenMetadata {
+  chain: ChainType;
+  address: string;
+  symbol: string;
+  name: string;
+  decimals: number;
+  balance: string;
+  marketData: MarketData;
+  sparklineData: Array<{ timestamp: number; value: number }>;
 }

@@ -1,8 +1,8 @@
-import { Card, Skeleton } from "@nextui-org/react";
+import { Skeleton } from "@nextui-org/react";
 
 export default function SmartSiteIconLoading() {
   return (
-    <Card className="h-screen shadow-none rounded-none m-8 overflow-hidden bg-[#F3F4F6]">
+    <div className="h-screen shadow-none rounded-none overflow-hidden bg-[#F3F4F6]">
       <div className="flex gap-10 mb-6">
         <div className="w-[60%] bg-white p-6 rounded-xl flex flex-col gap-6">
           <div className="flex items-center justify-between">
@@ -52,6 +52,6 @@ export default function SmartSiteIconLoading() {
           <Skeleton className="rounded-md w-48 h-12 mx-auto" />
         </div>
       </div>
-    </Card>
+    </div>
   );
 }

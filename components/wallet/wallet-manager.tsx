@@ -1,14 +1,12 @@
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { Wallet } from 'lucide-react';
+'use client';
+import { Card, CardContent } from '@/components/ui/card';
 import Image from 'next/image';
 import { WalletItem } from '@/types/wallet';
+import { Dialog, DialogContent } from '../ui/dialog';
+import { DialogTitle } from '@radix-ui/react-dialog';
+import { useState } from 'react';
+import { Button } from '../ui/button';
+import { Check, Copy } from 'lucide-react';
 
 const formatAddress = (address: string) => {
   return `${address.slice(0, 5)}...${address.slice(-3)}`;
@@ -16,61 +14,125 @@ const formatAddress = (address: string) => {
 
 interface WalletManagerProps {
   walletData: WalletItem[];
+  isOpen: boolean;
+  onClose: () => void;
 }
+
+const CopyButton = ({ content }: { content: string }) => {
+  const [copied, setCopied] = useState(false);
+  const handleCopy = async () => {
+    await navigator.clipboard.writeText(content);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+  return (
+    <Button
+      variant="ghost"
+      size="icon"
+      onClick={handleCopy}
+      className="h-6 w-6"
+    >
+      {copied ? (
+        <Check className="h-4 w-4 text-green-500" />
+      ) : (
+        <Copy className="h-4 w-4 text-gray-500" />
+      )}
+    </Button>
+  );
+};
 
 export default function WalletManager({
   walletData,
+  isOpen,
+  onClose,
 }: WalletManagerProps) {
+  const evm = walletData.filter((item) => item.isEVM);
+  const sol = walletData.filter((item) => !item.isEVM);
   return (
-    <Card className="w-full max-w-sm">
-      <CardHeader>
-        <div className="flex items-center gap-2">
-          <Wallet className="h-5 w-5" />
-          <CardTitle>Wallets</CardTitle>
-        </div>
-        <p className="text-sm text-muted-foreground">
-          Connect and link wallets to your account.
-        </p>
-      </CardHeader>
-      <CardContent className="space-y-2">
-        {walletData.map((wallet, index) => (
-          <div
-            key={index}
-            className="flex items-center justify-between p-3 rounded-lg border bg-card hover:bg-accent/50 transition-colors"
-          >
-            <div className="flex items-center gap-2">
-              <div
-                className={`w-7 h-7 rounded-full ${
-                  wallet.isEVM ? 'bg-blue-200' : 'bg-slate-800'
-                } flex items-center justify-center`}
-              >
-                <Image
-                  src={
-                    wallet.isEVM
-                      ? '/assets/icons/ethereum.png'
-                      : '/assets/icons/solana.png'
-                  }
-                  alt="ETH Icons"
-                  height={25}
-                  width={25}
-                  className="h-4 w-4"
-                />
+    <Dialog open={isOpen} onOpenChange={onClose}>
+      <DialogContent className="sm:max-w-[425px]">
+        <DialogTitle>Wallet Address</DialogTitle>
+        <Card className="w-full border-none">
+          <CardContent className="space-y-2 py-4">
+            <div className="flex items-center justify-between p-3 rounded-lg border bg-card hover:bg-accent/50 transition-colors">
+              <div className="flex items-center gap-2">
+                <div
+                  className={`w-7 h-7 rounded-full  flex items-center justify-center`}
+                >
+                  <Image
+                    src="/assets/icons/solana.png"
+                    alt={'ETH Icons'}
+                    height={25}
+                    width={25}
+                    className="h-4 w-4"
+                  />
+                </div>
+                <span className="text-sm font-medium">
+                  {formatAddress(sol[0].address)}
+                </span>
               </div>
-              <span className="text-sm font-medium">
-                {formatAddress(wallet.address)}
-              </span>
+              <CopyButton content={sol[0].address} />
             </div>
-            {wallet.isActive && (
-              <Badge className="bg-purple-100 text-purple-600 hover:bg-purple-100">
-                Active
-              </Badge>
-            )}
-          </div>
-        ))}
-        <Button variant="outline" className="w-full mt-2">
-          + Link a Wallet
-        </Button>
-      </CardContent>
-    </Card>
+            <div className="flex items-center justify-between p-3 rounded-lg border bg-card hover:bg-accent/50 transition-colors">
+              <div className="flex items-center gap-2">
+                <div
+                  className={`w-7 h-7 rounded-full  flex items-center justify-center`}
+                >
+                  <Image
+                    src="/assets/icons/ethereum.png"
+                    alt={'ETH Icons'}
+                    height={25}
+                    width={25}
+                    className="h-4 w-4"
+                  />
+                </div>
+                <span className="text-sm font-medium">
+                  {formatAddress(evm[0].address)}
+                </span>
+              </div>
+              <CopyButton content={evm[0].address} />
+            </div>
+            <div className="flex items-center justify-between p-3 rounded-lg border bg-card hover:bg-accent/50 transition-colors">
+              <div className="flex items-center gap-2">
+                <div
+                  className={`w-7 h-7 rounded-full  flex items-center justify-center`}
+                >
+                  <Image
+                    src="/assets/icons/polygon.png"
+                    alt={'ETH Icons'}
+                    height={25}
+                    width={25}
+                    className="h-4 w-4"
+                  />
+                </div>
+                <span className="text-sm font-medium">
+                  {formatAddress(evm[0].address)}
+                </span>
+              </div>
+              <CopyButton content={evm[0].address} />
+            </div>
+            <div className="flex items-center justify-between p-3 rounded-lg border bg-card hover:bg-accent/50 transition-colors">
+              <div className="flex items-center gap-2">
+                <div
+                  className={`w-7 h-7 rounded-full  flex items-center justify-center`}
+                >
+                  <Image
+                    src="/assets/icons/base.png"
+                    alt={'ETH Icons'}
+                    height={25}
+                    width={25}
+                    className="h-4 w-4"
+                  />
+                </div>
+                <span className="text-sm font-medium">
+                  {formatAddress(evm[0].address)}
+                </span>
+              </div>
+              <CopyButton content={evm[0].address} />
+            </div>
+          </CardContent>
+        </Card>
+      </DialogContent>
+    </Dialog>
   );
 }

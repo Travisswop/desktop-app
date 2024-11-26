@@ -2,9 +2,15 @@
 import Image from "next/image";
 import React, { useEffect, useState } from "react";
 import editIcon from "@/public/images/websites/edit-icon.svg";
-import { FiUser } from "react-icons/fi";
+import { FiMinus, FiPlus, FiUser } from "react-icons/fi";
 import { TbUserSquare } from "react-icons/tb";
-import { Spinner, Switch, useDisclosure } from "@nextui-org/react";
+import {
+  Select,
+  SelectItem,
+  Spinner,
+  Switch,
+  useDisclosure,
+} from "@nextui-org/react";
 // import EditMicrositeBtn from "@/components/Button/EditMicrositeBtn";
 import { LiaFileMedicalSolid } from "react-icons/lia";
 import { IoMdLink } from "react-icons/io";
@@ -41,13 +47,15 @@ import AnimateButton from "@/components/ui/Button/AnimateButton";
 import { sendCloudinaryImage } from "@/lib/SendCloudineryImage";
 import SmartsiteIconLivePreview from "../SmartsiteIconLivePreview";
 import { useDesktopUserData } from "@/components/tanstackQueryApi/getUserData";
+import { HexColorPicker } from "react-colorful";
+import { MdDone } from "react-icons/md";
 
 const EditSmartSite = ({ data, token }: any) => {
   const [selectedImage, setSelectedImage] = useState(null); // get user avator image
 
   const { refetch } = useDesktopUserData(data?.data?.parentId);
 
-  // console.log("hola data", data);
+  console.log("hola data", data);
 
   const { toast } = useToast();
 
@@ -55,7 +63,7 @@ const EditSmartSite = ({ data, token }: any) => {
     useSmartsiteFormStore();
 
   // console.log("selected image", selectedImage);
-  //console.log("formData from edit page", smartSiteEditFormData);
+  console.log("formData from edit page", smartSiteEditFormData);
 
   const [galleryImage, setGalleryImage] = useState(null); // get upload image base64 data
   const [uploadedImageUrl, setUploadedImageUrl] = useState(""); // get uploaded url from cloudinery
@@ -68,7 +76,11 @@ const EditSmartSite = ({ data, token }: any) => {
     network: "",
   });
   const [isPrimaryMicrosite, setIsPrimaryMicrosite] = useState(false);
+  const [isWeb3Enabled, setIsWeb3Enabled] = useState(false);
   const [brandImage, setBrandImage] = useState(""); //need to set brand image
+
+  const [isTemplateColorPickerOpen, setIsTemplateColorPickerOpen] =
+    useState(false);
 
   // const [profileImage, setProfileImage] = useState("");
   // const [backgroundImage, setBackgroundImage] = useState({
@@ -109,10 +121,12 @@ const EditSmartSite = ({ data, token }: any) => {
     setFormData("galleryImg", "");
     setFormData("name", data.data.name);
     setFormData("theme", data.data.theme);
+    setFormData("backgroundColor", data.data.backgroundColor);
     if (!selectedImage && !galleryImage) {
       setFormData("profileImg", data.data.profilePic);
     }
   }, [
+    data.data.backgroundColor,
     data.data.backgroundImg,
     data.data.bio,
     data.data.name,
@@ -130,10 +144,14 @@ const EditSmartSite = ({ data, token }: any) => {
     if (data.data.gatedAccess) {
       setIsGatedAccessOpen(true);
     }
-    // if (data.data.theme) {
-    //   setIsBackgrundImageSelected(true);
-    // }
-  }, [data.data.primary, data.data.theme, data.data.gatedAccess]);
+
+    setIsWeb3Enabled(data.data.web3enabled);
+  }, [
+    data.data.primary,
+    data.data.theme,
+    data.data.gatedAccess,
+    data.data.web3enabled,
+  ]);
 
   // image upload for user profile
   const handleSelectImage = (image: any) => {
@@ -253,7 +271,11 @@ const EditSmartSite = ({ data, token }: any) => {
       theme: smartSiteEditFormData.theme,
       ens: data.data.ens || "",
       primary: isPrimaryMicrosite,
-      web3enabled: data.data.web3enabled,
+      web3enabled: isWeb3Enabled,
+      fontColor: smartSiteEditFormData.fontColor,
+      fontFamily: smartSiteEditFormData.fontType,
+      themeColor: smartSiteEditFormData.templateColor,
+      backgroundColor: smartSiteEditFormData.backgroundColor,
     };
 
     // console.log("smartsite info", smartSiteInfo);
@@ -318,13 +340,18 @@ const EditSmartSite = ({ data, token }: any) => {
 
   // console.log("icon data obbbjj", iconData);
 
+  const fontType = [
+    { key: "roboto", label: "Roboto" },
+    { key: "poppins", label: "Poppins" },
+    { key: "openSans", label: "OpenSans" },
+    { key: "montserrat", label: "Montserrat" },
+    { key: "rubik", label: "Rubik" },
+  ];
+
   return (
     <main className="main-container">
       <div className="flex gap-7 items-start h-[90vh]">
-        <div
-          style={{ height: "100%" }}
-          className="w-[62%] overflow-y-auto custom-scrollbar"
-        >
+        <div style={{ height: "100%" }} className="w-[62%] overflow-y-auto">
           <form
             onSubmit={handleSmartSiteUpdateInfo}
             className=" border-r border-gray-300 pr-8 flex flex-col gap-4 overflow-auto"
@@ -446,6 +473,129 @@ const EditSmartSite = ({ data, token }: any) => {
                 </div>
               </div>
             </div>
+            <div className="flex items-start justify-between gap-6">
+              <Select
+                variant="bordered"
+                selectedKeys={[smartSiteEditFormData.fontType]}
+                onChange={(e) => setFormData("fontType", e.target.value)}
+                label={
+                  <span className="text-gray-600 font-medium">Select Font</span>
+                }
+                className="max-w-40 bg-white rounded-xl"
+              >
+                {fontType.map((font) => (
+                  <SelectItem key={font.key}>{font.label}</SelectItem>
+                ))}
+              </Select>
+              <div>
+                <p className="text-sm font-medium">Font Color</p>
+                <div className="flex items-center gap-2 mt-1">
+                  <button
+                    type="button"
+                    onClick={() => setFormData("fontColor", "#000000")}
+                    className="bg-black w-[22px] h-[22px] rounded-full flex items-center justify-center"
+                  >
+                    {smartSiteEditFormData.fontColor === "#000000" && (
+                      <MdDone color="white" size={16} />
+                    )}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setFormData("fontColor", "#808080")}
+                    className="bg-gray-400 w-[22px] h-[22px] rounded-full flex items-center justify-center"
+                  >
+                    {smartSiteEditFormData.fontColor === "#808080" && (
+                      <MdDone color="white" size={16} />
+                    )}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setFormData("fontColor", "#D3D3D3")}
+                    className="bg-[#D3D3D3] w-[22px] h-[22px] rounded-full flex items-center justify-center"
+                  >
+                    {smartSiteEditFormData.fontColor === "#D3D3D3" && (
+                      <MdDone color="black" size={16} />
+                    )}
+                  </button>
+                </div>
+              </div>
+              <div>
+                <p className="text-sm font-medium text-end">Templates Color</p>
+                <div className="flex items-center justify-end gap-2 mt-1 w-36">
+                  <button
+                    type="button"
+                    onClick={() => setFormData("templateColor", "#000000")}
+                    className="bg-black w-[22px] h-[22px] rounded-full flex items-center justify-center"
+                  >
+                    {smartSiteEditFormData.templateColor === "#000000" && (
+                      <MdDone color="white" size={16} />
+                    )}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setFormData("templateColor", "#808080")}
+                    className="bg-gray-400 w-[22px] h-[22px] rounded-full flex items-center justify-center"
+                  >
+                    {smartSiteEditFormData.templateColor === "#808080" && (
+                      <MdDone color="white" size={16} />
+                    )}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setFormData("templateColor", "#FFFFFF")}
+                    className="bg-white w-[22px] h-[22px] rounded-full flex items-center justify-center border border-gray-300"
+                  >
+                    {smartSiteEditFormData.templateColor === "#FFFFFF" && (
+                      <MdDone color="black" size={16} />
+                    )}
+                  </button>
+                  {smartSiteEditFormData.templateColor !== "#FFFFFF" &&
+                    smartSiteEditFormData.templateColor !== "#808080" &&
+                    smartSiteEditFormData.templateColor !== "#000000" &&
+                    smartSiteEditFormData.templateColor !== "" && (
+                      <button
+                        type="button"
+                        style={{
+                          backgroundColor: smartSiteEditFormData.templateColor,
+                        }}
+                        className={`w-[22px] h-[22px] rounded-full flex items-center justify-center`}
+                      >
+                        <MdDone color="black" size={16} />
+                      </button>
+                    )}
+
+                  <div className="relative">
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setIsTemplateColorPickerOpen(!isTemplateColorPickerOpen)
+                      }
+                      className="bg-white w-[22px] h-[22px] rounded-full flex items-center justify-center border border-gray-500"
+                    >
+                      {isTemplateColorPickerOpen ? (
+                        <FiMinus color="black" size={16} />
+                      ) : (
+                        <FiPlus color="black" size={16} />
+                      )}
+                    </button>
+                    {isTemplateColorPickerOpen && (
+                      <div className="absolute top-8 right-0 w-52 h-48 bg-white p-2 rounded-lg shadow-medium pb-8 z-50">
+                        <p className="font-semibold text-sm text-center mb-1">
+                          Select Template Color
+                        </p>
+                        <HexColorPicker
+                          color={smartSiteEditFormData.templateColor}
+                          onChange={(color) =>
+                            setFormData("templateColor", color)
+                          }
+                          className="max-w-full max-h-full"
+                        />
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
             <div className="flex flex-col gap-2 xl:flex-row xl:items-center xl:justify-between">
               <div className="flex items-center gap-8 border border-gray-300 rounded-xl pl-4 pr-3 py-2 text-lg font-medium text-gray-600 w-max">
                 <p className="text-base">Make Primary Microsite</p>
@@ -468,27 +618,39 @@ const EditSmartSite = ({ data, token }: any) => {
                 <LiaFileMedicalSolid size={20} /> Edit Background/Banner
               </AnimateButton>
             </div>
+            <div className="flex items-center gap-8 border border-gray-300 rounded-xl pl-4 pr-3 py-2 text-lg font-medium text-gray-600 w-max">
+              <p className="text-base">Make Web3 Enabled</p>
+              <Switch
+                color="default"
+                size="sm"
+                defaultSelected
+                isSelected={isWeb3Enabled}
+                onValueChange={setIsWeb3Enabled}
+                aria-label="Lead Captures"
+              />
+            </div>
             <div>
-              <p className="text-gray-700 font-semibold">
-                Select Message Address
-              </p>
+              <p className="text-gray-700 font-medium">Your ENS Name</p>
               <div className="relative flex-1 mt-1">
-                <TbUserSquare
+                {/* <TbUserSquare
                   className="absolute left-4 top-1/2 -translate-y-1/2 font-bold text-gray-600"
                   size={18}
-                />
+                /> */}
                 <input
                   placeholder={`Swop Username, ENS or Public Address`}
-                  readOnly
+                  readOnly={data.data.ens}
                   value={data.data.ens}
-                  className="w-full border border-[#ede8e8] focus:border-[#e5e0e0] rounded-xl focus:outline-none pl-10 py-6 text-gray-700 bg-white"
+                  className="w-full border border-[#ede8e8] focus:border-[#e5e0e0] rounded-xl focus:outline-none px-4 py-3 text-gray-700 bg-white text-sm"
                 />
-                <button
-                  type="button"
-                  className="absolute right-6 top-1/2 -translate-y-1/2 font-medium text-gray-500 border px-4 py-1 rounded-xl border-gray-300"
-                >
-                  Connect
-                </button>
+                {data.data.ens && (
+                  <button
+                    type="button"
+                    className="absolute right-6 top-1/2 -translate-y-1/2 font-medium text-gray-500 pl-4 py-1"
+                    // className="absolute right-6 top-1/2 -translate-y-1/2 font-medium text-gray-500 border px-4 py-1 rounded-xl border-gray-300"
+                  >
+                    <MdDone color="green" size={20} />
+                  </button>
+                )}
               </div>
             </div>
             <div className="flex items-center gap-8 border border-gray-300 rounded-xl pl-4 pr-3 py-2 text-lg font-medium text-gray-600 w-max">
@@ -598,7 +760,10 @@ const EditSmartSite = ({ data, token }: any) => {
           </form>
         </div>
         {/* <div style={{ height: "90%" }} className="w-[38%] overflow-y-auto"> */}
-        <SmartsiteIconLivePreview data={data.data} />
+        <SmartsiteIconLivePreview
+          isEditDetailsLivePreview={true}
+          data={data.data}
+        />
         {/* </div> */}
       </div>
 

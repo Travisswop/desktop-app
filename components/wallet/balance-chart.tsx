@@ -17,12 +17,21 @@ import {
 import { Button } from '@/components/ui/button';
 
 import {
+  ArrowLeftRight,
   BadgeDollarSign,
   ChevronDown,
   QrCode,
   Rocket,
   Wallet,
+  AlertCircle,
 } from 'lucide-react';
+import WalletManager from './wallet-manager';
+import { WalletItem } from '@/types/wallet';
+import { useState } from 'react';
+interface WalletManagerProps {
+  walletData: WalletItem[];
+  totalBalance: number;
+}
 
 // Generate more data points for smoother curve
 const generateSmoothData = () => {
@@ -53,113 +62,191 @@ const generateSmoothData = () => {
   return data;
 };
 
-export default function BalanceChart() {
-  return (
-    <Card className="w-full border-none rounded-xl">
-      <CardHeader>
-        <div className="flex justify-between">
-          <div>
-            <div className="flex items-center gap-2">
-              <BadgeDollarSign />
-              <CardTitle>Balance</CardTitle>
-            </div>
-            <div className="text-xl font-semibold ml-8 mt-2">
-              $28,304.59
-            </div>
-          </div>
+export default function BalanceChart({
+  walletData,
+  totalBalance,
+}: WalletManagerProps) {
+  const [isWalletManagerOpen, setIsWalletManagerOpen] =
+    useState(false);
 
-          <div className="flex gap-2">
-            <Button variant="black" size="icon">
-              <Rocket />
-            </Button>
-            <Button variant="black" size="icon">
-              <Wallet />
-            </Button>
-            <Button variant="black" size="icon">
-              <QrCode />
+  if (totalBalance === 0) {
+    return (
+      <Card className="w-full border-none rounded-xl">
+        <CardHeader className="relative">
+          <div className="flex justify-between">
+            <div>
+              <div className="flex items-center gap-2">
+                <BadgeDollarSign />
+                <CardTitle>Balance</CardTitle>
+              </div>
+              <div className="text-xl font-semibold ml-8 mt-2">
+                $0.00
+              </div>
+            </div>
+
+            <div className="flex gap-2">
+              <Button variant="black" size="icon">
+                <Rocket />
+              </Button>
+              <Button
+                variant="black"
+                size="icon"
+                onClick={() => setIsWalletManagerOpen(true)}
+              >
+                <Wallet />
+              </Button>
+              <Button variant="black" size="icon">
+                <ArrowLeftRight />
+              </Button>
+              <Button variant="black" size="icon">
+                <QrCode />
+              </Button>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent className="flex flex-col items-center justify-center py-12">
+          <div className="flex flex-col items-center text-center space-y-4">
+            <AlertCircle className="h-12 w-12 text-muted-foreground" />
+            <div className="space-y-2">
+              <h3 className="text-lg font-medium">No Assets Found</h3>
+              <p className="text-sm text-muted-foreground max-w-[300px]">
+                Start building your portfolio by depositing or
+                receiving assets to your wallet.
+              </p>
+            </div>
+            <Button variant="outline" className="mt-4">
+              <Rocket className="mr-2 h-4 w-4" />
+              Get Started
             </Button>
           </div>
-        </div>
-      </CardHeader>
-      <CardContent>
-        <div className="h-[200px]">
-          <ResponsiveContainer width="100%" height="100%">
-            <AreaChart
-              data={generateSmoothData()}
-              margin={{ top: 5, right: 5, left: 5, bottom: 5 }}
+        </CardContent>
+      </Card>
+    );
+  }
+
+  return (
+    <>
+      <Card className="w-full border-none rounded-xl">
+        <CardHeader className="relative">
+          <div className="flex justify-between">
+            <div>
+              <div className="flex items-center gap-2">
+                <BadgeDollarSign />
+                <CardTitle>Balance</CardTitle>
+              </div>
+              <div className="text-xl font-semibold ml-8 mt-2">
+                $28,304.59
+              </div>
+            </div>
+
+            <div className="flex gap-2">
+              <Button variant="black" size="icon">
+                <Rocket />
+              </Button>
+              <Button
+                variant="black"
+                size="icon"
+                onClick={() => setIsWalletManagerOpen(true)}
+              >
+                <Wallet />
+              </Button>
+              <Button variant="black" size="icon">
+                <ArrowLeftRight />
+              </Button>
+              <Button variant="black" size="icon">
+                <QrCode />
+              </Button>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent>
+          <div className="h-[200px]">
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart
+                data={generateSmoothData()}
+                margin={{ top: 5, right: 5, left: 5, bottom: 5 }}
+              >
+                <defs>
+                  <linearGradient
+                    id="colorGradient"
+                    x1="0"
+                    y1="0"
+                    x2="1"
+                    y2="0"
+                  >
+                    <stop
+                      offset="0%"
+                      stopColor="rgba(132, 204, 22, 1)"
+                    />
+                    <stop
+                      offset="100%"
+                      stopColor="rgba(96, 165, 250, 1)"
+                    />
+                  </linearGradient>
+                  <linearGradient
+                    id="areaGradient"
+                    x1="0"
+                    y1="0"
+                    x2="0"
+                    y2="1"
+                  >
+                    <stop
+                      offset="0%"
+                      stopColor="rgba(132, 204, 22, 0.2)"
+                    />
+                    <stop
+                      offset="100%"
+                      stopColor="rgba(96, 165, 250, 0.05)"
+                    />
+                  </linearGradient>
+                </defs>
+                <XAxis
+                  dataKey="date"
+                  hide
+                  padding={{ left: 0, right: 0 }}
+                />
+                <YAxis
+                  hide
+                  domain={['dataMin', 'dataMax']}
+                  padding={{ top: 20, bottom: 20 }}
+                />
+                <Area
+                  type="monotone"
+                  dataKey="value"
+                  stroke="url(#colorGradient)"
+                  fill="url(#areaGradient)"
+                  strokeWidth={2}
+                  isAnimationActive={false}
+                  baseLine={8000}
+                />
+              </AreaChart>
+            </ResponsiveContainer>
+          </div>
+        </CardContent>
+        <CardFooter>
+          <div className="flex items-center gap-2 text-sm">
+            <span className="inline-flex items-center rounded-md bg-green-50 px-2 py-1 text-green-600">
+              + 24%
+            </span>
+            <span className="text-muted-foreground">in the last</span>
+            <Button
+              variant="ghost"
+              className="h-auto p-0 text-sm font-medium"
             >
-              <defs>
-                <linearGradient
-                  id="colorGradient"
-                  x1="0"
-                  y1="0"
-                  x2="1"
-                  y2="0"
-                >
-                  <stop
-                    offset="0%"
-                    stopColor="rgba(132, 204, 22, 1)"
-                  />
-                  <stop
-                    offset="100%"
-                    stopColor="rgba(96, 165, 250, 1)"
-                  />
-                </linearGradient>
-                <linearGradient
-                  id="areaGradient"
-                  x1="0"
-                  y1="0"
-                  x2="0"
-                  y2="1"
-                >
-                  <stop
-                    offset="0%"
-                    stopColor="rgba(132, 204, 22, 0.2)"
-                  />
-                  <stop
-                    offset="100%"
-                    stopColor="rgba(96, 165, 250, 0.05)"
-                  />
-                </linearGradient>
-              </defs>
-              <XAxis
-                dataKey="date"
-                hide
-                padding={{ left: 0, right: 0 }}
-              />
-              <YAxis
-                hide
-                domain={['dataMin', 'dataMax']}
-                padding={{ top: 20, bottom: 20 }}
-              />
-              <Area
-                type="monotone"
-                dataKey="value"
-                stroke="url(#colorGradient)"
-                fill="url(#areaGradient)"
-                strokeWidth={2}
-                isAnimationActive={false}
-                baseLine={8000}
-              />
-            </AreaChart>
-          </ResponsiveContainer>
-        </div>
-      </CardContent>
-      <CardFooter>
-        <div className="flex items-center gap-2 text-sm">
-          <span className="inline-flex items-center rounded-md bg-green-50 px-2 py-1 text-green-600">
-            + 24%
-          </span>
-          <span className="text-muted-foreground">in the last</span>
-          <Button
-            variant="ghost"
-            className="h-auto p-0 text-sm font-medium"
-          >
-            30 days
-            <ChevronDown className="ml-1 h-4 w-4" />
-          </Button>
-        </div>
-      </CardFooter>
-    </Card>
+              30 days
+              <ChevronDown className="ml-1 h-4 w-4" />
+            </Button>
+          </div>
+        </CardFooter>
+      </Card>
+
+      {walletData && (
+        <WalletManager
+          walletData={walletData}
+          isOpen={isWalletManagerOpen}
+          onClose={() => setIsWalletManagerOpen(false)}
+        />
+      )}
+    </>
   );
 }

@@ -1,4 +1,3 @@
-'use client';
 import WalletContent from '@/components/wallet/WalletContent';
 
 const Wallet: React.FC = () => {
