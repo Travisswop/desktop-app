@@ -5,6 +5,7 @@ import {
   DropdownItem,
   DropdownMenu,
   DropdownTrigger,
+  Tooltip,
   // Switch,
 } from "@nextui-org/react";
 import { AiOutlineDownCircle } from "react-icons/ai";
@@ -12,8 +13,8 @@ import { AiOutlineDownCircle } from "react-icons/ai";
 import { LiaFileMedicalSolid } from "react-icons/lia";
 // import { currencyItems, embedItems, icon } from "@/util/data/smartsiteIconData";
 // import { toast } from "react-toastify";
-import { FaTimes } from "react-icons/fa";
-import { MdDelete } from "react-icons/md";
+import { FaAngleDown, FaTimes } from "react-icons/fa";
+import { MdDelete, MdInfoOutline } from "react-icons/md";
 // import AnimateButton from "@/components/Button/AnimateButton";
 // import { deleteEmbedLink, updateEmbedLink } from "@/actions/embedLink";
 // import { sendCloudinaryVideo } from "@/util/sendCloudineryVideo";
@@ -44,6 +45,10 @@ const UpdateSwopPay = ({ iconDataObj, isOn, setOff }: any) => {
     icon: icon.appIconSolana,
     characterText: "$",
   });
+
+  const [productName, setProductName] = useState<string>("");
+  const [description, setDescription] = useState<string>("");
+  const [price, setPrice] = useState<number>(50);
 
   // console.log("file error", fileError);
   // console.log("icon data ggg", iconDataObj);
@@ -192,6 +197,16 @@ const UpdateSwopPay = ({ iconDataObj, isOn, setOff }: any) => {
     }
   };
 
+  useEffect(() => {
+    setProductName(iconDataObj.data.title);
+    setPrice(iconDataObj.data.price);
+    setDescription(iconDataObj.data.description);
+  }, [
+    iconDataObj.data.description,
+    iconDataObj.data.price,
+    iconDataObj.data.title,
+  ]);
+
   return (
     <>
       {isOn && (
@@ -213,50 +228,70 @@ const UpdateSwopPay = ({ iconDataObj, isOn, setOff }: any) => {
               onSubmit={handleFormSubmit}
               className="bg-white rounded-xl shadow-small px-8 py-6 flex flex-col gap-4"
             >
-              <h1 className="font-semibold text-gray-700">Product Purchase</h1>
+              <div className="flex items-end gap-1 justify-center">
+                <h2 className="font-semibold text-gray-700 text-xl text-center">
+                  Product Purchase
+                </h2>
+                <div className="translate-y-0.5">
+                  <Tooltip
+                    size="sm"
+                    content={
+                      <span className="font-medium">
+                        You will be able to set the icon type, choose an icon ,
+                        specify a button name, provide a link, and add a
+                        description.
+                      </span>
+                    }
+                    className={`max-w-40 h-auto`}
+                  >
+                    <button>
+                      <MdInfoOutline />
+                    </button>
+                  </Tooltip>
+                </div>
+              </div>
+              <div className="w-full rounded-xl bg-gray-200 p-3">
+                <div className="flex items-center justify-between bg-white rounded-xl py-1 px-3">
+                  <div className=" w-full flex items-center gap-2">
+                    <Image
+                      className="w-12 h-12 rounded-full"
+                      src={imageFile ? imageFile : iconDataObj?.data?.imageUrl}
+                      alt="icon"
+                      width={90}
+                      height={90}
+                    />
+                    <div>
+                      <p className="text-gray-700 font-medium">{productName}</p>
+                      <p className="text-gray-500 text-sm font-medium">
+                        {description}
+                      </p>
+                    </div>
+                  </div>
+                  <p className="text-gray-700 font-medium">${price}</p>
+                </div>
+              </div>
               <div className="flex justify-between gap-10">
                 <div className="flex flex-col gap-3 flex-1">
                   <div className="flex flex-col gap-2">
-                    <div className="flex flex-col gap-2">
+                    <div className="flex items-center gap-2">
                       <p className="font-semibold text-gray-700 text-sm">
                         Upload Product Photo
                         <span className="text-red-600 font-medium text-sm mt-1">
                           *
                         </span>
                       </p>
-                      <div className="border-2 border-[#d8acff] min-w-40 max-w-56 min-h-40 max-h-56 bg-slate-100 rounded-lg">
-                        {imageFile ? (
-                          <div className="relative h-full">
-                            <Image
-                              src={imageFile}
-                              alt="blog photo"
-                              width={200}
-                              height={200}
-                              className="w-full max-h-full rounded-md object-cover"
-                            />
-                          </div>
-                        ) : (
-                          <Image
-                            src={iconDataObj.data.imageUrl}
-                            alt="blog photo"
-                            width={200}
-                            height={200}
-                            className="w-full max-h-full rounded-md object-cover"
-                          />
-                        )}
-                      </div>
-                      {inputError.image && (
-                        <p className="text-red-600 font-medium text-sm mt-2">
-                          Image is required
-                        </p>
-                      )}
-                      {fileError && (
-                        <p className="text-red-600 font-medium text-sm mt-2">
-                          {fileError}
-                        </p>
-                      )}
                       <CustomFileInput handleFileChange={handleFileChange} />
                     </div>
+                    {inputError.image && (
+                      <p className="text-red-600 font-medium text-sm mt-2">
+                        Image is required
+                      </p>
+                    )}
+                    {fileError && (
+                      <p className="text-red-600 font-medium text-sm mt-2">
+                        {fileError}
+                      </p>
+                    )}
                   </div>
                   <div className="flex flex-col gap-1">
                     <label htmlFor="title" className="font-medium text-sm">
@@ -273,7 +308,7 @@ const UpdateSwopPay = ({ iconDataObj, isOn, setOff }: any) => {
                         defaultValue={iconDataObj.data.title}
                         className="w-full border border-[#ede8e8] focus:border-[#e5e0e0] rounded-xl focus:outline-none px-3 py-2 text-gray-700 bg-gray-100"
                         placeholder={"Enter product name"}
-                        // required
+                        onChange={(e) => setProductName(e.target.value)}
                       />
                       {inputError.title && (
                         <p className="text-red-600 font-medium text-sm mt-1">
@@ -309,19 +344,24 @@ const UpdateSwopPay = ({ iconDataObj, isOn, setOff }: any) => {
               <div className="flex items-center gap-2">
                 <h3 className="font-semibold text-gray-700">Select Currency</h3>
 
-                <Image
-                  alt="app-icon"
-                  src={selectedIcon.icon}
-                  className="w-4 h-auto"
-                  // style={tintStyle}
-                  quality={100}
-                />
-
                 <Dropdown className="w-max rounded-lg" placement="bottom-start">
                   <DropdownTrigger>
                     <div className={`flex items-center`}>
-                      <button type="button">
-                        <AiOutlineDownCircle size={20} color="gray" />
+                      <button
+                        type="button"
+                        className="bg-white w-48 2xl:w-64 flex justify-between items-center rounded px-2 py-2 text-sm font-medium shadow-small"
+                      >
+                        <span className="flex items-center gap-2">
+                          {selectedIcon && (
+                            <Image
+                              alt="app-icon"
+                              src={selectedIcon.icon}
+                              className="w-5 h-auto"
+                            />
+                          )}
+                          {selectedIcon.name}
+                        </span>{" "}
+                        <FaAngleDown />
                       </button>
                       <div className="hidden text-xs text-gray-600 px-2 w-28 py-1.5 bg-slate-200 shadow-medium z-50 absolute left-6 top-0 group-hover:flex justify-center">
                         <p>select icon type</p>
@@ -391,6 +431,7 @@ const UpdateSwopPay = ({ iconDataObj, isOn, setOff }: any) => {
                       defaultValue={iconDataObj.data.price}
                       className="w-full border border-[#ede8e8] focus:border-[#e5e0e0] rounded-xl focus:outline-none pl-11 py-2 text-gray-700 bg-gray-100"
                       placeholder={"Enter product price"}
+                      onChange={(e) => setPrice(Number(e.target.value))}
                       required
                     />
                   </div>
@@ -414,7 +455,7 @@ const UpdateSwopPay = ({ iconDataObj, isOn, setOff }: any) => {
                   defaultValue={iconDataObj.data.description}
                   className="w-full border border-[#ede8e8] focus:border-[#e5e0e0] rounded-xl focus:outline-none px-3 py-2 text-gray-700 bg-gray-100"
                   placeholder={"Enter description"}
-                  //   required
+                  onChange={(e) => setDescription(e.target.value)}
                 />
                 {inputError.description && (
                   <p className="text-red-600 font-medium text-sm">
@@ -423,11 +464,18 @@ const UpdateSwopPay = ({ iconDataObj, isOn, setOff }: any) => {
                 )}
               </div>
               <div className="flex justify-between mt-3">
-                <AnimateButton isLoading={isLoading} width={"w-52"}>
+                <AnimateButton
+                  whiteLoading={true}
+                  className="bg-black text-white py-2 !border-0"
+                  isLoading={isLoading}
+                  width={"w-52"}
+                >
                   <LiaFileMedicalSolid size={20} />
                   Update Changes
                 </AnimateButton>
                 <AnimateButton
+                  whiteLoading={true}
+                  className="bg-black text-white py-2 !border-0"
                   type="button"
                   onClick={handleDelete}
                   isLoading={isDeleteLoading}

@@ -184,7 +184,7 @@ const AddSwopPay = ({ handleRemoveIcon }: any) => {
         <FaTimes size={18} />
       </button>
 
-      <div className="w-full rounded-xl bg-gray-200 p-3 ">
+      <div className="w-full rounded-xl bg-gray-200 p-3">
         <div className="flex items-center justify-between bg-white rounded-xl py-1 px-3">
           <div className=" w-full flex items-center gap-2">
             <Image
