@@ -3,12 +3,6 @@ import { useState, DragEvent } from "react";
 import PushToMintCollectionButton from "@/components/Button/PushToMintCollectionButton";
 import Image from "next/image";
 
-interface ContentFile {
-  url: string;
-  name: string;
-  type: string;
-}
-
 interface FormData {
   name: string;
   description: string;
@@ -18,7 +12,6 @@ interface FormData {
   currency: string;
   type: string;
   benefits: string[];
-  content: ContentFile[];
   enableCreditCard: boolean;
   verifyIdentity: boolean;
   limitQuantity: boolean;
@@ -35,7 +28,6 @@ const CreatePhygitalPage = () => {
     currency: "usdc",
     type: "Phygital",
     benefits: [],
-    content: [],
     enableCreditCard: false,
     verifyIdentity: false,
     limitQuantity: false,
@@ -106,29 +98,6 @@ const CreatePhygitalPage = () => {
     reader.readAsDataURL(file);
   };
 
-  const handleContentUpload = (
-    event: React.ChangeEvent<HTMLInputElement>
-  ) => {
-    const files = Array.from(event.target.files || []);
-    if (files.length === 0) return;
-
-    const uploadedFiles = files.map((file) => {
-      const reader = new FileReader();
-      return new Promise<ContentFile | null>((resolve) => {
-        reader.onloadend = () => {
-          resolve({ url: reader.result as string, name: file.name, type: file.type });
-        };
-        reader.readAsDataURL(file);
-      });
-    });
-
-    Promise.all(uploadedFiles).then((successfulUploads) => {
-      setFormData((prevState) => ({
-        ...prevState,
-        content: [...prevState.content, ...(successfulUploads.filter(Boolean) as ContentFile[])],
-      }));
-    });
-  };
 
   const handleAddBenefit = () => {
     if (newBenefit.trim()) {
@@ -147,13 +116,6 @@ const CreatePhygitalPage = () => {
     }));
   };
 
-  const getFileTypeIcon = (type: string) => {
-    if (type.startsWith("image")) return "🖼️";
-    if (type.startsWith("audio")) return "🎵";
-    if (type.startsWith("video")) return "🎥";
-    if (type === "application/pdf") return "📄";
-    return "📁";
-  };
 
   return (
     <div className="main-container flex">
@@ -186,6 +148,7 @@ const CreatePhygitalPage = () => {
             </label>
             <div
               className="bg-gray-100 p-4 rounded-lg border border-dashed border-gray-300 text-center"
+              style={{ minWidth: "300px", width: "50%" }}
               onDragOver={(e) => e.preventDefault()}
               onDrop={handleImageDrop}
             >
@@ -231,7 +194,6 @@ const CreatePhygitalPage = () => {
                 className="hidden"
               />
             </div>
-
             <div>
               <label htmlFor="description" className="mb-1 block font-medium">
                 Description
@@ -266,35 +228,6 @@ const CreatePhygitalPage = () => {
               </p>
             </div>
 
-            <div className="bg-gray-100 p-4 rounded-lg border border-gray-300">
-              <h3 className="text-lg font-medium text-black-600">Content</h3>
-              <p className="text-sm text-gray-600">
-                Add content to sell. You can upload images, audio, video, PDFs, or other digital files.
-              </p>
-              <input
-                type="file"
-                id="content"
-                name="content"
-                multiple
-                accept="*/*"
-                onChange={handleContentUpload}
-                className="w-full border border-dashed border-gray-300 rounded-lg px-4 py-2 mt-2"
-              />
-
-              <div className="grid grid-cols-3 gap-4 mt-4">
-                {formData.content.map((file, index) => (
-                  <div
-                    key={index}
-                    className="flex flex-col items-center p-2 bg-white border rounded shadow-sm w-full"
-                  >
-                    <div className="text-2xl">{getFileTypeIcon(file.type)}</div>
-                    <p className="text-xs text-gray-600 mt-1 text-center truncate w-full overflow-hidden text-ellipsis whitespace-nowrap">
-                      {file.name}
-                    </p>
-                  </div>
-                ))}
-              </div>
-            </div>
 
             <div>
               <label htmlFor="benefits" className="mb-1 block font-medium">
@@ -336,13 +269,22 @@ const CreatePhygitalPage = () => {
             <div className="bg-gray-100 p-4 rounded-lg border border-gray-300 mt-4">
               <h3 className="text-md font-medium">Enable Pay with Credit Card</h3>
               <p className="text-sm text-gray-600 mb-2">Let users buy this phygital item with a credit card</p>
-              <input
-                type="checkbox"
-                id="enableCreditCard"
-                name="enableCreditCard"
-                checked={formData.enableCreditCard}
-                onChange={handleChange}
-              /> Enable
+              <div
+                className={`w-14 h-8 flex items-center rounded-full p-1 cursor-pointer ${formData.enableCreditCard ? "bg-black" : "bg-gray-300"
+                  }`}
+                onClick={() =>
+                  setFormData((prevState) => ({
+                    ...prevState,
+                    enableCreditCard: !prevState.enableCreditCard,
+                  }))
+                }
+              >
+                <div
+                  className={`h-6 w-6 bg-white rounded-full shadow-md transform duration-300 ${formData.enableCreditCard ? "translate-x-6" : ""
+                    }`}
+                ></div>
+              </div>
+
 
               <div className="mt-4">
                 <h3 className="text-md font-medium">Verify Identity</h3>
@@ -361,13 +303,22 @@ const CreatePhygitalPage = () => {
               <h3 className="text-md font-medium">Advanced Settings</h3>
               <div className="flex items-center justify-between mt-2">
                 <span className="text-sm font-medium">Limit quantity</span>
-                <input
-                  type="checkbox"
-                  id="limitQuantity"
-                  name="limitQuantity"
-                  checked={formData.limitQuantity}
-                  onChange={handleChange}
-                />
+                <div
+                  className={`w-14 h-8 flex items-center rounded-full p-1 cursor-pointer ${formData.limitQuantity ? "bg-black" : "bg-gray-300"
+                    }`}
+                  onClick={() =>
+                    setFormData((prevState) => ({
+                      ...prevState,
+                      limitQuantity: !prevState.limitQuantity,
+                    }))
+                  }
+                >
+                  <div
+                    className={`h-6 w-6 bg-white rounded-full shadow-md transform duration-300 ${formData.limitQuantity ? "translate-x-6" : ""
+                      }`}
+                  ></div>
+                </div>
+
               </div>
               {formData.limitQuantity && (
                 <input
@@ -431,8 +382,8 @@ const CreatePhygitalPage = () => {
             <ul className="list-disc list-inside text-sm text-gray-500">
               {formData.benefits.length > 0
                 ? formData.benefits.map((benefit, index) => (
-                    <li key={index}>{benefit}</li>
-                  ))
+                  <li key={index}>{benefit}</li>
+                ))
                 : <li>No benefits added</li>}
             </ul>
           </div>
