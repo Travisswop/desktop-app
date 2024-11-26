@@ -9,6 +9,7 @@ const nextConfig: NextConfig = {
       'ipfs.io',
       'i.ibb.co',
       'nftstorage.link',
+      'res.cloudinary.com',
     ], // Allow images from all domains
   },
 };

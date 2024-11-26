@@ -84,7 +84,9 @@ const SentReceivedView = ({
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="">
         <DialogHeader>
-          <DialogTitle>Transaction Details</DialogTitle>
+          <DialogTitle className="sr-only">
+            Transaction Details
+          </DialogTitle>
         </DialogHeader>
         <div className="p-2">
           {/* Header */}

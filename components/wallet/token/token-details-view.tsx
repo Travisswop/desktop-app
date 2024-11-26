@@ -42,11 +42,13 @@ any) => {
 interface TokenDetailsProps {
   token: TokenData;
   onBack: () => void;
+  onSend: (arg0: TokenData) => void;
 }
 
 export default function TokenDetails({
   token,
   onBack,
+  onSend,
 }: TokenDetailsProps) {
   const [selectedPeriod, setSelectedPeriod] = useState('1H');
   const [chartData, setChartData] = useState(
@@ -277,6 +279,7 @@ export default function TokenDetails({
           <Button
             variant="outline"
             className="flex items-center gap-2"
+            onClick={() => onSend(token)}
           >
             <Send className="w-4 h-4" />
             Send
