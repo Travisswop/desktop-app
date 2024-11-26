@@ -411,7 +411,7 @@ const CreateCouponPage = () => {
           </div>
 
           {/* Submit Button */}
-          <PushToMintCollectionButton className="w-full mt-4">
+          <PushToMintCollectionButton className="w-max mt-4">
             Create
           </PushToMintCollectionButton>
         </div>
