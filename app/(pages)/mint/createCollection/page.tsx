@@ -4,14 +4,17 @@ import PushToMintCollectionButton from "@/components/Button/PushToMintCollection
 import Image from "next/image";
 
 const CreateCollectionPage = () => {
+  const [newBenefit, setNewBenefit] = useState("");
+  const [selectedImageName, setSelectedImageName] = useState<string | null>(null);
+
+
   const [formData, setFormData] = useState({
     name: "",
     description: "",
     imageUrl: "",
-    price: "",
     recipientAddress: "",
     currency: "sol", // Default to Solana
-    benefits: "", // Benefits input
+    benefits: [] as string[], // Change from string to string[]
   });
 
   const handleChange = (
@@ -30,6 +33,7 @@ const CreateCollectionPage = () => {
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (file) {
+      setSelectedImageName(file.name); // Store the file name in state
       const reader = new FileReader();
       reader.onloadend = () => {
         setFormData((prevState) => ({
@@ -39,6 +43,23 @@ const CreateCollectionPage = () => {
       };
       reader.readAsDataURL(file);
     }
+  };
+
+  const handleAddBenefit = () => {
+    if (newBenefit.trim()) {
+      setFormData((prevState) => ({
+        ...prevState,
+        benefits: [...prevState.benefits, newBenefit.trim()],
+      }));
+      setNewBenefit("");
+    }
+  };
+
+  const handleRemoveBenefit = (index: number) => {
+    setFormData((prevState) => ({
+      ...prevState,
+      benefits: prevState.benefits.filter((_, i) => i !== index),
+    }));
   };
 
   return (
@@ -65,6 +86,55 @@ const CreateCollectionPage = () => {
               />
             </div>
 
+            <label htmlFor="imageUrl" className="mb-1 block font-medium">
+              Image (JPEG, JPG, PNG)
+            </label>
+            <div
+              className="bg-gray-100 p-4 rounded-lg border border-dashed border-gray-300 text-center"
+              style={{ minWidth: "300px", width: "50%" }}
+              onDragOver={(e) => e.preventDefault()}
+            >
+              {formData.imageUrl ? (
+                <div className="flex flex-col items-center">
+                  <Image
+                    src={formData.imageUrl}
+                    width={100}
+                    height={100}
+                    alt="Preview"
+                    className="rounded-lg object-cover"
+                  />
+                  <p className="text-sm mt-2 text-gray-700">{selectedImageName || "No file selected"}</p>
+                  <label
+                    htmlFor="imageUrl"
+                    className="inline-block bg-black text-white px-4 py-2 rounded-lg mt-2 cursor-pointer"
+                  >
+                    Change Picture
+                  </label>
+                </div>
+              ) : (
+                <div>
+                  <div className="flex flex-col items-center justify-center h-32 cursor-pointer">
+                    <div className="text-6xl text-gray-400">📷</div>
+                    <p className="text-gray-500">Browse or drag and drop an image here.</p>
+                    <label
+                      htmlFor="imageUrl"
+                      className="inline-block bg-black text-white px-4 py-2 rounded-lg mt-2 cursor-pointer"
+                    >
+                      Browse
+                    </label>
+                  </div>
+                </div>
+              )}
+              <input
+                type="file"
+                id="imageUrl"
+                name="imageUrl"
+                accept="image/*"
+                onChange={handleFileChange}
+                className="hidden"
+              />
+            </div>
+
             <div>
               <label htmlFor="description" className="mb-1 block font-medium">
                 Description:
@@ -83,46 +153,39 @@ const CreateCollectionPage = () => {
             {/* Benefits Input */}
             <div>
               <label htmlFor="benefits" className="mb-1 block font-medium">
-                Benefits:
-              </label>
-              <textarea
-                id="benefits"
-                name="benefits"
-                placeholder="Enter each benefit on a new line"
-                value={formData.benefits}
-                onChange={handleChange}
-                className="w-full border border-gray-300 rounded-lg px-4 py-2"
-              />
-            </div>
-
-            <div>
-              <label htmlFor="imageUrl" className="mb-1 block font-medium">
-                Image:
-              </label>
-              <input
-                type="file"
-                id="imageUrl"
-                name="imageUrl"
-                accept="image/*"
-                onChange={handleFileChange}
-                className="w-full border border-gray-300 rounded-lg px-4 py-2"
-              />
-            </div>
-
-            <div>
-              <label htmlFor="price" className="mb-1 block font-medium">
-                Price in USD:
+                Benefits
               </label>
               <input
                 type="text"
-                id="price"
-                name="price"
-                placeholder="Price"
-                value={formData.price}
-                onChange={handleChange}
-                className="w-full border border-gray-300 rounded-lg px-4 py-2"
-                required
+                placeholder="Enter a benefit"
+                value={newBenefit}
+                onChange={(e) => setNewBenefit(e.target.value)}
+                className="w-full border border-gray-300 rounded-lg px-4 py-2 mb-2"
               />
+              <button
+                type="button"
+                onClick={handleAddBenefit}
+                className="bg-black text-white px-4 py-2 rounded-lg"
+              >
+                + Add Benefit
+              </button>
+              <div className="flex flex-col gap-2 mt-2">
+                {formData.benefits.map((benefit, index) => (
+                  <div
+                    key={index}
+                    className="flex items-center justify-between bg-gray-100 px-4 py-2 rounded-lg shadow-sm"
+                  >
+                    <span className="text-sm">{benefit}</span>
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveBenefit(index)}
+                      className="text-red-500 font-bold"
+                    >
+                      X
+                    </button>
+                  </div>
+                ))}
+              </div>
             </div>
 
             <div>
@@ -146,19 +209,41 @@ const CreateCollectionPage = () => {
 
             <div>
               <label htmlFor="currency" className="mb-1 block font-medium">
-                Currency:
+                Currency
               </label>
               <select
                 id="currency"
                 name="currency"
                 value={formData.currency}
-                onChange={handleChange}
-                className="w-full border border-gray-300 rounded-lg px-4 py-2"
-                required
+                disabled
+                className="w-full border border-gray-300 rounded-lg px-4 py-2 bg-gray-200 cursor-not-allowed"
               >
                 <option value="sol">Solana (SOL)</option>
-                {/* Add other options if needed */}
               </select>
+            </div>
+
+            <div className="bg-gray-100 p-4 rounded-lg border border-gray-300 mt-4">
+              <div className="">
+                <h3 className="text-md font-medium">Verify Identity</h3>
+                <p className="text-sm text-gray-600">
+                  Verify your identity to enable credit card payments. You only
+                  complete this process once.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => alert("Verification process started!")}
+                  className="bg-black text-white px-4 py-2 rounded-lg mt-2"
+                >
+                  Verify Identity
+                </button>
+              </div>
+            </div>
+
+
+            {/* Privacy Policy Agreement */}
+            <div className="mt-4">
+              <input type="checkbox" required /> I agree with Swop Minting
+              Privacy & Policy
             </div>
 
             <PushToMintCollectionButton className="w-max">
@@ -192,11 +277,6 @@ const CreateCollectionPage = () => {
             <p className="text-sm text-gray-500">{formData.name || "Name will appear here"}</p>
           </div>
 
-          {/* Display Price with label */}
-          <div className="mb-2">
-            <p className="text-lg font-bold">Price</p>
-            <p className="text-sm text-gray-500">{formData.price ? `$${formData.price}` : "Free"}</p>
-          </div>
 
           {/* Display Description with label */}
           <div className="mb-2">
@@ -208,13 +288,16 @@ const CreateCollectionPage = () => {
           <div className="mt-4 w-full">
             <p className="text-lg font-bold">Benefits</p>
             <ul className="list-disc list-inside text-sm text-gray-500">
-              {formData.benefits
-                ? formData.benefits.split("\n").map((benefit, index) => (
-                    <li key={index}>{benefit}</li>
-                  ))
-                : <li>No benefits added</li>}
+              {formData.benefits.length > 0 ? (
+                formData.benefits.map((benefit, index) => (
+                  <li key={index}>{benefit}</li>
+                ))
+              ) : (
+                <li>No benefits added</li>
+              )}
             </ul>
           </div>
+
         </div>
       </div>
     </div>
