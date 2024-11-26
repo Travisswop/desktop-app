@@ -20,10 +20,10 @@ import {
 import { FaAngleDown, FaTimes } from "react-icons/fa";
 import { MdDelete, MdInfoOutline } from "react-icons/md";
 import { icon, newIcons } from "@/components/util/data/smartsiteIconData";
-import { useToast } from "@/hooks/use-toast";
 import { isEmptyObject } from "@/components/util/checkIsEmptyObject";
 import AnimateButton from "@/components/ui/Button/AnimateButton";
 import { IconMap, SelectedIconType } from "@/types/smallIcon";
+import toast from "react-hot-toast";
 // import useSmallIconToggleStore from "@/zustandStore/SmallIconModalToggle";
 // import AnimateButton from "../Button/AnimateButton";
 
@@ -48,8 +48,6 @@ const UpdateSmallIcon = ({ iconDataObj, isOn, setOff }: any) => {
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [isDeleteLoading, setIsDeleteLoading] = useState<boolean>(false);
   const [isHit, setIsHit] = useState<boolean>(true);
-
-  const { toast } = useToast();
 
   // console.log("ishit", isHit);
 
@@ -99,7 +97,7 @@ const UpdateSmallIcon = ({ iconDataObj, isOn, setOff }: any) => {
     setSelectedIcon(data);
   };
 
-  const handleSelectIconType = (category: string) => {
+  const handleSelectIconType = (category: SelectedIconType) => {
     setSelectedIconType(category);
     // console.log("cateogy", category);
 
@@ -152,16 +150,10 @@ const UpdateSmallIcon = ({ iconDataObj, isOn, setOff }: any) => {
       // console.log("data,", data);
 
       if (data && data?.state === "success") {
-        toast({
-          title: "Success",
-          description: "Small icon updated successfully",
-        });
+        toast.success("Small icon updated successfully");
         setOff();
       } else {
-        toast({
-          title: "Error",
-          description: "Something went wrong",
-        });
+        toast.error("Something went wrong");
       }
     } catch (error) {
       console.error(error);
@@ -197,16 +189,10 @@ const UpdateSmallIcon = ({ iconDataObj, isOn, setOff }: any) => {
       // console.log("data,", data);
 
       if (data && data?.state === "success") {
-        toast({
-          title: "Success",
-          description: "Small icon deleted successfully",
-        });
+        toast.success("Small icon deleted successfully");
         setOff();
       } else {
-        toast({
-          title: "Error",
-          description: "Something went wrong!",
-        });
+        toast.error("Something went wrong");
       }
     } catch (error) {
       console.error(error);

@@ -1,15 +1,12 @@
 import Image from "next/image";
 import React, { useEffect, useState } from "react";
-import appIconImg from "@/public/images/websites/edit-microsite/add-icon/app-icon.svg";
 import {
   Dropdown,
   DropdownItem,
   DropdownMenu,
   DropdownTrigger,
-  Switch,
   Tooltip,
 } from "@nextui-org/react";
-import { AiOutlineDownCircle } from "react-icons/ai";
 import { IoLinkOutline } from "react-icons/io5";
 import { LiaFileMedicalSolid } from "react-icons/lia";
 // import { icon, newIcons } from "@/util/data/smartsiteIconData";
@@ -21,11 +18,11 @@ import { handleSmallIcon } from "@/actions/createSmallIcon";
 // import AnimateButton from "../Button/AnimateButton";
 import { FaAngleDown, FaTimes } from "react-icons/fa";
 import { icon, newIcons } from "@/components/util/data/smartsiteIconData";
-import { useToast } from "@/hooks/use-toast";
 import { isEmptyObject } from "@/components/util/checkIsEmptyObject";
 import AnimateButton from "@/components/ui/Button/AnimateButton";
 import { MdInfoOutline } from "react-icons/md";
 import { IconMap, SelectedIconType } from "@/types/smallIcon";
+import toast from "react-hot-toast";
 
 const AddSmallIcon = ({ handleRemoveIcon }: any) => {
   const state: any = useSmartSiteApiDataStore((state) => state); //get small icon store value
@@ -47,8 +44,6 @@ const AddSmallIcon = ({ handleRemoveIcon }: any) => {
   // console.log("selected icon name", selectedIcon);
   // console.log("selected icon data", selectedIconData);
   // console.log("selected icon", selectedIcon);
-
-  const { toast } = useToast();
 
   const iconData: any = newIcons[0];
   console.log("iconData", iconData);
@@ -116,16 +111,10 @@ const AddSmallIcon = ({ handleRemoveIcon }: any) => {
       // console.log("create small icon", data);
 
       if (data.state === "success") {
-        toast({
-          title: "Success",
-          description: "Small icon created successfully",
-        });
+        toast.success("Small icon created successfully");
         handleRemoveIcon("Small Icon");
       } else {
-        toast({
-          title: "Error",
-          description: "Something went wrong!",
-        });
+        toast.error("Something went wrong");
       }
     } catch (error) {
       console.error(error);

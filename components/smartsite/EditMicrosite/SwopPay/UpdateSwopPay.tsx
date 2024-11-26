@@ -11,7 +11,6 @@ import { AiOutlineDownCircle } from "react-icons/ai";
 // import { IoLinkOutline } from "react-icons/io5";
 import { LiaFileMedicalSolid } from "react-icons/lia";
 // import { currencyItems, embedItems, icon } from "@/util/data/smartsiteIconData";
-import useLoggedInUserStore from "@/zustandStore/SetLogedInUserSession";
 // import { toast } from "react-toastify";
 import { FaTimes } from "react-icons/fa";
 import { MdDelete } from "react-icons/md";
@@ -25,9 +24,9 @@ import { MdDelete } from "react-icons/md";
 import { deleteSwopPay, updateSwopPay } from "@/actions/swopPay";
 import { currencyItems, icon } from "@/components/util/data/smartsiteIconData";
 import { sendCloudinaryImage } from "@/lib/SendCloudineryImage";
-import { useToast } from "@/hooks/use-toast";
 import CustomFileInput from "@/components/CustomFileInput";
 import AnimateButton from "@/components/ui/Button/AnimateButton";
+import toast from "react-hot-toast";
 
 const UpdateSwopPay = ({ iconDataObj, isOn, setOff }: any) => {
   //const sesstionState = useLoggedInUserStore((state) => state.state.user); //get session value
@@ -48,8 +47,6 @@ const UpdateSwopPay = ({ iconDataObj, isOn, setOff }: any) => {
 
   // console.log("file error", fileError);
   // console.log("icon data ggg", iconDataObj);
-
-  const { toast } = useToast();
 
   const currencyList: any = currencyItems;
 
@@ -135,10 +132,7 @@ const UpdateSwopPay = ({ iconDataObj, isOn, setOff }: any) => {
         if (imageFile) {
           const imageUrl = await sendCloudinaryImage(info.imageUrl);
           if (!imageUrl) {
-            return toast({
-              title: "Error",
-              description: "photo upload failed!",
-            });
+            return toast.error("photo upload failed!");
           }
           info.imageUrl = imageUrl;
         }
@@ -147,15 +141,9 @@ const UpdateSwopPay = ({ iconDataObj, isOn, setOff }: any) => {
 
         if ((data.state = "success")) {
           setOff();
-          toast({
-            title: "Success",
-            description: "product created successfully",
-          });
+          toast.success("Product created successfully");
         } else {
-          toast({
-            title: "Error",
-            description: "something went wrong",
-          });
+          toast.error("Something went wrong");
         }
       } catch (error) {
         console.error(error);
@@ -193,15 +181,9 @@ const UpdateSwopPay = ({ iconDataObj, isOn, setOff }: any) => {
 
       if (data && data?.state === "success") {
         setOff();
-        toast({
-          title: "Success",
-          description: "product deleted successfully",
-        });
+        toast.success("Product deleted successfully");
       } else {
-        toast({
-          title: "Error",
-          description: "something went wrong",
-        });
+        toast.error("Something went wrong");
       }
     } catch (error) {
       console.error(error);

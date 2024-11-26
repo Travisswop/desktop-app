@@ -3,7 +3,6 @@ import Image from "next/image";
 import React, { useEffect, useState } from "react";
 import { LiaFileMedicalSolid } from "react-icons/lia";
 import useSmartSiteApiDataStore from "@/zustandStore/UpdateSmartsiteInfo";
-import useLoggedInUserStore from "@/zustandStore/SetLogedInUserSession";
 // import { toast } from "react-toastify";
 // import AnimateButton from "@/components/Button/AnimateButton";
 import imagePlaceholder from "@/public/images/image_placeholder.png";
@@ -18,16 +17,16 @@ import {
   DropdownItem,
   DropdownMenu,
   DropdownTrigger,
+  Tooltip,
 } from "@nextui-org/react";
-import { AiOutlineDownCircle } from "react-icons/ai";
-import { describe } from "node:test";
 import { postSwopPay } from "@/actions/swopPay";
-import { FaTimes } from "react-icons/fa";
+import { FaAngleDown, FaTimes } from "react-icons/fa";
 import { currencyItems, icon } from "@/components/util/data/smartsiteIconData";
 import { sendCloudinaryImage } from "@/lib/SendCloudineryImage";
-import { useToast } from "@/hooks/use-toast";
 import AnimateButton from "@/components/ui/Button/AnimateButton";
 import CustomFileInput from "@/components/CustomFileInput";
+import { MdInfoOutline } from "react-icons/md";
+import toast from "react-hot-toast";
 
 const AddSwopPay = ({ handleRemoveIcon }: any) => {
   const state: any = useSmartSiteApiDataStore((state) => state);
@@ -36,6 +35,11 @@ const AddSwopPay = ({ handleRemoveIcon }: any) => {
     "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJfaWQiOiI2NjM4NjMyMDIzMDQxMDMyODAyOTk4MmIiLCJpYXQiOjE3MjcxNTI4MzB9.CsHnZAgUzsfkc_g_CZZyQMXc02Ko_LhnQcCVpeCwroY";
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [inputError, setInputError] = useState<any>({});
+
+  const [productName, setProductName] = useState<string>("");
+  const [description, setDescription] = useState<string>("");
+  const [price, setPrice] = useState<number>(50);
+
   const [imageFile, setImageFile] = useState<any>(null);
   const [fileError, setFileError] = useState<string>("");
   const [selectedIcon, setSelectedIcon] = useState({
@@ -44,8 +48,6 @@ const AddSwopPay = ({ handleRemoveIcon }: any) => {
     icon: icon.appIconSolana,
     characterText: "$",
   });
-
-  const { toast } = useToast();
 
   // console.log("file error", fileError);
 
@@ -122,25 +124,17 @@ const AddSwopPay = ({ handleRemoveIcon }: any) => {
       try {
         const imageUrl = await sendCloudinaryImage(info.imageUrl);
         if (!imageUrl) {
-          return toast({
-            title: "Error",
-            description: "photo upload failed!",
-          });
+          toast.error("Something went wrong");
         }
         info.imageUrl = imageUrl;
         const data = await postSwopPay(info, demoToken);
         // console.log("data", data);
 
         if ((data.state = "success")) {
-          toast({
-            title: "Success",
-            description: "product created successfully",
-          });
+          toast.success("Product created successfully");
+          handleRemoveIcon("Swop Pay");
         } else {
-          toast({
-            title: "Error",
-            description: "Something went wrong!",
-          });
+          toast.error("Something went wrong");
         }
       } catch (error) {
         console.error(error);
@@ -159,24 +153,65 @@ const AddSwopPay = ({ handleRemoveIcon }: any) => {
   return (
     <form
       onSubmit={handleFormSubmit}
-      className="bg-white rounded-xl shadow-small p-6 flex flex-col gap-4"
+      className="relative bg-white rounded-xl shadow-small p-6 flex flex-col gap-4"
     >
-      <div className="flex items-center justify-between">
-        <h1 className="font-semibold text-gray-700">Product Purchase</h1>
-        <button type="button" onClick={() => handleRemoveIcon("Swop Pay")}>
-          <FaTimes size={20} />
-        </button>
+      <div className="flex items-end gap-1 justify-center">
+        <h2 className="font-semibold text-gray-700 text-xl text-center">
+          Product Purchase
+        </h2>
+        <div className="translate-y-0.5">
+          <Tooltip
+            size="sm"
+            content={
+              <span className="font-medium">
+                You will be able to set the icon type, choose an icon , specify
+                a button name, provide a link, and add a description.
+              </span>
+            }
+            className={`max-w-40 h-auto`}
+          >
+            <button>
+              <MdInfoOutline />
+            </button>
+          </Tooltip>
+        </div>
+      </div>
+      <button
+        className="absolute top-3 right-3"
+        type="button"
+        onClick={() => handleRemoveIcon("Swop Pay")}
+      >
+        <FaTimes size={18} />
+      </button>
+
+      <div className="w-full rounded-xl bg-gray-200 p-3 ">
+        <div className="flex items-center justify-between bg-white rounded-xl py-1 px-3">
+          <div className=" w-full flex items-center gap-2">
+            <Image
+              className="w-12 h-12 rounded-full"
+              src={imageFile ? imageFile : imagePlaceholder}
+              alt="icon"
+              width={90}
+              height={90}
+            />
+            <div>
+              <p className="text-gray-700 font-medium">{productName}</p>
+              <p className="text-gray-500 text-sm font-medium">{description}</p>
+            </div>
+          </div>
+          <p className="text-gray-700 font-medium">${price}</p>
+        </div>
       </div>
 
       <div className="flex justify-between gap-10">
         <div className="flex flex-col gap-3 flex-1">
           <div className="flex flex-col gap-2">
-            <div className="flex flex-col gap-2">
+            <div className="flex items-center gap-2">
               <p className="font-semibold text-gray-700 text-sm">
                 Upload Product Photo
                 <span className="text-red-600 font-medium text-sm mt-1">*</span>
               </p>
-              <div className="border-2 border-[#d8acff] min-w-40 max-w-56 min-h-40 max-h-56 p-1 bg-slate-100 rounded-lg">
+              {/* <div className="border-2 border-[#d8acff] min-w-40 max-w-56 min-h-40 max-h-56 p-1 bg-slate-100 rounded-lg">
                 {imageFile ? (
                   <div className="relative h-full">
                     <Image
@@ -206,9 +241,20 @@ const AddSwopPay = ({ handleRemoveIcon }: any) => {
                     {fileError}
                   </p>
                 )}
-              </div>
+              </div> */}
+
               <CustomFileInput handleFileChange={handleFileChange} />
-            </div>
+            </div>{" "}
+            {inputError.image && (
+              <p className="text-red-600 font-medium text-sm mt-2">
+                Image is required
+              </p>
+            )}
+            {fileError && (
+              <p className="text-red-600 font-medium text-sm mt-2">
+                {fileError}
+              </p>
+            )}
           </div>
           <div className="flex flex-col gap-1">
             <label htmlFor="title" className="font-medium text-sm">
@@ -222,7 +268,7 @@ const AddSwopPay = ({ handleRemoveIcon }: any) => {
                 name="title"
                 className="w-full border border-[#ede8e8] focus:border-[#e5e0e0] rounded-xl focus:outline-none px-3 py-2 text-gray-700 bg-gray-100"
                 placeholder={"Enter product name"}
-                // required
+                onChange={(e) => setProductName(e.target.value)}
               />
               {inputError.title && (
                 <p className="text-red-600 font-medium text-sm mt-1">
@@ -255,19 +301,24 @@ const AddSwopPay = ({ handleRemoveIcon }: any) => {
       <div className="flex items-center gap-2">
         <h3 className="font-semibold text-gray-700">Select Currency</h3>
 
-        <Image
-          alt="app-icon"
-          src={selectedIcon.icon}
-          className="w-4 h-auto"
-          // style={tintStyle}
-          quality={100}
-        />
-
         <Dropdown className="w-max rounded-lg" placement="bottom-start">
           <DropdownTrigger>
             <div className={`flex items-center`}>
-              <button type="button">
-                <AiOutlineDownCircle size={20} color="gray" />
+              <button
+                type="button"
+                className="bg-white w-48 2xl:w-64 flex justify-between items-center rounded px-2 py-2 text-sm font-medium shadow-small"
+              >
+                <span className="flex items-center gap-2">
+                  {selectedIcon && (
+                    <Image
+                      alt="app-icon"
+                      src={selectedIcon.icon}
+                      className="w-5 h-auto"
+                    />
+                  )}
+                  {selectedIcon.name}
+                </span>{" "}
+                <FaAngleDown />
               </button>
               <div className="hidden text-xs text-gray-600 px-2 w-28 py-1.5 bg-slate-200 shadow-medium z-50 absolute left-6 top-0 group-hover:flex justify-center">
                 <p>select icon type</p>
@@ -336,6 +387,7 @@ const AddSwopPay = ({ handleRemoveIcon }: any) => {
               className="w-full border border-[#ede8e8] focus:border-[#e5e0e0] rounded-xl focus:outline-none pl-11 py-2 text-gray-700 bg-gray-100"
               placeholder={"Enter product price"}
               required
+              onChange={(e) => setPrice(Number(e.target.value))}
             />
           </div>
           {inputError.price && (
@@ -355,7 +407,7 @@ const AddSwopPay = ({ handleRemoveIcon }: any) => {
           name="description"
           className="w-full border border-[#ede8e8] focus:border-[#e5e0e0] rounded-xl focus:outline-none px-3 py-2 text-gray-700 bg-gray-100"
           placeholder={"Enter description"}
-          //   required
+          onChange={(e) => setDescription(e.target.value)}
         />
         {inputError.description && (
           <p className="text-red-600 font-medium text-sm">
@@ -363,10 +415,15 @@ const AddSwopPay = ({ handleRemoveIcon }: any) => {
           </p>
         )}
       </div>
-      <div className="flex justify-end mt-3">
-        <AnimateButton isLoading={isLoading} width={"w-52"}>
+      <div className="flex justify-center">
+        <AnimateButton
+          whiteLoading={true}
+          className="bg-black text-white py-2 !border-0"
+          isLoading={isLoading}
+          width={"w-52"}
+        >
           <LiaFileMedicalSolid size={20} />
-          Save Changes
+          Create
         </AnimateButton>
       </div>
     </form>

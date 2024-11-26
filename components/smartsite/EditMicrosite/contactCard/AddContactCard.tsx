@@ -7,8 +7,12 @@ import useSmartSiteApiDataStore from "@/zustandStore/UpdateSmartsiteInfo";
 // import AnimateButton from "@/components/Button/AnimateButton";
 import { postContactCard } from "@/actions/contactCard";
 import { FaTimes } from "react-icons/fa";
-import { useToast } from "@/hooks/use-toast";
 import AnimateButton from "@/components/ui/Button/AnimateButton";
+import { MdInfoOutline } from "react-icons/md";
+import { Tooltip } from "@nextui-org/react";
+import contactCardImg from "@/public/images/IconShop/appIconContactCard.png";
+import Image from "next/image";
+import toast from "react-hot-toast";
 
 const AddContactCard = ({ handleRemoveIcon }: any) => {
   const state: any = useSmartSiteApiDataStore((state) => state); //get small icon store value
@@ -18,8 +22,6 @@ const AddContactCard = ({ handleRemoveIcon }: any) => {
 
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [error, setError] = useState<any>({});
-
-  const { toast } = useToast();
 
   const handleContactFormData = async (e: any) => {
     setIsLoading(true);
@@ -56,15 +58,9 @@ const AddContactCard = ({ handleRemoveIcon }: any) => {
       try {
         const data = await postContactCard(contactCardInfo, demoToken);
         if ((data.state = "success")) {
-          toast({
-            title: "Error",
-            description: "Contact card created successfully",
-          });
+          toast.success("Contact card created successfully");
         } else {
-          toast({
-            title: "Error",
-            description: "Something went wrong!",
-          });
+          toast.error("Something went wrong");
         }
       } catch (error) {
         console.error(error);
@@ -83,11 +79,36 @@ const AddContactCard = ({ handleRemoveIcon }: any) => {
 
   return (
     <div className="bg-white rounded-xl shadow-small p-6 flex flex-col gap-4">
-      <div className="flex items-center justify-between">
-        <h1 className="text-lg font-semibold">Contact Card</h1>
-        <button type="button" onClick={() => handleRemoveIcon("Contact Card")}>
-          <FaTimes size={20} />
-        </button>
+      <div className="flex items-end gap-1 justify-center">
+        <h2 className="font-semibold text-gray-700 text-xl text-center">
+          Contact Card
+        </h2>
+        <div className="translate-y-0.5">
+          <Tooltip
+            size="sm"
+            content={
+              <span className="font-medium">
+                {`Let's people download your contact card to their phone in a click`}
+              </span>
+            }
+            className={`max-w-40 h-auto`}
+          >
+            <button>
+              <MdInfoOutline />
+            </button>
+          </Tooltip>
+        </div>
+      </div>
+      <button
+        className="absolute top-3 right-3"
+        type="button"
+        onClick={() => handleRemoveIcon("Contact Card")}
+      >
+        <FaTimes size={18} />
+      </button>
+
+      <div className="flex justify-center">
+        <Image src={contactCardImg} alt="contact card" className="w-16" />
       </div>
 
       <div>
@@ -167,8 +188,13 @@ const AddContactCard = ({ handleRemoveIcon }: any) => {
               //   required
             />
           </div>
-          <div className="flex justify-end mt-3">
-            <AnimateButton isLoading={isLoading} width={"w-40"}>
+          <div className="flex justify-center mt-2">
+            <AnimateButton
+              whiteLoading={true}
+              className="bg-black text-white py-2 !border-0"
+              isLoading={isLoading}
+              width={"w-40"}
+            >
               <LiaFileMedicalSolid size={20} />
               Save
             </AnimateButton>

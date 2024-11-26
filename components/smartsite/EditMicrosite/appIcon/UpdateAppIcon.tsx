@@ -6,10 +6,8 @@ import {
   DropdownItem,
   DropdownMenu,
   DropdownTrigger,
-  Switch,
   Tooltip,
 } from "@nextui-org/react";
-import { AiOutlineDownCircle } from "react-icons/ai";
 import { IoLinkOutline } from "react-icons/io5";
 import { LiaFileMedicalSolid } from "react-icons/lia";
 // import { icon, newIcons } from "@/util/data/smartsiteIconData";
@@ -18,16 +16,15 @@ import { LiaFileMedicalSolid } from "react-icons/lia";
 //   handleDeleteSmallIcon,
 //   handleUpdateSmallIcon,
 // } from "@/actions/createSmallIcon";
-import useLoggedInUserStore from "@/zustandStore/SetLogedInUserSession";
 // import { toast } from "react-toastify";
 import { FaAngleDown, FaTimes } from "react-icons/fa";
 import { MdDelete, MdInfoOutline } from "react-icons/md";
 // import AnimateButton from "@/components/Button/AnimateButton";
 import { handleDeleteAppIcon, handleUpdateAppIcon } from "@/actions/appIcon";
 import { icon, newIcons } from "@/components/util/data/smartsiteIconData";
-import { useToast } from "@/hooks/use-toast";
 import { isEmptyObject } from "@/components/util/checkIsEmptyObject";
 import AnimateButton from "@/components/ui/Button/AnimateButton";
+import toast from "react-hot-toast";
 // import AnimateButton from "../Button/AnimateButton";
 
 const UpdateAppIcon = ({ iconDataObj, isOn, setOff }: any) => {
@@ -59,8 +56,6 @@ const UpdateAppIcon = ({ iconDataObj, isOn, setOff }: any) => {
   // console.log("selected icon", selectedIcon);
   // console.log("open", open);
   // console.log("icondataobj", iconDataObj);
-
-  const { toast } = useToast();
 
   const iconData: any = newIcons[1];
   // console.log("selectedIconByLivePreview", selectedIconByLivePreview);
@@ -158,16 +153,10 @@ const UpdateAppIcon = ({ iconDataObj, isOn, setOff }: any) => {
       // console.log("data,", data);
 
       if (data && data?.state === "success") {
-        toast({
-          title: "Success",
-          description: "App icon updated successfully",
-        });
+        toast.success("App icon updated successfully");
         setOff();
       } else {
-        toast({
-          title: "Error",
-          description: "Something went wrong!",
-        });
+        toast.error("Something went wrong");
       }
     } catch (error) {
       console.error(error);
@@ -205,16 +194,10 @@ const UpdateAppIcon = ({ iconDataObj, isOn, setOff }: any) => {
       // console.log("data,", data);
 
       if (data && data?.state === "success") {
-        toast({
-          title: "Success",
-          description: "App icon deleted successfully",
-        });
+        toast.success("App icon deleted successfully");
         setOff();
       } else {
-        toast({
-          title: "Error",
-          description: "Something went wrong!",
-        });
+        toast.error("Something went wrong");
       }
     } catch (error) {
       console.error(error);

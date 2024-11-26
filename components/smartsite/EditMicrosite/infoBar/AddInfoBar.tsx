@@ -1,16 +1,13 @@
 import Image from "next/image";
 import React, { useEffect, useState } from "react";
-import appIconImg from "@/public/images/websites/edit-microsite/add-icon/app-icon.svg";
 import {
   Dropdown,
   DropdownItem,
   DropdownMenu,
   DropdownTrigger,
-  Switch,
   Tooltip,
 } from "@nextui-org/react";
-import { AiOutlineDownCircle } from "react-icons/ai";
-import { IoLinkOutline, IoLinkSharp } from "react-icons/io5";
+import { IoLinkOutline } from "react-icons/io5";
 import { LiaFileMedicalSolid } from "react-icons/lia";
 // import { icon, newIcons } from "@/util/data/smartsiteIconData";
 // import { isEmptyObject } from "@/util/checkIsEmptyObject";
@@ -21,18 +18,18 @@ import useSmartSiteApiDataStore from "@/zustandStore/UpdateSmartsiteInfo";
 import { postInfoBar } from "@/actions/infoBar";
 import { FaAngleDown, FaTimes } from "react-icons/fa";
 import { icon, newIcons } from "@/components/util/data/smartsiteIconData";
-import { useToast } from "@/hooks/use-toast";
+
 import { isEmptyObject } from "@/components/util/checkIsEmptyObject";
 import AnimateButton from "@/components/ui/Button/AnimateButton";
 import { MdInfoOutline } from "react-icons/md";
 import { InfoBarIconMap, InfoBarSelectedIconType } from "@/types/smallIcon";
 import contactCardImg from "@/public/images/IconShop/appIconContactCard.png";
 import productImg from "@/public/images/product.png";
+import toast from "react-hot-toast";
 
 const AddInfoBar = ({ handleRemoveIcon, handleToggleIcon }: any) => {
   const demoToken =
     "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJfaWQiOiI2NjM4NjMyMDIzMDQxMDMyODAyOTk4MmIiLCJpYXQiOjE3MjcxNTI4MzB9.CsHnZAgUzsfkc_g_CZZyQMXc02Ko_LhnQcCVpeCwroY";
-  const { toast } = useToast();
   const state: any = useSmartSiteApiDataStore((state) => state); //get small icon store value
   //const sesstionState = useLoggedInUserStore((state) => state.state.user); //get session value
   const [selectedIconType, setSelectedIconType] =
@@ -109,15 +106,10 @@ const AddInfoBar = ({ handleRemoveIcon, handleToggleIcon }: any) => {
       // console.log("data", data);
 
       if ((data.state = "success")) {
-        toast({
-          title: "Success",
-          description: "Info bar created successfully",
-        });
+        toast.success("Info bar crated successfully");
+        handleRemoveIcon("Info Bar");
       } else {
-        toast({
-          title: "Error",
-          description: "Something went wrong!",
-        });
+        toast.error("Something went wrong");
       }
     } catch (error) {
       console.error(error);
@@ -408,7 +400,7 @@ const AddInfoBar = ({ handleRemoveIcon, handleToggleIcon }: any) => {
                 width={"w-52"}
               >
                 <LiaFileMedicalSolid size={20} />
-                Save Changes
+                Create
               </AnimateButton>
             </div>
           </form>

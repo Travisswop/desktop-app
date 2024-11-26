@@ -9,17 +9,18 @@ import {
   handleDeleteContactCard,
   updateContactCard,
 } from "@/actions/contactCard";
-import { MdDelete } from "react-icons/md";
-import { useToast } from "@/hooks/use-toast";
+import { MdDelete, MdInfoOutline } from "react-icons/md";
 import AnimateButton from "@/components/ui/Button/AnimateButton";
+import { Tooltip } from "@nextui-org/react";
+import Image from "next/image";
+import contactCardImg from "@/public/images/IconShop/appIconContactCard.png";
+import toast from "react-hot-toast";
 
 const UpdateContactCard = ({ iconDataObj, isOn, setOff }: any) => {
   //const sesstionState = useLoggedInUserStore((state) => state.state.user); //get session value
 
   const demoToken =
     "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJfaWQiOiI2NjM4NjMyMDIzMDQxMDMyODAyOTk4MmIiLCJpYXQiOjE3MjcxNTI4MzB9.CsHnZAgUzsfkc_g_CZZyQMXc02Ko_LhnQcCVpeCwroY";
-
-  const { toast } = useToast();
 
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [isDeleteLoading, setIsDeleteLoading] = useState<boolean>(false);
@@ -64,16 +65,10 @@ const UpdateContactCard = ({ iconDataObj, isOn, setOff }: any) => {
         const data = await updateContactCard(contactCardInfo, demoToken);
         if (data.state === "success") {
           setOff();
-          toast({
-            title: "Error",
-            description: "Something went wrong!",
-          });
-          toast.success("Contact card updated successfully");
+          toast.success("Contact card updated succesfully");
+          // toast.success("Contact card updated successfully");
         } else {
-          toast({
-            title: "Error",
-            description: "Something went wrong!",
-          });
+          toast.error("Something went wrong");
         }
       } catch (error) {
         console.error(error);
@@ -106,16 +101,10 @@ const UpdateContactCard = ({ iconDataObj, isOn, setOff }: any) => {
       const data: any = await handleDeleteContactCard(submitData, demoToken);
 
       if (data && data?.state === "success") {
-        toast({
-          title: "Success",
-          description: "Contact card deleted successfully",
-        });
+        toast.success("Contact card deleted successfully");
         setOff();
       } else {
-        toast({
-          title: "Error",
-          description: "Something went wrong!",
-        });
+        toast.error("Something went wrong");
       }
     } catch (error) {
       console.error(error);
@@ -142,8 +131,35 @@ const UpdateContactCard = ({ iconDataObj, isOn, setOff }: any) => {
               <FaTimes color="gray" />
             </button>
             <div className="bg-white rounded-xl shadow-small p-7 flex flex-col gap-4">
-              <h1 className="text-lg font-semibold">Contact Card</h1>
-              <div>
+              <div className="flex items-end gap-1 justify-center">
+                <h2 className="font-semibold text-gray-700 text-xl text-center">
+                  Contact Card
+                </h2>
+                <div className="translate-y-0.5">
+                  <Tooltip
+                    size="sm"
+                    content={
+                      <span className="font-medium">
+                        Select the icon type and icon then find your username or
+                        link that you want to share to create your small icon
+                      </span>
+                    }
+                    className={`max-w-40 h-auto`}
+                  >
+                    <button>
+                      <MdInfoOutline />
+                    </button>
+                  </Tooltip>
+                </div>
+              </div>
+              <div className="flex justify-center">
+                <Image
+                  src={contactCardImg}
+                  alt="contact card"
+                  className="w-16"
+                />
+              </div>
+              <div className="">
                 <form
                   onSubmit={handleContactCard}
                   className="flex flex-col gap-2.5"
@@ -238,13 +254,20 @@ const UpdateContactCard = ({ iconDataObj, isOn, setOff }: any) => {
                       placeholder="email@swop.com"
                     />
                   </div>
-                  <div className="flex justify-between mt-6">
-                    <AnimateButton isLoading={isLoading} width={"w-52"}>
+                  <div className="flex justify-between mt-2">
+                    <AnimateButton
+                      whiteLoading={true}
+                      className="bg-black text-white py-2 !border-0"
+                      isLoading={isLoading}
+                      width={"w-52"}
+                    >
                       <LiaFileMedicalSolid size={20} />
                       Update Changes
                     </AnimateButton>
 
                     <AnimateButton
+                      whiteLoading={true}
+                      className="bg-black text-white py-2 !border-0"
                       type="button"
                       onClick={handleDeleteIcon}
                       isLoading={isDeleteLoading}

@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+// import type { Metadata } from "next";
 // import localFont from "next/font/local";
 import "./globals.css";
 import PrivyProvider from "@/components/PrivyProvider";
@@ -11,6 +11,7 @@ import {
   Rubik,
 } from "next/font/google";
 import { TanstackProvider } from "@/components/providers/tanstackProvider";
+import { Toaster } from "react-hot-toast";
 
 // const geistSans = localFont({
 //   src: "./fonts/GeistVF.woff",
@@ -64,6 +65,7 @@ export default function RootLayout({
         className={`font-[roboto] bg-accent`}
         // className={`${geistSans.variable} ${geistMono.variable} antialiased bg-accent`}
       >
+        <Toaster position="top-center" reverseOrder={false} />
         <TanstackProvider>
           <PrivyProvider>
             <UserProvider>{children}</UserProvider>

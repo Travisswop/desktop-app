@@ -18,11 +18,11 @@ import useSmartSiteApiDataStore from "@/zustandStore/UpdateSmartsiteInfo";
 import { postAppIcon } from "@/actions/appIcon";
 import { FaAngleDown, FaTimes } from "react-icons/fa";
 import { icon, newIcons } from "@/components/util/data/smartsiteIconData";
-import { useToast } from "@/hooks/use-toast";
 import { isEmptyObject } from "@/components/util/checkIsEmptyObject";
 import AnimateButton from "@/components/ui/Button/AnimateButton";
 import { MdInfoOutline } from "react-icons/md";
 import { AppIconMap, AppSelectedIconType } from "@/types/smallIcon";
+import toast from "react-hot-toast";
 
 const AddAppIcon = ({ handleRemoveIcon }: any) => {
   const state: any = useSmartSiteApiDataStore((state) => state); //get small icon store value
@@ -47,8 +47,6 @@ const AddAppIcon = ({ handleRemoveIcon }: any) => {
   const iconData: any = newIcons[1];
   // console.log("iconData", iconData);
 
-  const { toast } = useToast();
-
   useEffect(() => {
     if (selectedIconType) {
       const data = iconData.icons.find(
@@ -58,7 +56,7 @@ const AddAppIcon = ({ handleRemoveIcon }: any) => {
     }
   }, [iconData.icons, selectedIconType]);
 
-  const handleSelectIconType = (category: string) => {
+  const handleSelectIconType = (category: AppSelectedIconType) => {
     setSelectedIconType(category);
     if (category === "Link") {
       setSelectedIcon({
@@ -96,15 +94,9 @@ const AddAppIcon = ({ handleRemoveIcon }: any) => {
     try {
       const data = await postAppIcon(appIconInfo, demoToken);
       if ((data.state = "success")) {
-        toast({
-          title: "Success",
-          description: "App icon created successfully",
-        });
+        toast.success("App icon created successfully");
       } else {
-        toast({
-          title: "Error",
-          description: "Something went wrong!",
-        });
+        toast.error("Something went wrong");
       }
     } catch (error) {
       console.error(error);

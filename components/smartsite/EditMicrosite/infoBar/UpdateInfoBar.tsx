@@ -1,15 +1,12 @@
 import Image from "next/image";
 import React, { useEffect, useRef, useState } from "react";
-import appIconImg from "@/public/images/websites/edit-microsite/add-icon/app-icon.svg";
 import {
   Dropdown,
   DropdownItem,
   DropdownMenu,
   DropdownTrigger,
-  Switch,
   Tooltip,
 } from "@nextui-org/react";
-import { AiOutlineDownCircle } from "react-icons/ai";
 import { IoLinkOutline } from "react-icons/io5";
 import { LiaFileMedicalSolid } from "react-icons/lia";
 // import { icon, newIcons } from "@/util/data/smartsiteIconData";
@@ -23,12 +20,12 @@ import { MdDelete, MdInfoOutline } from "react-icons/md";
 import { deleteInfoBar, updateInfoBar } from "@/actions/infoBar";
 import useSmartSiteApiDataStore from "@/zustandStore/UpdateSmartsiteInfo";
 import { icon, newIcons } from "@/components/util/data/smartsiteIconData";
-import { useToast } from "@/hooks/use-toast";
 import { isEmptyObject } from "@/components/util/checkIsEmptyObject";
 import AnimateButton from "@/components/ui/Button/AnimateButton";
 import { InfoBarIconMap, InfoBarSelectedIconType } from "@/types/smallIcon";
 import contactCardImg from "@/public/images/IconShop/appIconContactCard.png";
 import productImg from "@/public/images/product.png";
+import toast from "react-hot-toast";
 
 const UpdateInfoBar = ({ iconDataObj, isOn, setOff }: any) => {
   const state: any = useSmartSiteApiDataStore((state) => state); //get small icon store value
@@ -49,8 +46,6 @@ const UpdateInfoBar = ({ iconDataObj, isOn, setOff }: any) => {
   const [description, setDescription] = useState("");
 
   const modalRef = useRef<HTMLDivElement>(null);
-
-  const { toast } = useToast();
 
   // console.log("selected icon type", selectedIconType);
   // console.log("selected icon name", selectedIcon);
@@ -97,7 +92,7 @@ const UpdateInfoBar = ({ iconDataObj, isOn, setOff }: any) => {
     }
   }, [iconData, iconDataObj.data.group, iconDataObj.data.iconName]);
 
-  const handleSelectIconType = (category: string) => {
+  const handleSelectIconType = (category: InfoBarSelectedIconType) => {
     setSelectedIconType(category);
     if (category === "Link") {
       setSelectedIcon({
@@ -140,15 +135,9 @@ const UpdateInfoBar = ({ iconDataObj, isOn, setOff }: any) => {
 
       if ((data.state = "success")) {
         setOff();
-        toast({
-          title: "Error",
-          description: "Info bar updated successfully",
-        });
+        toast.success("Info bar updated successfully");
       } else {
-        toast({
-          title: "Error",
-          description: "Something went wrong!",
-        });
+        toast.error("Something went wrong");
       }
     } catch (error) {
       console.error(error);
@@ -185,15 +174,9 @@ const UpdateInfoBar = ({ iconDataObj, isOn, setOff }: any) => {
 
       if (data && data?.state === "success") {
         setOff();
-        toast({
-          title: "Success",
-          description: "Info bar deleted successfully",
-        });
+        toast.success("Info bar deleted successfully");
       } else {
-        toast({
-          title: "Error",
-          description: "Something went wrong!",
-        });
+        toast.error("Something went wrong");
       }
     } catch (error) {
       console.error(error);
