@@ -3,12 +3,6 @@ import { useState, DragEvent } from "react";
 import PushToMintCollectionButton from "@/components/Button/PushToMintCollectionButton";
 import Image from "next/image";
 
-interface ContentFile {
-  url: string;
-  name: string;
-  type: string;
-}
-
 interface FormData {
   name: string;
   description: string;
@@ -17,8 +11,7 @@ interface FormData {
   recipientAddress: string;
   currency: string;
   type: string;
-  benefits: string[];
-  content: ContentFile[];
+  addons: string[];
   enableCreditCard: boolean;
   verifyIdentity: boolean;
   limitQuantity: boolean;
@@ -34,15 +27,14 @@ const CreateMenuPage = () => {
     recipientAddress: "",
     currency: "usdc",
     type: "Menu",
-    benefits: [],
-    content: [],
+    addons: [],
     enableCreditCard: false,
     verifyIdentity: false,
     limitQuantity: false,
     quantity: undefined,
   });
 
-  const [newBenefit, setNewBenefit] = useState("");
+  const [newAddon, setNewAddon] = useState("");
   const [selectedImageName, setSelectedImageName] = useState<string | null>(null);
 
   const handleChange = (
@@ -106,54 +98,25 @@ const CreateMenuPage = () => {
     reader.readAsDataURL(file);
   };
 
-  const handleContentUpload = (
-    event: React.ChangeEvent<HTMLInputElement>
-  ) => {
-    const files = Array.from(event.target.files || []);
-    if (files.length === 0) return;
 
-    const uploadedFiles = files.map((file) => {
-      const reader = new FileReader();
-      return new Promise<ContentFile | null>((resolve) => {
-        reader.onloadend = () => {
-          resolve({ url: reader.result as string, name: file.name, type: file.type });
-        };
-        reader.readAsDataURL(file);
-      });
-    });
-
-    Promise.all(uploadedFiles).then((successfulUploads) => {
+  const handleAddAddon = () => {
+    if (newAddon.trim()) {
       setFormData((prevState) => ({
         ...prevState,
-        content: [...prevState.content, ...(successfulUploads.filter(Boolean) as ContentFile[])],
+        addons: [...prevState.addons, newAddon.trim()],
       }));
-    });
-  };
-
-  const handleAddBenefit = () => {
-    if (newBenefit.trim()) {
-      setFormData((prevState) => ({
-        ...prevState,
-        benefits: [...prevState.benefits, newBenefit.trim()],
-      }));
-      setNewBenefit("");
+      setNewAddon("");
     }
   };
 
-  const handleRemoveBenefit = (index: number) => {
+
+  const handleRemoveAddon = (index: number) => {
     setFormData((prevState) => ({
       ...prevState,
-      benefits: prevState.benefits.filter((_, i) => i !== index),
+      addons: prevState.addons.filter((_, i) => i !== index),
     }));
   };
 
-  const getFileTypeIcon = (type: string) => {
-    if (type.startsWith("image")) return "🖼️";
-    if (type.startsWith("audio")) return "🎵";
-    if (type.startsWith("video")) return "🎥";
-    if (type === "application/pdf") return "📄";
-    return "📁";
-  };
 
   return (
     <div className="main-container flex">
@@ -181,11 +144,13 @@ const CreateMenuPage = () => {
               </p>
             </div>
 
+            {/* Image Upload */}
             <label htmlFor="imageUrl" className="mb-1 block font-medium">
               Image (JPEG, JPG, PNG)
             </label>
             <div
               className="bg-gray-100 p-4 rounded-lg border border-dashed border-gray-300 text-center"
+              style={{ minWidth: "300px", width: "50%" }}
               onDragOver={(e) => e.preventDefault()}
               onDrop={handleImageDrop}
             >
@@ -232,6 +197,7 @@ const CreateMenuPage = () => {
               />
             </div>
 
+
             <div>
               <label htmlFor="description" className="mb-1 block font-medium">
                 Description
@@ -266,64 +232,34 @@ const CreateMenuPage = () => {
               </p>
             </div>
 
-            <div className="bg-gray-100 p-4 rounded-lg border border-gray-300">
-              <h3 className="text-lg font-medium text-black-600">Content</h3>
-              <p className="text-sm text-gray-600">
-                Add content to sell. You can upload images, audio, video, PDFs, or other digital files.
-              </p>
-              <input
-                type="file"
-                id="content"
-                name="content"
-                multiple
-                accept="*/*"
-                onChange={handleContentUpload}
-                className="w-full border border-dashed border-gray-300 rounded-lg px-4 py-2 mt-2"
-              />
-
-              <div className="grid grid-cols-3 gap-4 mt-4">
-                {formData.content.map((file, index) => (
-                  <div
-                    key={index}
-                    className="flex flex-col items-center p-2 bg-white border rounded shadow-sm w-full"
-                  >
-                    <div className="text-2xl">{getFileTypeIcon(file.type)}</div>
-                    <p className="text-xs text-gray-600 mt-1 text-center truncate w-full overflow-hidden text-ellipsis whitespace-nowrap">
-                      {file.name}
-                    </p>
-                  </div>
-                ))}
-              </div>
-            </div>
-
             <div>
-              <label htmlFor="benefits" className="mb-1 block font-medium">
-                Benefits
+              <label htmlFor="addons" className="mb-1 block font-medium">
+                Add-ons
               </label>
               <input
                 type="text"
-                placeholder="Enter a benefit"
-                value={newBenefit}
-                onChange={(e) => setNewBenefit(e.target.value)}
+                placeholder="Enter an add-on"
+                value={newAddon}
+                onChange={(e) => setNewAddon(e.target.value)}
                 className="w-full border border-gray-300 rounded-lg px-4 py-2 mb-2"
               />
               <button
                 type="button"
-                onClick={handleAddBenefit}
+                onClick={handleAddAddon}
                 className="bg-black text-white px-4 py-2 rounded-lg"
               >
-                + Add Benefit
+                + Add Add-on
               </button>
               <div className="flex flex-col gap-2 mt-2">
-                {formData.benefits.map((benefit, index) => (
+                {formData.addons.map((addon, index) => (
                   <div
                     key={index}
                     className="flex items-center justify-between bg-gray-100 px-4 py-2 rounded-lg shadow-sm"
                   >
-                    <span className="text-sm">{benefit}</span>
+                    <span className="text-sm">{addon}</span>
                     <button
                       type="button"
-                      onClick={() => handleRemoveBenefit(index)}
+                      onClick={() => handleRemoveAddon(index)}
                       className="text-red-500 font-bold"
                     >
                       X
@@ -334,16 +270,62 @@ const CreateMenuPage = () => {
             </div>
 
             <div className="bg-gray-100 p-4 rounded-lg border border-gray-300 mt-4">
+              <h3 className="text-md font-medium">Enable Pay with Credit Card</h3>
+              <p className="text-sm text-gray-600 mb-2">
+                Let users buy this menu item with a credit card.
+              </p>
+              <div
+                className={`w-14 h-8 flex items-center rounded-full p-1 cursor-pointer ${formData.enableCreditCard ? "bg-black" : "bg-gray-300"
+                  }`}
+                onClick={() =>
+                  setFormData((prevState) => ({
+                    ...prevState,
+                    enableCreditCard: !prevState.enableCreditCard,
+                  }))
+                }
+              >
+                <div
+                  className={`h-6 w-6 bg-white rounded-full shadow-md transform duration-300 ${formData.enableCreditCard ? "translate-x-6" : ""
+                    }`}
+                ></div>
+              </div>
+
+              <div className="mt-4">
+                <h3 className="text-md font-medium">Verify Identity</h3>
+                <p className="text-sm text-gray-600">
+                  Verify your identity to enable credit card payments. You only complete
+                  this process once.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => alert("Verification process started!")}
+                  className="bg-black text-white px-4 py-2 rounded-lg mt-2"
+                >
+                  Verify Identity
+                </button>
+              </div>
+            </div>
+
+
+            <div className="bg-gray-100 p-4 rounded-lg border border-gray-300 mt-4">
               <h3 className="text-md font-medium">Advanced Settings</h3>
               <div className="flex items-center justify-between mt-2">
                 <span className="text-sm font-medium">Limit quantity</span>
-                <input
-                  type="checkbox"
-                  id="limitQuantity"
-                  name="limitQuantity"
-                  checked={formData.limitQuantity}
-                  onChange={handleChange}
-                />
+                <div
+                  className={`w-14 h-8 flex items-center rounded-full p-1 cursor-pointer ${formData.limitQuantity ? "bg-black" : "bg-gray-300"
+                    }`}
+                  onClick={() =>
+                    setFormData((prevState) => ({
+                      ...prevState,
+                      limitQuantity: !prevState.limitQuantity,
+                    }))
+                  }
+                >
+                  <div
+                    className={`h-6 w-6 bg-white rounded-full shadow-md transform duration-300 ${formData.limitQuantity ? "translate-x-6" : ""
+                      }`}
+                  ></div>
+                </div>
               </div>
               {formData.limitQuantity && (
                 <input
@@ -358,6 +340,12 @@ const CreateMenuPage = () => {
               <p className="text-sm text-gray-500 mt-1">
                 Limit the number of times this menu item can be purchased
               </p>
+            </div>
+
+            {/* Privacy Policy Agreement */}
+            <div className="mt-4">
+              <input type="checkbox" required /> I agree with Swop Minting
+              Privacy & Policy
             </div>
 
             <PushToMintCollectionButton className="w-max mt-4">
@@ -397,15 +385,14 @@ const CreateMenuPage = () => {
             <p className="text-lg font-bold">Description</p>
             <p className="text-sm text-gray-500">{formData.description || "Description will appear here"}</p>
           </div>
-
           <div className="mt-4 w-full">
-            <p className="text-lg font-bold">Benefits</p>
+            <p className="text-lg font-bold">Add-ons</p>
             <ul className="list-disc list-inside text-sm text-gray-500">
-              {formData.benefits.length > 0
-                ? formData.benefits.map((benefit, index) => (
-                    <li key={index}>{benefit}</li>
-                  ))
-                : <li>No benefits added</li>}
+              {formData.addons.length > 0
+                ? formData.addons.map((addon, index) => (
+                  <li key={index}>{addon}</li>
+                ))
+                : <li>No add-ons added</li>}
             </ul>
           </div>
         </div>

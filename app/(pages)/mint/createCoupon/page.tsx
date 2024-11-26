@@ -46,7 +46,7 @@ const CreateCouponPage = () => {
     >
   ) => {
     const { name, value, type } = e.target;
-  
+
     if (type === "checkbox") {
       setFormData((prevState) => ({
         ...prevState,
@@ -59,7 +59,7 @@ const CreateCouponPage = () => {
       }));
     }
   };
-          
+
   const handleQuantityChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = parseInt(e.target.value, 10);
     setFormData((prevState) => ({
@@ -345,32 +345,37 @@ const CreateCouponPage = () => {
             <div className="bg-gray-100 p-4 rounded-lg border border-gray-300">
               <h3 className="text-md font-medium">Enable Pay with Credit Card</h3>
               <p className="text-sm text-gray-600 mb-2">
-                Let users buy this coupon with a credit card
+                Let users buy this coupon with a credit card.
               </p>
-              <div className="flex items-center mb-4">
-                <input
-                  type="checkbox"
-                  id="enableCreditCard"
-                  name="enableCreditCard"
-                  checked={formData.enableCreditCard}
-                  onChange={handleChange}
-                  className="mr-2"
-                />
-                <label htmlFor="enableCreditCard">Enable</label>
+              <div className="flex items-center justify-between mt-4">
+                <div
+                  className={`w-14 h-8 flex items-center rounded-full p-1 cursor-pointer ${formData.enableCreditCard ? "bg-black" : "bg-gray-300"
+                    }`}
+                  onClick={() =>
+                    setFormData((prevState) => ({
+                      ...prevState,
+                      enableCreditCard: !prevState.enableCreditCard,
+                    }))
+                  }
+                >
+                  <div
+                    className={`h-6 w-6 bg-white rounded-full shadow-md transform duration-300 ${formData.enableCreditCard ? "translate-x-6" : ""
+                      }`}
+                  ></div>
+                </div>
               </div>
 
-              <div>
+              <div className="mt-4">
                 <h3 className="text-md font-medium">Verify Identity</h3>
                 <p className="text-sm text-gray-600">
-                  Verify your identity to enable credit card payments. You only
-                  complete this process once.
+                  Verify your identity to enable credit card payments. You only complete this process once.
                 </p>
                 <button
                   type="button"
-                  onClick={() => alert("Verification triggered!")}
+                  onClick={() => alert("Verification process started!")}
                   className="bg-black text-white px-4 py-2 rounded-lg mt-2"
                 >
-                  Verify
+                  Verify Identity
                 </button>
               </div>
             </div>
@@ -378,15 +383,23 @@ const CreateCouponPage = () => {
             {/* Advanced Settings */}
             <div className="bg-gray-100 p-4 rounded-lg border border-gray-300">
               <h3 className="text-md font-medium">Advanced Settings</h3>
-              <div className="flex items-center justify-between mt-2">
-                <span className="text-sm font-medium">Limit quantity</span>
-                <input
-                  type="checkbox"
-                  id="limitQuantity"
-                  name="limitQuantity"
-                  checked={formData.limitQuantity}
-                  onChange={handleChange}
-                />
+              <div className="flex items-center justify-between mt-4">
+                <span className="text-sm font-medium">Limit Quantity</span>
+                <div
+                  className={`w-14 h-8 flex items-center rounded-full p-1 cursor-pointer ${formData.limitQuantity ? "bg-black" : "bg-gray-300"
+                    }`}
+                  onClick={() =>
+                    setFormData((prevState) => ({
+                      ...prevState,
+                      limitQuantity: !prevState.limitQuantity,
+                    }))
+                  }
+                >
+                  <div
+                    className={`h-6 w-6 bg-white rounded-full shadow-md transform duration-300 ${formData.limitQuantity ? "translate-x-6" : ""
+                      }`}
+                  ></div>
+                </div>
               </div>
               {formData.limitQuantity && (
                 <input
@@ -399,7 +412,7 @@ const CreateCouponPage = () => {
                 />
               )}
               <p className="text-sm text-gray-500 mt-1">
-                Limit the number of times this coupon can be purchased
+                Limit the number of times this coupon can be purchased.
               </p>
             </div>
 
@@ -455,8 +468,8 @@ const CreateCouponPage = () => {
             <ul className="list-disc list-inside text-sm text-gray-500">
               {formData.requirements.length > 0
                 ? formData.requirements.map((requirement, index) => (
-                    <li key={index}>{requirement}</li>
-                  ))
+                  <li key={index}>{requirement}</li>
+                ))
                 : <li>No requirements added.</li>}
             </ul>
           </div>
@@ -467,8 +480,8 @@ const CreateCouponPage = () => {
             <ul className="list-disc list-inside text-sm text-gray-500">
               {formData.benefits.length > 0
                 ? formData.benefits.map((benefit, index) => (
-                    <li key={index}>{benefit}</li>
-                  ))
+                  <li key={index}>{benefit}</li>
+                ))
                 : <li>No benefits added.</li>}
             </ul>
           </div>
