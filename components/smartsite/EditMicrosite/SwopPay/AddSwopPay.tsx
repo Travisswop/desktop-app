@@ -1,6 +1,6 @@
 "use client";
 import Image from "next/image";
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { LiaFileMedicalSolid } from "react-icons/lia";
 import useSmartSiteApiDataStore from "@/zustandStore/UpdateSmartsiteInfo";
 import useLoggedInUserStore from "@/zustandStore/SetLogedInUserSession";
@@ -152,7 +152,9 @@ const AddSwopPay = ({ handleRemoveIcon }: any) => {
 
   const currencyList: any = currencyItems;
 
-  // console.log("selectedIcon", selectedIcon);
+  useEffect(() => {
+    handleRemoveIcon("Info Bar");
+  }, []);
 
   return (
     <form

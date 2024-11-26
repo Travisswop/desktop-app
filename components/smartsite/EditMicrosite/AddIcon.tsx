@@ -15,11 +15,13 @@ import AddFeed from "./feed/AddFeed";
 const AddIcon = ({
   data,
   handleRemoveIcon,
+  handleToggleIcon,
 }: {
   data: string;
   handleRemoveIcon: any;
+  handleToggleIcon: any;
 }) => {
-  // console.log("data", data);
+  console.log("data", data);
 
   return (
     <div>
@@ -31,7 +33,10 @@ const AddIcon = ({
         <AddAppIcon handleRemoveIcon={handleRemoveIcon} />
       )}
       {data === "Info Bar" && (
-        <AddInfoBar handleRemoveIcon={handleRemoveIcon} />
+        <AddInfoBar
+          handleRemoveIcon={handleRemoveIcon}
+          handleToggleIcon={handleToggleIcon}
+        />
       )}
       {data === "Contact Card" && (
         <AddContactCard handleRemoveIcon={handleRemoveIcon} />

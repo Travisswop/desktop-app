@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { LiaFileMedicalSolid } from "react-icons/lia";
 import useSmartSiteApiDataStore from "@/zustandStore/UpdateSmartsiteInfo";
 // import useLoggedInUserStore from "@/zustandStore/SetLogedInUserSession";
@@ -73,6 +73,10 @@ const AddContactCard = ({ handleRemoveIcon }: any) => {
       }
     }
   };
+
+  useEffect(() => {
+    handleRemoveIcon("Info Bar");
+  }, []);
 
   // console.log("smartSiteData", state);
   // console.log("sesstionState", sesstionState);

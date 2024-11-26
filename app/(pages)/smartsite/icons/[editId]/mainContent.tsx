@@ -144,6 +144,7 @@ const MicrositeEditMainContentPage = ({ data }: any) => {
               <AddIcon
                 key={index}
                 data={info}
+                handleToggleIcon={handleToggleIcon}
                 handleRemoveIcon={handleRemoveIcon}
               />
             ))}
