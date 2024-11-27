@@ -14,17 +14,20 @@ import { LiaFileMedicalSolid } from "react-icons/lia";
 // import useLoggedInUserStore from "@/zustandStore/SetLogedInUserSession";
 // import { toast } from "react-toastify";
 import { FaTimes } from "react-icons/fa";
-import { MdDelete } from "react-icons/md";
+import { MdDelete, MdInfoOutline } from "react-icons/md";
 // import AnimateButton from "@/components/Button/AnimateButton";
 // import { deleteEmbedLink, updateEmbedLink } from "@/actions/embedLink";
 // import { sendCloudinaryVideo } from "@/util/sendCloudineryVideo";
 import { deleteVideo, updateVideo } from "@/actions/video";
 // import placeholder from "@/public/images/video_player_placeholder.gif";
 // import CustomFileInput from "@/components/CustomFileInput";
-import { useToast } from "@/hooks/use-toast";
 import { sendCloudinaryVideo } from "@/lib/sendCloudineryVideo";
 import CustomFileInput from "@/components/CustomFileInput";
 import AnimateButton from "@/components/ui/Button/AnimateButton";
+import { Tooltip } from "@nextui-org/react";
+import Image from "next/image";
+import filePlaceholder from "@/public/images/placeholder-photo.png";
+import toast from "react-hot-toast";
 
 const UpdateVideo = ({ iconDataObj, isOn, setOff }: any) => {
   //const sesstionState = useLoggedInUserStore((state) => state.state.user); //get session value
@@ -36,8 +39,9 @@ const UpdateVideo = ({ iconDataObj, isOn, setOff }: any) => {
   const [inputError, setInputError] = useState<any>({});
   const [videoFile, setVideoFile] = useState<any>(null);
   const [fileError, setFileError] = useState<string>("");
+  const [attachLink, setAttachLink] = useState<string>("");
 
-  const { toast } = useToast();
+  // console.log("iconDataObj", iconDataObj);
 
   const handleFileChange = (event: any) => {
     const file = event.target.files[0];
@@ -72,6 +76,7 @@ const UpdateVideo = ({ iconDataObj, isOn, setOff }: any) => {
       micrositeId: iconDataObj.data.micrositeId,
       title: formData.get("title"),
       file: videoFile || iconDataObj.data.link,
+      attachLink: attachLink,
     };
 
     let errors = {};
@@ -79,7 +84,7 @@ const UpdateVideo = ({ iconDataObj, isOn, setOff }: any) => {
     if (!info.title) {
       errors = { ...errors, title: "title is required" };
     }
-    if (!info.file) {
+    if (!info.file && !attachLink) {
       errors = { ...errors, image: "video is required" };
     }
 
@@ -92,13 +97,11 @@ const UpdateVideo = ({ iconDataObj, isOn, setOff }: any) => {
         if (videoFile) {
           const videoUrl = await sendCloudinaryVideo(info.file);
           if (!videoUrl) {
-            toast({
-              title: "Error",
-              description: "Image upload failed!",
-            });
-            // toast.error("image upload failed!");
+            toast.error("Image upload failed!");
           }
           info.file = videoUrl;
+        } else if (attachLink) {
+          info.file = attachLink;
         }
 
         const data = await updateVideo(info, demoToken);
@@ -106,15 +109,9 @@ const UpdateVideo = ({ iconDataObj, isOn, setOff }: any) => {
 
         if ((data.state = "success")) {
           setOff();
-          toast({
-            title: "Success",
-            description: "Video updated successfully",
-          });
+          toast.success("Video updated successfully");
         } else {
-          toast({
-            title: "Error",
-            description: "Something went wrong!",
-          });
+          toast.error("Something went wrong!");
         }
       } catch (error) {
         console.error(error);
@@ -150,16 +147,10 @@ const UpdateVideo = ({ iconDataObj, isOn, setOff }: any) => {
 
       if (data && data?.state === "success") {
         setOff();
-        toast({
-          title: "Success",
-          description: "Video deleted successfully",
-        });
+        toast.success("Video deleted successfully");
         setOff();
       } else {
-        toast({
-          title: "Error",
-          description: "Something went wrong!",
-        });
+        toast.error("Something went wrong!");
       }
     } catch (error) {
       console.error(error);
@@ -177,7 +168,7 @@ const UpdateVideo = ({ iconDataObj, isOn, setOff }: any) => {
         >
           <div
             ref={modalRef}
-            className="modal-content h-max w-96 lg:w-[40rem] bg-white relative rounded-xl"
+            className="modal-content w-96 lg:w-[40rem] h-[90vh] hide-scrollbar overflow-y-auto bg-white relative rounded-xl"
           >
             <button
               className="btn btn-sm btn-circle absolute right-4 top-[12px]"
@@ -190,23 +181,39 @@ const UpdateVideo = ({ iconDataObj, isOn, setOff }: any) => {
                 onSubmit={handleFormSubmit}
                 className="bg-white flex flex-col gap-4"
               >
-                <h1 className="font-semibold text-gray-700">Video</h1>
+                <div className="flex items-end gap-1 justify-center">
+                  <div className="flex items-end gap-1 justify-center">
+                    <h2 className="font-semibold text-gray-700 text-xl text-center">
+                      Video
+                    </h2>
+                    <div className="translate-y-0.5">
+                      <Tooltip
+                        size="sm"
+                        content={
+                          <span className="font-medium">
+                            You can embed a video by either uploading it
+                            directly or sharing an external link, along with
+                            providing a title for the content.
+                          </span>
+                        }
+                        className={`max-w-40 h-auto`}
+                      >
+                        <button>
+                          <MdInfoOutline />
+                        </button>
+                      </Tooltip>
+                    </div>
+                  </div>
+                </div>
                 <div className="flex justify-between gap-10">
                   <div className="flex flex-col gap-3 flex-1">
                     <div className="flex flex-col gap-1">
-                      <p className="font-semibold text-gray-700 text-sm">
-                        Select Video
-                        <span className="text-red-600 font-medium text-sm mt-1">
-                          *
-                        </span>
-                      </p>
                       <div className="">
-                        <div className="border-2 border-[#d8acff] min-w-72 max-w-96 h-auto p-1 bg-slate-100 rounded-lg">
+                        <div className="border-2 border-[#d8acff] w-full h-80 p-1 bg-slate-100 rounded-lg">
                           {videoFile ? (
                             <video
                               key={videoFile as string}
-                              width="420"
-                              height="320"
+                              className="w-full h-full object-cover rounded-lg"
                               controls
                             >
                               <source
@@ -222,26 +229,23 @@ const UpdateVideo = ({ iconDataObj, isOn, setOff }: any) => {
                               Your browser does not support the video tag.
                             </video>
                           ) : (
-                            <div>
-                              <video
-                                key={iconDataObj.data.link as string}
-                                width="420"
-                                height="320"
-                                controls
-                              >
-                                <source
-                                  src={iconDataObj.data.link as string}
-                                  type="video/mp4"
-                                />
-                                <track
-                                  src="/path/to/captions.vtt"
-                                  kind="subtitles"
-                                  srcLang="en"
-                                  label="English"
-                                />
-                                Your browser does not support the video tag.
-                              </video>
-                            </div>
+                            <video
+                              key={iconDataObj.data.link as string}
+                              className="w-full h-full object-cover rounded-lg"
+                              controls
+                            >
+                              <source
+                                src={iconDataObj.data.link as string}
+                                type="video/mp4"
+                              />
+                              <track
+                                src="/path/to/captions.vtt"
+                                kind="subtitles"
+                                srcLang="en"
+                                label="English"
+                              />
+                              Your browser does not support the video tag.
+                            </video>
                           )}
                         </div>
                         {inputError.image && (
@@ -256,9 +260,28 @@ const UpdateVideo = ({ iconDataObj, isOn, setOff }: any) => {
                           </p>
                         )}
                         <div className="mt-2">
-                          <CustomFileInput
-                            handleFileChange={handleFileChange}
-                          />
+                          <p className="font-semibold text-gray-700 text-sm mb-1">
+                            Add Your Video
+                            <span className="text-red-600 font-medium text-sm mt-1">
+                              *
+                            </span>
+                          </p>
+                          <div className="w-full bg-white shadow-medium rounded-xl px-20 py-10">
+                            <div className="bg-gray-100 rounded-xl p-4 flex flex-col items-center gap-2">
+                              <Image
+                                src={filePlaceholder}
+                                alt="placeholder"
+                                className="w-12"
+                              />
+                              <p className="text-gray-400 font-normal text-sm">
+                                Select Video
+                              </p>
+                              <CustomFileInput
+                                title={"Browse"}
+                                handleFileChange={handleFileChange}
+                              />
+                            </div>
+                          </div>
                         </div>
                       </div>
                     </div>
@@ -285,14 +308,33 @@ const UpdateVideo = ({ iconDataObj, isOn, setOff }: any) => {
                         )}
                       </div>
                     </div>
+                    <div className="flex flex-col gap-1">
+                      <p className="font-medium">Attach Link</p>
+                      <div>
+                        <input
+                          type="url"
+                          name="link"
+                          className="w-full border border-[#ede8e8] focus:border-[#e5e0e0] rounded-xl focus:outline-none px-3 py-2 text-gray-700 bg-gray-100"
+                          placeholder={"Enter video url"}
+                          onChange={(e) => setAttachLink(e.target.value)}
+                        />
+                      </div>
+                    </div>
                   </div>
                 </div>
                 <div className="flex justify-between mt-3">
-                  <AnimateButton isLoading={isLoading} width={"w-52"}>
+                  <AnimateButton
+                    className="bg-black text-white py-2 !border-0"
+                    whiteLoading={true}
+                    isLoading={isLoading}
+                    width={"w-52"}
+                  >
                     <LiaFileMedicalSolid size={20} />
                     Save Changes
                   </AnimateButton>
                   <AnimateButton
+                    className="bg-black text-white py-2 !border-0"
+                    whiteLoading={true}
                     type="button"
                     onClick={handleDelete}
                     isLoading={isDeleteLoading}

@@ -2,23 +2,26 @@ import Image from "next/image";
 import React, { useState } from "react";
 import { LiaFileMedicalSolid } from "react-icons/lia";
 import useSmartSiteApiDataStore from "@/zustandStore/UpdateSmartsiteInfo";
-import useLoggedInUserStore from "@/zustandStore/SetLogedInUserSession";
+// import useLoggedInUserStore from "@/zustandStore/SetLogedInUserSession";
 // import { toast } from "react-toastify";
 // import AnimateButton from "@/components/Button/AnimateButton";
 // import "react-quill/dist/quill.snow.css";
 // import CustomFileInput from "@/components/CustomFileInput";
-import imagePlaceholder from "@/public/images/image_placeholder.png";
 import AudioPlayer from "react-h5-audio-player";
 import "react-h5-audio-player/lib/styles.css";
 // import { sendCloudinaryImage } from "@/util/SendCloudineryImage";
 import { postAudio } from "@/actions/audio";
 // import { sendCloudinaryAudio } from "@/util/sendCloudineryAudio";
 import { FaTimes } from "react-icons/fa";
-import { useToast } from "@/hooks/use-toast";
 import { sendCloudinaryAudio } from "@/lib/sendCloudineryAudio";
 import { sendCloudinaryImage } from "@/lib/SendCloudineryImage";
 import CustomFileInput from "@/components/CustomFileInput";
 import AnimateButton from "@/components/ui/Button/AnimateButton";
+import { MdInfoOutline } from "react-icons/md";
+import { Tooltip } from "@nextui-org/react";
+import filePlaceholder from "@/public/images/placeholder-photo.png";
+import { AiFillAudio } from "react-icons/ai";
+import toast from "react-hot-toast";
 
 const AddAudio = ({ handleRemoveIcon }: any) => {
   const state: any = useSmartSiteApiDataStore((state) => state);
@@ -31,8 +34,6 @@ const AddAudio = ({ handleRemoveIcon }: any) => {
   const [imageFile, setImageFile] = useState<any>(null);
   const [fileError, setFileError] = useState<string>("");
   const [imageFileError, setImageFileError] = useState<string>("");
-
-  const { toast } = useToast();
 
   const handleFileChange = (event: any) => {
     // get audio file
@@ -51,7 +52,7 @@ const AddAudio = ({ handleRemoveIcon }: any) => {
         reader.readAsDataURL(file);
       }
     } else {
-      setFileError("Please upload a audio video file.");
+      setFileError("Please upload a audio file.");
     }
   };
 
@@ -110,19 +111,13 @@ const AddAudio = ({ handleRemoveIcon }: any) => {
       try {
         const audioUrl = await sendCloudinaryAudio(info.file);
         if (!audioUrl) {
-          toast({
-            title: "Error",
-            description: "Audio upload failed!",
-          });
+          toast.error("Audio upload failed!");
         }
         info.file = audioUrl;
 
         const imageUrl = await sendCloudinaryImage(info.coverPhoto);
         if (!imageUrl) {
-          return toast({
-            title: "Error",
-            description: "Cover photo upload failed!",
-          });
+          return toast.error("Cover photo upload failed!");
         }
         info.coverPhoto = imageUrl;
 
@@ -135,15 +130,9 @@ const AddAudio = ({ handleRemoveIcon }: any) => {
           // console.log("data", data);
 
           if ((data.state = "success")) {
-            toast({
-              title: "Error",
-              description: "Music created successfully",
-            });
+            toast.success("Music created successfully");
           } else {
-            toast({
-              title: "Error",
-              description: "Something went wrong!",
-            });
+            toast.error("Something went wrong!");
           }
         }
       } catch (error) {
@@ -157,32 +146,49 @@ const AddAudio = ({ handleRemoveIcon }: any) => {
   return (
     <form
       onSubmit={handleFormSubmit}
-      className="bg-white rounded-xl shadow-small p-6 flex flex-col gap-4"
+      className="relative bg-white rounded-xl shadow-small p-6 flex flex-col gap-4 px-10 2xl:px-[10%]"
     >
-      <div className="flex items-center justify-between">
-        <h1 className="font-semibold text-gray-700">Audio</h1>
-        <button type="button" onClick={() => handleRemoveIcon("Music File")}>
-          <FaTimes size={20} />
+      <div className="flex items-end gap-1 justify-center">
+        <div className="flex items-end gap-1 justify-center">
+          <h2 className="font-semibold text-gray-700 text-xl text-center">
+            Audio
+          </h2>
+          <div className="translate-y-0.5">
+            <Tooltip
+              size="sm"
+              content={
+                <span className="font-medium">
+                  Embed music to your smart site that people can listen to.
+                </span>
+              }
+              className={`max-w-40 h-auto`}
+            >
+              <button>
+                <MdInfoOutline />
+              </button>
+            </Tooltip>
+          </div>
+        </div>
+        <button
+          className="absolute top-3 right-3"
+          type="button"
+          onClick={() => handleRemoveIcon("Mp3")}
+        >
+          <FaTimes size={18} />
         </button>
       </div>
 
       <div className="flex justify-between gap-10">
         <div className="flex flex-col gap-3 flex-1">
           <div className="flex flex-col gap-1">
-            <p className="font-semibold text-gray-700 text-sm">
+            {/* <p className="font-semibold text-gray-700 text-sm">
               Select Audio
               <span className="text-red-600 font-medium text-sm mt-1">*</span>
-            </p>
+            </p> */}
             <div className="">
-              <div className="border-2 border-[#d8acff] min-w-72 max-w-[30rem] h-auto p-1 bg-slate-100 rounded-lg">
+              <div className="border-2 border-[#d8acff] w-full h-auto p-1 bg-slate-100 rounded-lg">
                 {audioFile ? (
-                  <AudioPlayer
-                    autoPlay
-                    src={audioFile}
-                    className="h-full"
-                    //   onPlay={(e) => console.log("onPlay")}
-                    // other props here
-                  />
+                  <AudioPlayer autoPlay src={audioFile} className="h-full" />
                 ) : (
                   <div>
                     <AudioPlayer autoPlay src="" className="h-full" />
@@ -191,17 +197,46 @@ const AddAudio = ({ handleRemoveIcon }: any) => {
               </div>
               {inputError.image && (
                 <p className="text-red-600 font-medium text-sm mt-1">
-                  Video is required
+                  Audio is required
                 </p>
               )}
 
-              {fileError && (
+              {/* {fileError && (
                 <p className="text-red-600 font-medium text-sm mt-1">
                   {fileError}
                 </p>
-              )}
-              <div className="mt-2">
+              )} */}
+              {/* <div className="mt-2">
                 <CustomFileInput handleFileChange={handleFileChange} />
+              </div> */}
+            </div>
+          </div>
+          <div className="">
+            <p className="font-semibold text-gray-700 text-sm mb-1">
+              Select Mp3 File
+              <span className="text-red-600 font-medium text-sm mt-1">*</span>
+            </p>
+            <div className="w-full bg-white shadow-medium rounded-xl px-20 py-10">
+              <div className="bg-gray-100 rounded-xl p-4 flex flex-col items-center gap-2">
+                <AiFillAudio color="gray" size={30} />
+                <p className="text-gray-400 font-normal text-sm">
+                  Select Mp3 File
+                </p>
+                <CustomFileInput
+                  title={"Browse"}
+                  handleFileChange={handleFileChange}
+                />
+                {inputError.image && (
+                  <p className="text-red-600 font-medium text-sm mt-1">
+                    Audio is required
+                  </p>
+                )}
+
+                {fileError && (
+                  <p className="text-red-600 font-medium text-sm mt-1">
+                    {fileError}
+                  </p>
+                )}
               </div>
             </div>
           </div>
@@ -225,53 +260,96 @@ const AddAudio = ({ handleRemoveIcon }: any) => {
               )}
             </div>
           </div>
-          <div className="flex flex-col gap-1">
-            <p className="font-semibold text-gray-700 text-sm">
-              Select Cover Photo
-              <span className="text-red-600 font-medium text-sm mt-1">*</span>
-            </p>
-            <div className="">
-              <div className="border-2 border-[#d8acff] w-max h-auto p-1 bg-slate-100 rounded-lg">
-                {imageFile ? (
+          {/* <div className="flex flex-col gap-1 px-10 mt-2">
+            <div className="border-2 border-[#d8acff] w-full h-52 p-1 bg-slate-100 rounded-lg">
+              {imageFile ? (
+                <div className="relative w-full h-full">
                   <Image
                     src={imageFile}
                     alt="cover photo"
-                    width={200}
-                    height={200}
-                    className="w-32 h-24 rounded-md"
+                    fill
+                    className="rounded-md object-cover"
                   />
-                ) : (
+                </div>
+              ) : (
+                <div className="relative w-full h-full">
                   <Image
                     src={imagePlaceholder}
                     alt="cover photo"
-                    width={200}
-                    height={200}
-                    className="w-32 h-24 rounded-md"
+                    fill
+                    className="rounded-md object-contain"
                   />
-                )}
-              </div>
-              {inputError.image && (
-                <p className="text-red-600 font-medium text-sm mt-1">
-                  cover photo is required
-                </p>
+                </div>
               )}
+            </div>
+            {inputError.image && (
+              <p className="text-red-600 font-medium text-sm mt-1">
+                cover photo is required
+              </p>
+            )}
 
-              {imageFileError && (
-                <p className="text-red-600 font-medium text-sm mt-1">
-                  {imageFileError}
+            {imageFileError && (
+              <p className="text-red-600 font-medium text-sm mt-1">
+                {imageFileError}
+              </p>
+            )}
+          </div> */}
+          <div className="">
+            <p className="font-semibold text-gray-700 text-sm mb-1">
+              Select Cover Photo
+              <span className="text-red-600 font-medium text-sm mt-1">*</span>
+            </p>
+            <div className="w-full bg-white shadow-medium rounded-xl px-20 py-10">
+              <div className="bg-gray-100 rounded-xl p-4 flex flex-col items-center gap-2">
+                <div className="w-16 h-10">
+                  {imageFile ? (
+                    <Image
+                      src={imageFile}
+                      alt="cover photo"
+                      width={120}
+                      height={120}
+                      className="rounded w-full h-full"
+                    />
+                  ) : (
+                    <Image
+                      src={filePlaceholder}
+                      alt="placeholder"
+                      className="w-10 h-auto mx-auto"
+                    />
+                  )}
+                </div>
+                <p className="text-gray-400 font-normal text-sm">
+                  Select Cover Photo
                 </p>
-              )}
-              <div className="mt-2">
-                <CustomFileInput handleFileChange={handleImageFileChange} />
+                <CustomFileInput
+                  title={"Browse"}
+                  handleFileChange={handleImageFileChange}
+                />
+                {inputError.image && (
+                  <p className="text-red-600 font-medium text-sm mt-1">
+                    cover photo is required
+                  </p>
+                )}
+
+                {imageFileError && (
+                  <p className="text-red-600 font-medium text-sm mt-1">
+                    {imageFileError}
+                  </p>
+                )}
               </div>
             </div>
           </div>
         </div>
       </div>
-      <div className="flex justify-end mt-3">
-        <AnimateButton isLoading={isLoading} width={"w-52"}>
+      <div className="flex justify-center">
+        <AnimateButton
+          className="bg-black text-white py-2 !border-0"
+          whiteLoading={true}
+          isLoading={isLoading}
+          width={"w-48"}
+        >
           <LiaFileMedicalSolid size={20} />
-          Save Changes
+          Create
         </AnimateButton>
       </div>
     </form>

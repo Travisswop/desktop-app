@@ -43,9 +43,7 @@ const AddIcon = ({
       )}
       {data === "Embed" && <AddEmbed handleRemoveIcon={handleRemoveIcon} />}
       {data === "Video" && <AddVideo handleRemoveIcon={handleRemoveIcon} />}
-      {data === "Music File" && (
-        <AddAudio handleRemoveIcon={handleRemoveIcon} />
-      )}
+      {data === "Mp3" && <AddAudio handleRemoveIcon={handleRemoveIcon} />}
       {data === "Swop Pay" && (
         <AddSwopPay handleRemoveIcon={handleRemoveIcon} />
       )}

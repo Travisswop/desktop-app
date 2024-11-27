@@ -160,12 +160,12 @@ const IconMaker = ({ handleToggleIcon, toggleIcon }: any) => {
       title: "Mp3",
       toolTip: "Embed music to your smart site that people can listen to.",
     },
-    {
-      _id: 9,
-      src: photoIcon,
-      title: "Photo",
-      toolTip: "Select the icon to upload a new photo.",
-    },
+    // {
+    //   _id: 9,
+    //   src: photoIcon,
+    //   title: "Photo",
+    //   toolTip: "Select the icon to upload a new photo.",
+    // },
     {
       _id: 10,
       src: videoIcon,

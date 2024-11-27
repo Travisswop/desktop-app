@@ -12,20 +12,25 @@ import { postVideo } from "@/actions/video";
 // import { sendCloudinaryVideo } from "@/util/sendCloudineryVideo";
 import { FaTimes } from "react-icons/fa";
 import { sendCloudinaryVideo } from "@/lib/sendCloudineryVideo";
-import { useToast } from "@/hooks/use-toast";
 import CustomFileInput from "@/components/CustomFileInput";
 import AnimateButton from "@/components/ui/Button/AnimateButton";
+import toast from "react-hot-toast";
+import { MdInfoOutline } from "react-icons/md";
+import { Tooltip } from "@nextui-org/react";
+import filePlaceholder from "@/public/images/placeholder-photo.png";
 
 const AddVideo = ({ handleRemoveIcon }: any) => {
   const state: any = useSmartSiteApiDataStore((state) => state);
   //const sesstionState = useLoggedInUserStore((state) => state.state.user); //get session value
   const demoToken =
     "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJfaWQiOiI2NjM4NjMyMDIzMDQxMDMyODAyOTk4MmIiLCJpYXQiOjE3MjcxNTI4MzB9.CsHnZAgUzsfkc_g_CZZyQMXc02Ko_LhnQcCVpeCwroY";
+
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [inputError, setInputError] = useState<any>({});
   const [videoFile, setVideoFile] = useState<any>(null);
   const [fileError, setFileError] = useState<string>("");
-  const { toast } = useToast();
+
+  const [attachLink, setAttachLink] = useState<string>("");
 
   const handleFileChange = (event: any) => {
     const file = event.target.files[0];
@@ -58,6 +63,7 @@ const AddVideo = ({ handleRemoveIcon }: any) => {
       micrositeId: state.data._id,
       title: formData.get("title"),
       file: videoFile,
+      attachLink: attachLink,
     };
 
     let errors = {};
@@ -65,7 +71,7 @@ const AddVideo = ({ handleRemoveIcon }: any) => {
     if (!info.title) {
       errors = { ...errors, title: "title is required" };
     }
-    if (!info.file) {
+    if (!info.file && !attachLink) {
       errors = { ...errors, image: "video is required" };
     }
 
@@ -75,29 +81,22 @@ const AddVideo = ({ handleRemoveIcon }: any) => {
     } else {
       setInputError("");
       try {
-        const videoUrl = await sendCloudinaryVideo(info.file);
-        if (!videoUrl) {
-          toast({
-            title: "Error",
-            description: "Image upload failed!",
-          });
+        if (info?.file) {
+          const videoUrl = await sendCloudinaryVideo(info.file);
+          if (!videoUrl) {
+            toast.error("Image upload failed!");
+          }
+          info.file = videoUrl;
+        } else {
+          info.file = attachLink;
         }
-        info.file = videoUrl;
-        // console.log("videee", info);
-
         const data = await postVideo(info, demoToken);
         // console.log("data", data);
 
         if ((data.state = "success")) {
-          toast({
-            title: "Success",
-            description: "Video created successfully",
-          });
+          toast.success("Video created successfully");
         } else {
-          toast({
-            title: "Error",
-            description: "Something went wrong!",
-          });
+          toast.error("Something went wrong!");
         }
       } catch (error) {
         console.error(error);
@@ -110,29 +109,49 @@ const AddVideo = ({ handleRemoveIcon }: any) => {
   return (
     <form
       onSubmit={handleFormSubmit}
-      className="bg-white rounded-xl shadow-small p-6 flex flex-col gap-4"
+      className="relative bg-white rounded-xl shadow-small p-6 flex flex-col gap-4 px-10 2xl:px-[10%]"
     >
-      <div className="flex items-center justify-between">
-        <h1 className="font-semibold text-gray-700">Video</h1>
-        <button type="button" onClick={() => handleRemoveIcon("Video")}>
-          <FaTimes size={20} />
+      <div className="flex items-end gap-1 justify-center">
+        <div className="flex items-end gap-1 justify-center">
+          <h2 className="font-semibold text-gray-700 text-xl text-center">
+            Video
+          </h2>
+          <div className="translate-y-0.5">
+            <Tooltip
+              size="sm"
+              content={
+                <span className="font-medium">
+                  You can embed a video by either uploading it directly or
+                  sharing an external link, along with providing a title for the
+                  content.
+                </span>
+              }
+              className={`max-w-40 h-auto`}
+            >
+              <button>
+                <MdInfoOutline />
+              </button>
+            </Tooltip>
+          </div>
+        </div>
+        <button
+          className="absolute top-3 right-3"
+          type="button"
+          onClick={() => handleRemoveIcon("Video")}
+        >
+          <FaTimes size={18} />
         </button>
       </div>
 
       <div className="flex justify-between gap-10">
         <div className="flex flex-col gap-3 flex-1">
           <div className="flex flex-col gap-1">
-            <p className="font-semibold text-gray-700 text-sm">
-              Select Video
-              <span className="text-red-600 font-medium text-sm mt-1">*</span>
-            </p>
             <div className="">
-              <div className="border-2 border-[#d8acff] min-w-72 max-w-96 h-auto p-1 bg-slate-100 rounded-lg">
+              <div className="border-2 border-[#d8acff] w-full h-80 p-1 bg-slate-100 rounded-lg">
                 {videoFile ? (
                   <video
                     key={videoFile as string}
-                    width="420"
-                    height="320"
+                    className="w-full h-full object-cover rounded-lg"
                     controls
                   >
                     <source src={videoFile as string} type="video/mp4" />
@@ -145,13 +164,12 @@ const AddVideo = ({ handleRemoveIcon }: any) => {
                     Your browser does not support the video tag.
                   </video>
                 ) : (
-                  <div className="relative">
+                  <div className="relative w-full h-full">
                     <Image
                       src={placeholder}
                       alt="blog photo"
-                      width={400}
-                      height={200}
-                      className="w-full h-[220px] rounded-md object-cover"
+                      fill
+                      className="w-full h-full rounded-lg object-contain"
                     />
                   </div>
                 )}
@@ -168,7 +186,28 @@ const AddVideo = ({ handleRemoveIcon }: any) => {
                 </p>
               )}
               <div className="mt-2">
-                <CustomFileInput handleFileChange={handleFileChange} />
+                <p className="font-semibold text-gray-700 text-sm mb-1">
+                  Add Your Video
+                  <span className="text-red-600 font-medium text-sm mt-1">
+                    *
+                  </span>
+                </p>
+                <div className="w-full bg-white shadow-medium rounded-xl px-20 py-10">
+                  <div className="bg-gray-100 rounded-xl p-4 flex flex-col items-center gap-2">
+                    <Image
+                      src={filePlaceholder}
+                      alt="placeholder"
+                      className="w-12"
+                    />
+                    <p className="text-gray-400 font-normal text-sm">
+                      Select Video
+                    </p>
+                    <CustomFileInput
+                      title={"Browse"}
+                      handleFileChange={handleFileChange}
+                    />
+                  </div>
+                </div>
               </div>
             </div>
           </div>
@@ -192,12 +231,29 @@ const AddVideo = ({ handleRemoveIcon }: any) => {
               )}
             </div>
           </div>
+          <div className="flex flex-col gap-1">
+            <p className="font-medium">Attach Link</p>
+            <div>
+              <input
+                type="url"
+                name="link"
+                className="w-full border border-[#ede8e8] focus:border-[#e5e0e0] rounded-xl focus:outline-none px-3 py-2 text-gray-700 bg-gray-100"
+                placeholder={"Enter video url"}
+                onChange={(e) => setAttachLink(e.target.value)}
+              />
+            </div>
+          </div>
         </div>
       </div>
-      <div className="flex justify-end mt-3">
-        <AnimateButton isLoading={isLoading} width={"w-52"}>
+      <div className="flex justify-center">
+        <AnimateButton
+          className="bg-black text-white py-2 !border-0"
+          whiteLoading={true}
+          isLoading={isLoading}
+          width={"w-48"}
+        >
           <LiaFileMedicalSolid size={20} />
-          Save Changes
+          Create
         </AnimateButton>
       </div>
     </form>

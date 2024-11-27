@@ -353,9 +353,9 @@ const AddSmallIcon = ({ handleRemoveIcon }: any) => {
           <div className="flex justify-center mt-5">
             <AnimateButton
               isLoading={isLoading}
+              className="bg-black text-white py-2 !border-0"
               whiteLoading={true}
               width={"w-52"}
-              className="bg-black text-white py-2 !border-0"
             >
               <LiaFileMedicalSolid size={20} />
               Create
