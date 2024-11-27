@@ -1,5 +1,6 @@
 "use client";
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { usePrivy, useSolanaWallets } from "@privy-io/react-auth";
 import PushToMintCollectionButton from "@/components/Button/PushToMintCollectionButton";
 import Image from "next/image";
 
@@ -7,13 +8,25 @@ const CreateCollectionPage = () => {
   const [newBenefit, setNewBenefit] = useState("");
   const [selectedImageName, setSelectedImageName] = useState<string | null>(null);
 
+  const { ready, authenticated } = usePrivy();
+  const { wallets } = useSolanaWallets();
+
+  useEffect(() => {
+    if (ready && authenticated && wallets.length > 0) {
+      const solanaAddress = wallets[0].address;
+      setFormData((prevState) => ({
+        ...prevState,
+        recipientAddress: solanaAddress,
+      }));
+    }
+  }, [ready, authenticated, wallets]);
 
   const [formData, setFormData] = useState({
     name: "",
     description: "",
     imageUrl: "",
     recipientAddress: "",
-    currency: "sol", // Default to Solana
+    currency: "usdc", // Default to Solana
     benefits: [] as string[], // Change from string to string[]
   });
 
@@ -189,21 +202,16 @@ const CreateCollectionPage = () => {
             </div>
 
             <div>
-              <label
-                htmlFor="recipientAddress"
-                className="mb-1 block font-medium"
-              >
-                Recipient&apos;s Solana Address:
+              <label htmlFor="recipientAddress" className="mb-1 block font-medium">
+              Recipient&apos;s Solana Address:
               </label>
               <input
                 type="text"
                 id="recipientAddress"
                 name="recipientAddress"
-                placeholder="Recipient Address"
                 value={formData.recipientAddress}
-                onChange={handleChange}
-                className="w-full border border-gray-300 rounded-lg px-4 py-2"
-                required
+                readOnly // Make the field read-only
+                className="w-full border border-gray-300 rounded-lg px-4 py-2 bg-gray-200 cursor-not-allowed"
               />
             </div>
 
@@ -215,10 +223,11 @@ const CreateCollectionPage = () => {
                 id="currency"
                 name="currency"
                 value={formData.currency}
-                disabled
-                className="w-full border border-gray-300 rounded-lg px-4 py-2 bg-gray-200 cursor-not-allowed"
+                onChange={handleChange} // Ensure the onChange handler is attached
+                className="w-full border border-gray-300 rounded-lg px-4 py-2"
               >
                 <option value="sol">Solana (SOL)</option>
+                <option value="usdc">USD Coin (USDC)</option>
               </select>
             </div>
 
