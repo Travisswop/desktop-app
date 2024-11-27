@@ -168,11 +168,10 @@ const CreateCollectiblePage = () => {
   
   const handleFileDrop = async (event: DragEvent<HTMLDivElement>) => {
     event.preventDefault();
-    const files = Array.from(event.dataTransfer.files || []);
+    const files = Array.from(event.dataTransfer.files);
     if (files.length === 0) return;
   
     try {
-      setUploadingContent(true);
       const uploadedFiles = await Promise.all(
         files.map(async (file) => {
           const reader = new FileReader();
@@ -182,12 +181,11 @@ const CreateCollectiblePage = () => {
             reader.readAsDataURL(file);
           });
   
-          const fileUrl = await sendCloudinaryFile(base64File, file.type);
+          const fileUrl = await sendCloudinaryFile(base64File, file.type, file.name);
           return { url: fileUrl, name: file.name, type: file.type };
         })
       );
   
-      // Update the formData with uploaded files
       setFormData((prevState) => ({
         ...prevState,
         content: [...prevState.content, ...uploadedFiles],
@@ -195,11 +193,9 @@ const CreateCollectiblePage = () => {
     } catch (error) {
       console.error("Error uploading files:", error);
       alert("Failed to upload some files. Please try again.");
-    } finally {
-      setUploadingContent(false);
     }
   };
-  
+    
   const handleAddBenefit = () => {
     if (newBenefit.trim()) {
       setFormData((prevState) => ({
