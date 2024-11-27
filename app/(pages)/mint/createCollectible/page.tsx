@@ -2,6 +2,8 @@
 import { useState, DragEvent } from "react";
 import PushToMintCollectionButton from "@/components/Button/PushToMintCollectionButton";
 import Image from "next/image";
+import { sendCloudinaryImage } from "@/lib/SendCloudineryImage";
+
 
 interface ContentFile {
   url: string;
@@ -42,6 +44,8 @@ const CreateCollectiblePage = () => {
 
   const [newBenefit, setNewBenefit] = useState("");
   const [selectedImageName, setSelectedImageName] = useState<string | null>(null);
+  const [imageUploading, setImageUploading] = useState(false);
+
 
   const handleChange = (
     e: React.ChangeEvent<
@@ -71,39 +75,61 @@ const CreateCollectiblePage = () => {
     }));
   };
 
-  const handleImageUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImageUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
 
     setSelectedImageName(file.name);
 
     const reader = new FileReader();
-    reader.onloadend = () => {
-      setFormData((prevState) => ({
-        ...prevState,
-        imageUrl: reader.result as string,
-      }));
+    reader.onloadend = async () => {
+      const base64Image = reader.result as string;
+
+      try {
+        setImageUploading(true);
+        const imageUrl = await sendCloudinaryImage(base64Image);
+        setFormData((prevState) => ({
+          ...prevState,
+          imageUrl: imageUrl,
+        }));
+        setImageUploading(false);
+      } catch (error) {
+        console.error("Error uploading image:", error);
+        setImageUploading(false);
+        alert("Failed to upload image. Please try again.");
+      }
     };
     reader.readAsDataURL(file);
   };
 
-  const handleImageDrop = (event: DragEvent<HTMLDivElement>) => {
+  const handleImageDrop = async (event: DragEvent<HTMLDivElement>) => {
     event.preventDefault();
     const file = event.dataTransfer.files?.[0];
     if (!file) return;
-
+  
     setSelectedImageName(file.name);
-
+  
     const reader = new FileReader();
-    reader.onloadend = () => {
-      setFormData((prevState) => ({
-        ...prevState,
-        imageUrl: reader.result as string,
-      }));
+    reader.onloadend = async () => {
+      const base64Image = reader.result as string;
+  
+      try {
+        setImageUploading(true);
+        const imageUrl = await sendCloudinaryImage(base64Image);
+        setFormData((prevState) => ({
+          ...prevState,
+          imageUrl: imageUrl,
+        }));
+        setImageUploading(false);
+      } catch (error) {
+        console.error("Error uploading image:", error);
+        setImageUploading(false);
+        alert("Failed to upload image. Please try again.");
+      }
     };
     reader.readAsDataURL(file);
   };
-
+  
   const handleContentUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(event.target.files || []);
     if (files.length === 0) return;
@@ -227,7 +253,10 @@ const CreateCollectiblePage = () => {
                 onChange={handleImageUpload}
                 className="hidden"
               />
+              {imageUploading && <p>Uploading image...</p>}
+
             </div>
+
             <div>
               <label htmlFor="description" className="mb-1 block font-medium">
                 Description
