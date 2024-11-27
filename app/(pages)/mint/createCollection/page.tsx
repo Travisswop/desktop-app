@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect } from "react";
+import { useState, useEffect, DragEvent } from "react";
 import { usePrivy, useSolanaWallets } from "@privy-io/react-auth";
 import PushToMintCollectionButton from "@/components/Button/PushToMintCollectionButton";
 import Image from "next/image";
@@ -8,19 +8,10 @@ const CreateCollectionPage = () => {
   const [newBenefit, setNewBenefit] = useState("");
   const [selectedImageName, setSelectedImageName] = useState<string | null>(null);
 
+
   const { ready, authenticated } = usePrivy();
   const { wallets } = useSolanaWallets();
-
-  useEffect(() => {
-    if (ready && authenticated && wallets.length > 0) {
-      const solanaAddress = wallets[0].address;
-      setFormData((prevState) => ({
-        ...prevState,
-        recipientAddress: solanaAddress,
-      }));
-    }
-  }, [ready, authenticated, wallets]);
-
+  
   const [formData, setFormData] = useState({
     name: "",
     description: "",
@@ -29,6 +20,22 @@ const CreateCollectionPage = () => {
     currency: "usdc", // Default to Solana
     benefits: [] as string[], // Change from string to string[]
   });
+
+  useEffect(() => {
+    if (
+      ready &&
+      authenticated &&
+      wallets.length > 0 &&
+      formData.recipientAddress !== wallets[0].address
+    ) {
+      const solanaAddress = wallets[0].address;
+      setFormData((prevState) => ({
+        ...prevState,
+        recipientAddress: solanaAddress,
+      }));
+    }
+  }, [ready, authenticated, wallets, formData.recipientAddress]);
+
 
   const handleChange = (
     e: React.ChangeEvent<
@@ -75,6 +82,23 @@ const CreateCollectionPage = () => {
     }));
   };
 
+  const handleImageDrop = (event: DragEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    const file = event.dataTransfer.files?.[0];
+    if (!file) return;
+  
+    setSelectedImageName(file.name);
+  
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      setFormData((prevState) => ({
+        ...prevState,
+        imageUrl: reader.result as string,
+      }));
+    };
+    reader.readAsDataURL(file);
+  };
+  
   return (
     <div className="main-container flex">
       {/* Left Column */}
@@ -106,6 +130,7 @@ const CreateCollectionPage = () => {
               className="bg-gray-100 p-4 rounded-lg border border-dashed border-gray-300 text-center"
               style={{ minWidth: "300px", width: "50%" }}
               onDragOver={(e) => e.preventDefault()}
+              onDrop={handleImageDrop}
             >
               {formData.imageUrl ? (
                 <div className="flex flex-col items-center">
@@ -116,7 +141,9 @@ const CreateCollectionPage = () => {
                     alt="Preview"
                     className="rounded-lg object-cover"
                   />
-                  <p className="text-sm mt-2 text-gray-700">{selectedImageName || "No file selected"}</p>
+                  <p className="text-sm mt-2 text-gray-700">
+                    {selectedImageName}
+                  </p>
                   <label
                     htmlFor="imageUrl"
                     className="inline-block bg-black text-white px-4 py-2 rounded-lg mt-2 cursor-pointer"
@@ -128,7 +155,9 @@ const CreateCollectionPage = () => {
                 <div>
                   <div className="flex flex-col items-center justify-center h-32 cursor-pointer">
                     <div className="text-6xl text-gray-400">📷</div>
-                    <p className="text-gray-500">Browse or drag and drop an image here.</p>
+                    <p className="text-gray-500">
+                      Browse or drag and drop an image here.
+                    </p>
                     <label
                       htmlFor="imageUrl"
                       className="inline-block bg-black text-white px-4 py-2 rounded-lg mt-2 cursor-pointer"
@@ -203,7 +232,7 @@ const CreateCollectionPage = () => {
 
             <div>
               <label htmlFor="recipientAddress" className="mb-1 block font-medium">
-              Recipient&apos;s Solana Address:
+                Recipient&apos;s Solana Address:
               </label>
               <input
                 type="text"
