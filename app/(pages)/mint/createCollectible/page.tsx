@@ -136,9 +136,9 @@ const CreateCollectiblePage = () => {
   const handleContentUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(event.target.files || []);
     if (files.length === 0) return;
-
-    // Show a loading indicator or update the state to reflect the uploading process
+  
     try {
+      setUploadingContent(true);
       const uploadedFiles = await Promise.all(
         files.map(async (file) => {
           const reader = new FileReader();
@@ -147,12 +147,12 @@ const CreateCollectiblePage = () => {
             reader.onerror = () => reject("Error reading file");
             reader.readAsDataURL(file);
           });
-
+  
           const fileUrl = await sendCloudinaryFile(base64File, file.type);
           return { url: fileUrl, name: file.name, type: file.type };
         })
       );
-
+  
       // Update the formData with uploaded files
       setFormData((prevState) => ({
         ...prevState,
@@ -161,15 +161,18 @@ const CreateCollectiblePage = () => {
     } catch (error) {
       console.error("Error uploading files:", error);
       alert("Failed to upload some files. Please try again.");
+    } finally {
+      setUploadingContent(false);
     }
   };
-
+  
   const handleFileDrop = async (event: DragEvent<HTMLDivElement>) => {
     event.preventDefault();
     const files = Array.from(event.dataTransfer.files || []);
     if (files.length === 0) return;
-
+  
     try {
+      setUploadingContent(true);
       const uploadedFiles = await Promise.all(
         files.map(async (file) => {
           const reader = new FileReader();
@@ -178,12 +181,12 @@ const CreateCollectiblePage = () => {
             reader.onerror = () => reject("Error reading file");
             reader.readAsDataURL(file);
           });
-
+  
           const fileUrl = await sendCloudinaryFile(base64File, file.type);
           return { url: fileUrl, name: file.name, type: file.type };
         })
       );
-
+  
       // Update the formData with uploaded files
       setFormData((prevState) => ({
         ...prevState,
@@ -192,9 +195,11 @@ const CreateCollectiblePage = () => {
     } catch (error) {
       console.error("Error uploading files:", error);
       alert("Failed to upload some files. Please try again.");
+    } finally {
+      setUploadingContent(false);
     }
   };
-
+  
   const handleAddBenefit = () => {
     if (newBenefit.trim()) {
       setFormData((prevState) => ({
