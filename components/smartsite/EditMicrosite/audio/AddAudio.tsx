@@ -181,10 +181,6 @@ const AddAudio = ({ handleRemoveIcon }: any) => {
       <div className="flex justify-between gap-10">
         <div className="flex flex-col gap-3 flex-1">
           <div className="flex flex-col gap-1">
-            {/* <p className="font-semibold text-gray-700 text-sm">
-              Select Audio
-              <span className="text-red-600 font-medium text-sm mt-1">*</span>
-            </p> */}
             <div className="">
               <div className="border-2 border-[#d8acff] w-full h-auto p-1 bg-slate-100 rounded-lg">
                 {audioFile ? (
@@ -200,15 +196,6 @@ const AddAudio = ({ handleRemoveIcon }: any) => {
                   Audio is required
                 </p>
               )}
-
-              {/* {fileError && (
-                <p className="text-red-600 font-medium text-sm mt-1">
-                  {fileError}
-                </p>
-              )} */}
-              {/* <div className="mt-2">
-                <CustomFileInput handleFileChange={handleFileChange} />
-              </div> */}
             </div>
           </div>
           <div className="">
