@@ -209,6 +209,12 @@ class SolanaService {
       );
       const publicKey = new PublicKey(walletAddress);
 
+      // Validate the public key
+      if (!publicKey) {
+        console.error('Invalid wallet address:', walletAddress);
+        return [];
+      }
+
       const [balance, tokenAccounts] = await Promise.all([
         connection.getBalance(publicKey),
         connection.getParsedTokenAccountsByOwner(publicKey, {
@@ -218,9 +224,27 @@ class SolanaService {
         }),
       ]);
 
+      // Check if tokenAccounts is in the expected format
+      if (!Array.isArray(tokenAccounts.value)) {
+        console.error(
+          'Unexpected token accounts format:',
+          tokenAccounts
+        );
+        return [];
+      }
+
       const nativeToken = await this.getNativeSolToken();
+      if (!nativeToken) {
+        console.error('Failed to fetch native SOL token data');
+        return [];
+      }
+
       const tokenData = await this.getTokenAccountsData(
         tokenAccounts.value
+      );
+
+      const validTokenData = tokenData.filter(
+        (token) => token !== null
       );
 
       const solToken = {
@@ -228,7 +252,7 @@ class SolanaService {
         balance: (balance / Math.pow(10, 9)).toString(),
       };
 
-      return [solToken, ...tokenData];
+      return [solToken, ...validTokenData];
     } catch (error) {
       console.error('Error fetching Solana tokens:', error);
       return [];
@@ -236,61 +260,98 @@ class SolanaService {
   }
 
   private static async getNativeSolToken() {
-    const nativeSol = CHAINS.SOLANA.nativeToken;
-    const marketData = await TokenAPIService.getMarketData({
-      uuid: nativeSol.uuid,
-    });
+    try {
+      const nativeSol = CHAINS.SOLANA.nativeToken;
+      const marketData = await TokenAPIService.getMarketData({
+        uuid: nativeSol.uuid,
+      });
 
-    if (!marketData) return null;
+      if (!marketData) {
+        console.error('Failed to fetch SOL market data');
+        return null;
+      }
 
-    const timeSeriesData = await TokenAPIService.getTimeSeriesData(
-      marketData.uuid
-    );
+      const timeSeriesData = await TokenAPIService.getTimeSeriesData(
+        marketData.uuid
+      );
 
-    return {
-      symbol: nativeSol.symbol,
-      name: nativeSol.name,
-      decimals: nativeSol.decimals,
-      address: null,
-      chain: 'SOLANA',
-      marketData,
-      sparklineData: processSparklineData(timeSeriesData),
-    };
+      return {
+        symbol: nativeSol.symbol,
+        name: nativeSol.name,
+        decimals: nativeSol.decimals,
+        address: null,
+        chain: 'SOLANA',
+        marketData,
+        sparklineData: processSparklineData(timeSeriesData),
+      };
+    } catch (error) {
+      console.error('Error fetching native SOL token:', error);
+      return null;
+    }
   }
 
   private static async getTokenAccountsData(
     tokenAccounts: TokenAccount[]
   ) {
-    const tokens = tokenAccounts.map((token: TokenAccount) => {
-      const { tokenAmount, mint } = token.account.data.parsed.info;
-      return {
-        decimals: tokenAmount.decimals,
-        balance: tokenAmount.uiAmountString,
-        address: mint,
-      };
-    });
+    try {
+      const tokens = tokenAccounts
+        .map((token: TokenAccount) => {
+          try {
+            const { tokenAmount, mint } =
+              token.account.data.parsed.info;
+            return {
+              decimals: tokenAmount.decimals,
+              balance: tokenAmount.uiAmountString,
+              address: mint,
+            };
+          } catch (error) {
+            console.error('Error parsing token account:', error);
+            return null;
+          }
+        })
+        .filter(Boolean);
 
-    return Promise.all(
-      tokens.map(async (token: { address: string }) => {
-        const marketData = await TokenAPIService.getMarketData({
-          address: token.address,
-        });
+      const tokenDataPromises = tokens.map(async (token) => {
+        if (!token) return null;
 
-        if (!marketData) return null;
+        try {
+          const marketData = await TokenAPIService.getMarketData({
+            address: token.address,
+          });
 
-        const timeSeriesData =
-          await TokenAPIService.getTimeSeriesData(marketData.uuid);
+          if (!marketData) {
+            console.error(
+              `No market data found for token: ${token.address}`
+            );
+            return null;
+          }
 
-        return {
-          ...token,
-          chain: 'SOLANA',
-          name: marketData.name,
-          symbol: marketData.symbol,
-          marketData,
-          sparklineData: processSparklineData(timeSeriesData),
-        };
-      })
-    );
+          const timeSeriesData =
+            await TokenAPIService.getTimeSeriesData(marketData.uuid);
+
+          return {
+            ...token,
+            chain: 'SOLANA',
+            name: marketData.name,
+            symbol: marketData.symbol,
+            marketData,
+            sparklineData: processSparklineData(timeSeriesData),
+          };
+        } catch (error) {
+          console.error(
+            `Error fetching token data for ${token.address}:`,
+            error
+          );
+          return null;
+        }
+      });
+
+      const results = await Promise.all(tokenDataPromises);
+      return results.filter(Boolean);
+    } catch (error) {
+      console.error('Error processing token accounts:', error);
+      return [];
+    }
   }
 }
 

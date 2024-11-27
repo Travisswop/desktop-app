@@ -44,8 +44,16 @@ import {
 } from '@solana/spl-token';
 import { useToast } from '@/hooks/use-toast';
 import { Transaction as TransactionType } from '@/types/transaction';
+import { Toaster } from '../ui/toaster';
 
 type Network = 'ETHEREUM' | 'POLYGON' | 'BASE' | 'SOLANA';
+
+const CHAIN_ID = {
+  ETHEREUM: 1,
+  POLYGON: 137,
+  BASE: 8453,
+  SOLANA: 101,
+};
 
 // Initialize React Query client
 const queryClient = new QueryClient({
@@ -78,6 +86,7 @@ function WalletContentInner() {
   const { authenticated, ready, user: PrivyUser } = usePrivy();
 
   const { wallets: ethWallets } = useWallets();
+  console.log('🚀 ~ WalletContentInner ~ ethWallets:', ethWallets);
   const { createWallet, wallets: solanaWallets } = useSolanaWallets();
   const [selectedToken, setSelectedToken] =
     useState<TokenData | null>(null);
@@ -234,6 +243,7 @@ function WalletContentInner() {
       setSendFlow((prev) => ({
         ...prev,
         step: 'success',
+        amount: sendFlow.amount,
       }));
 
       // Reset flow after successful send
@@ -241,6 +251,7 @@ function WalletContentInner() {
         handleCloseModals();
       }, 5000);
     } catch (error) {
+      setSendLoading(false);
       console.error('Error sending token:', error);
       toast({
         variant: 'destructive',
@@ -269,7 +280,7 @@ function WalletContentInner() {
     if (!solanaWallet) throw new Error('No Solana wallet found');
 
     const connection = new Connection(
-      process.env.NEXT_PUBLIC_SOLANA_RPC_URL!,
+      process.env.NEXT_PUBLIC_ALCHEMY_SOLANA_URL!,
       'confirmed'
     );
 
@@ -344,8 +355,13 @@ function WalletContentInner() {
   };
 
   const handleEVMSend = async () => {
-    const evmWallet = ethWallets[0];
+    const evmWallet = ethWallets.find(
+      (w) => w.walletClientType === 'privy'
+    );
+
     if (!evmWallet) throw new Error('No EVM wallet found');
+
+    await evmWallet.switchChain(CHAIN_ID[network]);
 
     const provider = await evmWallet.getEthereumProvider();
 
@@ -389,67 +405,84 @@ function WalletContentInner() {
 
       return txHash;
     } else {
-      // ERC20 token
       const erc20Abi = [
         'function transfer(address to, uint256 amount) returns (bool)',
         'function decimals() view returns (uint8)',
         'function balanceOf(address account) view returns (uint256)',
       ];
 
-      // Get the signer from the provider
       const web3Provider = new ethers.BrowserProvider(provider);
       const signer = await web3Provider.getSigner();
-      console.log('address', await signer.getAddress());
-      // Create contract instance with signer
-      const contract = new ethers.Contract(
-        sendFlow.token.address,
-        erc20Abi,
-        signer
-      );
 
-      const decimals = await contract.decimals();
-      const amountInWei = ethers.parseUnits(
-        sendFlow.amount,
-        decimals
-      );
-      const balance = await contract.balanceOf(
-        await signer.getAddress()
-      );
+      try {
+        const contract = new ethers.Contract(
+          sendFlow.token.address,
+          erc20Abi,
+          signer
+        );
 
-      if (balance < amountInWei) {
-        throw new Error('Insufficient balance');
+        const decimals =
+          sendFlow.token.decimals || (await contract.decimals());
+
+        const amountInWei = ethers.parseUnits(
+          sendFlow.amount,
+          decimals
+        );
+
+        let balance;
+        try {
+          balance = await contract.balanceOf(
+            await signer.getAddress()
+          );
+          console.log('🚀 ~ handleEVMSend ~ balance:', balance);
+        } catch (error) {
+          console.error('Error fetching balance:', error);
+          throw new Error(
+            'Failed to fetch token balance. Please check the token address.'
+          );
+        }
+
+        const balanceBigNumber = BigInt(balance);
+
+        if (balanceBigNumber < amountInWei) {
+          throw new Error('Insufficient balance');
+        }
+
+        const tx = await contract.transfer(
+          sendFlow.recipient?.address,
+          amountInWei
+        );
+
+        console.log('🚀 ~ handleEVMSend ~ tx:', tx);
+
+        const receipt = await tx.wait();
+        console.log('🚀 ~ handleEVMSend ~ receipt:', receipt);
+
+        const newTransaction = {
+          hash: tx.hash,
+          from: evmWallet.address,
+          to: sendFlow.recipient?.address || '',
+          value: sendFlow.amount,
+          status: tx.status,
+          timeStamp: Date.now().toString(),
+          gas: tx.gasUsed,
+          gasPrice: tx.gasPrice,
+          networkFee: tx.networkFee,
+          tokenName: sendFlow.token.name,
+          tokenSymbol: sendFlow.token.symbol,
+          tokenDecimal: decimals,
+          network: sendFlow.token.chain,
+          currentPrice: parseFloat(sendFlow.token.marketData.price),
+          isSwapped: false,
+          nativeTokenPrice: 0,
+          isNew: true,
+        };
+        setNewTransactions([newTransaction]);
+        return receipt.hash;
+      } catch (error) {
+        console.error('Error in EVM token transfer:', error);
+        throw error;
       }
-
-      const tx = await contract.transfer(
-        sendFlow.recipient?.address,
-        amountInWei
-      );
-      console.log('🚀 ~ handleEVMSend ~ tx:', tx);
-
-      const receipt = await tx.wait();
-      console.log('🚀 ~ handleEVMSend ~ receipt:', receipt);
-
-      const newTransaction = {
-        hash: tx.hash,
-        from: evmWallet.address,
-        to: sendFlow.recipient?.address || '',
-        value: sendFlow.amount,
-        status: tx.status,
-        timeStamp: Date.now().toString(),
-        gas: tx.gasUsed,
-        gasPrice: tx.gasPrice,
-        networkFee: tx.networkFee,
-        tokenName: sendFlow.token.name,
-        tokenSymbol: sendFlow.token.symbol,
-        tokenDecimal: sendFlow.token.decimals,
-        network: sendFlow.token.chain,
-        currentPrice: parseFloat(sendFlow.token.marketData.price),
-        isSwapped: false,
-        nativeTokenPrice: 0,
-        isNew: true,
-      };
-      setNewTransactions([newTransaction]);
-      return receipt.hash;
     }
   };
 
@@ -558,6 +591,7 @@ function WalletContentInner() {
         )}
       </div>
       <NetworkDock network={network} setNetwork={setNetwork} />
+      <Toaster />
     </div>
   );
 }
