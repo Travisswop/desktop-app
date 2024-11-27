@@ -1,6 +1,5 @@
 import React, { useState, useRef, useEffect } from "react";
 import { LiaFileMedicalSolid } from "react-icons/lia";
-import useLoggedInUserStore from "@/zustandStore/SetLogedInUserSession";
 // import { toast } from "react-toastify";
 import { FaTimes } from "react-icons/fa";
 // import AnimateButton from "@/components/Button/AnimateButton";
@@ -9,7 +8,7 @@ import { FaTimes } from "react-icons/fa";
 //   handleDeleteContactCard,
 //   updateContactCard,
 // } from "@/actions/contactCard";
-import { MdDelete } from "react-icons/md";
+import { MdDelete, MdInfoOutline } from "react-icons/md";
 // import { sendCloudinaryImage } from "@/util/SendCloudineryImage";
 // import "react-quill/dist/quill.snow.css"; // Add this line if not already present
 // import ReactQuill from "react-quill";
@@ -21,6 +20,8 @@ import { useToast } from "@/hooks/use-toast";
 import { sendCloudinaryImage } from "@/lib/SendCloudineryImage";
 import AnimateButton from "@/components/ui/Button/AnimateButton";
 import { Editor } from "@tinymce/tinymce-react";
+import { Tooltip } from "@nextui-org/react";
+import toast from "react-hot-toast";
 
 const UpdateBlog = ({ iconDataObj, isOn, setOff }: any) => {
   //const sesstionState = useLoggedInUserStore((state) => state.state.user); //get session value
@@ -32,8 +33,6 @@ const UpdateBlog = ({ iconDataObj, isOn, setOff }: any) => {
   const [imageFile, setImageFile] = useState<any>(null);
   const [fileError, setFileError] = useState<string>("");
   const [isDeleteLoading, setIsDeleteLoading] = useState<boolean>(false);
-
-  const { toast } = useToast();
 
   const modalRef = useRef<HTMLDivElement>(null);
   const closeModal = () => {
@@ -120,15 +119,9 @@ const UpdateBlog = ({ iconDataObj, isOn, setOff }: any) => {
 
         if ((data.state = "success")) {
           setOff();
-          toast({
-            title: "Success",
-            description: "Blog updated successfully",
-          });
+          toast.success("Blog updated successfully");
         } else {
-          toast({
-            title: "Error",
-            description: "Something went wrong!",
-          });
+          toast.error("Something went wrong!");
         }
       } catch (error) {
         console.error(error);
@@ -149,15 +142,9 @@ const UpdateBlog = ({ iconDataObj, isOn, setOff }: any) => {
 
       if (data && data?.state === "success") {
         setOff();
-        toast({
-          title: "Success",
-          description: "Blog deleted successfully",
-        });
+        toast.success("Blog deleted successfully");
       } else {
-        toast({
-          title: "Error",
-          description: "Something went wrong!",
-        });
+        toast.error("Something went wrong!");
       }
     } catch (error) {
       console.error(error);
@@ -175,7 +162,7 @@ const UpdateBlog = ({ iconDataObj, isOn, setOff }: any) => {
         >
           <div
             ref={modalRef}
-            className="modal-content h-max w-96 md:w-[46rem] bg-white relative rounded-xl"
+            className="modal-content hide-scrollbar w-96 md:w-[46rem] h-[90vh] overflow-auto bg-white relative rounded-xl"
           >
             <button
               className="btn btn-sm btn-circle absolute right-4 top-[12px]"
@@ -188,38 +175,53 @@ const UpdateBlog = ({ iconDataObj, isOn, setOff }: any) => {
                 onSubmit={handleFormSubmit}
                 className="bg-white rounded-xl shadow-small p-6 flex flex-col gap-4"
               >
-                <h1 className="font-semibold text-gray-700">Blog</h1>
+                <div className="flex items-end gap-1 justify-center">
+                  <h2 className="font-semibold text-gray-700 text-xl text-center">
+                    Blog
+                  </h2>
+                  <div className="translate-y-0.5">
+                    <Tooltip
+                      size="sm"
+                      content={
+                        <span className="font-medium">
+                          Write a blog and host it right on your swop smart
+                          site.
+                        </span>
+                      }
+                      className={`max-w-40 h-auto`}
+                    >
+                      <button>
+                        <MdInfoOutline />
+                      </button>
+                    </Tooltip>
+                  </div>
+                </div>
                 <div className="flex justify-between gap-4">
                   <div className="flex flex-col gap-3 flex-1">
                     <div className="flex flex-col gap-2">
-                      <div className="flex flex-col 2xl:flex-row 2xl:items-center gap-2">
-                        <p className="font-semibold text-gray-700 text-sm">
-                          Select Photo
-                          <span className="text-red-600 font-medium text-sm mt-1">
-                            *
-                          </span>
-                        </p>
-                        <CustomFileInput handleFileChange={handleFileChange} />
-                      </div>
-                      <div className="2xl:hidden">
-                        <div className="border-2 border-[#d8acff] min-w-48 max-w-56 h-auto p-1 bg-slate-100 rounded-lg">
+                      <div className="">
+                        <div className="relative border-2 border-[#d8acff] w-full max-h-96 min-h-[22rem] p-1 bg-slate-100 rounded-lg">
                           {imageFile ? (
                             <Image
                               src={imageFile}
                               alt="blog photo"
-                              width={200}
-                              height={200}
-                              className="w-full max-h-full rounded-md object-cover"
+                              fill
+                              className="w-full h-auto rounded-md object-cover"
                             />
                           ) : (
                             <Image
                               src={iconDataObj.data.image}
                               alt="blog photo"
-                              width={200}
-                              height={200}
-                              className="w-full max-h-full rounded-md object-cover"
+                              fill
+                              sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+                              className="rounded-md object-cover"
                             />
                           )}
+                          <div className="absolute top-1/2 -translate-y-1/2 left-1/2 -translate-x-1/2">
+                            <CustomFileInput
+                              handleFileChange={handleFileChange}
+                            />
+                          </div>
                         </div>
                         {inputError.image && (
                           <p className="text-red-600 font-medium text-sm mt-1">
@@ -279,40 +281,6 @@ const UpdateBlog = ({ iconDataObj, isOn, setOff }: any) => {
                       )}
                     </div>
                   </div>
-                  <div className="gap-2 hidden 2xl:flex justify-end">
-                    <p className="font-semibold text-gray-700 text-sm">
-                      Photo{" "}
-                    </p>
-                    <div className="border-2 border-[#d8acff] min-w-56 max-w-64 min-h-32 max-h-36 p-1 bg-slate-100 rounded-lg">
-                      {imageFile ? (
-                        <Image
-                          src={imageFile}
-                          alt="blog photo"
-                          width={200}
-                          height={200}
-                          className="w-full max-h-full rounded-md object-cover"
-                        />
-                      ) : (
-                        <Image
-                          src={iconDataObj.data.image}
-                          alt="blog photo"
-                          width={200}
-                          height={200}
-                          className="w-full max-h-full rounded-md object-cover"
-                        />
-                      )}
-                      {inputError.image && (
-                        <p className="text-red-600 font-medium text-sm mt-2">
-                          Image is required
-                        </p>
-                      )}
-                      {fileError && (
-                        <p className="text-red-600 font-medium text-sm mt-2">
-                          {fileError}
-                        </p>
-                      )}
-                    </div>
-                  </div>
                 </div>
                 <div className="blog-update flex flex-col gap-1">
                   <p className="font-medium text-sm">
@@ -362,11 +330,18 @@ const UpdateBlog = ({ iconDataObj, isOn, setOff }: any) => {
                   )}
                 </div>
                 <div className="flex justify-between mt-3">
-                  <AnimateButton isLoading={isLoading} width={"w-52"}>
+                  <AnimateButton
+                    whiteLoading={true}
+                    className="bg-black text-white py-2 !border-0"
+                    isLoading={isLoading}
+                    width={"w-52"}
+                  >
                     <LiaFileMedicalSolid size={20} />
                     Update Changes
                   </AnimateButton>
                   <AnimateButton
+                    whiteLoading={true}
+                    className="bg-black text-white py-2 !border-0"
                     type="button"
                     onClick={handleDelete}
                     isLoading={isDeleteLoading}

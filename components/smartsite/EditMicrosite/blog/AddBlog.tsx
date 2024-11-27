@@ -11,6 +11,9 @@ import { useToast } from "@/hooks/use-toast";
 import { sendCloudinaryImage } from "@/lib/SendCloudineryImage";
 import AnimateButton from "@/components/ui/Button/AnimateButton";
 import { Editor } from "@tinymce/tinymce-react";
+import toast from "react-hot-toast";
+import { Tooltip } from "@nextui-org/react";
+import { MdInfoOutline } from "react-icons/md";
 
 const AddBlog = ({ handleRemoveIcon }: any) => {
   const state: any = useSmartSiteApiDataStore((state) => state);
@@ -25,8 +28,6 @@ const AddBlog = ({ handleRemoveIcon }: any) => {
   const [inputError, setInputError] = useState<any>({});
   const [imageFile, setImageFile] = useState<any>(null);
   const [fileError, setFileError] = useState<string>("");
-
-  const { toast } = useToast();
 
   const handleFileChange = (event: any) => {
     const file = event.target.files[0];
@@ -97,15 +98,9 @@ const AddBlog = ({ handleRemoveIcon }: any) => {
       try {
         const data = await postBlog(info, demoToken);
         if ((data.state = "success")) {
-          toast({
-            title: "Error",
-            description: "Blog created successfully",
-          });
+          toast.success("Blog created successfully");
         } else {
-          toast({
-            title: "Error",
-            description: "Something went wrong!",
-          });
+          toast.error("Something went wrong");
         }
       } catch (error) {
         console.error(error);
@@ -118,43 +113,68 @@ const AddBlog = ({ handleRemoveIcon }: any) => {
   return (
     <form
       onSubmit={handleFormSubmit}
-      className="bg-white rounded-xl shadow-small p-6 flex flex-col gap-4"
+      className="relative bg-white rounded-xl shadow-small p-6 flex flex-col gap-4"
     >
-      <div className="flex items-center justify-between">
-        <h1 className="font-semibold text-gray-700">Blog</h1>
-        <button type="button" onClick={() => handleRemoveIcon("Blog")}>
-          <FaTimes size={20} />
+      <div className="flex items-end gap-1 justify-center">
+        <div className="flex items-end gap-1 justify-center">
+          <h2 className="font-semibold text-gray-700 text-xl text-center">
+            Blog
+          </h2>
+          <div className="translate-y-0.5">
+            <Tooltip
+              size="sm"
+              content={
+                <span className="font-medium">
+                  Write a blog and host it right on your swop smart site.
+                </span>
+              }
+              className={`max-w-40 h-auto`}
+            >
+              <button>
+                <MdInfoOutline />
+              </button>
+            </Tooltip>
+          </div>
+        </div>
+        <button
+          className="absolute top-3 right-3"
+          type="button"
+          onClick={() => handleRemoveIcon("Blog")}
+        >
+          <FaTimes size={18} />
         </button>
       </div>
       <div className="flex justify-between gap-10">
         <div className="flex flex-col gap-3 flex-1">
           <div className="flex flex-col gap-2">
-            <div className="flex flex-col 2xl:flex-row 2xl:items-center gap-2">
+            {/* <div className="flex flex-col 2xl:flex-row 2xl:items-center gap-2">
               <p className="font-semibold text-gray-700 text-sm">
                 Select Photo
                 <span className="text-red-600 font-medium text-sm mt-1">*</span>
               </p>
               <CustomFileInput handleFileChange={handleFileChange} />
-            </div>
-            <div className="2xl:hidden">
-              <div className="border-2 border-[#d8acff] min-w-48 max-w-56 h-auto p-1 bg-slate-100 rounded-lg">
+            </div> */}
+            <div className="">
+              <div className="relative border-2 border-[#d8acff] w-full max-h-96 min-h-[22rem] p-1 bg-slate-100 rounded-lg">
                 {imageFile ? (
                   <Image
                     src={imageFile}
                     alt="blog photo"
-                    width={200}
-                    height={200}
-                    className="w-full max-h-full rounded-md"
+                    fill
+                    className="w-full h-auto rounded-md object-cover"
                   />
                 ) : (
                   <Image
                     src={imagePlaceholder}
                     alt="blog photo"
-                    width={200}
-                    height={200}
-                    className="w-full h-full rounded-md"
+                    fill
+                    sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+                    className="rounded-md object-cover"
                   />
                 )}
+                <div className="absolute top-1/2 -translate-y-1/2 left-1/2 -translate-x-1/2">
+                  <CustomFileInput handleFileChange={handleFileChange} />
+                </div>
               </div>
               {inputError.image && (
                 <p className="text-red-600 font-medium text-sm mt-1">
@@ -171,7 +191,7 @@ const AddBlog = ({ handleRemoveIcon }: any) => {
           </div>
           <div className="flex flex-col gap-1">
             <p className="font-medium text-sm">
-              Blog Name
+              Headline
               <span className="text-red-600 font-medium text-sm mt-1">*</span>
             </p>
             <div>
@@ -179,36 +199,36 @@ const AddBlog = ({ handleRemoveIcon }: any) => {
                 type="text"
                 name="title"
                 className="w-full border border-[#ede8e8] focus:border-[#e5e0e0] rounded-xl focus:outline-none px-3 py-2 text-gray-700 bg-gray-100"
-                placeholder={"Enter blog name"}
+                placeholder={"Enter Headline"}
                 // required
               />
               {inputError.title && (
                 <p className="text-red-600 font-medium text-sm mt-1">
-                  title is required
+                  headline is required
                 </p>
               )}
             </div>
           </div>
           <div className="flex flex-col gap-1">
             <p className="font-medium text-sm">
-              Headline Text
+              Subtext
               <span className="text-red-600 font-medium text-sm mt-1">*</span>
             </p>
             <input
               type="text"
               name="headline"
               className="w-full border border-[#ede8e8] focus:border-[#e5e0e0] rounded-xl focus:outline-none px-3 py-2 text-gray-700 bg-gray-100"
-              placeholder={"Enter Headline"}
+              placeholder={"Enter Subtext"}
               //   required
             />
             {inputError.headline && (
               <p className="text-red-600 font-medium text-sm">
-                headline is required
+                Subtext is required
               </p>
             )}
           </div>
         </div>
-        <div className="gap-2 hidden 2xl:flex justify-end">
+        {/* <div className="gap-2 hidden 2xl:flex justify-end">
           <p className="font-semibold text-gray-700 text-sm">Photo </p>
           <div className="border-2 border-[#d8acff] min-w-56 max-w-64 min-h-32 max-h-36 p-1 bg-slate-100 rounded-lg">
             {imageFile ? (
@@ -241,7 +261,7 @@ const AddBlog = ({ handleRemoveIcon }: any) => {
               </p>
             )}
           </div>
-        </div>
+        </div> */}
       </div>
       <div className="blog flex flex-col gap-1">
         <p className="font-medium text-sm">
@@ -281,10 +301,15 @@ const AddBlog = ({ handleRemoveIcon }: any) => {
           </p>
         )}
       </div>
-      <div className="flex justify-end mt-3">
-        <AnimateButton isLoading={isLoading} width={"w-52"}>
+      <div className="flex justify-center">
+        <AnimateButton
+          whiteLoading={true}
+          className="bg-black text-white py-2 !border-0"
+          isLoading={isLoading}
+          width={"w-52"}
+        >
           <LiaFileMedicalSolid size={20} />
-          Save Changes
+          Create
         </AnimateButton>
       </div>
     </form>
