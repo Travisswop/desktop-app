@@ -5,12 +5,6 @@ import Image from "next/image";
 import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
 
-interface ContentFile {
-  url: string;
-  name: string;
-  type: string;
-}
-
 interface FormData {
   name: string;
   description: string;
@@ -19,7 +13,6 @@ interface FormData {
   recipientAddress: string;
   currency: string;
   benefits: string[];
-  content: ContentFile[];
   enableCreditCard: boolean;
   verifyIdentity: boolean;
   limitQuantity: boolean;
@@ -40,7 +33,6 @@ const CreateSubscriptionPage = () => {
     recipientAddress: "",
     currency: "usdc",
     benefits: [],
-    content: [],
     enableCreditCard: false,
     verifyIdentity: false,
     limitQuantity: false,
@@ -51,7 +43,6 @@ const CreateSubscriptionPage = () => {
   });
 
   const [newBenefit, setNewBenefit] = useState("");
-  const [imageUploading, setImageUploading] = useState(false);
   const [selectedImageName, setSelectedImageName] = useState<string | null>(null);
 
   const handleChange = (
@@ -138,27 +129,6 @@ const CreateSubscriptionPage = () => {
     reader.readAsDataURL(file);
   };
 
-  const handleContentUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const files = Array.from(event.target.files || []);
-    if (files.length === 0) return;
-
-    const uploadedFiles = files.map((file) => {
-      const reader = new FileReader();
-      return new Promise<ContentFile | null>((resolve) => {
-        reader.onloadend = () => {
-          resolve({ url: reader.result as string, name: file.name, type: file.type });
-        };
-        reader.readAsDataURL(file);
-      });
-    });
-
-    Promise.all(uploadedFiles).then((successfulUploads) => {
-      setFormData((prevState) => ({
-        ...prevState,
-        content: [...prevState.content, ...(successfulUploads.filter(Boolean) as ContentFile[])],
-      }));
-    });
-  };
 
   const handleAddBenefit = () => {
     if (newBenefit.trim()) {
@@ -175,14 +145,6 @@ const CreateSubscriptionPage = () => {
       ...prevState,
       benefits: prevState.benefits.filter((_, i) => i !== index),
     }));
-  };
-
-  const getFileTypeIcon = (type: string) => {
-    if (type.startsWith("image")) return "🖼️";
-    if (type.startsWith("audio")) return "🎵";
-    if (type.startsWith("video")) return "🎥";
-    if (type === "application/pdf") return "📄";
-    return "📁";
   };
 
   return (
@@ -364,38 +326,7 @@ const CreateSubscriptionPage = () => {
               </div>
             </div>
 
-            <div
-              className="bg-gray-100 p-4 rounded-lg border border-gray-300"
-              style={{ minWidth: '300px', width: '50%' }}
-            >
-              <h3 className="text-lg font-medium text-black-600">Content</h3>
-              <p className="text-sm text-gray-600">
-                Add content to sell. You can upload images, audio, video, PDFs, or other digital files.
-              </p>
-              <input
-                type="file"
-                id="content"
-                name="content"
-                multiple
-                accept="*/*"
-                onChange={handleContentUpload}
-                className="w-full border border-dashed border-gray-300 rounded-lg px-4 py-2 mt-2"
-              />
-
-              <div className="grid grid-cols-3 gap-4 mt-4">
-                {formData.content.map((file, index) => (
-                  <div
-                    key={index}
-                    className="flex flex-col items-center p-2 bg-white border rounded shadow-sm w-full"
-                  >
-                    <div className="text-2xl">{getFileTypeIcon(file.type)}</div>
-                    <p className="text-xs text-gray-600 mt-1 text-center truncate w-full overflow-hidden text-ellipsis whitespace-nowrap">
-                      {file.name}
-                    </p>
-                  </div>
-                ))}
-              </div>
-            </div>
+            
 
             <div className="bg-gray-100 p-4 rounded-lg border border-gray-300 mt-4">
               <h3 className="text-md font-medium">Enable Pay with Credit Card</h3>
