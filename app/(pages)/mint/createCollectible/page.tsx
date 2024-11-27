@@ -3,6 +3,7 @@ import { useState, DragEvent } from "react";
 import PushToMintCollectionButton from "@/components/Button/PushToMintCollectionButton";
 import Image from "next/image";
 import { sendCloudinaryImage } from "@/lib/SendCloudineryImage";
+import { sendCloudinaryFile } from "@/lib/SendCloudineryAnyFile";
 
 
 interface ContentFile {
@@ -45,6 +46,8 @@ const CreateCollectiblePage = () => {
   const [newBenefit, setNewBenefit] = useState("");
   const [selectedImageName, setSelectedImageName] = useState<string | null>(null);
   const [imageUploading, setImageUploading] = useState(false);
+  const [isDragOver, setIsDragOver] = useState(false);
+  const [uploadingContent, setUploadingContent] = useState(false);
 
 
   const handleChange = (
@@ -106,13 +109,13 @@ const CreateCollectiblePage = () => {
     event.preventDefault();
     const file = event.dataTransfer.files?.[0];
     if (!file) return;
-  
+
     setSelectedImageName(file.name);
-  
+
     const reader = new FileReader();
     reader.onloadend = async () => {
       const base64Image = reader.result as string;
-  
+
       try {
         setImageUploading(true);
         const imageUrl = await sendCloudinaryImage(base64Image);
@@ -129,27 +132,67 @@ const CreateCollectiblePage = () => {
     };
     reader.readAsDataURL(file);
   };
-  
-  const handleContentUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+
+  const handleContentUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(event.target.files || []);
     if (files.length === 0) return;
 
-    const uploadedFiles = files.map((file) => {
-      const reader = new FileReader();
-      return new Promise<ContentFile | null>((resolve) => {
-        reader.onloadend = () => {
-          resolve({ url: reader.result as string, name: file.name, type: file.type });
-        };
-        reader.readAsDataURL(file);
-      });
-    });
+    // Show a loading indicator or update the state to reflect the uploading process
+    try {
+      const uploadedFiles = await Promise.all(
+        files.map(async (file) => {
+          const reader = new FileReader();
+          const base64File = await new Promise<string>((resolve, reject) => {
+            reader.onloadend = () => resolve(reader.result as string);
+            reader.onerror = () => reject("Error reading file");
+            reader.readAsDataURL(file);
+          });
 
-    Promise.all(uploadedFiles).then((successfulUploads) => {
+          const fileUrl = await sendCloudinaryFile(base64File, file.type);
+          return { url: fileUrl, name: file.name, type: file.type };
+        })
+      );
+
+      // Update the formData with uploaded files
       setFormData((prevState) => ({
         ...prevState,
-        content: [...prevState.content, ...(successfulUploads.filter(Boolean) as ContentFile[])],
+        content: [...prevState.content, ...uploadedFiles],
       }));
-    });
+    } catch (error) {
+      console.error("Error uploading files:", error);
+      alert("Failed to upload some files. Please try again.");
+    }
+  };
+
+  const handleFileDrop = async (event: DragEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    const files = Array.from(event.dataTransfer.files || []);
+    if (files.length === 0) return;
+
+    try {
+      const uploadedFiles = await Promise.all(
+        files.map(async (file) => {
+          const reader = new FileReader();
+          const base64File = await new Promise<string>((resolve, reject) => {
+            reader.onloadend = () => resolve(reader.result as string);
+            reader.onerror = () => reject("Error reading file");
+            reader.readAsDataURL(file);
+          });
+
+          const fileUrl = await sendCloudinaryFile(base64File, file.type);
+          return { url: fileUrl, name: file.name, type: file.type };
+        })
+      );
+
+      // Update the formData with uploaded files
+      setFormData((prevState) => ({
+        ...prevState,
+        content: [...prevState.content, ...uploadedFiles],
+      }));
+    } catch (error) {
+      console.error("Error uploading files:", error);
+      alert("Failed to upload some files. Please try again.");
+    }
   };
 
   const handleAddBenefit = () => {
@@ -292,13 +335,26 @@ const CreateCollectiblePage = () => {
             </div>
 
             <div
-              className="bg-gray-100 p-4 rounded-lg border border-gray-300"
-              style={{ minWidth: '300px', width: '50%' }}
+              className={`bg-gray-100 p-4 rounded-lg border ${isDragOver ? "border-blue-500 bg-blue-100" : "border-gray-300"
+                }`}
+              style={{ minWidth: "300px", width: "50%" }}
+              onDragOver={(e) => {
+                e.preventDefault();
+                setIsDragOver(true);
+              }}
+              onDragLeave={() => setIsDragOver(false)}
+              onDrop={(e) => {
+                handleFileDrop(e);
+                setIsDragOver(false);
+              }}
             >
               <h3 className="text-lg font-medium text-black-600">Content</h3>
               <p className="text-sm text-gray-600">
-                Add content to sell. You can upload images, audio, video, PDFs, or other digital files.
+                Add content to sell. You can upload images, audio, video, PDFs, or other
+                digital files.
               </p>
+
+              {/* File Input for Manual Upload */}
               <input
                 type="file"
                 id="content"
@@ -309,7 +365,9 @@ const CreateCollectiblePage = () => {
                 className="w-full border border-dashed border-gray-300 rounded-lg px-4 py-2 mt-2"
               />
 
+              {/* Display Uploaded Files */}
               <div className="grid grid-cols-3 gap-4 mt-4">
+                {uploadingContent && <p>Uploading files...</p>}
                 {formData.content.map((file, index) => (
                   <div
                     key={index}
@@ -322,7 +380,9 @@ const CreateCollectiblePage = () => {
                   </div>
                 ))}
               </div>
-            </div>            <div>
+            </div>            
+            
+            <div>
               <label htmlFor="benefits" className="mb-1 block font-medium">
                 Benefits
               </label>
