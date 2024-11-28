@@ -15,7 +15,7 @@ interface ContentFile {
 interface FormData {
   name: string;
   description: string;
-  imageUrl: string;
+  image: string;
   price: string;
   recipientAddress: string;
   currency: string;
@@ -31,7 +31,7 @@ const CreateCollectiblePage = () => {
   const [formData, setFormData] = useState<FormData>({
     name: "",
     description: "",
-    imageUrl: "",
+    image: "",
     price: "",
     recipientAddress: "",
     currency: "usdc",
@@ -90,10 +90,10 @@ const CreateCollectiblePage = () => {
 
       try {
         setImageUploading(true);
-        const imageUrl = await sendCloudinaryImage(base64Image);
+        const image = await sendCloudinaryImage(base64Image);
         setFormData((prevState) => ({
           ...prevState,
-          imageUrl: imageUrl,
+          image: image,
         }));
         setImageUploading(false);
       } catch (error) {
@@ -118,10 +118,10 @@ const CreateCollectiblePage = () => {
 
       try {
         setImageUploading(true);
-        const imageUrl = await sendCloudinaryImage(base64Image);
+        const image = await sendCloudinaryImage(base64Image);
         setFormData((prevState) => ({
           ...prevState,
-          imageUrl: imageUrl,
+          image: image,
         }));
         setImageUploading(false);
       } catch (error) {
@@ -221,6 +221,53 @@ const CreateCollectiblePage = () => {
     return "📁";
   };
 
+  const handleSubmit = async (e: React.MouseEvent<HTMLButtonElement>) => {
+    e.preventDefault();
+  
+    try {
+      const storedData = JSON.parse(localStorage.getItem("user-storage") || "{}");
+      const accessToken = storedData?.state?.state?.user?.accessToken;
+  
+      if (!accessToken) {
+        alert("Access token not found. Please log in again.");
+        return;
+      }
+  
+      // Explicitly convert supplyLimit and price to numbers before submitting
+      const finalData = {
+        ...formData,
+        supplyLimit: Number(formData.quantity), // Ensure it's a number
+        price: Number(formData.price), // Ensure it's a number
+      };
+  
+      const response = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL}/api/v1/desktop/nft/template`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${accessToken}`,
+          },
+          body: JSON.stringify(finalData),
+        }
+      );
+  
+      if (response.ok) {
+        const data = await response.json();
+        if (data.state === "success") {
+          alert("NFT Template created successfully!");
+        } else {
+          alert("Failed to create template");
+        }
+      } else {
+        alert("Failed to create template");
+      }
+    } catch (error) {
+      console.error("Error creating template:", error);
+      alert("Failed to create template");
+    }
+  };
+  
   return (
     <div className="main-container flex">
       <div className="w-1/2 p-5">
@@ -247,7 +294,7 @@ const CreateCollectiblePage = () => {
               </p>
             </div>
 
-            <label htmlFor="imageUrl" className="mb-1 block font-medium">
+            <label htmlFor="image" className="mb-1 block font-medium">
               Image (JPEG, JPG, PNG)
             </label>
             <div
@@ -256,10 +303,10 @@ const CreateCollectiblePage = () => {
               onDragOver={(e) => e.preventDefault()}
               onDrop={handleImageDrop}
             >
-              {formData.imageUrl ? (
+              {formData.image ? (
                 <div className="flex flex-col items-center">
                   <Image
-                    src={formData.imageUrl}
+                    src={formData.image}
                     width={100}
                     height={100}
                     alt="Preview"
@@ -267,7 +314,7 @@ const CreateCollectiblePage = () => {
                   />
                   <p className="text-sm mt-2 text-gray-700">{selectedImageName}</p>
                   <label
-                    htmlFor="imageUrl"
+                    htmlFor="image"
                     className="inline-block bg-black text-white px-4 py-2 rounded-lg mt-2 cursor-pointer"
                   >
                     Change Picture
@@ -281,7 +328,7 @@ const CreateCollectiblePage = () => {
                       Browse or drag and drop an image here.
                     </p>
                     <label
-                      htmlFor="imageUrl"
+                      htmlFor="image"
                       className="inline-block bg-black text-white px-4 py-2 rounded-lg mt-2 cursor-pointer"
                     >
                       Browse
@@ -291,8 +338,8 @@ const CreateCollectiblePage = () => {
               )}
               <input
                 type="file"
-                id="imageUrl"
-                name="imageUrl"
+                id="image"
+                name="image"
                 accept="image/*"
                 onChange={handleImageUpload}
                 className="hidden"
@@ -491,7 +538,7 @@ const CreateCollectiblePage = () => {
               <input type="checkbox" required /> I agree with swop Minting Privacy & Policy
             </div>
 
-            <PushToMintCollectionButton className="w-max mt-4">
+            <PushToMintCollectionButton className="w-max mt-4" onClick={handleSubmit}>
               Create
             </PushToMintCollectionButton>
           </div>
@@ -501,9 +548,9 @@ const CreateCollectiblePage = () => {
       <div className="w-1/2 flex justify-center items-center p-5">
         <div className="bg-white p-4 rounded-lg shadow-md border border-gray-300 w-full max-w-md aspect-[3/4] flex flex-col items-start">
           <div className="w-full aspect-square bg-gray-200 flex items-center justify-center rounded-t-lg mb-4">
-            {formData.imageUrl ? (
+            {formData.image ? (
               <Image
-                src={formData.imageUrl}
+                src={formData.image}
                 width={300}
                 height={300}
                 alt="Preview"
