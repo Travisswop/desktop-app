@@ -14,6 +14,7 @@ interface ContentFile {
 
 interface FormData {
   name: string;
+  nftType: string;
   description: string;
   image: string;
   price: string;
@@ -30,6 +31,7 @@ interface FormData {
 const CreateCollectiblePage = () => {
   const [formData, setFormData] = useState<FormData>({
     name: "",
+    nftType:"collectible",
     description: "",
     image: "",
     price: "",
