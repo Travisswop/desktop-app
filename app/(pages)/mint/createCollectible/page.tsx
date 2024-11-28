@@ -148,7 +148,7 @@ const CreateCollectiblePage = () => {
             reader.readAsDataURL(file);
           });
   
-          const fileUrl = await sendCloudinaryFile(base64File, file.type);
+          const fileUrl = await sendCloudinaryFile(base64File, file.type, file.name);
           return { url: fileUrl, name: file.name, type: file.type };
         })
       );
@@ -165,7 +165,7 @@ const CreateCollectiblePage = () => {
       setUploadingContent(false);
     }
   };
-  
+      
   const handleFileDrop = async (event: DragEvent<HTMLDivElement>) => {
     event.preventDefault();
     const files = Array.from(event.dataTransfer.files);
