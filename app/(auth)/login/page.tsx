@@ -1,6 +1,6 @@
 'use client';
 
-import { usePrivy, useLogin } from '@privy-io/react-auth';
+import { usePrivy, useLogin, useLogout } from '@privy-io/react-auth';
 import { useRouter } from 'next/navigation';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useEffect, useRef, useState } from 'react';

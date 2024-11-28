@@ -1,8 +1,6 @@
 'use client';
 import Header from '@/components/Header';
 import Sidenav from '@/components/Sidenav';
-// import { withAuth } from '@/lib/withAuth';
-
 const PageLayout = ({ children }: { children: React.ReactNode }) => {
   return (
     <div className="min-h-screen">

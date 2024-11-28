@@ -2,7 +2,6 @@
 import { useUser } from '@/lib/UserContext';
 import { Skeleton } from '../ui/skeleton';
 import BalanceChart from './balance-chart';
-import MessageBox from './message-interface';
 import TokenList from './token/token-list';
 import NFTSlider from './nft/nft-list';
 import TransactionList from './transaction/transaction-list';
@@ -20,11 +19,7 @@ import {
 import { WalletItem, ReceiverData } from '@/types/wallet';
 import { useMultiChainTokenData } from '@/lib/hooks/useToken';
 import { TokenData } from '@/types/token';
-import {
-  QueryClient,
-  QueryClientProvider,
-} from '@tanstack/react-query';
-import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
+
 import NetworkDock from './network-dock';
 import SendTokenModal from './token/send-modal';
 import SendToModal from './token/send-to-modal';
@@ -45,6 +40,7 @@ import {
 import { useToast } from '@/hooks/use-toast';
 import { Transaction as TransactionType } from '@/types/transaction';
 import { Toaster } from '../ui/toaster';
+import MessageList from './message-list';
 
 type Network = 'ETHEREUM' | 'POLYGON' | 'BASE' | 'SOLANA';
 
@@ -55,27 +51,7 @@ const CHAIN_ID = {
   SOLANA: 101,
 };
 
-// Initialize React Query client
-const queryClient = new QueryClient({
-  defaultOptions: {
-    queries: {
-      staleTime: 5 * 60 * 1000, // 5 minutes
-      retry: 2,
-      refetchOnWindowFocus: false,
-    },
-  },
-});
-
 export default function WalletContent() {
-  return (
-    <QueryClientProvider client={queryClient}>
-      <WalletContentInner />
-      <ReactQueryDevtools initialIsOpen={false} />
-    </QueryClientProvider>
-  );
-}
-
-function WalletContentInner() {
   const [walletData, setWalletData] = useState<WalletItem[] | null>(
     null
   );
@@ -522,7 +498,7 @@ function WalletContentInner() {
           walletData={walletData || []}
           totalBalance={totalBalance}
         />
-        <MessageBox />
+        <MessageList />
       </div>
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 my-6">
         {selectedToken ? (
@@ -552,6 +528,7 @@ function WalletContentInner() {
               newTransactions={newTransactions}
             />
           )}
+
           {selectedNFT && (
             <NFTDetailView
               isOpen={isNFTModalOpen}
