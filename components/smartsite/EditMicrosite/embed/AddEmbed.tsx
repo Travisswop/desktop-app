@@ -5,42 +5,44 @@ import {
   DropdownItem,
   DropdownMenu,
   DropdownTrigger,
-  Switch,
+  Tooltip,
 } from "@nextui-org/react";
 import { AiOutlineDownCircle } from "react-icons/ai";
 import { IoLinkOutline } from "react-icons/io5";
 import { LiaFileMedicalSolid } from "react-icons/lia";
 // import { embedItems, icon } from "@/util/data/smartsiteIconData";
 import useSmartSiteApiDataStore from "@/zustandStore/UpdateSmartsiteInfo";
+import { TikTokEmbed, XEmbed, YouTubeEmbed } from "react-social-media-embed";
 // import useLoggedInUserStore from "@/zustandStore/SetLogedInUserSession";
 // import AnimateButton from "../../Button/AnimateButton";
 // import { toast } from "react-toastify";
 import { postEmbedLink } from "@/actions/embedLink";
 import { FaTimes } from "react-icons/fa";
 import { embedItems, icon } from "@/components/util/data/smartsiteIconData";
-import { useToast } from "@/hooks/use-toast";
 import AnimateButton from "@/components/ui/Button/AnimateButton";
+import { MdInfoOutline } from "react-icons/md";
+import placeholder from "@/public/images/video_player_placeholder.gif";
+import toast from "react-hot-toast";
 
 const AddEmbed = ({ handleRemoveIcon }: any) => {
   const state: any = useSmartSiteApiDataStore((state) => state); //get small icon store value
-  // console.log("state", state);
-
-  const { toast } = useToast();
 
   const demoToken =
     "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJfaWQiOiI2NjM4NjMyMDIzMDQxMDMyODAyOTk4MmIiLCJpYXQiOjE3MjcxNTI4MzB9.CsHnZAgUzsfkc_g_CZZyQMXc02Ko_LhnQcCVpeCwroY";
 
   //const sesstionState = useLoggedInUserStore((state) => state.state.user); //get session value
 
+  const [embedLink, setEmbedLink] = useState("");
+
   const [selectedIcon, setSelectedIcon] = useState({
     category: "X",
     categoryIcon: icon.appIconTwitter,
     placeHolder: "https://www.x.com/{xUserName}/status/{tweetID}",
-    inputText: "X Embeded Link",
+    inputText: "X Post Link",
     url: "www.x.com",
   });
 
-  // console.log("selectted icon", selectedIcon);
+  console.log("selectted icon", selectedIcon);
 
   const [isLoading, setIsLoading] = useState<boolean>(false);
 
@@ -62,15 +64,10 @@ const AddEmbed = ({ handleRemoveIcon }: any) => {
       // console.log("data", data);
 
       if ((data.state = "success")) {
-        toast({
-          title: "Success",
-          description: "Embed created successfully",
-        });
+        toast.success("Embed created successfully");
+        handleRemoveIcon("Embed");
       } else {
-        toast({
-          title: "Error",
-          description: "Something went wrong!",
-        });
+        toast.error("Something went wrong!");
       }
     } catch (error) {
       console.error(error);
@@ -79,13 +76,95 @@ const AddEmbed = ({ handleRemoveIcon }: any) => {
     }
   };
 
-  // console.log("smartSiteData", state);
-  // console.log("sesstionState", sesstionState);
+  const modifyEmbedLink = (html: string, width: string, height: string) => {
+    return html
+      .replace(/width="[^"]*"/, `width="${width}"`)
+      .replace(/height="[^"]*"/, `height="${height}"`);
+  };
 
   const getEmbedItems: any = embedItems;
 
   return (
-    <div className="bg-white rounded-xl shadow-small p-6 flex flex-col gap-4">
+    <div className="relative bg-white rounded-xl shadow-small p-6 flex flex-col gap-4 px-10 2xl:px-[10%]">
+      <div className="flex items-end gap-1 justify-center">
+        <div className="flex items-end gap-1 justify-center">
+          <h2 className="font-semibold text-gray-700 text-xl text-center">
+            Embed
+          </h2>
+          <div className="translate-y-0.5">
+            <Tooltip
+              size="sm"
+              content={
+                <span className="font-medium">
+                  Select which platform you want to embed and paste the link
+                </span>
+              }
+              className={`max-w-40 h-auto`}
+            >
+              <button>
+                <MdInfoOutline />
+              </button>
+            </Tooltip>
+          </div>
+        </div>
+        <button
+          className="absolute top-3 right-3"
+          type="button"
+          onClick={() => handleRemoveIcon("Embed")}
+        >
+          <FaTimes size={18} />
+        </button>
+      </div>
+      <div className="border-2 border-[#d8acff] w-2/3 mx-auto h-auto flex justify-center p-1 bg-slate-100 rounded-lg">
+        {!embedLink ? (
+          <div className="relative w-full h-80">
+            <Image
+              src={placeholder}
+              alt="blog photo"
+              fill
+              className="w-full h-full rounded-lg object-contain"
+            />
+          </div>
+        ) : selectedIcon.category === "X" ? (
+          <XEmbed url={embedLink} width={325} height={500} />
+        ) : selectedIcon.category === "TikTok" ? (
+          <TikTokEmbed url={embedLink} width={325} />
+        ) : selectedIcon.category === "YouTube" ? (
+          <YouTubeEmbed url={embedLink} width={400} height={300} />
+        ) : selectedIcon.category === "Spotify" ? (
+          <iframe
+            src={embedLink}
+            width="100%"
+            height="352"
+            style={{ borderRadius: "12px" }}
+            frameBorder="0"
+            allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
+            loading="lazy"
+          ></iframe>
+        ) : selectedIcon.category === "Rumble" ? (
+          <div
+            dangerouslySetInnerHTML={{
+              __html: modifyEmbedLink(embedLink, "400", "360"),
+            }}
+          ></div>
+        ) : selectedIcon.category === "Streamable" ? (
+          <div
+            dangerouslySetInnerHTML={{
+              __html: embedLink,
+            }}
+            className="w-full h-full"
+          ></div>
+        ) : (
+          <div className="relative w-full h-80">
+            <Image
+              src={placeholder}
+              alt="blog photo"
+              fill
+              className="w-full h-full rounded-lg object-contain"
+            />
+          </div>
+        )}
+      </div>
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <h3 className="font-semibold text-gray-700">Select Embed Type</h3>
@@ -150,9 +229,6 @@ const AddEmbed = ({ handleRemoveIcon }: any) => {
             </DropdownMenu>
           </Dropdown>
         </div>
-        <button type="button" onClick={() => handleRemoveIcon("Embed")}>
-          <FaTimes size={20} />
-        </button>
       </div>
       <div>
         <p className="font-semibold text-gray-700 mb-1">
@@ -170,21 +246,18 @@ const AddEmbed = ({ handleRemoveIcon }: any) => {
               className="w-full border border-[#ede8e8] focus:border-[#e5e0e0] rounded-xl focus:outline-none pl-11 py-2 text-gray-700 bg-gray-100"
               placeholder={selectedIcon.placeHolder}
               required
+              onChange={(e) => setEmbedLink(e.target.value)}
             />
           </div>
-          <div className="flex justify-between mt-3">
-            <div className="flex items-center gap-2 font-medium text-gray-600">
-              <p>Redirect</p>
-              <Switch
-                color="success"
-                size="sm"
-                defaultSelected={false}
-                aria-label="Lead Captures"
-              />
-            </div>
-            <AnimateButton isLoading={isLoading} width={"w-52"}>
+          <div className="flex justify-center mt-3">
+            <AnimateButton
+              className="bg-black text-white py-2 !border-0"
+              whiteLoading={true}
+              isLoading={isLoading}
+              width={"w-48"}
+            >
               <LiaFileMedicalSolid size={20} />
-              Save Changes
+              Create
             </AnimateButton>
           </div>
         </form>

@@ -131,6 +131,7 @@ const AddAudio = ({ handleRemoveIcon }: any) => {
 
           if ((data.state = "success")) {
             toast.success("Music created successfully");
+            handleRemoveIcon("Mp3");
           } else {
             toast.error("Something went wrong!");
           }

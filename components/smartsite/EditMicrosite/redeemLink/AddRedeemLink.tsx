@@ -15,22 +15,25 @@ import useSmartSiteApiDataStore from "@/zustandStore/UpdateSmartsiteInfo";
 // import useLoggedInUserStore from "@/zustandStore/SetLogedInUserSession";
 // import { toast } from "react-toastify";
 // import AnimateButton from "../../Button/AnimateButton";
-import { postAppIcon } from "@/actions/appIcon";
+import { postInfoBar } from "@/actions/infoBar";
 import { FaAngleDown, FaTimes } from "react-icons/fa";
 import { icon, newIcons } from "@/components/util/data/smartsiteIconData";
+
 import { isEmptyObject } from "@/components/util/checkIsEmptyObject";
 import AnimateButton from "@/components/ui/Button/AnimateButton";
 import { MdInfoOutline } from "react-icons/md";
-import { AppIconMap, AppSelectedIconType } from "@/types/smallIcon";
+import { InfoBarIconMap, InfoBarSelectedIconType } from "@/types/smallIcon";
+import contactCardImg from "@/public/images/IconShop/appIconContactCard.png";
+import productImg from "@/public/images/product.png";
 import toast from "react-hot-toast";
 
-const AddAppIcon = ({ handleRemoveIcon }: any) => {
-  const state: any = useSmartSiteApiDataStore((state) => state); //get small icon store value
-  //const sesstionState = useLoggedInUserStore((state) => state.state.user); //get session value
+const AddRedeemLink = ({ handleRemoveIcon, handleToggleIcon }: any) => {
   const demoToken =
     "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJfaWQiOiI2NjM4NjMyMDIzMDQxMDMyODAyOTk4MmIiLCJpYXQiOjE3MjcxNTI4MzB9.CsHnZAgUzsfkc_g_CZZyQMXc02Ko_LhnQcCVpeCwroY";
+  const state: any = useSmartSiteApiDataStore((state) => state); //get small icon store value
+  //const sesstionState = useLoggedInUserStore((state) => state.state.user); //get session value
   const [selectedIconType, setSelectedIconType] =
-    useState<AppSelectedIconType>("Link");
+    useState<InfoBarSelectedIconType>("Link");
   const [selectedIcon, setSelectedIcon] = useState({
     name: "Amazon Music",
     icon: icon.appIconAmazonMusic,
@@ -40,7 +43,9 @@ const AddAppIcon = ({ handleRemoveIcon }: any) => {
   });
   const [selectedIconData, setSelectedIconData] = useState<any>({});
   const [isLoading, setIsLoading] = useState<boolean>(false);
-  // console.log("selected icon type", selectedIconType);
+  const [buttonName, setButtonName] = useState(selectedIcon.name);
+  const [description, setDescription] = useState("");
+  // console.log("selected icon name", selectedIcon);
   // console.log("selected icon data", selectedIconData);
   // console.log("selected icon", selectedIcon);
 
@@ -56,7 +61,7 @@ const AddAppIcon = ({ handleRemoveIcon }: any) => {
     }
   }, [iconData.icons, selectedIconType]);
 
-  const handleSelectIconType = (category: AppSelectedIconType) => {
+  const handleSelectIconType = (category: InfoBarSelectedIconType) => {
     setSelectedIconType(category);
     if (category === "Link") {
       setSelectedIcon({
@@ -74,28 +79,35 @@ const AddAppIcon = ({ handleRemoveIcon }: any) => {
         inputText: "Email Address",
         url: "www.email.com",
       });
+    } else if (category === "Product Link") {
+      handleToggleIcon("Swop Pay");
+    } else if (category === "Contact Card") {
+      handleToggleIcon("Contact Card");
     }
   };
 
-  const handleAppIconFormSubmit = async (e: any) => {
+  const handleInfoBarFormSubmit = async (e: any) => {
     setIsLoading(true);
     e.preventDefault();
     const formData = new FormData(e.currentTarget);
-    const appIconInfo = {
+    const infobarInfo = {
       micrositeId: state.data._id,
-      name: selectedIcon.name,
-      value: formData.get("url"),
-      url: selectedIcon.url,
+      title: formData.get("url"),
+      link: selectedIcon.url,
+      buttonName: buttonName,
+      description: formData.get("description"),
       iconName: selectedIcon.name,
       iconPath: "",
       group: selectedIconData.category,
     };
-    // console.log("smallIconInfo", smallIconInfo);
+    // console.log("smallIconInfo", infobarInfo);
     try {
-      const data = await postAppIcon(appIconInfo, demoToken);
+      const data = await postInfoBar(infobarInfo, demoToken);
+      // console.log("data", data);
+
       if ((data.state = "success")) {
-        toast.success("App icon created successfully");
-        handleRemoveIcon("App Icon");
+        toast.success("Info bar crated successfully");
+        handleRemoveIcon("Info Bar");
       } else {
         toast.error("Something went wrong");
       }
@@ -106,24 +118,41 @@ const AddAppIcon = ({ handleRemoveIcon }: any) => {
     }
   };
 
-  const iconMap: AppIconMap = {
+  // console.log("selected icon", selectedIcon);
+  // console.log("button", buttonName);
+
+  const addSelectedIcon = (data: any) => {
+    setSelectedIcon({
+      name: data.name,
+      icon: data.icon,
+      placeHolder: data.placeHolder,
+      inputText: data.inputText,
+      url: data.url,
+    });
+    setButtonName(data.name);
+  };
+
+  const iconMap: InfoBarIconMap = {
     Link: icon.SocialIconType,
     "Call To Action": icon.ChatlinkType,
+    "Product Link": productImg,
+    "Contact Card": contactCardImg,
   };
 
   return (
     <div className="relative bg-white rounded-xl shadow-small p-6 flex flex-col gap-4">
+      {/* top part  */}
       <div className="flex items-end gap-1 justify-center">
         <h2 className="font-semibold text-gray-700 text-xl text-center">
-          App Icon
+          Info Bar
         </h2>
         <div className="translate-y-0.5">
           <Tooltip
             size="sm"
             content={
               <span className="font-medium">
-                Select the icon ype and icon you want to use then upload the
-                account information.
+                You will be able to set the icon type, choose an icon , specify
+                a button name, provide a link, and add a description.
               </span>
             }
             className={`max-w-40 h-auto`}
@@ -137,94 +166,108 @@ const AddAppIcon = ({ handleRemoveIcon }: any) => {
       <button
         className="absolute top-3 right-3"
         type="button"
-        onClick={() => handleRemoveIcon("App Icon")}
+        onClick={() => handleRemoveIcon("Info Bar")}
       >
         <FaTimes size={18} />
       </button>
-      <div className="flex justify-center bg-[#F2F2F2] rounded-xl px-20 py-5 w-max mx-auto">
-        {selectedIcon && selectedIcon?.icon ? (
-          <Image
-            alt="app-icon"
-            src={selectedIcon?.icon}
-            className="w-14 h-auto"
-            // style={tintStyle}
-            quality={100}
-          />
-        ) : (
-          <>
-            {selectedIconType === "Link" && (
-              <Image
-                alt="app-icon"
-                src={icon.SocialIconType}
-                className="w-14 h-auto"
-                quality={100}
-              />
-            )}
-            {selectedIconType === "Call To Action" && (
-              <Image
-                alt="app-icon"
-                src={icon.ChatlinkType}
-                className="w-14 h-auto"
-                quality={100}
-              />
-            )}
-          </>
-        )}
-      </div>
+
       <div className="flex flex-col gap-2 mt-4 px-10 2xl:px-[10%]">
-        <div className="flex items-center gap-2">
-          <h3 className="font-semibold w-36">App Icon Types</h3>
-          <Dropdown className="w-max rounded-lg" placement="bottom-start">
-            <DropdownTrigger>
-              <button
-                type="button"
-                className="bg-white w-48 2xl:w-64 flex justify-between items-center rounded px-2 py-2 text-sm font-medium shadow-small"
+        <div className="w-full rounded-xl bg-gray-200 p-3">
+          <div className="bg-white rounded-xl w-full flex items-center gap-2 py-1 px-3">
+            <Image
+              className="w-12 rounded-full"
+              src={selectedIcon.icon}
+              alt="icon"
+            />
+            <div>
+              <p className="text-gray-700 font-medium">{selectedIcon.name}</p>
+              <p className="text-gray-500 text-sm font-medium">{description}</p>
+            </div>
+          </div>
+        </div>
+
+        {/* middle part  */}
+        <div className="flex items-center justify-between mt-4">
+          <div className="flex items-center gap-2">
+            <h3 className="font-semibold text-gray-700 w-32">Info Bar Types</h3>
+            <Dropdown className="w-max rounded-lg" placement="bottom-start">
+              <DropdownTrigger>
+                <button
+                  type="button"
+                  className="bg-white w-48 2xl:w-64 flex justify-between items-center rounded px-2 py-2 text-sm font-medium shadow-small"
+                >
+                  <span className="flex items-center gap-2">
+                    {selectedIconType && (
+                      <Image
+                        alt="app-icon"
+                        src={iconMap[selectedIconType]}
+                        className="w-5 h-auto"
+                      />
+                    )}
+                    {selectedIconType}
+                  </span>{" "}
+                  <FaAngleDown />
+                </button>
+              </DropdownTrigger>
+              <DropdownMenu
+                disabledKeys={["title"]}
+                aria-label="Static Actions"
+                className="p-2"
               >
-                <span className="flex items-center gap-2">
-                  {selectedIconType && (
-                    <Image
-                      alt="app-icon"
-                      src={iconMap[selectedIconType]}
-                      className="w-5 h-auto"
-                    />
-                  )}
-                  {selectedIconType}
-                </span>{" "}
-                <FaAngleDown />
-              </button>
-            </DropdownTrigger>
-            <DropdownMenu
-              disabledKeys={["title"]}
-              aria-label="Static Actions"
-              className="p-2"
-            >
-              <DropdownItem
-                key={"title"}
-                className=" hover:!bg-white opacity-100 cursor-text disabled dropDownTitle"
-              >
-                <p>Choose Icon Type</p>
-              </DropdownItem>
-              {iconData.icons.map((data: any, index: number) => (
                 <DropdownItem
-                  key={index}
-                  onClick={() => handleSelectIconType(data.category)}
+                  key={"title"}
+                  className=" hover:!bg-white opacity-100 cursor-text disabled dropDownTitle"
+                >
+                  <p>Choose Icon Type</p>
+                </DropdownItem>
+                {iconData.icons.map((data: any, index: number) => (
+                  <DropdownItem
+                    key={index}
+                    onClick={() => handleSelectIconType(data.category)}
+                    className="border-b rounded-none hover:rounded-md"
+                  >
+                    <div className="flex items-center gap-2 font-semibold text-sm">
+                      <Image
+                        src={data.categoryIcon}
+                        alt={data.category}
+                        className="w-5 h-auto"
+                      />{" "}
+                      {data.category}
+                    </div>
+                  </DropdownItem>
+                ))}
+                <DropdownItem
+                  onClick={() => handleSelectIconType("Product Link")}
                   className="border-b rounded-none hover:rounded-md"
                 >
                   <div className="flex items-center gap-2 font-semibold text-sm">
                     <Image
-                      src={data.categoryIcon}
-                      alt={data.category}
+                      src={productImg}
+                      alt={"product"}
                       className="w-5 h-auto"
-                    />{" "}
-                    {data.category}
+                    />
+                    <p>Product Link</p>
                   </div>
                 </DropdownItem>
-              ))}
-            </DropdownMenu>
-          </Dropdown>
+                <DropdownItem
+                  onClick={() => handleSelectIconType("Contact Card")}
+                  className="border-b rounded-none hover:rounded-md"
+                >
+                  <div className="flex items-center gap-2 font-semibold text-sm">
+                    <Image
+                      src={contactCardImg}
+                      alt={"contact card"}
+                      className="w-5 h-auto"
+                    />
+                    <p>Contact Card</p>
+                  </div>
+                </DropdownItem>
+              </DropdownMenu>
+            </Dropdown>
+          </div>
         </div>
         <div className="flex items-center gap-2">
-          <h3 className="font-semibold w-36">Select Icon</h3>
+          <h3 className="font-semibold text-gray-700 w-32">Select Icon</h3>
 
           <Dropdown className="w-max rounded-lg" placement="bottom-start">
             <DropdownTrigger>
@@ -282,15 +325,7 @@ const AddAppIcon = ({ handleRemoveIcon }: any) => {
                 {selectedIconData.icons.map((data: any) => (
                   <DropdownItem
                     key={data._id}
-                    onClick={() =>
-                      setSelectedIcon({
-                        name: data.name,
-                        icon: data.icon,
-                        placeHolder: data.placeHolder,
-                        inputText: data.inputText,
-                        url: data.url,
-                      })
-                    }
+                    onClick={() => addSelectedIcon(data)}
                     className="border-b rounded-none hover:rounded-md"
                   >
                     <div className="flex items-center gap-2 font-semibold text-sm">
@@ -310,24 +345,54 @@ const AddAppIcon = ({ handleRemoveIcon }: any) => {
           </Dropdown>
         </div>
         <div>
-          <p className="font-semibold text-gray-700 mb-1">
-            {selectedIcon.inputText} :
-          </p>
-          <form onSubmit={handleAppIconFormSubmit}>
-            <div className="relative">
-              <IoLinkOutline
-                className="absolute left-4 top-1/2 -translate-y-[50%] font-bold text-gray-600"
-                size={20}
-              />
-              <input
-                type="text"
-                name="url"
-                className="w-full border border-[#ede8e8] focus:border-[#e5e0e0] rounded-xl focus:outline-none pl-11 py-2 text-gray-700 bg-gray-100"
-                placeholder={selectedIcon.placeHolder}
-                required
-              />
+          <form
+            onSubmit={handleInfoBarFormSubmit}
+            className="flex flex-col gap-3"
+          >
+            <div>
+              <p className="font-semibold text-gray-700 mb-1">Button Name</p>
+              <div>
+                <input
+                  type="text"
+                  name="buttonName"
+                  value={buttonName}
+                  onChange={(e) => setButtonName(e.target.value)}
+                  className="w-full border border-[#ede8e8] focus:border-[#e5e0e0] rounded-xl focus:outline-none px-4 py-2 text-gray-700 bg-gray-100"
+                  placeholder={"Enter Button Name"}
+                  required
+                />
+              </div>
             </div>
-            <div className="flex justify-center mt-3">
+            <div>
+              <p className="font-semibold text-gray-700 mb-1">
+                {selectedIcon.inputText}
+              </p>
+              <div className="relative">
+                <IoLinkOutline
+                  className="absolute left-4 top-1/2 -translate-y-[50%] font-bold text-gray-600"
+                  size={20}
+                />
+                <input
+                  type="text"
+                  name="url"
+                  className="w-full border border-[#ede8e8] focus:border-[#e5e0e0] rounded-xl focus:outline-none pl-11 py-2 text-gray-700 bg-gray-100"
+                  placeholder={selectedIcon.placeHolder}
+                  required
+                />
+              </div>
+            </div>
+            <div>
+              <p className="font-semibold text-gray-700 mb-1">Description</p>
+              <div>
+                <textarea
+                  name="description"
+                  className="w-full border border-[#ede8e8] focus:border-[#e5e0e0] rounded-xl focus:outline-none px-4 py-2 text-gray-700 bg-gray-100"
+                  placeholder="Enter description"
+                  onChange={(e) => setDescription(e.target.value)}
+                />
+              </div>
+            </div>
+            <div className="flex justify-center">
               <AnimateButton
                 whiteLoading={true}
                 className="bg-black text-white py-2 !border-0"
@@ -345,4 +410,4 @@ const AddAppIcon = ({ handleRemoveIcon }: any) => {
   );
 };
 
-export default AddAppIcon;
+export default AddRedeemLink;

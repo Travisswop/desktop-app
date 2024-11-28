@@ -95,6 +95,7 @@ const AddVideo = ({ handleRemoveIcon }: any) => {
 
         if ((data.state = "success")) {
           toast.success("Video created successfully");
+          handleRemoveIcon("Video");
         } else {
           toast.error("Something went wrong!");
         }

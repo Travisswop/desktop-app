@@ -11,6 +11,8 @@ import AddSwopPay from "./SwopPay/AddSwopPay";
 import AddReferral from "./referral/AddReferral";
 import AddMessage from "./message/AddMessage";
 import AddFeed from "./feed/AddFeed";
+import AddMarketplace from "./marketplace/AddMarketplace";
+import AddRedeemLink from "./redeemLink/AddRedeemLink";
 
 const AddIcon = ({
   data,
@@ -52,6 +54,12 @@ const AddIcon = ({
       )}
       {data === "Message" && <AddMessage handleRemoveIcon={handleRemoveIcon} />}
       {data === "Feed" && <AddFeed handleRemoveIcon={handleRemoveIcon} />}
+      {data === "Marketplace" && (
+        <AddMarketplace handleRemoveIcon={handleRemoveIcon} />
+      )}
+      {data === "Redeem Link" && (
+        <AddRedeemLink handleRemoveIcon={handleRemoveIcon} />
+      )}
     </div>
   );
 };
