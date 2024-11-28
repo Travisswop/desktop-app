@@ -1,11 +1,15 @@
 import { FaEdit } from "react-icons/fa";
 import { useMemo } from "react";
-import TikTokEmbed from "./tiktokEmbed";
-import TwitterEmbed from "./twitterEmbed";
+// import TikTokEmbed from "./tiktokEmbed";
+// import TwitterEmbed from "./twitterEmbed";
+// import { XEmbed, YouTubeEmbed } from "./customEmbeds"; // Assuming you have these components
+import { TikTokEmbed, XEmbed, YouTubeEmbed } from "react-social-media-embed";
+import placeholder from "@/public/images/video_player_placeholder.gif";
+import Image from "next/image";
 
 interface VideoData {
   _id: string;
-  type: "spotify" | "tiktok" | "twitter";
+  type: "spotify" | "tiktok" | "twitter" | "youtube" | "rumble" | "streamable";
   videoUrl: string;
 }
 
@@ -18,6 +22,11 @@ interface EmbedPlayerProps {
   }) => void;
 }
 
+const modifyEmbedLink = (embedLink: string, width: string, height: string) =>
+  embedLink
+    .replace(/width="[^"]*"/, `width="${width}"`)
+    .replace(/height="[^"]*"/, `height="${height}"`);
+
 const EmbedPlayer: React.FC<EmbedPlayerProps> = ({
   items,
   toggle,
@@ -26,7 +35,10 @@ const EmbedPlayer: React.FC<EmbedPlayerProps> = ({
   const renderEmbedPlayer = useMemo(
     () =>
       items.map((videoData: VideoData) => (
-        <div key={videoData._id} className="flex items-center gap-2 w-full">
+        <div
+          key={videoData._id}
+          className="flex items-center gap-2 w-full mb-4"
+        >
           <div
             className={`w-[96%] ${
               videoData.type === "spotify"
@@ -38,23 +50,50 @@ const EmbedPlayer: React.FC<EmbedPlayerProps> = ({
                 : "h-full"
             } border-4 border-[#c685ff] rounded-2xl overflow-hidden`}
           >
-            {videoData.type === "tiktok" ? (
+            {videoData.type === "spotify" ? (
+              <iframe
+                src={videoData.videoUrl}
+                width="100%"
+                height="100%"
+                style={{ borderRadius: "12px" }}
+                frameBorder="0"
+                allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
+                loading="lazy"
+              ></iframe>
+            ) : videoData.type === "tiktok" ? (
               <TikTokEmbed
-                key={videoData.videoUrl}
-                embedHtml={videoData.videoUrl}
+                url={videoData.videoUrl}
+                width={"100%"}
+                height={500}
               />
             ) : videoData.type === "twitter" ? (
-              <div className="embed-container">
-                <TwitterEmbed
-                  key={videoData.videoUrl}
-                  embedHtml={videoData.videoUrl}
-                />
-              </div>
+              <XEmbed height={500} url={videoData.videoUrl} />
+            ) : videoData.type === "youtube" ? (
+              <YouTubeEmbed
+                url={videoData.videoUrl}
+                width={"100%"}
+                height={300}
+              />
+            ) : videoData.type === "rumble" ? (
+              <div
+                dangerouslySetInnerHTML={{
+                  __html: modifyEmbedLink(videoData.videoUrl, "100%", "360"),
+                }}
+              ></div>
+            ) : videoData.type === "streamable" ? (
+              <div
+                dangerouslySetInnerHTML={{
+                  __html: videoData.videoUrl,
+                }}
+                className="w-full h-full"
+              ></div>
             ) : (
-              <div key="embed video" className="embed-responsive">
-                <div
-                  className="w-full"
-                  dangerouslySetInnerHTML={{ __html: videoData.videoUrl }}
+              <div className="relative w-full h-80">
+                <Image
+                  src={placeholder}
+                  alt="Placeholder"
+                  fill
+                  className="w-full h-full rounded-lg object-contain"
                 />
               </div>
             )}
@@ -67,7 +106,7 @@ const EmbedPlayer: React.FC<EmbedPlayerProps> = ({
                   categoryForTrigger: "embed",
                 })
               }
-              className=""
+              className="hover:scale-105 transition-transform"
             >
               <FaEdit size={18} />
             </button>
