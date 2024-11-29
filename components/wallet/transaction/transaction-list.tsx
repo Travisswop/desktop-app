@@ -10,7 +10,7 @@ import { Button } from '@/components/ui/button';
 import { useMultiChainTransactionData } from '@/lib/hooks/useTransaction';
 import { Transaction } from '@/types/transaction';
 import { AlertCircle, Loader2 } from 'lucide-react';
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import TransactionDetails from './transaction-details';
 import Image from 'next/image';
 import { useMultiChainTokenData } from '@/lib/hooks/useToken';
@@ -92,9 +92,41 @@ const TransactionItem = ({
     return (numericValue * price).toFixed(2);
   };
 
+  const getBorderColorByNetwork = (network: string) => {
+    switch (network?.toLowerCase()) {
+      case 'ethereum':
+        return 'border-blue-400';
+      case 'polygon':
+        return 'border-purple-400';
+      case 'solana':
+        return 'border-green-400';
+      case 'base':
+        return 'border-cyan-400';
+      default:
+        return 'border-gray-400';
+    }
+  };
+
+  let transactionBorderClass = transaction?.isNew
+    ? `border-2 ${getBorderColorByNetwork(
+        transaction.network
+      )} animate-pulse`
+    : 'border border-gradient-to-r from-gray-200 to-gray-300';
+
+  useEffect(() => {
+    if (transaction?.isNew) {
+      const timer = setTimeout(() => {
+        transactionBorderClass =
+          'border border-gradient-to-r from-gray-200 to-gray-300';
+      }, 10000);
+
+      return () => clearTimeout(timer);
+    }
+  }, [transaction?.isNew]);
+
   return (
     <Card
-      className="p-4 flex items-center justify-between hover:bg-gray-50 transition-colors cursor-pointer"
+      className={`p-4 flex items-center justify-between hover:bg-gray-50 transition-colors cursor-pointer ${transactionBorderClass}`}
       onClick={() => onSelect(transaction)}
     >
       <div className="flex items-center gap-3">
@@ -210,9 +242,11 @@ const TransactionItem = ({
 export default function TransactionList({
   address,
   network,
+  newTransactions,
 }: {
   address: string | undefined;
   network: Network;
+  newTransactions: Transaction[];
 }) {
   const [selectedTransaction, setSelectedTransaction] =
     useState<Transaction | null>(null);
@@ -250,7 +284,7 @@ export default function TransactionList({
   const processedTransactions = useMemo(() => {
     if (!tokens.length || !nativeToken) return [];
 
-    return transactions.filter((tx) => {
+    return [...newTransactions, ...transactions].filter((tx) => {
       // Add native token price for network fee calculation
       tx.nativeTokenPrice = parseFloat(nativeToken.marketData.price);
 
@@ -292,6 +326,8 @@ export default function TransactionList({
   const loadMore = () => {
     setOffset((prev) => prev + ITEMS_PER_PAGE);
   };
+
+  console.log('processedTransactions', processedTransactions);
 
   return (
     <>

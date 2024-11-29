@@ -1,12 +1,13 @@
-"use client";
-import { useUser } from "@/lib/UserContext";
-import { Skeleton } from "../ui/skeleton";
-import ProfileHeader from "./profile-header";
-import CashflowChart from "./cashflow-chart";
-import DashboardAnalytics from "./analytics";
+'use client';
+import { useUser } from '@/lib/UserContext';
+import { Skeleton } from '../ui/skeleton';
+import ProfileHeader from './profile-header';
+import CashflowChart from './cashflow-chart';
+import DashboardAnalytics from './analytics';
 
 export default function DashboardContent() {
   const { user, loading, error } = useUser();
+  console.log('🚀 ~ DashboardContent ~ user:', user);
 
   if (loading) {
     return <DashboardSkeleton />;
@@ -16,20 +17,18 @@ export default function DashboardContent() {
     return <div>Error loading dashboard: {error.message}</div>;
   }
 
-  // console.log("user", user);
-
   return (
     <div className="">
       <ProfileHeader
-        name={user?.name || "Your Name"}
-        username={"Travis.Swop.ID"}
-        location={user?.address || ""}
+        name={user?.name || 'Your Name'}
+        username={'Travis.Swop.ID'}
+        location={user?.address || ''}
         followers={user?.connections.followers.length || 0}
         following={user?.connections.following.length || 0}
         messages={0}
         orders={40}
         points={31234}
-        imageUrl={user?.profilePic || "/images/avatar.png"}
+        imageUrl={user?.profilePic || '/images/avatar.png'}
       />
 
       <CashflowChart />

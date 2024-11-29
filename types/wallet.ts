@@ -3,3 +3,10 @@ export interface WalletItem {
   isActive: boolean;
   isEVM: boolean;
 }
+
+export interface ReceiverData {
+  address: string;
+  isEns: boolean;
+  ensName?: string;
+  avatar?: string;
+}

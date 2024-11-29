@@ -1,11 +1,11 @@
-import { Toaster } from "@/components/ui/toaster";
-import { Roboto } from "next/font/google";
+import { Toaster } from '@/components/ui/toaster';
+import { Roboto } from 'next/font/google';
 
 // If loading a variable font, you don't need to specify the font weight
 const roboto = Roboto({
-  weight: ["100", "300", "400", "500", "700", "900"],
-  subsets: ["latin"],
-  display: "swap",
+  weight: ['100', '300', '400', '500', '700', '900'],
+  subsets: ['latin'],
+  display: 'swap',
 });
 
 export default function AuthLayout({
@@ -16,7 +16,7 @@ export default function AuthLayout({
   return (
     <html lang="en" className={roboto.className}>
       <body>
-        <div className="flex items-center justify-center min-h-screen bg-gray-100 font-[roboto]">
+        <div className="flex items-center justify-center min-h-screen bg-white font-[roboto]">
           {children}
           <Toaster />
         </div>

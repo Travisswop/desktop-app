@@ -18,6 +18,7 @@ import { useRouter } from 'next/navigation';
 export default function Header() {
   const { logout } = usePrivy();
   const { user, loading, clearCache } = useUser();
+  console.log('🚀 ~ Header ~ user:', user);
   const router = useRouter();
 
   const handleLogout = async () => {

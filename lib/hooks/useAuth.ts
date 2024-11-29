@@ -9,13 +9,16 @@ export function useAuth() {
   });
 
   useEffect(() => {
-    // Load auth state from cookies or local storage
+    let mounted = true;
+
     const checkAuth = async () => {
       try {
         const response = await fetch('/api/auth/check', {
           credentials: 'include',
           method: 'POST',
         });
+
+        if (!mounted) return;
 
         if (response.ok) {
           const data = await response.json();
@@ -30,6 +33,7 @@ export function useAuth() {
           });
         }
       } catch (error) {
+        if (!mounted) return;
         console.error('Auth check failed:', error);
         setAuthState({
           user: null,
@@ -39,6 +43,10 @@ export function useAuth() {
     };
 
     checkAuth();
+
+    return () => {
+      mounted = false;
+    };
   }, []);
 
   return authState;

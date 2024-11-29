@@ -79,24 +79,6 @@ async function verifyAuth(request: NextRequest) {
       return false;
     }
 
-    // Verify user in your database
-    const userResponse = await fetch(
-      `${request.nextUrl.origin}/api/auth/verify-user`,
-      {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${privy_token}`,
-        },
-        body: JSON.stringify({ email, userId }),
-      }
-    );
-
-    if (!userResponse.ok) {
-      authCache.set(cacheKey, { timestamp: now, isValid: false });
-      return false;
-    }
-
     // Cache successful result
     authCache.set(cacheKey, { timestamp: now, isValid: true });
     return true;

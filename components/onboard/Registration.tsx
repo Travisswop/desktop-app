@@ -1,11 +1,15 @@
-"use client";
+'use client';
 
-import { useEffect, useState } from "react";
-import Image from "next/image";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { useEffect, useState } from 'react';
+import Image from 'next/image';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import {
+  CardContent,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card';
 import {
   Upload,
   User,
@@ -15,34 +19,37 @@ import {
   Calendar,
   Building,
   MapPin,
-} from "lucide-react";
-import { PrivyUser, OnboardingData } from "@/lib/types";
-import { uploadImageToCloudinary } from "@/lib/cloudinary";
-import { getBase64Image } from "@/utils/imageHelpers";
-import { usePrivy } from "@privy-io/react-auth";
-import { useToast } from "@/hooks/use-toast";
-import astronot from "@/public/onboard/astronot.svg";
-import bluePlanet from "@/public/onboard/blue-planet.svg";
-import yellowPlanet from "@/public/onboard/yellow-planet.svg";
+} from 'lucide-react';
+import { PrivyUser, OnboardingData } from '@/lib/types';
+import { uploadImageToCloudinary } from '@/lib/cloudinary';
+import { getBase64Image } from '@/utils/imageHelpers';
+import { usePrivy } from '@privy-io/react-auth';
+import { useToast } from '@/hooks/use-toast';
+import astronot from '@/public/onboard/astronot.svg';
+import bluePlanet from '@/public/onboard/blue-planet.svg';
+import yellowPlanet from '@/public/onboard/yellow-planet.svg';
 
 interface RegistrationProps {
   user: PrivyUser;
   onComplete: (data: Partial<OnboardingData>) => void;
 }
 
-export default function Registration({ user, onComplete }: RegistrationProps) {
-  console.log("user", user);
+export default function Registration({
+  user,
+  onComplete,
+}: RegistrationProps) {
+  console.log('user', user);
   const { getAccessToken } = usePrivy();
   const { toast } = useToast();
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [name, setName] = useState(user?.name || "");
-  const [bio, setBio] = useState("");
-  const [phone, setPhone] = useState("");
+  const [name, setName] = useState(user?.name || '');
+  const [bio, setBio] = useState('');
+  const [phone, setPhone] = useState('');
   const [birthdate, setBirthdate] = useState(0);
-  const [apartment, setApartment] = useState("");
-  const [address, setAddress] = useState("");
+  const [apartment, setApartment] = useState('');
+  const [address, setAddress] = useState('');
   const [profileImage, setProfileImage] = useState(
-    "/assets/images/avatar.png?height=32&width=32"
+    '/assets/images/avatar.png?height=32&width=32'
   );
 
   // Fetch the base64 image when the component mounts
@@ -54,7 +61,9 @@ export default function Registration({ user, onComplete }: RegistrationProps) {
     fetchAvatar();
   }, [profileImage]);
 
-  const handleImageUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImageUpload = (
+    event: React.ChangeEvent<HTMLInputElement>
+  ) => {
     const file = event.target.files?.[0];
     if (file) {
       const reader = new FileReader();
@@ -68,7 +77,7 @@ export default function Registration({ user, onComplete }: RegistrationProps) {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim()) {
-      alert("Name is required.");
+      alert('Name is required.');
       return; // Prevent form submission
     }
     setIsSubmitting(true);
@@ -78,10 +87,10 @@ export default function Registration({ user, onComplete }: RegistrationProps) {
       const token = await getAccessToken();
 
       // Create user and smartsite
-      const response = await fetch("/api/user/create", {
-        method: "POST",
+      const response = await fetch('/api/user/create', {
+        method: 'POST',
         headers: {
-          "Content-Type": "application/json",
+          'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({
@@ -97,14 +106,14 @@ export default function Registration({ user, onComplete }: RegistrationProps) {
       });
 
       if (!response.ok) {
-        throw new Error("Failed to create user and smartsite");
+        throw new Error('Failed to create user and smartsite');
       }
 
       const result = await response.json();
 
       toast({
-        title: "Success",
-        description: "Account has been created successfully!",
+        title: 'Success',
+        description: 'Account has been created successfully!',
       });
 
       // Pass the data to parent component
@@ -113,11 +122,11 @@ export default function Registration({ user, onComplete }: RegistrationProps) {
       });
     } catch (error) {
       setIsSubmitting(false);
-      console.error("Error creating account:", error);
+      console.error('Error creating account:', error);
       toast({
-        variant: "destructive",
-        title: "Error",
-        description: "Failed to create Account. Please try again.",
+        variant: 'destructive',
+        title: 'Error',
+        description: 'Failed to create Account. Please try again.',
       });
     } finally {
       setIsSubmitting(false);
@@ -128,7 +137,11 @@ export default function Registration({ user, onComplete }: RegistrationProps) {
     <div className="relative w-full max-w-3xl mx-auto border-0 my-20">
       {/* <div className="bg-gradient-to-br from-purple-200 to-blue-300 w-52 h-52 rounded-full absolute -bottom-32 -left-16 -z-10 opacity-80"></div> */}
       <div className="absolute -top-28 left-0">
-        <Image src={astronot} alt="astronot image" className="w-40 h-auto" />
+        <Image
+          src={astronot}
+          alt="astronot image"
+          className="w-40 h-auto"
+        />
       </div>
       <div className="absolute -bottom-28 -left-10">
         <Image
@@ -138,7 +151,11 @@ export default function Registration({ user, onComplete }: RegistrationProps) {
         />
       </div>
       <div className="absolute -top-14 -right-24">
-        <Image src={bluePlanet} alt="astronot image" className="w-56 h-auto" />
+        <Image
+          src={bluePlanet}
+          alt="astronot image"
+          className="w-56 h-auto"
+        />
       </div>
       <div className="bg-gradient-to-br from-purple-200 to-blue-300 w-52 h-52 rounded-full absolute bottom-32 left-16 z-0 opacity-80"></div>
       <div className="backdrop-blur-[50px] bg-white bg-opacity-25 shadow-uniform rounded-xl">
@@ -182,9 +199,12 @@ export default function Registration({ user, onComplete }: RegistrationProps) {
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="space-y-2">
-                  <Label htmlFor="name" className="flex items-center space-x-2">
+                  <Label
+                    htmlFor="name"
+                    className="flex items-center space-x-2"
+                  >
                     <p>
-                      Name<span style={{ color: "red" }}>*</span>
+                      Name<span style={{ color: 'red' }}>*</span>
                     </p>
                   </Label>
                   <div className="relative w-full">
@@ -202,7 +222,10 @@ export default function Registration({ user, onComplete }: RegistrationProps) {
                   </div>
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="bio" className="flex items-center space-x-2">
+                  <Label
+                    htmlFor="bio"
+                    className="flex items-center space-x-2"
+                  >
                     <p>Bio</p>
                   </Label>
                   <div className="relative w-full">
@@ -224,7 +247,8 @@ export default function Registration({ user, onComplete }: RegistrationProps) {
                     className="flex items-center space-x-2"
                   >
                     <p>
-                      Phone Number<span style={{ color: "red" }}>*</span>
+                      Phone Number
+                      <span style={{ color: 'red' }}>*</span>
                     </p>
                   </Label>
                   <div className="relative w-full">
@@ -248,7 +272,7 @@ export default function Registration({ user, onComplete }: RegistrationProps) {
                     className="flex items-center space-x-2"
                   >
                     <p>
-                      Email<span style={{ color: "red" }}>*</span>
+                      Email<span style={{ color: 'red' }}>*</span>
                     </p>
                   </Label>
                   <div className="relative w-full">
@@ -279,7 +303,7 @@ export default function Registration({ user, onComplete }: RegistrationProps) {
                       onClick={() =>
                         (
                           document.getElementById(
-                            "birthdate"
+                            'birthdate'
                           ) as HTMLInputElement
                         )?.showPicker()
                       }
@@ -291,11 +315,15 @@ export default function Registration({ user, onComplete }: RegistrationProps) {
                       type="date"
                       value={
                         birthdate
-                          ? new Date(birthdate).toISOString().split("T")[0]
-                          : ""
+                          ? new Date(birthdate)
+                              .toISOString()
+                              .split('T')[0]
+                          : ''
                       }
                       onChange={(e) =>
-                        setBirthdate(new Date(e.target.value).getTime())
+                        setBirthdate(
+                          new Date(e.target.value).getTime()
+                        )
                       }
                       className="pl-8 appearance-none focus:ring-1 ring-gray-300 custom-date-input"
                     />
@@ -352,7 +380,7 @@ export default function Registration({ user, onComplete }: RegistrationProps) {
                   type="submit"
                   disabled={isSubmitting}
                 >
-                  {isSubmitting ? "Creating..." : "Next"}
+                  {isSubmitting ? 'Creating...' : 'Next'}
                 </Button>
               </div>
             </form>

@@ -1,62 +1,68 @@
-"use client";
+'use client';
 
-import { useEffect, useState } from "react";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Checkbox } from "@/components/ui/checkbox";
-import { CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { OnboardingData } from "@/lib/types";
-import { usePrivy, useWallets } from "@privy-io/react-auth";
-import { useToast } from "@/hooks/use-toast";
-import { useRouter } from "next/navigation";
-import Image from "next/image";
-import astronot from "@/public/onboard/astronot.svg";
-import bluePlanet from "@/public/onboard/blue-planet.svg";
-import yellowPlanet from "@/public/onboard/yellow-planet.svg";
+import { useEffect, useState } from 'react';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Checkbox } from '@/components/ui/checkbox';
+import {
+  CardContent,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card';
+import { OnboardingData } from '@/lib/types';
+import { usePrivy, useWallets } from '@privy-io/react-auth';
+import { useToast } from '@/hooks/use-toast';
+import { useRouter } from 'next/navigation';
+import Image from 'next/image';
+import astronot from '@/public/onboard/astronot.svg';
+import bluePlanet from '@/public/onboard/blue-planet.svg';
+import yellowPlanet from '@/public/onboard/yellow-planet.svg';
 
 interface CreateSwopIDProps {
   userData: OnboardingData;
 }
 
 type AvailabilityMessage = {
-  type: "error" | "success" | null;
+  type: 'error' | 'success' | null;
   message: string;
 };
 
-export default function CreateSwopID({ userData }: CreateSwopIDProps) {
+export default function CreateSwopID({
+  userData,
+}: CreateSwopIDProps) {
   const { getAccessToken } = usePrivy();
   const { wallets } = useWallets();
   const { toast } = useToast();
   const router = useRouter();
 
-  const [swopID, setSwopID] = useState("");
+  const [swopID, setSwopID] = useState('');
   const [agreeToTerms, setAgreeToTerms] = useState(false);
   const [isChecking, setIsChecking] = useState(false);
   const [availabilityMessage, setAvailabilityMessage] =
     useState<AvailabilityMessage>({
       type: null,
-      message: "",
+      message: '',
     });
 
   const validateSwopID = (id: string): boolean => {
     // Must be 3-10 characters, alphanumeric or hyphen only
-    return /^[a-z0-9-]{3,10}$/i.test(id) && !id.includes(".");
+    return /^[a-z0-9-]{3,10}$/i.test(id) && !id.includes('.');
   };
 
   useEffect(() => {
     const checkSwopIDAvailability = async () => {
       // Clear message if input is empty
       if (!swopID) {
-        setAvailabilityMessage({ type: null, message: "" });
+        setAvailabilityMessage({ type: null, message: '' });
         return;
       }
 
       // Validate input format first
       if (!validateSwopID(swopID)) {
         setAvailabilityMessage({
-          type: "error",
+          type: 'error',
           message:
-            "SwopID must be 3-10 characters long and can only contain letters, numbers, and hyphens",
+            'SwopID must be 3-10 characters long and can only contain letters, numbers, and hyphens',
         });
         return;
       }
@@ -69,22 +75,22 @@ export default function CreateSwopID({ userData }: CreateSwopIDProps) {
 
         if (response.ok) {
           setAvailabilityMessage({
-            type: "error",
-            message: "This SwopID is already taken",
+            type: 'error',
+            message: 'This SwopID is already taken',
           });
         } else if (response.status === 404) {
           setAvailabilityMessage({
-            type: "success",
-            message: "This SwopID is available!",
+            type: 'success',
+            message: 'This SwopID is available!',
           });
         } else {
-          throw new Error("Failed to check availability");
+          throw new Error('Failed to check availability');
         }
       } catch (error) {
-        console.error("Error checking SwopID:", error);
+        console.error('Error checking SwopID:', error);
         setAvailabilityMessage({
-          type: "error",
-          message: "Failed to check availability. Please try again.",
+          type: 'error',
+          message: 'Failed to check availability. Please try again.',
         });
       } finally {
         setIsChecking(false);
@@ -97,19 +103,23 @@ export default function CreateSwopID({ userData }: CreateSwopIDProps) {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!swopID || availabilityMessage.type !== "success" || !agreeToTerms) {
+    if (
+      !swopID ||
+      availabilityMessage.type !== 'success' ||
+      !agreeToTerms
+    ) {
       return;
     }
 
     const embededdedWallet = wallets.find(
-      (wallet) => wallet.walletClientType === "privy"
+      (wallet) => wallet.walletClientType === 'privy'
     );
 
     if (!embededdedWallet) {
       toast({
-        variant: "destructive",
-        title: "Error",
-        description: "No wallet found. Please try again.",
+        variant: 'destructive',
+        title: 'Error',
+        description: 'No wallet found. Please try again.',
       });
       return;
     }
@@ -121,16 +131,16 @@ export default function CreateSwopID({ userData }: CreateSwopIDProps) {
       const message = `Set ${ens} to ${address}`;
 
       const signature = await provider.request({
-        method: "personal_sign",
+        method: 'personal_sign',
         params: [message, address],
       });
 
       const requestBody = {
         name: ens,
         owner: address,
-        addresses: { 60: address, 501: "" },
+        addresses: { 60: address, 501: '' },
         texts: {
-          avatar: userData.userInfo?.avatar || "",
+          avatar: userData.userInfo?.avatar || '',
         },
         signature: {
           hash: signature,
@@ -139,47 +149,49 @@ export default function CreateSwopID({ userData }: CreateSwopIDProps) {
       };
 
       const response = await fetch(
-        "https://swop-id-ens-gateway.swop.workers.dev/set",
+        'https://swop-id-ens-gateway.swop.workers.dev/set',
         {
-          method: "POST",
+          method: 'POST',
           headers: {
-            "Content-Type": "application/json",
+            'Content-Type': 'application/json',
           },
           body: JSON.stringify(requestBody),
         }
       );
 
       if (!response.ok) {
-        throw new Error("Failed to create Swop ID");
+        throw new Error('Failed to create Swop ID');
       }
 
       const token = await getAccessToken();
-      await fetch("/api/user/smartSite/social", {
-        method: "POST",
+      await fetch('/api/user/smartSite/social', {
+        method: 'POST',
         headers: {
-          "Content-Type": "application/json",
+          'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({
-          contentType: "ensDomain",
+          contentType: 'ensDomain',
           micrositeId: userData.userInfo?.primaryMicrosite,
           domain: ens,
         }),
       });
 
       toast({
-        title: "Success",
-        description: "SwopID created successfully!",
+        title: 'Success',
+        description: 'SwopID created successfully!',
       });
 
-      router.push("/");
+      router.push('/');
     } catch (error) {
-      console.error("Error:", error);
+      console.error('Error:', error);
       toast({
-        variant: "destructive",
-        title: "Error",
+        variant: 'destructive',
+        title: 'Error',
         description:
-          error instanceof Error ? error.message : "Failed to create SwopID",
+          error instanceof Error
+            ? error.message
+            : 'Failed to create SwopID',
       });
     }
   };
@@ -187,7 +199,11 @@ export default function CreateSwopID({ userData }: CreateSwopIDProps) {
   return (
     <div className="relative w-full max-w-lg mx-auto border-0 my-24">
       <div className="absolute -top-28 left-0">
-        <Image src={astronot} alt="astronot image" className="w-40 h-auto" />
+        <Image
+          src={astronot}
+          alt="astronot image"
+          className="w-40 h-auto"
+        />
       </div>
       <div className="absolute -bottom-28 -left-10">
         <Image
@@ -197,7 +213,11 @@ export default function CreateSwopID({ userData }: CreateSwopIDProps) {
         />
       </div>
       <div className="absolute -top-14 -right-24">
-        <Image src={bluePlanet} alt="astronot image" className="w-48 h-auto" />
+        <Image
+          src={bluePlanet}
+          alt="astronot image"
+          className="w-48 h-auto"
+        />
       </div>
       <div className="backdrop-blur-[50px] bg-white bg-opacity-25 shadow-uniform rounded-xl">
         <CardHeader className="text-center pt-10 px-8">
@@ -230,9 +250,9 @@ export default function CreateSwopID({ userData }: CreateSwopIDProps) {
             {availabilityMessage.type && (
               <p
                 className={`text-sm ${
-                  availabilityMessage.type === "error"
-                    ? "text-red-500"
-                    : "text-green-500"
+                  availabilityMessage.type === 'error'
+                    ? 'text-red-500'
+                    : 'text-green-500'
                 }`}
               >
                 {availabilityMessage.message}
@@ -252,8 +272,8 @@ export default function CreateSwopID({ userData }: CreateSwopIDProps) {
                 htmlFor="terms"
                 className="text-sm text-muted-foreground cursor-pointer"
               >
-                By clicking this check box, you agree to create a wallet using
-                this ENS address.
+                By clicking this check box, you agree to create a
+                wallet using this ENS address.
               </label>
             </div>
 
@@ -262,12 +282,12 @@ export default function CreateSwopID({ userData }: CreateSwopIDProps) {
               type="submit"
               disabled={
                 !swopID ||
-                availabilityMessage.type !== "success" ||
+                availabilityMessage.type !== 'success' ||
                 !agreeToTerms ||
                 isChecking
               }
             >
-              {isChecking ? "Checking availability..." : "Next"}
+              {isChecking ? 'Checking availability...' : 'Next'}
             </Button>
           </form>
         </CardContent>
