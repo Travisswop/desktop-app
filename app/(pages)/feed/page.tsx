@@ -1,4 +1,4 @@
-// "use client";
+"use client";
 // import { withAuth } from "@/lib/withAuth";
 // import { usePrivy } from "@privy-io/react-auth";
 // import React, { useEffect } from "react";
@@ -37,7 +37,7 @@ import React, { Suspense } from "react";
 import TabSwitcher from "@/components/feed/TabSwitcher";
 import FeedMain from "@/components/feed/FeedMain";
 
-const FeedPage = async () => {
+const FeedPage = () => {
   return (
     <div className="main-container">
       <div className="bg-white rounded-xl">
