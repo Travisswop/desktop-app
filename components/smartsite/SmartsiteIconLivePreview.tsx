@@ -32,6 +32,11 @@ import { LiaFileMedicalSolid } from "react-icons/lia";
 import { Switch } from "@nextui-org/react";
 import { IoIosSend } from "react-icons/io";
 import Link from "next/link";
+import { handleSmartSiteUpdate } from "@/actions/update";
+import { useRouter } from "next/navigation";
+import toast from "react-hot-toast";
+import AnimateButton from "../ui/Button/AnimateButton";
+import SmartsiteSocialShare from "./socialShare/SmartsiteSocialShare";
 
 const SmartsiteIconLivePreview = ({
   isEditDetailsLivePreview = false,
@@ -46,12 +51,17 @@ const SmartsiteIconLivePreview = ({
   const [isPrimaryMicrosite, setIsPrimaryMicrosite] = useState<boolean>(false);
   const [isLeadCapture, setIsLeadCapture] = useState<boolean>(false);
 
+  const [isPublishedLoading, setIsPublishedLoading] = useState(false);
+
   // console.log("data form live", data.info.socialLarge);
   const { formData, setFormData } = useSmartsiteFormStore();
 
   console.log("form data from live preview data", data);
 
   const { setOn }: any = useSmallIconToggleStore();
+
+  const demoToken =
+    "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJfaWQiOiI2NjM4NjMyMDIzMDQxMDMyODAyOTk4MmIiLCJpYXQiOjE3MjcxNTI4MzB9.CsHnZAgUzsfkc_g_CZZyQMXc02Ko_LhnQcCVpeCwroY";
 
   const handleTriggerUpdate = (data: {
     data: any;
@@ -61,10 +71,19 @@ const SmartsiteIconLivePreview = ({
     setOn(true);
   };
 
+  useEffect(() => {
+    if (data.primary) {
+      setIsPrimaryMicrosite(true);
+    }
+  }, [data.primary]);
+
+  console.log("is primary", isPrimaryMicrosite);
+
   // console.log("audio", data.info.audio);
 
   // console.log("formdata", formData);
   // console.log("data from live preview", data);
+  const router = useRouter();
 
   useEffect(() => {
     if (data) {
@@ -77,6 +96,35 @@ const SmartsiteIconLivePreview = ({
       setFormData("profileImg", data.profilePic);
     }
   }, [data, setFormData]);
+
+  const handleSmartSiteUpdateInfo = async (e: any) => {
+    setIsPublishedLoading(true);
+    e.preventDefault();
+
+    const smartSiteInfo = {
+      _id: data._id,
+      primary: isPrimaryMicrosite,
+    };
+
+    try {
+      const response = await handleSmartSiteUpdate(smartSiteInfo, demoToken);
+      console.log("response", response);
+
+      if (response.state === "success") {
+        router.push("/smartsite");
+        toast.success("Smartsite published successfully");
+      } else if (response.state === "fail") {
+        toast.error(
+          response.message || "At least one primary smartsite required"
+        );
+      }
+    } catch (error: any) {
+      toast.error("Something went wrong!");
+      console.log("error", error);
+    } finally {
+      setIsPublishedLoading(false);
+    }
+  };
 
   return (
     <main className="w-[38%] h-full overflow-y-auto overflow-x-hidden">
@@ -900,7 +948,7 @@ const SmartsiteIconLivePreview = ({
         <div className="flex flex-col gap-2 mt-4 pb-4">
           <p className="text-gray-600 font-medium text-center">Live Preview</p>
           <div className="flex flex-wrap items-center justify-center gap-2">
-            <Link href={`/smartsite/qr-code/${data?.data?._id}`}>
+            <Link href={`/smartsite/qr-code/${data?._id}`}>
               <button
                 type="button"
                 className="rounded-full bg-white border border-gray-300 px-6 py-2 text-gray-500 font-medium flex items-center gap-1 hover:bg-gray-300"
@@ -909,13 +957,23 @@ const SmartsiteIconLivePreview = ({
                 Customize QR
               </button>
             </Link>
-            <button
+            <div className="relative">
+              <SmartsiteSocialShare
+                isAbsolute={false}
+                profileUrl={data.profileUrl}
+                className="flex items-center justify-center text-gray-600 bg-white gap-1 !rounded-full font-medium border border-gray-300"
+              >
+                <IoIosSend color="gray" size={18} />
+                Share
+              </SmartsiteSocialShare>
+            </div>
+            {/* <button
               type="button"
               className="rounded-full bg-white border border-gray-300 px-6 py-2 text-gray-500 font-medium flex items-center gap-1 hover:bg-gray-300"
             >
               <IoIosSend color="gray" size={18} />
               Share
-            </button>
+            </button> */}
           </div>
           <div className="flex justify-center items-center gap-1 2xl:gap-3 flex-wrap overflow-x-hidden">
             <div className="flex items-center gap-2 2xl:gap-8 border border-gray-300 rounded-full pl-3 2xl:pl-5 pr-1 2xl:pr-4 py-2 text-lg font-medium text-gray-600 w-max bg-white">
@@ -942,11 +1000,16 @@ const SmartsiteIconLivePreview = ({
             </div>
           </div>
           <div className="flex justify-center w-64 mx-auto">
-            <a href={data?.data?.profileUrl} target="_blank" className="w-full">
-              <DynamicPrimaryBtn className="w-full !rounded-full mt-2">
-                <LiaFileMedicalSolid size={20} /> Publish
-              </DynamicPrimaryBtn>
-            </a>
+            {/* <a href={data?.data?.profileUrl} target="_blank" className="w-full"> */}
+            <AnimateButton
+              onClick={handleSmartSiteUpdateInfo}
+              isLoading={isPublishedLoading}
+              whiteLoading={true}
+              className="bg-black text-white py-2 !border-0 !rounded-full mt-2"
+            >
+              <LiaFileMedicalSolid size={20} /> Publish
+            </AnimateButton>
+            {/* </a> */}
           </div>
         </div>
       )}
