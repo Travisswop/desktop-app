@@ -1,9 +1,10 @@
 "use client";
-import { useState, DragEvent } from "react";
+import { useState, DragEvent, useEffect } from "react";
 import PushToMintCollectionButton from "@/components/Button/PushToMintCollectionButton";
 import Image from "next/image";
 import { sendCloudinaryImage } from "@/lib/SendCloudineryImage";
 import { sendCloudinaryFile } from "@/lib/SendCloudineryAnyFile";
+import { useUser } from "@/lib/UserContext";
 
 
 interface ContentFile {
@@ -50,7 +51,16 @@ const CreateCollectiblePage = () => {
   const [imageUploading, setImageUploading] = useState(false);
   const [isDragOver, setIsDragOver] = useState(false);
   const [uploadingContent, setUploadingContent] = useState(false);
+  const [waitForToken, setWaitForToken] = useState(true);
+  const { accessToken } = useUser();
 
+  useEffect(() => {
+    const timeoutId = setTimeout(() => {
+      setWaitForToken(false);
+    }, 30000); // Wait for 30 seconds
+  
+    return () => clearTimeout(timeoutId); // Cleanup timeout
+  }, []);
 
   const handleChange = (
     e: React.ChangeEvent<
@@ -227,19 +237,36 @@ const CreateCollectiblePage = () => {
     e.preventDefault();
   
     try {
-      const storedData = JSON.parse(localStorage.getItem("user-storage") || "{}");
-      const accessToken = storedData?.state?.state?.user?.accessToken;
+      const collectionId = localStorage.getItem("swop_desktop_collectionId_for_createTemplate");
   
-      if (!accessToken) {
-        alert("Access token not found. Please log in again.");
+      if (!accessToken && !waitForToken) {
+        alert("Access token is required. Please log in again.");
         return;
       }
-  
+
+      if (!accessToken && waitForToken) {
+        alert("Waiting for access token. Please try again shortly.");
+        return;
+      }
+      
+      if (!accessToken) {
+        alert("Access token is required. Please log in again.");
+        return;
+      }      
+        
+      if (!collectionId) {
+        alert("Collection ID not found. Please select a collection.");
+        return;
+      }
+
+      console.log("token: ", accessToken);
+        
       // Explicitly convert supplyLimit and price to numbers before submitting
       const finalData = {
         ...formData,
         supplyLimit: Number(formData.quantity), // Ensure it's a number
         price: Number(formData.price), // Ensure it's a number
+        collectionId, // Include collectionId in the payload
       };
   
       const response = await fetch(
@@ -269,7 +296,7 @@ const CreateCollectiblePage = () => {
       alert("Failed to create template");
     }
   };
-  
+    
   return (
     <div className="main-container flex">
       <div className="w-1/2 p-5">
