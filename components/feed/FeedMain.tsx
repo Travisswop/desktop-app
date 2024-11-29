@@ -104,7 +104,9 @@ const FeedMain = () => {
             />
             <hr />
             {/* component to render based on tab */}
-            <section className="p-6">{ComponentToRender}</section>
+            <Suspense fallback={"loading..."}>
+              <section className="p-6">{ComponentToRender}</section>
+            </Suspense>
           </div>
           <div
             style={{ height: "calc(100vh - 108px)" }}
