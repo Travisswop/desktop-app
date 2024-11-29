@@ -33,7 +33,7 @@
 
 // export default withAuth(Feed);
 
-import React from "react";
+import React, { Suspense } from "react";
 import TabSwitcher from "@/components/feed/TabSwitcher";
 import FeedMain from "@/components/feed/FeedMain";
 
@@ -49,7 +49,9 @@ const FeedPage = async () => {
             {/* <SearchSwopId /> */}
           </div>
         </div>
-        <FeedMain />
+        <Suspense fallback={<p>Loading...</p>}>
+          <FeedMain />
+        </Suspense>
       </div>
     </div>
   );

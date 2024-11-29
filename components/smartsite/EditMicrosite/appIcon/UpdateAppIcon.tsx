@@ -25,6 +25,7 @@ import { icon, newIcons } from "@/components/util/data/smartsiteIconData";
 import { isEmptyObject } from "@/components/util/checkIsEmptyObject";
 import AnimateButton from "@/components/ui/Button/AnimateButton";
 import toast from "react-hot-toast";
+import { AppIconMap } from "@/types/smallIcon";
 // import AnimateButton from "../Button/AnimateButton";
 
 const UpdateAppIcon = ({ iconDataObj, isOn, setOff }: any) => {
@@ -206,7 +207,7 @@ const UpdateAppIcon = ({ iconDataObj, isOn, setOff }: any) => {
     }
   };
 
-  const iconMap: AppIconMap = {
+  const iconMap: any = {
     Link: icon.SocialIconType,
     "Call To Action": icon.ChatlinkType,
   };

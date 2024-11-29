@@ -40,7 +40,7 @@ const Timeline = ({
   const isFetching = useRef(false);
   const [smartsiteId, setSmartsiteId] = useState("");
 
-  const { user, loading, error: userError } = useUser();
+  const { user, loading, error: userError }: any = useUser();
 
   // useEffect(() => {
   //   if (typeof window !== "undefined") {

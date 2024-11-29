@@ -4,9 +4,9 @@ import swop from "@/public/images/live-preview/swop.svg";
 import { BiSolidEdit } from "react-icons/bi";
 import useSmartsiteFormStore from "@/zustandStore/EditSmartsiteInfo";
 import isUrl from "@/lib/isUrl";
-import { fontMap } from "@/app/layout";
 // import { fontMap } from "../util/customFonts";
 import mockupBtn from "@/public/images/mockup-bottom-button.png";
+import { fontMap } from "@/lib/fonts";
 
 // import useUpdateSmartIcon from "@/zustandStore/UpdateSmartIcon";
 // import useSmallIconToggleStore from "@/zustandStore/SmallIconModalToggle";

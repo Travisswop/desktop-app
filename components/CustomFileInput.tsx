@@ -29,7 +29,7 @@ const CustomFileInput: React.FC<CustomFileInputProps> = ({
       <button
         onClick={handleButtonClick}
         type="button"
-        className="px-4 py-2 text-white border-2 rounded-full focus:outline-none text-xs font-medium flex items-center gap-x-1 bg-black"
+        className="px-4 py-2 text-white border-2 rounded-full focus:outline-none text-xs font-medium flex items-center gap-x-1 bg-black w-max"
       >
         <RiUploadCloud2Line className="size-3 text-white" />
         {title ? title : "Choose Image"}

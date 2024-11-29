@@ -39,7 +39,7 @@ const CommentContent = ({
   const commentObserverRef = useRef<HTMLDivElement>(null);
   const isCommentFetching = useRef(false);
 
-  const { user, loading, error: userError } = useUser();
+  const { user, loading, error: userError }: any = useUser();
 
   const MAX_LENGTH = 280;
 

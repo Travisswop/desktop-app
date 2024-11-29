@@ -8,19 +8,30 @@ interface StatCard {
   period: string;
 }
 
-const stats: StatCard[] = [
-  { title: 'Leads', value: 34, change: 24, period: '30 days' },
-  { title: 'Orders', value: 34, change: 3, period: '30 days' },
-  { title: 'Followers', value: 34, change: 24, period: '30 days' },
-  {
-    title: 'Swopple Point',
-    value: 34,
-    change: -24,
-    period: '30 days',
-  },
-];
+export default function SmartSiteAnalytics({
+  followers,
+  leads,
+}: {
+  followers: number;
+  leads: number;
+}) {
+  const stats: StatCard[] = [
+    { title: 'Leads', value: leads, change: 24, period: '30 days' },
+    { title: 'Orders', value: 34, change: 3, period: '30 days' },
+    {
+      title: 'Followers',
+      value: followers,
+      change: 24,
+      period: '30 days',
+    },
+    {
+      title: 'Swopple Point',
+      value: 34,
+      change: -24,
+      period: '30 days',
+    },
+  ];
 
-export default function SmartSiteAnalytics() {
   return (
     <div className="grid grid-cols-2 gap-4">
       {stats.map((stat, index) => (

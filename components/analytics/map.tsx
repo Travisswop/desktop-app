@@ -40,7 +40,11 @@ const ConnectionMap: React.FC<MapProps> = ({ locations }) => {
   }, []);
 
   if (!map) {
-    return <div>Loading...</div>;
+    return (
+      <div className="w-full h-full flex items-center justify-center">
+        Loading map...
+      </div>
+    );
   }
 
   return (
@@ -49,6 +53,7 @@ const ConnectionMap: React.FC<MapProps> = ({ locations }) => {
         googleMapsApiKey={
           process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY!
         }
+        onError={() => console.error('Error loading Google Maps API')}
       >
         <GoogleMap
           mapContainerStyle={containerStyle}

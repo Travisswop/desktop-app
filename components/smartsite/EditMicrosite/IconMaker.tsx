@@ -217,7 +217,7 @@ const IconMaker = ({ handleToggleIcon, toggleIcon }: any) => {
               </div>
               {toggleIcon.find((item: any) => item == data.title) ? (
                 <button
-                  onClick={() => handleRemoveIcon(data.title)}
+                  // onClick={() => handleRemoveIcon(data.title)}
                   className=""
                 >
                   <FaRegSquareMinus size={18} />

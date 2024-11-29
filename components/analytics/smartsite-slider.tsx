@@ -2,7 +2,7 @@
 
 import * as React from 'react';
 import Image from 'next/image';
-import { Card, CardContent } from '@/components/ui/card';
+import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import {
   Carousel,
@@ -11,8 +11,20 @@ import {
   CarouselNext,
   CarouselPrevious,
 } from '@/components/ui/carousel';
-import { CirclePlus, Edit, QrCode, Send, Wallet } from 'lucide-react';
-
+import {
+  CirclePlus,
+  Edit,
+  QrCode,
+  Send,
+  Settings,
+  Wallet,
+} from 'lucide-react';
+import Link from 'next/link';
+import isUrl from '@/lib/isUrl';
+import { useState } from 'react';
+import SmartSiteUrlShareModal from '../smartsite/socialShare/SmartsiteShareModal';
+import { useDisclosure } from '@nextui-org/react';
+import QRCodeShareModal from '../smartsite/socialShare/QRCodeShareModal';
 interface Lead {
   id: string;
   name: string;
@@ -22,55 +34,43 @@ interface Lead {
 }
 
 interface SmarsiteInfos {
-  id: string;
+  _id: string;
   name: string;
-  image: string;
-  background: string;
-  leads: Lead[];
+  profilePic: string;
+  backgroundImg: string;
+  bio: string;
+  profileUrl: string;
+  qrcodeUrl: string;
 }
 
-const leads: Lead[] = [
-  {
-    id: '1',
-    name: 'Jakob Rhiel Madsen',
-    title: 'Marketing Officer',
-    phone: '(336567-6403)',
-    email: 'jakobrhiel@gmail.com',
-  },
-  {
-    id: '2',
-    name: 'Jakob Rhiel Madsen',
-    title: 'Marketing Officer',
-    phone: '(336567-6403)',
-    email: 'jakobrhiel@gmail.com',
-  },
-  {
-    id: '3',
-    name: 'Jakob Rhiel Madsen',
-    title: 'Marketing Officer',
-    phone: '(336567-6403)',
-    email: 'jakobrhiel@gmail.com',
-  },
-];
+export default function SmartSiteSlider({
+  microsites,
+}: {
+  microsites: SmarsiteInfos[];
+}) {
+  const { isOpen, onOpen, onOpenChange } = useDisclosure();
+  const {
+    isOpen: isSmartsiteOpen,
+    onOpen: onSmartsiteOpen,
+    onOpenChange: onSmartsiteOpenChange,
+  } = useDisclosure();
 
-const smarSiteInfos: SmarsiteInfos[] = [
-  {
-    id: 'travis',
-    name: 'Travis Herron',
-    image: '/assets/images/avatar.png',
-    background: '/assets/images/cover-photo/1.png',
-    leads: leads,
-  },
-  {
-    id: 'rakib',
-    name: 'Rakibul Islam',
-    image: '/assets/images/sadit.png',
-    background: '/assets/images/cover-photo/2.png',
-    leads: leads,
-  },
-];
+  const [smartSiteProfileUrl, setSmartSiteProfileUrl] =
+    useState<any>(null);
+  const [qrCode, setQrCode] = useState<any>(null);
 
-export default function SmartSiteSlider() {
+  const handleShareMicrosite = (smartsiteUrl: string) => {
+    onSmartsiteOpen();
+    setQrCode(null);
+    setSmartSiteProfileUrl(smartsiteUrl);
+  };
+
+  const handleShareQrCode = (qrCode: string) => {
+    onOpen();
+    setSmartSiteProfileUrl(null);
+    setQrCode(qrCode);
+  };
+
   return (
     <div>
       <Carousel
@@ -80,23 +80,45 @@ export default function SmartSiteSlider() {
         }}
       >
         <CarouselContent>
-          {smarSiteInfos.map((item) => (
-            <CarouselItem key={item.id}>
+          {microsites.map((item) => (
+            <CarouselItem key={item._id}>
               <Card className="bg-white border-0">
+                <CardHeader>
+                  <div className="flex justify-between items-center">
+                    <h2 className="text-lg font-semibold">
+                      Smartsites
+                    </h2>
+                    <Link
+                      href={`/smartsites/icons/${item._id}`}
+                      className="flex items-center"
+                    >
+                      <Settings className="h-4 w-4 mr-2" />
+                      Manage Sites
+                    </Link>
+                  </div>
+                </CardHeader>
                 <CardContent className="p-6">
                   <div className="bg-white  shadow-xl rounded-2xl ">
                     <div className="relative p-6">
                       <Image
-                        src={`${item.background}?height=180&width=400`}
-                        alt="Mountain background"
+                        src={`${
+                          isUrl(item.backgroundImg)
+                            ? item.backgroundImg
+                            : `/images/smartsite-background/${item.backgroundImg}.png`
+                        }?height=180&width=400`}
+                        alt={item.name}
                         width={400}
                         height={180}
                         className="w-full h-[180px]  rounded-xl border-white border-4 shadow-xl"
                       />
                       <div className="absolute -bottom-8 left-1/2 -translate-x-1/2">
                         <Image
-                          src={`${item.image}?height=120&width=120`}
-                          alt="Profile"
+                          src={`${
+                            isUrl(item.profilePic)
+                              ? item.profilePic
+                              : `/images/user_avator/${item.profilePic}.png`
+                          }?height=120&width=120`}
+                          alt={item.name}
                           width={120}
                           height={120}
                           className="rounded-full border-4 border-white"
@@ -105,23 +127,31 @@ export default function SmartSiteSlider() {
                     </div>
 
                     <div className="pt-10 px-4 pb-4 text-center">
-                      <h3 className="font-semibold">Travis Herron</h3>
+                      <h3 className="font-semibold">{item.name}</h3>
                       <p className="text-sm text-muted-foreground">
-                        Founder & CEO at SWOP
+                        {item.bio}
                       </p>
 
                       <div className="flex justify-center gap-2 my-4">
-                        <Button
-                          variant="black"
-                          size="icon"
-                          className="rounded-xl"
+                        <Link
+                          href={`/smartsites/qr-code/${item._id}`}
                         >
-                          <Edit />
-                        </Button>
+                          <Button
+                            variant="black"
+                            size="icon"
+                            className="rounded-xl"
+                          >
+                            <Edit />
+                          </Button>
+                        </Link>
+
                         <Button
                           variant="black"
                           size="icon"
                           className="rounded-xl"
+                          onClick={() =>
+                            handleShareMicrosite(item.profileUrl)
+                          }
                         >
                           <Send />
                         </Button>
@@ -129,6 +159,9 @@ export default function SmartSiteSlider() {
                           variant="black"
                           size="icon"
                           className="rounded-xl"
+                          onClick={() =>
+                            handleShareQrCode(item.qrcodeUrl)
+                          }
                         >
                           <QrCode />
                         </Button>
@@ -144,7 +177,7 @@ export default function SmartSiteSlider() {
                   </div>
                   <div className="mt-8 flex justify-center">
                     <Image
-                      src="/assets/images/qrcode.png"
+                      src={item.qrcodeUrl}
                       alt="Qr code"
                       height={120}
                       width={120}
@@ -152,13 +185,15 @@ export default function SmartSiteSlider() {
                     />
                   </div>
                   <div className="flex justify-center mt-8">
-                    <Button
-                      variant="black"
-                      className="gap-2 font-bold"
-                    >
-                      <CirclePlus className="h-6 w-6" />
-                      Create Microsite
-                    </Button>
+                    <Link href="/smartsites/create-smartsite">
+                      <Button
+                        variant="black"
+                        className="gap-2 font-bold"
+                      >
+                        <CirclePlus className="h-6 w-6" />
+                        Create Microsite
+                      </Button>
+                    </Link>
                   </div>
                 </CardContent>
               </Card>
@@ -168,6 +203,23 @@ export default function SmartSiteSlider() {
         <CarouselPrevious className="absolute left-0 -translate-x-1/2" />
         <CarouselNext className="absolute right-0 translate-x-1/2" />
       </Carousel>
+
+      {/* Qrcode Modal */}
+      {qrCode && (
+        <QRCodeShareModal
+          isOpen={isOpen}
+          onOpenChange={onOpenChange}
+          qrCode={qrCode}
+        />
+      )}
+      {/* Share Modal */}
+      {smartSiteProfileUrl && (
+        <SmartSiteUrlShareModal
+          isOpen={isSmartsiteOpen}
+          onOpenChange={onSmartsiteOpenChange}
+          smartSiteProfileUrl={smartSiteProfileUrl}
+        />
+      )}
     </div>
   );
 }
