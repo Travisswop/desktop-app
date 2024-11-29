@@ -1,4 +1,4 @@
-"use client";
+'use client';
 // import { withAuth } from "@/lib/withAuth";
 // import { usePrivy } from "@privy-io/react-auth";
 // import React, { useEffect } from "react";
@@ -33,9 +33,9 @@
 
 // export default withAuth(Feed);
 
-import React, { Suspense } from "react";
-import TabSwitcher from "@/components/feed/TabSwitcher";
-import FeedMain from "@/components/feed/FeedMain";
+import React, { Suspense } from 'react';
+import TabSwitcher from '@/components/feed/TabSwitcher';
+import FeedMain from '@/components/feed/FeedMain';
 
 const FeedPage = () => {
   return (
@@ -44,7 +44,10 @@ const FeedPage = () => {
         <div className="pb-6 border-b border-gray-200">
           <div className="flex items-center justify-between px-6 pt-6 sticky top-10 z-10">
             {/* tab switcher */}
-            <TabSwitcher />
+            <Suspense fallback={<p>Loading...</p>}>
+              <TabSwitcher />
+            </Suspense>
+
             {/* search with swop id */}
             {/* <SearchSwopId /> */}
           </div>
