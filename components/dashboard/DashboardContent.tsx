@@ -21,10 +21,10 @@ export default function DashboardContent() {
     <div className="">
       <ProfileHeader
         name={user?.name || 'Your Name'}
-        username={'Travis.Swop.ID'}
+        username={user?.ensName || 'Swop.ID'}
         location={user?.address || ''}
-        followers={user?.connections.followers.length || 0}
-        following={user?.connections.following.length || 0}
+        followers={user?.followers || 0}
+        following={user?.following || 0}
         messages={0}
         orders={40}
         points={31234}
@@ -33,7 +33,7 @@ export default function DashboardContent() {
 
       <CashflowChart />
 
-      <DashboardAnalytics />
+      <DashboardAnalytics data={user} />
     </div>
   );
 }

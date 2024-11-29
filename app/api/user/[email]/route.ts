@@ -5,6 +5,9 @@ export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ email: string }> }
 ) {
+  const accessToken = request.cookies.get('access-token')?.value;
+  console.log('🚀 ~ accessToken:', accessToken);
+
   try {
     const email = (await params).email;
 
