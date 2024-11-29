@@ -1,29 +1,50 @@
+'use client';
+
 import { getTemplateDetails } from "@/utils/fetchingData/getTemplateDetails";
 import MintDetails from "@/components/MintDetails";
+import { useUser } from '@/lib/UserContext';
+import { useEffect, useState } from "react";
 
-// This is a server component
-export default async function TemplateDetailsPage({
+export default function TemplateDetailsPage({
   params,
 }: {
-  params: Promise<{ collectionId: string; templateId: string }>;
+  params: { collectionId: string; templateId: string };
 }) {
-  // Await the params object
-  const { collectionId, templateId } = await params;
+  const { collectionId, templateId } = params;
+  const { accessToken } = useUser(); // Access context value
+  const [templateDetails, setTemplateDetails] = useState(null);
+  const [error, setError] = useState<string | null>(null);
 
-  // Use a demo access token directly
-  const accessToken = "your_demo_access_token_here";
+  useEffect(() => {
+    if (!accessToken) {
+      setError("Access token is required to fetch template details.");
+      return;
+    }
 
-  // Fetch the template details using the access token
-  const templateDetails = await getTemplateDetails(
-    collectionId,
-    templateId,
-    accessToken
-  );
+    const fetchDetails = async () => {
+      try {
+        const details = await getTemplateDetails(
+          collectionId,
+          templateId,
+          accessToken
+        );
+        setTemplateDetails(details);
+      } catch (err) {
+        console.error("Error fetching template details:", err);
+        setError("Error fetching template details.");
+      }
+    };
 
-  if (!templateDetails) {
-    return <div>Error loading template details</div>;
+    fetchDetails();
+  }, [collectionId, templateId, accessToken]);
+
+  if (error) {
+    return <div>{error}</div>;
   }
 
-  // Pass the fetched data as props to the client component
+  if (!templateDetails) {
+    return <div>Loading template details...</div>;
+  }
+
   return <MintDetails templateDetails={templateDetails} />;
 }
