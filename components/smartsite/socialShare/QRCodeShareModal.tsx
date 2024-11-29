@@ -13,7 +13,8 @@ import {
   FacebookIcon,
   WhatsappIcon,
 } from "react-share";
-import { sendCloudinaryImage } from "@/util/SendCloudineryImage";
+import { sendCloudinaryImage } from "@/lib/SendCloudineryImage";
+// import { sendCloudinaryImage } from "@/util/SendCloudineryImage";
 
 export default function QRCodeShareModal({
   isOpen,

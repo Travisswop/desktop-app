@@ -1,13 +1,16 @@
-// import UpdateQRCode from '@/components/CustomQRCode/UpdateQrCode';
-// import ForceSignOut from '@/components/ForceSignOut';
-// import isUserAuthenticate from '@/util/isUserAuthenticate';
 import UpdateQRCode from "@/components/smartsite/qrCode/CustomQRCode/UpdateQrCode";
+import { cookies } from "next/headers";
 import React from "react";
 
 const UpdateQrCodePage = async ({ params }: { params: { id: string } }) => {
+  const cookieStore = cookies();
+
+  // Retrieve data from specific cookie
+  const accessToken = (await cookieStore).get("access-token")?.value;
+  const userId = (await cookieStore).get("user-id")?.value;
   const session = {
-    _id: 123,
-    accessToken: "rrrrr",
+    _id: userId,
+    accessToken,
   };
 
   const response = await fetch(

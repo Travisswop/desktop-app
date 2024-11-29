@@ -621,7 +621,6 @@ const UpdateQRCode = ({ session, data }: any) => {
             </div>
 
             {/* Choose Frame */}
-
             <div className="">
               <p className="heading-4 mb-2">Choose Frame:</p>
               <div className="flex items-center gap-3">
@@ -668,7 +667,10 @@ const UpdateQRCode = ({ session, data }: any) => {
                   />
 
                   {/* CustomFileInput component at the end */}
-                  <CustomFileInput handleFileChange={handleFileChange} />
+                  <CustomFileInput
+                    title="Upload"
+                    handleFileChange={handleFileChange}
+                  />
                 </div>
 
                 {/* {fileError && (
