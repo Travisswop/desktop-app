@@ -1,20 +1,28 @@
-import type { NextConfig } from "next";
+import type { NextConfig } from 'next';
 
 const nextConfig: NextConfig = {
-  /* config options here */
+  reactStrictMode: true,
+  typescript: {
+    ignoreBuildErrors:
+      process.env.NEXT_PUBLIC_IGNORE_BUILD_ERROR === 'true',
+  },
+  eslint: {
+    ignoreDuringBuilds:
+      process.env.NEXT_PUBLIC_IGNORE_BUILD_ERROR === 'true',
+  },
   images: {
     remotePatterns: [
       {
-        protocol: "https", // Allow any protocol
-        hostname: "*", // Allow any hostname
+        protocol: 'https', // Allow any protocol
+        hostname: '*', // Allow any hostname
       },
       {
-        protocol: "http", // Allow any protocol
-        hostname: "*", // Allow any hostname
+        protocol: 'http', // Allow any protocol
+        hostname: '*', // Allow any hostname
       },
       {
-        protocol: "https",
-        hostname: "res.cloudinary.com",
+        protocol: 'https',
+        hostname: 'res.cloudinary.com',
       },
     ],
     domains: [
