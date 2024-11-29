@@ -14,11 +14,12 @@ import {
 import { Phone, Mail } from 'lucide-react';
 
 interface Lead {
-  id: string;
+  _id: string;
   name: string;
-  title: string;
-  phone: string;
+  micrositeId: string;
+  jobTitle: string;
   email: string;
+  mobileNo: string;
 }
 
 interface SmarsiteLeads {
@@ -27,44 +28,13 @@ interface SmarsiteLeads {
   leads: Lead[];
 }
 
-const leads: Lead[] = [
-  {
-    id: '1',
-    name: 'Jakob Rhiel Madsen',
-    title: 'Marketing Officer',
-    phone: '(336567-6403)',
-    email: 'jakobrhiel@gmail.com',
-  },
-  {
-    id: '2',
-    name: 'Jakob Rhiel Madsen',
-    title: 'Marketing Officer',
-    phone: '(336567-6403)',
-    email: 'jakobrhiel@gmail.com',
-  },
-  {
-    id: '3',
-    name: 'Jakob Rhiel Madsen',
-    title: 'Marketing Officer',
-    phone: '(336567-6403)',
-    email: 'jakobrhiel@gmail.com',
-  },
-];
-
-const smarSiteLeads: SmarsiteLeads[] = [
-  {
-    id: 'travis',
-    name: 'Travis Herron',
-    leads: leads,
-  },
-  {
-    id: 'rakib',
-    name: 'Rakibul Islam',
-    leads: leads,
-  },
-];
-
-export default function RecentLeadsSlider() {
+export default function RecentLeadsSlider({
+  leads,
+  microsites,
+}: {
+  leads: any[];
+  microsites: any[];
+}) {
   const [api, setApi] = React.useState<CarouselApi>();
   const [current, setCurrent] = React.useState(0);
   const [count, setCount] = React.useState(0);
@@ -82,6 +52,18 @@ export default function RecentLeadsSlider() {
     });
   }, [api]);
 
+  const formattedLeads = React.useMemo(() => {
+    if (!microsites || !leads) return [];
+
+    return microsites.map((microsite) => ({
+      id: microsite._id,
+      name: microsite.name,
+      leads: leads.filter(
+        (lead) => lead.micrositeId === microsite._id
+      ),
+    }));
+  }, [microsites, leads]);
+
   return (
     <div>
       <Carousel
@@ -92,7 +74,7 @@ export default function RecentLeadsSlider() {
         }}
       >
         <CarouselContent>
-          {smarSiteLeads.map((lead) => (
+          {formattedLeads.map((lead) => (
             <CarouselItem key={lead.id}>
               <Card>
                 <CardContent className="p-6">
@@ -101,8 +83,8 @@ export default function RecentLeadsSlider() {
                       {lead.name}
                     </h3>
                   </div>
-                  {lead.leads.map((item) => (
-                    <div key={item.id} className="border-t py-4">
+                  {lead.leads.map((item: Lead) => (
+                    <div key={item._id} className="border-t py-4">
                       <div className="flex justify-between items-center">
                         <div className="space-y-3">
                           <div>
@@ -110,13 +92,13 @@ export default function RecentLeadsSlider() {
                               {item.name}
                             </h4>
                             <p className="text-muted-foreground">
-                              {item.title}
+                              {item.jobTitle}
                             </p>
                           </div>
                           <div className="space-y-2">
                             <div className="flex items-center gap-2 text-muted-foreground">
                               <Phone className="h-4 w-4" />
-                              <span>{item.phone}</span>
+                              <span>{item.mobileNo}</span>
                             </div>
                             <div className="flex items-center gap-2 text-muted-foreground">
                               <Mail className="h-4 w-4" />

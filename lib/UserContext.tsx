@@ -9,17 +9,24 @@ import {
 } from 'react';
 import { useAuth } from './hooks/useAuth';
 
-interface UserData {
+export interface UserData {
   _id: string;
-  email: string;
-  name: string;
-  mobileNo?: string;
-  profilePic?: string;
   address?: string;
-  connections: {
-    followers: string[];
-    following: string[];
-  };
+  apt?: string;
+  bio?: string;
+  countryCode?: string;
+  countryFlag?: string;
+  dob?: string;
+  email: string;
+  isPremiumUser?: boolean;
+  mobileNo?: string;
+  name: string;
+  profilePic?: string;
+  microsites?: any[];
+  subscribers: any[];
+  followers: number;
+  following: number;
+  ensName?: string;
 }
 
 interface UserContextType {
@@ -69,6 +76,8 @@ export function UserProvider({
       const { user, token } = await response.json();
       setUser(user);
       setAccessToken(token);
+      document.cookie = `access-token=${token}; path=/; secure; samesite=strict`;
+      document.cookie = `user-id=${user._id}; path=/; secure; samesite=strict`;
       setError(null);
     } catch (err) {
       console.error('Error fetching user data:', err);
