@@ -4,21 +4,21 @@ import { usePrivy, useSolanaWallets } from "@privy-io/react-auth";
 import PushToMintCollectionButton from "@/components/Button/PushToMintCollectionButton";
 import Image from "next/image";
 import { sendCloudinaryImage } from "@/lib/SendCloudineryImage";
+import { useUser } from "@/lib/UserContext";
 
 
 const CreateCollectionPage = () => {
   const [newBenefit, setNewBenefit] = useState("");
   const [selectedImageName, setSelectedImageName] = useState<string | null>(null);
-  const [accessToken, setAccessToken] = useState("");
+  const [waitForToken, setWaitForToken] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submissionError, setSubmissionError] = useState<string | null>(null);
   const [imageUploading, setImageUploading] = useState(false);
-
-
-
+  const { accessToken } = useUser();
 
   const { ready, authenticated } = usePrivy();
   const { wallets } = useSolanaWallets();
+  let solanaAddress = "";
 
   const [formData, setFormData] = useState({
     name: "",
@@ -36,7 +36,7 @@ const CreateCollectionPage = () => {
       wallets.length > 0 &&
       formData.recipientAddress !== wallets[0].address
     ) {
-      const solanaAddress = wallets[0].address;
+      solanaAddress = wallets[0].address;
       setFormData((prevState) => ({
         ...prevState,
         recipientAddress: solanaAddress,
@@ -45,8 +45,11 @@ const CreateCollectionPage = () => {
   }, [ready, authenticated, wallets, formData.recipientAddress]);
   
   useEffect(() => {
-    const token = "your_access_token_here";
-    setAccessToken(token);
+    const timeoutId = setTimeout(() => {
+      setWaitForToken(false);
+    }, 30000); // Wait for 30 seconds
+  
+    return () => clearTimeout(timeoutId); // Cleanup timeout
   }, []);
 
   const handleChange = (
@@ -140,6 +143,27 @@ const CreateCollectionPage = () => {
     e.preventDefault();
     setIsSubmitting(true);
     setSubmissionError(null);
+
+    if (!accessToken && !waitForToken) {
+      alert("Access token is required. Please log in again.");
+      return;
+    }
+
+    if (!accessToken && waitForToken) {
+      alert("Waiting for access token. Please try again shortly.");
+      return;
+    }
+    
+    if (!accessToken) {
+      alert("Access token is required. Please log in again.");
+      return;
+    }    
+      
+    if (!solanaAddress) {
+      alert("No Solana wallet connected. Please connect your wallet.");
+      return;
+    }      
+
 
     const payload = {
       chain: "solana",
