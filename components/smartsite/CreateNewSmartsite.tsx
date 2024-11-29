@@ -40,7 +40,7 @@ const CreateSmartSite = ({ token }: { token: string }) => {
   console.log("user", user);
   console.log("formData", formData);
 
-  const { refetch } = useDesktopUserData(user?._id);
+  const { refetch } = useDesktopUserData(user?._id, token);
 
   const [selectedImage, setSelectedImage] = useState(null); // get user avator image
   const [galleryImage, setGalleryImage] = useState(null); // get upload image base64 data
@@ -400,7 +400,7 @@ const CreateSmartSite = ({ token }: { token: string }) => {
               <Select
                 variant="bordered"
                 selectedKeys={[formData.fontType]}
-                onChange={(e) => setFormData("fontType", e.target.value)}
+                onChange={(e) => setFormData("fontType", e.target.value as any)}
                 label={
                   <span className="text-gray-600 font-medium">Select Font</span>
                 }
