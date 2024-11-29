@@ -48,7 +48,7 @@ const QrCodePage = async () => {
     // };
 
     return (
-      <div className="main-container">
+      <div className="main-container pb-6">
         <div className="flex items-center justify-between mb-4">
           <p className="text-gray-700 font-semibold text-lg ">QR Codes</p>
           {/* <div className="flex gap-3 items-center justify-between">
@@ -110,19 +110,21 @@ const QrCodePage = async () => {
             )}
           </tbody>
         </table>
-        <div className="flex justify-center pt-10">
-          {data.data.length === 0 && (
+        {data.data.length === 0 && (
+          <div className="flex justify-center pt-10">
             <p className="font-medium mb-6 text-gray-600">
               No QR Code Available!
             </p>
-          )}
+          </div>
+        )}
+        <div className="mt-4">
+          <Link href={"/qr-code/create"}>
+            <DynamicPrimaryBtn className="!px-10 mx-auto gap-2">
+              <IoQrCodeSharp />
+              Create QR Code
+            </DynamicPrimaryBtn>
+          </Link>
         </div>
-        <Link href={"/qr-code/create"}>
-          <DynamicPrimaryBtn className="!px-10 mx-auto gap-2">
-            <IoQrCodeSharp />
-            Create QR Code
-          </DynamicPrimaryBtn>
-        </Link>
       </div>
     );
   }

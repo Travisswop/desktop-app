@@ -1,7 +1,6 @@
-'use client';
+"use client";
 
-import Link from 'next/link';
-
+import Link from "next/link";
 import {
   QrCode,
   Wallet,
@@ -12,25 +11,26 @@ import {
   LayoutDashboard,
   Newspaper,
   LayoutGrid,
-} from 'lucide-react';
-import { Button } from './ui/button';
-import { usePathname } from 'next/navigation';
-import { cn } from '@/lib/utils';
+} from "lucide-react";
+import { Button } from "./ui/button";
+import { usePathname } from "next/navigation";
+import { cn } from "@/lib/utils";
 
 const navItems = [
-  { href: '/', label: 'Dashboard', icon: LayoutDashboard },
-  { href: '/feed', label: 'Feed', icon: Newspaper },
-  { href: '/smartsite', label: 'Smartsites', icon: LayoutGrid },
-  { href: '/qrcode', label: 'QR Code', icon: QrCode },
-  { href: '/wallet', label: 'Wallet', icon: Wallet },
-  { href: '/analytics', label: 'Analytics', icon: BarChart2 },
-  { href: '/mint', label: 'Mint', icon: ImageIcon },
-  { href: '/order', label: 'Orders', icon: ShoppingBag },
-  { href: '/content', label: 'Content', icon: FileText },
+  { href: "/", label: "Dashboard", icon: LayoutDashboard },
+  { href: "/feed", label: "Feed", icon: Newspaper },
+  { href: "/smartsite", label: "Smartsites", icon: LayoutGrid },
+  { href: "/qr-code", label: "QR Code", icon: QrCode },
+  { href: "/wallet", label: "Wallet", icon: Wallet },
+  { href: "/analytics", label: "Analytics", icon: BarChart2 },
+  { href: "/mint", label: "Mint", icon: ImageIcon },
+  { href: "/order", label: "Orders", icon: ShoppingBag },
+  { href: "/content", label: "Content", icon: FileText },
 ];
 
 export default function Sidenav() {
   const pathname = usePathname();
+
   return (
     <aside className="fixed left-0 top-0 z-40 h-screen w-64 border-r bg-white">
       <div className="flex h-full flex-col">
@@ -46,15 +46,20 @@ export default function Sidenav() {
           <ul className="flex-1 px-2 py-2 space-y-1">
             {navItems.map((item) => {
               const Icon = item.icon;
+
+              // Check if pathname starts with item's href
+              const isActive =
+                pathname === item.href || pathname.startsWith(item.href + "/");
+
               return (
                 <li key={item.href}>
                   <Link
                     href={item.href}
                     className={cn(
-                      'flex items-center gap-3 rounded-lg px-3 py-2 text-gray-500 hover:bg-gray-100',
-                      pathname === item.href
-                        ? 'bg-fuchsia-800/10 text-purple-600'
-                        : 'text-muted-foreground'
+                      "flex items-center gap-3 rounded-lg px-3 py-2 text-gray-500 hover:bg-gray-100",
+                      isActive
+                        ? "bg-fuchsia-800/10 text-purple-600"
+                        : "text-muted-foreground"
                     )}
                   >
                     <Icon className="h-4 w-4" />
