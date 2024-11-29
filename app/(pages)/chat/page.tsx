@@ -2,7 +2,7 @@
 import useXmtp from '@/lib/hooks/useXmtp';
 import { BookUser, Loader, Search, Wallet } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
-import ChatBox from '@/components/wallet/chat/chat-box';
+import dynamic from 'next/dynamic';
 import {
   Avatar,
   AvatarFallback,
@@ -11,8 +11,22 @@ import {
 import Link from 'next/link';
 import { WalletItem } from '@/types/wallet';
 import { usePrivy } from '@privy-io/react-auth';
-import WalletManager from '@/components/wallet/wallet-manager';
 import { Button } from '@/components/ui/button';
+
+// Dynamically import components that use wasm
+const ChatBox = dynamic(
+  () => import('@/components/wallet/chat/chat-box'),
+  {
+    ssr: false,
+  }
+);
+
+const WalletManager = dynamic(
+  () => import('@/components/wallet/wallet-manager'),
+  {
+    ssr: false,
+  }
+);
 
 interface MessageProps {
   bio?: string;
