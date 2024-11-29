@@ -63,7 +63,7 @@ const Reaction = ({
     }
   };
 
-  const { user, loading, error: userError } = useUser();
+  const { user, loading, error: userError }: any = useUser();
 
   useEffect(() => {
     if (user) {

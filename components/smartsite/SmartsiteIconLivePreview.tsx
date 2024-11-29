@@ -25,7 +25,6 @@ import { tintStyle } from "../util/IconTintStyle";
 import getSmallIconImage from "./retriveIconImage/getSmallIconImage";
 import EmbedPlayer from "./embed/renderEmbedPlayer";
 import getAllSmartsitesIcon from "./retriveIconImage/getAllSmartsiteIcon";
-import { fontMap } from "@/app/layout";
 import mockupBtn from "@/public/images/mockup-bottom-button.png";
 import DynamicPrimaryBtn from "../ui/Button/DynamicPrimaryBtn";
 import { LiaFileMedicalSolid } from "react-icons/lia";
@@ -37,6 +36,7 @@ import { useRouter } from "next/navigation";
 import toast from "react-hot-toast";
 import AnimateButton from "../ui/Button/AnimateButton";
 import SmartsiteSocialShare from "./socialShare/SmartsiteSocialShare";
+import { fontMap } from "@/lib/fonts";
 
 const SmartsiteIconLivePreview = ({
   isEditDetailsLivePreview = false,

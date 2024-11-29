@@ -53,7 +53,10 @@ import { MdDone } from "react-icons/md";
 const EditSmartSite = ({ data, token }: any) => {
   const [selectedImage, setSelectedImage] = useState(null); // get user avator image
 
-  const { refetch } = useDesktopUserData(data?.data?.parentId);
+  const demoShowToken =
+    "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJfaWQiOiI2NjM4NjMyMDIzMDQxMDMyODAyOTk4MmIiLCJpYXQiOjE3MjcxNTI4MzB9.CsHnZAgUzsfkc_g_CZZyQMXc02Ko_LhnQcCVpeCwroY";
+
+  const { refetch } = useDesktopUserData(data?.data?.parentId, demoShowToken);
 
   console.log("hola data", data);
 

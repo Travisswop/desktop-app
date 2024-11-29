@@ -714,7 +714,7 @@ const CreateQRCode = ({ session }: any) => {
                 ) : (
                   <Image
                     src={
-                      "https://res.cloudinary.com/bayshore/image/upload/v1725968507/qr-logo_mwasoz_imt0ql.png"
+                      "https://res.cloudinary.com/bayshore/image/upload/v1732872687/swop-logo_n9qal7.jpg"
                     }
                     quality={100}
                     alt="logo"

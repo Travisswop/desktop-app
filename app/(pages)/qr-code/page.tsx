@@ -2,6 +2,7 @@
 // import { deleteQrCode } from "@/actions/customQrCode";
 // import DynamicPrimaryBtn from "@/components/Button/DynamicPrimaryBtn";
 // import DeleteQRCode from "@/components/DeleteQRCode";
+import QrCodeLists from "@/components/QrCodeLists";
 import DeleteQRCode from "@/components/smartsite/qrCode/DeleteQRCode";
 import ShareCustomQRCode from "@/components/smartsite/socialShare/ShareCustomQRCode";
 // import ShareCustomQRCode from "@/components/ShareModal/ShareCustomQRCode";
@@ -47,7 +48,7 @@ const QrCodePage = async () => {
     // };
 
     return (
-      <div className="main-container">
+      <div className="main-container pb-6">
         <div className="flex items-center justify-between mb-4">
           <p className="text-gray-700 font-semibold text-lg ">QR Codes</p>
           {/* <div className="flex gap-3 items-center justify-between">
@@ -97,95 +98,33 @@ const QrCodePage = async () => {
                   />
                 </div>
               </th> */}
-              <th className="text-gray-500 w-[20%] text-start pb-1">Type</th>
+              <th className="text-gray-500 w-[20%] text-start pb-1">Scans</th>
               {/* <th className="text-gray-500 w-[20%] text-start pb-1">Url</th> */}
-              <th className="text-gray-500 w-[20%] text-start pb-1">
-                Created At
-              </th>
+              <th className="text-gray-500 w-[20%] text-start pb-1">Created</th>
               <th className="text-gray-500 w-[20%] text-start pb-1">Action</th>
             </tr>
           </thead>
           <tbody>
             {data.data.length > 0 && (
-              <>
-                {data.data.map((item: any) => (
-                  <tr
-                    key={item._id}
-                    className="w-[100%] bg-white mb-6 border-b"
-                  >
-                    <td className="flex items-center gap-3 w-[50%] py-3 pl-4">
-                      {/* <Checkbox size="sm"></Checkbox> */}
-                      <Image
-                        alt="qrcode"
-                        src={item.qrCodeUrl}
-                        width={300}
-                        height={300}
-                        className="rounded-lg w-16 h-16 border-2 border-gray-400"
-                      />
-                      <div className="flex items-center gap-4">
-                        <div>
-                          <p className="font-medium mb-1 text-gray-700">
-                            {item.name}
-                          </p>
-                          <p className="text-xs text-gray-500">{item.data}</p>
-                        </div>
-                      </div>
-                    </td>
-                    <td className="w-[20%] text-gray-600 font-semibold pr-2">
-                      Static
-                    </td>
-                    {/* <td className="w-[20%] text-gray-600 font-semibold pr-2">
-                      <a
-                        href={item.data}
-                        target="_blank"
-                        className="hover:underline underline-offset-4"
-                      >
-                        {item.data}
-                      </a>
-                    </td> */}
-                    <td className="w-[20%] text-gray-600 font-semibold">
-                      {getFormattedDate(item.createdAt)}
-                    </td>
-                    <td className="w-[20%]">
-                      <div className="flex items-center gap-1">
-                        <Link className="" href={`/qr-code/${item._id}`}>
-                          <div className="bg-gray-200 w-9 h-9 rounded-lg hover:bg-gray-300 flex items-center justify-center">
-                            <TbEdit size={18} />
-                          </div>
-                        </Link>
-                        {accessToken && (
-                          <DeleteQRCode id={item._id} token={accessToken} />
-                        )}
-                        <ShareCustomQRCode url={item.qrCodeUrl} />
-                        {/* <TestShare qrCodeUrl={item.qrCodeUrl} /> */}
-                        <a
-                          href={item.qrCodeUrl}
-                          download="qrcode.png"
-                          className="bg-gray-200 hover:bg-gray-300 w-9 h-9 flex items-center justify-center rounded-lg"
-                        >
-                          <FiDownload color="black" size={18} />
-                        </a>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </>
+              <QrCodeLists data={data?.data} accessToken={accessToken} />
             )}
           </tbody>
         </table>
-        <div className="flex justify-center pt-10">
-          {data.data.length === 0 && (
+        {data.data.length === 0 && (
+          <div className="flex justify-center pt-10">
             <p className="font-medium mb-6 text-gray-600">
               No QR Code Available!
             </p>
-          )}
+          </div>
+        )}
+        <div className="mt-4">
+          <Link href={"/qr-code/create"}>
+            <DynamicPrimaryBtn className="!px-10 mx-auto gap-2">
+              <IoQrCodeSharp />
+              Create QR Code
+            </DynamicPrimaryBtn>
+          </Link>
         </div>
-        <Link href={"/qr-code/create"}>
-          <DynamicPrimaryBtn className="!px-10 mx-auto gap-2">
-            <IoQrCodeSharp />
-            Create QR Code
-          </DynamicPrimaryBtn>
-        </Link>
       </div>
     );
   }
