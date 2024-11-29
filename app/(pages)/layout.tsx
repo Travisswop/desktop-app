@@ -1,7 +1,6 @@
-"use client";
-import Header from "@/components/Header";
-import Sidenav from "@/components/Sidenav";
-// import { withAuth } from '@/lib/withAuth';
+'use client';
+import Header from '@/components/Header';
+import Sidenav from '@/components/Sidenav';
 
 const PageLayout = ({ children }: { children: React.ReactNode }) => {
   return (
@@ -17,5 +16,4 @@ const PageLayout = ({ children }: { children: React.ReactNode }) => {
   );
 };
 
-// export default withAuth(PageLayout);
 export default PageLayout;

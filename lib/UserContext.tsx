@@ -1,4 +1,4 @@
-"use client";
+'use client';
 
 import {
   createContext,
@@ -10,6 +10,7 @@ import {
 import { useAuth } from './hooks/useAuth';
 
 interface UserData {
+  _id: string;
   email: string;
   name: string;
   mobileNo?: string;
@@ -23,6 +24,7 @@ interface UserData {
 
 interface UserContextType {
   user: UserData | null;
+  accessToken: string | null;
   loading: boolean;
   error: Error | null;
   refreshUser: () => Promise<void>;
@@ -31,18 +33,12 @@ interface UserContextType {
 
 const UserContext = createContext<UserContextType>({
   user: null,
+  accessToken: null,
   loading: true,
   error: null,
   refreshUser: async () => {},
   clearCache: () => {},
 });
-
-// Create a cache to store user data
-const userCache = new Map<
-  string,
-  { data: UserData; timestamp: number }
->();
-const CACHE_DURATION = 120 * 60 * 1000; // 120 minutes
 
 export function UserProvider({
   children,
@@ -51,44 +47,34 @@ export function UserProvider({
 }) {
   const { user: privyUser, ready } = useAuth();
   const [user, setUser] = useState<UserData | null>(null);
+  const [accessToken, setAccessToken] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
 
   const email =
     privyUser?.google?.email ||
     privyUser?.email?.address ||
-    privyUser?.linkedAccounts.find((account) => account.type === "email")
-      ?.address ||
-    privyUser?.linkedAccounts.find((account) => account.type === "google_oauth")
-      ?.email;
+    privyUser?.linkedAccounts.find(
+      (account) => account.type === 'email'
+    )?.address ||
+    privyUser?.linkedAccounts.find(
+      (account) => account.type === 'google_oauth'
+    )?.email;
 
-  const fetchUserData = useCallback(async (email: string, force = false) => {
-    // Check cache first
-    const now = Date.now();
-    const cachedData = userCache.get(email);
-
-    if (!force && cachedData && now - cachedData.timestamp < CACHE_DURATION) {
-      setUser(cachedData.data);
-      setLoading(false);
-      return;
-    }
-
+  const fetchUserData = useCallback(async (email: string) => {
     try {
       const response = await fetch(`/api/user/${email}`);
+      if (!response.ok) throw new Error('Failed to fetch user data');
 
-      if (!response.ok) throw new Error("Failed to fetch user data");
-
-      const { user } = await response.json();
-      // const hola = await response.json();
-      // console.log("responses", hola);
-
-      // Update cache
-      userCache.set(email, { data: user, timestamp: now });
-
+      const { user, token } = await response.json();
       setUser(user);
+      setAccessToken(token);
       setError(null);
     } catch (err) {
-      setError(err instanceof Error ? err : new Error("Unknown error"));
+      console.error('Error fetching user data:', err);
+      setError(
+        err instanceof Error ? err : new Error('Unknown error')
+      );
       setUser(null);
     } finally {
       setLoading(false);
@@ -101,34 +87,19 @@ export function UserProvider({
     }
   }, [ready, email, fetchUserData]);
 
-  // Clean up expired cache entries
-  useEffect(() => {
-    const cleanup = setInterval(() => {
-      const now = Date.now();
-      for (const [key, value] of userCache.entries()) {
-        if (now - value.timestamp > CACHE_DURATION) {
-          userCache.delete(key);
-        }
-      }
-    }, CACHE_DURATION);
-
-    return () => clearInterval(cleanup);
-  }, []);
-
-  const clearCache = useCallback(() => {
-    userCache.clear();
-    setUser(null);
-  }, []);
-
-  const refreshUser = async () => {
-    if (!email) return;
-    setLoading(true);
-    await fetchUserData(email, true);
-  };
-
   return (
     <UserContext.Provider
-      value={{ user, loading, error, refreshUser, clearCache }}
+      value={{
+        user,
+        loading,
+        error,
+        refreshUser: () => fetchUserData(email || ''),
+        clearCache: () => {
+          setUser(null);
+          setAccessToken(null);
+        },
+        accessToken,
+      }}
     >
       {children}
     </UserContext.Provider>

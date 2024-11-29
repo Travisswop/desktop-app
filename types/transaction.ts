@@ -13,7 +13,7 @@ export interface Transaction {
   tokenName?: string;
   tokenDecimal?: number;
   tokenSymbol?: string;
-  network?: string;
+  network: string;
   isSwapped?: boolean;
   isRedeemable?: boolean;
   redeemLink?: string;
@@ -25,6 +25,7 @@ export interface Transaction {
   };
   currentPrice: number;
   nativeTokenPrice: number;
+  isNew?: boolean;
 }
 
 interface TokenSwapInfo {

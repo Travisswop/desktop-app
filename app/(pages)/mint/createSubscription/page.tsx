@@ -4,15 +4,17 @@ import PushToMintCollectionButton from "@/components/Button/PushToMintCollection
 import Image from "next/image";
 import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
+import { sendCloudinaryImage } from "@/lib/SendCloudineryImage";
+
 
 interface FormData {
   name: string;
+  nftType: string;
   description: string;
-  imageUrl: string;
+  image: string;
   price: string;
   recipientAddress: string;
   currency: string;
-  type: string;
   benefits: string[];
   enableCreditCard: boolean;
   verifyIdentity: boolean;
@@ -28,12 +30,12 @@ const CreateSubscriptionPage = () => {
 
   const [formData, setFormData] = useState<FormData>({
     name: "",
+    nftType: "subscription",
     description: "",
-    imageUrl: "",
+    image: "",
     price: "",
     recipientAddress: "",
     currency: "usdc",
-    type: "Subscription",
     benefits: [],
     enableCreditCard: false,
     verifyIdentity: false,
@@ -46,6 +48,8 @@ const CreateSubscriptionPage = () => {
 
   const [newBenefit, setNewBenefit] = useState("");
   const [selectedImageName, setSelectedImageName] = useState<string | null>(null);
+  const [imageUploading, setImageUploading] = useState(false);
+
 
   const handleChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>
@@ -65,7 +69,7 @@ const CreateSubscriptionPage = () => {
     }
   };
 
-  const handleDateChange = (date: Date, field: "startDate") => {
+  const handleDateChange = (date: Date, field: "startDate" | "endDate") => {
     setFormData((prevState) => ({
       ...prevState,
       [field]: date,
@@ -98,23 +102,34 @@ const CreateSubscriptionPage = () => {
     }));
   };
 
-  const handleImageUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImageUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
 
     setSelectedImageName(file.name);
 
     const reader = new FileReader();
-    reader.onloadend = () => {
-      setFormData((prevState) => ({
-        ...prevState,
-        imageUrl: reader.result as string,
-      }));
+    reader.onloadend = async () => {
+      const base64Image = reader.result as string;
+
+      try {
+        setImageUploading(true);
+        const image = await sendCloudinaryImage(base64Image);
+        setFormData((prevState) => ({
+          ...prevState,
+          image: image,
+        }));
+        setImageUploading(false);
+      } catch (error) {
+        console.error("Error uploading image:", error);
+        setImageUploading(false);
+        alert("Failed to upload image. Please try again.");
+      }
     };
     reader.readAsDataURL(file);
   };
 
-  const handleImageDrop = (event: DragEvent<HTMLDivElement>) => {
+  const handleImageDrop = async (event: DragEvent<HTMLDivElement>) => {
     event.preventDefault();
     const file = event.dataTransfer.files?.[0];
     if (!file) return;
@@ -122,11 +137,22 @@ const CreateSubscriptionPage = () => {
     setSelectedImageName(file.name);
 
     const reader = new FileReader();
-    reader.onloadend = () => {
-      setFormData((prevState) => ({
-        ...prevState,
-        imageUrl: reader.result as string,
-      }));
+    reader.onloadend = async () => {
+      const base64Image = reader.result as string;
+
+      try {
+        setImageUploading(true);
+        const image = await sendCloudinaryImage(base64Image);
+        setFormData((prevState) => ({
+          ...prevState,
+          image: image,
+        }));
+        setImageUploading(false);
+      } catch (error) {
+        console.error("Error uploading image:", error);
+        setImageUploading(false);
+        alert("Failed to upload image. Please try again.");
+      }
     };
     reader.readAsDataURL(file);
   };
@@ -146,6 +172,57 @@ const CreateSubscriptionPage = () => {
       ...prevState,
       benefits: prevState.benefits.filter((_, i) => i !== index),
     }));
+  };
+
+  const handleSubmit = async (e: React.MouseEvent<HTMLButtonElement>) => {
+    e.preventDefault();
+
+    try {
+      const storedData = JSON.parse(localStorage.getItem("user-storage") || "{}");
+      const accessToken = storedData?.state?.state?.user?.accessToken;
+
+      if (!accessToken) {
+        alert("Access token not found. Please log in again.");
+        return;
+      }
+
+      // Map and prepare final data
+      const finalData = {
+        ...formData,
+        startDate: formData.startDate.toISOString(), // Convert to ISO format
+        endDate: formData.endDate.toISOString(), // Convert to ISO format
+        supplyLimit: formData.limitQuantity ? Number(formData.quantity) : undefined,
+        price: Number(formData.price), // Ensure price is a number
+        royaltyPercentage: formData.royaltyPercentage,
+      };
+
+      const response = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL}/api/v1/desktop/nft/template`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${accessToken}`,
+          },
+          body: JSON.stringify(finalData),
+        }
+      );
+
+      if (response.ok) {
+        const data = await response.json();
+        if (data.state === "success") {
+          alert("Subscription created successfully!");
+        } else {
+          alert(data.message || "Failed to create subscription.");
+        }
+      } else {
+        const errorData = await response.json();
+        alert(errorData.message || "Failed to create subscription.");
+      }
+    } catch (error) {
+      console.error("Unexpected error:", error);
+      alert("An unexpected error occurred. Please try again.");
+    }
   };
 
   return (
@@ -174,18 +251,19 @@ const CreateSubscriptionPage = () => {
               </p>
             </div>
 
-            <label htmlFor="imageUrl" className="mb-1 block font-medium">
+            <label htmlFor="image" className="mb-1 block font-medium">
               Image (JPEG, JPG, PNG)
             </label>
             <div
               className="bg-gray-100 p-4 rounded-lg border border-dashed border-gray-300 text-center"
+              style={{ minWidth: '300px', width: '50%' }}
               onDragOver={(e) => e.preventDefault()}
               onDrop={handleImageDrop}
             >
-              {formData.imageUrl ? (
+              {formData.image ? (
                 <div className="flex flex-col items-center">
                   <Image
-                    src={formData.imageUrl}
+                    src={formData.image}
                     width={100}
                     height={100}
                     alt="Preview"
@@ -193,7 +271,7 @@ const CreateSubscriptionPage = () => {
                   />
                   <p className="text-sm mt-2 text-gray-700">{selectedImageName}</p>
                   <label
-                    htmlFor="imageUrl"
+                    htmlFor="image"
                     className="inline-block bg-black text-white px-4 py-2 rounded-lg mt-2 cursor-pointer"
                   >
                     Change Picture
@@ -205,7 +283,7 @@ const CreateSubscriptionPage = () => {
                     <div className="text-6xl text-gray-400">📷</div>
                     <p className="text-gray-500">Browse or drag and drop an image here.</p>
                     <label
-                      htmlFor="imageUrl"
+                      htmlFor="image"
                       className="inline-block bg-black text-white px-4 py-2 rounded-lg mt-2 cursor-pointer"
                     >
                       Browse
@@ -215,14 +293,15 @@ const CreateSubscriptionPage = () => {
               )}
               <input
                 type="file"
-                id="imageUrl"
-                name="imageUrl"
+                id="image"
+                name="image"
                 accept="image/*"
                 onChange={handleImageUpload}
                 className="hidden"
               />
-            </div>
+              {imageUploading && <p>Uploading image...</p>}
 
+            </div>
             <div>
               <label htmlFor="description" className="mb-1 block font-medium">
                 Description
@@ -327,20 +406,34 @@ const CreateSubscriptionPage = () => {
               </div>
             </div>
 
+
+
             <div className="bg-gray-100 p-4 rounded-lg border border-gray-300 mt-4">
               <h3 className="text-md font-medium">Enable Pay with Credit Card</h3>
-              <p className="text-sm text-gray-600 mb-2">Let users buy this subscription with a credit card</p>
-              <input
-                type="checkbox"
-                id="enableCreditCard"
-                name="enableCreditCard"
-                checked={formData.enableCreditCard}
-                onChange={handleChange}
-              /> Enable
+              <p className="text-sm text-gray-600 mb-2">
+                Let users buy this subscription with a credit card.
+              </p>
+              <div
+                className={`w-14 h-8 flex items-center rounded-full p-1 cursor-pointer ${formData.enableCreditCard ? "bg-black" : "bg-gray-300"
+                  }`}
+                onClick={() =>
+                  setFormData((prevState) => ({
+                    ...prevState,
+                    enableCreditCard: !prevState.enableCreditCard,
+                  }))
+                }
+              >
+                <div
+                  className={`h-6 w-6 bg-white rounded-full shadow-md transform duration-300 ${formData.enableCreditCard ? "translate-x-6" : ""
+                    }`}
+                ></div>
+              </div>
 
               <div className="mt-4">
                 <h3 className="text-md font-medium">Verify Identity</h3>
-                <p className="text-sm text-gray-600">Verify your identity to enable credit card payments. You only complete this process once.</p>
+                <p className="text-sm text-gray-600">
+                  Verify your identity to enable credit card payments. You only complete this process once.
+                </p>
                 <button
                   type="button"
                   onClick={() => alert("Verification triggered!")}
@@ -355,13 +448,21 @@ const CreateSubscriptionPage = () => {
               <h3 className="text-md font-medium">Advanced Settings</h3>
               <div className="flex items-center justify-between mt-2">
                 <span className="text-sm font-medium">Limit quantity</span>
-                <input
-                  type="checkbox"
-                  id="limitQuantity"
-                  name="limitQuantity"
-                  checked={formData.limitQuantity}
-                  onChange={handleChange}
-                />
+                <div
+                  className={`w-14 h-8 flex items-center rounded-full p-1 cursor-pointer ${formData.limitQuantity ? "bg-black" : "bg-gray-300"
+                    }`}
+                  onClick={() =>
+                    setFormData((prevState) => ({
+                      ...prevState,
+                      limitQuantity: !prevState.limitQuantity,
+                    }))
+                  }
+                >
+                  <div
+                    className={`h-6 w-6 bg-white rounded-full shadow-md transform duration-300 ${formData.limitQuantity ? "translate-x-6" : ""
+                      }`}
+                  ></div>
+                </div>
               </div>
               {formData.limitQuantity && (
                 <input
@@ -374,7 +475,7 @@ const CreateSubscriptionPage = () => {
                 />
               )}
               <p className="text-sm text-gray-500 mt-1">
-                Limit the number of times this digital good can be purchased
+                Limit the number of times this digital good can be purchased.
               </p>
 
               <div className="mt-4">
@@ -401,7 +502,7 @@ const CreateSubscriptionPage = () => {
               <input type="checkbox" required /> I agree with swop Minting Privacy & Policy
             </div>
 
-            <PushToMintCollectionButton className="w-max mt-4">
+            <PushToMintCollectionButton className="w-max mt-4" onClick={handleSubmit}>
               Create
             </PushToMintCollectionButton>
           </div>
@@ -411,9 +512,9 @@ const CreateSubscriptionPage = () => {
       <div className="w-1/2 flex justify-center items-center p-5">
         <div className="bg-white p-4 rounded-lg shadow-md border border-gray-300 w-full max-w-md aspect-[3/4] flex flex-col items-start">
           <div className="w-full aspect-square bg-gray-200 flex items-center justify-center rounded-t-lg mb-4">
-            {formData.imageUrl ? (
+            {formData.image ? (
               <Image
-                src={formData.imageUrl}
+                src={formData.image}
                 width={300}
                 height={300}
                 alt="Preview"
@@ -459,8 +560,8 @@ const CreateSubscriptionPage = () => {
             <ul className="list-disc list-inside text-sm text-gray-500">
               {formData.benefits.length > 0
                 ? formData.benefits.map((benefit, index) => (
-                    <li key={index}>{benefit}</li>
-                  ))
+                  <li key={index}>{benefit}</li>
+                ))
                 : <li>No benefits added</li>}
             </ul>
           </div>
