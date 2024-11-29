@@ -14,11 +14,11 @@ import {
 import { useUser } from '@/lib/UserContext';
 import { Skeleton } from './ui/skeleton';
 import { useRouter } from 'next/navigation';
+import isUrl from '@/lib/isUrl';
 
 export default function Header() {
   const { logout } = usePrivy();
   const { user, loading, clearCache } = useUser();
-  console.log('🚀 ~ Header ~ user:', user);
   const router = useRouter();
 
   const handleLogout = async () => {
@@ -65,16 +65,21 @@ export default function Header() {
               className="relative flex items-center gap-2 px-3 py-4 rounded-full bg-slate-100 hover:bg-accent h-14"
             >
               <div className="relative h-8 w-8">
-                <Image
-                  src={
-                    user.profilePic?.includes('https')
-                      ? user.profilePic
-                      : `/assets/avatar/${user.profilePic}.png`
-                  }
-                  alt={`${user.name}'s avatar`}
-                  fill
-                  className="rounded-full object-cover"
-                />
+                {isUrl(user.profilePic || '') ? (
+                  <Image
+                    src={user.profilePic || ''}
+                    alt={user.name || ''}
+                    fill
+                    className="rounded-full object-cover"
+                  />
+                ) : (
+                  <Image
+                    src={`/images/user_avator/${user.profilePic}.png`}
+                    alt={user.name || ''}
+                    fill
+                    className="rounded-full object-cover"
+                  />
+                )}
               </div>
               <span className="text-sm font-medium">{user.name}</span>
               <ChevronDown className="h-4 w-4 text-muted-foreground" />

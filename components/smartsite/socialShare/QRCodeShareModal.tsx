@@ -1,6 +1,11 @@
-"use client";
-import React, { useEffect, useState } from "react";
-import { Modal, ModalContent, ModalBody, Spinner } from "@nextui-org/react";
+'use client';
+import React, { useEffect, useState } from 'react';
+import {
+  Modal,
+  ModalContent,
+  ModalBody,
+  Spinner,
+} from '@nextui-org/react';
 import {
   FacebookShareButton,
   WhatsappShareButton,
@@ -12,8 +17,8 @@ import {
   LinkedinIcon,
   FacebookIcon,
   WhatsappIcon,
-} from "react-share";
-import { sendCloudinaryImage } from "@/lib/SendCloudineryImage";
+} from 'react-share';
+import { sendCloudinaryImage } from '@/lib/SendCloudineryImage';
 // import { sendCloudinaryImage } from "@/util/SendCloudineryImage";
 
 export default function QRCodeShareModal({
@@ -37,9 +42,9 @@ export default function QRCodeShareModal({
         setLoading(false);
       })
       .catch((error) => {
-        console.error("Error uploading image:", error);
+        console.error('Error uploading image:', error);
         setLoading(false);
-        setError("Something went wrong! Please try again later.");
+        setError('Something went wrong! Please try again later.');
       });
   }, [qrCodeUrl]);
 
@@ -51,21 +56,25 @@ export default function QRCodeShareModal({
             size="xl"
             isOpen={isOpen}
             onOpenChange={onOpenChange}
-            backdrop={"blur"}
+            backdrop={'blur'}
           >
             <ModalContent>
               <div className="w-[91%] mx-auto py-6">
                 <ModalBody className="text-center">
                   <div>
-                    <p className="font-bold">Share Your QR Code Link Via</p>
+                    <p className="font-bold">
+                      Share Your QR Code Link Via
+                    </p>
                     <p className="text-sm text-gray-500 my-3 font-medium">
-                      Select from our wide variety of links and contact info
-                      below.
+                      Select from our wide variety of links and
+                      contact info below.
                     </p>
                   </div>
 
                   {error ? (
-                    <p className="text-sm font-medium text-red-600">{error}</p>
+                    <p className="text-sm font-medium text-red-600">
+                      {error}
+                    </p>
                   ) : (
                     <>
                       {loading ? (
