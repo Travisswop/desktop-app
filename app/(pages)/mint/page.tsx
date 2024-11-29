@@ -24,7 +24,7 @@ const MintDashboard = () => {
   useEffect(() => {
     const timeoutId = setTimeout(() => {
       setWaitForToken(false);
-    }, 15000); // 15 seconds
+    }, 30000); // 30 seconds
   
     // Cleanup function to clear the timeout if accessToken becomes available
     return () => clearTimeout(timeoutId);

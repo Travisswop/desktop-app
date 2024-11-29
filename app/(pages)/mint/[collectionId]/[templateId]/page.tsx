@@ -14,37 +14,46 @@ export default function TemplateDetailsPage({
   const { accessToken } = useUser(); // Access context value
   const [templateDetails, setTemplateDetails] = useState(null);
   const [error, setError] = useState<string | null>(null);
+  const [waitForToken, setWaitForToken] = useState(true);
+  const [loading, setLoading] = useState(true);
+  
+  useEffect(() => {
+    const timeoutId = setTimeout(() => {
+      setWaitForToken(false);
+    }, 30000); // 30 seconds
+  
+    // Cleanup function to clear the timeout if the component unmounts
+    return () => clearTimeout(timeoutId);
+  }, []);  
 
   useEffect(() => {
-    if (!accessToken) {
-      setError("Access token is required to fetch template details.");
-      return;
-    }
-
     const fetchDetails = async () => {
-      try {
-        const details = await getTemplateDetails(
-          collectionId,
-          templateId,
-          accessToken
-        );
-        setTemplateDetails(details);
-      } catch (err) {
-        console.error("Error fetching template details:", err);
-        setError("Error fetching template details.");
+      if (accessToken) {
+        try {
+          const details = await getTemplateDetails(collectionId, templateId, accessToken);
+          setTemplateDetails(details);
+        } catch (err) {
+          console.error("Error fetching template details:", err);
+          setError("Error fetching template details.");
+        } finally {
+          setLoading(false);
+        }
+      } else if (!waitForToken) {
+        setError("Access token is required to fetch template details.");
+        setLoading(false);
       }
     };
-
+  
     fetchDetails();
-  }, [collectionId, templateId, accessToken]);
-
+  }, [accessToken, waitForToken, collectionId, templateId]);
+  
+  if (loading) {
+    return <div>Loading template details...</div>;
+  }
+  
   if (error) {
     return <div>{error}</div>;
   }
-
-  if (!templateDetails) {
-    return <div>Loading template details...</div>;
-  }
-
+  
   return <MintDetails templateDetails={templateDetails} />;
-}
+  }
