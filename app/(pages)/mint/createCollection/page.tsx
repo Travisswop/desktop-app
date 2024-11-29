@@ -152,7 +152,7 @@ const CreateCollectionPage = () => {
       payments: {
         recipientAddress: formData.recipientAddress,
         currency: formData.currency,
-        price: "0.00",
+        price: "1.00",
       },
       subscription: {
         enabled: false,
