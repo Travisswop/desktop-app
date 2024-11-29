@@ -3,6 +3,7 @@ import ContentInfo from '@/components/content/Content';
 import { useDesktopUserData } from '@/components/tanstackQueryApi/getUserData';
 import { useUser } from '@/lib/UserContext';
 import { useFetchMediaData } from '@/lib/hooks/useFetchMediaData';
+import { useMemo } from 'react';
 
 const Content: React.FC = () => {
   const { user, loading, accessToken } = useUser();
@@ -13,15 +14,19 @@ const Content: React.FC = () => {
     isLoading: isDesktopLoading,
   } = useDesktopUserData(user?._id || '', accessToken || '');
 
-  const audioUrls =
-    desktopData?.microsites?.flatMap((microsite: any) =>
-      microsite.info?.audio?.length > 0 ? microsite.info.audio : []
-    ) || [];
+  const { audioUrls, videoUrls } = useMemo(() => {
+    const audio =
+      desktopData?.microsites?.flatMap((microsite: any) =>
+        microsite.info?.audio?.length > 0 ? microsite.info.audio : []
+      ) || [];
 
-  const videoUrls =
-    desktopData?.microsites?.flatMap((microsite: any) =>
-      microsite.info.video?.length > 0 ? microsite.info.video : []
-    ) || [];
+    const video =
+      desktopData?.microsites?.flatMap((microsite: any) =>
+        microsite.info.video?.length > 0 ? microsite.info.video : []
+      ) || [];
+
+    return { audioUrls: audio, videoUrls: video };
+  }, [desktopData?.microsites]);
 
   const {
     data: mediaData,

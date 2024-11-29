@@ -8,7 +8,6 @@ import TransactionList from './transaction/transaction-list';
 import { useEffect, useState, useMemo } from 'react';
 import TokenDetails from './token/token-details-view';
 import NFTDetailView from './nft/nft-details-view';
-import ProfileHeader from './profile-header';
 import { NFT } from '@/types/nft';
 import {
   usePrivy,
@@ -41,6 +40,7 @@ import { useToast } from '@/hooks/use-toast';
 import { Transaction as TransactionType } from '@/types/transaction';
 import { Toaster } from '../ui/toaster';
 import MessageList from './message-list';
+import ProfileHeader from '../dashboard/profile-header';
 
 type Network = 'ETHEREUM' | 'POLYGON' | 'BASE' | 'SOLANA';
 
@@ -49,20 +49,17 @@ const CHAIN_ID = {
   POLYGON: 137,
   BASE: 8453,
   SOLANA: 101,
-};
+} as const;
 
 export default function WalletContent() {
   const [walletData, setWalletData] = useState<WalletItem[] | null>(
     null
   );
   const [network, setNetwork] = useState<Network>('ETHEREUM');
-  console.log('🚀 ~ WalletContentInner ~ network:', network);
 
-  const { user, loading, error } = useUser();
   const { authenticated, ready, user: PrivyUser } = usePrivy();
 
   const { wallets: ethWallets } = useWallets();
-  console.log('🚀 ~ WalletContentInner ~ ethWallets:', ethWallets);
   const { createWallet, wallets: solanaWallets } = useSolanaWallets();
   const [selectedToken, setSelectedToken] =
     useState<TokenData | null>(null);
@@ -441,9 +438,9 @@ export default function WalletContent() {
           value: sendFlow.amount,
           status: tx.status,
           timeStamp: Date.now().toString(),
-          gas: tx.gasUsed,
-          gasPrice: tx.gasPrice,
-          networkFee: tx.networkFee,
+          gas: tx.gasUsed?.toString() || '0',
+          gasPrice: tx.gasPrice?.toString() || '0',
+          networkFee: '0',
           tokenName: sendFlow.token.name,
           tokenSymbol: sendFlow.token.symbol,
           tokenDecimal: decimals,
@@ -472,27 +469,9 @@ export default function WalletContent() {
     });
   };
 
-  if (loading) {
-    return <DashboardSkeleton />;
-  }
-
-  if (error) {
-    return <div>Error loading dashboard: {error.message}</div>;
-  }
-
   return (
     <div className="">
-      <ProfileHeader
-        name={user?.name || 'Your Name'}
-        username={'Rakib.Swop.ID'}
-        location={user?.address || ''}
-        followers={user?.connections.followers.length || 0}
-        following={user?.connections.following.length || 0}
-        messages={0}
-        orders={40}
-        points={31234}
-        imageUrl={user?.profilePic || '/images/avatar.png'}
-      />
+      <ProfileHeader />
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 my-6">
         <BalanceChart
           walletData={walletData || []}

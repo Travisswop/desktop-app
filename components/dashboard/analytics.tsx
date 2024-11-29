@@ -6,6 +6,8 @@ import SmartSiteAnalytics from '@/components/analytics/smartsite-analytics';
 import QrcodeGenerator from './qrcode-generator';
 import { UserData } from '@/lib/UserContext';
 import { Parser } from 'json2csv';
+import CreateQRCode from './create-qrcode';
+import { Toaster } from '../ui/toaster';
 
 export default function DashboardAnalytics({
   data,
@@ -34,10 +36,10 @@ export default function DashboardAnalytics({
   };
 
   return (
-    <div className="bg-white rounded-xl p-8">
+    <div className=" pb-8">
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
         {/* Left Column */}
-        <div className="space-y-6">
+        <div className="space-y-6 bg-white rounded-xl p-8">
           <div className="flex items-center gap-2">
             <h1 className="text-xl font-semibold">
               SmartSite Analytics
@@ -76,8 +78,10 @@ export default function DashboardAnalytics({
           <SmartSiteSlider microsites={data?.microsites || []} />
 
           {/* Qrcode */}
-          <QrcodeGenerator />
+          {/* <QrcodeGenerator /> */}
+          <CreateQRCode />
         </div>
+        <Toaster />
       </div>
     </div>
   );

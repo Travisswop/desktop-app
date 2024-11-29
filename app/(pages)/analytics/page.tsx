@@ -7,6 +7,8 @@ import SmartSiteAnalytics from '@/components/analytics/smartsite-analytics';
 import ViewerAnalytics from '@/components/analytics/viewer-analytics';
 import { LocationInfo } from '@/types/map';
 import dynamic from 'next/dynamic';
+import { useUser } from '@/lib/UserContext';
+import { Skeleton } from '@/components/ui/skeleton';
 
 const ConnectionMap = dynamic(
   () => import('@/components/analytics/map'),
@@ -52,25 +54,37 @@ const locations: LocationInfo[] = [
 ];
 
 export default function Analytics() {
+  const { user, loading } = useUser();
+
+  if (loading || !user) {
+    return <AnalyticsSkeleton />;
+  }
+
   return (
-    <div className="bg-white rounded-lg p-8">
+    <div className="  pb-8">
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
         {/* Left Column */}
-        <div className="space-y-6">
+        <div className="space-y-6 bg-white rounded-xl p-8">
           <div className="flex items-center gap-2">
-            <h1 className="text-xl font-semibold">Travis Herron</h1>
+            <h1 className="text-xl font-semibold">{user.name}</h1>
             <CheckCircle2 className="text-blue-500 h-5 w-5" />
           </div>
 
           {/* Stats Grid */}
-          <SmartSiteAnalytics />
+          <SmartSiteAnalytics
+            followers={user.followers}
+            leads={user.subscribers.length}
+          />
 
           {/* Recent Leads */}
           <div>
             <h2 className="text-lg font-semibold mb-4">
               Recent Leads
             </h2>
-            <RecentLeadsSlider />
+            <RecentLeadsSlider
+              leads={user.subscribers}
+              microsites={user.microsites || []}
+            />
             <Button variant="outline" className="w-full mt-4">
               <Download className="h-4 w-4 mr-2" />
               Export Leads to CSV
@@ -80,22 +94,64 @@ export default function Analytics() {
 
         {/* Right Column */}
         <div className="space-y-6">
-          <div className="flex justify-between items-center">
-            <h2 className="text-lg font-semibold">Websites</h2>
-            <Button variant="outline" size="sm">
-              <Settings className="h-4 w-4 mr-2" />
-              Manage Sites
-            </Button>
-          </div>
-
           {/* Profile Card */}
-          <SmartSiteSlider />
+          <SmartSiteSlider microsites={user.microsites || []} />
 
           {/* Map */}
           <ConnectionMap locations={locations} />
         </div>
       </div>
       <ViewerAnalytics />
+    </div>
+  );
+}
+
+function AnalyticsSkeleton() {
+  return (
+    <div className="max-w-7xl mx-auto">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Left Column */}
+        <div className="lg:col-span-2 space-y-6 bg-white rounded-xl p-8">
+          <div className="flex items-center gap-2">
+            <Skeleton className="h-8 w-48" />
+          </div>
+
+          {/* Stats Grid */}
+          <div className="grid grid-cols-2 gap-4">
+            <Skeleton className="h-32 w-full" />
+            <Skeleton className="h-32 w-full" />
+          </div>
+
+          {/* Recent Leads */}
+          <div>
+            <Skeleton className="h-6 w-36 mb-4" />
+            <div className="space-y-4">
+              <Skeleton className="h-20 w-full" />
+              <Skeleton className="h-20 w-full" />
+              <Skeleton className="h-20 w-full" />
+            </div>
+            <Skeleton className="h-10 w-full mt-4" />
+          </div>
+        </div>
+
+        {/* Right Column */}
+        <div className="space-y-6">
+          {/* Profile Card Skeleton */}
+          <div className="bg-white rounded-xl p-6">
+            <Skeleton className="h-6 w-36 mb-4" />
+            <div className="space-y-4">
+              <Skeleton className="h-40 w-full" />
+              <Skeleton className="h-40 w-full" />
+            </div>
+          </div>
+
+          {/* QR Code Skeleton */}
+          <div className="bg-white rounded-xl p-6">
+            <Skeleton className="h-6 w-36 mb-4" />
+            <Skeleton className="h-48 w-full" />
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

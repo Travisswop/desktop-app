@@ -19,6 +19,7 @@ import {
   WhatsappIcon,
 } from 'react-share';
 import { sendCloudinaryImage } from '@/lib/SendCloudineryImage';
+// import { sendCloudinaryImage } from "@/util/SendCloudineryImage";
 
 export default function QRCodeShareModal({
   isOpen,
