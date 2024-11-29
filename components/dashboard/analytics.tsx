@@ -72,16 +72,8 @@ export default function DashboardAnalytics({
 
         {/* Right Column */}
         <div className="space-y-6">
-          <div className="flex justify-between items-center">
-            <h2 className="text-lg font-semibold">Smartsites</h2>
-            <Button variant="outline" size="sm">
-              <Settings className="h-4 w-4 mr-2" />
-              Manage Sites
-            </Button>
-          </div>
-
           {/* Profile Card */}
-          <SmartSiteSlider />
+          <SmartSiteSlider microsites={data?.microsites || []} />
 
           {/* Qrcode */}
           <QrcodeGenerator />
