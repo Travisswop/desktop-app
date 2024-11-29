@@ -5,6 +5,8 @@ import Image from "next/image";
 import { sendCloudinaryImage } from "@/lib/SendCloudineryImage";
 import { sendCloudinaryFile } from "@/lib/SendCloudineryAnyFile";
 import { useUser } from "@/lib/UserContext";
+import { useSolanaWallets } from "@privy-io/react-auth";
+
 
 
 interface ContentFile {
@@ -53,6 +55,9 @@ const CreateCollectiblePage = () => {
   const [uploadingContent, setUploadingContent] = useState(false);
   const [waitForToken, setWaitForToken] = useState(true);
   const { accessToken } = useUser();
+  const { wallets } = useSolanaWallets();
+
+  const solanaAddress = wallets?.[0]?.address || null; // Fallback to null if no wallet is connected
 
   useEffect(() => {
     const timeoutId = setTimeout(() => {
@@ -259,6 +264,11 @@ const CreateCollectiblePage = () => {
         return;
       }
 
+      if (!solanaAddress) {
+        alert("No Solana wallet connected. Please connect your wallet.");
+        return;
+      }      
+
       console.log("token: ", accessToken);
         
       // Explicitly convert supplyLimit and price to numbers before submitting
@@ -267,6 +277,7 @@ const CreateCollectiblePage = () => {
         supplyLimit: Number(formData.quantity), // Ensure it's a number
         price: Number(formData.price), // Ensure it's a number
         collectionId, // Include collectionId in the payload
+        wallet: solanaAddress, // Include Solana wallet address in the payload
       };
   
       const response = await fetch(
