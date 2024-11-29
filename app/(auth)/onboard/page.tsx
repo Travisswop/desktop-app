@@ -9,7 +9,6 @@ import { OnboardingData, PrivyUser } from '@/lib/types';
 
 const Onboard: React.FC = () => {
   const { authenticated, ready, user } = usePrivy();
-  console.log('🚀 ~ user:', user);
   const [step, setStep] = useState(0);
   const [userData, setUserData] = useState({});
 

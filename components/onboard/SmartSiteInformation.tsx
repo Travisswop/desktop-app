@@ -45,7 +45,6 @@ export default function SmartSiteInformation({
   userData,
   onComplete,
 }: SmartSiteInformationProps) {
-  console.log('🚀 ~ userData:', userData);
   const { getAccessToken } = usePrivy();
   const { toast } = useToast();
   const [isSubmitting, setIsSubmitting] = useState(false);

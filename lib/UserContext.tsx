@@ -8,6 +8,7 @@ import {
   useCallback,
 } from 'react';
 import { useAuth } from './hooks/useAuth';
+import { useRouter } from 'next/navigation';
 
 export interface UserData {
   _id: string;
@@ -52,6 +53,7 @@ export function UserProvider({
 }: {
   children: React.ReactNode;
 }) {
+  const router = useRouter();
   const { user: privyUser, ready } = useAuth();
   const [user, setUser] = useState<UserData | null>(null);
   const [accessToken, setAccessToken] = useState<string | null>(null);
@@ -68,27 +70,45 @@ export function UserProvider({
       (account) => account.type === 'google_oauth'
     )?.email;
 
-  const fetchUserData = useCallback(async (email: string) => {
-    try {
-      const response = await fetch(`/api/user/${email}`);
-      if (!response.ok) throw new Error('Failed to fetch user data');
+  const fetchUserData = useCallback(
+    async (email: string) => {
+      try {
+        const response = await fetch(`/api/user/${email}`);
+        if (!response.ok) {
+          // Clear cookies
+          document.cookie =
+            'privy-token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT';
+          document.cookie =
+            'privy-id-token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT';
+          document.cookie =
+            'privy-refresh-token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT';
+          document.cookie =
+            'access-token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT';
+          document.cookie =
+            'user-id=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT';
 
-      const { user, token } = await response.json();
-      setUser(user);
-      setAccessToken(token);
-      document.cookie = `access-token=${token}; path=/; secure; samesite=strict`;
-      document.cookie = `user-id=${user._id}; path=/; secure; samesite=strict`;
-      setError(null);
-    } catch (err) {
-      console.error('Error fetching user data:', err);
-      setError(
-        err instanceof Error ? err : new Error('Unknown error')
-      );
-      setUser(null);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+          router.push('/login');
+          throw new Error('Failed to fetch user data');
+        }
+
+        const { user, token } = await response.json();
+        setUser(user);
+        setAccessToken(token);
+        document.cookie = `access-token=${token}; path=/; secure; samesite=strict`;
+        document.cookie = `user-id=${user._id}; path=/; secure; samesite=strict`;
+        setError(null);
+      } catch (err) {
+        console.error('Error fetching user data:', err);
+        setError(
+          err instanceof Error ? err : new Error('Unknown error')
+        );
+        setUser(null);
+      } finally {
+        setLoading(false);
+      }
+    },
+    [router]
+  );
 
   useEffect(() => {
     if (ready && email) {
