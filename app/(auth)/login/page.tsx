@@ -21,7 +21,6 @@ const Login: React.FC = () => {
   const router = useRouter();
   const loginInitiated = useRef(false);
   const [isLoading, setIsLoading] = useState(false);
-  const [success, setSuccess] = useState(false);
 
   const { login } = useLogin({
     onComplete: async (user) => {
@@ -42,8 +41,6 @@ const Login: React.FC = () => {
         router.push('/onboard');
         return;
       }
-
-      setSuccess(true);
 
       try {
         const token = await getAccessToken();
@@ -79,6 +76,7 @@ const Login: React.FC = () => {
       }
     },
     onError: (error) => {
+      console.error('Login error:', error);
       loginInitiated.current = false;
       setIsLoading(false);
     },
@@ -91,16 +89,24 @@ const Login: React.FC = () => {
     }
   }, [ready, authenticated]);
 
-  const handleLogin = () => {
-    setIsLoading(true);
-    login();
+  const handleLogin = async () => {
+    try {
+      console.log('handleLogin');
+      setIsLoading(true);
+      loginInitiated.current = true;
+      await login();
+    } catch (error) {
+      console.error('Handle login error:', error);
+      loginInitiated.current = false;
+      setIsLoading(false);
+    }
   };
 
   if (!ready) {
     return <Loader />;
   }
 
-  if (isLoading) {
+  if (isLoading || loginInitiated.current) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <Loader />
@@ -108,61 +114,60 @@ const Login: React.FC = () => {
     );
   }
 
-  if (!success) {
-    return (
-      <div className="relative w-full max-w-2xl mx-auto p-8">
-        <div className="absolute -top-20 left-0 w-32 h-32 animate-float">
-          <Image
-            src={astronot}
-            alt="astronot image"
-            className="w-48 h-auto"
-          />
-        </div>
-        <div className="absolute -top-20 right-0 w-32 h-32 ">
-          <Image
-            src={yellowPlanet}
-            alt="astronot image"
-            className="w-48 h-auto"
-          />
-        </div>
-        <div className="absolute -bottom-20 left-8 w-24 h-24 ">
-          <Image
-            src={bluePlanet}
-            alt="astronot image"
-            className="w-56 h-auto"
-          />
-        </div>
-        <Card className="relative w-full bg-white/80 backdrop-blur-sm shadow-xl rounded-3xl p-16 max-w-md mx-auto">
-          <div className="text-center space-y-6">
-            <div className="flex justify-center">
-              <div className="text-center space-y-6">
-                <div className="flex justify-center">
-                  <div className="flex items-center gap-2">
-                    <div className="w-6 h-6 rounded-full bg-black" />
-                    <span className="text-4xl font-semibold">
-                      privy
-                    </span>
-                  </div>
+  return (
+    <div className="relative w-full max-w-2xl mx-auto p-8">
+      <div className="absolute -top-20 left-0 w-32 h-32 animate-float">
+        <Image
+          src={astronot}
+          alt="astronot image"
+          className="w-48 h-auto"
+        />
+      </div>
+      <div className="absolute -top-20 right-0 w-32 h-32 ">
+        <Image
+          src={yellowPlanet}
+          alt="astronot image"
+          className="w-48 h-auto"
+        />
+      </div>
+      <div className="absolute -bottom-20 left-8 w-24 h-24 ">
+        <Image
+          src={bluePlanet}
+          alt="astronot image"
+          className="w-56 h-auto"
+        />
+      </div>
+      <Card className="relative w-full bg-white/80 backdrop-blur-sm shadow-xl rounded-3xl p-16 max-w-md mx-auto">
+        <div className="text-center space-y-6">
+          <div className="flex justify-center">
+            <div className="text-center space-y-6">
+              <div className="flex justify-center">
+                <div className="flex items-center gap-2">
+                  <div className="w-6 h-6 rounded-full bg-black" />
+                  <span className="text-4xl font-semibold">
+                    privy
+                  </span>
                 </div>
               </div>
             </div>
-            <Button
-              variant="outline"
-              className="w-full py-6 rounded-full relative text-lg font-normal justify-between px-6"
-              onClick={handleLogin}
-            >
-              <div className="flex items-center gap-3">
-                <div className="w-6 h-6 rounded-full bg-gray-100 flex items-center justify-center">
-                  <span className="text-sm">👤</span>
-                </div>
-                Login with Privy
-              </div>
-              <ChevronRight className="h-5 w-5 text-gray-400" />
-            </Button>
           </div>
-        </Card>
-      </div>
-    );
-  }
+          <Button
+            variant="outline"
+            className="w-full py-6 rounded-full relative text-lg font-normal justify-between px-6"
+            onClick={handleLogin}
+            disabled={isLoading}
+          >
+            <div className="flex items-center gap-3">
+              <div className="w-6 h-6 rounded-full bg-gray-100 flex items-center justify-center">
+                <span className="text-sm">👤</span>
+              </div>
+              {isLoading ? 'Logging in...' : 'Login with Privy'}
+            </div>
+            <ChevronRight className="h-5 w-5 text-gray-400" />
+          </Button>
+        </div>
+      </Card>
+    </div>
+  );
 };
 export default Login;
