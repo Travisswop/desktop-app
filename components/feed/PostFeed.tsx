@@ -57,7 +57,7 @@ const PostFeed = ({
     }
   }, [fileError, toast]);
 
-  const { user, loading, error: userError } = useUser();
+  const { user, loading, error: userError }: any = useUser();
 
   // useEffect(() => {
   //   if (typeof window !== undefined) {
@@ -70,7 +70,7 @@ const PostFeed = ({
 
   useEffect(() => {
     if (user) {
-      setPrimaryMicrosite(user.primaryMicrosite);
+      setPrimaryMicrosite(user?.primaryMicrosite);
     }
   }, [user]);
 

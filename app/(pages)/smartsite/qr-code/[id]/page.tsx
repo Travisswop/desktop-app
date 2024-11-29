@@ -5,13 +5,19 @@ import EditOldQRCode from "@/components/smartsite/qrCode/EditOldQrCode";
 import EditQRCode from "@/components/smartsite/qrCode/EditQrCode";
 import React from "react";
 
-const EditQrCodePage = async ({ params }: { params: { id: string } }) => {
+const EditQrCodePage = async ({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}) => {
   // const session: any = await isUserAuthenticate();
   const demoToken =
     "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJfaWQiOiI2NjM4NjMyMDIzMDQxMDMyODAyOTk4MmIiLCJpYXQiOjE3MjcxNTI4MzB9.CsHnZAgUzsfkc_g_CZZyQMXc02Ko_LhnQcCVpeCwroY";
 
+  const id = (await params).id;
+
   const response = await fetch(
-    `${process.env.NEXT_PUBLIC_API_URL}/api/v4/microsite/getQrCode/${params.id}`,
+    `${process.env.NEXT_PUBLIC_API_URL}/api/v4/microsite/getQrCode/${id}`,
     {
       method: "GET",
       headers: {
@@ -32,7 +38,7 @@ const EditQrCodePage = async ({ params }: { params: { id: string } }) => {
   if (data && data.state === "failed") {
     // has server action also called fetchMicrositeInfo
     const response = await fetch(
-      `${process.env.NEXT_PUBLIC_API_URL}/api/v1/desktop/microsite/withoutPopulate/${params.id}`,
+      `${process.env.NEXT_PUBLIC_API_URL}/api/v1/desktop/microsite/withoutPopulate/${id}`,
       {
         method: "GET",
         headers: {

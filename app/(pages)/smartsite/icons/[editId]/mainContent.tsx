@@ -55,7 +55,7 @@ const MicrositeEditMainContentPage = ({ data }: any) => {
 
   const handleToggleIcon = (title: string) => {
     if (toggleIcon.includes(title)) {
-      setToggleIcon(toggleIcon.filter((icon) => icon !== title)); // Remove the icon
+      setToggleIcon(toggleIcon.filter((icon: any) => icon !== title)); // Remove the icon
     } else {
       setToggleIcon([...toggleIcon, title]); // Add the icon
     }

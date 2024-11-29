@@ -1,7 +1,8 @@
 "use client";
-import { MotionButton } from "@/util/Motion";
+// import { MotionButton } from "@/util/Motion";
 import React from "react";
 import { useRouter } from "next/navigation"; // Import useRouter from Next.js
+import { MotionButton } from "@/components/Motion";
 
 interface btnProps {
   children: React.ReactNode;

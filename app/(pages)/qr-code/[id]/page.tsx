@@ -2,8 +2,14 @@ import UpdateQRCode from "@/components/smartsite/qrCode/CustomQRCode/UpdateQrCod
 import { cookies } from "next/headers";
 import React from "react";
 
-const UpdateQrCodePage = async ({ params }: { params: { id: string } }) => {
+const UpdateQrCodePage = async ({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}) => {
   const cookieStore = cookies();
+
+  const id = (await params).id;
 
   // Retrieve data from specific cookie
   const accessToken = (await cookieStore).get("access-token")?.value;
@@ -14,7 +20,7 @@ const UpdateQrCodePage = async ({ params }: { params: { id: string } }) => {
   };
 
   const response = await fetch(
-    `${process.env.NEXT_PUBLIC_API_URL}/api/v1/desktop/user/customQRCodes/details/${params.id}`,
+    `${process.env.NEXT_PUBLIC_API_URL}/api/v1/desktop/user/customQRCodes/details/${id}`,
     {
       method: "GET",
       headers: {
