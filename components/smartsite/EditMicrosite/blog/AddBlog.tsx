@@ -7,7 +7,6 @@ import imagePlaceholder from "@/public/images/image_placeholder.png";
 import CustomFileInput from "@/components/CustomFileInput";
 import { postBlog } from "@/actions/blog";
 import { FaTimes } from "react-icons/fa";
-import { useToast } from "@/hooks/use-toast";
 import { sendCloudinaryImage } from "@/lib/SendCloudineryImage";
 import AnimateButton from "@/components/ui/Button/AnimateButton";
 import { Editor } from "@tinymce/tinymce-react";
@@ -99,6 +98,7 @@ const AddBlog = ({ handleRemoveIcon }: any) => {
         const data = await postBlog(info, demoToken);
         if ((data.state = "success")) {
           toast.success("Blog created successfully");
+          handleRemoveIcon("Blog");
         } else {
           toast.error("Something went wrong");
         }

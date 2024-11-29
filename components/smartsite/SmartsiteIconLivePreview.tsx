@@ -8,7 +8,7 @@ import useUpdateSmartIcon from "@/zustandStore/UpdateSmartIcon";
 import useSmallIconToggleStore from "@/zustandStore/SmallIconModalToggle";
 // import getSmallIconImage from "@/util/retriveIconImage/getSmallIconImage";
 // import getAppIconImage from "@/util/retriveIconImage/getAppIconImage";
-import { FaEdit, FaEye } from "react-icons/fa";
+import { FaEdit, FaEye, FaPause, FaPlay } from "react-icons/fa";
 import useSideBarToggleStore from "@/zustandStore/SideBarToggleStore";
 // import AnimateButton from "./Button/AnimateButton";
 import AudioPlayer from "react-h5-audio-player";
@@ -49,7 +49,7 @@ const SmartsiteIconLivePreview = ({
   // console.log("data form live", data.info.socialLarge);
   const { formData, setFormData } = useSmartsiteFormStore();
 
-  console.log("form data from live preview", formData);
+  console.log("form data from live preview data", data);
 
   const { setOn }: any = useSmallIconToggleStore();
 
@@ -80,12 +80,12 @@ const SmartsiteIconLivePreview = ({
 
   return (
     <main className="w-[38%] h-full overflow-y-auto overflow-x-hidden">
-      <div className="relative mx-auto border-gray-800 dark:border-gray-800 bg-gray-800 border-[14px] rounded-[2.5rem] h-[600px] xl:h-[660px] w-[300px] xl:w-[360px]">
+      <div className="relative mx-auto border-gray-800 dark:border-gray-800 bg-gray-800 border-[14px] rounded-[2.5rem] h-[600px] xl:h-[660px] w-[300px] xl:w-[346px] 2xl:w-[360px]">
         <div className="h-[32px] w-[3px] bg-gray-800 dark:bg-gray-800 absolute -start-[17px] top-[72px] rounded-s-lg"></div>
         <div className="h-[46px] w-[3px] bg-gray-800 dark:bg-gray-800 absolute -start-[17px] top-[124px] rounded-s-lg"></div>
         <div className="h-[46px] w-[3px] bg-gray-800 dark:bg-gray-800 absolute -start-[17px] top-[178px] rounded-s-lg"></div>
         <div className="h-[64px] w-[3px] bg-gray-800 dark:bg-gray-800 absolute -end-[17px] top-[142px] rounded-e-lg"></div>
-        <div className="flex flex-col rounded-[2rem] overflow-hidden w-[272px] xl:w-[334px] h-[572px] xl:h-[636px] bg-white dark:bg-gray-800">
+        <div className="flex flex-col rounded-[2rem] overflow-hidden w-[272px] xl:w-[320px] 2xl:w-[334px] h-[572px] xl:h-[636px] bg-white dark:bg-gray-800">
           <section
             style={{
               backgroundImage: formData.theme
@@ -222,7 +222,7 @@ const SmartsiteIconLivePreview = ({
                                   alt={item.title}
                                   width={400}
                                   height={300}
-                                  className="w-full h-32 2xl:h-60 object-cover rounded-lg"
+                                  className="w-full h-32 xl:h-36 object-cover rounded-lg"
                                 />
                               </div>
                               <div
@@ -313,15 +313,16 @@ const SmartsiteIconLivePreview = ({
                             }`}
                           >
                             {isUrl(data.iconName) ? (
-                              <Image
-                                src={data.iconName}
-                                alt="icon"
-                                // style={tintStyle}
-                                className="w-[4.2rem] rounded-lg"
-                                quality={100}
-                                width={200}
-                                height={200}
-                              />
+                              <div className="relative w-[4.2rem] h-[4.2rem] rounded-lg">
+                                <Image
+                                  src={data.iconName}
+                                  alt="icon"
+                                  // style={tintStyle}
+                                  className="rounded-lg object-cover"
+                                  quality={100}
+                                  fill
+                                />
+                              </div>
                             ) : (
                               <Image
                                 src={getAllSmartsitesIcon(data.iconName) as any}
@@ -774,6 +775,9 @@ const SmartsiteIconLivePreview = ({
                                 </button>
                                 <div className="custom-audio">
                                   <AudioPlayer
+                                    style={{
+                                      backgroundColor: formData.templateColor,
+                                    }}
                                     key={audioData.fileUrl}
                                     autoPlay={false}
                                     src={audioData.fileUrl}
@@ -781,7 +785,21 @@ const SmartsiteIconLivePreview = ({
                                     customAdditionalControls={[]}
                                     customVolumeControls={[]}
                                     layout="stacked-reverse"
-                                    className="!w-max !p-0 !shadow-none translate-y-1"
+                                    className={`!w-max !p-0 !shadow-none translate-y-1 rounded-full`}
+                                    customIcons={{
+                                      play: (
+                                        <FaPlay
+                                          style={{ color: formData.fontColor }}
+                                          className="text-xl"
+                                        />
+                                      ), // Your custom play icon
+                                      pause: (
+                                        <FaPause
+                                          style={{ color: formData.fontColor }}
+                                          className="text-xl"
+                                        />
+                                      ), // Your custom pause icon
+                                    }}
                                   />
                                 </div>
                               </div>

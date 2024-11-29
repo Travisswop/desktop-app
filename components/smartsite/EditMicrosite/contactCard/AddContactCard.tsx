@@ -59,6 +59,7 @@ const AddContactCard = ({ handleRemoveIcon }: any) => {
         const data = await postContactCard(contactCardInfo, demoToken);
         if ((data.state = "success")) {
           toast.success("Contact card created successfully");
+          handleRemoveIcon("Contact Card");
         } else {
           toast.error("Something went wrong");
         }

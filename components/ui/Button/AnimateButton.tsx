@@ -6,6 +6,7 @@ import React, { useState, ReactNode, MouseEvent } from "react";
 interface AnimateButtonProps {
   children: ReactNode;
   isLoading?: boolean;
+  isDisabled?: boolean;
   type?: "button" | "submit" | "reset";
   width?: string;
   className?: string;
@@ -22,6 +23,7 @@ const AnimateButton: React.FC<AnimateButtonProps> = ({
   width = "w-52",
   onClick,
   className,
+  isDisabled = false,
 }) => {
   const [isHovered, setIsHovered] = useState(false);
 
@@ -37,6 +39,7 @@ const AnimateButton: React.FC<AnimateButtonProps> = ({
       className={mergedClasses}
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
+      disabled={isDisabled}
     >
       {isLoading ? (
         <Spinner

@@ -95,6 +95,7 @@ const AddAppIcon = ({ handleRemoveIcon }: any) => {
       const data = await postAppIcon(appIconInfo, demoToken);
       if ((data.state = "success")) {
         toast.success("App icon created successfully");
+        handleRemoveIcon("App Icon");
       } else {
         toast.error("Something went wrong");
       }

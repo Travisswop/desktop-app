@@ -351,7 +351,10 @@ const EditSmartSite = ({ data, token }: any) => {
   return (
     <main className="main-container">
       <div className="flex gap-7 items-start h-[90vh]">
-        <div style={{ height: "100%" }} className="w-[62%] overflow-y-auto">
+        <div
+          style={{ height: "100%" }}
+          className="w-[62%] overflow-y-auto pb-6"
+        >
           <form
             onSubmit={handleSmartSiteUpdateInfo}
             className=" border-r border-gray-300 pr-8 flex flex-col gap-4 overflow-auto"

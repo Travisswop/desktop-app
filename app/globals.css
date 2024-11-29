@@ -208,3 +208,44 @@ body {
   -webkit-line-clamp: 2;
   overflow: hidden;
 }
+
+.custom-audio .rhap_progress-section {
+  display: none !important;
+}
+
+/* smartsite embed link start */
+.embed-responsive {
+  position: relative;
+  padding-bottom: 56.25%; /* 16:9 aspect ratio */
+  height: 0;
+  overflow: hidden;
+  width: 100% !important;
+  border-radius: 12px; /* Adjust the radius as needed */
+}
+
+.embed-responsive iframe,
+.embed-responsive embed,
+.embed-responsive object,
+.embed-responsive video {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100% !important;
+  height: 100% !important;
+  border: 0;
+  border-radius: 12px;
+}
+
+.embed-container {
+  position: relative;
+  border-radius: 12px;
+}
+
+.embed-container iframe {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100px !important;
+  height: 100%;
+  border: 0;
+}

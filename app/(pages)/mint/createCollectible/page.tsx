@@ -2,6 +2,9 @@
 import { useState, DragEvent } from "react";
 import PushToMintCollectionButton from "@/components/Button/PushToMintCollectionButton";
 import Image from "next/image";
+import { sendCloudinaryImage } from "@/lib/SendCloudineryImage";
+import { sendCloudinaryFile } from "@/lib/SendCloudineryAnyFile";
+
 
 interface ContentFile {
   url: string;
@@ -11,8 +14,9 @@ interface ContentFile {
 
 interface FormData {
   name: string;
+  nftType: string;
   description: string;
-  imageUrl: string;
+  image: string;
   price: string;
   recipientAddress: string;
   currency: string;
@@ -27,8 +31,9 @@ interface FormData {
 const CreateCollectiblePage = () => {
   const [formData, setFormData] = useState<FormData>({
     name: "",
+    nftType:"collectible",
     description: "",
-    imageUrl: "",
+    image: "",
     price: "",
     recipientAddress: "",
     currency: "usdc",
@@ -42,6 +47,10 @@ const CreateCollectiblePage = () => {
 
   const [newBenefit, setNewBenefit] = useState("");
   const [selectedImageName, setSelectedImageName] = useState<string | null>(null);
+  const [imageUploading, setImageUploading] = useState(false);
+  const [isDragOver, setIsDragOver] = useState(false);
+  const [uploadingContent, setUploadingContent] = useState(false);
+
 
   const handleChange = (
     e: React.ChangeEvent<
@@ -71,23 +80,34 @@ const CreateCollectiblePage = () => {
     }));
   };
 
-  const handleImageUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImageUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
 
     setSelectedImageName(file.name);
 
     const reader = new FileReader();
-    reader.onloadend = () => {
-      setFormData((prevState) => ({
-        ...prevState,
-        imageUrl: reader.result as string,
-      }));
+    reader.onloadend = async () => {
+      const base64Image = reader.result as string;
+
+      try {
+        setImageUploading(true);
+        const image = await sendCloudinaryImage(base64Image);
+        setFormData((prevState) => ({
+          ...prevState,
+          image: image,
+        }));
+        setImageUploading(false);
+      } catch (error) {
+        console.error("Error uploading image:", error);
+        setImageUploading(false);
+        alert("Failed to upload image. Please try again.");
+      }
     };
     reader.readAsDataURL(file);
   };
 
-  const handleImageDrop = (event: DragEvent<HTMLDivElement>) => {
+  const handleImageDrop = async (event: DragEvent<HTMLDivElement>) => {
     event.preventDefault();
     const file = event.dataTransfer.files?.[0];
     if (!file) return;
@@ -95,37 +115,89 @@ const CreateCollectiblePage = () => {
     setSelectedImageName(file.name);
 
     const reader = new FileReader();
-    reader.onloadend = () => {
-      setFormData((prevState) => ({
-        ...prevState,
-        imageUrl: reader.result as string,
-      }));
+    reader.onloadend = async () => {
+      const base64Image = reader.result as string;
+
+      try {
+        setImageUploading(true);
+        const image = await sendCloudinaryImage(base64Image);
+        setFormData((prevState) => ({
+          ...prevState,
+          image: image,
+        }));
+        setImageUploading(false);
+      } catch (error) {
+        console.error("Error uploading image:", error);
+        setImageUploading(false);
+        alert("Failed to upload image. Please try again.");
+      }
     };
     reader.readAsDataURL(file);
   };
 
-  const handleContentUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleContentUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(event.target.files || []);
     if (files.length === 0) return;
-
-    const uploadedFiles = files.map((file) => {
-      const reader = new FileReader();
-      return new Promise<ContentFile | null>((resolve) => {
-        reader.onloadend = () => {
-          resolve({ url: reader.result as string, name: file.name, type: file.type });
-        };
-        reader.readAsDataURL(file);
-      });
-    });
-
-    Promise.all(uploadedFiles).then((successfulUploads) => {
+  
+    try {
+      setUploadingContent(true);
+      const uploadedFiles = await Promise.all(
+        files.map(async (file) => {
+          const reader = new FileReader();
+          const base64File = await new Promise<string>((resolve, reject) => {
+            reader.onloadend = () => resolve(reader.result as string);
+            reader.onerror = () => reject("Error reading file");
+            reader.readAsDataURL(file);
+          });
+  
+          const fileUrl = await sendCloudinaryFile(base64File, file.type, file.name);
+          return { url: fileUrl, name: file.name, type: file.type };
+        })
+      );
+  
+      // Update the formData with uploaded files
       setFormData((prevState) => ({
         ...prevState,
-        content: [...prevState.content, ...(successfulUploads.filter(Boolean) as ContentFile[])],
+        content: [...prevState.content, ...uploadedFiles],
       }));
-    });
+    } catch (error) {
+      console.error("Error uploading files:", error);
+      alert("Failed to upload some files. Please try again.");
+    } finally {
+      setUploadingContent(false);
+    }
   };
-
+      
+  const handleFileDrop = async (event: DragEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    const files = Array.from(event.dataTransfer.files);
+    if (files.length === 0) return;
+  
+    try {
+      const uploadedFiles = await Promise.all(
+        files.map(async (file) => {
+          const reader = new FileReader();
+          const base64File = await new Promise<string>((resolve, reject) => {
+            reader.onloadend = () => resolve(reader.result as string);
+            reader.onerror = () => reject("Error reading file");
+            reader.readAsDataURL(file);
+          });
+  
+          const fileUrl = await sendCloudinaryFile(base64File, file.type, file.name);
+          return { url: fileUrl, name: file.name, type: file.type };
+        })
+      );
+  
+      setFormData((prevState) => ({
+        ...prevState,
+        content: [...prevState.content, ...uploadedFiles],
+      }));
+    } catch (error) {
+      console.error("Error uploading files:", error);
+      alert("Failed to upload some files. Please try again.");
+    }
+  };
+    
   const handleAddBenefit = () => {
     if (newBenefit.trim()) {
       setFormData((prevState) => ({
@@ -151,6 +223,53 @@ const CreateCollectiblePage = () => {
     return "📁";
   };
 
+  const handleSubmit = async (e: React.MouseEvent<HTMLButtonElement>) => {
+    e.preventDefault();
+  
+    try {
+      const storedData = JSON.parse(localStorage.getItem("user-storage") || "{}");
+      const accessToken = storedData?.state?.state?.user?.accessToken;
+  
+      if (!accessToken) {
+        alert("Access token not found. Please log in again.");
+        return;
+      }
+  
+      // Explicitly convert supplyLimit and price to numbers before submitting
+      const finalData = {
+        ...formData,
+        supplyLimit: Number(formData.quantity), // Ensure it's a number
+        price: Number(formData.price), // Ensure it's a number
+      };
+  
+      const response = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL}/api/v1/desktop/nft/template`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${accessToken}`,
+          },
+          body: JSON.stringify(finalData),
+        }
+      );
+  
+      if (response.ok) {
+        const data = await response.json();
+        if (data.state === "success") {
+          alert("NFT Template created successfully!");
+        } else {
+          alert("Failed to create template");
+        }
+      } else {
+        alert("Failed to create template");
+      }
+    } catch (error) {
+      console.error("Error creating template:", error);
+      alert("Failed to create template");
+    }
+  };
+  
   return (
     <div className="main-container flex">
       <div className="w-1/2 p-5">
@@ -177,18 +296,19 @@ const CreateCollectiblePage = () => {
               </p>
             </div>
 
-            <label htmlFor="imageUrl" className="mb-1 block font-medium">
+            <label htmlFor="image" className="mb-1 block font-medium">
               Image (JPEG, JPG, PNG)
             </label>
             <div
               className="bg-gray-100 p-4 rounded-lg border border-dashed border-gray-300 text-center"
+              style={{ minWidth: '300px', width: '50%' }}
               onDragOver={(e) => e.preventDefault()}
               onDrop={handleImageDrop}
             >
-              {formData.imageUrl ? (
+              {formData.image ? (
                 <div className="flex flex-col items-center">
                   <Image
-                    src={formData.imageUrl}
+                    src={formData.image}
                     width={100}
                     height={100}
                     alt="Preview"
@@ -196,7 +316,7 @@ const CreateCollectiblePage = () => {
                   />
                   <p className="text-sm mt-2 text-gray-700">{selectedImageName}</p>
                   <label
-                    htmlFor="imageUrl"
+                    htmlFor="image"
                     className="inline-block bg-black text-white px-4 py-2 rounded-lg mt-2 cursor-pointer"
                   >
                     Change Picture
@@ -210,7 +330,7 @@ const CreateCollectiblePage = () => {
                       Browse or drag and drop an image here.
                     </p>
                     <label
-                      htmlFor="imageUrl"
+                      htmlFor="image"
                       className="inline-block bg-black text-white px-4 py-2 rounded-lg mt-2 cursor-pointer"
                     >
                       Browse
@@ -220,12 +340,14 @@ const CreateCollectiblePage = () => {
               )}
               <input
                 type="file"
-                id="imageUrl"
-                name="imageUrl"
+                id="image"
+                name="image"
                 accept="image/*"
                 onChange={handleImageUpload}
                 className="hidden"
               />
+              {imageUploading && <p>Uploading image...</p>}
+
             </div>
 
             <div>
@@ -262,11 +384,27 @@ const CreateCollectiblePage = () => {
               </p>
             </div>
 
-            <div className="bg-gray-100 p-4 rounded-lg border border-gray-300">
+            <div
+              className={`bg-gray-100 p-4 rounded-lg border ${isDragOver ? "border-blue-500 bg-blue-100" : "border-gray-300"
+                }`}
+              style={{ minWidth: "300px", width: "50%" }}
+              onDragOver={(e) => {
+                e.preventDefault();
+                setIsDragOver(true);
+              }}
+              onDragLeave={() => setIsDragOver(false)}
+              onDrop={(e) => {
+                handleFileDrop(e);
+                setIsDragOver(false);
+              }}
+            >
               <h3 className="text-lg font-medium text-black-600">Content</h3>
               <p className="text-sm text-gray-600">
-                Add content to sell. You can upload images, audio, video, PDFs, or other digital files.
+                Add content to sell. You can upload images, audio, video, PDFs, or other
+                digital files.
               </p>
+
+              {/* File Input for Manual Upload */}
               <input
                 type="file"
                 id="content"
@@ -277,7 +415,9 @@ const CreateCollectiblePage = () => {
                 className="w-full border border-dashed border-gray-300 rounded-lg px-4 py-2 mt-2"
               />
 
+              {/* Display Uploaded Files */}
               <div className="grid grid-cols-3 gap-4 mt-4">
+                {uploadingContent && <p>Uploading files...</p>}
                 {formData.content.map((file, index) => (
                   <div
                     key={index}
@@ -290,8 +430,8 @@ const CreateCollectiblePage = () => {
                   </div>
                 ))}
               </div>
-            </div>
-
+            </div>            
+            
             <div>
               <label htmlFor="benefits" className="mb-1 block font-medium">
                 Benefits
@@ -332,13 +472,21 @@ const CreateCollectiblePage = () => {
             <div className="bg-gray-100 p-4 rounded-lg border border-gray-300 mt-4">
               <h3 className="text-md font-medium">Enable Pay with Credit Card</h3>
               <p className="text-sm text-gray-600 mb-2">Let fans buy this pass with a credit card</p>
-              <input
-                type="checkbox"
-                id="enableCreditCard"
-                name="enableCreditCard"
-                checked={formData.enableCreditCard}
-                onChange={handleChange}
-              /> Enable
+              <div
+                className={`w-14 h-8 flex items-center rounded-full p-1 cursor-pointer ${formData.enableCreditCard ? "bg-black" : "bg-gray-300"
+                  }`}
+                onClick={() =>
+                  setFormData((prevState) => ({
+                    ...prevState,
+                    enableCreditCard: !prevState.enableCreditCard,
+                  }))
+                }
+              >
+                <div
+                  className={`h-6 w-6 bg-white rounded-full shadow-md transform duration-300 ${formData.enableCreditCard ? "translate-x-6" : ""
+                    }`}
+                ></div>
+              </div>
 
               <div className="mt-4">
                 <h3 className="text-md font-medium">Verify Identity</h3>
@@ -357,13 +505,21 @@ const CreateCollectiblePage = () => {
               <h3 className="text-md font-medium">Advanced Settings</h3>
               <div className="flex items-center justify-between mt-2">
                 <span className="text-sm font-medium">Limit quantity</span>
-                <input
-                  type="checkbox"
-                  id="limitQuantity"
-                  name="limitQuantity"
-                  checked={formData.limitQuantity}
-                  onChange={handleChange}
-                />
+                <div
+                  className={`w-14 h-8 flex items-center rounded-full p-1 cursor-pointer ${formData.limitQuantity ? "bg-black" : "bg-gray-300"
+                    }`}
+                  onClick={() =>
+                    setFormData((prevState) => ({
+                      ...prevState,
+                      limitQuantity: !prevState.limitQuantity,
+                    }))
+                  }
+                >
+                  <div
+                    className={`h-6 w-6 bg-white rounded-full shadow-md transform duration-300 ${formData.limitQuantity ? "translate-x-6" : ""
+                      }`}
+                  ></div>
+                </div>
               </div>
               {formData.limitQuantity && (
                 <input
@@ -384,7 +540,7 @@ const CreateCollectiblePage = () => {
               <input type="checkbox" required /> I agree with swop Minting Privacy & Policy
             </div>
 
-            <PushToMintCollectionButton className="w-max mt-4">
+            <PushToMintCollectionButton className="w-max mt-4" onClick={handleSubmit}>
               Create
             </PushToMintCollectionButton>
           </div>
@@ -394,9 +550,9 @@ const CreateCollectiblePage = () => {
       <div className="w-1/2 flex justify-center items-center p-5">
         <div className="bg-white p-4 rounded-lg shadow-md border border-gray-300 w-full max-w-md aspect-[3/4] flex flex-col items-start">
           <div className="w-full aspect-square bg-gray-200 flex items-center justify-center rounded-t-lg mb-4">
-            {formData.imageUrl ? (
+            {formData.image ? (
               <Image
-                src={formData.imageUrl}
+                src={formData.image}
                 width={300}
                 height={300}
                 alt="Preview"
@@ -427,8 +583,8 @@ const CreateCollectiblePage = () => {
             <ul className="list-disc list-inside text-sm text-gray-500">
               {formData.benefits.length > 0
                 ? formData.benefits.map((benefit, index) => (
-                    <li key={index}>{benefit}</li>
-                  ))
+                  <li key={index}>{benefit}</li>
+                ))
                 : <li>No benefits added</li>}
             </ul>
           </div>
