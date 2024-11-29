@@ -129,7 +129,7 @@ const MintDashboard = () => {
                 ))}
 
                 <div className="h-full w-full" onClick={handleSaveClick}>
-                  <SaveToLocalAndNavigate collectionId="collection-id" />
+                  <SaveToLocalAndNavigate collectionId={group.collection.id} />
                 </div>
               </div>
             </div>
