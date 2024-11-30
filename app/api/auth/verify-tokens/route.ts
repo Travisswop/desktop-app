@@ -6,6 +6,7 @@ export async function POST(request: NextRequest) {
   let req;
   try {
     req = await request.json();
+    console.log('🚀 ~ POST ~ req:', req);
   } catch (e) {
     console.error('Failed to parse request body:', e);
     return NextResponse.json(
@@ -53,7 +54,7 @@ export async function POST(request: NextRequest) {
       userId,
     });
   } catch (error) {
-    console.error('Auth verification error:', error);
+    console.log('🚀 ~ VerifyTokens ~ error:', error);
     return NextResponse.json(
       {
         error: 'Authentication failed',

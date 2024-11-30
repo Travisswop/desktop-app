@@ -1,9 +1,11 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
+import { PrivyClient } from '@privy-io/server-auth';
 
 // Define which routes should be protected
 const protectedRoutes = [
   '/',
+  '/onboard',
   '/feed',
   '/smartsite',
   '/qrcode',
@@ -14,9 +16,6 @@ const protectedRoutes = [
   '/content',
 ];
 
-// Define auth routes that authenticated users shouldn't access
-const authRoutes = ['/login', '/onboard'];
-
 // Define public paths that should be accessible without authentication
 const publicPaths = [
   '/api',
@@ -24,6 +23,8 @@ const publicPaths = [
   '/static',
   '/images',
   '/favicon.ico',
+  '/assets',
+  '/login', // Add login to public paths to prevent redirect loop
 ];
 
 // Cache auth results with expiry
@@ -36,12 +37,6 @@ const CACHE_DURATION = 720 * 60 * 1000; // 720 minutes in milliseconds
 async function verifyAuth(request: NextRequest) {
   const privy_token = request.cookies.get('privy-token')?.value;
   const privy_id_token = request.cookies.get('privy-id-token')?.value;
-
-  if (!privy_token || !privy_id_token) {
-    authCache.clear();
-    return false;
-  }
-
   // Check cache first
   const cacheKey = `${privy_token}:${privy_id_token}`;
   const cachedResult = authCache.get(cacheKey);
@@ -53,28 +48,20 @@ async function verifyAuth(request: NextRequest) {
   }
 
   try {
-    const verifyResponse = await fetch(
-      `${request.nextUrl.origin}/api/auth/verify-tokens`,
-      {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          privyToken: privy_token,
-          privyIdToken: privy_id_token,
-        }),
-      }
+    const privy = new PrivyClient(
+      process.env.NEXT_PUBLIC_PRIVY_APP_ID || '',
+      process.env.NEXT_PUBLIC_PRIVY_APP_SECRET || ''
     );
-
-    if (!verifyResponse.ok) {
+    // Verify both tokens
+    if (!privy_token || !privy_id_token) {
       authCache.set(cacheKey, { timestamp: now, isValid: false });
       return false;
     }
 
-    const { isValid, email, userId } = await verifyResponse.json();
+    const { userId } = await privy.verifyAuthToken(privy_token);
+    const user = await privy.getUser({ idToken: privy_id_token });
 
-    if (!isValid || !email) {
+    if (!userId || !user) {
       authCache.set(cacheKey, { timestamp: now, isValid: false });
       return false;
     }
@@ -92,14 +79,14 @@ async function verifyAuth(request: NextRequest) {
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
-  // Always allow access to login page
-  if (pathname === '/login' || pathname === '/onboard') {
-    return NextResponse.next();
-  }
+  const privy_token = request.cookies.get('privy-token')?.value;
+  const privy_id_token = request.cookies.get('privy-id-token')?.value;
 
-  // Check if the path is public
-  if (publicPaths.some((path) => pathname.startsWith(path))) {
-    return NextResponse.next();
+  if (!privy_token || !privy_id_token) {
+    if (pathname === '/login') {
+      return NextResponse.next();
+    }
+    return NextResponse.redirect(new URL('/login', request.url));
   }
 
   try {
@@ -109,12 +96,12 @@ export async function middleware(request: NextRequest) {
       isAuthenticated
     );
 
-    // If user is authenticated and trying to access auth routes, redirect to home
+    // If user is authenticated and trying to access protected routes, allow access
     if (
       isAuthenticated &&
-      authRoutes.some((route) => pathname.startsWith(route))
+      protectedRoutes.some((route) => pathname.startsWith(route))
     ) {
-      return NextResponse.redirect(new URL('/', request.url));
+      return NextResponse.next();
     }
 
     // If user is not authenticated and trying to access protected routes
@@ -122,7 +109,6 @@ export async function middleware(request: NextRequest) {
       !isAuthenticated &&
       protectedRoutes.some((route) => pathname.startsWith(route))
     ) {
-      console.log('Redirecting to login'); // Added logging
       // Clear any stale cookies
       const response = NextResponse.redirect(
         new URL('/login', request.url)
@@ -130,6 +116,9 @@ export async function middleware(request: NextRequest) {
       response.cookies.delete('privy-token');
       response.cookies.delete('privy-id-token');
       response.cookies.delete('privy-refresh-token');
+      response.cookies.delete('privy-session');
+      response.cookies.delete('access-token');
+      response.cookies.delete('user-id');
       return response;
     }
 

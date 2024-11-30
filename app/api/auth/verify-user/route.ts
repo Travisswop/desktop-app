@@ -2,18 +2,6 @@ import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 
 export async function POST(request: NextRequest) {
-  // const privyToken = request.cookies.get('privy-token')?.value;
-  // console.log('🚀 ~ POST ~ privyToken:', privyToken);
-  // const privyIdToken = request.cookies.get('privy-id-token')?.value;
-  // console.log('🚀 ~ POST ~ privyIdToken:', privyIdToken);
-
-  // if (!privyToken || !privyIdToken) {
-  //   return NextResponse.json(
-  //     { error: 'Privy token not found', user: null },
-  //     { status: 401 }
-  //   );
-  // }
-
   try {
     const authHeader = request.headers.get('authorization');
 
@@ -57,7 +45,7 @@ export async function POST(request: NextRequest) {
       user: userData,
     });
   } catch (error) {
-    console.error('Auth verification error:', error);
+    console.log('🚀 ~ VerifyUser ~ error:', error);
     return NextResponse.json(
       {
         error: 'Failed to verify user',

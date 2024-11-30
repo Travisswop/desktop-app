@@ -1,9 +1,9 @@
 import { Button } from '@/components/ui/button';
-import { Settings, Download } from 'lucide-react';
+import { Download } from 'lucide-react';
 import RecentLeadsSlider from '@/components/analytics/recent-leads-slider';
 import SmartSiteSlider from '@/components/analytics/smartsite-slider';
 import SmartSiteAnalytics from '@/components/analytics/smartsite-analytics';
-import QrcodeGenerator from './qrcode-generator';
+
 import { UserData } from '@/lib/UserContext';
 import { Parser } from 'json2csv';
 import CreateQRCode from './create-qrcode';

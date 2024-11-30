@@ -7,7 +7,6 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 
-import { format } from 'date-fns';
 import { ArrowLeft, ExternalLink, Wallet } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Transaction } from '@/types/transaction';
@@ -59,10 +58,16 @@ const SentReceivedView = ({
 }: TransactionDetailsProps) => {
   if (!transaction) return null;
 
-  const formattedDate = format(
-    new Date(parseInt(transaction.timeStamp) * 1000),
-    'MMM d, yyyy hh:mm aa'
-  );
+  const formattedDate = new Date(
+    parseInt(transaction.timeStamp) * 1000
+  ).toLocaleString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+    hour: 'numeric',
+    minute: 'numeric',
+    hour12: true,
+  });
 
   const calculateValue = (value: string, price: number) => {
     const numericValue = parseFloat(value);

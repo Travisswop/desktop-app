@@ -8,7 +8,7 @@ import Link from 'next/link';
 import { TbEdit } from 'react-icons/tb';
 
 const ParentProfileCard = () => {
-  const { user, loading, error }: any = useUser();
+  const { user, loading }: any = useUser();
 
   console.log('user', user);
 

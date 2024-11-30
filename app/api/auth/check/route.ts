@@ -36,7 +36,7 @@ export async function POST(request: NextRequest) {
       user,
     });
   } catch (error) {
-    console.error('Auth verification error:', error);
+    console.log('🚀 ~ CheckAuth ~ error:', error);
     return NextResponse.json(
       {
         error: 'Authentication failed',
