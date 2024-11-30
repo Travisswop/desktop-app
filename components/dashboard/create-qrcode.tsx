@@ -16,7 +16,7 @@ import QRCodeShareModal from '../smartsite/socialShare/QRCodeShareModal';
 import { useToast } from '@/hooks/use-toast';
 import { Card, CardContent, CardHeader } from '../ui/card';
 import { Button } from '@nextui-org/react';
-import { QrCode } from 'lucide-react';
+import { Loader2, QrCode } from 'lucide-react';
 import { useUser } from '@/lib/UserContext';
 
 const CreateQRCode = () => {
@@ -127,7 +127,11 @@ const CreateQRCode = () => {
                   className="w-full text-white bg-black"
                   type="submit"
                 >
-                  <QrCode className="mr-2 h-4 w-4" />
+                  {isLoading ? (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  ) : (
+                    <QrCode className="mr-2 h-4 w-4" />
+                  )}
                   Generate QR
                 </Button>
               </div>
