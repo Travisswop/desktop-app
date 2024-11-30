@@ -189,12 +189,12 @@ body {
   }
 
   .scrollbar-thumb-gray-300::-webkit-scrollbar-thumb {
-    background-color: #D1D5DB;
+    background-color: #d1d5db;
     border-radius: 6px;
   }
 
   .scrollbar-track-gray-100::-webkit-scrollbar-track {
-    background-color: #F3F4F6;
+    background-color: #f3f4f6;
   }
 
   .scrollbar-thin::-webkit-scrollbar {
@@ -249,3 +249,67 @@ body {
   height: 100%;
   border: 0;
 }
+
+/* phone number input for profile page custom css start */
+.react-international-phone-input {
+  width: 100% !important; /* w-full */
+  border: 1px solid #ede8e8 !important; /* border border-[#ede8e8] */
+  border-start-end-radius: 0.75rem !important; /* rounded-xl */
+  border-end-end-radius: 0.75rem !important; /* rounded-xl */
+  padding-top: 0.5rem !important; /* py-2 (top and bottom padding) */
+  padding-bottom: 0.5rem !important; /* py-2 (top and bottom padding) */
+  color: #4a5568 !important; /* text-gray-700 */
+  background-color: #f3f4f6 !important; /* bg-gray-100 */
+  font-size: 100% !important;
+}
+
+.react-international-phone-input:focus {
+  border-color: #e5e0e0 !important; /* focus:border-[#e5e0e0] */
+  outline: none !important; /* focus:outline-none */
+}
+
+.react-international-phone-country-selector-button {
+  height: 100% !important;
+  padding-left: 6px !important;
+}
+
+.react-international-phone-input-container .react-international-phone-input {
+  height: auto !important;
+}
+
+.react-international-phone-flag-emoji {
+  width: var(--react-international-phone-flag-width, 30px) !important;
+  height: var(--react-international-phone-flag-height, 30px) !important;
+}
+/* phone number input for profile page custom css end */
+
+/* places input custom css for profile page start  */
+.css-13cymwt-control {
+  border-color: #ede8e8 !important;
+  box-shadow: #ede8e8 !important;
+  border-radius: 13px !important;
+  padding-top: 0.2rem !important;
+  padding-bottom: 0.2rem !important;
+  background-color: #f3f4f6 !important;
+  padding-left: 4px;
+}
+.css-13cymwt-control:hover {
+  border-color: #ede8e8 !important;
+  background-color: #f3f4f6 !important;
+}
+.css-t3ipsp-control {
+  border-color: #ede8e8 !important;
+  box-shadow: 0 0 0 0px#ede8e8 !important;
+  background-color: #f3f4f6 !important;
+  border-radius: 13px !important;
+  padding-top: 0.2rem !important;
+  padding-bottom: 0.2rem !important;
+  padding-left: 4px;
+}
+.css-t3ipsp-control:focus {
+  border-color: #ede8e8 !important;
+}
+.css-t3ipsp-control:hover {
+  border-color: #ede8e8 !important;
+}
+/* places input custom css for profile page end  */

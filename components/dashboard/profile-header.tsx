@@ -4,7 +4,9 @@ import isUrl from "@/lib/isUrl";
 import { useUser } from "@/lib/UserContext";
 import { MessageCircle, FileText, Star, CheckCircle2 } from "lucide-react";
 import Image from "next/image";
+import Link from "next/link";
 import { memo } from "react";
+import { FaEdit } from "react-icons/fa";
 
 // Memoize StatCard component since it's purely presentational
 const StatCard = memo(function StatCard({
@@ -55,7 +57,9 @@ const ProfileImage = memo(function ProfileImage({
           className="rounded-full w-16 h-16"
         />
       )}
-      <CheckCircle2 className="absolute bottom-0 right-0 text-blue-500 bg-white rounded-full w-5 h-5" />
+      <Link href={"/account-settings"}>
+        <FaEdit className="absolute bottom-0 right-0 text-gray-700 bg-white rounded-full w-6 h-6 p-[3px] border border-gray-300" />
+      </Link>
     </div>
   );
 });
