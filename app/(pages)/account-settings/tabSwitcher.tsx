@@ -7,7 +7,7 @@ import { TabsContent } from "@radix-ui/react-tabs";
 import SubscriptionPlans from "./subscriptionPlan";
 import UpdateProfile from "./mainContent";
 
-export default function UserAccountTabSwitcher({ data, accessToken }: any) {
+export default function UserAccountTabSwitcher({ data, token }: any) {
   // State to control the active tab
   const [activeTab, setActiveTab] = useState("profile");
 
@@ -44,7 +44,7 @@ export default function UserAccountTabSwitcher({ data, accessToken }: any) {
               {/* Pass the handleTabChange function to UpdateProfile */}
               <UpdateProfile
                 data={data}
-                token={accessToken}
+                token={token}
                 switchToTab={handleTabChange}
               />
             </TabsContent>

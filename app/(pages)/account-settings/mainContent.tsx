@@ -32,6 +32,9 @@ import { Button } from "@/components/ui/button";
 // export const maxDuration = 60;
 
 const UpdateProfile = ({ data, token, switchToTab }: any) => {
+  console.log("dataggg", data);
+  console.log("token", token);
+
   const [selectedImage, setSelectedImage] = useState(null);
   const [galleryImage, setGalleryImage] = useState(null);
   const [uploadedImageUrl, setUploadedImageUrl] = useState("");
@@ -130,11 +133,11 @@ const UpdateProfile = ({ data, token, switchToTab }: any) => {
       apt: "N/A",
     };
 
-    // console.log("user info", userInfo);
+    console.log("user info", userInfo);
 
     try {
       const data = await updateUserProfile(userInfo, token);
-      // console.log("data", data);
+      console.log("update result", data);
 
       if (data.state === "success") {
         router.push("/");

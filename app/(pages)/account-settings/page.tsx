@@ -8,6 +8,9 @@ const UpdateProfilePage = async () => {
 
   // Retrieve data from specific cookie
   const accessToken = (await cookieStore).get("access-token")?.value;
+
+  console.log("access tokenff ", accessToken);
+
   const userId = (await cookieStore).get("user-id")?.value;
 
   const response = await fetch(
