@@ -1,20 +1,20 @@
-'use client';
+"use client";
 
-import { usePrivy } from '@privy-io/react-auth';
-import Image from 'next/image';
-import Link from 'next/link';
-import { ChevronDown } from 'lucide-react';
-import { Button } from '@/components/ui/button';
+import { usePrivy } from "@privy-io/react-auth";
+import Image from "next/image";
+import Link from "next/link";
+import { ChevronDown } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
-import { useUser } from '@/lib/UserContext';
-import { Skeleton } from './ui/skeleton';
-import { useRouter } from 'next/navigation';
-import isUrl from '@/lib/isUrl';
+} from "@/components/ui/dropdown-menu";
+import { useUser } from "@/lib/UserContext";
+import { Skeleton } from "./ui/skeleton";
+import { useRouter } from "next/navigation";
+import isUrl from "@/lib/isUrl";
 
 export default function Header() {
   const { logout } = usePrivy();
@@ -28,19 +28,19 @@ export default function Header() {
 
       // Call logout API
       const res = await fetch(`/api/auth/logout`, {
-        method: 'POST',
+        method: "POST",
         headers: {
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
         },
       });
 
       if (res.ok) {
         // Finally, logout from Privy
         await logout();
-        router.replace('/login');
+        router.replace("/login");
       }
     } catch (error) {
-      console.error('Logout error:', error);
+      console.error("Logout error:", error);
     }
   };
 
@@ -65,17 +65,17 @@ export default function Header() {
               className="relative flex items-center gap-2 px-3 py-4 rounded-full bg-slate-100 hover:bg-accent h-14"
             >
               <div className="relative h-8 w-8">
-                {isUrl(user.profilePic || '') ? (
+                {isUrl(user.profilePic || "") ? (
                   <Image
-                    src={user.profilePic || ''}
-                    alt={user.name || ''}
+                    src={user.profilePic || ""}
+                    alt={user.name || ""}
                     fill
                     className="rounded-full object-cover"
                   />
                 ) : (
                   <Image
                     src={`/images/user_avator/${user.profilePic}.png`}
-                    alt={user.name || ''}
+                    alt={user.name || ""}
                     fill
                     className="rounded-full object-cover"
                   />
@@ -88,14 +88,12 @@ export default function Header() {
           <DropdownMenuContent align="end" className="w-48">
             <DropdownMenuItem
               onSelect={() => {
-                router.replace('/account-billing');
+                router.push("/account-settings");
               }}
             >
               Settings
             </DropdownMenuItem>
-            <DropdownMenuItem onSelect={handleLogout}>
-              Logout
-            </DropdownMenuItem>
+            <DropdownMenuItem onSelect={handleLogout}>Logout</DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
       )}

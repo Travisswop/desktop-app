@@ -34,7 +34,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className={roboto.className} suppressHydrationWarning>
+    <html lang="en" className={roboto.className}>
       <body
         className={`font-[roboto] bg-accent`}
         // className={`${geistSans.variable} ${geistMono.variable} antialiased bg-accent`}

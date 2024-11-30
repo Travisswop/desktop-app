@@ -1,6 +1,5 @@
-'use client';
-import Header from '@/components/Header';
-import Sidenav from '@/components/Sidenav';
+import Header from "@/components/Header";
+import Sidenav from "@/components/Sidenav";
 
 const PageLayout = ({ children }: { children: React.ReactNode }) => {
   return (
