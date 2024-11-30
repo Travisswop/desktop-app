@@ -1,7 +1,6 @@
 'use client';
 import React, { useState } from 'react';
 
-import { MdOutlineQrCode } from 'react-icons/md';
 import Image from 'next/image';
 import qrcode from '@/public/images/websites/qrcode.png';
 import edit from '@/public/images/websites/icon/edit.svg';

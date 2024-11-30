@@ -2,11 +2,8 @@
 
 import { usePrivy, useLogin, useLogout } from '@privy-io/react-auth';
 import { useRouter } from 'next/navigation';
-import { Skeleton } from '@/components/ui/skeleton';
 import { useEffect, useRef, useState } from 'react';
-import { Card, CardContent, CardHeader } from '@/components/ui/card';
-
-import RotateEarth from '@/components/rotating-earth';
+import { Card } from '@/components/ui/card';
 import Loader from '@/components/loading/Loader';
 import { Button } from '@/components/ui/button';
 import { ChevronRight } from 'lucide-react';
@@ -17,32 +14,31 @@ import yellowPlanet from '@/public/onboard/yellow-planet.svg';
 
 const Login: React.FC = () => {
   const { ready, authenticated, getAccessToken } = usePrivy();
-
+  const { logout } = useLogout();
   const router = useRouter();
   const loginInitiated = useRef(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
 
   const { login } = useLogin({
     onComplete: async (user) => {
-      console.log('🚀 ~ onComplete: ~ user:', user);
-      const email =
-        user.google?.email ||
-        user.email?.address ||
-        user.linkedAccounts.find(
-          (account) => account.type === 'email'
-        )?.address ||
-        user.linkedAccounts.find(
-          (account) => account.type === 'google_oauth'
-        )?.email;
-
-      if (!email) {
-        console.log('No email found, redirecting to onboard');
-        loginInitiated.current = false;
-        router.push('/onboard');
-        return;
-      }
-
       try {
+        const email =
+          user.google?.email ||
+          user.email?.address ||
+          user.linkedAccounts.find(
+            (account) => account.type === 'email'
+          )?.address ||
+          user.linkedAccounts.find(
+            (account) => account.type === 'google_oauth'
+          )?.email;
+
+        if (!email) {
+          console.log('No email found, redirecting to onboard');
+          router.push('/onboard');
+          return;
+        }
+
         const token = await getAccessToken();
         const response = await fetch('/api/auth/verify-user', {
           method: 'POST',
@@ -51,16 +47,13 @@ const Login: React.FC = () => {
             Authorization: `Bearer ${token}`,
           },
           body: JSON.stringify({
-            email: email,
+            email,
             userId: user.id,
           }),
         });
 
-        console.log('Verify response:', response.status);
-
         if (!response.ok) {
           console.log('User not found, redirecting to onboard');
-          loginInitiated.current = false;
           router.push('/onboard');
           return;
         }
@@ -69,9 +62,9 @@ const Login: React.FC = () => {
         router.push('/');
       } catch (error) {
         console.error('Error verifying user:', error);
-        loginInitiated.current = false;
         router.push('/onboard');
       } finally {
+        loginInitiated.current = false;
         setIsLoading(false);
       }
     },
@@ -83,18 +76,33 @@ const Login: React.FC = () => {
   });
 
   useEffect(() => {
+    // Check for privy tokens in cookies
+    const privyToken = document.cookie.includes('privy-token');
+    const privyIdToken = document.cookie.includes('privy-id-token');
+
+    // If tokens not found but user is authenticated, log them out
+    if ((!privyToken || !privyIdToken) && authenticated) {
+      setIsLoggingOut(true);
+      logout().then(() => {
+        login();
+      });
+    }
+  }, [authenticated, login, logout]);
+
+  // Auto-trigger login when component mounts
+  useEffect(() => {
     if (ready && !authenticated && !loginInitiated.current) {
-      loginInitiated.current = true;
       handleLogin();
     }
   }, [ready, authenticated]);
 
-  const handleLogin = async () => {
+  const handleLogin = () => {
+    if (loginInitiated.current) return;
+
     try {
-      console.log('handleLogin');
       setIsLoading(true);
       loginInitiated.current = true;
-      await login();
+      login();
     } catch (error) {
       console.error('Handle login error:', error);
       loginInitiated.current = false;
@@ -102,7 +110,7 @@ const Login: React.FC = () => {
     }
   };
 
-  if (!ready) {
+  if (!ready || isLoggingOut) {
     return <Loader />;
   }
 
@@ -121,34 +129,31 @@ const Login: React.FC = () => {
           src={astronot}
           alt="astronot image"
           className="w-48 h-auto"
+          priority
         />
       </div>
-      <div className="absolute -top-20 right-0 w-32 h-32 ">
+      <div className="absolute -top-20 right-0 w-32 h-32">
         <Image
           src={yellowPlanet}
-          alt="astronot image"
+          alt="yellow planet"
           className="w-48 h-auto"
+          priority
         />
       </div>
-      <div className="absolute -bottom-20 left-8 w-24 h-24 ">
+      <div className="absolute -bottom-20 left-8 w-24 h-24">
         <Image
           src={bluePlanet}
-          alt="astronot image"
+          alt="blue planet"
           className="w-56 h-auto"
+          priority
         />
       </div>
       <Card className="relative w-full bg-white/80 backdrop-blur-sm shadow-xl rounded-3xl p-16 max-w-md mx-auto">
         <div className="text-center space-y-6">
           <div className="flex justify-center">
-            <div className="text-center space-y-6">
-              <div className="flex justify-center">
-                <div className="flex items-center gap-2">
-                  <div className="w-6 h-6 rounded-full bg-black" />
-                  <span className="text-4xl font-semibold">
-                    privy
-                  </span>
-                </div>
-              </div>
+            <div className="flex items-center gap-2">
+              <div className="w-6 h-6 rounded-full bg-black" />
+              <span className="text-4xl font-semibold">privy</span>
             </div>
           </div>
           <Button
@@ -170,4 +175,5 @@ const Login: React.FC = () => {
     </div>
   );
 };
+
 export default Login;

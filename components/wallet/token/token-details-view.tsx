@@ -15,7 +15,6 @@ import { Button } from '@/components/ui/button';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Wallet, Send, ArrowRightLeft } from 'lucide-react';
 import Image from 'next/image';
-import { format } from 'date-fns';
 import { TimeSeriesData, TokenData } from '@/types/token';
 
 const CustomTooltip = ({
@@ -28,7 +27,13 @@ any) => {
     return (
       <div className="bg-white p-2 border rounded shadow-sm">
         <p className="text-sm text-gray-600">
-          {format(new Date(label * 1000), 'MMM d, h:mm a')}
+          {new Date(label * 1000).toLocaleString('en-US', {
+            month: 'short',
+            day: 'numeric',
+            hour: 'numeric',
+            minute: '2-digit',
+            hour12: true,
+          })}
         </p>
         <p className="text-sm font-bold">
           ${payload[0].value.toFixed(2)}
@@ -167,7 +172,14 @@ export default function TokenDetails({
                     dataKey="timestamp"
                     hide={true}
                     tickFormatter={(timestamp) =>
-                      format(new Date(timestamp), 'h:mm a')
+                      new Date(timestamp).toLocaleTimeString(
+                        'en-US',
+                        {
+                          hour: 'numeric',
+                          minute: '2-digit',
+                          hour12: true,
+                        }
+                      )
                     }
                     type="number"
                     scale="time"
