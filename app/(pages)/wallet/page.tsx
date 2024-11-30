@@ -1,3 +1,4 @@
+'use client';
 import WalletContent from '@/components/wallet/WalletContent';
 
 import { ReactQueryDevtools } from '@tanstack/react-query-devtools';

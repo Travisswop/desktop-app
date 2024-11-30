@@ -1,48 +1,47 @@
-"use client";
-import { useUser } from "@/lib/UserContext";
-import { Skeleton } from "../ui/skeleton";
-import BalanceChart from "./balance-chart";
-import TokenList from "./token/token-list";
-import NFTSlider from "./nft/nft-list";
-import TransactionList from "./transaction/transaction-list";
-import { useEffect, useState, useMemo } from "react";
-import TokenDetails from "./token/token-details-view";
-import NFTDetailView from "./nft/nft-details-view";
-import { NFT } from "@/types/nft";
+'use client';
+import { Skeleton } from '../ui/skeleton';
+import BalanceChart from './balance-chart';
+import TokenList from './token/token-list';
+import NFTSlider from './nft/nft-list';
+import TransactionList from './transaction/transaction-list';
+import { useEffect, useState, useMemo } from 'react';
+import TokenDetails from './token/token-details-view';
+import NFTDetailView from './nft/nft-details-view';
+import { NFT } from '@/types/nft';
 import {
   usePrivy,
   useSolanaWallets,
   useWallets,
   WalletWithMetadata,
-} from "@privy-io/react-auth";
-import { WalletItem, ReceiverData } from "@/types/wallet";
-import { useMultiChainTokenData } from "@/lib/hooks/useToken";
-import { TokenData } from "@/types/token";
+} from '@privy-io/react-auth';
+import { WalletItem, ReceiverData } from '@/types/wallet';
+import { useMultiChainTokenData } from '@/lib/hooks/useToken';
+import { TokenData } from '@/types/token';
 
-import NetworkDock from "./network-dock";
-import SendTokenModal from "./token/send-modal";
-import SendToModal from "./token/send-to-modal";
-import SendConfirmation from "./token/send-confirmation";
-import TransactionSuccess from "./token/success-modal";
-import { ethers } from "ethers";
+import NetworkDock from './network-dock';
+import SendTokenModal from './token/send-modal';
+import SendToModal from './token/send-to-modal';
+import SendConfirmation from './token/send-confirmation';
+import TransactionSuccess from './token/success-modal';
+import { ethers } from 'ethers';
 import {
   PublicKey,
   Transaction as SolanaTransaction,
   Connection,
   SystemProgram,
-} from "@solana/web3.js";
+} from '@solana/web3.js';
 import {
   getAssociatedTokenAddress,
   createTransferInstruction,
   createAssociatedTokenAccountInstruction,
-} from "@solana/spl-token";
-import { useToast } from "@/hooks/use-toast";
-import { Transaction as TransactionType } from "@/types/transaction";
-import { Toaster } from "../ui/toaster";
-import MessageList from "./message-list";
-import ProfileHeader from "../dashboard/profile-header";
+} from '@solana/spl-token';
+import { useToast } from '@/hooks/use-toast';
+import { Transaction as TransactionType } from '@/types/transaction';
+import { Toaster } from '../ui/toaster';
+// import MessageList from "./message-list";
+import ProfileHeader from '../dashboard/profile-header';
 
-type Network = "ETHEREUM" | "POLYGON" | "BASE" | "SOLANA";
+type Network = 'ETHEREUM' | 'POLYGON' | 'BASE' | 'SOLANA';
 
 const CHAIN_ID = {
   ETHEREUM: 1,
@@ -52,27 +51,32 @@ const CHAIN_ID = {
 } as const;
 
 export default function WalletContent() {
-  const [walletData, setWalletData] = useState<WalletItem[] | null>(null);
-  const [network, setNetwork] = useState<Network>("ETHEREUM");
+  const [walletData, setWalletData] = useState<WalletItem[] | null>(
+    null
+  );
+  const [network, setNetwork] = useState<Network>('ETHEREUM');
 
   const { authenticated, ready, user: PrivyUser } = usePrivy();
 
   const { wallets: ethWallets } = useWallets();
   const { createWallet, wallets: solanaWallets } = useSolanaWallets();
-  const [selectedToken, setSelectedToken] = useState<TokenData | null>(null);
+  const [selectedToken, setSelectedToken] =
+    useState<TokenData | null>(null);
   const [selectedNFT, setSelectedNFT] = useState<NFT | null>(null);
   const [isNFTModalOpen, setIsNFTModalOpen] = useState(false);
   const [sendLoading, setSendLoading] = useState(false);
-  const [newTransactions, setNewTransactions] = useState<TransactionType[]>([]);
+  const [newTransactions, setNewTransactions] = useState<
+    TransactionType[]
+  >([]);
   const [sendFlow, setSendFlow] = useState<{
-    step: "amount" | "recipient" | "confirm" | "success" | null;
+    step: 'amount' | 'recipient' | 'confirm' | 'success' | null;
     token: TokenData | null;
     amount: string;
     recipient: ReceiverData | null;
   }>({
     step: null,
     token: null,
-    amount: "",
+    amount: '',
     recipient: null,
   });
 
@@ -82,11 +86,11 @@ export default function WalletContent() {
     if (!walletData) return undefined;
 
     switch (network) {
-      case "SOLANA":
+      case 'SOLANA':
         return walletData.find((w) => !w.isEVM)?.address;
-      case "ETHEREUM":
-      case "POLYGON":
-      case "BASE":
+      case 'ETHEREUM':
+      case 'POLYGON':
+      case 'BASE':
         return walletData.find((w) => w.isEVM)?.address;
       default:
         return undefined;
@@ -102,7 +106,8 @@ export default function WalletContent() {
   const totalBalance = useMemo(() => {
     return tokens.reduce((total, token) => {
       const value =
-        parseFloat(token.balance) * parseFloat(token.marketData.price);
+        parseFloat(token.balance) *
+        parseFloat(token.marketData.price);
       return total + value;
     }, 0);
   }, [tokens]);
@@ -110,14 +115,14 @@ export default function WalletContent() {
   useEffect(() => {
     const linkWallet = PrivyUser?.linkedAccounts
       .map((item: any) => {
-        if (item.type === "wallet") {
-          if (item.chainType === "ethereum") {
+        if (item.type === 'wallet') {
+          if (item.chainType === 'ethereum') {
             return {
               address: item.address,
               isActive: true,
               isEVM: true,
             };
-          } else if (item.chainType === "solana") {
+          } else if (item.chainType === 'solana') {
             return {
               address: item.address,
               isActive: false,
@@ -136,9 +141,9 @@ export default function WalletContent() {
     if (authenticated && ready && PrivyUser) {
       const hasExistingSolanaWallet = !!PrivyUser.linkedAccounts.find(
         (account: any): account is WalletWithMetadata =>
-          account.type === "wallet" &&
-          account.walletClientType === "privy" &&
-          account.chainType === "solana"
+          account.type === 'wallet' &&
+          account.walletClientType === 'privy' &&
+          account.chainType === 'solana'
       );
       if (!hasExistingSolanaWallet) {
         createWallet();
@@ -167,9 +172,9 @@ export default function WalletContent() {
   // Handler for initiating send flow
   const handleSendClick = (token: TokenData) => {
     setSendFlow({
-      step: "amount",
+      step: 'amount',
       token,
-      amount: "",
+      amount: '',
       recipient: null,
     });
   };
@@ -178,7 +183,7 @@ export default function WalletContent() {
   const handleAmountConfirm = (amount: string) => {
     setSendFlow((prev) => ({
       ...prev,
-      step: "recipient",
+      step: 'recipient',
       amount,
     }));
   };
@@ -187,28 +192,29 @@ export default function WalletContent() {
   const handleRecipientSelect = (recipient: ReceiverData) => {
     setSendFlow((prev) => ({
       ...prev,
-      step: "confirm",
+      step: 'confirm',
       recipient,
     }));
   };
 
   // Handler for final confirmation
   const handleSendConfirm = async () => {
-    if (!sendFlow.token || !sendFlow.recipient || !sendFlow.amount) return;
+    if (!sendFlow.token || !sendFlow.recipient || !sendFlow.amount)
+      return;
 
     setSendLoading(true);
 
     try {
-      if (sendFlow.token.chain === "SOLANA") {
+      if (sendFlow.token.chain === 'SOLANA') {
         await handleSolanaSend();
       } else {
         const txHash = await handleEVMSend();
-        console.log("🚀 ~ handleSendConfirm ~ txHash:", txHash);
+        console.log('🚀 ~ handleSendConfirm ~ txHash:', txHash);
       }
 
       setSendFlow((prev) => ({
         ...prev,
-        step: "success",
+        step: 'success',
         amount: sendFlow.amount,
       }));
 
@@ -218,12 +224,14 @@ export default function WalletContent() {
       }, 5000);
     } catch (error) {
       setSendLoading(false);
-      console.error("Error sending token:", error);
+      console.error('Error sending token:', error);
       toast({
-        variant: "destructive",
-        title: "Error",
+        variant: 'destructive',
+        title: 'Error',
         description:
-          error instanceof Error ? error.message : "Failed to send transaction",
+          error instanceof Error
+            ? error.message
+            : 'Failed to send transaction',
       });
     } finally {
       setSendLoading(false);
@@ -231,21 +239,21 @@ export default function WalletContent() {
   };
 
   const handleSolanaSend = async () => {
-    console.log("Sending SOL token:", {
+    console.log('Sending SOL token:', {
       token: sendFlow.token,
       amount: sendFlow.amount,
       recipient: sendFlow.recipient,
     });
 
     const solanaWallet = solanaWallets.find(
-      (w: any) => w.walletClientType === "privy"
+      (w: any) => w.walletClientType === 'privy'
     );
 
-    if (!solanaWallet) throw new Error("No Solana wallet found");
+    if (!solanaWallet) throw new Error('No Solana wallet found');
 
     const connection = new Connection(
       process.env.NEXT_PUBLIC_ALCHEMY_SOLANA_URL!,
-      "confirmed"
+      'confirmed'
     );
 
     if (sendFlow.token?.address === null) {
@@ -255,7 +263,7 @@ export default function WalletContent() {
       const tx = new SolanaTransaction().add(
         SystemProgram.transfer({
           fromPubkey: new PublicKey(solanaWallet.address),
-          toPubkey: new PublicKey(sendFlow.recipient?.address || ""),
+          toPubkey: new PublicKey(sendFlow.recipient?.address || ''),
           lamports,
         })
       );
@@ -276,7 +284,7 @@ export default function WalletContent() {
       // Get or create recipient token account
       const toTokenAccount = await getAssociatedTokenAddress(
         new PublicKey(sendFlow.token!.address),
-        new PublicKey(sendFlow.recipient?.address || "")
+        new PublicKey(sendFlow.recipient?.address || '')
       );
 
       const tx = new SolanaTransaction();
@@ -287,7 +295,7 @@ export default function WalletContent() {
           createAssociatedTokenAccountInstruction(
             new PublicKey(solanaWallet.address),
             toTokenAccount,
-            new PublicKey(sendFlow.recipient?.address || ""),
+            new PublicKey(sendFlow.recipient?.address || ''),
             new PublicKey(sendFlow.token!.address)
           )
         );
@@ -295,7 +303,8 @@ export default function WalletContent() {
 
       // Calculate token amount with decimals
       const tokenAmount = Math.floor(
-        parseFloat(sendFlow.amount) * Math.pow(10, sendFlow.token!.decimals)
+        parseFloat(sendFlow.amount) *
+          Math.pow(10, sendFlow.token!.decimals)
       );
 
       // Add transfer instruction
@@ -319,10 +328,10 @@ export default function WalletContent() {
 
   const handleEVMSend = async () => {
     const evmWallet = ethWallets.find(
-      (w: any) => w.walletClientType === "privy"
+      (w: any) => w.walletClientType === 'privy'
     );
 
-    if (!evmWallet) throw new Error("No EVM wallet found");
+    if (!evmWallet) throw new Error('No EVM wallet found');
 
     await evmWallet.switchChain(CHAIN_ID[network]);
 
@@ -336,26 +345,30 @@ export default function WalletContent() {
       };
 
       const txHash = await provider.request({
-        method: "eth_sendTransaction",
+        method: 'eth_sendTransaction',
         params: [tx],
       });
 
       const newTransaction = {
         hash: txHash,
         from: evmWallet.address,
-        to: sendFlow.recipient?.address || "",
+        to: sendFlow.recipient?.address || '',
         value: sendFlow.amount,
         timeStamp: Math.floor(Date.now() / 1000).toString(),
-        gas: "0",
-        gasPrice: "0",
-        networkFee: "0",
-        status: "pending",
-        tokenName: sendFlow.token?.name || "",
-        tokenSymbol: sendFlow.token?.symbol || "",
+        gas: '0',
+        gasPrice: '0',
+        networkFee: '0',
+        status: 'pending',
+        tokenName: sendFlow.token?.name || '',
+        tokenSymbol: sendFlow.token?.symbol || '',
         tokenDecimal: 18,
         network: network,
-        currentPrice: parseFloat(sendFlow.token?.marketData?.price || "0"),
-        nativeTokenPrice: parseFloat(sendFlow.token?.marketData?.price || "0"),
+        currentPrice: parseFloat(
+          sendFlow.token?.marketData?.price || '0'
+        ),
+        nativeTokenPrice: parseFloat(
+          sendFlow.token?.marketData?.price || '0'
+        ),
         isSwapped: false,
         isNew: true,
       };
@@ -365,9 +378,9 @@ export default function WalletContent() {
       return txHash;
     } else {
       const erc20Abi = [
-        "function transfer(address to, uint256 amount) returns (bool)",
-        "function decimals() view returns (uint8)",
-        "function balanceOf(address account) view returns (uint256)",
+        'function transfer(address to, uint256 amount) returns (bool)',
+        'function decimals() view returns (uint8)',
+        'function balanceOf(address account) view returns (uint256)',
       ];
 
       const web3Provider = new ethers.BrowserProvider(provider);
@@ -380,25 +393,31 @@ export default function WalletContent() {
           signer
         );
 
-        const decimals = sendFlow.token.decimals || (await contract.decimals());
+        const decimals =
+          sendFlow.token.decimals || (await contract.decimals());
 
-        const amountInWei = ethers.parseUnits(sendFlow.amount, decimals);
+        const amountInWei = ethers.parseUnits(
+          sendFlow.amount,
+          decimals
+        );
 
         let balance;
         try {
-          balance = await contract.balanceOf(await signer.getAddress());
-          console.log("🚀 ~ handleEVMSend ~ balance:", balance);
+          balance = await contract.balanceOf(
+            await signer.getAddress()
+          );
+          console.log('🚀 ~ handleEVMSend ~ balance:', balance);
         } catch (error) {
-          console.error("Error fetching balance:", error);
+          console.error('Error fetching balance:', error);
           throw new Error(
-            "Failed to fetch token balance. Please check the token address."
+            'Failed to fetch token balance. Please check the token address.'
           );
         }
 
         const balanceBigNumber = BigInt(balance);
 
         if (balanceBigNumber < amountInWei) {
-          throw new Error("Insufficient balance");
+          throw new Error('Insufficient balance');
         }
 
         const tx = await contract.transfer(
@@ -406,21 +425,21 @@ export default function WalletContent() {
           amountInWei
         );
 
-        console.log("🚀 ~ handleEVMSend ~ tx:", tx);
+        console.log('🚀 ~ handleEVMSend ~ tx:', tx);
 
         const receipt = await tx.wait();
-        console.log("🚀 ~ handleEVMSend ~ receipt:", receipt);
+        console.log('🚀 ~ handleEVMSend ~ receipt:', receipt);
 
         const newTransaction = {
           hash: tx.hash,
           from: evmWallet.address,
-          to: sendFlow.recipient?.address || "",
+          to: sendFlow.recipient?.address || '',
           value: sendFlow.amount,
           status: tx.status,
           timeStamp: Date.now().toString(),
-          gas: tx.gasUsed?.toString() || "0",
-          gasPrice: tx.gasPrice?.toString() || "0",
-          networkFee: "0",
+          gas: tx.gasUsed?.toString() || '0',
+          gasPrice: tx.gasPrice?.toString() || '0',
+          networkFee: '0',
           tokenName: sendFlow.token.name,
           tokenSymbol: sendFlow.token.symbol,
           tokenDecimal: decimals,
@@ -433,7 +452,7 @@ export default function WalletContent() {
         setNewTransactions([newTransaction]);
         return receipt.hash;
       } catch (error) {
-        console.error("Error in EVM token transfer:", error);
+        console.error('Error in EVM token transfer:', error);
         throw error;
       }
     }
@@ -444,7 +463,7 @@ export default function WalletContent() {
     setSendFlow({
       step: null,
       token: null,
-      amount: "",
+      amount: '',
       recipient: null,
     });
   };
@@ -457,7 +476,7 @@ export default function WalletContent() {
           walletData={walletData || []}
           totalBalance={totalBalance}
         />
-        <MessageList />
+        {/* <MessageList /> */}
       </div>
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 my-6">
         {selectedToken ? (
@@ -499,27 +518,27 @@ export default function WalletContent() {
         {selectedToken && (
           <>
             <SendTokenModal
-              open={sendFlow.step === "amount"}
+              open={sendFlow.step === 'amount'}
               onOpenChange={(open) => !open && handleCloseModals()}
               token={sendFlow.token!}
               onNext={handleAmountConfirm}
             />
             <SendToModal
-              open={sendFlow.step === "recipient"}
+              open={sendFlow.step === 'recipient'}
               onOpenChange={(open) => !open && handleCloseModals()}
               onSelectReceiver={handleRecipientSelect}
             />
             <SendConfirmation
-              open={sendFlow.step === "confirm"}
+              open={sendFlow.step === 'confirm'}
               onOpenChange={(open) => !open && handleCloseModals()}
               amount={sendFlow.amount}
-              tokenAddress={sendFlow.token?.address || ""}
-              recipient={sendFlow.recipient?.address || ""}
+              tokenAddress={sendFlow.token?.address || ''}
+              recipient={sendFlow.recipient?.address || ''}
               onConfirm={handleSendConfirm}
               loading={sendLoading}
             />
             <TransactionSuccess
-              open={sendFlow.step === "success"}
+              open={sendFlow.step === 'success'}
               onOpenChange={(open) => !open && handleCloseModals()}
               amount={sendFlow.amount}
             />
