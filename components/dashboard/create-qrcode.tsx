@@ -32,7 +32,7 @@ const CreateQRCode = () => {
       e.preventDefault();
       setIsLoading(true);
 
-      let qrData = { ...qrJson1 };
+      const qrData = { ...qrJson1 };
 
       const formData = new FormData(e.currentTarget);
 
