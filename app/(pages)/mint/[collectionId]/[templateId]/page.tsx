@@ -4,11 +4,17 @@ import { getTemplateDetails } from "@/utils/fetchingData/getTemplateDetails";
 import MintDetails from "@/components/MintDetails";
 import { useUser } from '@/lib/UserContext';
 import { useEffect, useState } from "react";
+import { ParsedUrlQuery } from "querystring";
+
+interface Params extends ParsedUrlQuery {
+  collectionId: string;
+  templateId: string;
+}
 
 export default function TemplateDetailsPage({
   params,
 }: {
-  params: { collectionId: string; templateId: string };
+  params: Params;
 }) {
   const { collectionId, templateId } = params;
   const { accessToken } = useUser(); // Access context value
