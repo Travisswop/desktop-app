@@ -32,8 +32,8 @@ import { Button } from "@/components/ui/button";
 // export const maxDuration = 60;
 
 const UpdateProfile = ({ data, token, switchToTab }: any) => {
-  console.log("dataggg", data);
-  console.log("token", token);
+  // console.log("dataggg", data);
+  // console.log("token", token);
 
   const [selectedImage, setSelectedImage] = useState(null);
   const [galleryImage, setGalleryImage] = useState(null);
@@ -133,7 +133,7 @@ const UpdateProfile = ({ data, token, switchToTab }: any) => {
       apt: "N/A",
     };
 
-    console.log("user info", userInfo);
+    // console.log("user info", userInfo);
 
     try {
       const data = await updateUserProfile(userInfo, token);
@@ -141,7 +141,7 @@ const UpdateProfile = ({ data, token, switchToTab }: any) => {
 
       if (data.state === "success") {
         router.push("/");
-        toast.success("profile updated");
+        toast.success("Profile updated");
       }
     } catch (error) {
       toast.error("something went wrong!");
@@ -456,7 +456,9 @@ const UpdateProfile = ({ data, token, switchToTab }: any) => {
                 Manage Subscriptions
               </button>
             </p>
-            <Button variant="destructive">Delete my account</Button>
+            <Button disabled variant="destructive">
+              Delete my account
+            </Button>
           </div>
         </div>
       </div>
