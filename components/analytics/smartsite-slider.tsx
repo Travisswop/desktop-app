@@ -48,6 +48,8 @@ export default function SmartSiteSlider({
     onOpenChange: onSmartsiteOpenChange,
   } = useDisclosure();
 
+  console.log("Microsites", microsites);
+
   const [smartSiteProfileUrl, setSmartSiteProfileUrl] = useState<any>(null);
   const [qrCode, setQrCode] = useState<any>(null);
 
@@ -72,7 +74,7 @@ export default function SmartSiteSlider({
         }}
       >
         <CarouselContent>
-          {microsites.map((item) => (
+          {microsites.map((item: any) => (
             <CarouselItem key={item._id}>
               <Card className="bg-white border-0">
                 <CardHeader>
@@ -88,19 +90,38 @@ export default function SmartSiteSlider({
                   </div>
                 </CardHeader>
                 <CardContent className="p-6">
-                  <div className="bg-white  shadow-xl rounded-2xl ">
+                  <div
+                    style={{
+                      backgroundImage: item.theme
+                        ? `url(${
+                            isUrl(item.backgroundImg)
+                              ? item.backgroundImg
+                              : `/images/smartsite-background/${item.backgroundImg}.png`
+                          }) `
+                        : "",
+                      backgroundSize: "cover", // Scale the image to cover the container
+                      backgroundPosition: "center", // Center the image
+                      height: "full", // Full viewport height
+                      backgroundRepeat: "no-repeat",
+                    }}
+                    className="shadow-medium rounded-2xl"
+                  >
                     <div className="relative p-6">
-                      <Image
-                        src={`${
-                          isUrl(item.backgroundImg)
-                            ? item.backgroundImg
-                            : `/images/smartsite-background/${item.backgroundImg}.png`
-                        }?height=180&width=400`}
-                        alt={item.name}
-                        width={400}
-                        height={180}
-                        className="w-full h-[180px]  rounded-xl border-white border-4 shadow-xl"
-                      />
+                      {item.theme === false ? (
+                        <Image
+                          src={`${
+                            isUrl(item.backgroundImg)
+                              ? item.backgroundImg
+                              : `/images/smartsite-banner/${item.backgroundImg}.png`
+                          }?height=180&width=400`}
+                          alt={item.name}
+                          width={400}
+                          height={180}
+                          className="w-full h-[180px] rounded-xl border-white border-4 shadow-xl"
+                        />
+                      ) : (
+                        <div className="w-full h-40"></div>
+                      )}
                       <div className="absolute -bottom-8 left-1/2 -translate-x-1/2">
                         <Image
                           src={`${
