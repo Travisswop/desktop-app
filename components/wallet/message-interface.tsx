@@ -56,9 +56,9 @@ export default function MessageBox() {
           </Button>
         </div>
         <div className="space-y-3">
-          {messages.map((message) => (
-            <MessageCard key={message.id} {...message} />
-          ))}
+          <p className="text-center text-gray-500">
+            No messages found.
+          </p>
         </div>
       </CardContent>
     </Card>

@@ -38,8 +38,8 @@ import {
 import { useToast } from '@/hooks/use-toast';
 import { Transaction as TransactionType } from '@/types/transaction';
 import { Toaster } from '../ui/toaster';
-// import MessageList from "./message-list";
 import ProfileHeader from '../dashboard/profile-header';
+import MessageBox from './message-interface';
 
 type Network = 'ETHEREUM' | 'POLYGON' | 'BASE' | 'SOLANA';
 
@@ -476,6 +476,7 @@ export default function WalletContent() {
           walletData={walletData || []}
           totalBalance={totalBalance}
         />
+        <MessageBox />
         {/* <MessageList /> */}
       </div>
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 my-6">

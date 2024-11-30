@@ -171,7 +171,11 @@ export default function BalanceChart({
             </div>
 
             <div className="flex gap-2">
-              <Button variant="black" size="icon">
+              <Button
+                variant="black"
+                size="icon"
+                className="cursor-not-allowed"
+              >
                 <Rocket />
               </Button>
               <Button
@@ -181,10 +185,18 @@ export default function BalanceChart({
               >
                 <Wallet />
               </Button>
-              <Button variant="black" size="icon">
+              <Button
+                variant="black"
+                size="icon"
+                className="cursor-not-allowed"
+              >
                 <ArrowLeftRight />
               </Button>
-              <Button variant="black" size="icon">
+              <Button
+                variant="black"
+                size="icon"
+                className="cursor-not-allowed"
+              >
                 <QrCode />
               </Button>
             </div>

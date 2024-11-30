@@ -4,6 +4,7 @@ import { useWallets } from '@privy-io/react-auth';
 
 const useXmtp = () => {
   const { wallets } = useWallets();
+  console.log('🚀 ~ useXmtp ~ wallets:', wallets);
   const [xmtpClient, setXmtpClient] = useState<Client | null>(null);
 
   useEffect(() => {
@@ -18,6 +19,8 @@ const useXmtp = () => {
       const wallet = wallets.find(
         (w) => w.walletClientType === 'privy'
       );
+
+      console.log('🚀 ~ initXmtp ~ wallet:', wallet);
 
       if (wallet) {
         const signer = {
