@@ -10,8 +10,6 @@ export default function VideoPlayer({
 }) {
   const videoRef = useRef<HTMLVideoElement>(null);
 
-  console.log('url', url);
-
   return (
     <div className="relative aspect-video">
       <video
