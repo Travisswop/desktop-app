@@ -33,7 +33,7 @@ export async function POST(request: NextRequest) {
     }
 
     const res = await fetch(
-      `http://localhost:4000/api/v2/desktop/user/${req.email}`,
+      `${process.env.NEXT_PUBLIC_API_URL}/api/v2/desktop/user/${req.email}`,
       {
         headers: {
           'Content-Type': 'application/json',

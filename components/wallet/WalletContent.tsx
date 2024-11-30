@@ -1,5 +1,4 @@
 'use client';
-import { useUser } from '@/lib/UserContext';
 import { Skeleton } from '../ui/skeleton';
 import BalanceChart from './balance-chart';
 import TokenList from './token/token-list';

@@ -1,124 +1,125 @@
-import deleteThis from "@/public/images/NewIconShop/socialIconType.png";
-import socialIconType from "@/public/images/NewIconShop/socialIconType.png";
-import ChatlinkType from "@/public/images/NewIconShop/CommandType.png";
-import CommandType from "@/public/images/NewIconShop/ChatlinkType.png";
-import DappType from "@/public/images/NewIconShop/dappType.png";
-import AppLinkType from "@/public/images/NewIconShop/appLinkType.png";
-import MusicVideo from "@/public/images/NewIconShop/MusicVideo.png";
-import generalLinkType from "@/public/images/NewIconShop/generalLinkType.png";
-import copyAddressType from "@/public/images/NewIconShop/copyAddressType.png";
-import SmallIconTwitter from "@/public/images/NewIconShop/smallIconTwitter@3x.png";
-import SocialIconType from "@/public/images/NewIconShop/socialIconType.png";
-import smallIconLinkedIn from "@/public/images/NewIconShop/smallIconLinkedIn@3x.png";
-import smallIconFacebook from "@/public/images/NewIconShop/smallIconFacebook@3x.png";
-import smallIconBluesky from "@/public/images/NewIconShop/smallIconBluesky@3x.png";
-import smallIconGithub from "@/public/images/NewIconShop/smallIconGithub@3x.png";
-import smallIconInstagram from "@/public/images/NewIconShop/smallIconInstagram@3x.png";
-import smallIconTruth from "@/public/images/NewIconShop/smallIconTruth@3x.png";
-import smallIconYouTube from "@/public/images/NewIconShop/smallIconYouTube@3x.png";
-import smallIconSnapChat from "@/public/images/NewIconShop/smallIconSnapChat@3x.png";
-import smallIconRumble from "@/public/images/NewIconShop/smallIconRumble@3x.png";
-import smallIconTiktok from "@/public/images/NewIconShop/smallIconTiktok@3x.png";
-import smallIconWhatsapp from "@/public/images/NewIconShop/smallIconWhatsapp@3x.png";
-import smallIconTelegram from "@/public/images/NewIconShop/smallIconTelegram@3x.png";
-import smallIconDiscord from "@/public/images/NewIconShop/smallIconDiscord@3x.png";
-import smallIconSlack from "@/public/images/NewIconShop/smallIconSlack@3x.png";
-import smallIconEmail from "@/public/images/NewIconShop/smallIconEmail@3x.png";
-import smallIconWeb from "@/public/images/NewIconShop/smallIconWeb@3x.png";
-import smallIconChat from "@/public/images/NewIconShop/smallIconChat@3x.png";
-import appIconTwitter from "@/public/images/IconShop/x@3x.png";
-import appIconX from "@/public/images/IconShop/x@3x.png";
-import appIconLinkedIn from "@/public/images/IconShop/LinkedIn@3x.png";
-import appIconYoutube from "@/public/images/IconShop/Youtube@3x.png";
-import appIconDomus from "@/public/images/IconShop/Damus@3x.png";
-import appIconBluesky from "@/public/images/IconShop/SocialMedia/Bluesky@3x.png";
-import appIconFacebook from "@/public/images/IconShop/Facebook@3x.png";
-import appIconGithub from "@/public/images/IconShop/SocialMedia/Github@3x.png";
-import appIconInstagram from "@/public/images/IconShop/Instagram@3x.png";
-import appIconRumble from "@/public/images/IconShop/SocialMedia/Rumble@3x.png";
-import appIconTiktok from "@/public/images/IconShop/TikTok@3x.png";
-import appIconTruth from "@/public/images/IconShop/SocialMedia/TruthSocial@3x.png";
-import appIconThreads from "@/public/images/IconShop/Threads@3x.png";
-import appIconSnapchat from "@/public/images/IconShop/Snapchat@3x.png";
-import appIconEtherscan from "@/public/images/IconShop/Crypto/Etherscan@3x.png";
-import appIconHolaPlex from "@/public/images/IconShop/HolaPlex@3x.png";
-import appIconLazy from "@/public/images/IconShop/Crypto/lazy@3x.png";
-import appIconLens from "@/public/images/IconShop/Lens@3x.png";
-import appIconMetaPlex from "@/public/images/IconShop/Crypto/MetaPlex@3x.png";
-import appIconOpensea from "@/public/images/IconShop/Crypto/Opensea@3x.png";
-import appIconRarible from "@/public/images/IconShop/Crypto/Rarible@3x.png";
-import appIconSpinamp from "@/public/images/IconShop/Spinamp@3x.png";
-import appIconZerion from "@/public/images/IconShop/Crypto/Zerion@3x.png";
-import appIconAppleMaps from "@/public/images/IconShop/AppleMap@3x.png";
-import appIconAppStore from "@/public/images/IconShop/AppStore@3x.png";
-import appIconCalendly from "@/public/images/IconShop/Calendly@3x.png";
-import appIconChowNow from "@/public/images/IconShop/Restaurents/ChowNow@3x.png";
-import appIconDoorDash from "@/public/images/IconShop/Restaurents/DoorDash3x.png";
-import appIconDribble from "@/public/images/IconShop/More/Dribble@3x.png";
-import appIconFigma from "@/public/images/IconShop/figma@3x.png";
-import appIconGoogleMaps from "@/public/images/IconShop/GoogleMaps@3x.png";
-import appIconGumroad from "@/public/images/IconShop/Gumroad@3x.png";
-import appIconLinkTree from "@/public/images/IconShop/Linktree@3x.png";
-import appIconMenu from "@/public/images/IconShop/Menu@3x.png";
-import appIconSpline from "@/public/images/IconShop/Spline@3x.png";
-import appIconUberEats from "@/public/images/IconShop/Restaurents/UberEats@3x.png";
-import appIconSubstack from "@/public/images/IconShop/Substack3x.png";
-import appIconPlayStore from "@/public/images/IconShop/GooglePlay@3x.png";
-import appIconSpotify from "@/public/images/IconShop/Spotify@3x.png";
-import appIconAppleMusic from "@/public/images/IconShop/Apple_music@3x.png";
-import appIconSoundCloud from "@/public/images/IconShop/Soundcloud@3x.png";
-import appIconAmazonMusic from "@/public/images/IconShop/amazonMusic@3x.png";
-import appIconDeezer from "@/public/images/IconShop/Deezer@3x.png";
-import appIconPandora from "@/public/images/IconShop/pandora@3x.png";
-import appIconAudius from "@/public/images/IconShop/music/Audius@3x.png";
-import appIconStreamable from "@/public/images/IconShop/streamable@3x.png";
-import appIconLivepeer from "@/public/images/IconShop/livepeer@3x.png";
-import appIconPodcasts from "@/public/images/IconShop/Podcast@3x.png";
-import appIconWhatsApp from "@/public/images/IconShop/Whatsapp@3x.png";
-import appIconTelegram from "@/public/images/IconShop/Telegram@3x.png";
-import appIconDiscord from "@/public/images/IconShop/Discord@3x.png";
-import appIconSlack from "@/public/images/IconShop/Slack@3x.png";
-import appIconGroupme from "@/public/images/IconShop/GroupMe@3x.png";
-import appIconCalendar from "@/public/images/IconShop/Calendar@3x.png";
-import appIconBookMe from "@/public/images/IconShop/Business/BookMe@3x.png";
-import appIconReviews from "@/public/images/IconShop/Business/Reviews@3x.png";
-import appIconGPS from "@/public/images/IconShop/Business/GPS@3x.png";
-import appIconCupon from "@/public/images/IconShop/Business/Cupon@3x.png";
-import appIconLocation from "@/public/images/IconShop/Business/Location@3x.png";
-import appIconBusinessHours from "@/public/images/IconShop/BusinessHours@3x.png";
-import appIconFood from "@/public/images/IconShop/Restaurents/Food@3x.png";
-import appIconCardPaymen from "@/public/images/IconShop/Business/CardPayment@3x.png";
-import appIconInvoice from "@/public/images/IconShop/paymentSection/Invoice@3x.png";
-import appIconGoogleReview from "@/public/images/IconShop/GoogleReview@3x.png";
-import appIconFile from "@/public/images/IconShop/File@3x.png";
-import appIconDownload from "@/public/images/IconShop/Download@3x.png";
-import appIconUpload from "@/public/images/IconShop/Upload@3x.png";
-import appIconPolygon from "@/public/images/IconShop/Polygon@3x.png";
-import appIconBTC from "@/public/images/IconShop/BTC@3x.png";
-import appIconETH from "@/public/images/IconShop/ETH@3x.png";
-import appIconUSDC from "@/public/images/IconShop/USDC@3x.png";
-import appIconSolana from "@/public/images/IconShop/Solana@3x.png";
-import appIconEmail from "@/public/images/IconShop/Email@3x.png";
-import appIconCall from "@/public/images/IconShop/Call@3x.png";
-import appIconText from "@/public/images/IconShop/Text@3x.png";
-import appIconFaceTime from "@/public/images/IconShop/Facetime@3x.png";
-import appIconMap from "@/public/images/IconShop/appIconMap@3x.png";
-import appIconLink from "@/public/images/IconShop/appIconLink.png";
-import appIconCopy from "@/public/images/IconShop/copy@3x.png";
-import appIconENSMessage from "@/public/images/IconShop/ENSMessage@3x.png";
-import appIconSendCrypto from "@/public/images/IconShop/SendCrypto@3x.png";
-import appIconContactCard from "@/public/images/IconShop/appIconContactCard.png";
-import currencyIconUSDC from "@/public/images/IconShop/currencyIconUSDC.png";
-import currencyIconUSD from "@/public/images/IconShop/currencyIconDollar.png";
-import AppIconAmazon from "@/public/images/IconShop/amazon.png";
-import CashApp from "@/public/images/IconShop/Cashapp.png";
-import Calendar from "@/public/images/IconShop/Business/Calendar.png";
-import Paypal from "@/public/images/IconShop/Paypal.png";
-import Venmo from "@/public/images/IconShop/venmo.png";
-import Warpcast from "@/public/images/IconShop/warpcast.png";
-import MessageSwopid from "@/public/images/IconShop/swop.png";
-import CopyBase from "@/public/images/IconShop/copybase.png";
-import CopySWOPID from "@/public/images/IconShop/copyswop.png";
+import deleteThis from '@/public/images/NewIconShop/socialIconType.png';
+import socialIconType from '@/public/images/NewIconShop/socialIconType.png';
+import ChatlinkType from '@/public/images/NewIconShop/CommandType.png';
+import CommandType from '@/public/images/NewIconShop/ChatlinkType.png';
+import DappType from '@/public/images/NewIconShop/dappType.png';
+import AppLinkType from '@/public/images/NewIconShop/appLinkType.png';
+import MusicVideo from '@/public/images/NewIconShop/MusicVideo.png';
+import generalLinkType from '@/public/images/NewIconShop/generalLinkType.png';
+import copyAddressType from '@/public/images/NewIconShop/copyAddressType.png';
+import SmallIconTwitter from '@/public/images/NewIconShop/smallIconTwitter@3x.png';
+import SocialIconType from '@/public/images/NewIconShop/socialIconType.png';
+import smallIconLinkedIn from '@/public/images/NewIconShop/smallIconLinkedIn@3x.png';
+import smallIconFacebook from '@/public/images/NewIconShop/smallIconFacebook@3x.png';
+import smallIconBluesky from '@/public/images/NewIconShop/smallIconBluesky@3x.png';
+import smallIconGithub from '@/public/images/NewIconShop/smallIconGithub@3x.png';
+import smallIconInstagram from '@/public/images/NewIconShop/smallIconInstagram@3x.png';
+import smallIconTruth from '@/public/images/NewIconShop/smallIconTruth@3x.png';
+import smallIconYouTube from '@/public/images/NewIconShop/smallIconYouTube@3x.png';
+import smallIconSnapChat from '@/public/images/NewIconShop/smallIconSnapChat@3x.png';
+import smallIconRumble from '@/public/images/NewIconShop/smallIconRumble@3x.png';
+import smallIconTiktok from '@/public/images/NewIconShop/smallIconTiktok@3x.png';
+import smallIconWhatsapp from '@/public/images/NewIconShop/smallIconWhatsapp@3x.png';
+import smallIconTelegram from '@/public/images/NewIconShop/smallIconTelegram@3x.png';
+import smallIconDiscord from '@/public/images/NewIconShop/smallIconDiscord@3x.png';
+import smallIconSlack from '@/public/images/NewIconShop/smallIconSlack@3x.png';
+import smallIconEmail from '@/public/images/NewIconShop/smallIconEmail@3x.png';
+import smallIconWeb from '@/public/images/NewIconShop/smallIconWeb@3x.png';
+import smallIconChat from '@/public/images/NewIconShop/smallIconChat@3x.png';
+import appIconTwitter from '@/public/images/IconShop/x@3x.png';
+import appIconX from '@/public/images/IconShop/x@3x.png';
+import appIconLinkedIn from '@/public/images/IconShop/LinkedIn@3x.png';
+import appIconYoutube from '@/public/images/IconShop/Youtube@3x.png';
+import appIconDomus from '@/public/images/IconShop/Damus@3x.png';
+import appIconBluesky from '@/public/images/IconShop/SocialMedia/Bluesky@3x.png';
+import appIconFacebook from '@/public/images/IconShop/Facebook@3x.png';
+import appIconGithub from '@/public/images/IconShop/SocialMedia/Github@3x.png';
+import appIconInstagram from '@/public/images/IconShop/Instagram@3x.png';
+import appIconRumble from '@/public/images/IconShop/SocialMedia/Rumble@3x.png';
+import appIconTiktok from '@/public/images/IconShop/TikTok@3x.png';
+import appIconTruth from '@/public/images/IconShop/SocialMedia/TruthSocial@3x.png';
+import appIconThreads from '@/public/images/IconShop/Threads@3x.png';
+import appIconSnapchat from '@/public/images/IconShop/Snapchat@3x.png';
+import appIconEtherscan from '@/public/images/IconShop/Crypto/Etherscan@3x.png';
+import appIconHolaPlex from '@/public/images/IconShop/HolaPlex@3x.png';
+import appIconLazy from '@/public/images/IconShop/Crypto/lazy@3x.png';
+import appIconLens from '@/public/images/IconShop/Lens@3x.png';
+import appIconMetaPlex from '@/public/images/IconShop/Crypto/MetaPlex@3x.png';
+import appIconOpensea from '@/public/images/IconShop/Crypto/Opensea@3x.png';
+import appIconRarible from '@/public/images/IconShop/Crypto/Rarible@3x.png';
+import appIconSpinamp from '@/public/images/IconShop/Spinamp@3x.png';
+import appIconZerion from '@/public/images/IconShop/Crypto/Zerion@3x.png';
+import appIconAppleMaps from '@/public/images/IconShop/AppleMap@3x.png';
+import appIconAppStore from '@/public/images/IconShop/AppStore@3x.png';
+import appIconCalendly from '@/public/images/IconShop/Calendly@3x.png';
+import appIconChowNow from '@/public/images/IconShop/Restaurents/ChowNow@3x.png';
+import appIconDoorDash from '@/public/images/IconShop/Restaurents/DoorDash3x.png';
+import appIconDribble from '@/public/images/IconShop/More/Dribble@3x.png';
+import appIconFigma from '@/public/images/IconShop/figma@3x.png';
+import appIconGoogleMaps from '@/public/images/IconShop/GoogleMaps@3x.png';
+import appIconGumroad from '@/public/images/IconShop/Gumroad@3x.png';
+import appIconLinkTree from '@/public/images/IconShop/Linktree@3x.png';
+import appIconMenu from '@/public/images/IconShop/Menu@3x.png';
+import appIconSpline from '@/public/images/IconShop/Spline@3x.png';
+import appIconUberEats from '@/public/images/IconShop/Restaurents/UberEats@3x.png';
+import appIconSubstack from '@/public/images/IconShop/Substack3x.png';
+import appIconPlayStore from '@/public/images/IconShop/GooglePlay@3x.png';
+import appIconSpotify from '@/public/images/IconShop/Spotify@3x.png';
+import appIconAppleMusic from '@/public/images/IconShop/Apple_music@3x.png';
+import appIconSoundCloud from '@/public/images/IconShop/Soundcloud@3x.png';
+import appIconAmazonMusic from '@/public/images/IconShop/amazonMusic@3x.png';
+import appIconDeezer from '@/public/images/IconShop/Deezer@3x.png';
+import appIconPandora from '@/public/images/IconShop/pandora@3x.png';
+import appIconAudius from '@/public/images/IconShop/music/Audius@3x.png';
+import appIconStreamable from '@/public/images/IconShop/streamable@3x.png';
+import appIconLivepeer from '@/public/images/IconShop/livepeer@3x.png';
+import appIconPodcasts from '@/public/images/IconShop/Podcast@3x.png';
+import appIconWhatsApp from '@/public/images/IconShop/Whatsapp@3x.png';
+import appIconTelegram from '@/public/images/IconShop/Telegram@3x.png';
+import appIconDiscord from '@/public/images/IconShop/Discord@3x.png';
+import appIconSlack from '@/public/images/IconShop/Slack@3x.png';
+import appIconGroupme from '@/public/images/IconShop/GroupMe@3x.png';
+import appIconCalendar from '@/public/images/IconShop/Calendar@3x.png';
+import appIconBookMe from '@/public/images/IconShop/Business/BookMe@3x.png';
+import appIconReviews from '@/public/images/IconShop/Business/Reviews@3x.png';
+import appIconGPS from '@/public/images/IconShop/Business/GPS@3x.png';
+import appIconCupon from '@/public/images/IconShop/Business/Cupon@3x.png';
+import appIconLocation from '@/public/images/IconShop/Business/Location@3x.png';
+import appIconBusinessHours from '@/public/images/IconShop/BusinessHours@3x.png';
+import appIconFood from '@/public/images/IconShop/Restaurents/Food@3x.png';
+import appIconCardPaymen from '@/public/images/IconShop/Business/CardPayment@3x.png';
+import appIconInvoice from '@/public/images/IconShop/paymentSection/Invoice@3x.png';
+import appIconGoogleReview from '@/public/images/IconShop/GoogleReview@3x.png';
+import appIconFile from '@/public/images/IconShop/File@3x.png';
+import appIconDownload from '@/public/images/IconShop/Download@3x.png';
+import appIconUpload from '@/public/images/IconShop/Upload@3x.png';
+import appIconPolygon from '@/public/images/IconShop/Polygon@3x.png';
+import appIconBTC from '@/public/images/IconShop/BTC@3x.png';
+import appIconETH from '@/public/images/IconShop/ETH@3x.png';
+import appIconUSDC from '@/public/images/IconShop/USDC@3x.png';
+import appIconSolana from '@/public/images/IconShop/Solana@3x.png';
+import appIconEmail from '@/public/images/IconShop/Email@3x.png';
+import appIconCall from '@/public/images/IconShop/Call@3x.png';
+import appIconText from '@/public/images/IconShop/Text@3x.png';
+import appIconFaceTime from '@/public/images/IconShop/Facetime@3x.png';
+import appIconMap from '@/public/images/IconShop/appIconMap@3x.png';
+import appIconLink from '@/public/images/IconShop/appIconLink.png';
+import appIconCopy from '@/public/images/IconShop/copy@3x.png';
+import appIconENSMessage from '@/public/images/IconShop/ENSMessage@3x.png';
+import appIconSendCrypto from '@/public/images/IconShop/SendCrypto@3x.png';
+import appIconContactCard from '@/public/images/IconShop/appIconContactCard.png';
+import currencyIconUSDC from '@/public/images/IconShop/currencyIconUSDC.png';
+import currencyIconUSD from '@/public/images/IconShop/currencyIconDollar.png';
+import AppIconAmazon from '@/public/images/IconShop/amazon.png';
+import CashApp from '@/public/images/IconShop/Cashapp.png';
+import Calendar from '@/public/images/IconShop/Business/Calendar.png';
+import Paypal from '@/public/images/IconShop/Paypal.png';
+import Venmo from '@/public/images/IconShop/venmo.png';
+import Warpcast from '@/public/images/IconShop/warpcast.png';
+import MessageSwopid from '@/public/images/IconShop/swop.png';
+import CopyBase from '@/public/images/IconShop/copybase.png';
+import CopySWOPID from '@/public/images/IconShop/copyswop.png';
+import appIconReferral from '@/public/images/IconShop/Referral.png';
 
 export const icon = {
   deleteThis,
@@ -256,6 +257,7 @@ export const icon = {
   appIconContactCard,
   currencyIconUSDC,
   currencyIconUSD,
+  appIconReferral,
 };
 
 export const newIconData = icon;
@@ -299,913 +301,913 @@ export const smallIconData = {
 };
 export const newIcons = [
   {
-    type: "smallIcon",
+    type: 'smallIcon',
     icons: [
       {
-        category: "Social Media",
+        category: 'Social Media',
         categoryIcon: icon.socialIconType,
         icons: [
           {
             id: 1000,
-            name: "X",
+            name: 'X',
             icon: icon.SmallIconTwitter,
-            placeHolder: "https://x.com/username",
-            inputText: "X Username",
-            url: "www.x.com",
+            placeHolder: 'https://x.com/username',
+            inputText: 'X Username',
+            url: 'www.x.com',
           },
           {
             id: 1001,
-            name: "Linked In",
+            name: 'Linked In',
             icon: icon.smallIconLinkedIn,
-            placeHolder: "https://www.linkedin.com/in/username",
-            inputText: "Linkedin Username",
-            url: "www.linkedin.com",
+            placeHolder: 'https://www.linkedin.com/in/username',
+            inputText: 'Linkedin Username',
+            url: 'www.linkedin.com',
           },
           {
             id: 1002,
-            name: "Bluesky",
+            name: 'Bluesky',
             icon: icon.smallIconBluesky,
-            placeHolder: "https://bsky.app/xyz",
-            inputText: "Bluesky Link",
-            url: "www.bluesky.com",
+            placeHolder: 'https://bsky.app/xyz',
+            inputText: 'Bluesky Link',
+            url: 'www.bluesky.com',
           },
           {
             id: 1003,
-            name: "Facebook",
+            name: 'Facebook',
             icon: icon.smallIconFacebook,
-            placeHolder: "https://www.facebook.com/username",
-            inputText: "Facebook Username",
-            url: "www.facebook.com",
+            placeHolder: 'https://www.facebook.com/username',
+            inputText: 'Facebook Username',
+            url: 'www.facebook.com',
           },
           {
             id: 1004,
-            name: "Github",
+            name: 'Github',
             icon: icon.smallIconGithub,
-            placeHolder: "https://github.com/username",
-            inputText: "Github Link",
-            url: "www.github.com",
+            placeHolder: 'https://github.com/username',
+            inputText: 'Github Link',
+            url: 'www.github.com',
           },
           {
             id: 1005,
-            name: "Instagram",
+            name: 'Instagram',
             icon: icon.smallIconInstagram,
-            placeHolder: "https://www.instagram.com/username",
-            inputText: "Instagram Username",
-            url: "www.instagram.com",
+            placeHolder: 'https://www.instagram.com/username',
+            inputText: 'Instagram Username',
+            url: 'www.instagram.com',
           },
           {
             id: 1006,
-            name: "Rumble",
+            name: 'Rumble',
             icon: icon.smallIconRumble,
-            placeHolder: "https://rumble.com/abc",
-            inputText: "Rumble Link",
-            url: "www.rumble.com",
+            placeHolder: 'https://rumble.com/abc',
+            inputText: 'Rumble Link',
+            url: 'www.rumble.com',
           },
           {
             id: 1007,
-            name: "Snapchat",
+            name: 'Snapchat',
             icon: icon.smallIconSnapChat,
-            placeHolder: "https://www.snapchat.com/xyz",
-            inputText: " Snapchat Username",
-            url: "www.snapchat.com",
+            placeHolder: 'https://www.snapchat.com/xyz',
+            inputText: ' Snapchat Username',
+            url: 'www.snapchat.com',
           },
           {
             id: 1008,
-            name: "Truth",
+            name: 'Truth',
             icon: icon.smallIconTruth,
-            placeHolder: "https://truthsocial.com/abc",
-            inputText: "Truth Social Link",
-            url: "www.truthsocial.com",
+            placeHolder: 'https://truthsocial.com/abc',
+            inputText: 'Truth Social Link',
+            url: 'www.truthsocial.com',
           },
           {
             id: 1009,
-            name: "YouTube",
+            name: 'YouTube',
             icon: icon.smallIconYouTube,
-            placeHolder: "https://youtube/xyz",
-            inputText: "YouTube Link",
-            url: "www.youtube.com",
+            placeHolder: 'https://youtube/xyz',
+            inputText: 'YouTube Link',
+            url: 'www.youtube.com',
           },
           {
             id: 1010,
-            name: "TikTok",
+            name: 'TikTok',
             icon: icon.smallIconTiktok,
-            placeHolder: "https://www.tiktok.com/username",
-            inputText: "Tiktok Username",
-            url: "www.tiktok.com",
+            placeHolder: 'https://www.tiktok.com/username',
+            inputText: 'Tiktok Username',
+            url: 'www.tiktok.com',
           },
         ],
       },
       {
-        category: "Chat Links",
+        category: 'Chat Links',
         categoryIcon: icon.ChatlinkType,
         icons: [
           {
             id: 1100,
-            name: "Whatsapp",
+            name: 'Whatsapp',
             icon: icon.smallIconWhatsapp,
-            placeHolder: "+123456789",
-            inputText: "Whatsapp Number",
-            url: "www.whatsapp.com",
+            placeHolder: '+123456789',
+            inputText: 'Whatsapp Number',
+            url: 'www.whatsapp.com',
           },
           {
             id: 1101,
-            name: "Discord",
+            name: 'Discord',
             icon: icon.smallIconDiscord,
-            placeHolder: "www.discord.com/invite/abc",
-            inputText: "Discord Server Link",
-            url: "www.discord.com",
+            placeHolder: 'www.discord.com/invite/abc',
+            inputText: 'Discord Server Link',
+            url: 'www.discord.com',
           },
           {
             id: 1103,
-            name: "Telegram",
+            name: 'Telegram',
             icon: icon.smallIconTelegram,
-            placeHolder: "+123456789",
-            inputText: "Telegram Number",
-            url: "www.telegram.com",
+            placeHolder: '+123456789',
+            inputText: 'Telegram Number',
+            url: 'www.telegram.com',
           },
           {
             id: 1104,
-            name: "Slack",
+            name: 'Slack',
             icon: icon.smallIconSlack,
-            placeHolder: "https://slack.com/xyz",
-            inputText: "Slack Link",
-            url: "www.slack.com",
+            placeHolder: 'https://slack.com/xyz',
+            inputText: 'Slack Link',
+            url: 'www.slack.com',
           },
         ],
       },
       {
-        category: "Commands",
+        category: 'Commands',
         categoryIcon: icon.CommandType,
         icons: [
           {
             id: 1200,
-            name: "Email",
+            name: 'Email',
             icon: icon.smallIconEmail,
-            placeHolder: "xyz@gmail.com",
-            inputText: "Email Address",
-            url: "www.gmail.com",
+            placeHolder: 'xyz@gmail.com',
+            inputText: 'Email Address',
+            url: 'www.gmail.com',
           },
           {
             id: 1201,
-            name: "Website",
+            name: 'Website',
             icon: icon.smallIconWeb,
-            placeHolder: "https://www.xyz.com",
-            inputText: "Website Address",
-            url: "www.google.com",
+            placeHolder: 'https://www.xyz.com',
+            inputText: 'Website Address',
+            url: 'www.google.com',
           },
           {
             id: 1202,
-            name: "Chat",
+            name: 'Chat',
             icon: icon.smallIconChat,
-            placeHolder: "https://xyz.com/chatroomdID",
-            inputText: "Chat Link",
-            url: "www.google.com",
+            placeHolder: 'https://xyz.com/chatroomdID',
+            inputText: 'Chat Link',
+            url: 'www.google.com',
           },
         ],
       },
     ],
   },
   {
-    type: "appIcon",
+    type: 'appIcon',
     icons: [
       {
-        category: "Link",
+        category: 'Link',
         categoryIcon: icon.socialIconType,
         icons: [
           {
             id: 16005,
-            name: "Amazon Music",
+            name: 'Amazon Music',
             icon: icon.appIconAmazonMusic,
-            placeHolder: "https://www.music.amazon.com/abc",
-            inputText: "Amazon Music Link",
-            url: "https://music.amazon.com",
+            placeHolder: 'https://www.music.amazon.com/abc',
+            inputText: 'Amazon Music Link',
+            url: 'https://music.amazon.com',
           },
           {
             id: 16006,
-            name: "Amazon",
+            name: 'Amazon',
             icon: icon.AppIconAmazon,
-            placeHolder: "https://www.amazon.com/product",
-            inputText: "Amazon link",
-            url: "https://www.amazon.com",
+            placeHolder: 'https://www.amazon.com/product',
+            inputText: 'Amazon link',
+            url: 'https://www.amazon.com',
           },
           {
             id: 1507,
-            name: "App Store",
+            name: 'App Store',
             icon: icon.appIconAppStore,
-            placeHolder: "https://www.apps.apple.com/xyz",
-            inputText: "App Store Link",
-            url: "https://apps.apple.com",
+            placeHolder: 'https://www.apps.apple.com/xyz',
+            inputText: 'App Store Link',
+            url: 'https://apps.apple.com',
           },
           {
             id: 1513,
-            name: "Apple Map",
+            name: 'Apple Map',
             icon: icon.appIconAppleMaps,
-            placeHolder: "https://maps.apple.com/?ll=0.00,0.00",
-            inputText: "Apple Map Link",
-            url: "https://apple.com.maps",
+            placeHolder: 'https://maps.apple.com/?ll=0.00,0.00',
+            inputText: 'Apple Map Link',
+            url: 'https://apple.com.maps',
           },
           {
             id: 16003,
-            name: "Apple Music",
+            name: 'Apple Music',
             icon: icon.appIconAppleMusic,
-            placeHolder: "https://www.music.apple.com/abc",
-            inputText: "Apple Music Link",
-            url: "https://music.apple.com",
+            placeHolder: 'https://www.music.apple.com/abc',
+            inputText: 'Apple Music Link',
+            url: 'https://music.apple.com',
           },
           {
             id: 1608,
-            name: "Audius",
+            name: 'Audius',
             icon: icon.appIconAudius,
-            placeHolder: "https://www.audius.de/xyz",
-            inputText: "Audius Link",
-            url: "https://audius.de",
+            placeHolder: 'https://www.audius.de/xyz',
+            inputText: 'Audius Link',
+            url: 'https://audius.de',
           },
           {
             id: 1304,
-            name: "Bluesky",
+            name: 'Bluesky',
             icon: icon.appIconBluesky,
-            placeHolder: "https://bsky.app/xyz",
-            inputText: "Bluesky Link",
-            url: "www.bluesky.com",
+            placeHolder: 'https://bsky.app/xyz',
+            inputText: 'Bluesky Link',
+            url: 'www.bluesky.com',
           },
           {
             id: 1701,
-            name: "Book Me",
+            name: 'Book Me',
             icon: icon.appIconBookMe,
-            placeHolder: "https://www.bookmeapp.com/abc",
-            inputText: "Book Appointment",
-            url: "www.bookmeapp.com",
+            placeHolder: 'https://www.bookmeapp.com/abc',
+            inputText: 'Book Appointment',
+            url: 'www.bookmeapp.com',
           },
           {
             id: 1707,
-            name: "Business Hours",
+            name: 'Business Hours',
             icon: icon.appIconBusinessHours,
-            placeHolder: "https://www.businesshoursapp.com/xyz",
-            inputText: "Business Hours",
-            url: "www.businesshoursapp.com",
+            placeHolder: 'https://www.businesshoursapp.com/xyz',
+            inputText: 'Business Hours',
+            url: 'www.businesshoursapp.com',
           },
           {
             id: 15009,
-            name: "Cash App",
+            name: 'Cash App',
             icon: icon.CashApp,
-            placeHolder: "@usename",
-            inputText: "Cash App User Name",
-            url: "https://cashapp.com",
+            placeHolder: '@usename',
+            inputText: 'Cash App User Name',
+            url: 'https://cashapp.com',
           },
           {
             id: 15001,
-            name: "Calendar",
+            name: 'Calendar',
             icon: icon.Calendar,
-            placeHolder: "http://www.googlecalendar.com/example",
-            inputText: "Calendar Link",
-            url: "https://calender.com",
+            placeHolder: 'http://www.googlecalendar.com/example',
+            inputText: 'Calendar Link',
+            url: 'https://calender.com',
           },
           {
             id: 1500,
-            name: "Calendly",
+            name: 'Calendly',
             icon: icon.appIconCalendly,
-            placeHolder: "https://www.calendly.com/xyz",
-            inputText: "Calendly Link",
-            url: "https://calendly.com",
+            placeHolder: 'https://www.calendly.com/xyz',
+            inputText: 'Calendly Link',
+            url: 'https://calendly.com',
           },
           {
             id: 1709,
-            name: "Card Payment",
+            name: 'Card Payment',
             icon: icon.appIconCardPaymen,
-            placeHolder: "+123456789",
-            inputText: "Card Number",
-            url: "www.paymentapp.com",
+            placeHolder: '+123456789',
+            inputText: 'Card Number',
+            url: 'www.paymentapp.com',
           },
           {
             id: 1512,
-            name: "Chow Now",
+            name: 'Chow Now',
             icon: icon.appIconChowNow,
-            placeHolder: "https://www.chownow.com",
-            inputText: "Chow-Now Link",
-            url: "https://www.chownow.com",
+            placeHolder: 'https://www.chownow.com',
+            inputText: 'Chow-Now Link',
+            url: 'https://www.chownow.com',
           },
           {
             id: 1705,
-            name: "Coupon",
+            name: 'Coupon',
             icon: icon.appIconCupon,
-            placeHolder: "https://www.couponapp.com/xyz",
-            inputText: "Coupon App",
-            url: "www.couponapp.com",
+            placeHolder: 'https://www.couponapp.com/xyz',
+            inputText: 'Coupon App',
+            url: 'www.couponapp.com',
           },
           {
             id: 1303,
-            name: "Damus",
+            name: 'Damus',
             icon: icon.appIconDomus,
-            placeHolder: "www.damus.com/abc",
-            inputText: "Damus Profile Link",
-            url: "www.damus.com",
+            placeHolder: 'www.damus.com/abc',
+            inputText: 'Damus Profile Link',
+            url: 'www.damus.com',
           },
           {
             id: 1606,
-            name: "Deezer",
+            name: 'Deezer',
             icon: icon.appIconDeezer,
-            placeHolder: "https://www.deezer.com/xyz",
-            inputText: "Deezer Link",
-            url: "https://deezer.com",
+            placeHolder: 'https://www.deezer.com/xyz',
+            inputText: 'Deezer Link',
+            url: 'https://deezer.com',
           },
           {
             id: 16001,
-            name: "Discord",
+            name: 'Discord',
             icon: icon.appIconDiscord,
-            placeHolder: "https://www.discord.com/invite/abc",
-            inputText: "Discord Server Link",
-            url: "www.discord.com",
+            placeHolder: 'https://www.discord.com/invite/abc',
+            inputText: 'Discord Server Link',
+            url: 'www.discord.com',
           },
           {
             id: 1508,
-            name: "Door Dash",
+            name: 'Door Dash',
             icon: icon.appIconDoorDash,
-            placeHolder: "https://www.doordash.com/abc",
-            inputText: "Door Dash Link",
-            url: "https://doordash.com",
+            placeHolder: 'https://www.doordash.com/abc',
+            inputText: 'Door Dash Link',
+            url: 'https://doordash.com',
           },
           {
             id: 1713,
-            name: "Download",
+            name: 'Download',
             icon: icon.appIconDownload,
-            placeHolder: "https://www.example.com/{downloadLink}",
-            inputText: "Download Link",
-            url: "www.downloadapp.com",
+            placeHolder: 'https://www.example.com/{downloadLink}',
+            inputText: 'Download Link',
+            url: 'www.downloadapp.com',
           },
           {
             id: 1504,
-            name: "Dribble",
+            name: 'Dribble',
             icon: icon.appIconDribble,
-            placeHolder: "https://www.dribble.com/xyz",
-            inputText: "Dribble Link",
-            url: "https://dribble.com",
+            placeHolder: 'https://www.dribble.com/xyz',
+            inputText: 'Dribble Link',
+            url: 'https://dribble.com',
           },
           {
             id: 1400,
-            name: "Etherscan",
+            name: 'Etherscan',
             icon: icon.appIconEtherscan,
-            placeHolder: "https://etherscan.com/abc",
-            inputText: "Etherscan Link",
-            url: "etherscan.com",
+            placeHolder: 'https://etherscan.com/abc',
+            inputText: 'Etherscan Link',
+            url: 'etherscan.com',
           },
           {
             id: 1305,
-            name: "Facebook",
+            name: 'Facebook',
             icon: icon.appIconFacebook,
-            placeHolder: "https://www.facebook.com/username",
-            inputText: "Facebook Username",
-            url: "www.facebook.com",
+            placeHolder: 'https://www.facebook.com/username',
+            inputText: 'Facebook Username',
+            url: 'www.facebook.com',
           },
           {
             id: 1502,
-            name: "Figma",
+            name: 'Figma',
             icon: icon.appIconFigma,
-            placeHolder: "https://www.figma.com/file/xyz",
-            inputText: "Figma Link",
-            url: "https://figma.com",
+            placeHolder: 'https://www.figma.com/file/xyz',
+            inputText: 'Figma Link',
+            url: 'https://figma.com',
           },
           {
             id: 1712,
-            name: "File",
+            name: 'File',
             icon: icon.appIconFile,
-            placeHolder: "https://www.example.com/{fileName}",
-            inputText: "File Name",
-            url: "www.fileapp.com",
+            placeHolder: 'https://www.example.com/{fileName}',
+            inputText: 'File Name',
+            url: 'www.fileapp.com',
           },
           {
             id: 1708,
-            name: "Food",
+            name: 'Food',
             icon: icon.appIconFood,
-            placeHolder: "https://foodapp.com/abc",
-            inputText: "Food Item",
-            url: "www.foodapp.com",
+            placeHolder: 'https://foodapp.com/abc',
+            inputText: 'Food Item',
+            url: 'www.foodapp.com',
           },
           {
             id: 1306,
-            name: "Github",
+            name: 'Github',
             icon: icon.appIconGithub,
-            placeHolder: "https://github.com/username",
-            inputText: "Github Link",
-            url: "www.github.com",
+            placeHolder: 'https://github.com/username',
+            inputText: 'Github Link',
+            url: 'www.github.com',
           },
           {
             id: 1514,
-            name: "Google Maps",
+            name: 'Google Maps',
             icon: icon.appIconGoogleMaps,
-            placeHolder: "https://maps.app.goo.gl/xyz",
-            inputText: "Google Map Link",
-            url: "https://google.com/maps",
+            placeHolder: 'https://maps.app.goo.gl/xyz',
+            inputText: 'Google Map Link',
+            url: 'https://google.com/maps',
           },
           {
             id: 1711,
-            name: "Google Review",
+            name: 'Google Review',
             icon: icon.appIconGoogleReview,
-            placeHolder: "https://www.googleapp.com/xyz",
-            inputText: "Google Review Link",
-            url: "www.googleapp.com",
+            placeHolder: 'https://www.googleapp.com/xyz',
+            inputText: 'Google Review Link',
+            url: 'www.googleapp.com',
           },
           {
             id: 1506,
-            name: "Google Play",
+            name: 'Google Play',
             icon: icon.appIconPlayStore,
-            placeHolder: "https://www.play.google.com/abc",
-            inputText: "App Link",
-            url: "https://play.google.com",
+            placeHolder: 'https://www.play.google.com/abc',
+            inputText: 'App Link',
+            url: 'https://play.google.com',
           },
           {
             id: 1704,
-            name: "GPS",
+            name: 'GPS',
             icon: icon.appIconGPS,
-            placeHolder: "https://www.gpsapp.com/abc",
-            inputText: "GPS App",
-            url: "www.gpsapp.com",
+            placeHolder: 'https://www.gpsapp.com/abc',
+            inputText: 'GPS App',
+            url: 'www.gpsapp.com',
           },
           {
             id: 1605,
-            name: "Group Me",
+            name: 'Group Me',
             icon: icon.appIconGroupme,
-            placeHolder: "https://www.groupme.com/abc",
-            inputText: "Groupme Link",
-            url: "www.groupme.com",
+            placeHolder: 'https://www.groupme.com/abc',
+            inputText: 'Groupme Link',
+            url: 'www.groupme.com',
           },
           {
             id: 1501,
-            name: "Gumroad",
+            name: 'Gumroad',
             icon: icon.appIconGumroad,
-            placeHolder: "https://www.gumroad.com/abc",
-            inputText: "Gumroad Link",
-            url: "https://gumroad.com",
+            placeHolder: 'https://www.gumroad.com/abc',
+            inputText: 'Gumroad Link',
+            url: 'https://gumroad.com',
           },
           {
             id: 1401,
-            name: "HolaPlex",
+            name: 'HolaPlex',
             icon: icon.appIconHolaPlex,
-            placeHolder: "https://holaplex.com/xyz",
-            inputText: "Holaplex Link",
-            url: "holaplex.com",
+            placeHolder: 'https://holaplex.com/xyz',
+            inputText: 'Holaplex Link',
+            url: 'holaplex.com',
           },
           {
             id: 1307,
-            name: "Instagram",
+            name: 'Instagram',
             icon: icon.appIconInstagram,
-            placeHolder: "https://www.instagram.com/username",
-            inputText: "Instagram Username",
-            url: "www.instagram.com",
+            placeHolder: 'https://www.instagram.com/username',
+            inputText: 'Instagram Username',
+            url: 'www.instagram.com',
           },
           {
             id: 1710,
-            name: "Invoice",
+            name: 'Invoice',
             icon: icon.appIconInvoice,
-            placeHolder: "123456789",
-            inputText: "Invoice Number",
-            url: "www.invoiceapp.com",
+            placeHolder: '123456789',
+            inputText: 'Invoice Number',
+            url: 'www.invoiceapp.com',
           },
           {
             id: 1402,
-            name: "Lazy",
+            name: 'Lazy',
             icon: icon.appIconLazy,
-            placeHolder: "https://lazy.com/abc",
-            inputText: "Lazy Link",
-            url: "lazy.com",
+            placeHolder: 'https://lazy.com/abc',
+            inputText: 'Lazy Link',
+            url: 'lazy.com',
           },
 
           {
             id: 1403,
-            name: "Lens",
+            name: 'Lens',
             icon: icon.appIconLens,
-            placeHolder: "https://www.lenslink.ai/xyz",
-            inputText: "Lens link",
-            url: "https://www.lenslink.ai",
+            placeHolder: 'https://www.lenslink.ai/xyz',
+            inputText: 'Lens link',
+            url: 'https://www.lenslink.ai',
           },
 
           {
             id: 1301,
-            name: "Linked In",
+            name: 'Linked In',
             icon: icon.appIconLinkedIn,
-            placeHolder: "https://www.linkedin.com/in/username",
-            inputText: "Linkedin Username",
-            url: "www.linkedin.com",
+            placeHolder: 'https://www.linkedin.com/in/username',
+            inputText: 'Linkedin Username',
+            url: 'www.linkedin.com',
           },
           {
             id: 1505,
-            name: "Linktree",
+            name: 'Linktree',
             icon: icon.appIconLinkTree,
-            placeHolder: "https://www.linktr.ee/abc",
-            inputText: "Linktree Link",
-            url: "https://linktr.ee",
+            placeHolder: 'https://www.linktr.ee/abc',
+            inputText: 'Linktree Link',
+            url: 'https://linktr.ee',
           },
           {
             id: 1610,
-            name: "Livepeer",
+            name: 'Livepeer',
             icon: icon.appIconLivepeer,
-            placeHolder: "https://www.livepeer.org/xyz",
-            inputText: "Livepeer Link",
-            url: "https://livepeer.org",
+            placeHolder: 'https://www.livepeer.org/xyz',
+            inputText: 'Livepeer Link',
+            url: 'https://livepeer.org',
           },
           {
             id: 1706,
-            name: "Location",
+            name: 'Location',
             icon: icon.appIconLocation,
-            placeHolder: "https://www.locationapp.com/abc",
-            inputText: "Location Name",
-            url: "www.locationapp.com",
+            placeHolder: 'https://www.locationapp.com/abc',
+            inputText: 'Location Name',
+            url: 'www.locationapp.com',
           },
           {
             id: 1904,
-            name: "Map",
+            name: 'Map',
             icon: icon.appIconMap,
-            placeHolder: "https://maps.app.goo.gl/xyz",
-            inputText: "Location",
-            url: "www.map.com",
+            placeHolder: 'https://maps.app.goo.gl/xyz',
+            inputText: 'Location',
+            url: 'www.map.com',
           },
           {
             id: 1510,
-            name: "Menu",
+            name: 'Menu',
             icon: icon.appIconMenu,
-            placeHolder: "https://www.abc.com/menuID",
-            inputText: "Menu Link",
-            url: "https://domain.com",
+            placeHolder: 'https://www.abc.com/menuID',
+            inputText: 'Menu Link',
+            url: 'https://domain.com',
           },
           {
             id: 1404,
-            name: "MetaPlex",
+            name: 'MetaPlex',
             icon: icon.appIconMetaPlex,
-            placeHolder: "https://www.metaplex.com/abc",
-            inputText: "Metaplex Link",
-            url: "https://www.metaplex.com",
+            placeHolder: 'https://www.metaplex.com/abc',
+            inputText: 'Metaplex Link',
+            url: 'https://www.metaplex.com',
           },
           {
             id: 1405,
-            name: "Opensea",
+            name: 'Opensea',
             icon: icon.appIconOpensea,
-            placeHolder: "https://www.opensea.io/xyz",
-            inputText: "Opensea Link",
-            url: "https://opensea.io",
+            placeHolder: 'https://www.opensea.io/xyz',
+            inputText: 'Opensea Link',
+            url: 'https://opensea.io',
           },
           {
             id: 16007,
-            name: "Paypal",
+            name: 'Paypal',
             icon: icon.Paypal,
-            placeHolder: "@username",
-            inputText: "Paypal User Name",
-            url: "https://paypal.com",
+            placeHolder: '@username',
+            inputText: 'Paypal User Name',
+            url: 'https://paypal.com',
           },
           {
             id: 1607,
-            name: "Pandora",
+            name: 'Pandora',
             icon: icon.appIconPandora,
-            placeHolder: "https://www.pandora.com/abc",
-            inputText: "Pandora Link",
-            url: "https://pandora.com",
+            placeHolder: 'https://www.pandora.com/abc',
+            inputText: 'Pandora Link',
+            url: 'https://pandora.com',
           },
           {
             id: 1611,
-            name: "Podcasts",
+            name: 'Podcasts',
             icon: icon.appIconPodcasts,
-            placeHolder: "https://www.youtube.com/abc",
-            inputText: "Podcasts Link",
-            url: "https://www.youtube.com",
+            placeHolder: 'https://www.youtube.com/abc',
+            inputText: 'Podcasts Link',
+            url: 'https://www.youtube.com',
           },
           {
             id: 1406,
-            name: "Rarible",
+            name: 'Rarible',
             icon: icon.appIconRarible,
-            placeHolder: "https://www.rarible.com/abc",
-            inputText: "Rarible Link",
-            url: "https://rarible.com",
+            placeHolder: 'https://www.rarible.com/abc',
+            inputText: 'Rarible Link',
+            url: 'https://rarible.com',
           },
           {
             id: 14006,
-            name: "Referral",
-            icon: require("@/public/images/IconShop/Referral.png"),
-            placeHolder: "Referral",
-            inputText: "Referral",
-            url: "Referral",
-            destination: "AddReferralScreen",
+            name: 'Referral',
+            icon: icon.appIconReferral,
+            placeHolder: 'Referral',
+            inputText: 'Referral',
+            url: 'Referral',
+            destination: 'AddReferralScreen',
           },
           {
             id: 1703,
-            name: "Reviews",
+            name: 'Reviews',
             icon: icon.appIconReviews,
-            placeHolder: "https://www.reviewapp.com/xyz",
-            inputText: "Reviews App",
-            url: "www.reviewapp.com",
+            placeHolder: 'https://www.reviewapp.com/xyz',
+            inputText: 'Reviews App',
+            url: 'www.reviewapp.com',
           },
           {
             id: 1308,
-            name: "Rumble",
+            name: 'Rumble',
             icon: icon.appIconRumble,
-            placeHolder: "https://rumble.com/abc",
-            inputText: "Rumble Link",
-            url: "www.rumble.com",
+            placeHolder: 'https://rumble.com/abc',
+            inputText: 'Rumble Link',
+            url: 'www.rumble.com',
           },
           {
             id: 16004,
-            name: "Slack",
+            name: 'Slack',
             icon: icon.appIconSlack,
-            placeHolder: "https://www.slacks.com/xyz",
-            inputText: "Slack Link",
-            url: "www.slack.com",
+            placeHolder: 'https://www.slacks.com/xyz',
+            inputText: 'Slack Link',
+            url: 'www.slack.com',
           },
           {
             id: 1312,
-            name: "Snapchat",
+            name: 'Snapchat',
             icon: icon.appIconSnapchat,
-            placeHolder: "https://www.snapchat.com/xyz",
-            inputText: " Snapchat Username",
-            url: "www.snapchat.com",
+            placeHolder: 'https://www.snapchat.com/xyz',
+            inputText: ' Snapchat Username',
+            url: 'www.snapchat.com',
           },
           {
             id: 1604,
-            name: "SoundCloud",
+            name: 'SoundCloud',
             icon: icon.appIconSoundCloud,
-            placeHolder: "https://soundcloud.com/xyz",
-            inputText: "Soundcloud Link",
-            url: "https://soundcloud.com",
+            placeHolder: 'https://soundcloud.com/xyz',
+            inputText: 'Soundcloud Link',
+            url: 'https://soundcloud.com',
           },
           {
             id: 1407,
-            name: "Spinamp",
+            name: 'Spinamp',
             icon: icon.appIconSpinamp,
-            placeHolder: "https://www.spineamp.xyz",
-            inputText: "Spinamp Link",
-            url: "https://www.spinamp.com",
+            placeHolder: 'https://www.spineamp.xyz',
+            inputText: 'Spinamp Link',
+            url: 'https://www.spinamp.com',
           },
 
           {
             id: 1503,
-            name: "Spline",
+            name: 'Spline',
             icon: icon.appIconSpline,
-            placeHolder: "https://www.spline.design/abc",
-            inputText: "Spline Link",
-            url: "https://spline.design",
+            placeHolder: 'https://www.spline.design/abc',
+            inputText: 'Spline Link',
+            url: 'https://spline.design',
           },
 
           {
             id: 1602,
-            name: "Spotify",
+            name: 'Spotify',
             icon: icon.appIconSpotify,
-            placeHolder: "https://www.spotify.com/xyz",
-            inputText: "Spotify Link",
-            url: "https://spotify.com",
+            placeHolder: 'https://www.spotify.com/xyz',
+            inputText: 'Spotify Link',
+            url: 'https://spotify.com',
           },
 
           {
             id: 1609,
-            name: "Streamable",
+            name: 'Streamable',
             icon: icon.appIconStreamable,
-            placeHolder: "https://streamable.com/abc",
-            inputText: "Streamable Link",
-            url: "https://streamable.com",
+            placeHolder: 'https://streamable.com/abc',
+            inputText: 'Streamable Link',
+            url: 'https://streamable.com',
           },
           {
             id: 1603,
-            name: "Telegram",
+            name: 'Telegram',
             icon: icon.appIconTelegram,
-            placeHolder: "+123456789",
-            inputText: "Telegram Number",
-            url: "www.telegram.com",
+            placeHolder: '+123456789',
+            inputText: 'Telegram Number',
+            url: 'www.telegram.com',
           },
 
           {
             id: 1311,
-            name: "Threads",
+            name: 'Threads',
             icon: icon.appIconThreads,
-            placeHolder: "https://www.threads.net/abc",
-            inputText: "Threads Link",
-            url: "www.threads.com",
+            placeHolder: 'https://www.threads.net/abc',
+            inputText: 'Threads Link',
+            url: 'www.threads.com',
           },
           {
             id: 1309,
-            name: "TikTok",
+            name: 'TikTok',
             icon: icon.appIconTiktok,
-            placeHolder: "https://www.tiktok.com/username",
-            inputText: "Tiktok Username",
-            url: "www.tiktok.com",
+            placeHolder: 'https://www.tiktok.com/username',
+            inputText: 'Tiktok Username',
+            url: 'www.tiktok.com',
           },
           {
             id: 1310,
-            name: "Truth Social",
+            name: 'Truth Social',
             icon: icon.appIconTruth,
-            placeHolder: "https://truthsocial.com/xyz",
-            inputText: "Truth Social Link",
-            url: "www.truth.com",
+            placeHolder: 'https://truthsocial.com/xyz',
+            inputText: 'Truth Social Link',
+            url: 'www.truth.com',
           },
           {
             id: 1511,
-            name: "Uber Eats",
+            name: 'Uber Eats',
             icon: icon.appIconUberEats,
-            placeHolder: "https://www.ubereats.com/abc",
-            inputText: "Uber-Eats Link",
-            url: "https://uber.com",
+            placeHolder: 'https://www.ubereats.com/abc',
+            inputText: 'Uber-Eats Link',
+            url: 'https://uber.com',
           },
           {
             id: 1714,
-            name: "Upload",
+            name: 'Upload',
             icon: icon.appIconUpload,
-            placeHolder: "https://www.example.com/{uploadLink}",
-            inputText: "Upload Link",
-            url: "www.uploadapp.com",
+            placeHolder: 'https://www.example.com/{uploadLink}',
+            inputText: 'Upload Link',
+            url: 'www.uploadapp.com',
           },
           {
             id: 17140,
-            name: "Venmo",
+            name: 'Venmo',
             icon: icon.Venmo,
-            placeHolder: "@usename",
-            inputText: "Venmo User Name",
-            url: "https://venmo.com",
+            placeHolder: '@usename',
+            inputText: 'Venmo User Name',
+            url: 'https://venmo.com',
           },
           {
             id: 1909,
-            name: "Warpcast",
+            name: 'Warpcast',
             icon: icon.Warpcast,
-            placeHolder: "www.warpcast.com/swop",
-            inputText: "Warpcast Link",
-            url: "www.warpcast.com",
+            placeHolder: 'www.warpcast.com/swop',
+            inputText: 'Warpcast Link',
+            url: 'www.warpcast.com',
           },
           {
             id: 1905,
-            name: "Website",
+            name: 'Website',
             icon: icon.appIconLink,
-            placeHolder: "https://example.com/xyz",
-            inputText: "Website Link",
-            url: "www.link.com",
+            placeHolder: 'https://example.com/xyz',
+            inputText: 'Website Link',
+            url: 'www.link.com',
           },
           {
             id: 1600,
-            name: "Whatsapp",
+            name: 'Whatsapp',
             icon: icon.appIconWhatsApp,
-            placeHolder: "+123456789",
-            inputText: "Whatsapp Number",
-            url: "www.whatsapp.com",
+            placeHolder: '+123456789',
+            inputText: 'Whatsapp Number',
+            url: 'www.whatsapp.com',
           },
 
           {
             id: 1509,
-            name: "X",
+            name: 'X',
             icon: icon.appIconTwitter,
-            placeHolder: "https://x.com/username/xyz",
-            inputText: "X Link",
-            url: "https://x.com",
+            placeHolder: 'https://x.com/username/xyz',
+            inputText: 'X Link',
+            url: 'https://x.com',
           },
 
           {
             id: 1601,
-            name: "YouTube",
+            name: 'YouTube',
             icon: icon.appIconYoutube,
-            placeHolder: "https:www.youtube.com/abc",
-            inputText: "YouTube Link",
-            url: "https://youtube.com",
+            placeHolder: 'https:www.youtube.com/abc',
+            inputText: 'YouTube Link',
+            url: 'https://youtube.com',
           },
           {
             id: 1408,
-            name: "Zerion",
+            name: 'Zerion',
             icon: icon.appIconZerion,
-            placeHolder: "https://www.zerion.io/abc",
-            inputText: "Zerion Link",
-            url: "https://zerion.io",
+            placeHolder: 'https://www.zerion.io/abc',
+            inputText: 'Zerion Link',
+            url: 'https://zerion.io',
           },
         ],
       },
       {
-        category: "Call To Action",
+        category: 'Call To Action',
         categoryIcon: icon.CommandType,
         icons: [
           {
             id: 1900,
-            name: "Email",
+            name: 'Email',
             icon: icon.appIconEmail,
-            placeHolder: "Type Your Email Address",
-            inputText: "Email Address",
-            url: "www.email.com",
+            placeHolder: 'Type Your Email Address',
+            inputText: 'Email Address',
+            url: 'www.email.com',
           },
           {
             id: 1901,
-            name: "Call",
+            name: 'Call',
             icon: icon.appIconCall,
-            placeHolder: "+123456789",
-            inputText: "Phone Number",
-            url: "www.call.com",
+            placeHolder: '+123456789',
+            inputText: 'Phone Number',
+            url: 'www.call.com',
           },
           {
             id: 1902,
-            name: "Text Message",
+            name: 'Text Message',
             icon: icon.appIconText,
-            placeHolder: "Enter Your Phone Number",
-            inputText: "Text Message",
-            url: "www.text.com",
+            placeHolder: 'Enter Your Phone Number',
+            inputText: 'Text Message',
+            url: 'www.text.com',
           },
           {
             id: 1903,
-            name: "FaceTime",
+            name: 'FaceTime',
             icon: icon.appIconFaceTime,
-            placeHolder: "https://www.facetime.com/abc",
-            inputText: "FaceTime ID",
-            url: "www.facetime.com",
+            placeHolder: 'https://www.facetime.com/abc',
+            inputText: 'FaceTime ID',
+            url: 'www.facetime.com',
           },
           {
             id: 1904,
-            name: "Map",
+            name: 'Map',
             icon: icon.appIconMap,
-            placeHolder: "https://maps.app.goo.gl/xyz",
-            inputText: "Location",
-            url: "www.map.com",
+            placeHolder: 'https://maps.app.goo.gl/xyz',
+            inputText: 'Location',
+            url: 'www.map.com',
           },
           {
             id: 19004,
-            name: "Message Swop id",
+            name: 'Message Swop id',
             icon: icon.MessageSwopid,
-            placeHolder: "input your swop.id",
-            inputText: "your swop id",
-            url: "www.swopme.co",
+            placeHolder: 'input your swop.id',
+            inputText: 'your swop id',
+            url: 'www.swopme.co',
           },
           {
             id: 1905,
-            name: "Website",
+            name: 'Website',
             icon: icon.appIconLink,
-            placeHolder: "https://example.com/xyz",
-            inputText: "Website Link",
-            url: "www.link.com",
+            placeHolder: 'https://example.com/xyz',
+            inputText: 'Website Link',
+            url: 'www.link.com',
           },
           {
             id: 1906,
-            name: "Copy",
+            name: 'Copy',
             icon: icon.appIconCopy,
-            placeHolder: "https://www.example.com/abc",
-            inputText: "Copy Content",
-            url: "www.copy.com",
+            placeHolder: 'https://www.example.com/abc',
+            inputText: 'Copy Content',
+            url: 'www.copy.com',
           },
           {
             id: 19007,
-            name: "ENS Message",
+            name: 'ENS Message',
             icon: icon.appIconENSMessage,
-            placeHolder: "Type Your ENS Message",
-            inputText: "ENS Message",
-            url: "www.ensmessage.com",
+            placeHolder: 'Type Your ENS Message',
+            inputText: 'ENS Message',
+            url: 'www.ensmessage.com',
           },
           {
             id: 19008,
-            name: "Copy Base",
+            name: 'Copy Base',
             icon: icon.CopyBase,
-            placeHolder: "Type Your Base Address",
-            inputText: "Base Address",
-            url: "www.base.com",
+            placeHolder: 'Type Your Base Address',
+            inputText: 'Base Address',
+            url: 'www.base.com',
           },
           {
             id: 19009,
-            name: "Copy SWOP ID",
+            name: 'Copy SWOP ID',
             icon: icon.CopySWOPID,
-            placeHolder: "Type Your swop.id",
-            inputText: "Swop.id",
-            url: "www.swop.co",
+            placeHolder: 'Type Your swop.id',
+            inputText: 'Swop.id',
+            url: 'www.swop.co',
           },
           {
             id: 1908,
-            name: "Send Crypto",
+            name: 'Send Crypto',
             icon: icon.appIconSendCrypto,
-            placeHolder: "Type Your Crypto Address",
-            inputText: "Crypto Address",
-            url: "www.sendcrypto.com",
+            placeHolder: 'Type Your Crypto Address',
+            inputText: 'Crypto Address',
+            url: 'www.sendcrypto.com',
           },
           {
             id: 1803,
-            name: "Copy USDC",
+            name: 'Copy USDC',
             icon: icon.appIconUSDC,
-            placeHolder: "Your USDC Address",
-            inputText: "USDC Address",
-            url: "www.usdcoin.com",
+            placeHolder: 'Your USDC Address',
+            inputText: 'USDC Address',
+            url: 'www.usdcoin.com',
           },
           {
             id: 1802,
-            name: "Copy ETH",
+            name: 'Copy ETH',
             icon: icon.appIconETH,
-            placeHolder: "Your Ethereum Address",
-            inputText: "Ethereum Address",
-            url: "www.ethereum.com",
+            placeHolder: 'Your Ethereum Address',
+            inputText: 'Ethereum Address',
+            url: 'www.ethereum.com',
           },
           {
             id: 1800,
-            name: "Copy Polygon",
+            name: 'Copy Polygon',
             icon: icon.appIconPolygon,
-            placeHolder: "Your Polygon Address",
-            inputText: "Polygon Address",
-            url: "www.polygon.com",
+            placeHolder: 'Your Polygon Address',
+            inputText: 'Polygon Address',
+            url: 'www.polygon.com',
           },
           {
             id: 1804,
-            name: "Copy Solana",
+            name: 'Copy Solana',
             icon: icon.appIconSolana,
-            placeHolder: "Your Solana Address",
-            inputText: "Solana Address",
-            url: "www.solana.com",
+            placeHolder: 'Your Solana Address',
+            inputText: 'Solana Address',
+            url: 'www.solana.com',
           },
           {
             id: 1907,
-            name: "Copy Message",
+            name: 'Copy Message',
             icon: icon.appIconENSMessage,
-            placeHolder: "Type Your ENS Message",
-            inputText: "ENS Message",
-            url: "www.ensmessage.com",
+            placeHolder: 'Type Your ENS Message',
+            inputText: 'ENS Message',
+            url: 'www.ensmessage.com',
           },
         ],
       },
@@ -1911,32 +1913,32 @@ export const newIcons = [
 
 export const embedItems = [
   {
-    category: "X",
+    category: 'X',
     categoryIcon: icon.appIconTwitter,
-    placeHolder: "https://www.x.com/{xUserName}/status/{tweetID}",
-    inputText: "X Post Link",
-    url: "www.x.com",
+    placeHolder: 'https://www.x.com/{xUserName}/status/{tweetID}',
+    inputText: 'X Post Link',
+    url: 'www.x.com',
   },
   {
-    category: "TikTok",
+    category: 'TikTok',
     categoryIcon: icon.appIconTiktok,
-    placeHolder: "https://www.tiktok.com/@{username}/video/{videoID}",
-    inputText: "TikTok Video Link",
-    url: "www.tiktok.com",
+    placeHolder: 'https://www.tiktok.com/@{username}/video/{videoID}',
+    inputText: 'TikTok Video Link',
+    url: 'www.tiktok.com',
   },
   {
-    category: "YouTube",
+    category: 'YouTube',
     categoryIcon: icon.appIconYoutube,
-    placeHolder: "https://www.youtube.com/embed/{videoID}",
-    inputText: "YouTube Video Link",
-    url: "www.youtube.com",
+    placeHolder: 'https://www.youtube.com/embed/{videoID}',
+    inputText: 'YouTube Video Link',
+    url: 'www.youtube.com',
   },
   {
-    category: "Spotify",
+    category: 'Spotify',
     categoryIcon: icon.appIconSpotify,
-    placeHolder: "https://open.spotify.com/embed/{trackID}",
-    inputText: "Spotify Embeded Link",
-    url: "www.spotify.com",
+    placeHolder: 'https://open.spotify.com/embed/{trackID}',
+    inputText: 'Spotify Embeded Link',
+    url: 'www.spotify.com',
   },
   // {
   //   category: "Livepeer",
@@ -1946,57 +1948,57 @@ export const embedItems = [
   //   url: "www.livepeer.com",
   // },
   {
-    category: "Rumble",
+    category: 'Rumble',
     categoryIcon: icon.appIconRumble,
-    placeHolder: "Rumble Embeded Link",
-    inputText: "Rumble Embeded Link",
-    url: "www.rumble.com",
+    placeHolder: 'Rumble Embeded Link',
+    inputText: 'Rumble Embeded Link',
+    url: 'www.rumble.com',
   },
   {
-    category: "Streamable",
+    category: 'Streamable',
     categoryIcon: icon.appIconStreamable,
-    placeHolder: "Streamable Embeded Link",
-    inputText: "Streamable Embeded Link",
-    url: "www.streamable.com",
+    placeHolder: 'Streamable Embeded Link',
+    inputText: 'Streamable Embeded Link',
+    url: 'www.streamable.com',
   },
 ];
 
 export const currencyItems = [
   {
     id: 4,
-    name: "Solana",
+    name: 'Solana',
     icon: icon.appIconSolana,
-    characterText: "$",
+    characterText: '$',
   },
   {
     id: 1,
-    name: "USD",
+    name: 'USD',
     icon: icon.currencyIconUSD,
-    characterText: "$",
+    characterText: '$',
   },
   {
     id: 2,
-    name: "USDC",
+    name: 'USDC',
     icon: icon.currencyIconUSDC,
-    characterText: "$",
+    characterText: '$',
   },
   {
     id: 3,
-    name: "ETH",
+    name: 'ETH',
     icon: icon.appIconETH,
-    characterText: "$",
+    characterText: '$',
   },
 
   {
     id: 5,
-    name: "Polygon",
+    name: 'Polygon',
     icon: icon.appIconPolygon,
-    characterText: "$",
+    characterText: '$',
   },
   {
     id: 6,
-    name: "BTC",
+    name: 'BTC',
     icon: icon.appIconBTC,
-    characterText: "$",
+    characterText: '$',
   },
 ];

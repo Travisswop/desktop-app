@@ -89,7 +89,7 @@ export default function SmartSiteSlider({
                       Smartsites
                     </h2>
                     <Link
-                      href={`/smartsites/icons/${item._id}`}
+                      href={`/smartsite/icons/${item._id}`}
                       className="flex items-center"
                     >
                       <Settings className="h-4 w-4 mr-2" />
@@ -133,9 +133,7 @@ export default function SmartSiteSlider({
                       </p>
 
                       <div className="flex justify-center gap-2 my-4">
-                        <Link
-                          href={`/smartsites/qr-code/${item._id}`}
-                        >
+                        <Link href={`/smartsite/qr-code/${item._id}`}>
                           <Button
                             variant="black"
                             size="icon"
@@ -185,7 +183,7 @@ export default function SmartSiteSlider({
                     />
                   </div>
                   <div className="flex justify-center mt-8">
-                    <Link href="/smartsites/create-smartsite">
+                    <Link href="/smartsite/create-smartsite">
                       <Button
                         variant="black"
                         className="gap-2 font-bold"

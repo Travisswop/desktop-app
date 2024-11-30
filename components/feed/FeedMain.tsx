@@ -11,27 +11,14 @@ import { useSearchParams } from 'next/navigation';
 const FeedMain = () => {
   const [isPosting, setIsPosting] = useState(false);
   const [isPostLoading, setIsPostLoading] = useState(false);
-  const [accessToken, setAccessToken] = useState(
-    'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJfaWQiOiI2NjM4NjMyMDIzMDQxMDMyODAyOTk4MmIiLCJpYXQiOjE3MjcxNTI4MzB9.CsHnZAgUzsfkc_g_CZZyQMXc02Ko_LhnQcCVpeCwroY'
-  );
 
-  const { user, loading, error } = useUser();
+  const { user, loading, error, accessToken } = useUser();
 
   const searchParams = useSearchParams();
 
   const tab = searchParams.get('tab');
 
   console.log('user in feed', user, loading, error);
-
-  // useEffect(() => {
-  //   const token = async () => {
-  //     const accessToken =
-  //     if (accessToken) {
-  //       setAccessToken(accessToken);
-  //     }
-  //   };
-  //   token();
-  // }, []);
 
   let ComponentToRender: any;
 
@@ -40,7 +27,7 @@ const FeedMain = () => {
       case 'feed':
         ComponentToRender = (
           <Feed
-            accessToken={accessToken}
+            accessToken={accessToken as string}
             userId={user?._id as any}
             setIsPosting={setIsPosting}
             isPosting={isPosting}
@@ -52,7 +39,7 @@ const FeedMain = () => {
       case 'timeline':
         ComponentToRender = (
           <Timeline
-            accessToken={accessToken}
+            accessToken={accessToken as string}
             userId={user?._id as any}
             setIsPosting={setIsPosting}
             isPosting={isPosting}
@@ -64,7 +51,7 @@ const FeedMain = () => {
       case 'transaction':
         ComponentToRender = (
           <Transaction
-            accessToken={accessToken}
+            accessToken={accessToken as string}
             userId={user?._id as any}
             setIsPosting={setIsPosting}
             isPosting={isPosting}
@@ -76,7 +63,7 @@ const FeedMain = () => {
       default:
         ComponentToRender = (
           <Feed
-            accessToken={accessToken}
+            accessToken={accessToken as string}
             userId={user?._id as any}
             setIsPosting={setIsPosting}
             isPosting={isPosting}
@@ -98,13 +85,13 @@ const FeedMain = () => {
           >
             <PostFeed
               userId={user?._id as any}
-              token={accessToken}
+              token={accessToken as string}
               setIsPosting={setIsPosting}
               setIsPostLoading={setIsPostLoading}
             />
             <hr />
             {/* component to render based on tab */}
-            <Suspense fallback={"loading..."}>
+            <Suspense fallback={'loading...'}>
               <section className="p-6">{ComponentToRender}</section>
             </Suspense>
           </div>
