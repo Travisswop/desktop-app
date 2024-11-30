@@ -18,7 +18,7 @@ const CreateCollectionPage = () => {
 
   const { ready, authenticated } = usePrivy();
   const { wallets } = useSolanaWallets();
-  let solanaAddress = "";
+  const [solanaAddress, setSolanaAddress] = useState("");
 
   const [formData, setFormData] = useState({
     name: "",
@@ -36,7 +36,7 @@ const CreateCollectionPage = () => {
       wallets.length > 0 &&
       formData.recipientAddress !== wallets[0].address
     ) {
-      solanaAddress = wallets[0].address;
+      setSolanaAddress(wallets[0].address);
       setFormData((prevState) => ({
         ...prevState,
         recipientAddress: solanaAddress,
