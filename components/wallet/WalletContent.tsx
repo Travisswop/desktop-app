@@ -40,6 +40,10 @@ import { Transaction as TransactionType } from '@/types/transaction';
 import { Toaster } from '../ui/toaster';
 import ProfileHeader from '../dashboard/profile-header';
 import MessageBox from './message-interface';
+import AssetSelector from './token/asset-selector';
+import WalletQRModal from './wallet-qr-modal';
+import WalletQRShare from './wallet-qr-share-modal';
+import QRCodeShareModal from '../smartsite/socialShare/QRCodeShareModal';
 
 type Network = 'ETHEREUM' | 'POLYGON' | 'BASE' | 'SOLANA';
 
@@ -57,6 +61,7 @@ export default function WalletContent() {
   const [network, setNetwork] = useState<Network>('ETHEREUM');
 
   const { authenticated, ready, user: PrivyUser } = usePrivy();
+  console.log('🚀 ~ WalletContent ~ PrivyUser:', PrivyUser);
 
   const { wallets: ethWallets } = useWallets();
   const { createWallet, wallets: solanaWallets } = useSolanaWallets();
@@ -65,11 +70,24 @@ export default function WalletContent() {
   const [selectedNFT, setSelectedNFT] = useState<NFT | null>(null);
   const [isNFTModalOpen, setIsNFTModalOpen] = useState(false);
   const [sendLoading, setSendLoading] = useState(false);
+  const [walletQRModalOpen, setWalletQRModalOpen] = useState(false);
+  const [walletQRShareModalOpen, setWalletQRShareModalOpen] =
+    useState(false);
+  const [walletShareAddress, setWalletShareAddress] = useState('');
+  const [qrcodeShareUrl, setQrcodeShareUrl] = useState('');
+  const [QRCodeShareModalOpen, setQRCodeShareModalOpen] =
+    useState(false);
   const [newTransactions, setNewTransactions] = useState<
     TransactionType[]
   >([]);
   const [sendFlow, setSendFlow] = useState<{
-    step: 'amount' | 'recipient' | 'confirm' | 'success' | null;
+    step:
+      | 'amount'
+      | 'recipient'
+      | 'confirm'
+      | 'success'
+      | 'assets'
+      | null;
     token: TokenData | null;
     amount: string;
     recipient: ReceiverData | null;
@@ -115,20 +133,24 @@ export default function WalletContent() {
   useEffect(() => {
     const linkWallet = PrivyUser?.linkedAccounts
       .map((item: any) => {
-        if (item.type === 'wallet') {
-          if (item.chainType === 'ethereum') {
-            return {
-              address: item.address,
-              isActive: true,
-              isEVM: true,
-            };
-          } else if (item.chainType === 'solana') {
-            return {
-              address: item.address,
-              isActive: false,
-              isEVM: false,
-            };
-          }
+        if (item.chainType === 'ethereum') {
+          return {
+            address: item.address,
+            isActive:
+              item.walletClientType === 'privy' ||
+              item.connectorType === 'embedded',
+            isEVM: true,
+            walletClientType: item.walletClientType,
+          };
+        } else if (item.chainType === 'solana') {
+          return {
+            address: item.address,
+            isActive:
+              item.walletClientType === 'privy' ||
+              item.connectorType === 'embedded',
+            isEVM: false,
+            walletClientType: item.walletClientType,
+          };
         }
         return null;
       })
@@ -468,6 +490,23 @@ export default function WalletContent() {
     });
   };
 
+  const handleAssetSelect = () => {
+    setSendFlow((prev) => ({
+      ...prev,
+      step: 'assets',
+    }));
+  };
+
+  const handleNext = (token: TokenData) => {
+    setSendFlow((prev) => ({
+      ...prev,
+      step: 'amount',
+      token,
+    }));
+  };
+
+  console.log('selectedToken', selectedToken);
+  console.log('sendFlow', sendFlow);
   return (
     <div className="">
       <ProfileHeader />
@@ -475,6 +514,8 @@ export default function WalletContent() {
         <BalanceChart
           walletData={walletData || []}
           totalBalance={totalBalance}
+          onSelectAsset={handleAssetSelect}
+          onQRClick={() => setWalletQRModalOpen(true)}
         />
         <MessageBox />
         {/* <MessageList /> */}
@@ -516,50 +557,60 @@ export default function WalletContent() {
             />
           )}
         </div>
-        {selectedToken && (
-          <>
-            <SendTokenModal
-              open={sendFlow.step === 'amount'}
-              onOpenChange={(open) => !open && handleCloseModals()}
-              token={sendFlow.token!}
-              onNext={handleAmountConfirm}
-            />
-            <SendToModal
-              open={sendFlow.step === 'recipient'}
-              onOpenChange={(open) => !open && handleCloseModals()}
-              onSelectReceiver={handleRecipientSelect}
-            />
-            <SendConfirmation
-              open={sendFlow.step === 'confirm'}
-              onOpenChange={(open) => !open && handleCloseModals()}
-              amount={sendFlow.amount}
-              tokenAddress={sendFlow.token?.address || ''}
-              recipient={sendFlow.recipient?.address || ''}
-              onConfirm={handleSendConfirm}
-              loading={sendLoading}
-            />
-            <TransactionSuccess
-              open={sendFlow.step === 'success'}
-              onOpenChange={(open) => !open && handleCloseModals()}
-              amount={sendFlow.amount}
-            />
-          </>
-        )}
+        <AssetSelector
+          open={sendFlow.step === 'assets'}
+          onOpenChange={(open) => !open && handleCloseModals()}
+          assets={tokens}
+          onNext={handleNext}
+        />
+
+        <SendTokenModal
+          open={sendFlow.step === 'amount'}
+          onOpenChange={(open) => !open && handleCloseModals()}
+          token={sendFlow.token!}
+          onNext={handleAmountConfirm}
+        />
+        <SendToModal
+          open={sendFlow.step === 'recipient'}
+          onOpenChange={(open) => !open && handleCloseModals()}
+          onSelectReceiver={handleRecipientSelect}
+        />
+        <SendConfirmation
+          open={sendFlow.step === 'confirm'}
+          onOpenChange={(open) => !open && handleCloseModals()}
+          amount={sendFlow.amount}
+          tokenAddress={sendFlow.token?.address || ''}
+          recipient={sendFlow.recipient?.address || ''}
+          onConfirm={handleSendConfirm}
+          loading={sendLoading}
+        />
+        <TransactionSuccess
+          open={sendFlow.step === 'success'}
+          onOpenChange={(open) => !open && handleCloseModals()}
+          amount={sendFlow.amount}
+        />
+        <WalletQRModal
+          open={walletQRModalOpen}
+          onOpenChange={setWalletQRModalOpen}
+          walletData={walletData || []}
+          setWalletShareAddress={setWalletShareAddress}
+          setWalletQRShareModalOpen={setWalletQRShareModalOpen}
+        />
+        <WalletQRShare
+          open={walletQRShareModalOpen}
+          onOpenChange={setWalletQRShareModalOpen}
+          walletAddress={walletShareAddress || ''}
+          setQRCodeShareUrl={setQrcodeShareUrl}
+          setQRCodeShareModalOpen={setQRCodeShareModalOpen}
+        />
+        <QRCodeShareModal
+          isOpen={QRCodeShareModalOpen}
+          onOpenChange={setQRCodeShareModalOpen}
+          qrCodeUrl={qrcodeShareUrl}
+        />
       </div>
       <NetworkDock network={network} setNetwork={setNetwork} />
       <Toaster />
-    </div>
-  );
-}
-
-function DashboardSkeleton() {
-  return (
-    <div className="flex items-center justify-center min-h-screen bg-gray-100">
-      <div className="p-8 bg-white rounded-lg shadow-md w-full max-w-md">
-        <Skeleton className="h-8 w-3/4 mb-4" />
-        <Skeleton className="h-4 w-full mb-4" />
-        <Skeleton className="h-10 w-full" />
-      </div>
     </div>
   );
 }

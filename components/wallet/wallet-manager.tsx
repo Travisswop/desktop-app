@@ -68,10 +68,14 @@ export default function WalletManager({
                   />
                 </div>
                 <span className="text-sm font-medium">
-                  {formatAddress(sol[0].address)}
+                  {sol.length > 0
+                    ? formatAddress(sol[0].address)
+                    : ''}
                 </span>
               </div>
-              <CopyButton content={sol[0].address} />
+              <CopyButton
+                content={sol.length > 0 ? sol[0].address : ''}
+              />
             </div>
             <div className="flex items-center justify-between p-3 rounded-lg border bg-card hover:bg-accent/50 transition-colors">
               <div className="flex items-center gap-2">
@@ -87,10 +91,14 @@ export default function WalletManager({
                   />
                 </div>
                 <span className="text-sm font-medium">
-                  {formatAddress(evm[0].address)}
+                  {evm.length > 0
+                    ? formatAddress(evm[0].address)
+                    : ''}
                 </span>
               </div>
-              <CopyButton content={evm[0].address} />
+              <CopyButton
+                content={evm.length > 0 ? evm[0].address : ''}
+              />
             </div>
             <div className="flex items-center justify-between p-3 rounded-lg border bg-card hover:bg-accent/50 transition-colors">
               <div className="flex items-center gap-2">
@@ -106,10 +114,14 @@ export default function WalletManager({
                   />
                 </div>
                 <span className="text-sm font-medium">
-                  {formatAddress(evm[0].address)}
+                  {evm.length > 0
+                    ? formatAddress(evm[0].address)
+                    : ''}
                 </span>
               </div>
-              <CopyButton content={evm[0].address} />
+              <CopyButton
+                content={evm.length > 0 ? evm[0].address : ''}
+              />
             </div>
             <div className="flex items-center justify-between p-3 rounded-lg border bg-card hover:bg-accent/50 transition-colors">
               <div className="flex items-center gap-2">
@@ -125,10 +137,14 @@ export default function WalletManager({
                   />
                 </div>
                 <span className="text-sm font-medium">
-                  {formatAddress(evm[0].address)}
+                  {evm.length > 0
+                    ? formatAddress(evm[0].address)
+                    : ''}
                 </span>
               </div>
-              <CopyButton content={evm[0].address} />
+              <CopyButton
+                content={evm.length > 0 ? evm[0].address : ''}
+              />
             </div>
           </CardContent>
         </Card>
