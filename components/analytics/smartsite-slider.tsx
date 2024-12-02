@@ -1,30 +1,23 @@
-'use client';
+"use client";
 
-import * as React from 'react';
-import Image from 'next/image';
-import { Card, CardContent, CardHeader } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
+import * as React from "react";
+import Image from "next/image";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import {
   Carousel,
   CarouselContent,
   CarouselItem,
   CarouselNext,
   CarouselPrevious,
-} from '@/components/ui/carousel';
-import {
-  CirclePlus,
-  Edit,
-  QrCode,
-  Send,
-  Settings,
-  Wallet,
-} from 'lucide-react';
-import Link from 'next/link';
-import isUrl from '@/lib/isUrl';
-import { useState } from 'react';
-import SmartSiteUrlShareModal from '../smartsite/socialShare/SmartsiteShareModal';
-import { useDisclosure } from '@nextui-org/react';
-import QRCodeShareModal from '../smartsite/socialShare/QRCodeShareModal';
+} from "@/components/ui/carousel";
+import { CirclePlus, Edit, QrCode, Send, Settings, Wallet } from "lucide-react";
+import Link from "next/link";
+import isUrl from "@/lib/isUrl";
+import { useState } from "react";
+import SmartSiteUrlShareModal from "../smartsite/socialShare/SmartsiteShareModal";
+import { useDisclosure } from "@nextui-org/react";
+import QRCodeShareModal from "../smartsite/socialShare/QRCodeShareModal";
 interface Lead {
   id: string;
   name: string;
@@ -55,10 +48,9 @@ export default function SmartSiteSlider({
     onOpenChange: onSmartsiteOpenChange,
   } = useDisclosure();
 
-  console.log('Microsites', microsites);
+  console.log("Microsites", microsites);
 
-  const [smartSiteProfileUrl, setSmartSiteProfileUrl] =
-    useState<any>(null);
+  const [smartSiteProfileUrl, setSmartSiteProfileUrl] = useState<any>(null);
   const [qrCode, setQrCode] = useState<any>(null);
 
   const handleShareMicrosite = (smartsiteUrl: string) => {
@@ -74,22 +66,20 @@ export default function SmartSiteSlider({
   };
 
   return (
-    <div>
+    <div className="w-full h-full">
       <Carousel
-        className="w-full"
+        className="w-full h-full"
         opts={{
-          align: 'start',
+          align: "start",
         }}
       >
-        <CarouselContent>
+        <CarouselContent className="h-full">
           {microsites.map((item: any) => (
-            <CarouselItem key={item._id}>
-              <Card className="bg-white border-0">
-                <CardHeader>
+            <CarouselItem key={item._id} className="h-full">
+              <Card className="bg-white border-0 h-full">
+                <CardHeader className="h-full">
                   <div className="flex justify-between items-center">
-                    <h2 className="text-lg font-semibold">
-                      Smartsites
-                    </h2>
+                    <h2 className="text-lg font-semibold">Smartsites</h2>
                     <Link
                       href={`/smartsite/icons/${item._id}`}
                       className="flex items-center border px-4 py-1.5 rounded-lg"
@@ -99,7 +89,7 @@ export default function SmartSiteSlider({
                     </Link>
                   </div>
                 </CardHeader>
-                <CardContent className="p-6">
+                <CardContent className="p-0 py-6 mx-10 h-full">
                   <div
                     style={{
                       backgroundImage: item.theme
@@ -108,15 +98,15 @@ export default function SmartSiteSlider({
                               ? item.backgroundImg
                               : `/images/smartsite-background/${item.backgroundImg}.png`
                           }) `
-                        : '',
-                      backgroundSize: 'cover', // Scale the image to cover the container
-                      backgroundPosition: 'center', // Center the image
-                      height: 'full', // Full viewport height
-                      backgroundRepeat: 'no-repeat',
+                        : "",
+                      backgroundSize: "cover", // Scale the image to cover the container
+                      backgroundPosition: "center", // Center the image
+                      height: "full", // Full viewport height
+                      backgroundRepeat: "no-repeat",
                     }}
-                    className="shadow-medium rounded-2xl"
+                    className="shadow-medium rounded-2xl h-full"
                   >
-                    <div className="relative p-6">
+                    <div className="relative p-6 h-full">
                       {item.theme === false ? (
                         <Image
                           src={`${
@@ -168,9 +158,7 @@ export default function SmartSiteSlider({
                           variant="black"
                           size="icon"
                           className="rounded-xl"
-                          onClick={() =>
-                            handleShareMicrosite(item.profileUrl)
-                          }
+                          onClick={() => handleShareMicrosite(item.profileUrl)}
                         >
                           <Send />
                         </Button>
@@ -178,9 +166,7 @@ export default function SmartSiteSlider({
                           variant="black"
                           size="icon"
                           className="rounded-xl"
-                          onClick={() =>
-                            handleShareQrCode(item.qrcodeUrl)
-                          }
+                          onClick={() => handleShareQrCode(item.qrcodeUrl)}
                         >
                           <QrCode />
                         </Button>
@@ -205,10 +191,7 @@ export default function SmartSiteSlider({
                   </div>
                   <div className="flex justify-center mt-8">
                     <Link href="/smartsite/create-smartsite">
-                      <Button
-                        variant="black"
-                        className="gap-2 font-bold"
-                      >
+                      <Button variant="black" className="gap-2 font-bold">
                         <CirclePlus className="h-6 w-6" />
                         Create Microsite
                       </Button>
@@ -219,26 +202,9 @@ export default function SmartSiteSlider({
             </CarouselItem>
           ))}
         </CarouselContent>
-        <CarouselPrevious className="absolute left-0 -translate-x-1/2" />
-        <CarouselNext className="absolute right-0 translate-x-1/2" />
+        <CarouselPrevious className="absolute left-5 -translate-x-1/2" />
+        <CarouselNext className="absolute right-5 translate-x-1/2" />
       </Carousel>
-
-      {/* Qrcode Modal */}
-      {qrCode && (
-        <QRCodeShareModal
-          isOpen={isOpen}
-          onOpenChange={onOpenChange}
-          qrCode={qrCode}
-        />
-      )}
-      {/* Share Modal */}
-      {smartSiteProfileUrl && (
-        <SmartSiteUrlShareModal
-          isOpen={isSmartsiteOpen}
-          onOpenChange={onSmartsiteOpenChange}
-          smartSiteProfileUrl={smartSiteProfileUrl}
-        />
-      )}
     </div>
   );
 }

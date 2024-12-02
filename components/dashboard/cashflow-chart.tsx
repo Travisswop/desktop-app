@@ -1,4 +1,4 @@
-'use client';
+"use client";
 
 import {
   Area,
@@ -8,16 +8,16 @@ import {
   YAxis,
   Tooltip,
   CartesianGrid,
-} from 'recharts';
+} from "recharts";
 import {
   Card,
   CardContent,
   CardFooter,
   CardHeader,
   CardTitle,
-} from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { ChevronDown } from 'lucide-react';
+} from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { ChevronDown } from "lucide-react";
 
 // Generate realistic cashflow data
 const generateCashflowData = () => {
@@ -40,9 +40,9 @@ const generateCashflowData = () => {
     const weekendDip = dayOfWeek === 0 || dayOfWeek === 6 ? 0.85 : 1;
 
     data.push({
-      date: date.toLocaleDateString('en-US', {
-        month: 'short',
-        day: 'numeric',
+      date: date.toLocaleDateString("en-US", {
+        month: "short",
+        day: "numeric",
       }),
       value: Math.round(value * weekendDip),
       transactions: Math.floor(Math.random() * 15) + 5, // Random number of daily transactions
@@ -57,9 +57,7 @@ const CustomTooltip = ({ active, payload, label }: any) => {
     return (
       <div className="bg-white p-4 rounded-lg shadow-lg border">
         <p className="font-medium">{label}</p>
-        <p className="text-green-600">
-          ${payload[0].value.toLocaleString()}
-        </p>
+        <p className="text-green-600">${payload[0].value.toLocaleString()}</p>
         <p className="text-gray-500 text-sm">
           {payload[0].payload.transactions} transactions
         </p>
@@ -83,17 +81,15 @@ export default function CashflowChart() {
       <CardHeader>
         <div className="flex justify-between items-center">
           <div>
-            <CardTitle className="text-lg font-medium">
-              Cashflow
-            </CardTitle>
+            <CardTitle className="text-lg font-medium">Cashflow</CardTitle>
             <div className="text-3xl font-bold">
               ${currentValue.toLocaleString()}
             </div>
           </div>
-          <Button variant="outline" size="sm">
+          {/* <Button variant="outline" size="sm">
             Last 30 Days
             <ChevronDown className="ml-1 h-4 w-4" />
-          </Button>
+          </Button> */}
         </div>
       </CardHeader>
       <CardContent>
@@ -104,37 +100,13 @@ export default function CashflowChart() {
               margin={{ top: 20, right: 20, left: 20, bottom: 20 }}
             >
               <defs>
-                <linearGradient
-                  id="colorGradient"
-                  x1="0"
-                  y1="0"
-                  x2="1"
-                  y2="0"
-                >
-                  <stop
-                    offset="0%"
-                    stopColor="rgba(34, 197, 94, 1)"
-                  />
-                  <stop
-                    offset="100%"
-                    stopColor="rgba(59, 130, 246, 1)"
-                  />
+                <linearGradient id="colorGradient" x1="0" y1="0" x2="1" y2="0">
+                  <stop offset="0%" stopColor="rgba(34, 197, 94, 1)" />
+                  <stop offset="100%" stopColor="rgba(59, 130, 246, 1)" />
                 </linearGradient>
-                <linearGradient
-                  id="areaGradient"
-                  x1="0"
-                  y1="0"
-                  x2="0"
-                  y2="1"
-                >
-                  <stop
-                    offset="0%"
-                    stopColor="rgba(34, 197, 94, 0.2)"
-                  />
-                  <stop
-                    offset="100%"
-                    stopColor="rgba(59, 130, 246, 0.05)"
-                  />
+                <linearGradient id="areaGradient" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="rgba(34, 197, 94, 0.2)" />
+                  <stop offset="100%" stopColor="rgba(59, 130, 246, 0.05)" />
                 </linearGradient>
               </defs>
               <CartesianGrid strokeDasharray="3 3" opacity={0.1} />
@@ -145,9 +117,7 @@ export default function CashflowChart() {
                 tick={{ fontSize: 12 }}
               />
               <YAxis
-                tickFormatter={(value) =>
-                  `$${(value / 1000).toFixed(0)}k`
-                }
+                tickFormatter={(value) => `$${(value / 1000).toFixed(0)}k`}
                 tickLine={false}
                 axisLine={false}
                 tick={{ fontSize: 12 }}
@@ -160,7 +130,7 @@ export default function CashflowChart() {
                 fill="url(#areaGradient)"
                 strokeWidth={2}
                 dot={false}
-                activeDot={{ r: 6, fill: '#22c55e' }}
+                activeDot={{ r: 6, fill: "#22c55e" }}
               />
             </AreaChart>
           </ResponsiveContainer>
@@ -171,11 +141,11 @@ export default function CashflowChart() {
           <span
             className={`inline-flex items-center rounded-md px-2 py-1 ${
               Number(percentageChange) >= 0
-                ? 'bg-green-50 text-green-600'
-                : 'bg-red-50 text-red-600'
+                ? "bg-green-50 text-green-600"
+                : "bg-red-50 text-red-600"
             }`}
           >
-            {Number(percentageChange) >= 0 ? '+' : ''}
+            {Number(percentageChange) >= 0 ? "+" : ""}
             {percentageChange}%
           </span>
           <span className="text-muted-foreground">in the last</span>
