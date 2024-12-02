@@ -13,7 +13,7 @@ import {
   LayoutGrid,
 } from "lucide-react";
 import { Button } from "./ui/button";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
 
 const navItems = [
@@ -30,6 +30,8 @@ const navItems = [
 
 export default function Sidenav() {
   const pathname = usePathname();
+
+  const router = useRouter();
 
   return (
     <aside className="fixed left-0 top-0 z-40 h-screen w-64 border-r bg-white">
@@ -80,6 +82,7 @@ export default function Sidenav() {
             </p>
             <Button
               size="sm"
+              onClick={() => router.push("/account-settings?upgrade=true")}
               className="w-full bg-purple-600 hover:bg-purple-700"
             >
               Upgrade Plan

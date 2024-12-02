@@ -1,13 +1,15 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { TabsContent } from "@radix-ui/react-tabs";
 // import Settings from "./users-setting";
 import SubscriptionPlans from "./subscriptionPlan";
 import UpdateProfile from "./mainContent";
+import { useSearchParams } from "next/navigation";
 
 export default function UserAccountTabSwitcher({ data, token }: any) {
+  const searchParams = useSearchParams();
   // State to control the active tab
   const [activeTab, setActiveTab] = useState("profile");
 
@@ -15,6 +17,15 @@ export default function UserAccountTabSwitcher({ data, token }: any) {
   const handleTabChange = (value: string) => {
     setActiveTab(value);
   };
+
+  const isUpgrade = searchParams.get("upgrade");
+  // console.log("isup date", isUpgrade);
+
+  useEffect(() => {
+    if (isUpgrade) {
+      setActiveTab("subscriptions");
+    }
+  }, [isUpgrade]);
 
   return (
     <div className="bg-white rounded-xl p-14">

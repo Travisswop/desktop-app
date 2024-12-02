@@ -1,5 +1,4 @@
 import React from "react";
-import UpdateProfile from "./mainContent";
 import { cookies } from "next/headers";
 import UserAccountTabSwitcher from "./tabSwitcher";
 
@@ -9,7 +8,7 @@ const UpdateProfilePage = async () => {
   // Retrieve data from specific cookie
   const accessToken = (await cookieStore).get("access-token")?.value;
 
-  console.log("access tokenff ", accessToken);
+  // console.log("access tokenff ", accessToken);
 
   const userId = (await cookieStore).get("user-id")?.value;
 
