@@ -73,13 +73,13 @@ const AddContactCard = ({ handleRemoveIcon }: any) => {
 
   useEffect(() => {
     handleRemoveIcon("Info Bar");
-  }, []);
+  }, []); // don't add any dependencies here
 
   // console.log("smartSiteData", state);
   // console.log("sesstionState", sesstionState);
 
   return (
-    <div className="bg-white rounded-xl shadow-small p-6 flex flex-col gap-4">
+    <div className="relative bg-white rounded-xl shadow-small p-6 flex flex-col gap-4">
       <div className="flex items-end gap-1 justify-center">
         <h2 className="font-semibold text-gray-700 text-xl text-center">
           Contact Card

@@ -79,37 +79,45 @@ export default function RecentLeadsSlider({
                   <div className="mb-4">
                     <h3 className="text-lg font-semibold">{lead.name}</h3>
                   </div>
-                  {lead.leads.map((item: Lead) => (
-                    <div key={item._id} className="border-t py-4">
-                      <div className="flex justify-between items-center">
-                        <div className="space-y-3">
-                          <div>
-                            <h4 className="font-semibold">{item.name}</h4>
-                            <p className="text-muted-foreground">
-                              {item.jobTitle}
-                            </p>
-                          </div>
-                          <div className="space-y-2">
-                            <div className="flex items-center gap-2 text-muted-foreground">
+                  {lead.leads.length > 0 ? (
+                    <>
+                      {lead.leads.map((item: Lead) => (
+                        <div key={item._id} className="border-t py-4">
+                          <div className="flex justify-between items-center">
+                            <div className="space-y-3">
+                              <div>
+                                <h4 className="font-semibold">{item.name}</h4>
+                                <p className="text-muted-foreground">
+                                  {item.jobTitle}
+                                </p>
+                              </div>
+                              <div className="space-y-2">
+                                <div className="flex items-center gap-2 text-muted-foreground">
+                                  <Phone className="h-4 w-4" />
+                                  <span>{item.mobileNo}</span>
+                                </div>
+                                <div className="flex items-center gap-2 text-muted-foreground">
+                                  <Mail className="h-4 w-4" />
+                                  <span>{item.email}</span>
+                                </div>
+                              </div>
+                            </div>
+                            <Button
+                              variant="outline"
+                              className="flex items-center gap-2"
+                            >
                               <Phone className="h-4 w-4" />
-                              <span>{item.mobileNo}</span>
-                            </div>
-                            <div className="flex items-center gap-2 text-muted-foreground">
-                              <Mail className="h-4 w-4" />
-                              <span>{item.email}</span>
-                            </div>
+                              Contact Lead
+                            </Button>
                           </div>
                         </div>
-                        <Button
-                          variant="outline"
-                          className="flex items-center gap-2"
-                        >
-                          <Phone className="h-4 w-4" />
-                          Contact Lead
-                        </Button>
-                      </div>
-                    </div>
-                  ))}
+                      ))}
+                    </>
+                  ) : (
+                    <p className="text-gray-600 font-medium text-sm">
+                      No Leads Available!
+                    </p>
+                  )}
                 </CardContent>
               </Card>
             </CarouselItem>
