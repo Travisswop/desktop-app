@@ -177,7 +177,7 @@ export default function WalletQRModal({
             <div className="space-y-1">
               <div className="flex items-center justify-between">
                 <span className="text-sm text-muted-foreground">
-                  {walletData.length > 0
+                  {walletData.length > 1
                     ? formatAddress(walletData[1].address)
                     : ''}
                 </span>
@@ -189,7 +189,7 @@ export default function WalletQRModal({
                       setActiveQR('solana');
                       setWalletQRShareModalOpen(true);
                       setWalletShareAddress(
-                        walletData.length > 0
+                        walletData.length > 1
                           ? walletData[1].address
                           : ''
                       );
@@ -203,7 +203,7 @@ export default function WalletQRModal({
                   </Button>
                   <CopyButton
                     content={
-                      walletData.length > 0
+                      walletData.length > 1
                         ? walletData[1].address
                         : ''
                     }
