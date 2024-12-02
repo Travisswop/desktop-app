@@ -1,21 +1,22 @@
-'use client';
+"use client";
 
-import { usePrivy } from '@privy-io/react-auth';
-import Image from 'next/image';
-import Link from 'next/link';
-import { ChevronDown } from 'lucide-react';
-import { Button } from '@/components/ui/button';
+import { usePrivy } from "@privy-io/react-auth";
+import Image from "next/image";
+import Link from "next/link";
+import { ChevronDown } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
-import { useUser } from '@/lib/UserContext';
-import { Skeleton } from './ui/skeleton';
-import { useRouter } from 'next/navigation';
-import isUrl from '@/lib/isUrl';
-import { useState } from 'react';
+} from "@/components/ui/dropdown-menu";
+import { useUser } from "@/lib/UserContext";
+import { Skeleton } from "./ui/skeleton";
+import { useRouter } from "next/navigation";
+import isUrl from "@/lib/isUrl";
+import { useState } from "react";
+import logo from "@/public/logo.png";
 
 export default function Header() {
   const { logout } = usePrivy();
@@ -26,7 +27,7 @@ export default function Header() {
   const handleLogout = async () => {
     // Prevent multiple logout attempts
     if (isLoggingOut) {
-      console.log('Logout already in progress');
+      console.log("Logout already in progress");
       return;
     }
 
@@ -36,9 +37,9 @@ export default function Header() {
       clearCache();
 
       // Perform logout and navigation in parallel for better performance
-      await Promise.all([logout(), router.replace('/login')]);
+      await Promise.all([logout(), router.replace("/login")]);
     } catch (error) {
-      console.error('Logout failed:', error);
+      console.error("Logout failed:", error);
       // Revert loading state on error
       setIsLoggingOut(false);
       throw error; // Re-throw to allow error handling by parent components
@@ -49,9 +50,9 @@ export default function Header() {
 
   if (loading) {
     return (
-      <header className="bg-white shadow-md p-6 flex justify-between items-center">
-        <Link href="/dashboard">
-          <Image src="/logo.png" alt="Logo" width={120} height={50} />
+      <header className="bg-white p-6 flex justify-between items-center h-20 border-b">
+        <Link href="/dashboard" className="h-20">
+          <Image src={logo} alt="Logo" width={120} height={50} />
         </Link>
         <Skeleton className="h-14 w-48 rounded-full" />
       </header>
@@ -69,20 +70,24 @@ export default function Header() {
               disabled={isLoggingOut}
             >
               <div className="relative h-8 w-8">
-                {isUrl(user.profilePic || '') ? (
-                  <Image
-                    src={user.profilePic || ''}
-                    alt={user.name || ''}
-                    fill
-                    className="rounded-full object-cover border"
-                  />
-                ) : (
-                  <Image
-                    src={`/images/user_avator/${user.profilePic}.png`}
-                    alt={user.name || ''}
-                    fill
-                    className="rounded-full object-cover"
-                  />
+                {user.profilePic && (
+                  <>
+                    {isUrl(user?.profilePic) ? (
+                      <Image
+                        src={user.profilePic}
+                        alt={user.name || ""}
+                        fill
+                        className="rounded-full object-cover border"
+                      />
+                    ) : (
+                      <Image
+                        src={`/images/user_avator/${user.profilePic}.png`}
+                        alt={user.name || ""}
+                        fill
+                        className="rounded-full object-cover"
+                      />
+                    )}
+                  </>
                 )}
               </div>
               <span className="text-sm font-medium">{user.name}</span>
@@ -92,16 +97,13 @@ export default function Header() {
           <DropdownMenuContent align="end" className="w-48">
             <DropdownMenuItem
               onSelect={() => {
-                router.push('/account-settings');
+                router.push("/account-settings");
               }}
             >
               Settings
             </DropdownMenuItem>
-            <DropdownMenuItem
-              onSelect={handleLogout}
-              disabled={isLoggingOut}
-            >
-              {isLoggingOut ? 'Logging out...' : 'Logout'}
+            <DropdownMenuItem onSelect={handleLogout} disabled={isLoggingOut}>
+              {isLoggingOut ? "Logging out..." : "Logout"}
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
