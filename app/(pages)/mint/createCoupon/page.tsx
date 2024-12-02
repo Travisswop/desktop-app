@@ -1,8 +1,11 @@
 "use client";
-import { useState, DragEvent } from "react";
+import { useState, DragEvent, useEffect } from "react";
 import PushToMintCollectionButton from "@/components/Button/PushToMintCollectionButton";
 import Image from "next/image";
 import { sendCloudinaryImage } from "@/lib/SendCloudineryImage";
+import { usePrivy, useSolanaWallets } from "@privy-io/react-auth";
+import { useUser } from "@/lib/UserContext";
+
 
 
 interface FormData {
@@ -42,6 +45,35 @@ const CreateCouponPage = () => {
   const [newRequirement, setNewRequirement] = useState("");
   const [selectedImageName, setSelectedImageName] = useState<string | null>(null);
   const [imageUploading, setImageUploading] = useState(false);
+  const { accessToken } = useUser();
+  const { ready, authenticated } = usePrivy();
+  const { wallets } = useSolanaWallets();
+  const [solanaAddress, setSolanaAddress] = useState("");
+  const [waitForToken, setWaitForToken] = useState(true);
+
+  useEffect(() => {
+    const timeoutId = setTimeout(() => {
+      setWaitForToken(false);
+    }, 30000); // Wait for 30 seconds
+  
+    return () => clearTimeout(timeoutId); // Cleanup timeout
+  }, []);
+
+  useEffect(() => {
+    if (
+      ready &&
+      authenticated &&
+      wallets.length > 0 &&
+      formData.recipientAddress !== wallets[0].address
+    ) {
+      setSolanaAddress(wallets[0].address);
+      setFormData((prevState) => ({
+        ...prevState,
+        recipientAddress: wallets[0].address, // Sync Solana wallet address
+      }));
+    }
+  }, [ready, authenticated, wallets, formData.recipientAddress]);
+
 
   const handleChange = (
     e: React.ChangeEvent<
@@ -165,19 +197,38 @@ const CreateCouponPage = () => {
     e.preventDefault();
 
     try {
-      const storedData = JSON.parse(localStorage.getItem("user-storage") || "{}");
-      const accessToken = storedData?.state?.state?.user?.accessToken;
-
-      if (!accessToken) {
-        alert("Access token not found. Please log in again.");
+      if (!accessToken && !waitForToken) {
+        alert("Access token is required. Please log in again.");
         return;
       }
-
+    
+      if (!accessToken && waitForToken) {
+        alert("Waiting for access token. Please try again shortly.");
+        return;
+      }
+    
+      if (!accessToken) {
+        alert("Access token is required. Please log in again.");
+        return;
+      }
+    
+      if (!solanaAddress) {
+        alert("No Solana wallet connected. Please connect your wallet.");
+        return;
+      }
+    
+      const collectionId = localStorage.getItem("swop_desktop_collectionId_for_createTemplate");
+      if (!collectionId) {
+        alert("Collection ID not found. Please select a collection.");
+        return;
+      }
       // Map and prepare final data
       const finalData = {
         ...formData,
         supplyLimit: formData.limitQuantity ? Number(formData.quantity) : undefined,
         price: Number(formData.price), // Ensure price is a number
+        collectionId, // Include collectionId
+        wallet: formData.recipientAddress,          // Include wallet in payload
       };
 
       const response = await fetch(

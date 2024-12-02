@@ -1,29 +1,82 @@
+'use client';
+
 import { getTemplateDetails } from "@/utils/fetchingData/getTemplateDetails";
 import MintDetails from "@/components/MintDetails";
+import { useUser } from '@/lib/UserContext';
+import { useEffect, useState } from "react";
+import { ParsedUrlQuery } from "querystring";
 
-// This is a server component
-export default async function TemplateDetailsPage({
-  params,
-}: {
-  params: Promise<{ collectionId: string; templateId: string }>;
-}) {
-  // Await the params object
-  const { collectionId, templateId } = await params;
+interface Params extends ParsedUrlQuery {
+  collectionId: string;
+  templateId: string;
+}
 
-  // Use a demo access token directly
-  const accessToken = "your_demo_access_token_here";
+interface Props {
+  params: Promise<Params>;
+}
 
-  // Fetch the template details using the access token
-  const templateDetails = await getTemplateDetails(
-    collectionId,
-    templateId,
-    accessToken
-  );
+export default function TemplateDetailsPage({ params }: Props) {
+  const [collectionId, setCollectionId] = useState<string | null>(null);
+  const [templateId, setTemplateId] = useState<string | null>(null);
+  const { accessToken } = useUser(); // Access context value
+  const [templateDetails, setTemplateDetails] = useState(null);
+  const [error, setError] = useState<string | null>(null);
+  const [waitForToken, setWaitForToken] = useState(true);
+  const [loading, setLoading] = useState(true);
 
-  if (!templateDetails) {
-    return <div>Error loading template details</div>;
+  useEffect(() => {
+    const timeoutId = setTimeout(() => {
+      setWaitForToken(false);
+    }, 30000); // 30 seconds
+
+    // Cleanup function to clear the timeout if the component unmounts
+    return () => clearTimeout(timeoutId);
+  }, []);
+
+  useEffect(() => {
+    const fetchParams = async () => {
+      try {
+        const resolvedParams = await params;
+        setCollectionId(resolvedParams.collectionId);
+        setTemplateId(resolvedParams.templateId);
+      } catch (err) {
+        console.error("Error resolving params:", err);
+        setError("Error resolving route parameters.");
+        setLoading(false);
+      }
+    };
+
+    fetchParams();
+  }, [params]);
+
+  useEffect(() => {
+    const fetchDetails = async () => {
+      if (accessToken && collectionId && templateId) {
+        try {
+          const details = await getTemplateDetails(collectionId, templateId, accessToken);
+          setTemplateDetails(details);
+        } catch (err) {
+          console.error("Error fetching template details:", err);
+          setError("Error fetching template details.");
+        } finally {
+          setLoading(false);
+        }
+      } else if (!waitForToken) {
+        setError("Access token is required to fetch template details.");
+        setLoading(false);
+      }
+    };
+
+    fetchDetails();
+  }, [accessToken, waitForToken, collectionId, templateId]);
+
+  if (loading) {
+    return <div>Loading template details...</div>;
   }
 
-  // Pass the fetched data as props to the client component
+  if (error) {
+    return <div>{error}</div>;
+  }
+
   return <MintDetails templateDetails={templateDetails} />;
 }
