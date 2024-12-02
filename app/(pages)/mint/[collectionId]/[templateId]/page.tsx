@@ -11,30 +11,47 @@ interface Params extends ParsedUrlQuery {
   templateId: string;
 }
 
-export default function TemplateDetailsPage({
-  params,
-}: {
-  params: Params;
-}) {
-  const { collectionId, templateId } = params;
+interface Props {
+  params: Promise<Params>;
+}
+
+export default function TemplateDetailsPage({ params }: Props) {
+  const [collectionId, setCollectionId] = useState<string | null>(null);
+  const [templateId, setTemplateId] = useState<string | null>(null);
   const { accessToken } = useUser(); // Access context value
   const [templateDetails, setTemplateDetails] = useState(null);
   const [error, setError] = useState<string | null>(null);
   const [waitForToken, setWaitForToken] = useState(true);
   const [loading, setLoading] = useState(true);
-  
+
   useEffect(() => {
     const timeoutId = setTimeout(() => {
       setWaitForToken(false);
     }, 30000); // 30 seconds
-  
+
     // Cleanup function to clear the timeout if the component unmounts
     return () => clearTimeout(timeoutId);
-  }, []);  
+  }, []);
+
+  useEffect(() => {
+    const fetchParams = async () => {
+      try {
+        const resolvedParams = await params;
+        setCollectionId(resolvedParams.collectionId);
+        setTemplateId(resolvedParams.templateId);
+      } catch (err) {
+        console.error("Error resolving params:", err);
+        setError("Error resolving route parameters.");
+        setLoading(false);
+      }
+    };
+
+    fetchParams();
+  }, [params]);
 
   useEffect(() => {
     const fetchDetails = async () => {
-      if (accessToken) {
+      if (accessToken && collectionId && templateId) {
         try {
           const details = await getTemplateDetails(collectionId, templateId, accessToken);
           setTemplateDetails(details);
@@ -49,17 +66,17 @@ export default function TemplateDetailsPage({
         setLoading(false);
       }
     };
-  
+
     fetchDetails();
   }, [accessToken, waitForToken, collectionId, templateId]);
-  
+
   if (loading) {
     return <div>Loading template details...</div>;
   }
-  
+
   if (error) {
     return <div>{error}</div>;
   }
-  
+
   return <MintDetails templateDetails={templateDetails} />;
-  }
+}
