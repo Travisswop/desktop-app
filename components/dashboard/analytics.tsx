@@ -1,13 +1,13 @@
-import { Button } from '@/components/ui/button';
-import { Download } from 'lucide-react';
-import RecentLeadsSlider from '@/components/analytics/recent-leads-slider';
-import SmartSiteSlider from '@/components/analytics/smartsite-slider';
-import SmartSiteAnalytics from '@/components/analytics/smartsite-analytics';
+import { Button } from "@/components/ui/button";
+import { Download } from "lucide-react";
+import RecentLeadsSlider from "@/components/analytics/recent-leads-slider";
+import SmartSiteSlider from "@/components/analytics/smartsite-slider";
+import SmartSiteAnalytics from "@/components/analytics/smartsite-analytics";
 
-import { UserData } from '@/lib/UserContext';
-import { Parser } from 'json2csv';
-import CreateQRCode from './create-qrcode';
-import { Toaster } from '../ui/toaster';
+import { UserData } from "@/lib/UserContext";
+import { Parser } from "json2csv";
+import CreateQRCode from "./create-qrcode";
+import { Toaster } from "../ui/toaster";
 
 export default function DashboardAnalytics({
   data,
@@ -16,7 +16,7 @@ export default function DashboardAnalytics({
 }) {
   const handleExportLeads = () => {
     // Define the fields you want in the CSV
-    const fields = ['name', 'jobTitle', 'email', 'mobileNo'];
+    const fields = ["name", "jobTitle", "email", "mobileNo"];
 
     const dataToDownload = data?.subscribers;
 
@@ -25,11 +25,11 @@ export default function DashboardAnalytics({
     const csv = json2csvParser.parse(dataToDownload || []);
 
     // Create a blob and download the file
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
+    const link = document.createElement("a");
     link.href = url;
-    link.setAttribute('download', 'Swop-Leads.csv');
+    link.setAttribute("download", "Swop-Leads.csv");
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -41,9 +41,7 @@ export default function DashboardAnalytics({
         {/* Left Column */}
         <div className="space-y-6 bg-white rounded-xl p-8">
           <div className="flex items-center gap-2">
-            <h1 className="text-xl font-semibold">
-              SmartSite Analytics
-            </h1>
+            <h1 className="text-xl font-semibold">SmartSite Analytics</h1>
           </div>
 
           {/* Stats Grid */}
@@ -53,27 +51,27 @@ export default function DashboardAnalytics({
           />
 
           {/* Recent Leads */}
-          <div>
-            <h2 className="text-lg font-semibold mb-4">
-              Recent Leads
-            </h2>
+          <div className="w-full">
+            <h2 className="text-lg font-semibold mb-4">Recent Leads</h2>
             <RecentLeadsSlider
               leads={data?.subscribers || []}
               microsites={data?.microsites || []}
             />
-            <Button
-              variant="outline"
-              className="w-full mt-4"
-              onClick={handleExportLeads}
-            >
-              <Download className="h-4 w-4 mr-2" />
-              Export Leads to CSV
-            </Button>
+            <div className="flex justify-center">
+              <Button
+                variant="outline"
+                className="mt-4 mx-auto"
+                onClick={handleExportLeads}
+              >
+                <Download className="h-4 w-4 mr-2" />
+                Export Leads to CSV
+              </Button>
+            </div>
           </div>
         </div>
 
         {/* Right Column */}
-        <div className="space-y-6">
+        <div className="space-y-6 overflow-hidden">
           {/* Profile Card */}
           <SmartSiteSlider microsites={data?.microsites || []} />
 

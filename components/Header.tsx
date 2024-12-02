@@ -74,7 +74,7 @@ export default function Header() {
                     src={user.profilePic || ''}
                     alt={user.name || ''}
                     fill
-                    className="rounded-full object-cover"
+                    className="rounded-full object-cover border"
                   />
                 ) : (
                   <Image
