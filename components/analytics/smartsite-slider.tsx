@@ -66,18 +66,18 @@ export default function SmartSiteSlider({
   };
 
   return (
-    <div className="w-full h-full">
+    <div className="w-full ">
       <Carousel
-        className="w-full h-full"
+        className="w-full "
         opts={{
           align: "start",
         }}
       >
-        <CarouselContent className="h-full">
+        <CarouselContent className="">
           {microsites.map((item: any) => (
-            <CarouselItem key={item._id} className="h-full">
-              <Card className="bg-white border-0 h-full">
-                <CardHeader className="h-full">
+            <CarouselItem key={item._id} className="">
+              <Card className="bg-white border-0 ">
+                <CardHeader className="">
                   <div className="flex justify-between items-center">
                     <h2 className="text-lg font-semibold">Smartsites</h2>
                     <Link
@@ -89,7 +89,7 @@ export default function SmartSiteSlider({
                     </Link>
                   </div>
                 </CardHeader>
-                <CardContent className="p-0 py-6 mx-10 h-full">
+                <CardContent className="p-0 py-6 mx-10 ">
                   <div
                     style={{
                       backgroundImage: item.theme
@@ -104,9 +104,9 @@ export default function SmartSiteSlider({
                       height: "full", // Full viewport height
                       backgroundRepeat: "no-repeat",
                     }}
-                    className="shadow-medium rounded-2xl h-full"
+                    className="shadow-medium rounded-2xl "
                   >
-                    <div className="relative p-6 h-full">
+                    <div className="relative p-6 ">
                       {item.theme === false ? (
                         <Image
                           src={`${

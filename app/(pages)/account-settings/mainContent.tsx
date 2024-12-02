@@ -233,7 +233,7 @@ const UpdateProfile = ({ data, token, switchToTab }: any) => {
                 This is your account profile used to <br /> manage the Swop
                 ecosystem
               </p>
-              <div className="w-52 h-52 overflow-hidden rounded-full border-2 border-[#8A2BE2] border-opacity-20 relative">
+              <div className="w-48 h-48 overflow-hidden rounded-full border-2 border-[#8A2BE2] border-opacity-20 relative">
                 <div className="bg-white">
                   {galleryImage && (
                     <Image
