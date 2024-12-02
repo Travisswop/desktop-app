@@ -26,7 +26,7 @@ export default function QRCodeShareModal({
   onOpenChange,
   qrCodeUrl,
 }: any) {
-  console.log('qr code url', qrCodeUrl);
+  // console.log("qr code url", qrCodeUrl);
 
   const [imageUrl, setImageUrl] = useState<any>(null);
   const [loading, setLoading] = useState<any>(false);
@@ -35,32 +35,17 @@ export default function QRCodeShareModal({
   // console.log("imageurl", imageUrl);
 
   useEffect(() => {
-    const uploadImage = async () => {
-      if (!qrCodeUrl) return;
-
-      try {
-        setLoading(true);
-        setError(null);
-
-        // Ensure qrCodeUrl is a valid base64 string
-        if (!qrCodeUrl.startsWith('data:image')) {
-          throw new Error('Invalid image format');
-        }
-
-        const imageUrl = await sendCloudinaryImage(qrCodeUrl);
-        console.log('🚀 ~ uploadImage ~ imageUrl:', imageUrl);
+    setLoading(true);
+    sendCloudinaryImage(qrCodeUrl)
+      .then((imageUrl) => {
         setImageUrl(imageUrl);
-      } catch (err) {
-        console.error('Error uploading image:', err);
-        setError(
-          'Failed to process QR code image. Please try again.'
-        );
-      } finally {
         setLoading(false);
-      }
-    };
-
-    uploadImage();
+      })
+      .catch((error) => {
+        console.error('Error uploading image:', error);
+        setLoading(false);
+        setError('Something went wrong! Please try again later.');
+      });
   }, [qrCodeUrl]);
 
   return (
