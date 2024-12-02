@@ -1,16 +1,16 @@
-'use client';
+"use client";
 
-import isUrl from '@/lib/isUrl';
-import { useUser } from '@/lib/UserContext';
-import { Skeleton } from '@nextui-org/react';
-import Image from 'next/image';
-import Link from 'next/link';
-import { TbEdit } from 'react-icons/tb';
+import isUrl from "@/lib/isUrl";
+import { useUser } from "@/lib/UserContext";
+import { Skeleton } from "@nextui-org/react";
+import Image from "next/image";
+import Link from "next/link";
+import { TbEdit } from "react-icons/tb";
 
 const ParentProfileCard = () => {
   const { user, loading }: any = useUser();
 
-  console.log('user', user);
+  console.log("user", user);
 
   return (
     <div className="flex items-start 2xl:items-center justify-between gap-6 bg-white p-6 rounded-lg">
@@ -34,7 +34,7 @@ const ParentProfileCard = () => {
             {isUrl(user?.profilePic) ? (
               <Image
                 src={user?.profilePic}
-                alt={'user image'}
+                alt={"user image"}
                 width={80}
                 height={80}
                 className="rounded-full w-16 h-16"
@@ -42,14 +42,14 @@ const ParentProfileCard = () => {
             ) : (
               <Image
                 src={`/images/user_avator/${user?.profilePic}.png`}
-                alt={'user image'}
+                alt={"user image"}
                 width={80}
                 height={80}
                 className="rounded-full w-16 h-16"
               />
             )}
             <Link
-              href={'/account-billing'}
+              href={"/account-settings"}
               className="absolute bottom-0 -right-1 bg-white rounded-full w-[26px] h-[26px] flex items-center justify-center p-0.5"
             >
               <div className="bg-black rounded-full w-full h-full flex items-center justify-center font-bold">
@@ -63,9 +63,7 @@ const ParentProfileCard = () => {
               <h1 className="text-md font-semibold">{user?.name}</h1>
             </div>
             <p className="text-muted-foreground">{user?.username}</p>
-            <p className="text-sm text-muted-foreground">
-              {user?.address}
-            </p>
+            <p className="text-sm text-muted-foreground">{user?.address}</p>
           </div>
         </div>
       )}

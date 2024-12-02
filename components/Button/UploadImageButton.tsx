@@ -12,8 +12,8 @@ const UploadImageButton = ({ handleModal }: any) => {
   return (
     <div className="w-full sm:w-max">
       <AnimateButton
-        className="bg-black text-white py-2 !border-0 !rounded-xl"
-        width="w-44"
+        className="bg-black text-white py-1.5 !border-0 !rounded-xl hover:py-1.5"
+        width="w-40"
         type="button"
         onClick={handleClickOnUploadImage}
       >
