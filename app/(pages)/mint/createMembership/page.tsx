@@ -1,8 +1,11 @@
 "use client";
-import { useState, DragEvent } from "react";
+import { useState, DragEvent, useEffect } from "react";
 import PushToMintCollectionButton from "@/components/Button/PushToMintCollectionButton";
 import Image from "next/image";
 import { sendCloudinaryImage } from "@/lib/SendCloudineryImage";
+import { usePrivy, useSolanaWallets } from "@privy-io/react-auth";
+import { useUser } from "@/lib/UserContext";
+
 
 
 interface FormData {
@@ -41,7 +44,38 @@ const CreateMembershipPage = () => {
   const [newBenefit, setNewBenefit] = useState("");
   const [selectedImageName, setSelectedImageName] = useState<string | null>(null);
   const [imageUploading, setImageUploading] = useState(false);
+  const { ready, authenticated } = usePrivy(); // Checks Privy authentication readiness
+  const { wallets } = useSolanaWallets(); // Access connected wallets
+  const { accessToken } = useUser(); // Access token from the UserContext
 
+  const [solanaAddress, setSolanaAddress] = useState("");
+  const [waitForToken, setWaitForToken] = useState(true); // Manage token readiness
+  const [isSubmitting, setIsSubmitting] = useState(false); // Manage submission state
+  const [submissionError, setSubmissionError] = useState<string | null>(null); // Manage submission errors
+
+  useEffect(() => {
+    const timeoutId = setTimeout(() => {
+      setWaitForToken(false);
+    }, 30000); // Wait for 30 seconds
+
+    return () => clearTimeout(timeoutId); // Cleanup timeout
+  }, []);
+
+
+  useEffect(() => {
+    if (
+      ready &&
+      authenticated &&
+      wallets.length > 0 &&
+      formData.recipientAddress !== wallets[0].address
+    ) {
+      setSolanaAddress(wallets[0].address);
+      setFormData((prevState) => ({
+        ...prevState,
+        recipientAddress: wallets[0].address,
+      }));
+    }
+  }, [ready, authenticated, wallets, formData.recipientAddress]);
 
   const handleChange = (
     e: React.ChangeEvent<
@@ -145,22 +179,50 @@ const CreateMembershipPage = () => {
 
   const handleSubmit = async (e: React.MouseEvent<HTMLButtonElement>) => {
     e.preventDefault();
+    setIsSubmitting(true);
+    setSubmissionError(null);
+
+    // Authentication and wallet checks
+    if (!ready || !authenticated) {
+      alert("Please log in to continue.");
+      setIsSubmitting(false);
+      return;
+    }
+
+    if (!accessToken && !waitForToken) {
+      alert("Access token is required. Please log in again.");
+      setIsSubmitting(false);
+      return;
+    }
+
+    if (!accessToken && waitForToken) {
+      alert("Waiting for access token. Please try again shortly.");
+      setIsSubmitting(false);
+      return;
+    }
+
+    if (!solanaAddress) {
+      alert("No Solana wallet connected. Please connect your wallet.");
+      setIsSubmitting(false);
+      return;
+    }
+
+    // Retrieve collectionId from local storage
+    const collectionId = localStorage.getItem("swop_desktop_collectionId_for_createTemplate");
+    if (!collectionId) {
+      alert("Collection ID not found. Please select a collection.");
+      setIsSubmitting(false);
+      return;
+    }
 
     try {
-      const storedData = JSON.parse(localStorage.getItem("user-storage") || "{}");
-      const accessToken = storedData?.state?.state?.user?.accessToken;
-
-      if (!accessToken) {
-        alert("Access token not found. Please log in again.");
-        return;
-      }
-
-      // Map and prepare final data
       const finalData = {
         ...formData,
         supplyLimit: formData.limitQuantity ? Number(formData.quantity) : undefined,
         price: Number(formData.price), // Ensure price is a number
         royaltyPercentage: formData.royaltyPercentage,
+        collectionId, // Include collectionId
+        wallet: solanaAddress, // Add wallet to the payload
       };
 
       const response = await fetch(
@@ -175,20 +237,17 @@ const CreateMembershipPage = () => {
         }
       );
 
-      if (response.ok) {
-        const data = await response.json();
-        if (data.state === "success") {
-          alert("Subscription created successfully!");
-        } else {
-          alert(data.message || "Failed to create subscription.");
-        }
-      } else {
+      if (!response.ok) {
         const errorData = await response.json();
-        alert(errorData.message || "Failed to create subscription.");
+        throw new Error(errorData.message || "Failed to create membership.");
       }
+
+      const data = await response.json();
+      alert(data.state === "success" ? "Membership created successfully!" : data.message);
     } catch (error) {
-      console.error("Unexpected error:", error);
-      alert("An unexpected error occurred. Please try again.");
+      setSubmissionError(error instanceof Error ? error.message : "Unexpected error.");
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -453,9 +512,10 @@ const CreateMembershipPage = () => {
             </div>
 
             {/* Submit Button */}
-            <PushToMintCollectionButton className="w-max mt-4" onClick={handleSubmit}>
-              Create
+            <PushToMintCollectionButton className="w-max mt-4" disabled={isSubmitting} onClick={handleSubmit}>
+              {isSubmitting ? "Creating..." : "Create Membership"}
             </PushToMintCollectionButton>
+            {submissionError && <p className="text-red-500 mt-2">{submissionError}</p>}
           </div>
         </div>
       </div>

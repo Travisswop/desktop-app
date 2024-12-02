@@ -4,29 +4,29 @@ import { usePrivy, useSolanaWallets } from "@privy-io/react-auth";
 import PushToMintCollectionButton from "@/components/Button/PushToMintCollectionButton";
 import Image from "next/image";
 import { sendCloudinaryImage } from "@/lib/SendCloudineryImage";
+import { useUser } from "@/lib/UserContext";
 
 
 const CreateCollectionPage = () => {
   const [newBenefit, setNewBenefit] = useState("");
   const [selectedImageName, setSelectedImageName] = useState<string | null>(null);
-  const [accessToken, setAccessToken] = useState("");
+  const [waitForToken, setWaitForToken] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submissionError, setSubmissionError] = useState<string | null>(null);
   const [imageUploading, setImageUploading] = useState(false);
-
-
-
+  const { accessToken } = useUser();
 
   const { ready, authenticated } = usePrivy();
   const { wallets } = useSolanaWallets();
+  const [solanaAddress, setSolanaAddress] = useState("");
 
   const [formData, setFormData] = useState({
     name: "",
     description: "",
-    imageUrl: "",
+    image: "",
     recipientAddress: "",
     currency: "usdc", // Default to Solana
-    benefits: [] as string[], // Change from string to string[]
+    // benefits: [] as string[], // Change from string to string[]
   });
 
   useEffect(() => {
@@ -36,7 +36,7 @@ const CreateCollectionPage = () => {
       wallets.length > 0 &&
       formData.recipientAddress !== wallets[0].address
     ) {
-      const solanaAddress = wallets[0].address;
+      setSolanaAddress(wallets[0].address);
       setFormData((prevState) => ({
         ...prevState,
         recipientAddress: solanaAddress,
@@ -45,8 +45,11 @@ const CreateCollectionPage = () => {
   }, [ready, authenticated, wallets, formData.recipientAddress]);
   
   useEffect(() => {
-    const token = "your_access_token_here";
-    setAccessToken(token);
+    const timeoutId = setTimeout(() => {
+      setWaitForToken(false);
+    }, 30000); // Wait for 30 seconds
+  
+    return () => clearTimeout(timeoutId); // Cleanup timeout
   }, []);
 
   const handleChange = (
@@ -73,10 +76,10 @@ const CreateCollectionPage = () => {
   
         try {
           setImageUploading(true);
-          const imageUrl = await sendCloudinaryImage(base64Image);
+          const image = await sendCloudinaryImage(base64Image);
           setFormData((prevState) => ({
             ...prevState,
-            imageUrl: imageUrl,
+            image: image,
           }));
           setImageUploading(false);
         } catch (error) {
@@ -91,22 +94,22 @@ const CreateCollectionPage = () => {
   };
   
 
-  const handleAddBenefit = () => {
-    if (newBenefit.trim()) {
-      setFormData((prevState) => ({
-        ...prevState,
-        benefits: [...prevState.benefits, newBenefit.trim()],
-      }));
-      setNewBenefit("");
-    }
-  };
+  // const handleAddBenefit = () => {
+  //   if (newBenefit.trim()) {
+  //     setFormData((prevState) => ({
+  //       ...prevState,
+  //       benefits: [...prevState.benefits, newBenefit.trim()],
+  //     }));
+  //     setNewBenefit("");
+  //   }
+  // };
 
-  const handleRemoveBenefit = (index: number) => {
-    setFormData((prevState) => ({
-      ...prevState,
-      benefits: prevState.benefits.filter((_, i) => i !== index),
-    }));
-  };
+  // const handleRemoveBenefit = (index: number) => {
+  //   setFormData((prevState) => ({
+  //     ...prevState,
+  //     benefits: prevState.benefits.filter((_, i) => i !== index),
+  //   }));
+  // };
 
   const handleImageDrop = (event: DragEvent<HTMLDivElement>) => {
     event.preventDefault();
@@ -121,10 +124,10 @@ const CreateCollectionPage = () => {
   
       try {
         setImageUploading(true);
-        const imageUrl = await sendCloudinaryImage(base64Image);
+        const image = await sendCloudinaryImage(base64Image);
         setFormData((prevState) => ({
           ...prevState,
-          imageUrl: imageUrl,
+          image: image,
         }));
         setImageUploading(false);
       } catch (error) {
@@ -141,18 +144,39 @@ const CreateCollectionPage = () => {
     setIsSubmitting(true);
     setSubmissionError(null);
 
+    if (!accessToken && !waitForToken) {
+      alert("Access token is required. Please log in again.");
+      return;
+    }
+
+    if (!accessToken && waitForToken) {
+      alert("Waiting for access token. Please try again shortly.");
+      return;
+    }
+    
+    if (!accessToken) {
+      alert("Access token is required. Please log in again.");
+      return;
+    }    
+      
+    if (!solanaAddress) {
+      alert("No Solana wallet connected. Please connect your wallet.");
+      return;
+    }      
+
+
     const payload = {
       chain: "solana",
       metadata: {
         name: formData.name,
-        imageUrl: formData.imageUrl,
+        image: formData.image,
         description: formData.description,
       },
       reuploadLinkedFiles: true,
       payments: {
         recipientAddress: formData.recipientAddress,
         currency: formData.currency,
-        price: "0.00",
+        price: "1.00",
       },
       subscription: {
         enabled: false,
@@ -217,7 +241,7 @@ const CreateCollectionPage = () => {
                 />
               </div>
 
-              <label htmlFor="imageUrl" className="mb-1 block font-medium">
+              <label htmlFor="image" className="mb-1 block font-medium">
                 Image (JPEG, JPG, PNG)
               </label>
               <div
@@ -226,10 +250,10 @@ const CreateCollectionPage = () => {
                 onDragOver={(e) => e.preventDefault()}
                 onDrop={handleImageDrop}
               >
-                {formData.imageUrl ? (
+                {formData.image ? (
                   <div className="flex flex-col items-center">
                     <Image
-                      src={formData.imageUrl}
+                      src={formData.image}
                       width={100}
                       height={100}
                       alt="Preview"
@@ -239,7 +263,7 @@ const CreateCollectionPage = () => {
                       {selectedImageName}
                     </p>
                     <label
-                      htmlFor="imageUrl"
+                      htmlFor="image"
                       className="inline-block bg-black text-white px-4 py-2 rounded-lg mt-2 cursor-pointer"
                     >
                       Change Picture
@@ -253,7 +277,7 @@ const CreateCollectionPage = () => {
                         Browse or drag and drop an image here.
                       </p>
                       <label
-                        htmlFor="imageUrl"
+                        htmlFor="image"
                         className="inline-block bg-black text-white px-4 py-2 rounded-lg mt-2 cursor-pointer"
                       >
                         Browse
@@ -263,8 +287,8 @@ const CreateCollectionPage = () => {
                 )}
                 <input
                   type="file"
-                  id="imageUrl"
-                  name="imageUrl"
+                  id="image"
+                  name="image"
                   accept="image/*"
                   onChange={handleFileChange}
                   className="hidden"
@@ -289,7 +313,7 @@ const CreateCollectionPage = () => {
               </div>
 
               {/* Benefits Input */}
-              <div>
+              {/* <div>
                 <label htmlFor="benefits" className="mb-1 block font-medium">
                   Benefits
                 </label>
@@ -324,7 +348,7 @@ const CreateCollectionPage = () => {
                     </div>
                   ))}
                 </div>
-              </div>
+              </div> */}
 
               <div>
                 <label htmlFor="recipientAddress" className="mb-1 block font-medium">
@@ -393,9 +417,9 @@ const CreateCollectionPage = () => {
           <div className="bg-white p-4 rounded-lg shadow-md border border-gray-300 w-full max-w-md aspect-[3/4] flex flex-col items-start">
             {/* Display dynamic Image as a square */}
             <div className="w-full aspect-square bg-gray-200 flex items-center justify-center rounded-t-lg mb-4">
-              {formData.imageUrl ? (
+              {formData.image ? (
                 <Image
-                  src={formData.imageUrl}
+                  src={formData.image}
                   width={300}
                   height={300}
                   alt="Preview"
@@ -420,7 +444,7 @@ const CreateCollectionPage = () => {
             </div>
 
             {/* Dynamic Benefits Section with label */}
-            <div className="mt-4 w-full">
+            {/* <div className="mt-4 w-full">
               <p className="text-lg font-bold">Benefits</p>
               <ul className="list-disc list-inside text-sm text-gray-500">
                 {formData.benefits.length > 0 ? (
@@ -431,7 +455,7 @@ const CreateCollectionPage = () => {
                   <li>No benefits added</li>
                 )}
               </ul>
-            </div>
+            </div> */}
 
           </div>
         </div>
