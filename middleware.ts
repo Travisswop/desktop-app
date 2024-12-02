@@ -68,8 +68,6 @@ async function verifyAuth(request: NextRequest) {
         (account) => account.type === 'email'
       )?.address;
 
-    console.log('🚀 ~ verifyAuth ~ email:', email);
-
     if (!userId || !user || !email) {
       authCache.set(cacheKey, { timestamp: now, isValid: false });
       return false;
@@ -92,7 +90,7 @@ export async function middleware(request: NextRequest) {
   const privy_id_token = request.cookies.get('privy-id-token')?.value;
 
   if (!privy_token || !privy_id_token) {
-    if (pathname === '/login') {
+    if (pathname === '/login' || pathname === '/onboard') {
       return NextResponse.next();
     }
     return NextResponse.redirect(new URL('/login', request.url));
@@ -100,10 +98,11 @@ export async function middleware(request: NextRequest) {
 
   try {
     const isAuthenticated = await verifyAuth(request);
-    console.log(
-      '🚀 ~ middleware ~ isAuthenticated:',
-      isAuthenticated
-    );
+    console.log('middleware isAuthenticated:', isAuthenticated);
+
+    if (!isAuthenticated && pathname === '/onboard') {
+      return NextResponse.next();
+    }
 
     // If user is authenticated and trying to access protected routes, allow access
     if (

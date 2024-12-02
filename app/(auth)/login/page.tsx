@@ -22,6 +22,7 @@ const Login: React.FC = () => {
 
   const { login } = useLogin({
     onComplete: async (user) => {
+      console.log('🚀 ~ onComplete: ~ user:', user);
       try {
         const email =
           user.google?.email ||
