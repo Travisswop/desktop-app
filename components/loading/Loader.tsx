@@ -1,12 +1,12 @@
-'use client';
+"use client";
 
-import React, { useState, useEffect } from 'react';
-import Image from 'next/image';
-import { Progress } from '@nextui-org/react';
+import React, { useState, useEffect } from "react";
+import Image from "next/image";
+import gifLoading from "@/public/images/smart-site-loading.gif";
 
 const Loader = () => {
   const [value, setValue] = useState(0);
-  const [dots, setDots] = useState('');
+  const [dots, setDots] = useState("");
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -14,7 +14,7 @@ const Loader = () => {
     }, 500);
 
     const dotsInterval = setInterval(() => {
-      setDots((d) => (d.length >= 3 ? '' : d + '.'));
+      setDots((d) => (d.length >= 3 ? "" : d + "."));
     }, 400);
 
     return () => {
@@ -27,11 +27,11 @@ const Loader = () => {
     <div className="h-screen">
       <div
         className="flex flex-col items-center justify-center"
-        style={{ height: 'calc(100vh - 48px)' }}
+        style={{ height: "calc(100vh - 48px)" }}
       >
         <Image
-          src={'/images/smart-site-loading.gif'}
-          alt={'Loading'}
+          src={gifLoading}
+          alt={"Loading"}
           width={500}
           height={500}
           className="w-[200px] h-[200px]"
