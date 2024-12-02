@@ -75,7 +75,10 @@ const SmartsiteIconLivePreview = ({
     if (data.primary) {
       setIsPrimaryMicrosite(true);
     }
-  }, [data.primary]);
+    if (data.leadCapture) {
+      setIsLeadCapture(true);
+    }
+  }, [data.leadCapture, data.primary]);
 
   console.log("is primary", isPrimaryMicrosite);
 
@@ -104,6 +107,7 @@ const SmartsiteIconLivePreview = ({
     const smartSiteInfo = {
       _id: data._id,
       primary: isPrimaryMicrosite,
+      leadCapture: isLeadCapture,
     };
 
     try {
