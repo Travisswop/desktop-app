@@ -37,6 +37,18 @@ interface GroupedTemplatesByCollection {
   templatesByNftType: GroupedByNftType;
 }
 
+const nftTypes = [
+  "collectible",
+  "subscription",
+  "membership",
+  "coupon",
+  "menu",
+  "phygital",
+];
+
+const capitalizeFirstLetter = (str: string) =>
+  str.charAt(0).toUpperCase() + str.slice(1);
+
 const MintDashboard = () => {
   const [mintData, setMintData] = useState<
     { data: GroupedTemplatesByCollection[] } | { noCollections: boolean } | null
@@ -78,9 +90,6 @@ const MintDashboard = () => {
     fetchData();
   }, [accessToken, waitForToken]);
 
-  const capitalizeFirstLetter = (str: string) =>
-    str.charAt(0).toUpperCase() + str.slice(1);
-
   if (loading) {
     return <HomePageLoading />;
   }
@@ -115,39 +124,39 @@ const MintDashboard = () => {
               <h2 className="text-2xl font-bold mb-4">
                 {group.collection.metadata.name}
               </h2>
-              {Object.entries(group.templatesByNftType).map(
-                ([nftType, templates]) => (
-                  <div key={nftType}>
-                    <h3 className="text-xl font-semibold mb-2">
-                      {capitalizeFirstLetter(nftType)}
-                    </h3>
-                    <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 xl:gap-10">
-                      {templates.map((template) => (
-                        <MintCart
-                          key={template.templateId}
-                          img={template.metadata.image}
-                          title={template.metadata.name}
-                          text={`Limit: ${template.supply.limit}, Minted: ${template.supply.minted}`}
-                          collectionId={group.collection.id}
-                          templateId={template.templateId}
-                        />
-                      ))}
-                      <div
-                        className="h-full w-full"
-                        onClick={() =>
-                          window.location.href = `/mint/create${capitalizeFirstLetter(
-                            nftType
-                          )}`
-                        }
-                      >
-                        <SaveToLocalAndNavigate
-                          collectionId={group.collection.id}
-                        />
-                      </div>
+              {nftTypes.map((nftType) => (
+                <div key={nftType}>
+                  <h3 className="text-xl font-semibold mb-2">
+                    {capitalizeFirstLetter(nftType)}
+                  </h3>
+                  <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 xl:gap-10">
+                    {group.templatesByNftType[nftType]?.length
+                      ? group.templatesByNftType[nftType].map((template) => (
+                          <MintCart
+                            key={template.templateId}
+                            img={template.metadata.image}
+                            title={template.metadata.name}
+                            text={`Limit: ${template.supply.limit}, Minted: ${template.supply.minted}`}
+                            collectionId={group.collection.id}
+                            templateId={template.templateId}
+                          />
+                        ))
+                      : null}
+                    <div
+                      className="min-h-[360px] min-w-[365px] h-full w-full"
+                      onClick={() =>
+                        window.location.href = `/mint/create${capitalizeFirstLetter(
+                          nftType
+                        )}`
+                      }
+                    >
+                      <SaveToLocalAndNavigate
+                        collectionId={group.collection.id}
+                      />
                     </div>
                   </div>
-                )
-              )}
+                </div>
+              ))}
             </div>
           ))}
 

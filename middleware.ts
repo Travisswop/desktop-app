@@ -61,7 +61,16 @@ async function verifyAuth(request: NextRequest) {
     const { userId } = await privy.verifyAuthToken(privy_token);
     const user = await privy.getUser({ idToken: privy_id_token });
 
-    if (!userId || !user) {
+    const email =
+      user?.email?.address ||
+      user?.google?.email ||
+      user?.linkedAccounts?.find(
+        (account) => account.type === 'email'
+      )?.address;
+
+    console.log('🚀 ~ verifyAuth ~ email:', email);
+
+    if (!userId || !user || !email) {
       authCache.set(cacheKey, { timestamp: now, isValid: false });
       return false;
     }
