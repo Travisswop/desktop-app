@@ -7,17 +7,19 @@ export interface GroupedTemplates {
       name: string;
     };
   };
-  templates: {
-    templateId: string;
-    metadata: {
-      image: string;
-      name: string;
-    };
-    supply: {
-      limit: number;
-      minted: number;
-    };
-  }[];
+  templatesByNftType: {
+    [nftType: string]: {
+      templateId: string;
+      metadata: {
+        image: string;
+        name: string;
+      };
+      supply: {
+        limit: number;
+        minted: number;
+      };
+    }[];
+  };
 }
 
 export async function getMintPageData(token: string): Promise<{ data: GroupedTemplates[] } | { noCollections: boolean } | null> {

@@ -9,13 +9,40 @@ import HomePageLoading from "@/components/loading/HomePageLoading";
 import getMintPageData, { GroupedTemplates } from "@/utils/fetchingData/getMintPageData";
 import { useUser } from "@/lib/UserContext";
 
+interface Template {
+  templateId: string;
+  metadata: {
+    image: string;
+    name: string;
+  };
+  supply: {
+    limit: number;
+    minted: number;
+  };
+}
+
+interface GroupedByNftType {
+  [nftType: string]: Template[];
+}
+
+interface Collection {
+  id: string;
+  metadata: {
+    name: string;
+  };
+}
+
+interface GroupedTemplatesByCollection {
+  collection: Collection;
+  templatesByNftType: GroupedByNftType;
+}
+
 const MintDashboard = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedOption, setSelectedOption] = useState("");
   const [mintData, setMintData] = useState<
-    { data: GroupedTemplates[] } | { noCollections: boolean } | null
+    { data: GroupedTemplatesByCollection[] } | { noCollections: boolean } | null
   >(null);
-
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
   const { accessToken } = useUser();
@@ -25,10 +52,9 @@ const MintDashboard = () => {
     const timeoutId = setTimeout(() => {
       setWaitForToken(false);
     }, 30000); // 30 seconds
-  
-    // Cleanup function to clear the timeout if accessToken becomes available
+
     return () => clearTimeout(timeoutId);
-  }, []);  
+  }, []);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -50,10 +76,10 @@ const MintDashboard = () => {
         setLoading(false);
       }
     };
-  
+
     fetchData();
   }, [accessToken, waitForToken]);
-        
+
   if (loading) {
     return <HomePageLoading />;
   }
@@ -86,18 +112,17 @@ const MintDashboard = () => {
   };
 
   const handleConfirmClick = () => {
-    if (selectedOption === "Collectible") {
-      window.location.href = "/mint/createCollectible";
-    } else if (selectedOption === "Coupon") {
-      window.location.href = "/mint/createCoupon";
-    } else if (selectedOption === "Subscription") {
-      window.location.href = "/mint/createSubscription";
-    } else if (selectedOption === "Membership") {
-      window.location.href = "/mint/createMembership";
-    } else if (selectedOption === "Menu Item") {
-      window.location.href = "/mint/createMenuItem";
-    } else if (selectedOption === "Phygital") {
-      window.location.href = "/mint/createPhygital";
+    const routes: { [key: string]: string } = {
+      Collectible: "/mint/createCollectible",
+      Coupon: "/mint/createCoupon",
+      Subscription: "/mint/createSubscription",
+      Membership: "/mint/createMembership",
+      "Menu Item": "/mint/createMenuItem",
+      Phygital: "/mint/createPhygital",
+    };
+    const route = routes[selectedOption];
+    if (route) {
+      window.location.href = route;
     }
   };
 
@@ -116,22 +141,30 @@ const MintDashboard = () => {
               <h2 className="text-2xl font-bold mb-4">
                 {group.collection.metadata.name}
               </h2>
-              <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 xl:gap-10">
-                {group.templates.map((template) => (
-                  <MintCart
-                    key={template.templateId}
-                    img={template.metadata.image}
-                    title={template.metadata.name}
-                    text={`Limit: ${template.supply.limit}, Minted: ${template.supply.minted}`}
-                    collectionId={group.collection.id}
-                    templateId={template.templateId}
-                  />
-                ))}
-
-                <div className="h-full w-full" onClick={handleSaveClick}>
-                  <SaveToLocalAndNavigate collectionId={group.collection.id} />
-                </div>
-              </div>
+              {Object.entries(group.templatesByNftType).map(
+                ([nftType, templates]) => (
+                  <div key={nftType}>
+                    <h3 className="text-xl font-semibold mb-2">{nftType}</h3>
+                    <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 xl:gap-10">
+                      {templates.map((template) => (
+                        <MintCart
+                          key={template.templateId}
+                          img={template.metadata.image}
+                          title={template.metadata.name}
+                          text={`Limit: ${template.supply.limit}, Minted: ${template.supply.minted}`}
+                          collectionId={group.collection.id}
+                          templateId={template.templateId}
+                        />
+                      ))}
+                      <div className="h-full w-full" onClick={handleSaveClick}>
+                        <SaveToLocalAndNavigate
+                          collectionId={group.collection.id}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                )
+              )}
             </div>
           ))}
 
