@@ -24,18 +24,27 @@ export default function Header() {
   const [isLoggingOut, setIsLoggingOut] = useState(false);
 
   const handleLogout = async () => {
-    if (isLoggingOut) return; // Prevent multiple clicks
+    // Prevent multiple logout attempts
+    if (isLoggingOut) {
+      console.log('Logout already in progress');
+      return;
+    }
 
     setIsLoggingOut(true);
     try {
+      // Clear user data first to prevent any state inconsistencies
       clearCache();
-      await logout();
-      router.replace('/login');
+
+      // Perform logout and navigation in parallel for better performance
+      await Promise.all([logout(), router.replace('/login')]);
     } catch (error) {
-      console.error('Logout error:', error);
-    } finally {
+      console.error('Logout failed:', error);
+      // Revert loading state on error
       setIsLoggingOut(false);
+      throw error; // Re-throw to allow error handling by parent components
     }
+    // Only clear loading state on success to prevent UI flicker
+    setIsLoggingOut(false);
   };
 
   if (loading) {
