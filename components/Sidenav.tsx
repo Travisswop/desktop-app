@@ -1,6 +1,6 @@
-"use client";
-
-import Link from "next/link";
+'use client';
+import Image from 'next/image';
+import Link from 'next/link';
 import {
   QrCode,
   Wallet,
@@ -11,21 +11,21 @@ import {
   LayoutDashboard,
   Newspaper,
   LayoutGrid,
-} from "lucide-react";
-import { Button } from "./ui/button";
-import { usePathname, useRouter } from "next/navigation";
-import { cn } from "@/lib/utils";
+} from 'lucide-react';
+import { Button } from './ui/button';
+import { usePathname, useRouter } from 'next/navigation';
+import { cn } from '@/lib/utils';
 
 const navItems = [
-  { href: "/", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/feed", label: "Feed", icon: Newspaper },
-  { href: "/smartsite", label: "Smartsites", icon: LayoutGrid },
-  { href: "/qr-code", label: "QR Code", icon: QrCode },
-  { href: "/wallet", label: "Wallet", icon: Wallet },
-  { href: "/analytics", label: "Analytics", icon: BarChart2 },
-  { href: "/mint", label: "Mint", icon: ImageIcon },
-  { href: "/order", label: "Orders", icon: ShoppingBag },
-  { href: "/content", label: "Content", icon: FileText },
+  { href: '/', label: 'Dashboard', icon: LayoutDashboard },
+  { href: '/feed', label: 'Feed', icon: Newspaper },
+  { href: '/smartsite', label: 'Smartsites', icon: LayoutGrid },
+  { href: '/qr-code', label: 'QR Code', icon: QrCode },
+  { href: '/wallet', label: 'Wallet', icon: Wallet },
+  { href: '/analytics', label: 'Analytics', icon: BarChart2 },
+  { href: '/mint', label: 'Mint', icon: ImageIcon },
+  { href: '/order', label: 'Orders', icon: ShoppingBag },
+  { href: '/content', label: 'Content', icon: FileText },
 ];
 
 export default function Sidenav() {
@@ -41,7 +41,15 @@ export default function Sidenav() {
             href="/"
             className="flex items-center gap-2 text-4xl mx-auto font-bold tracking-widest h-20"
           >
-            SWOP
+            <div className="w-36 h-auto">
+              <Image
+                src="/logo.png"
+                quality={100}
+                alt="SWOP"
+                width={400}
+                height={200}
+              />
+            </div>
           </Link>
         </div>
         <nav className="flex-1 space-y-1 px-2 py-4">
@@ -51,17 +59,16 @@ export default function Sidenav() {
 
               // Check if pathname starts with item's href
               const isActive =
-                pathname === item.href || pathname.startsWith(item.href + "/");
+                pathname === item.href ||
+                pathname.startsWith(item.href + '/');
 
               return (
                 <li key={item.href}>
                   <Link
                     href={item.href}
                     className={cn(
-                      "flex items-center gap-3 rounded-lg px-3 py-2 text-gray-500 hover:bg-gray-100",
-                      isActive
-                        ? "bg-fuchsia-800/10 text-purple-600"
-                        : "text-muted-foreground"
+                      'flex items-center gap-3 rounded-lg px-3 py-2 text-gray-700 hover:bg-gray-100',
+                      isActive ? 'bg-fuchsia-800/10 ' : ''
                     )}
                   >
                     <Icon className="h-4 w-4" />
@@ -82,7 +89,9 @@ export default function Sidenav() {
             </p>
             <Button
               size="sm"
-              onClick={() => router.push("/account-settings?upgrade=true")}
+              onClick={() =>
+                router.push('/account-settings?upgrade=true')
+              }
               className="w-full bg-purple-600 hover:bg-purple-700"
             >
               Upgrade Plan
