@@ -8,7 +8,7 @@ import {
   useCallback,
   useMemo,
 } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, usePathname } from 'next/navigation';
 import { usePrivy } from '@privy-io/react-auth';
 
 export interface UserData {
@@ -68,8 +68,9 @@ export function UserProvider({
 }: {
   children: React.ReactNode;
 }) {
+  const pathname = usePathname();
   const router = useRouter();
-  const { user: privyUser, ready } = usePrivy();
+  const { user: privyUser, ready, logout } = usePrivy(); // Added logout
   const [user, setUser] = useState<UserData | null>(null);
   const [accessToken, setAccessToken] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -93,17 +94,59 @@ export function UserProvider({
     async (userEmail: string) => {
       if (!userEmail) return;
 
+      // More comprehensive list of excluded routes
+      const excludedRoutes = [
+        '/onboard',
+        '/login',
+        '/signup',
+        '/welcome',
+        // Add any other signup/onboarding routes
+      ];
+
       try {
+        // Add timeout to prevent hanging requests
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 seconds timeout
+
         const response = await fetch(
-          `${process.env.NEXT_PUBLIC_API_URL}/api/v2/desktop/user/${userEmail}`
+          `${process.env.NEXT_PUBLIC_API_URL}/api/v2/desktop/user/${userEmail}`,
+          {
+            signal: controller.signal,
+            headers: {
+              'Content-Type': 'application/json',
+            },
+          }
         );
 
+        clearTimeout(timeoutId);
+
         if (!response.ok) {
-          clearAllCookies();
-          router.push('/login');
-          throw new Error(
-            `Failed to fetch user data: ${response.statusText}`
-          );
+          // More detailed logging
+          console.error('Fetch user data response:', {
+            status: response.status,
+            statusText: response.statusText,
+            currentPathname: pathname,
+          });
+
+          // Only handle redirection for specific error codes
+          if (response.status === 401 || response.status === 403) {
+            // Clear user session and redirect to login
+            clearAllCookies();
+            await logout(); // Add logout from Privy
+            router.push('/login');
+            return;
+          }
+
+          // For other non-excluded routes, throw an error
+          if (
+            !excludedRoutes.some((route) =>
+              pathname.startsWith(route)
+            )
+          ) {
+            throw new Error(
+              `Failed to fetch user data: ${response.statusText}`
+            );
+          }
         }
 
         const data = await response.json();
@@ -116,28 +159,46 @@ export function UserProvider({
 
         setUser(userData);
         setAccessToken(token);
-        document.cookie = `access-token=${token}; path=/; secure; samesite=strict; max-age=86400`; // 24 hours
+
+        // More secure cookie setting
+        document.cookie = `access-token=${token}; path=/; secure; samesite=strict; max-age=86400`;
         document.cookie = `user-id=${userData._id}; path=/; secure; samesite=strict; max-age=86400`;
+
         setError(null);
       } catch (err) {
         console.error('Error fetching user data:', err);
-        setError(
-          err instanceof Error ? err : new Error('Unknown error')
-        );
-        setUser(null);
-        setAccessToken(null);
+
+        // More granular error handling
+        if (err instanceof Error) {
+          if (err.name === 'AbortError') {
+            console.error('Request timed out');
+          }
+        }
+
+        // Only set error state if not on an excluded route
+        if (
+          !excludedRoutes.some((route) => pathname.startsWith(route))
+        ) {
+          setError(
+            err instanceof Error ? err : new Error('Unknown error')
+          );
+          setUser(null);
+          setAccessToken(null);
+        }
       } finally {
         setLoading(false);
       }
     },
-    [router]
+    [router, pathname, logout] // Add logout to dependencies
   );
 
   useEffect(() => {
-    if (ready && email) {
-      fetchUserData(email);
-    } else if (ready && !email) {
-      setLoading(false);
+    if (ready) {
+      if (email) {
+        fetchUserData(email);
+      } else {
+        setLoading(false);
+      }
     }
   }, [ready, email, fetchUserData]);
 
@@ -151,10 +212,11 @@ export function UserProvider({
         setUser(null);
         setAccessToken(null);
         clearAllCookies();
+        logout(); // Add logout when clearing cache
       },
       accessToken,
     }),
-    [user, loading, error, fetchUserData, email, accessToken]
+    [user, loading, error, fetchUserData, email, accessToken, logout]
   );
 
   return (

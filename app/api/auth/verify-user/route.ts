@@ -13,6 +13,7 @@ export async function POST(request: NextRequest) {
     }
 
     const req = await request.json();
+    console.log('🚀 ~ VerifyUser ~ req:', req);
     if (!req.email) {
       return NextResponse.json(
         { error: 'Email is required' },
@@ -28,8 +29,10 @@ export async function POST(request: NextRequest) {
         },
       }
     );
+    console.log('🚀 ~ POST ~ res:', res);
 
     if (!res.ok) {
+      console.log('🚀 ~ VerifyUser ~ res: not found');
       if (res.status === 404) {
         return NextResponse.json(
           { error: 'User not found' },
@@ -38,7 +41,7 @@ export async function POST(request: NextRequest) {
       }
       throw new Error(`API error: ${res.status} ${res.statusText}`);
     }
-
+    console.log('🚀 ~ VerifyUser ~ res: found');
     const userData = await res.json();
     return NextResponse.json({
       success: true,

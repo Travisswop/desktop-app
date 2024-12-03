@@ -7,6 +7,7 @@ import DashboardAnalytics from './analytics';
 
 export default function DashboardContent() {
   const { user, loading, error } = useUser();
+  console.log('🚀 ~ DashboardContent ~ user:', user);
 
   if (loading) {
     return <DashboardSkeleton />;

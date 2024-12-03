@@ -35,6 +35,15 @@ import tiktok from '@/public/onboard/tiktok.png';
 import twitter from '@/public/onboard/twitter.png';
 import video from '@/public/onboard/video.png';
 import website from '@/public/onboard/website.png';
+import {
+  InfoBarData,
+  socialGroup,
+  SocialLargeData,
+  SocialLargeInfo,
+  socialMediaBaseUrls,
+  SocialTopData,
+  SocialTopInfo,
+} from '@/types/smartsite';
 
 interface SmartSiteInformationProps {
   userData: OnboardingData;
@@ -77,20 +86,112 @@ export default function SmartSiteInformation({
     setIsSubmitting(true);
 
     try {
-      const token = await getAccessToken();
+      const socialTopInfo: SocialTopInfo = {
+        email: data.email,
+        whatsapp: data.whatsapp,
+        facebook: data.facebook,
+        instagram: data.instagram,
+        linkedin: data.linkedin,
+        twitter: data.twitter,
+        tiktok: data.tiktok,
+      };
+
+      const socialLargeInfo: SocialLargeInfo = {
+        videoCall: data.videoCall,
+        textMessage: data.textMessage,
+      };
+
+      const infoBarObj = {
+        website: data.website,
+        address: data.officeAddress,
+      };
+
+      const infoBar = [];
+      for (const key in infoBarObj) {
+        if (infoBarObj.hasOwnProperty(key)) {
+          const value = infoBarObj[key as keyof typeof infoBarObj];
+          if (value) {
+            const data: InfoBarData = {
+              buttonName: key === 'website' ? 'Website' : 'Location',
+              iconName: key === 'website' ? 'Website' : 'Location',
+              iconPath: '',
+              description:
+                key === 'website'
+                  ? 'This is my personal Website'
+                  : 'This is my Office Address',
+              group: 'custom',
+              title: value,
+              link: value,
+            };
+            infoBar.push(data);
+          }
+        }
+      }
+
+      const socialTop = [];
+      for (const key in socialTopInfo) {
+        if (socialTopInfo.hasOwnProperty(key)) {
+          const value = socialTopInfo[key as keyof SocialTopInfo];
+          if (value) {
+            const data: SocialTopData = {
+              name:
+                key === 'twitter'
+                  ? 'X'
+                  : key.charAt(0).toUpperCase() + key.slice(1), // Capitalize name
+              value,
+              iconName: key,
+              iconPath: '',
+              url: socialMediaBaseUrls[key],
+              group: socialGroup[key],
+            };
+            socialTop.push(data);
+          }
+        }
+      }
+
+      const socialLarge = [];
+      for (const key in socialLargeInfo) {
+        if (socialLargeInfo.hasOwnProperty(key)) {
+          const value = socialLargeInfo[key as keyof SocialLargeInfo];
+          if (value) {
+            const data: SocialLargeData = {
+              name: key.charAt(0).toUpperCase() + key.slice(1),
+              value,
+              iconName: key,
+              iconPath: '',
+              url: socialMediaBaseUrls[key],
+              group: socialGroup[key],
+            };
+            socialLarge.push(data);
+          }
+        }
+      }
+
+      const contact = {
+        name: data.name,
+        email: data.email,
+        mobileNo: data.phone,
+        address: data.officeAddress || '',
+        websiteUrl: data.website || '',
+      };
 
       // Create user and smartsite
-      const response = await fetch('/api/user/smartSite/create', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          micrositeId: userData?.userInfo?.primaryMicrosite,
-          social: data,
-        }),
-      });
+      const response = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL}/api/v2/desktop/user/createSocial`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            micrositeId: userData?.userInfo?.primaryMicrosite,
+            socialTop,
+            socialLarge,
+            infoBar,
+            contact,
+          }),
+        }
+      );
 
       if (!response.ok) {
         throw new Error('Failed to create user and smartsite');

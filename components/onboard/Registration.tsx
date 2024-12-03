@@ -28,6 +28,7 @@ import { useToast } from '@/hooks/use-toast';
 import astronot from '@/public/onboard/astronot.svg';
 import bluePlanet from '@/public/onboard/blue-planet.svg';
 import yellowPlanet from '@/public/onboard/yellow-planet.svg';
+import { UserData } from '@/lib/UserContext';
 
 interface RegistrationProps {
   user: PrivyUser;
@@ -84,26 +85,28 @@ export default function Registration({
 
     try {
       const avatarUrl = await uploadImageToCloudinary(profileImage);
-      const token = await getAccessToken();
+
+      const formatData = {
+        name,
+        email: user.email,
+        mobileNo: phone || '',
+        address: `${apartment || ''} ${address || ''}`.trim(),
+        bio: bio || '',
+        dob: birthdate.toString(),
+        profilePic: avatarUrl || '',
+      };
 
       // Create user and smartsite
-      const response = await fetch('/api/user/create', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          name,
-          bio,
-          phone,
-          email: user.email,
-          birthdate,
-          apartment,
-          address,
-          avatar: avatarUrl,
-        }),
-      });
+      const response = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL}/api/v2/desktop/user/create`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ ...formatData }),
+        }
+      );
 
       if (!response.ok) {
         throw new Error('Failed to create user and smartsite');

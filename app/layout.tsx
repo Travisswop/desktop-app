@@ -1,11 +1,11 @@
 // import type { Metadata } from "next";
 // import localFont from "next/font/local";
-import "./globals.css";
-import PrivyProvider from "@/components/PrivyProvider";
-import { UserProvider } from "@/lib/UserContext";
-import { Roboto } from "next/font/google";
-import { TanstackProvider } from "@/components/providers/tanstackProvider";
-import { Toaster } from "react-hot-toast";
+import './globals.css';
+import PrivyProvider from '@/components/PrivyProvider';
+import { UserProvider } from '@/lib/UserContext';
+import { Roboto } from 'next/font/google';
+import { TanstackProvider } from '@/components/providers/tanstackProvider';
+import { Toaster } from 'react-hot-toast';
 
 // const geistSans = localFont({
 //   src: "./fonts/GeistVF.woff",
@@ -19,8 +19,8 @@ import { Toaster } from "react-hot-toast";
 // });
 
 const roboto = Roboto({
-  subsets: ["latin"],
-  weight: ["100", "300", "400", "500", "700", "900"],
+  subsets: ['latin'],
+  weight: ['100', '300', '400', '500', '700', '900'],
 });
 
 // export const metadata: Metadata = {
