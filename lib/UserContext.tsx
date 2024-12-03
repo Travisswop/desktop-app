@@ -1,4 +1,4 @@
-'use client';
+"use client";
 
 import {
   createContext,
@@ -7,9 +7,9 @@ import {
   useEffect,
   useCallback,
   useMemo,
-} from 'react';
-import { useRouter, usePathname } from 'next/navigation';
-import { usePrivy } from '@privy-io/react-auth';
+} from "react";
+import { useRouter, usePathname } from "next/navigation";
+import { usePrivy } from "@privy-io/react-auth";
 
 export interface UserData {
   _id: string;
@@ -51,11 +51,11 @@ const UserContext = createContext<UserContextType>({
 
 const clearAllCookies = () => {
   const cookies = [
-    'privy-token',
-    'privy-id-token',
-    'privy-refresh-token',
-    'access-token',
-    'user-id',
+    "privy-token",
+    "privy-id-token",
+    "privy-refresh-token",
+    "access-token",
+    "user-id",
   ];
 
   cookies.forEach((cookie) => {
@@ -63,11 +63,7 @@ const clearAllCookies = () => {
   });
 };
 
-export function UserProvider({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+export function UserProvider({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
   const { user: privyUser, ready, logout } = usePrivy(); // Added logout
@@ -81,11 +77,10 @@ export function UserProvider({
     return (
       privyUser.google?.email ||
       privyUser.email?.address ||
+      privyUser.linkedAccounts?.find((account) => account.type === "email")
+        ?.address ||
       privyUser.linkedAccounts?.find(
-        (account) => account.type === 'email'
-      )?.address ||
-      privyUser.linkedAccounts?.find(
-        (account) => account.type === 'google_oauth'
+        (account) => account.type === "google_oauth"
       )?.email
     );
   }, [privyUser]);
@@ -96,33 +91,33 @@ export function UserProvider({
 
       // More comprehensive list of excluded routes
       const excludedRoutes = [
-        '/onboard',
-        '/login',
-        '/signup',
-        '/welcome',
+        "/onboard",
+        "/login",
+        "/signup",
+        "/welcome",
         // Add any other signup/onboarding routes
       ];
 
       try {
         // Add timeout to prevent hanging requests
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 seconds timeout
+        // const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 seconds timeout
 
         const response = await fetch(
           `${process.env.NEXT_PUBLIC_API_URL}/api/v2/desktop/user/${userEmail}`,
           {
             signal: controller.signal,
             headers: {
-              'Content-Type': 'application/json',
+              "Content-Type": "application/json",
             },
           }
         );
 
-        clearTimeout(timeoutId);
+        // clearTimeout(timeoutId);
 
         if (!response.ok) {
           // More detailed logging
-          console.error('Fetch user data response:', {
+          console.error("Fetch user data response:", {
             status: response.status,
             statusText: response.statusText,
             currentPathname: pathname,
@@ -133,16 +128,12 @@ export function UserProvider({
             // Clear user session and redirect to login
             clearAllCookies();
             await logout(); // Add logout from Privy
-            router.push('/login');
+            router.push("/login");
             return;
           }
 
           // For other non-excluded routes, throw an error
-          if (
-            !excludedRoutes.some((route) =>
-              pathname.startsWith(route)
-            )
-          ) {
+          if (!excludedRoutes.some((route) => pathname.startsWith(route))) {
             throw new Error(
               `Failed to fetch user data: ${response.statusText}`
             );
@@ -154,7 +145,7 @@ export function UserProvider({
         const { user: userData, token } = data;
 
         if (!userData || !token) {
-          throw new Error('Invalid response data');
+          throw new Error("Invalid response data");
         }
 
         setUser(userData);
@@ -166,22 +157,18 @@ export function UserProvider({
 
         setError(null);
       } catch (err) {
-        console.error('Error fetching user data:', err);
+        console.error("Error fetching user data:", err);
 
         // More granular error handling
         if (err instanceof Error) {
-          if (err.name === 'AbortError') {
-            console.error('Request timed out');
+          if (err.name === "AbortError") {
+            console.error("Request timed out");
           }
         }
 
         // Only set error state if not on an excluded route
-        if (
-          !excludedRoutes.some((route) => pathname.startsWith(route))
-        ) {
-          setError(
-            err instanceof Error ? err : new Error('Unknown error')
-          );
+        if (!excludedRoutes.some((route) => pathname.startsWith(route))) {
+          setError(err instanceof Error ? err : new Error("Unknown error"));
           setUser(null);
           setAccessToken(null);
         }
@@ -207,7 +194,7 @@ export function UserProvider({
       user,
       loading,
       error,
-      refreshUser: () => fetchUserData(email || ''),
+      refreshUser: () => fetchUserData(email || ""),
       clearCache: () => {
         setUser(null);
         setAccessToken(null);
@@ -220,16 +207,14 @@ export function UserProvider({
   );
 
   return (
-    <UserContext.Provider value={contextValue}>
-      {children}
-    </UserContext.Provider>
+    <UserContext.Provider value={contextValue}>{children}</UserContext.Provider>
   );
 }
 
 export const useUser = () => {
   const context = useContext(UserContext);
   if (!context) {
-    throw new Error('useUser must be used within a UserProvider');
+    throw new Error("useUser must be used within a UserProvider");
   }
   return context;
 };
