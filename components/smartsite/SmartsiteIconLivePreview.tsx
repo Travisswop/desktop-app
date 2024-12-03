@@ -26,7 +26,7 @@ import getSmallIconImage from "./retriveIconImage/getSmallIconImage";
 import EmbedPlayer from "./embed/renderEmbedPlayer";
 import getAllSmartsitesIcon from "./retriveIconImage/getAllSmartsiteIcon";
 import mockupBtn from "@/public/images/mockup-bottom-button.png";
-import DynamicPrimaryBtn from "../ui/Button/DynamicPrimaryBtn";
+// import DynamicPrimaryBtn from "../ui/Button/DynamicPrimaryBtn";
 import { LiaFileMedicalSolid } from "react-icons/lia";
 import { Switch } from "@nextui-org/react";
 import { IoIosSend } from "react-icons/io";
@@ -390,8 +390,8 @@ const SmartsiteIconLivePreview = ({
                       ))}
                     </div>
                   )}
-
                   {/* app icon display here end */}
+
                   {/* card here  */}
                   <div className="flex flex-col gap-y-3">
                     {/* message me display here start */}

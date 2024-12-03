@@ -23,12 +23,12 @@ import AnimateButton from "@/components/ui/Button/AnimateButton";
 import { MdInfoOutline } from "react-icons/md";
 import { AppIconMap, AppSelectedIconType } from "@/types/smallIcon";
 import toast from "react-hot-toast";
+import { useUser } from "@/lib/UserContext";
+// import { CiSearch } from "react-icons/ci";
 
 const AddAppIcon = ({ handleRemoveIcon }: any) => {
   const state: any = useSmartSiteApiDataStore((state) => state); //get small icon store value
-  //const sesstionState = useLoggedInUserStore((state) => state.state.user); //get session value
-  const demoToken =
-    "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJfaWQiOiI2NjM4NjMyMDIzMDQxMDMyODAyOTk4MmIiLCJpYXQiOjE3MjcxNTI4MzB9.CsHnZAgUzsfkc_g_CZZyQMXc02Ko_LhnQcCVpeCwroY";
+  const { accessToken }: any = useUser();
   const [selectedIconType, setSelectedIconType] =
     useState<AppSelectedIconType>("Link");
   const [selectedIcon, setSelectedIcon] = useState({
@@ -40,6 +40,8 @@ const AddAppIcon = ({ handleRemoveIcon }: any) => {
   });
   const [selectedIconData, setSelectedIconData] = useState<any>({});
   const [isLoading, setIsLoading] = useState<boolean>(false);
+  // const [searchQuery, setSearchQuery] = useState("");
+  // const [filteredIcons, setFilteredIcons] = useState<any>([]);
   // console.log("selected icon type", selectedIconType);
   // console.log("selected icon data", selectedIconData);
   console.log("selected icon", selectedIcon);
@@ -92,7 +94,7 @@ const AddAppIcon = ({ handleRemoveIcon }: any) => {
     };
     // console.log("smallIconInfo", smallIconInfo);
     try {
-      const data = await postAppIcon(appIconInfo, demoToken);
+      const data = await postAppIcon(appIconInfo, accessToken);
       if ((data.state = "success")) {
         toast.success("App icon created successfully");
         handleRemoveIcon("App Icon");
@@ -110,6 +112,29 @@ const AddAppIcon = ({ handleRemoveIcon }: any) => {
     Link: icon.SocialIconType,
     "Call To Action": icon.ChatlinkType,
   };
+
+  //app icon search icon with it's name
+  // useEffect(() => {
+  //   const handleSearch = () => {
+  //     // setLoading(true);
+  //     if (!searchQuery) {
+  //       setFilteredIcons(selectedIconData?.icons || []);
+  //       // setLoading(false);
+  //     } else {
+  //       const filtered = selectedIconData?.icons?.filter((item: any) =>
+  //         item.name.toLowerCase().includes(searchQuery.toLowerCase())
+  //       );
+  //       setFilteredIcons(filtered);
+  //       // setLoading(false);
+  //     }
+  //   };
+
+  //   const debounceSearch = setTimeout(handleSearch, 700); // Adjust the delay as needed
+
+  //   return () => {
+  //     clearTimeout(debounceSearch);
+  //   };
+  // }, [searchQuery, selectedIconData?.icons]);
 
   return (
     <div className="relative bg-white rounded-xl shadow-small p-6 flex flex-col gap-4">
@@ -279,9 +304,30 @@ const AddAppIcon = ({ handleRemoveIcon }: any) => {
                 >
                   <p>Choose Icon</p>
                 </DropdownItem>
-                {selectedIconData.icons.map((data: any) => (
+                {/* <DropdownItem closeOnSelect={false} aria-label="Static Actions">
+                  <div className="relative w-full mb-4">
+                    <CiSearch
+                      className="absolute left-4 top-1/2 -translate-y-[50%] font-bold text-gray-600"
+                      size={18}
+                    />
+                    <input
+                      type="text"
+                      placeholder="Search by name"
+                      value={searchQuery}
+                      tabIndex={0}
+                      onClick={(e) => e.stopPropagation()}
+                      onChange={(e) => {
+                        e.stopPropagation();
+                        setSearchQuery(e.target.value);
+                      }}
+                      className="w-full border border-[#ede8e8] focus:border-[#e5e0e0] rounded-xl focus:outline-none pl-10 py-2 text-gray-700 bg-gray-100"
+                    />
+                  </div>
+                </DropdownItem> */}
+
+                {selectedIconData?.icons?.map((data: any, index: number) => (
                   <DropdownItem
-                    key={data._id}
+                    key={index}
                     onClick={() =>
                       setSelectedIcon({
                         name: data.name,
