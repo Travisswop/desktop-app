@@ -13,7 +13,7 @@ import bluePlanet from '@/public/onboard/blue-planet.svg';
 import yellowPlanet from '@/public/onboard/yellow-planet.svg';
 
 const Login: React.FC = () => {
-  const { ready, authenticated, getAccessToken } = usePrivy();
+  const { ready, authenticated } = usePrivy();
   const { logout } = useLogout();
   const router = useRouter();
   const loginInitiated = useRef(false);
@@ -39,19 +39,16 @@ const Login: React.FC = () => {
           router.push('/onboard');
           return;
         }
+        const response = await fetch(
+          `${process.env.NEXT_PUBLIC_API_URL}/api/v2/desktop/user/${email}`,
+          {
+            headers: {
+              'Content-Type': 'application/json',
+            },
+          }
+        );
 
-        const token = await getAccessToken();
-        const response = await fetch('/api/auth/verify-user', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify({
-            email,
-            userId: user.id,
-          }),
-        });
+        console.log('🚀 ~ onComplete: ~ response:', response);
 
         if (!response.ok) {
           console.log('User not found, redirecting to onboard');

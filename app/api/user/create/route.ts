@@ -33,6 +33,7 @@ export async function POST(request: NextRequest) {
       dob: data.birthdate || '',
       profilePic: data.avatar || '',
     };
+    console.log('🚀 ~ POST ~ formatData:', formatData);
 
     // Call your backend API with the sanitized data
     const response = await fetch(
@@ -45,6 +46,7 @@ export async function POST(request: NextRequest) {
         body: JSON.stringify({ ...formatData }),
       }
     );
+    console.log('🚀 ~ POST ~ response:', response);
 
     if (!response.ok) {
       const errorData = await response.json();
