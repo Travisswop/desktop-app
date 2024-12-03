@@ -62,15 +62,21 @@ const QrCodePage = async () => {
         <table className="w-full">
           <thead>
             <tr>
-              <th className="flex items-center gap-4 w-[100%] mb-3">
+              <th className="flex items-center gap-4 w-[100%] mb-6 translate-x-2">
                 <Checkbox className="bg-white py-2 px-4 rounded-full" size="sm">
                   <span className="text-gray-600">Select All</span>
                 </Checkbox>
               </th>
-              <th className="text-gray-500 w-[20%] text-start pb-1">Scans</th>
+              <th className="text-gray-400 w-[20%] text-start pb-1 font-medium">
+                Scans
+              </th>
               {/* <th className="text-gray-500 w-[20%] text-start pb-1">Url</th> */}
-              <th className="text-gray-500 w-[20%] text-start pb-1">Created</th>
-              <th className="text-gray-500 w-[20%] text-start pb-1">Action</th>
+              <th className="text-gray-400 w-[20%] text-start pb-1 font-medium">
+                Created
+              </th>
+              <th className="text-gray-400 w-[20%] text-start pb-1 font-medium">
+                Action
+              </th>
             </tr>
           </thead>
           <tbody>

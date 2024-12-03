@@ -18,7 +18,10 @@ const QrCodeLists = ({
   return (
     <>
       {data.map((item: any) => (
-        <tr key={item._id} className="w-[100%] bg-white mb-6 border-b">
+        <tr
+          key={item._id}
+          className="w-[100%] bg-white mb-6 border-b rounded-xl"
+        >
           <td className="flex items-center gap-3 w-[50%] py-3 pl-4">
             <Checkbox size="sm"></Checkbox>
             <Image
