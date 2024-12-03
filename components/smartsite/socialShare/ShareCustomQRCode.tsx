@@ -18,7 +18,7 @@ const ShareCustomQRCode = ({ url }: any) => {
       <button
         onClick={handleQRCodeShare}
         type="button"
-        className="bg-gray-200 w-9 h-9 rounded-lg hover:bg-gray-300 flex items-center justify-center"
+        className="bg-black text-white w-9 h-9 rounded-lg flex items-center justify-center"
       >
         <BsFillSendFill size={15} />
       </button>

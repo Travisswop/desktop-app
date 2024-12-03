@@ -51,7 +51,7 @@ const DeleteQRCode = ({ id, token }: { id: string; token: string }) => {
     <button
       onClick={() => handleDelete(id)}
       type="button"
-      className="bg-gray-200 w-9 h-9 rounded-lg hover:bg-gray-300 flex items-center justify-center"
+      className="bg-black text-white w-9 h-9 rounded-lg flex items-center justify-center"
     >
       {loading ? <Spinner size="sm" /> : <MdDeleteForever size={18} />}
     </button>

@@ -25,8 +25,8 @@ import toast from 'react-hot-toast';
 import isUrl from '@/lib/isUrl';
 import UploadImageButton from '@/components/Button/UploadImageButton';
 import AnimateButton from '@/components/ui/Button/AnimateButton';
-import { Card, CardContent } from '@/components/ui/card';
-import Link from 'next/link';
+// import { Card, CardContent } from "@/components/ui/card";
+// import Link from "next/link";
 import { Button } from '@/components/ui/button';
 
 // export const maxDuration = 60;

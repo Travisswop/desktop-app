@@ -1,11 +1,11 @@
 import messageOutline from "@/public/images/IconShop/outline-icons/light/message-outline@3x.png";
 import businessCardOutline from "@/public/images/IconShop/outline-icons/light/business-card-outline@3x.png";
 import ethereumOutline from "@/public/images/IconShop/outline-icons/light/ethereum-outline@3x.png";
-import websiteOutline from "@/public/images/IconShop/outline-icons/light/website-outline@3x.png";
+// import websiteOutline from "@/public/images/IconShop/appIconLink.png";
 import appIconMap from "@/public/images/IconShop/appIconMap@3x.png";
 import amazonIcon from "@/public/images/IconShop/amazon@3x.png";
 import appIconWebsite from "@/public/images/IconShop/appIconWebsite@3x.png";
-import locationOutline from "@/public/images/IconShop/outline-icons/light/location-outline@3x.png";
+import locationOutline from "@/public/images/IconShop/appIconMap@3x.png";
 import referralIcon from "@/public/images/IconShop/Referral.png";
 import facebookIcon from "@/public/images/IconShop/Facebook@3x.png";
 import instagramIcon from "@/public/images/IconShop/Instagram@3x.png";
@@ -111,7 +111,7 @@ export const smartsiteIcons = {
   Message: messageOutline,
   Contact: businessCardOutline,
   Swopple: ethereumOutline,
-  Website: websiteOutline,
+  Website: appIconWebsite,
   AppIconMap: appIconMap,
   AppIconAmazon: amazonIcon,
   AppIconWebsite: appIconWebsite,
