@@ -56,7 +56,7 @@ const SmartsiteIconLivePreview = ({
   // console.log("data form live", data.info.socialLarge);
   const { formData, setFormData } = useSmartsiteFormStore();
 
-  console.log("form data from live preview data", data);
+  console.log("form data from live preview data", data.info.socialLarge);
 
   const { setOn }: any = useSmallIconToggleStore();
 
@@ -228,7 +228,7 @@ const SmartsiteIconLivePreview = ({
                   </div>
                   {/* small icon display here start */}
                   {data.info.socialTop.length > 0 && (
-                    <div className="flex gap-x-4 gap-y-2 justify-center items-center flex-wrap px-16">
+                    <div className="flex gap-x-4 gap-y-2 justify-center items-center flex-wrap px-10">
                       {data.info.socialTop.map((data: any, index: number) => (
                         <button
                           key={index}
@@ -344,7 +344,7 @@ const SmartsiteIconLivePreview = ({
 
                   {/* app icon display here start */}
                   {data.info.socialLarge.length > 0 && (
-                    <div className="flex gap-x-5 gap-y-3 justify-center items-center flex-wrap px-10">
+                    <div className="grid grid-cols-3 gap-3 justify-center items-center px-3">
                       {data.info.socialLarge.map((data: any, index: number) => (
                         <div
                           className={`flex flex-col items-center gap-1 ${
@@ -380,12 +380,12 @@ const SmartsiteIconLivePreview = ({
                                 src={getAllSmartsitesIcon(data.iconName) as any}
                                 alt="icon"
                                 // style={tintStyle}
-                                className="w-[4.2rem]"
+                                className="w-[4.2rem] h-auto"
                                 quality={100}
                               />
                             )}
                           </button>
-                          <p className="text-sm">{data.name}</p>
+                          <p className="text-sm text-center">{data.name}</p>
                         </div>
                       ))}
                     </div>

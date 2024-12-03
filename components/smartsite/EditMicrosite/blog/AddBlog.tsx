@@ -306,7 +306,7 @@ const AddBlog = ({ handleRemoveIcon }: any) => {
           whiteLoading={true}
           className="bg-black text-white py-2 !border-0"
           isLoading={isLoading}
-          width={"w-52"}
+          width={"w-40"}
         >
           <LiaFileMedicalSolid size={20} />
           Create
