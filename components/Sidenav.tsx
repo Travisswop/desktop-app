@@ -39,7 +39,7 @@ export default function Sidenav() {
         <div className="flex h-20 items-center border-b px-4">
           <Link
             href="/"
-            className="flex items-center gap-2 text-4xl mx-auto font-bold tracking-widest"
+            className="flex items-center gap-2 text-4xl mx-auto font-bold tracking-widest h-20"
           >
             SWOP
           </Link>

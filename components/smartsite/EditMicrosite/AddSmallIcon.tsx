@@ -355,7 +355,7 @@ const AddSmallIcon = ({ handleRemoveIcon }: any) => {
               isLoading={isLoading}
               className="bg-black text-white py-2 !border-0"
               whiteLoading={true}
-              width={"w-52"}
+              width={"w-40"}
             >
               <LiaFileMedicalSolid size={20} />
               Create

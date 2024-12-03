@@ -46,7 +46,7 @@ const ProfileImage = memo(function ProfileImage({
           alt={name || ""}
           width={80}
           height={80}
-          className="rounded-full w-16 h-16 border p-0.5"
+          className="rounded-full w-16 h-16 border-2 p-0.5"
         />
       ) : (
         <Image
@@ -54,7 +54,7 @@ const ProfileImage = memo(function ProfileImage({
           alt={name || ""}
           width={80}
           height={80}
-          className="rounded-full w-16 h-16"
+          className="rounded-full w-16 h-16 border-2"
         />
       )}
       <Link href={"/account-settings"}>

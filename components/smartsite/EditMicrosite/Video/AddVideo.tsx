@@ -251,7 +251,7 @@ const AddVideo = ({ handleRemoveIcon }: any) => {
           className="bg-black text-white py-2 !border-0"
           whiteLoading={true}
           isLoading={isLoading}
-          width={"w-48"}
+          width={"w-40"}
         >
           <LiaFileMedicalSolid size={20} />
           Create

@@ -17,6 +17,30 @@ const MintCart = ({
   collectionId: string; // Added to pass collection ID
   templateId: string; // Added to pass template ID
 }) => {
+  const handleClick = () => {
+    const localStorageKey = "swop_desktop_cart_item_list";
+
+    // Retrieve the existing cart items from local storage
+    const existingCart = JSON.parse(localStorage.getItem(localStorageKey) || "[]");
+
+    // Ensure the value is an array
+    const updatedCart = Array.isArray(existingCart) ? existingCart : [];
+
+    // Add the current collectionId and templateId to the cart if it doesn't already exist
+    if (
+      !updatedCart.some(
+        (item: { collectionId: string; templateId: string }) =>
+          item.collectionId === collectionId && item.templateId === templateId
+      )
+    ) {
+      updatedCart.push({ collectionId, templateId });
+    }
+
+    // Update the local storage with the modified cart
+    localStorage.setItem(localStorageKey, JSON.stringify(updatedCart));
+    alert("Item added to your cart!");
+  };
+
   return (
     <div className="shadow-medium rounded-lg px-5 py-6">
       <Link href={`/mint/${collectionId}/${templateId}`} className="flex justify-center mb-3">
@@ -27,7 +51,7 @@ const MintCart = ({
         {subtitle ? (
           <p className="text-green-500 font-semibold">{subtitle}</p>
         ) : (
-          <button className="text-[#1C83E5] font-semibold">
+          <button className="text-[#1C83E5] font-semibold" onClick={handleClick}>
             Click to Claim
           </button>
         )}

@@ -42,7 +42,7 @@ const AddAppIcon = ({ handleRemoveIcon }: any) => {
   const [isLoading, setIsLoading] = useState<boolean>(false);
   // console.log("selected icon type", selectedIconType);
   // console.log("selected icon data", selectedIconData);
-  // console.log("selected icon", selectedIcon);
+  console.log("selected icon", selectedIcon);
 
   const iconData: any = newIcons[1];
   // console.log("iconData", iconData);
@@ -332,7 +332,7 @@ const AddAppIcon = ({ handleRemoveIcon }: any) => {
                 whiteLoading={true}
                 className="bg-black text-white py-2 !border-0"
                 isLoading={isLoading}
-                width={"w-52"}
+                width={"w-40"}
               >
                 <LiaFileMedicalSolid size={20} />
                 Create

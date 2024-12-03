@@ -10,7 +10,7 @@ import { TbEdit } from "react-icons/tb";
 const ParentProfileCard = () => {
   const { user, loading }: any = useUser();
 
-  console.log("user", user);
+  // console.log("user", user);
 
   return (
     <div className="flex items-start 2xl:items-center justify-between gap-6 bg-white p-6 rounded-lg">
@@ -29,7 +29,7 @@ const ParentProfileCard = () => {
           </div>
         </div>
       ) : (
-        <div className="flex items-center gap-4">
+        <div className="flex items-start gap-4">
           <div className="relative">
             {isUrl(user?.profilePic) ? (
               <Image
@@ -37,7 +37,7 @@ const ParentProfileCard = () => {
                 alt={"user image"}
                 width={80}
                 height={80}
-                className="rounded-full w-16 h-16"
+                className="rounded-full w-16 h-16 border-2"
               />
             ) : (
               <Image
@@ -45,7 +45,7 @@ const ParentProfileCard = () => {
                 alt={"user image"}
                 width={80}
                 height={80}
-                className="rounded-full w-16 h-16"
+                className="rounded-full w-16 h-16 border-2"
               />
             )}
             <Link
@@ -63,6 +63,7 @@ const ParentProfileCard = () => {
               <h1 className="text-md font-semibold">{user?.name}</h1>
             </div>
             <p className="text-muted-foreground">{user?.username}</p>
+            <p className="text-sm text-muted-foreground">{user?.ensName}</p>
             <p className="text-sm text-muted-foreground">{user?.address}</p>
           </div>
         </div>
