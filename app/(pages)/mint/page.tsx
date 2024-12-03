@@ -84,7 +84,7 @@ const MintDashboard = () => {
       } else if (!waitForToken) {
         setError(new Error("Access token is required."));
         setLoading(false);
-      }
+      } 
     };
 
     fetchData();
