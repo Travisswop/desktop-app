@@ -383,14 +383,14 @@ const AddInfoBar = ({ handleRemoveIcon, handleToggleIcon }: any) => {
             </div>
             <div>
               <p className="font-semibold text-gray-700 mb-1">Description</p>
-              <div>
-                <textarea
-                  name="description"
-                  className="w-full border border-[#ede8e8] focus:border-[#e5e0e0] rounded-xl focus:outline-none px-4 py-2 text-gray-700 bg-gray-100"
-                  placeholder="Enter description"
-                  onChange={(e) => setDescription(e.target.value)}
-                />
-              </div>
+
+              <textarea
+                name="description"
+                required
+                className="w-full border border-[#ede8e8] focus:border-[#e5e0e0] rounded-xl focus:outline-none px-4 py-2 text-gray-700 bg-gray-100"
+                placeholder="Enter description"
+                onChange={(e) => setDescription(e.target.value)}
+              />
             </div>
             <div className="flex justify-center">
               <AnimateButton
