@@ -1,33 +1,33 @@
-"use client"; // for onsubmit -> replace this with server action
-import React, { useEffect, useRef, useState } from "react";
-import Image from "next/image";
+'use client'; // for onsubmit -> replace this with server action
+import React, { useEffect, useRef, useState } from 'react';
+import Image from 'next/image';
 // import UploadImageButton from "@/components/SignUp/UploadImageButton";
-import uploadImgIcon from "@/public/images/upload_image_icon.svg";
-import { FiUser } from "react-icons/fi";
-import { FaRegUserCircle } from "react-icons/fa";
-import { MdOutlineEmail } from "react-icons/md";
-import { SlCalender } from "react-icons/sl";
-import SelectAvatorModal from "@/components/modal/SelectAvatorModal";
-import { Spinner, useDisclosure } from "@nextui-org/react";
+import uploadImgIcon from '@/public/images/upload_image_icon.svg';
+import { FiUser } from 'react-icons/fi';
+import { FaRegUserCircle } from 'react-icons/fa';
+import { MdOutlineEmail } from 'react-icons/md';
+import { SlCalender } from 'react-icons/sl';
+import SelectAvatorModal from '@/components/modal/SelectAvatorModal';
+import { Spinner, useDisclosure } from '@nextui-org/react';
 // import { sendCloudinaryImage } from "@/util/SendCloudineryImage";
-import { PhoneInput } from "react-international-phone";
-import "react-international-phone/style.css";
-import ProfileLoading from "@/components/loading/ProfileLoading";
-import GooglePlacesAutocomplete from "react-google-places-autocomplete";
-import "react-datepicker/dist/react-datepicker.css";
-import { format, parse } from "date-fns";
+import { PhoneInput } from 'react-international-phone';
+import 'react-international-phone/style.css';
+import ProfileLoading from '@/components/loading/ProfileLoading';
+import GooglePlacesAutocomplete from 'react-google-places-autocomplete';
+import 'react-datepicker/dist/react-datepicker.css';
+import { format, parse } from 'date-fns';
 // import { toast } from "react-toastify";
 // import isUrl from "@/util/isUrl";
-import { updateUserProfile } from "@/actions/updateUserProfile";
-import { useRouter } from "next/navigation";
-import { sendCloudinaryImage } from "@/lib/SendCloudineryImage";
-import toast from "react-hot-toast";
-import isUrl from "@/lib/isUrl";
-import UploadImageButton from "@/components/Button/UploadImageButton";
-import AnimateButton from "@/components/ui/Button/AnimateButton";
-import { Card, CardContent } from "@/components/ui/card";
-import Link from "next/link";
-import { Button } from "@/components/ui/button";
+import { updateUserProfile } from '@/actions/updateUserProfile';
+import { useRouter } from 'next/navigation';
+import { sendCloudinaryImage } from '@/lib/SendCloudineryImage';
+import toast from 'react-hot-toast';
+import isUrl from '@/lib/isUrl';
+import UploadImageButton from '@/components/Button/UploadImageButton';
+import AnimateButton from '@/components/ui/Button/AnimateButton';
+import { Card, CardContent } from '@/components/ui/card';
+import Link from 'next/link';
+import { Button } from '@/components/ui/button';
 
 // export const maxDuration = 60;
 
@@ -37,14 +37,14 @@ const UpdateProfile = ({ data, token, switchToTab }: any) => {
 
   const [selectedImage, setSelectedImage] = useState(null);
   const [galleryImage, setGalleryImage] = useState(null);
-  const [uploadedImageUrl, setUploadedImageUrl] = useState("");
+  const [uploadedImageUrl, setUploadedImageUrl] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
 
   const [loading, setLoading] = useState(false);
   const [submitLoading, setSubmitLoading] = useState(false);
   const [value, setValue] = useState<any>(null);
-  const [phone, setPhone] = useState("");
-  const [selectedCountryCode, setSelectedCountryCode] = useState("");
+  const [phone, setPhone] = useState('');
+  const [selectedCountryCode, setSelectedCountryCode] = useState('');
   const [dobDate, setDobDate] = useState<any>(new Date().getTime());
 
   const { isOpen, onOpen, onOpenChange } = useDisclosure();
@@ -55,50 +55,50 @@ const UpdateProfile = ({ data, token, switchToTab }: any) => {
   const router = useRouter();
 
   const handleGoToSubscriptions = () => {
-    switchToTab("subscriptions"); // Change to the Subscriptions tab
+    switchToTab('subscriptions'); // Change to the Subscriptions tab
   };
 
   const images = [
-    "1",
-    "2",
-    "3",
-    "4",
-    "5",
-    "6",
-    "7",
-    "8",
-    "9",
-    "10",
-    "11",
-    "12",
-    "13",
-    "14",
-    "15",
-    "16",
-    "17",
-    "18",
-    "19",
-    "20",
-    "21",
-    "22",
-    "23",
-    "24",
-    "25",
-    "26",
-    "27",
-    "28",
-    "29",
-    "30",
-    "31",
-    "32",
-    "33",
-    "34",
-    "35",
-    "36",
-    "37",
-    "38",
-    "39",
-    "40",
+    '1',
+    '2',
+    '3',
+    '4',
+    '5',
+    '6',
+    '7',
+    '8',
+    '9',
+    '10',
+    '11',
+    '12',
+    '13',
+    '14',
+    '15',
+    '16',
+    '17',
+    '18',
+    '19',
+    '20',
+    '21',
+    '22',
+    '23',
+    '24',
+    '25',
+    '26',
+    '27',
+    '28',
+    '29',
+    '30',
+    '31',
+    '32',
+    '33',
+    '34',
+    '35',
+    '36',
+    '37',
+    '38',
+    '39',
+    '40',
   ];
 
   useEffect(() => {
@@ -110,7 +110,7 @@ const UpdateProfile = ({ data, token, switchToTab }: any) => {
           setSelectedImage(null);
         })
         .catch((err) => {
-          console.error("Error uploading image:", err);
+          console.error('Error uploading image:', err);
         });
     }
   }, [galleryImage]);
@@ -119,33 +119,35 @@ const UpdateProfile = ({ data, token, switchToTab }: any) => {
     setSubmitLoading(true);
     e.preventDefault();
     const formData = new FormData(e.currentTarget);
-    const mobileNumber: any = formData.get("mobileNo");
+    const mobileNumber: any = formData.get('mobileNo');
     const userInfo = {
       _id: data.data._id,
-      name: formData.get("name"),
-      mobileNo: phone || "",
-      address: value?.label || "",
-      bio: formData.get("bio"),
+      name: formData.get('name'),
+      mobileNo: phone || '',
+      address: value?.label || '',
+      bio: formData.get('bio'),
       dob: dobDate,
-      profilePic: selectedImage || uploadedImageUrl || data.data.profilePic,
-      countryCode: mobileNumber?.split(" ")[0] || data.data.countryCode || "+1",
-      countryFlag: selectedCountryCode || "us",
-      apt: "N/A",
+      profilePic:
+        selectedImage || uploadedImageUrl || data.data.profilePic,
+      countryCode:
+        mobileNumber?.split(' ')[0] || data.data.countryCode || '+1',
+      countryFlag: selectedCountryCode || 'us',
+      apt: 'N/A',
     };
 
     // console.log("user info", userInfo);
 
     try {
       const data = await updateUserProfile(userInfo, token);
-      console.log("update result", data);
+      console.log('update result', data);
 
-      if (data.state === "success") {
-        router.push("/");
-        toast.success("Profile updated");
+      if (data.state === 'success') {
+        router.push('/');
+        toast.success('Profile updated');
       }
     } catch (error) {
-      toast.error("something went wrong!");
-      console.error("error from hola", error);
+      toast.error('something went wrong!');
+      console.error('error from hola', error);
       setSubmitLoading(false);
     } finally {
       setSubmitLoading(false);
@@ -206,8 +208,11 @@ const UpdateProfile = ({ data, token, switchToTab }: any) => {
         value: {
           description: data.data.address,
           structured_formatting: {
-            main_text: data.data.address.split(",")[0],
-            secondary_text: data.data.address.split(",").slice(1).join(", "),
+            main_text: data.data.address.split(',')[0],
+            secondary_text: data.data.address
+              .split(',')
+              .slice(1)
+              .join(', '),
           },
         },
       });
@@ -217,7 +222,7 @@ const UpdateProfile = ({ data, token, switchToTab }: any) => {
 
   const handleChange = (e: any) => {
     const { value } = e.target;
-    const parsedDate = parse(value, "yyyy-MM-dd", new Date());
+    const parsedDate = parse(value, 'yyyy-MM-dd', new Date());
     const timestamp = parsedDate.getTime(); // Get Unix timestamp (milliseconds)
     setDobDate(timestamp);
   };
@@ -230,8 +235,8 @@ const UpdateProfile = ({ data, token, switchToTab }: any) => {
             <div className="flex-1 flex flex-col gap-y-4 items-start">
               <h1 className="text-xl font-bold">Parent Profile</h1>
               <p className="text-sm text-gray-600 text-start">
-                This is your account profile used to <br /> manage the Swop
-                ecosystem
+                This is your account profile used to <br /> manage the
+                Swop ecosystem
               </p>
               <div className="w-48 h-48 overflow-hidden rounded-full border-2 border-[#8A2BE2] border-opacity-20 relative">
                 <div className="bg-white">
@@ -291,12 +296,17 @@ const UpdateProfile = ({ data, token, switchToTab }: any) => {
               </div>
             ) : (
               <div className="flex-1 lg:flex-[1.5] xl:flex-[2]">
-                <h6 className="font-semibold mb-4 text-lg">Parent Profile</h6>
+                <h6 className="font-semibold mb-4 text-lg">
+                  Parent Profile
+                </h6>
                 {/* <p>country code: {countryCode}</p> */}
                 <div className="grid grid-cols-2 gap-y-6 gap-x-10">
                   <div className="">
                     <label htmlFor="fullName" className="mb-2 block">
-                      Name<span className="text-red-500 font-bold">*</span>
+                      Name
+                      <span className="text-red-500 font-bold">
+                        *
+                      </span>
                     </label>
                     <div className="relative">
                       <FiUser
@@ -338,7 +348,7 @@ const UpdateProfile = ({ data, token, switchToTab }: any) => {
                       Phone Number
                     </label>
                     {loading ? (
-                      "loading..."
+                      'loading...'
                     ) : (
                       <PhoneInput
                         defaultCountry={data.data.countryFlag.toLowerCase()}
@@ -347,7 +357,9 @@ const UpdateProfile = ({ data, token, switchToTab }: any) => {
                         name="mobileNo"
                         onChange={(phone, country) => {
                           setPhone(phone);
-                          setSelectedCountryCode(country.country.iso2); // Update the selected country code
+                          setSelectedCountryCode(
+                            country.country.iso2
+                          ); // Update the selected country code
                         }}
                         className="w-full"
                       />
@@ -355,7 +367,10 @@ const UpdateProfile = ({ data, token, switchToTab }: any) => {
                   </div>
                   <div className="">
                     <label htmlFor="email" className="mb-2 block">
-                      Email<span className="text-red-500 font-bold">*</span>
+                      Email
+                      <span className="text-red-500 font-bold">
+                        *
+                      </span>
                     </label>
                     <div className="relative">
                       <MdOutlineEmail
@@ -376,9 +391,14 @@ const UpdateProfile = ({ data, token, switchToTab }: any) => {
                   <div className="">
                     <label htmlFor="birthDate" className="mb-2 block">
                       Birth Date
-                      <span className="text-red-500 font-bold">*</span>
+                      <span className="text-red-500 font-bold">
+                        *
+                      </span>
                     </label>
-                    <div className="relative" onClick={handleDateIconClick}>
+                    <div
+                      className="relative"
+                      onClick={handleDateIconClick}
+                    >
                       <button type="button">
                         <SlCalender
                           className="absolute left-4 top-1/2 -translate-y-[50%] font-bold text-gray-600"
@@ -391,7 +411,7 @@ const UpdateProfile = ({ data, token, switchToTab }: any) => {
                         ref={dateInputRef}
                         required
                         // value={dobDate}
-                        value={format(dobDate, "yyyy-MM-dd")} // Format dobDate to 'yyyy-MM-dd'
+                        value={format(dobDate, 'yyyy-MM-dd')} // Format dobDate to 'yyyy-MM-dd'
                         // onChange={(e) =>
                         //   setDobDate(
                         //     format(new Date(e.target.value), "yyyy-MM-dd")
@@ -413,7 +433,7 @@ const UpdateProfile = ({ data, token, switchToTab }: any) => {
                       selectProps={{
                         value,
                         onChange: setValue as any,
-                        placeholder: "Enter address",
+                        placeholder: 'Enter address',
                       }}
                     />
                   </div>
@@ -446,9 +466,11 @@ const UpdateProfile = ({ data, token, switchToTab }: any) => {
         <hr />
         <div className="border-none mt-6">
           <div className="">
-            <h3 className="text-lg font-semibold mb-2">Delete my account</h3>
+            <h3 className="text-lg font-semibold mb-2">
+              Delete my account
+            </h3>
             <p className="text-sm text-muted-foreground mb-2">
-              Do you want to downgrade instead?{" "}
+              Do you want to downgrade instead?{' '}
               <button
                 onClick={handleGoToSubscriptions}
                 className="text-gray-700 underline underline-offset-4 font-medium"

@@ -19,6 +19,7 @@ const Login: React.FC = () => {
   const loginInitiated = useRef(false);
   const [isLoading, setIsLoading] = useState(false);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
+  const [isRedirecting, setIsRedirecting] = useState(false);
 
   const { login } = useLogin({
     onComplete: async (user) => {
@@ -57,6 +58,7 @@ const Login: React.FC = () => {
         }
 
         console.log('User found, redirecting to home');
+        setIsRedirecting(true);
         router.push('/');
       } catch (error) {
         console.error('Error verifying user:', error);
@@ -108,7 +110,7 @@ const Login: React.FC = () => {
     }
   };
 
-  if (!ready || isLoggingOut) {
+  if (!ready || isLoggingOut || isRedirecting) {
     return <Loader />;
   }
 

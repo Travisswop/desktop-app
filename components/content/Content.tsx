@@ -169,7 +169,7 @@ export default function ContentInfo({
   return (
     <div className="">
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-        <Card className="bg-red-50">
+        <Card className="">
           <CardContent className="p-4">
             <p className="text-sm text-gray-600">
               Total audio streams
@@ -177,13 +177,13 @@ export default function ContentInfo({
             <p className="text-2xl font-bold">{totalAudioStreams}</p>
           </CardContent>
         </Card>
-        <Card className="bg-red-50">
+        <Card className="">
           <CardContent className="p-4">
             <p className="text-sm text-gray-600">Total video views</p>
             <p className="text-2xl font-bold">{totalVideoViews}</p>
           </CardContent>
         </Card>
-        <Card className="bg-red-50">
+        <Card className="">
           <CardContent className="p-4">
             <p className="text-sm text-gray-600">
               Total video watch time (min)
