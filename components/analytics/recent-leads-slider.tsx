@@ -74,7 +74,7 @@ export default function RecentLeadsSlider({
         <CarouselContent>
           {formattedLeads.map((lead) => (
             <CarouselItem key={lead.id}>
-              <Card>
+              <Card className="mx-8">
                 <CardContent className="p-6">
                   <div className="mb-4">
                     <h3 className="text-lg font-semibold">{lead.name}</h3>
@@ -123,8 +123,8 @@ export default function RecentLeadsSlider({
             </CarouselItem>
           ))}
         </CarouselContent>
-        <CarouselPrevious className="absolute left-0 -translate-x-1/2" />
-        <CarouselNext className="absolute right-0 translate-x-1/2" />
+        <CarouselPrevious className="absolute left-3 -translate-x-1/2" />
+        <CarouselNext className="absolute right-3 translate-x-1/2" />
       </Carousel>
 
       <div className="flex justify-center gap-2 mt-4">

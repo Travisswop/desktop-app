@@ -60,7 +60,6 @@ const orders: Order[] = [
     date: '1/4/2022',
     status: 'complete',
   },
-  // Add more orders as needed
 ];
 
 export default function OrderDashboard() {
@@ -68,63 +67,53 @@ export default function OrderDashboard() {
     <div className="space-y-6">
       <div className="grid grid-cols-5 gap-6">
         {/* Total Order Card */}
-        <Card className=" col-span-1 border-none rounded-xl">
-          <CardHeader>
-            <CardTitle className="text-lg font-medium">
+        <Card className="flex items-center justify-center col-span-1 border-none rounded-xl">
+          <CardContent className="flex flex-col items-center justify-center h-full">
+            <CardTitle className="text-lg font-medium text-center">
               Total Order
             </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-5xl font-bold text-green-500">
+            <div className="text-5xl font-bold text-green-500 text-center">
               1827
             </div>
           </CardContent>
         </Card>
 
         {/* Payments Card */}
-        <Card className=" col-span-4 border-none rounded-xl">
-          <CardHeader>
-            <CardTitle className="text-lg font-medium">
-              Payments
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <div className="text-sm text-muted-foreground">
-                  Total Mints:
+        <Card className="col-span-4 border-none rounded-xl">
+          <CardContent className="p-6">
+            <div className="p-4 border rounded-lg border-gray-300">
+              <div className="text-lg font-medium mb-4">Payments</div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="text-center">
+                    <div className="text-sm font-medium text-muted-foreground">Total Mints</div>
+                    <div className="text-3xl font-bold text-green-500">1827</div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-sm font-medium text-muted-foreground">Total Revenue</div>
+                    <div className="text-3xl font-bold">$1002.33</div>
+                  </div>
                 </div>
-                <div className="text-green-500">1827</div>
-              </div>
-              <div>
-                <div className="text-sm text-muted-foreground">
-                  Total Revenue:
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="text-center">
+                    <div className="text-sm font-medium text-muted-foreground">$ in Escrow</div>
+                    <div className="text-3xl font-bold text-blue-500">$200.34</div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-sm font-medium text-muted-foreground">Open Orders</div>
+                    <div className="text-3xl font-bold">10</div>
+                  </div>
                 </div>
-                <div>$1002.33</div>
-              </div>
-              <div>
-                <div className="text-sm text-muted-foreground">
-                  $ in Escrow:
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="text-center">
+                    <div className="text-sm font-medium text-muted-foreground">Closed Orders</div>
+                    <div className="text-3xl font-bold">20</div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-sm font-medium text-muted-foreground">Disputes</div>
+                    <div className="text-3xl font-bold">0</div>
+                  </div>
                 </div>
-                <div className="text-blue-500">$200.34</div>
-              </div>
-              <div>
-                <div className="text-sm text-muted-foreground">
-                  Open Orders:
-                </div>
-                <div>10</div>
-              </div>
-              <div>
-                <div className="text-sm text-muted-foreground">
-                  Closed Orders:
-                </div>
-                <div>20</div>
-              </div>
-              <div>
-                <div className="text-sm text-muted-foreground">
-                  Disputes:
-                </div>
-                <div>0</div>
               </div>
             </div>
           </CardContent>
@@ -146,9 +135,7 @@ export default function OrderDashboard() {
               </TabsList>
             </Tabs>
             <div className="flex items-center gap-2">
-              <span className="text-sm text-muted-foreground">
-                Filter
-              </span>
+              <span className="text-sm text-muted-foreground">Filter</span>
               <Select>
                 <SelectTrigger className="w-24">
                   <SelectValue placeholder="Date" />
@@ -188,11 +175,7 @@ export default function OrderDashboard() {
               {orders.map((order) => (
                 <TableRow key={order.id}>
                   <TableCell className="font-medium">
-                    <Link href={`/order/${order.id}`}>
-                      {' '}
-                      {/* Wrap with Link */}
-                      {order.id}
-                    </Link>
+                    <Link href={`/order/${order.id}`}>{order.id}</Link>
                   </TableCell>
                   <TableCell>
                     <div className="flex items-center gap-2">

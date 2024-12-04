@@ -40,7 +40,7 @@ const ViewBlog = ({ iconDataObj, isOn, setOff }: any) => {
         >
           <div
             ref={modalRef}
-            className="modal-content max-h-full w-96 md:w-[46rem] bg-white relative rounded-xl overflow-visible"
+            className="modal-content h-[94vh] overflow-auto w-96 md:w-[46rem] bg-white relative rounded-xl hide-scrollbar"
           >
             <button
               className="btn btn-sm btn-circle absolute right-4 top-[12px]"
@@ -49,13 +49,14 @@ const ViewBlog = ({ iconDataObj, isOn, setOff }: any) => {
               <FaTimes color="gray" />
             </button>
             <div className="bg-white rounded-xl shadow-small p-7 flex flex-col gap-4">
-              <Image
-                src={iconDataObj.data.image}
-                alt="blog image"
-                width={900}
-                height={400}
-                className="w-full h-auto border border-[#F3E9FC] rounded-xl"
-              />
+              <div className="relative h-96">
+                <Image
+                  src={iconDataObj.data.image}
+                  alt="blog image"
+                  fill
+                  className="w-full h-auto border border-[#F3E9FC] rounded-xl object-cover"
+                />
+              </div>
               <div className="flex flex-col gap-2">
                 {iconDataObj.data.title && (
                   <p className="text-xl font-bold text-center">

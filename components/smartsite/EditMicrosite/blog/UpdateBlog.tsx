@@ -16,17 +16,16 @@ import Image from "next/image";
 import CustomFileInput from "@/components/CustomFileInput";
 // import { icon } from "@/util/data/smartsiteIconData";
 import { deleteBlog, updateBlog } from "@/actions/blog";
-import { useToast } from "@/hooks/use-toast";
 import { sendCloudinaryImage } from "@/lib/SendCloudineryImage";
 import AnimateButton from "@/components/ui/Button/AnimateButton";
 import { Editor } from "@tinymce/tinymce-react";
 import { Tooltip } from "@nextui-org/react";
 import toast from "react-hot-toast";
+import { useUser } from "@/lib/UserContext";
 
 const UpdateBlog = ({ iconDataObj, isOn, setOff }: any) => {
   //const sesstionState = useLoggedInUserStore((state) => state.state.user); //get session value
-  const demoToken =
-    "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJfaWQiOiI2NjM4NjMyMDIzMDQxMDMyODAyOTk4MmIiLCJpYXQiOjE3MjcxNTI4MzB9.CsHnZAgUzsfkc_g_CZZyQMXc02Ko_LhnQcCVpeCwroY";
+  const { accessToken } = useUser();
   const [value, setValue] = useState("");
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [inputError, setInputError] = useState<any>({});
@@ -114,14 +113,16 @@ const UpdateBlog = ({ iconDataObj, isOn, setOff }: any) => {
       //   console.log("contactCardInfo", contactCardInfo);
 
       try {
-        const data = await updateBlog(info, demoToken);
-        // console.log("data for update blog", data);
+        if (accessToken) {
+          const data = await updateBlog(info, accessToken);
+          // console.log("data for update blog", data);
 
-        if ((data.state = "success")) {
-          setOff();
-          toast.success("Blog updated successfully");
-        } else {
-          toast.error("Something went wrong!");
+          if ((data.state = "success")) {
+            setOff();
+            toast.success("Blog updated successfully");
+          } else {
+            toast.error("Something went wrong!");
+          }
         }
       } catch (error) {
         console.error(error);
@@ -138,13 +139,15 @@ const UpdateBlog = ({ iconDataObj, isOn, setOff }: any) => {
       micrositeId: iconDataObj.data.micrositeId,
     };
     try {
-      const data: any = await deleteBlog(submitData, demoToken);
+      if (accessToken) {
+        const data: any = await deleteBlog(submitData, accessToken);
 
-      if (data && data?.state === "success") {
-        setOff();
-        toast.success("Blog deleted successfully");
-      } else {
-        toast.error("Something went wrong!");
+        if (data && data?.state === "success") {
+          setOff();
+          toast.success("Blog deleted successfully");
+        } else {
+          toast.error("Something went wrong!");
+        }
       }
     } catch (error) {
       console.error(error);
