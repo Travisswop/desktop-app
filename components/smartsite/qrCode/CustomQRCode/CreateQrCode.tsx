@@ -268,7 +268,7 @@ const CreateQRCode = ({ session }: any) => {
         color: color,
       };
 
-      // console.log("payload", payload);
+      console.log("payload", payload);
 
       // Send the updated JSON data in a POST request
       const data: any = await postUserCustomQrCode(
@@ -276,7 +276,7 @@ const CreateQRCode = ({ session }: any) => {
         session.accessToken
       );
 
-      // console.log("create data ", data);
+      console.log("create data ", data);
 
       if (data && data.status === "success") {
         toast.success("Qr code created");

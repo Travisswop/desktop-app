@@ -23,12 +23,13 @@ const DeleteQRCode = ({ id, token }: { id: string; token: string }) => {
       try {
         setLoading(true);
         await deleteQrCode(id, token);
+
         await Swal.fire({
           title: "Deleted!",
           text: "Your qr code has been deleted.",
           icon: "success",
         });
-      } catch (error) {
+      } catch (error: any) {
         // Handle error if the delete operation fails
         await Swal.fire({
           title: "Error",
@@ -53,7 +54,11 @@ const DeleteQRCode = ({ id, token }: { id: string; token: string }) => {
       type="button"
       className="bg-black text-white w-9 h-9 rounded-lg flex items-center justify-center"
     >
-      {loading ? <Spinner size="sm" /> : <MdDeleteForever size={18} />}
+      {loading ? (
+        <Spinner size="sm" color="white" />
+      ) : (
+        <MdDeleteForever size={18} />
+      )}
     </button>
   );
 };
