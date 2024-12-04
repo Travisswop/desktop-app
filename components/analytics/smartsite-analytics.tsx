@@ -17,7 +17,7 @@ export default function SmartSiteAnalytics({
 }) {
   const stats: StatCard[] = [
     { title: 'Leads', value: leads, change: 24, period: '30 days' },
-    { title: 'Orders', value: 34, change: 3, period: '30 days' },
+    { title: 'Orders', value: 0, change: 0, period: '30 days' },
     {
       title: 'Followers',
       value: followers,
@@ -26,8 +26,8 @@ export default function SmartSiteAnalytics({
     },
     {
       title: 'Swopple Point',
-      value: 34,
-      change: -24,
+      value: 0,
+      change: 0,
       period: '30 days',
     },
   ];

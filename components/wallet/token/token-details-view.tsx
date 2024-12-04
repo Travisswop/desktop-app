@@ -283,9 +283,9 @@ export default function TokenDetails({
         <div className="grid grid-cols-2 gap-4 mb-6">
           <Button
             variant="outline"
-            className="flex items-center gap-2"
+            className="flex items-center gap-2 cursor-not-allowed"
           >
-            <Wallet className="w-4 h-4" />
+            <Wallet className="w-4 h-4 " />
             Wallet
           </Button>
           <Button

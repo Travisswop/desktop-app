@@ -61,7 +61,6 @@ export default function WalletContent() {
   const [network, setNetwork] = useState<Network>('ETHEREUM');
 
   const { authenticated, ready, user: PrivyUser } = usePrivy();
-  console.log('🚀 ~ WalletContent ~ PrivyUser:', PrivyUser);
 
   const { wallets: ethWallets } = useWallets();
   const { createWallet, wallets: solanaWallets } = useSolanaWallets();
@@ -261,12 +260,6 @@ export default function WalletContent() {
   };
 
   const handleSolanaSend = async () => {
-    console.log('Sending SOL token:', {
-      token: sendFlow.token,
-      amount: sendFlow.amount,
-      recipient: sendFlow.recipient,
-    });
-
     const solanaWallet = solanaWallets.find(
       (w: any) => w.walletClientType === 'privy'
     );
@@ -505,8 +498,6 @@ export default function WalletContent() {
     }));
   };
 
-  console.log('selectedToken', selectedToken);
-  console.log('sendFlow', sendFlow);
   return (
     <div className="">
       <ProfileHeader />

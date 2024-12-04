@@ -25,6 +25,7 @@ import { useState } from 'react';
 import SmartSiteUrlShareModal from '../smartsite/socialShare/SmartsiteShareModal';
 import { useDisclosure } from '@nextui-org/react';
 import QRCodeShareModal from '../smartsite/socialShare/QRCodeShareModal';
+
 interface Lead {
   id: string;
   name: string;
@@ -41,6 +42,7 @@ interface SmarsiteInfos {
   bio: string;
   profileUrl: string;
   qrcodeUrl: string;
+  theme: boolean;
 }
 
 export default function SmartSiteSlider({
@@ -55,11 +57,10 @@ export default function SmartSiteSlider({
     onOpenChange: onSmartsiteOpenChange,
   } = useDisclosure();
 
-  console.log('Microsites', microsites);
-
-  const [smartSiteProfileUrl, setSmartSiteProfileUrl] =
-    useState<any>(null);
-  const [qrCode, setQrCode] = useState<any>(null);
+  const [smartSiteProfileUrl, setSmartSiteProfileUrl] = useState<
+    string | null
+  >(null);
+  const [qrCode, setQrCode] = useState<string | null>(null);
 
   const handleShareMicrosite = (smartsiteUrl: string) => {
     console.log('smartsiteUrl', smartsiteUrl);
@@ -69,9 +70,9 @@ export default function SmartSiteSlider({
   };
 
   const handleShareQrCode = (qrCode: string) => {
-    onOpen();
-    setSmartSiteProfileUrl(null);
-    setQrCode(qrCode);
+    console.log('🚀 ~ handleShareQrCode ~ qrCode:', qrCode);
+    setQrCode(qrCode); // Ensure this is the correct QR code URL
+    onOpen(); // Open the modal after setting the QR code
   };
 
   return (
@@ -83,7 +84,7 @@ export default function SmartSiteSlider({
         }}
       >
         <CarouselContent className="">
-          {microsites.map((item: any) => (
+          {microsites.map((item: SmarsiteInfos) => (
             <CarouselItem key={item._id} className="">
               <Card className="bg-white border-0 ">
                 <CardHeader className="">
@@ -223,6 +224,20 @@ export default function SmartSiteSlider({
         <CarouselPrevious className="absolute left-5 -translate-x-1/2" />
         <CarouselNext className="absolute right-5 translate-x-1/2" />
       </Carousel>
+      {smartSiteProfileUrl && (
+        <SmartSiteUrlShareModal
+          isOpen={isSmartsiteOpen}
+          onOpenChange={onSmartsiteOpenChange}
+          smartSiteProfileUrl={smartSiteProfileUrl}
+        />
+      )}
+      {qrCode && (
+        <QRCodeShareModal
+          isOpen={isOpen}
+          onOpenChange={onOpenChange}
+          qrCodeUrl={qrCode}
+        />
+      )}
     </div>
   );
 }
