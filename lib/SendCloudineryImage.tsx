@@ -2,7 +2,6 @@ export const maxDuration = 60;
 export const sendCloudinaryImage = async (
   base64Image: string
 ): Promise<string> => {
-  console.log('🚀 ~ base64Image:', base64Image);
   try {
     const data = new FormData();
 

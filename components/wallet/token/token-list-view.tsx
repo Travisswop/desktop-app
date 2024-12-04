@@ -1,7 +1,7 @@
 import React from 'react';
 
 import { Card } from '@/components/ui/card';
-import { Line, LineChart, ResponsiveContainer } from 'recharts';
+import { Area, AreaChart, ResponsiveContainer } from 'recharts';
 import Image from 'next/image';
 import { TokenData } from '@/types/token';
 
@@ -16,22 +16,50 @@ export default function TokenListView({
 }: TokenCardProps) {
   const data = token.sparklineData;
 
-  const TokenSparkline = () => (
-    <ResponsiveContainer width="100%" height="100%">
-      <LineChart width={300} height={100} data={data}>
-        <Line
-          type="monotone"
-          dataKey="value"
-          stroke={token.marketData.color}
-          strokeWidth={2}
-        />
-      </LineChart>
-    </ResponsiveContainer>
-  );
+  const TokenSparkline = () => {
+    if (!data || data.length === 0) {
+      return <div className="text-gray-500">No data available</div>;
+    }
+    return (
+      <ResponsiveContainer width="100%" height="100%">
+        <AreaChart data={data}>
+          <defs>
+            <linearGradient
+              id={`gradient-${token.symbol}`}
+              x1="0"
+              y1="0"
+              x2="0"
+              y2="1"
+            >
+              <stop
+                offset="0%"
+                stopColor={token.marketData.color}
+                stopOpacity={0.2}
+              />
+              <stop
+                offset="100%"
+                stopColor={token.marketData.color}
+                stopOpacity={0}
+              />
+            </linearGradient>
+          </defs>
+          <Area
+            type="basis"
+            dataKey="value"
+            stroke={token.marketData.color}
+            strokeWidth={2}
+            fill={`url(#gradient-${token.symbol})`}
+            dot={false}
+            isAnimationActive={false}
+          />
+        </AreaChart>
+      </ResponsiveContainer>
+    );
+  };
 
   return (
     <Card
-      className="flex items-center justify-between p-4 bg-white hover:bg-gray-50 rounded-xl shadow-xl hover:shadow-3xl border-none transition-all duration-300 group cursor-pointer hover:translate-x-0.5 relative"
+      className="flex items-center justify-between p-4 bg-white hover:bg-gray-50 rounded-xl shadow-xl hover:shadow-3xl border-none transition-all duration-300 group cursor-pointer hover:translate-x-0.5 relative gap-4"
       onClick={onClick}
     >
       <div
@@ -59,7 +87,7 @@ export default function TokenListView({
           <p className="text-sm text-gray-500">{token.symbol}</p>
         </div>
       </div>
-      <div className="h-[50px]">
+      <div className="h-[60px] w-full">
         <TokenSparkline />
       </div>
       <div className="flex items-center gap-4">

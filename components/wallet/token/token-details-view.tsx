@@ -16,6 +16,7 @@ import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Wallet, Send, ArrowRightLeft } from 'lucide-react';
 import Image from 'next/image';
 import { TimeSeriesData, TokenData } from '@/types/token';
+import { Transaction } from '@/types/transaction';
 
 const CustomTooltip = ({
   active,
@@ -300,7 +301,7 @@ export default function TokenDetails({
 
         {/* History */}
         <div className="mb-6">
-          <h2 className="font-semibold mb-4">History</h2>
+          {/* <h2 className="font-semibold mb-4">History</h2>
           <div className="flex items-center justify-between py-3 border-t">
             <div className="flex items-center gap-3">
               <div className="w-8 h-8 bg-gray-100 rounded-full flex items-center justify-center">
@@ -319,7 +320,7 @@ export default function TokenDetails({
                 11,641,551 GRT
               </div>
             </div>
-          </div>
+          </div> */}
         </div>
 
         {/* Back Button */}
