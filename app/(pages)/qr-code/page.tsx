@@ -53,38 +53,12 @@ const QrCodePage = async () => {
       <div className="main-container pb-6">
         <div className="flex items-center justify-between mb-4">
           <p className="text-gray-700 font-semibold text-lg ">QR Codes</p>
-          <div className="flex gap-3 items-center justify-between">
-            <DynamicPrimaryBtn className="!rounded-full">
-              Export
-            </DynamicPrimaryBtn>
-          </div>
         </div>
-        <table className="w-full">
-          <thead>
-            <tr>
-              <th className="flex items-center gap-4 w-[100%] mb-6 translate-x-2">
-                <Checkbox className="bg-white py-2 px-4 rounded-full" size="sm">
-                  <span className="text-gray-600">Select All</span>
-                </Checkbox>
-              </th>
-              <th className="text-gray-400 w-[20%] text-start pb-1 font-medium">
-                Scans
-              </th>
-              {/* <th className="text-gray-500 w-[20%] text-start pb-1">Url</th> */}
-              <th className="text-gray-400 w-[20%] text-start pb-1 font-medium">
-                Created
-              </th>
-              <th className="text-gray-400 w-[20%] text-start pb-1 font-medium">
-                Action
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            {data.data.length > 0 && (
-              <QrCodeLists data={data?.data} accessToken={accessToken} />
-            )}
-          </tbody>
-        </table>
+        {/* <table className="w-full"> */}
+        {data.data.length > 0 && (
+          <QrCodeLists data={data?.data} accessToken={accessToken} />
+        )}
+        {/* </table> */}
         {data.data.length === 0 && (
           <div className="flex justify-center pt-10">
             <p className="font-medium mb-6 text-gray-600">
