@@ -40,7 +40,7 @@ export default function UserAccountTabSwitcher({ data, token }: any) {
             <TabsList className="w-full justify-start border-b rounded-none h-auto p-0 mb-6 bg-white">
               <TabsTrigger
                 value="profile"
-                className="rounded-none border-b-2 border-transparent data-[state=active]:border-black data-[state=active]:shadow-none"
+                className="rounded-none border-b-2 border-transparent data-[state=active]:border-black data-[state=active]:shadow-none pl-0"
               >
                 Parent Profile
               </TabsTrigger>

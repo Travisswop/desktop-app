@@ -102,51 +102,53 @@ export default function SubscriptionPlans() {
         {plans.map((plan) => (
           <Card
             key={plan.name}
-            className={`relative ${
-              plan.isPopular ? "border-purple-500 shadow-lg" : ""
+            className={`relative flex flex-col ${
+              plan.isPopular ? "border-[#593ED3] shadow-lg" : ""
             }`}
           >
             {plan.isPopular && (
-              <Badge className="absolute -top-2 right-20 bg-purple-500">
+              <Badge className="absolute -top-2 right-1/2 translate-x-1/2 bg-[#593ED3]">
                 Recommended
               </Badge>
             )}
-            <CardHeader>
-              <h3 className="text-xl font-semibold">{plan.name}</h3>
-              <p className="text-sm text-muted-foreground">
-                {plan.description}
-              </p>
-              <div className="mt-4">
-                <span className="text-3xl font-bold text-purple-600">
-                  {typeof plan.price === "number"
-                    ? `$${plan.price}`
-                    : plan.price}
-                </span>
-                {plan.interval && (
-                  <span className="text-muted-foreground ml-1">
-                    / {plan.interval}
+            <div className="h-full">
+              <CardHeader>
+                <h3 className="text-xl font-semibold">{plan.name}</h3>
+                <p className="text-sm text-muted-foreground">
+                  {plan.description}
+                </p>
+                <div className="mt-4">
+                  <span className="text-3xl font-bold text-[#593ED3]">
+                    {typeof plan.price === "number"
+                      ? `$${plan.price}`
+                      : plan.price}
                   </span>
-                )}
-              </div>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                <h4 className="font-semibold">Key Features</h4>
-                <ul className="space-y-2">
-                  {plan.features.map((feature) => (
-                    <li key={feature} className="flex items-start gap-2">
-                      <Check className="h-4 w-4 text-purple-500 mt-1 shrink-0" />
-                      <span className="text-sm">{feature}</span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            </CardContent>
+                  {plan.interval && (
+                    <span className="text-muted-foreground ml-1">
+                      / {plan.interval}
+                    </span>
+                  )}
+                </div>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  <h4 className="font-semibold">Key Features</h4>
+                  <ul className="space-y-2">
+                    {plan.features.map((feature) => (
+                      <li key={feature} className="flex items-start gap-2">
+                        <Check className="h-4 w-4 text-[#593ED3] mt-1 shrink-0" />
+                        <span className="text-sm">{feature}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              </CardContent>
+            </div>
             <CardFooter>
               <Button
                 className={`w-full ${
                   plan.isPopular
-                    ? "bg-purple-500 hover:bg-purple-600"
+                    ? "bg-[#593ED3] hover:bg-purple-600"
                     : plan.price === "Free"
                     ? "bg-black hover:bg-gray-800"
                     : "bg-black hover:bg-gray-800"
