@@ -33,12 +33,13 @@ import { sendCloudinaryImage } from "@/lib/SendCloudineryImage";
 import toast from "react-hot-toast";
 import CustomFileInput from "@/components/CustomFileInput";
 import DynamicPrimaryBtn from "@/components/ui/Button/DynamicPrimaryBtn";
+import Link from "next/link";
 
 const CreateQRCode = ({ session }: any) => {
   const [color, setColor] = useState("#000000");
   const [bgColor, setBgColor] = useState("#FFFFFF");
-  const [qrCodeShape, setqrCodeShape] = useState("round");
-  const [qrCodeFrame, setqrCodeFrame] = useState("square");
+  const [qrCodeShape, setqrCodeShape] = useState("circle");
+  const [qrCodeFrame, setqrCodeFrame] = useState("circle");
   const [selectQrCodeSocialLink, setSelectQrCodeSocialLink] =
     useState("www.swopme.co");
 
@@ -253,6 +254,9 @@ const CreateQRCode = ({ session }: any) => {
         // console.log("imageUrl", imageUrl);
 
         qrData.image = imageUrl;
+      } else {
+        qrData.image =
+          "https://res.cloudinary.com/dziyri2ge/image/upload/v1733291723/qr-logo_mwasoz_rovk45.png";
       }
 
       qrData.backgroundOptions = { color: bgColor };
@@ -334,7 +338,7 @@ const CreateQRCode = ({ session }: any) => {
   return (
     <main className="main-container overflow-hidden">
       <div className="flex gap-6 items-start">
-        <div className="w-[62%] border-r border-gray-300 pr-8 flex flex-col gap-4">
+        <div className="w-[62%] border-r border-gray-300 pr-8 flex flex-col gap-4 h-screen overflow-y-auto">
           <div className="flex items-center justify-between">
             <p className="text-lg font-bold text-gray-700">Customize QR</p>
           </div>
@@ -570,7 +574,7 @@ const CreateQRCode = ({ session }: any) => {
                         : "border-gray-200"
                     }`}
                     key={data._id}
-                    onClick={() => setqrCodeShape(data.shapeTitle)}
+                    // onClick={() => setqrCodeShape(data.shapeTitle)}
                   >
                     <Image
                       src={data.shapeUrl}
@@ -595,7 +599,7 @@ const CreateQRCode = ({ session }: any) => {
                         : "border-gray-200"
                     }`}
                     key={data._id}
-                    onClick={() => setqrCodeFrame(data.frameTitle)}
+                    // onClick={() => setqrCodeFrame(data.frameTitle)}
                   >
                     <Image
                       src={data.frameUrl}
@@ -650,29 +654,35 @@ const CreateQRCode = ({ session }: any) => {
                 <div className="border border-black p-0.5 rounded-full">
                   <MdQrCode2 className="size-3 rounded-full text-black" />
                 </div>
-                <div className="bg-black rounded-full text-white p-1 flex items-center gap-x-1 px-2 ml-2">
+                <Link
+                  href={"/account-settings?upgrade=true"}
+                  className="bg-black rounded-full text-white p-1 flex items-center gap-x-1 px-2 ml-2"
+                >
                   <MdLockOutline className="size-3" />
                   <p className="text-xs">Pro</p>
-                </div>
+                </Link>
               </div>
               <div className="flex items-center justify-between">
                 <p>I want to remove the Swop Logo:</p>
+                {/* <button disabled={true}> */}
                 <Switch
-                  defaultSelected
+                  defaultSelected={false}
+                  isDisabled
                   aria-label="Automatic updates"
                   color="primary"
                 />
+                {/* </button> */}
               </div>
             </div>
             <div>
-              <DynamicPrimaryBtn disabled={isLoading} className="mt-3 w-48">
+              <DynamicPrimaryBtn disabled={isLoading} className="mt-3 w-40">
                 {isLoading ? (
                   <Spinner className="py-0.5" size="sm" color="white" />
                 ) : (
                   <>
                     {" "}
                     <FaSave size={18} />
-                    Save Changes
+                    Create
                   </>
                 )}
               </DynamicPrimaryBtn>

@@ -25,12 +25,14 @@ import { sendCloudinaryImage } from "@/lib/SendCloudineryImage";
 import toast from "react-hot-toast";
 import CustomFileInput from "@/components/CustomFileInput";
 import DynamicPrimaryBtn from "@/components/ui/Button/DynamicPrimaryBtn";
+import colorCancel from "@/public/images/color-cancel.png";
+import Link from "next/link";
 
 const UpdateQRCode = ({ session, data }: any) => {
   const [color, setColor] = useState("#B396FF");
   const [bgColor, setBgColor] = useState("#FFFFFF");
-  const [qrCodeShape, setqrCodeShape] = useState("round");
-  const [qrCodeFrame, setqrCodeFrame] = useState("square");
+  const [qrCodeShape, setqrCodeShape] = useState("circle");
+  const [qrCodeFrame, setqrCodeFrame] = useState("circle");
   const [selectQrCodeSocialLink, setSelectQrCodeSocialLink] = useState(
     data.data
   );
@@ -360,7 +362,7 @@ const UpdateQRCode = ({ session, data }: any) => {
   return (
     <main className="main-container overflow-hidden">
       <div className="flex gap-6 items-start">
-        <div className="w-[62%] border-r border-gray-300 pr-8 flex flex-col gap-4">
+        <div className="w-[62%] border-r border-gray-300 pr-8 flex flex-col gap-4 h-screen overflow-y-auto">
           <div className="flex items-center justify-between">
             <p className="text-lg font-bold text-gray-700">Customize QR</p>
             {/* <div onClick={handleModal}>
@@ -531,6 +533,13 @@ const UpdateQRCode = ({ session, data }: any) => {
             <div>
               <p className="heading-4 mb-2">Default QR Colors: </p>
               <div className="flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={() => setColor(data.qrDotColor)}
+                  className="w-11 h-11 rounded-full"
+                >
+                  <Image src={colorCancel} alt="" />
+                </button>
                 {defaultColorArray.map((data) => (
                   <button
                     type="button"
@@ -575,6 +584,13 @@ const UpdateQRCode = ({ session, data }: any) => {
             <div>
               <p className="heading-4 mb-2">Default Background Colors: </p>
               <div className="flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={() => setBgColor(data.backgroundColor)}
+                  className="w-11 h-11 rounded-full"
+                >
+                  <Image src={colorCancel} alt="" />
+                </button>
                 {defaultBackgroundColorArray.map((data) => (
                   <button
                     type="button"
@@ -607,7 +623,7 @@ const UpdateQRCode = ({ session, data }: any) => {
                         : "border-gray-200"
                     }`}
                     key={data._id}
-                    onClick={() => setqrCodeShape(data.shapeTitle)}
+                    // onClick={() => setqrCodeShape(data.shapeTitle)}
                   >
                     <Image
                       src={data.shapeUrl}
@@ -632,7 +648,7 @@ const UpdateQRCode = ({ session, data }: any) => {
                         : "border-gray-200"
                     }`}
                     key={data._id}
-                    onClick={() => setqrCodeFrame(data.frameTitle)}
+                    // onClick={() => setqrCodeFrame(data.frameTitle)}
                   >
                     <Image
                       src={data.frameUrl}
@@ -717,15 +733,19 @@ const UpdateQRCode = ({ session, data }: any) => {
                 <div className="border border-black p-0.5 rounded-full">
                   <MdQrCode2 className="size-3 rounded-full text-black" />
                 </div>
-                <div className="bg-black rounded-full text-white p-1 flex items-center gap-x-1 px-2 ml-2">
+                <Link
+                  href={"/account-settings?upgrade=true"}
+                  className="bg-black rounded-full text-white p-1 flex items-center gap-x-1 px-2 ml-2"
+                >
                   <MdLockOutline className="size-3" />
                   <p className="text-xs">Pro</p>
-                </div>
+                </Link>
               </div>
               <div className="flex items-center justify-between">
                 <p>I want to remove the Swop Logo:</p>
                 <Switch
-                  defaultSelected
+                  isDisabled
+                  // defaultSelected
                   aria-label="Automatic updates"
                   color="primary"
                 />
