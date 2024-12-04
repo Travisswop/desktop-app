@@ -3,25 +3,25 @@
 // import DynamicPrimaryBtn from "@/components/Button/DynamicPrimaryBtn";
 // import DeleteQRCode from "@/components/DeleteQRCode";
 import QrCodeLists from "@/components/QrCodeLists";
-import DeleteQRCode from "@/components/smartsite/qrCode/DeleteQRCode";
-import ShareCustomQRCode from "@/components/smartsite/socialShare/ShareCustomQRCode";
+// import DeleteQRCode from "@/components/smartsite/qrCode/DeleteQRCode";
+// import ShareCustomQRCode from "@/components/smartsite/socialShare/ShareCustomQRCode";
 // import ShareCustomQRCode from "@/components/ShareModal/ShareCustomQRCode";
 import DynamicPrimaryBtn from "@/components/ui/Button/DynamicPrimaryBtn";
-import { getFormattedDate } from "@/components/util/getFormattedDate";
+// import { getFormattedDate } from "@/components/util/getFormattedDate";
 import { Checkbox, Switch } from "@nextui-org/react";
 import { cookies } from "next/headers";
 // import TestShare from "@/components/TestShare";
 // import { getFormattedDate } from "@/util/getFormattedDate";
 // import { Checkbox, Switch } from "@nextui-org/react";
-import Image from "next/image";
+// import Image from "next/image";
 import Link from "next/link";
 import React from "react";
-import { CiSearch } from "react-icons/ci";
-import { FiDownload } from "react-icons/fi";
+// import { CiSearch } from "react-icons/ci";
+// import { FiDownload } from "react-icons/fi";
 // import { CiSearch } from "react-icons/ci";
 import { IoQrCodeSharp } from "react-icons/io5";
 // import { MdDeleteForever } from "react-icons/md";
-import { TbEdit } from "react-icons/tb";
+// import { TbEdit } from "react-icons/tb";
 
 const QrCodePage = async () => {
   const cookieStore = cookies();
