@@ -143,12 +143,37 @@ class TokenContractService {
         console.error('Address is not a contract:', address);
         return null;
       }
+
+      // Check if the contract has the required methods before calling them
+      const balanceCall = contract.balanceOf(walletAddress);
+      const decimalsCall = contract.decimals();
+      const symbolCall = contract.symbol();
+      const nameCall = contract.name();
+
       const [balance, decimals, symbol, name] = await Promise.all([
-        contract.balanceOf(walletAddress),
-        contract.decimals(),
-        contract.symbol(),
-        contract.name(),
+        balanceCall.catch(() => null), // Handle potential errors
+        decimalsCall.catch(() => null),
+        symbolCall.catch(() => null),
+        nameCall.catch(() => null),
       ]);
+
+      if (
+        balance === null ||
+        decimals === null ||
+        symbol === null ||
+        name === null
+      ) {
+        console.error(
+          'One or more token details could not be fetched:',
+          {
+            balance,
+            decimals,
+            symbol,
+            name,
+          }
+        );
+        return null;
+      }
 
       return {
         balance: ethers.formatUnits(balance, decimals),
@@ -204,7 +229,7 @@ class SolanaService {
 
     try {
       const connection = new Connection(
-        process.env.NEXT_PUBLIC_ALCHEMY_SOLANA_URL!,
+        process.env.NEXT_PUBLIC_QUICKNODE_SOLANA_URL!,
         'confirmed'
       );
       const publicKey = new PublicKey(walletAddress);

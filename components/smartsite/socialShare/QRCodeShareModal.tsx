@@ -19,33 +19,30 @@ import {
   WhatsappIcon,
 } from 'react-share';
 import { sendCloudinaryImage } from '@/lib/SendCloudineryImage';
-// import { sendCloudinaryImage } from "@/util/SendCloudineryImage";
 
 export default function QRCodeShareModal({
   isOpen,
   onOpenChange,
   qrCodeUrl,
 }: any) {
-  // console.log("qr code url", qrCodeUrl);
-
   const [imageUrl, setImageUrl] = useState<any>(null);
   const [loading, setLoading] = useState<any>(false);
   const [error, setError] = useState<any>(null);
 
-  // console.log("imageurl", imageUrl);
-
   useEffect(() => {
     setLoading(true);
-    sendCloudinaryImage(qrCodeUrl)
-      .then((imageUrl) => {
-        setImageUrl(imageUrl);
-        setLoading(false);
-      })
-      .catch((error) => {
-        console.error('Error uploading image:', error);
-        setLoading(false);
-        setError('Something went wrong! Please try again later.');
-      });
+    if (qrCodeUrl) {
+      sendCloudinaryImage(qrCodeUrl)
+        .then((imageUrl) => {
+          setImageUrl(imageUrl);
+          setLoading(false);
+        })
+        .catch((error) => {
+          console.error('Error uploading image:', error);
+          setLoading(false);
+          setError('Something went wrong! Please try again later.');
+        });
+    }
   }, [qrCodeUrl]);
 
   return (

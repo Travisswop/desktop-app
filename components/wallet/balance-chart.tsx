@@ -93,7 +93,6 @@ export default function BalanceChart({
   onSelectAsset,
   onQRClick,
 }: WalletManagerProps) {
-  console.log('🚀 ~ totalBalance:', typeof totalBalance);
   const data = generateWalletData();
   const currentValue = data[data.length - 1].value;
   const previousValue = data[0].value;
@@ -127,6 +126,7 @@ export default function BalanceChart({
                 className={
                   totalBalance === 0 ? 'cursor-not-allowed' : ''
                 }
+                disabled={totalBalance === 0}
                 onClick={() => onSelectAsset()}
               >
                 <Rocket />
