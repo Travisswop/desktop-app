@@ -107,10 +107,7 @@ const Onboard: React.FC = () => {
   const privyUser: PrivyUser = {
     ...user,
     name: user?.google?.name || '',
-    email:
-      typeof user.email === 'string'
-        ? user.email
-        : user.email?.address || '',
+    email: email || '',
     wallet: user.wallet
       ? {
           address: user.wallet.address,

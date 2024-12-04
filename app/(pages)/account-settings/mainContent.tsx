@@ -28,6 +28,17 @@ import AnimateButton from '@/components/ui/Button/AnimateButton';
 // import { Card, CardContent } from "@/components/ui/card";
 // import Link from "next/link";
 import { Button } from '@/components/ui/button';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog';
 
 // export const maxDuration = 60;
 
@@ -39,6 +50,7 @@ const UpdateProfile = ({ data, token, switchToTab }: any) => {
   const [galleryImage, setGalleryImage] = useState(null);
   const [uploadedImageUrl, setUploadedImageUrl] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const [loading, setLoading] = useState(false);
   const [submitLoading, setSubmitLoading] = useState(false);
@@ -56,6 +68,37 @@ const UpdateProfile = ({ data, token, switchToTab }: any) => {
 
   const handleGoToSubscriptions = () => {
     switchToTab('subscriptions'); // Change to the Subscriptions tab
+  };
+
+  const handleDeleteAccount = async () => {
+    setIsDeleting(true);
+    try {
+      const response = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL}/api/v2/desktop/user/delete`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            email: data.data.email,
+            id: data.data._id,
+          }),
+        }
+      );
+
+      if (response.ok) {
+        toast.success('Account deletion request sent');
+        router.push('/login');
+      } else {
+        toast.error('Failed to request account deletion');
+      }
+    } catch (error) {
+      console.error('Error requesting account deletion:', error);
+      toast.error('Something went wrong!');
+    } finally {
+      setIsDeleting(false);
+    }
   };
 
   const images = [
@@ -219,13 +262,6 @@ const UpdateProfile = ({ data, token, switchToTab }: any) => {
     }
   }, [data.data.address]);
   // console.log("phone", phone);
-
-  const handleChange = (e: any) => {
-    const { value } = e.target;
-    const parsedDate = parse(value, 'yyyy-MM-dd', new Date());
-    const timestamp = parsedDate.getTime(); // Get Unix timestamp (milliseconds)
-    setDobDate(timestamp);
-  };
 
   return (
     <section className="bg-white w-full h-full flex items-center justify-center">
@@ -410,14 +446,18 @@ const UpdateProfile = ({ data, token, switchToTab }: any) => {
                         id="birthDate"
                         ref={dateInputRef}
                         required
-                        // value={dobDate}
-                        value={format(dobDate, 'yyyy-MM-dd')} // Format dobDate to 'yyyy-MM-dd'
-                        // onChange={(e) =>
-                        //   setDobDate(
-                        //     format(new Date(e.target.value), "yyyy-MM-dd")
-                        //   )
-                        // }
-                        onChange={handleChange}
+                        value={
+                          dobDate
+                            ? new Date(dobDate)
+                                .toISOString()
+                                .split('T')[0]
+                            : ''
+                        }
+                        onChange={(e) =>
+                          setDobDate(
+                            new Date(e.target.value).getTime()
+                          )
+                        }
                         placeholder="Enter birth date"
                         className="w-full border appearance-none pr-2 border-[#ede8e8] focus:border-[#e5e0e0] rounded-xl focus:outline-none pl-10 py-2 text-gray-700 bg-gray-100"
                       />
@@ -429,7 +469,10 @@ const UpdateProfile = ({ data, token, switchToTab }: any) => {
                     </label>
 
                     <GooglePlacesAutocomplete
-                      apiKey="AIzaSyDaERPmsWGDCk2MrKXsqkMfPkSu614Simk"
+                      apiKey={
+                        process.env
+                          .NEXT_PUBLIC_GOOGLE_PLACES_API_KEY || ''
+                      }
                       selectProps={{
                         value,
                         onChange: setValue as any,
@@ -478,9 +521,35 @@ const UpdateProfile = ({ data, token, switchToTab }: any) => {
                 Manage Subscriptions
               </button>
             </p>
-            <Button disabled variant="destructive">
-              Delete my account
-            </Button>
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button variant="destructive" disabled={isDeleting}>
+                  {isDeleting ? (
+                    <Spinner size="sm" color="white" />
+                  ) : (
+                    'Delete my account'
+                  )}
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>
+                    Are you absolutely sure?
+                  </AlertDialogTitle>
+                  <AlertDialogDescription>
+                    This action cannot be undone. This will
+                    permanently delete your account and remove your
+                    data from our servers.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                  <AlertDialogAction onClick={handleDeleteAccount}>
+                    Continue
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
           </div>
         </div>
       </div>
