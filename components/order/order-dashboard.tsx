@@ -221,7 +221,7 @@ export default function OrderDashboard() {
               <TableRow>
                 <TableHead>Order No</TableHead>
                 <TableHead>Customer</TableHead>
-                <TableHead>Product</TableHead>
+                {/* <TableHead>Product</TableHead> */}
                 <TableHead>Price</TableHead>
                 <TableHead>Order Date</TableHead>
                 <TableHead>Delivery Status</TableHead>
@@ -245,7 +245,7 @@ export default function OrderDashboard() {
                       {order.customer.name}
                     </div>
                   </TableCell>
-                  <TableCell>{order.product}</TableCell>
+                  {/* <TableCell>{order.product}</TableCell> */}
                   <TableCell>${order.price.toFixed(2)}</TableCell>
                   <TableCell>{order.date}</TableCell>
                   <TableCell>
