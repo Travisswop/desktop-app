@@ -9,6 +9,7 @@ import React, {
 import { Client } from '@xmtp/xmtp-js';
 import { useWallets } from '@privy-io/react-auth';
 import { usePrivyUser } from '@/lib/hooks/usePrivyUser';
+import { usePathname } from 'next/navigation';
 
 const XmtpContext = createContext<Client | null>(null);
 
@@ -16,13 +17,18 @@ export const XmtpProvider: React.FC<{
   children: React.ReactNode;
 }> = ({ children }) => {
   const { wallets } = useWallets();
-  console.log('🚀 ~ wallets:', wallets);
   const { user } = usePrivyUser();
-  console.log('🚀 ~ user:', user);
   const [xmtpClient, setXmtpClient] = useState<Client | null>(null);
+  const pathname = usePathname();
 
   useEffect(() => {
     const initXmtp = async () => {
+      // Don't initialize if on login or onboard pages
+      if (pathname === '/login' || pathname === '/onboard') {
+        setXmtpClient(null);
+        return;
+      }
+
       if (!wallets?.length || !user?.linkedAccounts?.length) {
         setXmtpClient(null);
         return;
@@ -68,7 +74,7 @@ export const XmtpProvider: React.FC<{
     };
 
     initXmtp();
-  }, [wallets, user]);
+  }, [wallets, user, pathname]);
 
   return (
     <XmtpContext.Provider value={xmtpClient}>

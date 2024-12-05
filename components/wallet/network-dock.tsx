@@ -59,7 +59,7 @@ export default function NetworkDock({
   setNetwork,
 }: NetworkProps) {
   const [selectedApp, setSelectedApp] = useState<string>(network);
-  console.log('network', network);
+
   const handleChange = (value: Network) => {
     setSelectedApp(value);
     setNetwork(value);

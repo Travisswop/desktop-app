@@ -48,7 +48,6 @@ async function fetchPeerData(
 }
 
 export const usePeerData = (peerAddressList: string[]) => {
-  console.log('🚀 ~ usePeerData ~ peerAddressList:', peerAddressList);
   const { data, isLoading, error } = useQuery({
     queryKey: ['peerData', peerAddressList],
     queryFn: () => fetchPeerData(peerAddressList),
