@@ -84,11 +84,29 @@ const MintDashboard = () => {
       } else if (!waitForToken) {
         setError(new Error("Access token is required."));
         setLoading(false);
-      } 
+      }
     };
 
     fetchData();
   }, [accessToken, waitForToken]);
+
+  const handleCheckout = () => {
+    const itemsString = localStorage.getItem("swop_desktop_cart_item_list");
+    if (!itemsString) {
+      alert("No items in the cart.");
+      return;
+    }
+
+    try {
+      const items = JSON.parse(itemsString);
+      const encodedItems = encodeURIComponent(JSON.stringify(items));
+      const url = `http://localhost:3001/GetClient?items=${encodedItems}`;
+      window.location.href = url;
+    } catch (err) {
+      console.error("Error parsing cart items:", err);
+      alert("Failed to process cart items.");
+    }
+  };
 
   if (loading) {
     return <HomePageLoading />;
@@ -121,9 +139,17 @@ const MintDashboard = () => {
           Array.isArray(mintData.data) &&
           mintData.data.map((group) => (
             <div key={group.collection.id}>
-              <h2 className="text-2xl font-bold mb-4">
-                {group.collection.metadata.name}
-              </h2>
+              <div className="flex items-center justify-between">
+                <h2 className="text-2xl font-bold mb-4">
+                  {group.collection.metadata.name}
+                </h2>
+                <button
+                  onClick={handleCheckout}
+                  className="ml-4 bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600"
+                >
+                  Go for Checkout
+                </button>
+              </div>
               {nftTypes.map((nftType) => (
                 <div key={nftType}>
                   <h3 className="text-xl font-semibold mb-2">
@@ -145,9 +171,9 @@ const MintDashboard = () => {
                     <div
                       className="min-h-[360px] min-w-[365px] h-full w-full"
                       onClick={() =>
-                        window.location.href = `/mint/create${capitalizeFirstLetter(
+                        (window.location.href = `/mint/create${capitalizeFirstLetter(
                           nftType
-                        )}`
+                        )}`)
                       }
                     >
                       <SaveToLocalAndNavigate

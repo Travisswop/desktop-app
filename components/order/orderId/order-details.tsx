@@ -21,7 +21,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import Image from 'next/image';
-import { useUser } from "@/lib/UserContext";
+import { useUser } from '@/lib/UserContext';
 
 // TypeScript Interfaces
 
@@ -38,6 +38,9 @@ interface MintedNFT {
   _id: string;
   templateId: string;
   mintResult: MintResult;
+  name?: string; // Product name fetched from API
+  price?: number; // Product price fetched from API
+  image?: string; // Product image fetched from API
 }
 
 interface OrderData {
@@ -83,7 +86,7 @@ export default function OrderPage() {
       return;
     }
 
-    const fetchOrder = async () => {
+    const fetchOrderDetails = async () => {
       setIsLoading(true);
       setIsError(null);
 
@@ -93,35 +96,68 @@ export default function OrderPage() {
           throw new Error('API base URL is not defined.');
         }
 
-        const fetchUrl = `${API_URL}/api/v1/desktop/nft/orders/${orderId}`;
-        console.log('Fetching URL:', fetchUrl);
+        // Fetch order details
+        const orderResponse = await fetch(
+          `${API_URL}/api/v1/desktop/nft/orders/${orderId}`,
+          {
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${accessToken}`,
+            },
+          }
+        );
 
-        const response = await fetch(fetchUrl, {
-          method: 'GET',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${accessToken}`,
-          },
+        if (!orderResponse.ok) {
+          const errorData = await orderResponse.json();
+          throw new Error(errorData.message || 'Failed to fetch order data.');
+        }
+
+        const orderData = await orderResponse.json();
+        if (orderData.state !== 'success') {
+          throw new Error(orderData.message || 'Failed to fetch order data.');
+        }
+
+        const order = orderData.data;
+
+        // Fetch template details for minted NFTs
+        const templates = await Promise.all(
+          order.mintedNfts.map(async (nft: MintedNFT) => {
+            const templateResponse = await fetch(
+              `${API_URL}/api/v1/desktop/nft/getTemplateDetails?collectionId=${order.collectionId}&templateId=${nft.templateId}`,
+              {
+                headers: {
+                  'Content-Type': 'application/json',
+                  Authorization: `Bearer ${accessToken}`,
+                },
+              }
+            );
+
+            if (!templateResponse.ok) {
+              console.warn(`Failed to fetch details for Template ID: ${nft.templateId}`);
+              return { ...nft }; // Return the original NFT if fetching fails
+            }
+
+            const templateData = await templateResponse.json();
+            if (templateData.state !== 'success') {
+              console.warn(`Failed to fetch details for Template ID: ${nft.templateId}`);
+              return { ...nft }; // Return the original NFT if fetching fails
+            }
+
+            const { name, image, price } = templateData.data.template.metadata;
+            return {
+              ...nft,
+              name,
+              image,
+              price: templateData.data.template.price,
+            };
+          })
+        );
+
+        // Replace minted NFTs with enriched data
+        setOrder({
+          ...order,
+          mintedNfts: templates,
         });
-
-        console.log('Response Status:', response.status);
-
-        if (!response.ok) {
-          const errorData = await response.json();
-          console.error('Error Data:', errorData);
-          throw new Error(
-            errorData.message || 'Failed to fetch order data.'
-          );
-        }
-
-        const data = await response.json();
-        console.log('Fetched Data:', data);
-
-        if (data.state !== 'success') {
-          throw new Error(data.message || 'Failed to fetch order data.');
-        }
-
-        setOrder(data.data);
       } catch (error: any) {
         console.error('Fetch Error:', error);
         setIsError(error.message || 'An unexpected error occurred.');
@@ -130,7 +166,7 @@ export default function OrderPage() {
       }
     };
 
-    fetchOrder();
+    fetchOrderDetails();
   }, [orderId, accessToken]);
 
   if (isLoading) {
@@ -163,7 +199,7 @@ export default function OrderPage() {
         {/* Header Section */}
         <div className="flex items-start justify-between mb-6">
           <div className="flex flex-col items-start gap-4">
-            <div className="w-24 h-24 relative">
+            {/* <div className="w-24 h-24 relative">
               <Image
                 src="/placeholder.svg" // Replace with dynamic image if available
                 alt="Product"
@@ -171,7 +207,7 @@ export default function OrderPage() {
                 height={96}
                 className="rounded-lg border"
               />
-            </div>
+            </div> */}
             <div>
               <h1 className="text-xl font-semibold">
                 Order #{order.orderId}
@@ -195,6 +231,7 @@ export default function OrderPage() {
             <TableHeader>
               <TableRow>
                 <TableHead>Product Name</TableHead>
+                <TableHead>Image</TableHead>
                 <TableHead className="text-center">Quantity</TableHead>
                 <TableHead className="text-right">Price</TableHead>
               </TableRow>
@@ -202,10 +239,19 @@ export default function OrderPage() {
             <TableBody>
               {order.mintedNfts.map((item) => (
                 <TableRow key={item._id} className="border-t">
-                  <TableCell>{item.templateId}</TableCell>
+                  <TableCell>{item.name || 'Unknown Product'}</TableCell>
+                  <TableCell>
+                    <Image
+                      src={item.image || '/placeholder.svg'}
+                      alt={item.name || 'Product Image'}
+                      width={50}
+                      height={50}
+                      className="rounded-lg"
+                    />
+                  </TableCell>
                   <TableCell className="text-center">1</TableCell>
                   <TableCell className="text-right">
-                    ${(order.totalPriceOfNFTs / order.mintedNfts.length).toFixed(2)}
+                    ${item.price?.toFixed(2) || '0.00'}
                   </TableCell>
                 </TableRow>
               ))}
@@ -236,9 +282,7 @@ export default function OrderPage() {
                   Order Tracking Info
                 </span>
                 <div className="flex gap-2">
-                  <span className="text-sm font-mono">
-                    {order.orderId}
-                  </span>
+                  <span className="text-sm font-mono">{order.orderId}</span>
                 </div>
               </div>
 
@@ -269,15 +313,11 @@ export default function OrderPage() {
                 </p>
                 <p className="font-normal">
                   Email:{' '}
-                  <span className="font-semibold">
-                    {order.customerEmail}
-                  </span>
+                  <span className="font-semibold">{order.customerEmail}</span>
                 </p>
                 <p className="font-normal">
                   Phone:{' '}
-                  <span className="font-semibold">
-                    {order.customerPhone}
-                  </span>
+                  <span className="font-semibold">{order.customerPhone}</span>
                 </p>
                 <p className="font-normal">
                   Address:{' '}
@@ -292,9 +332,7 @@ export default function OrderPage() {
           {/* Order Description Tab */}
           <TabsContent value="description">
             <div className="text-muted-foreground">
-              <h2 className="text-lg font-semibold mb-4">
-                Order Description
-              </h2>
+              <h2 className="text-lg font-semibold mb-4">Order Description</h2>
               <p className="font-normal">
                 This order includes a variety of NFTs minted from your selected
                 collection. Each NFT has been carefully generated and is being
