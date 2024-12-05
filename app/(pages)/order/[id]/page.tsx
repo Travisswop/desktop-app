@@ -1,6 +1,6 @@
 'use client';
 
-import OrderInfos from '@/components/order/order-details';
+import OrderInfos from '@/components/order/orderId/order-details';
 
 const OrderDetails: React.FC = () => {
   return <OrderInfos />;
