@@ -9,6 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { MessageCircle, Search } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useXmtpContext } from '@/lib/context/XmtpContext';
+import { useDebouncedCallback } from 'use-debounce';
 
 interface MessageProps {
   bio?: string;
@@ -25,6 +26,10 @@ const MessageList = () => {
     []
   );
   const [searchQuery, setSearchQuery] = useState('');
+  const [isSearchLoading, setIsSearchLoading] = useState(false);
+  const [searchResult, setSearchResult] = useState<PeerData | null>(
+    null
+  );
   const { peerData, isLoading, error } = usePeerData(peerAddressList);
 
   const fetchConversations = useCallback(async () => {
@@ -40,6 +45,50 @@ const MessageList = () => {
       console.error('Failed to fetch messages:', error);
     }
   }, [xmtpClient]);
+
+  const debouncedFetchEnsData = useDebouncedCallback(
+    async (searchTerm: string) => {
+      if (!searchTerm) {
+        setSearchResult(null);
+        setIsSearchLoading(false);
+        return;
+      }
+
+      setIsSearchLoading(true);
+
+      try {
+        const response = await fetch(
+          `https://app.apiswop.co/api/v4/wallet/getEnsAddress/${searchTerm}`
+        );
+
+        if (!response.ok) {
+          throw new Error('Failed to fetch ENS data');
+        }
+
+        const data = await response.json();
+        console.log('🚀 ~ data:', data);
+
+        const info: PeerData = {
+          profilePic: data.domainOwner.avatar,
+          profileUrl: data.domainOwner.profileUrl,
+          bio: data.domainOwner.bio,
+          ens: data.name,
+          ethAddress: data.owner,
+          name: data.domainOwner.name,
+          ensData: data,
+          _id: data.domainOwner._id,
+        };
+
+        setSearchResult(info);
+      } catch (err) {
+        setSearchResult(null);
+        console.error('ENS search error:', err);
+      } finally {
+        setIsSearchLoading(false);
+      }
+    },
+    800
+  );
 
   useEffect(() => {
     if (xmtpClient) {
@@ -62,6 +111,19 @@ const MessageList = () => {
     );
   }, [peerData, searchQuery]);
 
+  const handleSearchInputChange = (
+    e: React.ChangeEvent<HTMLInputElement>
+  ) => {
+    const value = e.target.value;
+    setSearchQuery(value);
+
+    if (value.length > 2) {
+      debouncedFetchEnsData(value);
+    } else {
+      setSearchResult(null);
+    }
+  };
+
   return (
     <Card className="w-full border-none rounded-xl">
       <CardHeader>
@@ -78,7 +140,7 @@ const MessageList = () => {
           <Input
             type="text"
             value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
+            onChange={handleSearchInputChange}
             placeholder="Search messages..."
             className="border rounded-e-none p-2 text-sm focus-visible:ring-0 focus-visible:ring-offset-0"
           />
@@ -90,6 +152,16 @@ const MessageList = () => {
             <Search className="h-5 w-5" />
           </Button>
         </div>
+        {isSearchLoading && (
+          <p className="text-center text-sm text-gray-500">
+            Searching...
+          </p>
+        )}
+        {searchResult && (
+          <div className="mb-4">
+            <MessageCard {...searchResult} />
+          </div>
+        )}
         <div className="max-h-[400px] overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100">
           {isLoading && (
             <p className="text-center">Loading messages...</p>

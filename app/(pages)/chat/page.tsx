@@ -1,6 +1,12 @@
 'use client';
 import { BookUser, Loader, Search, Wallet } from 'lucide-react';
-import { useCallback, useEffect, useState, useMemo } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useState,
+  useMemo,
+  Suspense,
+} from 'react';
 import {
   Avatar,
   AvatarFallback,
@@ -12,14 +18,16 @@ import { usePrivy } from '@privy-io/react-auth';
 import { useSearchParams } from 'next/navigation';
 import WalletManager from '@/components/wallet/wallet-manager';
 import { useXmtpContext } from '@/lib/context/XmtpContext';
+import ChatBox from '@/components/wallet/chat/chat-box';
+import { useDebouncedCallback } from 'use-debounce';
 
 interface MessageProps {
-  bio?: string;
-  ens?: string;
+  bio: string;
+  ens: string;
   ethAddress: string;
   name: string;
   profileUrl: string;
-  profilePic?: string;
+  profilePic: string;
 }
 
 interface PeerData {
@@ -43,6 +51,13 @@ interface PeerData {
   profileUrl: string;
   _id: string;
 }
+
+const getAvatarSrc = (profilePic?: string) => {
+  if (!profilePic) return '/default-avatar.png';
+  return profilePic.startsWith('http')
+    ? profilePic
+    : `/assets/avatar/${profilePic}.png`;
+};
 
 const getPeerData = async (peerAddresses: string[]) => {
   if (!peerAddresses.length) return { data: [] };
@@ -70,7 +85,7 @@ const getPeerData = async (peerAddresses: string[]) => {
   }
 };
 
-const ChatPage = () => {
+const ChatPageContent = () => {
   const xmtpClient = useXmtpContext();
   const { user: PrivyUser } = usePrivy();
   const searchParams = useSearchParams();
@@ -81,6 +96,10 @@ const ChatPage = () => {
   const [isWalletManagerOpen, setIsWalletManagerOpen] =
     useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [isSearchLoading, setIsSearchLoading] = useState(false);
+  const [searchResult, setSearchResult] = useState<PeerData | null>(
+    null
+  );
   const [conversation, setConversation] = useState<any>(null);
   const [peerData, setPeerData] = useState<PeerData[]>([]);
   const [messageHistory, setMessageHistory] = useState<any[]>([]);
@@ -144,14 +163,61 @@ const ChatPage = () => {
     }
   }, [peerAddressList]);
 
-  // Filter peer data based on search
+  const debouncedFetchEnsData = useDebouncedCallback(
+    async (searchTerm: string) => {
+      if (!searchTerm) {
+        setSearchResult(null);
+        setIsSearchLoading(false);
+        return;
+      }
+
+      setIsSearchLoading(true);
+
+      try {
+        const response = await fetch(
+          `${process.env.NEXT_PUBLIC_API_URL}/api/v4/wallet/getEnsAddress/${searchTerm}`
+        );
+
+        if (!response.ok) {
+          throw new Error('Failed to fetch ENS data');
+        }
+
+        const data = await response.json();
+
+        const info: PeerData = {
+          profilePic: data.domainOwner.avatar,
+          profileUrl: data.domainOwner.profileUrl,
+          bio: data.domainOwner.bio,
+          ens: data.name,
+          ethAddress: data.owner,
+          name: data.domainOwner.name,
+          ensData: data,
+          _id: data.domainOwner._id,
+        };
+
+        setSearchResult(info);
+      } catch (err) {
+        setSearchResult(null);
+        console.error('ENS search error:', err);
+      } finally {
+        setIsSearchLoading(false);
+      }
+    },
+    800
+  );
+
   const filteredPeerData = useMemo(() => {
-    const query = searchQuery.toLowerCase();
+    if (!searchQuery.trim()) return peerData;
+
     return peerData.filter(
       (peer) =>
-        peer.name?.toLowerCase().includes(query) ||
-        peer.bio?.toLowerCase().includes(query) ||
-        peer.ens?.toLowerCase().includes(query)
+        peer.name
+          ?.toLowerCase()
+          .includes(searchQuery.toLowerCase()) ||
+        peer.bio?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        peer.ethAddress
+          ?.toLowerCase()
+          .includes(searchQuery.toLowerCase())
     );
   }, [peerData, searchQuery]);
 
@@ -224,27 +290,33 @@ const ChatPage = () => {
     }
   }, [recipientAddress, startConversation]);
 
-  const handleWalletClick = async (chat: MessageProps) => {
+  const handleWalletClick = async (ethAddress: string) => {
     setChangeConversationLoading(true);
     try {
-      await startConversation(chat.ethAddress);
+      await startConversation(ethAddress);
     } finally {
       setChangeConversationLoading(false);
     }
   };
 
-  const getAvatarSrc = (profilePic?: string) => {
-    if (!profilePic) return '/default-avatar.png';
-    return profilePic.startsWith('http')
-      ? profilePic
-      : `/assets/avatar/${profilePic}.png`;
+  const handleSearchInputChange = (
+    e: React.ChangeEvent<HTMLInputElement>
+  ) => {
+    const value = e.target.value;
+    setSearchQuery(value);
+
+    if (value.length > 2) {
+      debouncedFetchEnsData(value);
+    } else {
+      setSearchResult(null);
+    }
   };
 
   return (
     <div className="h-full">
       <div className="flex gap-7 items-start h-full">
         <div
-          style={{ height: 'calc(100vh - 130px)' }}
+          style={{ height: 'calc(100vh - 150px)' }}
           className="w-[62%] bg-white rounded-xl relative"
         >
           {changeConversationLoading && (
@@ -255,7 +327,7 @@ const ChatPage = () => {
 
           {micrositeData && (
             <div className="w-full overflow-x-hidden h-full">
-              <div className="flex items-center gap-3 justify-between border rounded-2xl border-gray-300 bg-white px-4 py-2 sticky top-0 left-0 mb-2">
+              <div className="flex items-center gap-3 justify-between border rounded-xl border-gray-300 bg-white px-4 py-2 sticky top-0 left-0 mb-2">
                 <div className="flex items-center flex-1 gap-3">
                   <Avatar>
                     <AvatarImage
@@ -291,6 +363,15 @@ const ChatPage = () => {
                   <BookUser />
                 </Link>
               </div>
+              <div className="h-full overflow-y-auto">
+                {xmtpClient && (
+                  <ChatBox
+                    client={xmtpClient}
+                    conversation={conversation}
+                    messageHistory={messageHistory}
+                  />
+                )}
+              </div>
             </div>
           )}
         </div>
@@ -304,39 +385,34 @@ const ChatPage = () => {
             <input
               type="text"
               value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
+              onChange={handleSearchInputChange}
               placeholder="Search messages..."
               className="w-full border border-[#ede8e8] focus:border-[#e5e0e0] rounded-lg focus:outline-none pl-10 py-2 text-gray-700 bg-gray-100"
             />
           </div>
 
-          {filteredPeerData.map((chat: MessageProps) => (
-            <div
-              key={chat.ethAddress}
-              onClick={() => handleWalletClick(chat)}
-              className="text-black flex items-center justify-between p-2 rounded-lg cursor-pointer border hover:bg-gray-50"
-            >
-              <div className="flex items-center gap-2">
-                <Avatar>
-                  <AvatarImage
-                    src={getAvatarSrc(chat.profilePic)}
-                    alt={`${chat.name}'s avatar`}
-                  />
-                  <AvatarFallback>
-                    {chat.name?.slice(0, 2) || 'AN'}
-                  </AvatarFallback>
-                </Avatar>
-                <div>
-                  <p className="font-semibold">{chat.name}</p>
-                  {chat.bio && (
-                    <p className="text-sm text-gray-500">
-                      {chat.bio}
-                    </p>
-                  )}
-                </div>
+          <div className="h-[calc(100vh-250px)] overflow-y-auto">
+            {isSearchLoading && (
+              <p className="text-center text-sm text-gray-500">
+                Searching...
+              </p>
+            )}
+            {searchResult && (
+              <div className="mb-4">
+                <MessageList
+                  {...searchResult}
+                  handleWalletClick={handleWalletClick}
+                />
               </div>
-            </div>
-          ))}
+            )}
+            {filteredPeerData.map((chat: MessageProps) => (
+              <MessageList
+                key={chat.ethAddress}
+                {...chat}
+                handleWalletClick={handleWalletClick}
+              />
+            ))}
+          </div>
         </div>
       </div>
 
@@ -348,6 +424,49 @@ const ChatPage = () => {
         />
       )}
     </div>
+  );
+};
+
+const MessageList = ({
+  bio,
+  name,
+  profilePic,
+  ethAddress,
+  handleWalletClick,
+}: {
+  bio: string;
+  name: string;
+  profilePic: string;
+  ethAddress: string;
+  handleWalletClick: (ethAddress: string) => Promise<void>;
+}) => {
+  return (
+    <div
+      onClick={() => handleWalletClick(ethAddress)}
+      className="text-black flex items-center justify-between p-2 rounded-lg cursor-pointer border hover:bg-gray-50 mb-2"
+    >
+      <div className="flex items-center gap-2">
+        <Avatar>
+          <AvatarImage
+            src={getAvatarSrc(profilePic)}
+            alt={`${name}'s avatar`}
+          />
+          <AvatarFallback>{name?.slice(0, 2) || 'AN'}</AvatarFallback>
+        </Avatar>
+        <div>
+          <p className="font-semibold">{name}</p>
+          {bio && <p className="text-sm text-gray-500">{bio}</p>}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const ChatPage = () => {
+  return (
+    <Suspense fallback={<div>Loading...</div>}>
+      <ChatPageContent />
+    </Suspense>
   );
 };
 

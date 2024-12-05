@@ -16,7 +16,9 @@ export const XmtpProvider: React.FC<{
   children: React.ReactNode;
 }> = ({ children }) => {
   const { wallets } = useWallets();
+  console.log('🚀 ~ wallets:', wallets);
   const { user } = usePrivyUser();
+  console.log('🚀 ~ user:', user);
   const [xmtpClient, setXmtpClient] = useState<Client | null>(null);
 
   useEffect(() => {

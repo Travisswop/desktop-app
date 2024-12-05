@@ -5,8 +5,8 @@ import Image from "next/image";
 import React, { useState } from "react";
 import { Accordion, AccordionItem } from "@nextui-org/react";
 import { HiOutlineBars3BottomLeft } from "react-icons/hi2";
-import { LuBarChartHorizontalBig } from "react-icons/lu";
 import Link from "next/link";
+import { LucideBarChartHorizontalBig } from "lucide-react";
 
 const MintDetails = ({ templateDetails }: { templateDetails: any }) => {
   const [selectedKeys, setSelectedKeys] = useState(new Set(["1"]));
@@ -62,7 +62,7 @@ const MintDetails = ({ templateDetails }: { templateDetails: any }) => {
             <AccordionItem
               key="2"
               aria-label="Details"
-              startContent={<LuBarChartHorizontalBig size={26} />}
+              startContent={<LucideBarChartHorizontalBig size={26} />}
               title="Details"
             >
               <p>Collection Name: {collection.metadata.name}</p>
