@@ -57,7 +57,7 @@ export default function OrderDashboard() {
 
     const fetchOrders = async () => {
       try {
-        const response = await fetch('http://localhost:4000/api/v1/desktop/nft/fetchUserOrders', {
+        const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/v1/desktop/nft/fetchUserOrders`, {
           method: 'GET',
           headers: {
             'Content-Type': 'application/json',
