@@ -226,7 +226,7 @@ export default function OrderDashboard() {
                 <TableHead>Order Date</TableHead>
                 <TableHead>Delivery Status</TableHead>
               </TableRow>
-            </TableHeader>
+            </TableHeader> 
             <TableBody>
               {orders.map((order) => (
                 <TableRow key={order.id}>
