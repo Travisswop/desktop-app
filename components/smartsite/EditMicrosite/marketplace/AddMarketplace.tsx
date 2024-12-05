@@ -34,7 +34,7 @@ const AddMarketplace = ({ handleRemoveIcon, handleToggleIcon }: any) => {
     const fetchTemplates = async () => {
       try {
         const response = await fetch(
-          "http://localhost:4000/api/v1/desktop/nft/getAllTemplatesAndCollections",
+          `${process.env.NEXT_PUBLIC_API_URL}/api/v1/desktop/nft/getAllTemplatesAndCollections`,
           {
             headers: {
               Authorization: `Bearer ${accessToken}`,
@@ -68,7 +68,7 @@ const AddMarketplace = ({ handleRemoveIcon, handleToggleIcon }: any) => {
     setIsLoading(true);
     try {
       const response = await fetch(
-        `http://localhost:4000/api/v1/desktop/nft/getTemplateDetails?collectionId=${collectionId}&templateId=${templateId}`,
+        `${process.env.NEXT_PUBLIC_API_URL}/api/v1/desktop/nft/getTemplateDetails?collectionId=${collectionId}&templateId=${templateId}`,
         {
           headers: {
             Authorization: `Bearer ${accessToken}`,
