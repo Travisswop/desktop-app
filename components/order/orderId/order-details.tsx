@@ -199,7 +199,7 @@ export default function OrderPage() {
         {/* Header Section */}
         <div className="flex items-start justify-between mb-6">
           <div className="flex flex-col items-start gap-4">
-            <div className="w-24 h-24 relative">
+            {/* <div className="w-24 h-24 relative">
               <Image
                 src="/placeholder.svg" // Replace with dynamic image if available
                 alt="Product"
@@ -207,7 +207,7 @@ export default function OrderPage() {
                 height={96}
                 className="rounded-lg border"
               />
-            </div>
+            </div> */}
             <div>
               <h1 className="text-xl font-semibold">
                 Order #{order.orderId}
