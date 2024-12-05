@@ -24,6 +24,7 @@ export default function ChatBox({
   conversation,
   messageHistory,
 }: ChatProps) {
+  console.log('🚀 ~ client:', client);
   const [inputMessage, setInputMessage] = useState('');
   const lastMessageRef = useRef<HTMLDivElement>(null);
   console.log('messageHistory', messageHistory);
@@ -60,16 +61,16 @@ export default function ChatBox({
         {uniqueMessages.map((message, index) => (
           <div
             key={message.id}
-            className={`mb-4 ${
-              message.senderAddress === client.address
-                ? 'text-right'
-                : 'text-left'
-            }`}
             ref={
               index === uniqueMessages.length - 1
                 ? lastMessageRef
                 : null
             }
+            className={`mb-4 ${
+              message.senderAddress === client.address
+                ? 'text-right'
+                : 'text-left'
+            }`}
           >
             <div
               className={`inline-block px-3 py-2 rounded-lg ${

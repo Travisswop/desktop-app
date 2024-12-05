@@ -119,7 +119,10 @@ const ChatPageContent = () => {
 
     try {
       const conversations = await xmtpClient.conversations.list();
-      setPeerAddressList(conversations.map((c) => c.peerAddress));
+      const peerList = conversations.map((conversation) => {
+        return conversation.peerAddress;
+      });
+      setPeerAddressList(peerList);
     } catch (error) {
       console.error('Failed to fetch conversations:', error);
     }
@@ -130,24 +133,38 @@ const ChatPageContent = () => {
       if (!recipientAddress || !xmtpClient) return;
 
       try {
+        setChangeConversationLoading(true);
+
+        // Clear existing conversation and messages
+        setConversation(null);
+        setMessageHistory([]);
+
         const conversation =
           await xmtpClient.conversations.newConversation(
             recipientAddress
           );
+
         const messages = await conversation.messages();
 
         setConversation(conversation);
         setMessageHistory(messages);
-        setMicrositeData(
-          peerData.find(
+
+        // Update micrositeData based on search result or peer data
+        if (searchResult?.ethAddress === recipientAddress) {
+          setMicrositeData(searchResult);
+        } else {
+          const micrositeData = peerData.find(
             (peer) => peer.ethAddress === recipientAddress
-          ) || null
-        );
+          );
+          setMicrositeData(micrositeData || null);
+        }
       } catch (error) {
         console.error('Failed to start conversation:', error);
+      } finally {
+        setChangeConversationLoading(false);
       }
     },
-    [xmtpClient, peerData]
+    [xmtpClient, peerData, searchResult]
   );
 
   const fetchPeerData = useCallback(async () => {
@@ -243,8 +260,11 @@ const ChatPageContent = () => {
   // Handle recipient from URL params
   useEffect(() => {
     const recipient = searchParams.get('recipient');
-    setRecipientAddress(recipient);
-  }, [searchParams]);
+    if (recipient) {
+      setRecipientAddress(recipient);
+      startConversation(recipient);
+    }
+  }, [searchParams, startConversation]);
 
   // Fetch initial conversations
   useEffect(() => {
@@ -260,7 +280,6 @@ const ChatPageContent = () => {
     }
   }, [peerAddressList, fetchPeerData]);
 
-  // Stream messages for active conversation
   useEffect(() => {
     if (!conversation) return;
 
@@ -270,7 +289,10 @@ const ChatPageContent = () => {
       try {
         for await (const message of await conversation.streamMessages()) {
           if (!isMounted) break;
-          setMessageHistory((prev) => [...prev, message]);
+          setMessageHistory((prevMessages) => [
+            ...prevMessages,
+            message,
+          ]);
         }
       } catch (error) {
         console.error('Error streaming messages:', error);
@@ -278,25 +300,14 @@ const ChatPageContent = () => {
     };
 
     streamMessages();
+
     return () => {
       isMounted = false;
     };
   }, [conversation]);
 
-  // Start conversation with recipient from URL
-  useEffect(() => {
-    if (recipientAddress) {
-      startConversation(recipientAddress);
-    }
-  }, [recipientAddress, startConversation]);
-
   const handleWalletClick = async (ethAddress: string) => {
-    setChangeConversationLoading(true);
-    try {
-      await startConversation(ethAddress);
-    } finally {
-      setChangeConversationLoading(false);
-    }
+    await startConversation(ethAddress);
   };
 
   const handleSearchInputChange = (

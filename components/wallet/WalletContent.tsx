@@ -44,7 +44,6 @@ import AssetSelector from './token/asset-selector';
 import WalletQRModal from './wallet-qr-modal';
 import WalletQRShare from './wallet-qr-share-modal';
 import QRCodeShareModal from '../smartsite/socialShare/QRCodeShareModal';
-import MessageList from './message-list';
 
 type Network = 'ETHEREUM' | 'POLYGON' | 'BASE' | 'SOLANA';
 
@@ -513,7 +512,8 @@ const WalletContentInner = () => {
           onSelectAsset={handleAssetSelect}
           onQRClick={() => setWalletQRModalOpen(true)}
         />
-        <MessageList />
+        <MessageBox/>
+        {/* <MessageList /> */}
       </div>
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 my-6">
         {selectedToken ? (
