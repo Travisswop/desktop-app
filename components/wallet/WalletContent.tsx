@@ -44,6 +44,7 @@ import AssetSelector from './token/asset-selector';
 import WalletQRModal from './wallet-qr-modal';
 import WalletQRShare from './wallet-qr-share-modal';
 import QRCodeShareModal from '../smartsite/socialShare/QRCodeShareModal';
+import MessageList from './message-list';
 
 type Network = 'ETHEREUM' | 'POLYGON' | 'BASE' | 'SOLANA';
 
@@ -55,6 +56,10 @@ const CHAIN_ID = {
 } as const;
 
 export default function WalletContent() {
+  return <WalletContentInner />;
+}
+
+const WalletContentInner = () => {
   const [walletData, setWalletData] = useState<WalletItem[] | null>(
     null
   );
@@ -508,8 +513,7 @@ export default function WalletContent() {
           onSelectAsset={handleAssetSelect}
           onQRClick={() => setWalletQRModalOpen(true)}
         />
-        <MessageBox />
-        {/* <MessageList /> */}
+        <MessageList />
       </div>
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 my-6">
         {selectedToken ? (
@@ -604,4 +608,4 @@ export default function WalletContent() {
       <Toaster />
     </div>
   );
-}
+};

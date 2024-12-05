@@ -8,6 +8,7 @@ import React, {
 } from 'react';
 import { Client } from '@xmtp/xmtp-js';
 import { useWallets } from '@privy-io/react-auth';
+import { usePrivyUser } from '@/lib/hooks/usePrivyUser';
 
 const XmtpContext = createContext<Client | null>(null);
 
@@ -15,36 +16,57 @@ export const XmtpProvider: React.FC<{
   children: React.ReactNode;
 }> = ({ children }) => {
   const { wallets } = useWallets();
+  const { user } = usePrivyUser();
   const [xmtpClient, setXmtpClient] = useState<Client | null>(null);
 
   useEffect(() => {
     const initXmtp = async () => {
-      if (wallets.length === 0) {
-        console.warn(
-          'No wallets available to initialize XMTP client.'
-        );
+      if (!wallets?.length || !user?.linkedAccounts?.length) {
+        setXmtpClient(null);
         return;
       }
 
-      const wallet = wallets.find(
-        (w) => w.walletClientType === 'privy'
+      const linkedWallet = user.linkedAccounts.find(
+        (item: any) => item.chainType === 'ethereum' && item.address
       );
 
-      if (wallet) {
-        const signer = {
-          account: wallet.address,
-          signMessage: async (message: string) => {
-            return wallet.sign(message);
-          },
-          getAddress: () => Promise.resolve(wallet.address),
-        };
-        const client = await Client.create(signer);
-        setXmtpClient(client);
+      if (!linkedWallet) {
+        setXmtpClient(null);
+        return;
       }
+
+      const ethWallet = wallets.find(
+        (w) =>
+          w.address?.toLowerCase() ===
+          (linkedWallet as any).address?.toLowerCase()
+      );
+
+      if (!ethWallet) {
+        setXmtpClient(null);
+        return;
+      }
+
+      const signer = {
+        account: ethWallet.address,
+        signMessage: async (message: string) => {
+          try {
+            return await ethWallet.sign(message);
+          } catch (err) {
+            console.error('Failed to sign message:', err);
+            throw err;
+          }
+        },
+        getAddress: () => Promise.resolve(ethWallet.address),
+      };
+
+      const client = await Client.create(signer, {
+        env: 'production',
+      });
+      setXmtpClient(client);
     };
 
     initXmtp();
-  }, [wallets]);
+  }, [wallets, user]);
 
   return (
     <XmtpContext.Provider value={xmtpClient}>
@@ -53,10 +75,13 @@ export const XmtpProvider: React.FC<{
   );
 };
 
-export const useXmtp = () => {
+export const useXmtpContext = () => {
   const context = useContext(XmtpContext);
-  if (!context) {
-    throw new Error('useXmtp must be used within an XmtpProvider');
+  if (context === null) {
+    console.warn(
+      'useXmtpContext must be used within an XmtpProvider'
+    );
+    return null;
   }
   return context;
 };
