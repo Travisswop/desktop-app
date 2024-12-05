@@ -5,6 +5,7 @@ import React, {
   useContext,
   useEffect,
   useState,
+  useMemo,
 } from 'react';
 import { Client } from '@xmtp/xmtp-js';
 import { useWallets } from '@privy-io/react-auth';
@@ -21,60 +22,70 @@ export const XmtpProvider: React.FC<{
   const [xmtpClient, setXmtpClient] = useState<Client | null>(null);
   const pathname = usePathname();
 
+  // Memoize the wallet and linked account information
+  const linkedEthereumWallet = useMemo(() => {
+    if (!wallets?.length || !user?.linkedAccounts?.length)
+      return null;
+
+    const linkedWallet = user.linkedAccounts.find(
+      (item: any) => item.chainType === 'ethereum' && item.address
+    );
+
+    if (!linkedWallet) return null;
+
+    const ethWallet = wallets.find(
+      (w) =>
+        w.address?.toLowerCase() ===
+        (linkedWallet as any).address?.toLowerCase()
+    );
+
+    return ethWallet || null;
+  }, [wallets, user]);
+
   useEffect(() => {
+    // Reset client if on login or onboard pages
+    if (pathname === '/login' || pathname === '/onboard') {
+      setXmtpClient(null);
+      return;
+    }
+
+    // Only initialize if we have a valid wallet
+    if (!linkedEthereumWallet) {
+      setXmtpClient(null);
+      return;
+    }
+
+    // Prevent multiple initializations
+    if (xmtpClient) return;
+
     const initXmtp = async () => {
-      // Don't initialize if on login or onboard pages
-      if (pathname === '/login' || pathname === '/onboard') {
+      try {
+        const signer = {
+          account: linkedEthereumWallet.address,
+          signMessage: async (message: string) => {
+            try {
+              return await linkedEthereumWallet.sign(message);
+            } catch (err) {
+              console.error('Failed to sign message:', err);
+              throw err;
+            }
+          },
+          getAddress: () =>
+            Promise.resolve(linkedEthereumWallet.address),
+        };
+
+        const client = await Client.create(signer, {
+          env: 'production',
+        });
+        setXmtpClient(client);
+      } catch (error) {
+        console.error('XMTP client initialization failed:', error);
         setXmtpClient(null);
-        return;
       }
-
-      if (!wallets?.length || !user?.linkedAccounts?.length) {
-        setXmtpClient(null);
-        return;
-      }
-
-      const linkedWallet = user.linkedAccounts.find(
-        (item: any) => item.chainType === 'ethereum' && item.address
-      );
-
-      if (!linkedWallet) {
-        setXmtpClient(null);
-        return;
-      }
-
-      const ethWallet = wallets.find(
-        (w) =>
-          w.address?.toLowerCase() ===
-          (linkedWallet as any).address?.toLowerCase()
-      );
-
-      if (!ethWallet) {
-        setXmtpClient(null);
-        return;
-      }
-
-      const signer = {
-        account: ethWallet.address,
-        signMessage: async (message: string) => {
-          try {
-            return await ethWallet.sign(message);
-          } catch (err) {
-            console.error('Failed to sign message:', err);
-            throw err;
-          }
-        },
-        getAddress: () => Promise.resolve(ethWallet.address),
-      };
-
-      const client = await Client.create(signer, {
-        env: 'production',
-      });
-      setXmtpClient(client);
     };
 
     initXmtp();
-  }, [wallets, user, pathname]);
+  }, [linkedEthereumWallet, pathname, xmtpClient]);
 
   return (
     <XmtpContext.Provider value={xmtpClient}>
