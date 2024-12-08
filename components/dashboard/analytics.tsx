@@ -36,8 +36,8 @@ export default function DashboardAnalytics({
   };
 
   return (
-    <div className=" pb-8">
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+    <div className="pb-8">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-x-6 2xl:gap-x-8">
         {/* Left Column */}
         <div className="space-y-6 bg-white rounded-xl p-8">
           <div className="flex items-center gap-2">

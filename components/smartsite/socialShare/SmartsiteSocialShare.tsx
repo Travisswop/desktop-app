@@ -23,7 +23,8 @@ const SmartsiteSocialShare = ({
     onOpenChange: onSmartsiteOpenChange,
   } = useDisclosure();
 
-  const handleOpenSmartSiteProfileShareModal = () => {
+  const handleOpenSmartSiteProfileShareModal = (e: any) => {
+    e.stopPropagation();
     onSmartsiteOpen();
     setSmartSiteProfileUrl(profileUrl);
   };
@@ -31,8 +32,8 @@ const SmartsiteSocialShare = ({
   return (
     <div className="relative">
       <button
-        onClick={handleOpenSmartSiteProfileShareModal}
-        className={`bg-gray-200 hover:bg-gray-300 rounded-md py-2 px-3 w-max ${className} ${
+        onClick={(e) => handleOpenSmartSiteProfileShareModal(e)}
+        className={`bg-gray-200 hover:bg-gray-300 rounded-md py-2 px-2.5 w-max ${className} ${
           isAbsolute && "absolute top-3 right-2"
         } `}
       >

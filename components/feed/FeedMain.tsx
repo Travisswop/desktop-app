@@ -4,11 +4,14 @@ import Feed from "./Feed";
 import Timeline from "./Timeline";
 import Transaction from "./Transaction";
 import PostFeed from "./PostFeed";
-import Connections from "./Connections";
+// import Connections from "./Connections";
 import { useUser } from "@/lib/UserContext";
 import { useSearchParams } from "next/navigation";
 
-const FeedMain = () => {
+// interface IProps {
+//   isFromHome?: boolean;
+// }
+const FeedMain = ({ isFromHome = false }: any) => {
   const [isPosting, setIsPosting] = useState(false);
   const [isPostLoading, setIsPostLoading] = useState(false);
 
@@ -81,7 +84,9 @@ const FeedMain = () => {
         <div className="w-full flex relative">
           <div
             style={{ height: "calc(100vh - 108px)" }}
-            className="w-3/5 xl:w-2/3 2xl:w-[54%] overflow-y-auto"
+            className={`${
+              isFromHome ? "w-full" : "w-3/5 xl:w-2/3 2xl:w-[54%]"
+            }  overflow-y-auto`}
           >
             <PostFeed
               userId={user?._id as any}
@@ -95,7 +100,7 @@ const FeedMain = () => {
               <section className="p-6">{ComponentToRender}</section>
             </Suspense>
           </div>
-          <div
+          {/* <div
             style={{ height: "calc(100vh - 108px)" }}
             className="flex-1 overflow-y-auto"
           >
@@ -105,7 +110,7 @@ const FeedMain = () => {
                 accessToken={accessToken}
               />
             </Suspense>
-          </div>
+          </div> */}
         </div>
       )}
     </div>

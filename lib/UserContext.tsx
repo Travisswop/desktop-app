@@ -101,7 +101,7 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
       try {
         // Add timeout to prevent hanging requests
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 seconds timeout
+        const timeoutId = setTimeout(() => controller.abort(), 20000); // 10 seconds timeout
 
         const response = await fetch(
           `${process.env.NEXT_PUBLIC_API_URL}/api/v2/desktop/user/${userEmail}`,

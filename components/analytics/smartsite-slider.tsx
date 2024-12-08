@@ -94,23 +94,23 @@ export default function SmartSiteSlider({
                 </CardHeader>
                 <CardContent className="p-0 py-6 mx-6 xl:mx-16 2xl:mx-20 ">
                   <div
-                    style={{
-                      backgroundImage: item.theme
-                        ? `url(${
-                            isUrl(item.backgroundImg)
-                              ? item.backgroundImg
-                              : `/images/smartsite-background/${item.backgroundImg}.png`
-                          }) `
-                        : "",
-                      backgroundSize: "cover", // Scale the image to cover the container
-                      backgroundPosition: "center", // Center the image
-                      height: "full", // Full viewport height
-                      backgroundRepeat: "no-repeat",
-                    }}
-                    className="shadow-medium rounded-2xl "
+                    // style={{
+                    //   backgroundImage: item.theme
+                    //     ? `url(${
+                    //         isUrl(item.backgroundImg)
+                    //           ? item.backgroundImg
+                    //           : `/images/smartsite-background/${item.backgroundImg}.png`
+                    //       }) `
+                    //     : "",
+                    //   backgroundSize: "cover", // Scale the image to cover the container
+                    //   backgroundPosition: "center", // Center the image
+                    //   height: "full", // Full viewport height
+                    //   backgroundRepeat: "no-repeat",
+                    // }}
+                    className="shadow-medium rounded-2xl bg-neutral-100 border-none"
                   >
-                    <div className="relative p-6 ">
-                      {item.theme === false ? (
+                    <div className="flex justify-center pt-10">
+                      {/* {item.theme === false ? (
                         <Image
                           src={`${
                             isUrl(item.backgroundImg)
@@ -124,24 +124,28 @@ export default function SmartSiteSlider({
                         />
                       ) : (
                         <div className="w-full h-40"></div>
-                      )}
-                      <div className="absolute -bottom-8 left-1/2 -translate-x-1/2">
+                      )} */}
+                      {/* <div className="absolute -bottom-8 left-1/2 -translate-x-1/2"> */}
+                      <div className="w-32 2xl:w-36 h-32 2xl:h-36 rounded-full">
                         <Image
                           src={`${
                             isUrl(item.profilePic)
                               ? item.profilePic
-                              : `/images/user_avator/${item.profilePic}.png`
-                          }?height=120&width=120`}
+                              : `/images/user_avator/${item.profilePic}@3x.png`
+                          }`}
                           alt={item.name}
-                          width={120}
-                          height={120}
-                          className="rounded-full border-4 border-white"
+                          width={300}
+                          height={300}
+                          className="rounded-full shadow-medium border-[3px] border-gray-500 p-0.5"
                         />
                       </div>
+                      {/* </div> */}
                     </div>
 
-                    <div className="pt-10 px-4 pb-4 text-center">
-                      <h3 className="font-semibold">{item.name}</h3>
+                    <div className="pt-4 px-4 pb-4 text-center">
+                      <h3 className="font-semibold text-lg mb-1">
+                        {item.name}
+                      </h3>
                       <p className="text-sm text-muted-foreground">
                         {item.bio}
                       </p>

@@ -77,7 +77,7 @@ export default function CashflowChart() {
   ).toFixed(1);
 
   return (
-    <Card className="w-full border-none rounded-xl my-6">
+    <Card className="w-full border-none rounded-xl my-4 xl:my-6">
       <CardHeader>
         <div className="flex justify-between items-center">
           <div>

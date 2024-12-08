@@ -8,6 +8,7 @@ import { handleDeleteSmartSite } from "@/actions/deleteSmartsite";
 // import { useRouter } from "next/navigation";
 import AnimateButton from "../ui/Button/AnimateButton";
 import { useDesktopUserData } from "../tanstackQueryApi/getUserData";
+import { BiWallet } from "react-icons/bi";
 
 const ButtonList = ({ microsite, token, id }: any) => {
   const demoShowToken =
@@ -89,7 +90,7 @@ const ButtonList = ({ microsite, token, id }: any) => {
 
   return (
     <div className="flex flex-wrap items-center justify-center gap-1">
-      <Link href={`/smartsite/${microsite._id}`} className="text-sm">
+      {/* <Link href={`/smartsite/${microsite._id}`} className="text-sm">
         <AnimateButton width="w-[6.5rem]">
           <TbEdit size={18} /> Details
         </AnimateButton>
@@ -98,20 +99,37 @@ const ButtonList = ({ microsite, token, id }: any) => {
         <AnimateButton width="w-[5.8rem]">
           <TbEdit size={18} /> Icons
         </AnimateButton>
-      </Link>
-      <Link href={`/smartsite/qr-code/${microsite._id}`} className="text-sm">
-        <AnimateButton width="w-[4.6rem]">
-          <MdQrCodeScanner size={18} /> QR
+      </Link> */}
+      <Link href={`/smartsite/icons/${microsite._id}`} className="">
+        <AnimateButton
+          width="w-[5.8rem]"
+          className="!rounded-md !text-black hover:!text-white !border-black !gap-1.5"
+        >
+          Edit <TbEdit size={20} />
         </AnimateButton>
       </Link>
       <AnimateButton
+        width="w-[6.8rem]"
+        className="!rounded-md !text-black hover:!text-white !border-black !gap-1.5"
+      >
+        Wallet <BiWallet size={20} />
+      </AnimateButton>
+      <Link href={`/smartsite/qr-code/${microsite._id}`} className="">
+        <AnimateButton
+          width="w-[5.8rem]"
+          className="!rounded-md !text-black hover:!text-white !border-black !gap-1.5"
+        >
+          QR <MdQrCodeScanner size={20} />
+        </AnimateButton>
+      </Link>
+      {/* <AnimateButton
         isLoading={deleteLoading}
         onClick={handleDeleteSmartsite}
         width="w-[6.2rem]"
         className="text-sm"
       >
         <MdDelete size={18} /> Delete
-      </AnimateButton>
+      </AnimateButton> */}
 
       {/* <SecondaryButton>
         <span className="text-sm">Wallet</span>
