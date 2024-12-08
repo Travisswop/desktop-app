@@ -48,6 +48,7 @@ const nextConfig: NextConfig = {
     //   "res.cloudinary.com",
     // ], // Allow images from all domains
   },
+  serverExternalPackages: ["@xmtp/user-preferences-bindings-wasm"],
 };
 
 export default nextConfig;

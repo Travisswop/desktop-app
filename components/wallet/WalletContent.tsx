@@ -55,6 +55,10 @@ const CHAIN_ID = {
 } as const;
 
 export default function WalletContent() {
+  return <WalletContentInner />;
+}
+
+const WalletContentInner = () => {
   const [walletData, setWalletData] = useState<WalletItem[] | null>(
     null
   );
@@ -508,7 +512,7 @@ export default function WalletContent() {
           onSelectAsset={handleAssetSelect}
           onQRClick={() => setWalletQRModalOpen(true)}
         />
-        <MessageBox />
+        <MessageBox/>
         {/* <MessageList /> */}
       </div>
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 my-6">
@@ -604,4 +608,4 @@ export default function WalletContent() {
       <Toaster />
     </div>
   );
-}
+};
