@@ -130,14 +130,25 @@ const SmartsiteIconLivePreview = ({
     }
   };
 
+  const showReadMoreForBlog = (e: any, item: any) => {
+    e.stopPropagation();
+    handleTriggerUpdate({
+      data: item,
+      categoryForTrigger: "showBlog",
+    });
+  };
+
   return (
-    <main className="w-[38%] h-full overflow-y-auto overflow-x-hidden">
-      <div className="relative mx-auto border-gray-800 dark:border-gray-800 bg-gray-800 border-[14px] rounded-[2.5rem] h-[600px] xl:h-[660px] w-[300px] xl:w-[346px] 2xl:w-[360px]">
-        <div className="h-[32px] w-[3px] bg-gray-800 dark:bg-gray-800 absolute -start-[17px] top-[72px] rounded-s-lg"></div>
-        <div className="h-[46px] w-[3px] bg-gray-800 dark:bg-gray-800 absolute -start-[17px] top-[124px] rounded-s-lg"></div>
-        <div className="h-[46px] w-[3px] bg-gray-800 dark:bg-gray-800 absolute -start-[17px] top-[178px] rounded-s-lg"></div>
-        <div className="h-[64px] w-[3px] bg-gray-800 dark:bg-gray-800 absolute -end-[17px] top-[142px] rounded-e-lg"></div>
-        <div className="flex flex-col rounded-[2rem] overflow-hidden w-[272px] xl:w-[320px] 2xl:w-[334px] h-[572px] xl:h-[636px] bg-white dark:bg-gray-800">
+    <main className="w-[38%] h-full overflow-y-auto overflow-x-hidden p-4">
+      <div className="relative mx-auto h-[570px] xl:h-[600px] w-[300px] xl:w-[320px] rounded-[42px] border-[12px] border-[#F7F7F7] shadow-medium">
+        <div className="absolute shadow-medium left-[-17px] top-[124px] h-[46px] w-[5px] rounded-l-lg bg-gray-100"></div>
+        <div className="absolute shadow-medium left-[-17px] top-[178px] h-[46px] w-[5px] rounded-l-lg bg-gray-100"></div>
+        <div className="absolute shadow-medium -right-[17px] top-[142px] h-[60px] w-[5px] rounded-r-xl bg-gray-100 "></div>
+        <div className="relative h-full w-full overflow-hidden break-words rounded-[32px] bg-white">
+          <div className="flex items-center gap-1 justify-center absolute top-2.5 left-1/2 -translate-x-1/2 !z-10">
+            <div className="h-[5px] w-[40px] rounded-md bg-gray-200"></div>
+            <div className="h-[6px] w-[6px] rounded-full bg-gray-200"></div>
+          </div>
           <section
             style={{
               backgroundImage: formData.theme
@@ -154,7 +165,7 @@ const SmartsiteIconLivePreview = ({
               <div>
                 <div className="relative">
                   {!formData.theme && (
-                    <div className="bg-white p-2 rounded-xl shadow-md mt-2">
+                    <div className="bg-white p-2 rounded-xl shadow-md">
                       <Image
                         alt="banner image"
                         src={`/images/smartsite-banner/${formData.backgroundImg}.png`}
@@ -191,7 +202,7 @@ const SmartsiteIconLivePreview = ({
                             width={420}
                             height={420}
                             quality={100}
-                            className="rounded-full w-28 xl:w-32 h-auto p-1 bg-white shadow-medium border-2 border-gray-200"
+                            className="rounded-full w-24 2xl:w-28 h-auto bg-white shadow-medium border-2 border-gray-200 z-0"
                           />
                         )}
                       </>
@@ -201,7 +212,7 @@ const SmartsiteIconLivePreview = ({
                 <div
                   className={`${
                     !formData.theme && "mt-[4.5rem] xl:mt-20"
-                  }  flex flex-col gap-6 mt-4 h-full justify-start`}
+                  }  flex flex-col gap-4 mt-4 h-full justify-start`}
                 >
                   <div
                     className={`flex flex-col items-center text-center ${
@@ -259,12 +270,18 @@ const SmartsiteIconLivePreview = ({
                       {data.info.blog.map((item: any, index: number) => (
                         <div
                           key={index}
+                          onClick={() =>
+                            handleTriggerUpdate({
+                              data: item,
+                              categoryForTrigger: "blog",
+                            })
+                          }
                           style={{
                             backgroundColor: formData.templateColor
                               ? formData.templateColor
                               : "white",
                           }}
-                          className="shadow-small hover:shadow-medium p-3 2xl:p-4 rounded-lg"
+                          className="shadow-small hover:shadow-medium p-2 2xl:p-3 rounded-lg cursor-pointer"
                         >
                           <div>
                             <div>
@@ -272,9 +289,9 @@ const SmartsiteIconLivePreview = ({
                                 <Image
                                   src={item.image}
                                   alt={item.title}
-                                  width={400}
-                                  height={300}
-                                  className="w-full h-32 xl:h-36 object-cover rounded-lg"
+                                  width={600}
+                                  height={400}
+                                  className="w-full h-32 2xl:h-36 object-cover rounded-lg"
                                 />
                               </div>
                               <div
@@ -285,7 +302,7 @@ const SmartsiteIconLivePreview = ({
                                 }}
                               >
                                 {item?.title && (
-                                  <p className="text-lg font-bold mt-2 mb-1">
+                                  <p className="text-lg font-bold mt-1.5 mb-0.5">
                                     {item.title}
                                   </p>
                                 )}
@@ -297,8 +314,8 @@ const SmartsiteIconLivePreview = ({
                               </div>
                             </div>
                           </div>
-                          <div className="flex flex-wrap justify-center lg:justify-between items-center mt-3 gap-2">
-                            <button
+                          <div className="flex flex-wrap justify-end items-center mt-3 gap-2">
+                            {/* <button
                               type="button"
                               onClick={() =>
                                 handleTriggerUpdate({
@@ -315,23 +332,18 @@ const SmartsiteIconLivePreview = ({
                               className="rounded-lg bg-white flex items-center gap-1 px-5 py-1.5"
                             >
                               <FaEdit /> Edit
-                            </button>
+                            </button> */}
 
                             <button
                               type="button"
-                              onClick={() =>
-                                handleTriggerUpdate({
-                                  data: item,
-                                  categoryForTrigger: "showBlog",
-                                })
-                              }
+                              onClick={(e) => showReadMoreForBlog(e, item)}
                               style={{
                                 backgroundColor:
                                   formData.templateColor && formData.fontColor,
 
                                 color: formData.templateColor,
                               }}
-                              className="rounded-lg bg-white flex items-center gap-1 px-5 py-1.5"
+                              className="rounded-lg bg-white flex items-center gap-1 px-3 py-1.5 text-sm font-semibold"
                             >
                               <FaEye size={18} /> Read More
                             </button>
@@ -344,10 +356,10 @@ const SmartsiteIconLivePreview = ({
 
                   {/* app icon display here start */}
                   {data.info.socialLarge.length > 0 && (
-                    <div className="grid grid-cols-3 gap-3 justify-center items-center px-3">
+                    <div className="flex flex-wrap gap-x-1 gap-y-3 justify-center items-center px-3">
                       {data.info.socialLarge.map((data: any, index: number) => (
                         <div
-                          className={`flex flex-col items-center gap-1 ${
+                          className={`w-[32%] flex flex-col items-center gap-1 ${
                             isUrl(data.iconName) && "cursor-not-allowed"
                           }`}
                           key={index}
@@ -385,7 +397,7 @@ const SmartsiteIconLivePreview = ({
                               />
                             )}
                           </button>
-                          <p className="text-sm text-center">{data.name}</p>
+                          <p className="text-xs text-center">{data.name}</p>
                         </div>
                       ))}
                     </div>
@@ -396,7 +408,7 @@ const SmartsiteIconLivePreview = ({
                   <div className="flex flex-col gap-y-3">
                     {/* message me display here start */}
                     {data.info.ensDomain.length > 0 && (
-                      <div className="flex flex-col gap-y-3 px-3">
+                      <div className="flex flex-col gap-y-3 mx-3">
                         <button
                           // key={data._id}
                           onClick={() =>
@@ -424,7 +436,7 @@ const SmartsiteIconLivePreview = ({
                             }}
                             alt="icon"
                             quality={100}
-                            className="w-9 h-9"
+                            className="w-8 h-8"
                           />
                           <div
                             style={{
@@ -434,7 +446,7 @@ const SmartsiteIconLivePreview = ({
                             }}
                             className="flex flex-col items-start gap-0.5 text-start"
                           >
-                            <p className="font-semibold">Message Me</p>
+                            <p className="font-semibold text-sm">Message Me</p>
                             <p
                               className={`text-xs ${
                                 !formData.fontColor && "text-gray-400"
@@ -470,7 +482,7 @@ const SmartsiteIconLivePreview = ({
                               src={referral}
                               alt="icon"
                               quality={100}
-                              className="w-9 h-9 rounded-lg"
+                              className="w-8 h-8 rounded-lg"
                               // style={tintStyle}
                             />
                             <div
@@ -519,7 +531,7 @@ const SmartsiteIconLivePreview = ({
                               src={card}
                               alt="icon"
                               quality={100}
-                              className="w-9 h-9"
+                              className="w-8 h-8"
                               style={{
                                 filter:
                                   formData.templateColor === "#000000" &&
@@ -608,7 +620,7 @@ const SmartsiteIconLivePreview = ({
                             }}
                             alt="icon"
                             quality={100}
-                            className="w-9 h-9"
+                            className="w-8 h-8"
                           />
                           <div
                             style={{
@@ -666,7 +678,7 @@ const SmartsiteIconLivePreview = ({
                                 // src={getAppIconImage(data.iconName, data.group) as any}
                                 alt="icon"
                                 quality={100}
-                                className="w-9 h-9 rounded-lg"
+                                className="w-8 h-8 rounded-lg"
                                 width={100}
                                 height={100}
                               />
@@ -675,7 +687,7 @@ const SmartsiteIconLivePreview = ({
                                 src={getAllSmartsitesIcon(data.iconName) as any}
                                 alt="icon"
                                 quality={100}
-                                className="w-9 h-9"
+                                className="w-8 h-8"
                               />
                             )}
 
@@ -740,9 +752,10 @@ const SmartsiteIconLivePreview = ({
                                     <Image
                                       src={data.imageUrl}
                                       alt="cover photo"
-                                      width={120}
-                                      height={60}
-                                      className="w-11 h-11 rounded-md object-cover"
+                                      width={160}
+                                      height={90}
+                                      quality={100}
+                                      className="w-9 h-9 rounded-md object-cover"
                                     />
                                   </div>
                                   <div className="text-left">
@@ -782,7 +795,7 @@ const SmartsiteIconLivePreview = ({
                         {data.info.audio.map((audioData: any) => (
                           <div
                             key={audioData._id}
-                            className="flex items-center gap-2 w-full"
+                            className="flex items-center gap-2 w-full overflow-hidden"
                           >
                             <div
                               style={{
@@ -792,7 +805,7 @@ const SmartsiteIconLivePreview = ({
                               }}
                               className={`w-full h-full py-2 px-3 rounded-lg shadow-medium`}
                             >
-                              <div className="flex items-center justify-between">
+                              <div className="flex items-center justify-between overflow-hidden">
                                 <button
                                   style={{
                                     color: formData.fontColor
@@ -813,7 +826,7 @@ const SmartsiteIconLivePreview = ({
                                       alt="cover photo"
                                       width={120}
                                       height={60}
-                                      className="w-11 h-11 rounded-md object-cover"
+                                      className="w-14 h-10 rounded-md object-cover"
                                     />
                                   </div>
                                   <div className="text-left">
@@ -837,7 +850,7 @@ const SmartsiteIconLivePreview = ({
                                     customAdditionalControls={[]}
                                     customVolumeControls={[]}
                                     layout="stacked-reverse"
-                                    className={`!w-max !p-0 !shadow-none translate-y-1 rounded-full`}
+                                    className={`!w-max !p-0 !shadow-none translate-y-1 rounded-full translate-x-4`}
                                     customIcons={{
                                       play: (
                                         <FaPlay
@@ -881,10 +894,10 @@ const SmartsiteIconLivePreview = ({
                       {data.info.video.map((videoData: any) => (
                         <div
                           key={videoData._id}
-                          className="flex items-center gap-2 w-full"
+                          className="flex items-center w-full"
                         >
                           <div
-                            className={`w-[96%] h-full border-4 border-[#c685ff] rounded-2xl overflow-hidden`}
+                            className={`w-[96%] h-full rounded-2xl overflow-hidden shadow-medium`}
                           >
                             <video
                               key={videoData.link as string}
@@ -909,9 +922,9 @@ const SmartsiteIconLivePreview = ({
                                   categoryForTrigger: "video",
                                 })
                               }
-                              className=""
+                              className="translate-x-1"
                             >
-                              <FaEdit size={18} />
+                              <FaEdit size={16} />
                             </button>
                           </div>
                         </div>
@@ -937,15 +950,17 @@ const SmartsiteIconLivePreview = ({
                 </div>
               </div>
 
-              <div className="flex items-center justify-center gap-2 h-16">
-                <Image alt="swop logo" src={swop} />
+              <div className="flex items-center justify-center gap-2 h-12 -translate-y-4 pt-3">
+                <Image
+                  alt="swop logo"
+                  src={swop}
+                  className="w-16"
+                  quality={100}
+                />
                 {/* <BiSolidEdit /> */}
               </div>
             </div>
           </section>
-          <div>
-            <Image src={mockupBtn} alt="navigation button" />
-          </div>
         </div>
       </div>
       {!isEditDetailsLivePreview && (

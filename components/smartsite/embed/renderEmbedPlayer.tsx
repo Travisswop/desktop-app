@@ -35,10 +35,7 @@ const EmbedPlayer: React.FC<EmbedPlayerProps> = ({
   const renderEmbedPlayer = useMemo(
     () =>
       items.map((videoData: VideoData) => (
-        <div
-          key={videoData._id}
-          className="flex items-center gap-2 w-full mb-4"
-        >
+        <div key={videoData._id} className="flex items-center w-full">
           <div
             className={`w-[96%] ${
               videoData.type === "spotify"
@@ -48,7 +45,7 @@ const EmbedPlayer: React.FC<EmbedPlayerProps> = ({
                       : "h-[100px] lg:h-[160px] 2xl:h-[240px]"
                   }`
                 : "h-full"
-            } border-4 border-[#c685ff] rounded-2xl overflow-hidden`}
+            } rounded-2xl overflow-hidden shadow-small`}
           >
             {videoData.type === "spotify" ? (
               <iframe
@@ -106,9 +103,9 @@ const EmbedPlayer: React.FC<EmbedPlayerProps> = ({
                   categoryForTrigger: "embed",
                 })
               }
-              className="hover:scale-105 transition-transform"
+              className="translate-x-1"
             >
-              <FaEdit size={18} />
+              <FaEdit size={16} />
             </button>
           </div>
         </div>
