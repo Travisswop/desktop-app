@@ -216,11 +216,27 @@ export default function ContentInfo({
         </TabsList>
 
         <TabsContent value="all">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {allContent.map((item) => (
-              <ContentItem key={item._id} item={item} />
-            ))}
-          </div>
+          {typedAudioList && typedAudioList.length > 0 && (
+            <div className="space-y-4">
+              <h2 className="text-2xl font-semibold">Audio</h2>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {typedAudioList.map((item) => (
+                  <ContentItem key={item._id} item={item} />
+                ))}
+              </div>
+            </div>
+          )}
+
+          {typedVideoList && typedVideoList.length > 0 && (
+            <div className="space-y-4 py-8">
+              <h2 className="text-2xl font-semibold">Video</h2>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {typedVideoList.map((item) => (
+                  <ContentItem key={item._id} item={item} />
+                ))}
+              </div>
+            </div>
+          )}
         </TabsContent>
 
         <TabsContent value="audio">
