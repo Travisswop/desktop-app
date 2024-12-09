@@ -7,13 +7,16 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { HelpCircle } from 'lucide-react';
+import { HelpCircle, Wallet } from 'lucide-react';
 import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
 } from '@/components/ui/tooltip';
+import { NFT } from '@/types/nft';
+import Image from 'next/image';
+import { Network } from '../WalletContent';
 
 interface SendConfirmationProps {
   open: boolean;
@@ -21,8 +24,12 @@ interface SendConfirmationProps {
   amount: string;
   tokenAddress: string;
   recipient: string;
+  recipientName: string;
   onConfirm: () => void;
   loading: boolean;
+  nft: NFT | null;
+  networkFee: string;
+  network: Network;
 }
 
 export default function SendConfirmation({
@@ -31,9 +38,14 @@ export default function SendConfirmation({
   amount,
   tokenAddress,
   recipient,
+  recipientName,
   onConfirm,
   loading,
+  nft,
+  networkFee,
+  network,
 }: SendConfirmationProps) {
+  console.log('nft', nft);
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-md p-6 rounded-3xl">
@@ -51,33 +63,67 @@ export default function SendConfirmation({
 
         <div className="space-y-6 mt-4">
           {/* Amount */}
-          <div>
-            <div className="text-3xl font-medium">${amount}</div>
-            <div className="text-sm text-gray-500 mt-1">
-              {tokenAddress}
-            </div>
+          <div className="flex flex-col items-center">
+            {nft ? (
+              <div className="text-center">
+                <div className="text-xl font-medium">{nft.name}</div>
+                <div className="mt-2">
+                  <Image
+                    src={nft.image}
+                    alt={nft.name}
+                    width={100}
+                    height={100}
+                    className="w-32 h-32 object-cover rounded-lg"
+                  />
+                </div>
+                <div className="text-sm text-gray-500 mt-1">
+                  Token ID: {nft.tokenId}
+                </div>
+              </div>
+            ) : (
+              <div className="text-center">
+                <div className="text-3xl font-medium">${amount}</div>
+                <div className="text-sm text-gray-500 mt-1">
+                  {tokenAddress}
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Recipient */}
-          <div>
-            <div className="text-sm font-medium mb-2">To</div>
+          <div className="">
+            <div className="text-sm font-medium mb-2 border-b-1 border-gray-300 pb-2">
+              To
+            </div>
             <div className="flex items-center gap-2 text-gray-700">
               <div className="w-5 h-5 rounded-full bg-gray-100 flex items-center justify-center">
-                📨
+                <Wallet className="w-6 h-6" />
               </div>
-              {recipient}
+              {recipientName || recipient}
             </div>
           </div>
 
           {/* Details */}
-          <div>
-            <div className="text-sm font-medium mb-2">Details</div>
+          <div className="">
+            <div className="text-sm font-medium mb-2 border-b-1 border-gray-300 pb-2">
+              Network Fee
+            </div>
             <div className="space-y-3">
-              <div className="flex items-center justify-between">
+              <div className="flex items-center justify-between gap-4">
                 <div className="flex items-center gap-2">
                   <span className="text-sm text-gray-600">
-                    Network Fee
+                    {networkFee}{' '}
+                    {network === 'SOLANA'
+                      ? 'SOL'
+                      : network === 'ETHEREUM'
+                      ? 'ETH'
+                      : network === 'POLYGON'
+                      ? 'MATIC'
+                      : 'BASE'}
                   </span>
+                </div>
+                <div className="flex items-center gap-2 text-sm text-gray-600">
+                  <span>What are the network fees</span>
                   <TooltipProvider>
                     <Tooltip>
                       <TooltipTrigger>
@@ -91,9 +137,6 @@ export default function SendConfirmation({
                       </TooltipContent>
                     </Tooltip>
                   </TooltipProvider>
-                </div>
-                <div className="text-sm text-gray-600">
-                  What are the network fees
                 </div>
               </div>
             </div>

@@ -44,8 +44,9 @@ import AssetSelector from './token/asset-selector';
 import WalletQRModal from './wallet-qr-modal';
 import WalletQRShare from './wallet-qr-share-modal';
 import QRCodeShareModal from '../smartsite/socialShare/QRCodeShareModal';
+import { useNFT } from '@/lib/hooks/useNFT';
 
-type Network = 'ETHEREUM' | 'POLYGON' | 'BASE' | 'SOLANA';
+export type Network = 'ETHEREUM' | 'POLYGON' | 'BASE' | 'SOLANA';
 
 const CHAIN_ID = {
   ETHEREUM: 1,
@@ -94,11 +95,19 @@ const WalletContentInner = () => {
     token: TokenData | null;
     amount: string;
     recipient: ReceiverData | null;
+    nft: NFT | null;
+    networkFee: string;
+    network: Network;
+    hash: string;
   }>({
     step: null,
     token: null,
     amount: '',
     recipient: null,
+    nft: null,
+    networkFee: '0',
+    network: 'ETHEREUM',
+    hash: '',
   });
 
   const { toast } = useToast();
@@ -123,6 +132,13 @@ const WalletContentInner = () => {
     loading: tokenLoading,
     error: tokenError,
   } = useMultiChainTokenData(currentWalletAddress, [network]);
+
+  const {
+    nfts,
+    loading: nftLoading,
+    error: nftError,
+    refetch,
+  } = useNFT(currentWalletAddress, [network]);
 
   const totalBalance = useMemo(() => {
     return tokens.reduce((total, token) => {
@@ -201,6 +217,10 @@ const WalletContentInner = () => {
       token,
       amount: '',
       recipient: null,
+      nft: null,
+      networkFee: '0',
+      network: network,
+      hash: '',
     });
   };
 
@@ -210,6 +230,31 @@ const WalletContentInner = () => {
       ...prev,
       step: 'recipient',
       amount,
+    }));
+  };
+
+  const handleNFTNext = (nft: NFT) => {
+    let networkFee = '0';
+    if (network === 'ETHEREUM') {
+      networkFee = '0.0001'; // Approximate gas fee in ETH for NFT transfer
+    }
+    if (network === 'SOLANA') {
+      networkFee = '0.000000001'; // Approximate SOL fee for NFT transfer
+    }
+    if (network === 'POLYGON') {
+      networkFee = '0.0001'; // Approximate gas fee in MATIC for NFT transfer
+    }
+    if (network === 'BASE') {
+      networkFee = '0.0001'; // Approximate gas fee in BASE for NFT transfer
+    }
+    handleCloseNFTModal();
+    setSendFlow((prev) => ({
+      ...prev,
+      step: 'recipient',
+      amount: '1',
+      nft,
+      networkFee: networkFee,
+      network: network,
     }));
   };
 
@@ -224,32 +269,86 @@ const WalletContentInner = () => {
 
   // Handler for final confirmation
   const handleSendConfirm = async () => {
-    if (!sendFlow.token || !sendFlow.recipient || !sendFlow.amount)
+    if (
+      (!sendFlow.token && !sendFlow.nft) ||
+      !sendFlow.recipient ||
+      !sendFlow.amount
+    )
       return;
 
     setSendLoading(true);
 
+    const token = sendFlow.token;
+    const nft = sendFlow.nft;
+    const amount = sendFlow.amount;
+    const recipient = sendFlow.recipient;
+    const network = sendFlow.network;
+
     try {
-      if (sendFlow.token.chain === 'SOLANA') {
-        await handleSolanaSend();
+      if (sendFlow.nft) {
+        // Handle NFT transfer
+        if (network === 'SOLANA') {
+          const hash = await handleSolanaNFTTransfer();
+          setSendFlow((prev) => ({
+            ...prev,
+            hash,
+            nft,
+            token,
+            amount,
+            recipient,
+            network,
+            step: 'success',
+          }));
+        } else {
+          const hash = await handleNFTTransfer();
+          setSendFlow((prev) => ({
+            ...prev,
+            hash,
+            nft,
+            token,
+            amount,
+            recipient,
+            network,
+            step: 'success',
+          }));
+        }
+
+        refetch();
       } else {
-        const txHash = await handleEVMSend();
-        console.log('🚀 ~ handleSendConfirm ~ txHash:', txHash);
+        // Handle token transfer
+        if (sendFlow.token?.chain === 'SOLANA') {
+          const hash = await handleSolanaSend();
+          setSendFlow((prev) => ({
+            ...prev,
+            hash,
+            token,
+            amount,
+            recipient,
+            network,
+            step: 'success',
+            nft: null,
+          }));
+        } else {
+          const txHash = await handleEVMSend();
+          setSendFlow((prev) => ({
+            ...prev,
+            hash: txHash,
+            token,
+            amount,
+            recipient,
+            network,
+            step: 'success',
+            nft: null,
+          }));
+        }
       }
-
-      setSendFlow((prev) => ({
-        ...prev,
-        step: 'success',
-        amount: sendFlow.amount,
-      }));
-
       // Reset flow after successful send
-      setTimeout(() => {
-        handleCloseModals();
-      }, 5000);
+      // setTimeout(() => {
+      //   handleCloseModals();
+      // }, 5000);
     } catch (error) {
       setSendLoading(false);
-      console.error('Error sending token:', error);
+      console.error('Error sending token/NFT:', error);
       toast({
         variant: 'destructive',
         title: 'Error',
@@ -258,8 +357,86 @@ const WalletContentInner = () => {
             ? error.message
             : 'Failed to send transaction',
       });
+      setSendFlow((prev) => ({
+        ...prev,
+        token: null,
+        nft: null,
+        amount: '',
+        recipient: null,
+        step: null,
+      }));
     } finally {
       setSendLoading(false);
+    }
+  };
+
+  const handleSolanaNFTTransfer = async () => {
+    const solanaWallet = solanaWallets.find(
+      (w: any) => w.walletClientType === 'privy'
+    );
+
+    if (!solanaWallet) throw new Error('No Solana wallet found');
+
+    const connection = new Connection(
+      process.env.NEXT_PUBLIC_QUICKNODE_SOLANA_URL!,
+      'confirmed'
+    );
+
+    try {
+      const toWallet = new PublicKey(
+        sendFlow.recipient?.address || ''
+      );
+      const mint = new PublicKey(sendFlow.nft?.contract || '');
+
+      // Get source token account
+      const sourceAccount = await getAssociatedTokenAddress(
+        mint,
+        new PublicKey(solanaWallet.address)
+      );
+
+      // Get or create destination token account
+      const destinationAccount = await getAssociatedTokenAddress(
+        mint,
+        toWallet
+      );
+
+      const tx = new SolanaTransaction();
+
+      // Create destination account if it doesn't exist
+      if (!(await connection.getAccountInfo(destinationAccount))) {
+        tx.add(
+          createAssociatedTokenAccountInstruction(
+            new PublicKey(solanaWallet.address),
+            destinationAccount,
+            toWallet,
+            mint
+          )
+        );
+      }
+
+      // Add transfer instruction
+      tx.add(
+        createTransferInstruction(
+          sourceAccount,
+          destinationAccount,
+          new PublicKey(solanaWallet.address),
+          1 // Amount is always 1 for NFTs
+        )
+      );
+
+      const { blockhash } = await connection.getLatestBlockhash();
+      tx.recentBlockhash = blockhash;
+      tx.feePayer = new PublicKey(solanaWallet.address);
+
+      const signedTx = await solanaWallet.signTransaction(tx);
+      const signature = await connection.sendRawTransaction(
+        signedTx.serialize()
+      );
+
+      return signature;
+    } catch (error) {
+      console.error('Error in Solana NFT transfer:', error);
+      throw error;
     }
   };
 
@@ -292,7 +469,10 @@ const WalletContentInner = () => {
       tx.feePayer = new PublicKey(solanaWallet.address);
 
       const signedTx = await solanaWallet.signTransaction(tx);
-      await connection.sendRawTransaction(signedTx.serialize());
+      const signature = await connection.sendRawTransaction(
+        signedTx.serialize()
+      );
+      return signature;
     } else {
       // SPL Token
       const fromTokenAccount = await getAssociatedTokenAddress(
@@ -341,13 +521,22 @@ const WalletContentInner = () => {
       tx.feePayer = new PublicKey(solanaWallet.address);
 
       const signedTx = await solanaWallet.signTransaction(tx);
-      await connection.sendRawTransaction(signedTx.serialize());
+      const signature = await connection.sendRawTransaction(
+        signedTx.serialize()
+      );
+      return signature;
     }
   };
 
   const handleEVMSend = async () => {
+    const linkedEthereumWallet = PrivyUser?.linkedAccounts.find(
+      (item: any) => item.chainType === 'ethereum' && item.address
+    );
+
     const evmWallet = ethWallets.find(
-      (w: any) => w.walletClientType === 'privy'
+      (w) =>
+        w.address?.toLowerCase() ===
+        (linkedEthereumWallet as any).address?.toLowerCase()
     );
 
     if (!evmWallet) throw new Error('No EVM wallet found');
@@ -477,6 +666,104 @@ const WalletContentInner = () => {
     }
   };
 
+  const handleNFTTransfer = async () => {
+    try {
+      const linkedEthereumWallet = PrivyUser?.linkedAccounts.find(
+        (item: any) => item.chainType === 'ethereum' && item.address
+      );
+
+      const evmWallet = ethWallets.find(
+        (w) =>
+          w.address?.toLowerCase() ===
+          (linkedEthereumWallet as any).address?.toLowerCase()
+      );
+
+      if (!evmWallet) throw new Error('No EVM wallet found');
+
+      await evmWallet.switchChain(CHAIN_ID[network]);
+      const provider = await evmWallet.getEthereumProvider();
+
+      const web3Provider = new ethers.BrowserProvider(provider);
+      const signer = await web3Provider.getSigner();
+
+      // Comprehensive ABI for ERC1155 and ERC721 compatibility
+      const comprehensiveNftAbi = [
+        // ERC721 methods
+        'function transferFrom(address from, address to, uint256 tokenId) external',
+        'function safeTransferFrom(address from, address to, uint256 tokenId) external',
+        'function safeTransferFrom(address from, address to, uint256 tokenId, bytes memory _data) external',
+        'function ownerOf(uint256 tokenId) view returns (address)',
+
+        // ERC1155 methods
+        'function safeTransferFrom(address from, address to, uint256 id, uint256 amount, bytes memory data) external',
+        'function balanceOf(address account, uint256 id) view returns (uint256)',
+        'function isApprovedForAll(address account, address operator) view returns (bool)',
+      ];
+
+      const contract = new ethers.Contract(
+        sendFlow.nft?.contract || '',
+        comprehensiveNftAbi,
+        signer
+      );
+
+      // Check ownership and approval
+      const senderAddress = await signer.getAddress();
+      const balance = await contract.balanceOf(
+        senderAddress,
+        sendFlow.nft?.tokenId || 0
+      );
+
+      if (balance.toString() === '0') {
+        throw new Error('Insufficient NFT balance');
+      }
+
+      try {
+        const tx = await contract.safeTransferFrom(
+          senderAddress,
+          sendFlow.recipient?.address || '',
+          sendFlow.nft?.tokenId || 0
+        );
+
+        const receipt = await tx.wait();
+        console.log('Transfer Receipt:', receipt);
+
+        return receipt.hash;
+      } catch (transferError) {
+        console.error('ERC1155 Transfer Failed:', transferError);
+
+        // Fallback to ERC721 transfer methods
+        try {
+          const fallbackTx = await contract.safeTransferFrom(
+            senderAddress,
+            sendFlow.recipient?.address || '',
+            sendFlow.nft?.tokenId || 0
+          );
+
+          const fallbackReceipt = await fallbackTx.wait();
+          console.log('Fallback Transfer Receipt:', fallbackReceipt);
+
+          return fallbackReceipt.hash;
+        } catch (fallbackError) {
+          console.error('Fallback Transfer Failed:', fallbackError);
+
+          // Detailed error logging
+          if (fallbackError instanceof Error) {
+            console.log('Full Error Details:', {
+              message: fallbackError.message,
+              code: (fallbackError as any).code,
+              data: (fallbackError as any).data,
+            });
+          }
+
+          throw new Error('NFT Transfer Failed: Please try again.');
+        }
+      }
+    } catch (error) {
+      console.error('Comprehensive NFT Transfer Error:', error);
+      throw error;
+    }
+  };
+
   // Handler for closing any modal
   const handleCloseModals = () => {
     setSendFlow({
@@ -484,6 +771,10 @@ const WalletContentInner = () => {
       token: null,
       amount: '',
       recipient: null,
+      nft: null,
+      networkFee: '0',
+      network: network,
+      hash: '',
     });
   };
 
@@ -502,6 +793,8 @@ const WalletContentInner = () => {
     }));
   };
 
+  console.log('🚀 ~ WalletContent ~ sendFlow:', sendFlow);
+
   return (
     <div className="">
       <ProfileHeader />
@@ -512,7 +805,7 @@ const WalletContentInner = () => {
           onSelectAsset={handleAssetSelect}
           onQRClick={() => setWalletQRModalOpen(true)}
         />
-        <MessageBox/>
+        <MessageBox />
         {/* <MessageList /> */}
       </div>
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 my-6">
@@ -535,6 +828,9 @@ const WalletContentInner = () => {
             onSelectNft={handleSelectNFT}
             address={currentWalletAddress}
             network={network}
+            nfts={nfts}
+            loading={nftLoading}
+            error={nftError}
           />
           {currentWalletAddress && (
             <TransactionList
@@ -549,6 +845,7 @@ const WalletContentInner = () => {
               isOpen={isNFTModalOpen}
               onClose={handleCloseNFTModal}
               nft={selectedNFT}
+              onNext={() => handleNFTNext(selectedNFT)}
             />
           )}
         </div>
@@ -578,11 +875,19 @@ const WalletContentInner = () => {
           recipient={sendFlow.recipient?.address || ''}
           onConfirm={handleSendConfirm}
           loading={sendLoading}
+          nft={sendFlow.nft}
+          recipientName={sendFlow.recipient?.ensName || ''}
+          networkFee={sendFlow.networkFee || ''}
+          network={sendFlow.network}
         />
         <TransactionSuccess
           open={sendFlow.step === 'success'}
           onOpenChange={(open) => !open && handleCloseModals()}
           amount={sendFlow.amount}
+          nft={sendFlow.nft}
+          token={sendFlow.token}
+          network={sendFlow.network}
+          hash={sendFlow.hash}
         />
         <WalletQRModal
           open={walletQRModalOpen}

@@ -15,7 +15,6 @@ import {
   CarouselNext,
 } from '@/components/ui/carousel';
 import { AlertCircle, ChevronRight } from 'lucide-react';
-import { useNFT } from '@/lib/hooks/useNFT';
 import { NFT } from '@/types/nft';
 
 type Network = 'ETHEREUM' | 'POLYGON' | 'BASE' | 'SOLANA';
@@ -24,6 +23,9 @@ interface NftListProps {
   onSelectNft: (nft: NFT) => void;
   address: string | undefined;
   network: Network;
+  nfts: NFT[];
+  loading: boolean;
+  error: Error | null;
 }
 
 const ErrorAlert = ({ message }: { message: string }) => (
@@ -55,8 +57,10 @@ export default function NFTSlider({
   onSelectNft,
   address,
   network,
+  nfts,
+  loading,
+  error,
 }: NftListProps) {
-  const { nfts, loading, error } = useNFT(address, [network]);
   return (
     <Card className="w-full border-none rounded-xl">
       <CardHeader>

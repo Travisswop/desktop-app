@@ -14,12 +14,14 @@ interface NFTDetailProps {
   isOpen: boolean;
   onClose: () => void;
   nft: NFT;
+  onNext: () => void;
 }
 
 export default function NFTDetailView({
   isOpen = false,
   onClose,
   nft,
+  onNext,
 }: NFTDetailProps) {
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
@@ -64,7 +66,11 @@ export default function NFTDetailView({
           </div>
 
           <div className="flex justify-center">
-            <Button variant="black" className="px-10 font-bold">
+            <Button
+              variant="black"
+              className="px-10 font-bold"
+              onClick={onNext}
+            >
               Send
             </Button>
           </div>
