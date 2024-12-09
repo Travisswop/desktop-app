@@ -30,6 +30,7 @@ import {
 import WalletManager from './wallet-manager';
 import { WalletItem } from '@/types/wallet';
 import { useState } from 'react';
+import WalletAddressPopup from './wallet-address-popup';
 
 interface WalletManagerProps {
   walletData: WalletItem[];
@@ -103,9 +104,10 @@ export default function BalanceChart({
 
   const [isWalletManagerOpen, setIsWalletManagerOpen] =
     useState(false);
+  const [showPopup, setShowPopup] = useState(false);
 
   return (
-    <>
+    <div className="relative">
       <Card className="w-full border-none rounded-xl">
         <CardHeader className="relative">
           <div className="flex justify-between">
@@ -134,7 +136,7 @@ export default function BalanceChart({
               <Button
                 variant="black"
                 size="icon"
-                onClick={() => setIsWalletManagerOpen(true)}
+                onClick={() => setShowPopup(!showPopup)}
               >
                 <Wallet />
               </Button>
@@ -272,6 +274,7 @@ export default function BalanceChart({
         )}
       </Card>
 
+      <WalletAddressPopup walletData={walletData} show={showPopup} />
       {walletData && (
         <WalletManager
           walletData={walletData}
@@ -279,6 +282,6 @@ export default function BalanceChart({
           onClose={() => setIsWalletManagerOpen(false)}
         />
       )}
-    </>
+    </div>
   );
 }
