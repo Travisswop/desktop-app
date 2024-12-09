@@ -353,7 +353,7 @@ const EditSmartSite = ({ data, token }: any) => {
 
   return (
     <main className="main-container">
-      <div className="flex gap-7 items-start h-[90vh]">
+      <div className="flex gap-4 2xl:gap-7 items-start h-[90vh]">
         <div
           style={{ height: "100%" }}
           className="w-[62%] overflow-y-auto pb-6"
@@ -393,7 +393,7 @@ const EditSmartSite = ({ data, token }: any) => {
                   ) : (
                     <>
                       {isUrl(data.data.profilePic) ? (
-                        <div className="relative overflow-hidden rounded-full w-28 xl:w-36 2xl:w-44 h-28 xl:h-36 2xl:h-44 p-1 bg-white shadow-medium">
+                        <div className="relative overflow-hidden rounded-full w-28 xl:w-36 2xl:w-40 h-28 xl:h-36 2xl:h-40 p-1 bg-white shadow-medium">
                           <Image
                             alt="user image"
                             src={data.data.profilePic as any}
@@ -406,7 +406,7 @@ const EditSmartSite = ({ data, token }: any) => {
                           src={`/images/user_avator/${data.data.profilePic}@3x.png`}
                           width={300}
                           height={300}
-                          className="rounded-full shadow-medium p-1 w-44 h-44"
+                          className="rounded-full shadow-medium p-1 w-28 xl:w-36 2xl:w-40 h-28 xl:h-36 2xl:h-40"
                         />
                       )}
                     </>

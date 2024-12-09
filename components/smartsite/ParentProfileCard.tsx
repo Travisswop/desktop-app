@@ -77,7 +77,7 @@ const ParentProfileCard = () => {
               <div className="rounded-lg bg-gray-100"></div>
             </Skeleton>
           ) : (
-            <p className="font-semibold">{user.followers}</p>
+            <p className="font-semibold">{user?.followers}</p>
           )}
 
           <p className="text-sm ">Followers</p>
@@ -89,7 +89,7 @@ const ParentProfileCard = () => {
               <div className="rounded-lg bg-gray-100"></div>
             </Skeleton>
           ) : (
-            <p className="font-semibold">{user.following}</p>
+            <p className="font-semibold">{user?.following}</p>
           )}
 
           <p className="text-sm ">Following</p>
