@@ -72,7 +72,7 @@ export interface TimeSeriesDataPoint {
 
 export interface TokenMetadata {
   chain: ChainType;
-  address: string;
+  address: string | null;
   symbol: string;
   name: string;
   decimals: number;

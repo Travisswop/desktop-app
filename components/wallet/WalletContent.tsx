@@ -212,6 +212,7 @@ const WalletContentInner = () => {
 
   // Handler for initiating send flow
   const handleSendClick = (token: TokenData) => {
+    console.log('handleSendClick');
     setSendFlow({
       step: 'amount',
       token,
@@ -448,7 +449,7 @@ const WalletContentInner = () => {
     if (!solanaWallet) throw new Error('No Solana wallet found');
 
     const connection = new Connection(
-      process.env.NEXT_PUBLIC_ALCHEMY_SOLANA_URL!,
+      process.env.NEXT_PUBLIC_QUICKNODE_SOLANA_URL!,
       'confirmed'
     );
 
@@ -866,12 +867,14 @@ const WalletContentInner = () => {
           open={sendFlow.step === 'recipient'}
           onOpenChange={(open) => !open && handleCloseModals()}
           onSelectReceiver={handleRecipientSelect}
+          network={network}
+          currentWalletAddress={currentWalletAddress || ''}
         />
         <SendConfirmation
           open={sendFlow.step === 'confirm'}
           onOpenChange={(open) => !open && handleCloseModals()}
           amount={sendFlow.amount}
-          tokenAddress={sendFlow.token?.address || ''}
+          token={sendFlow.token!}
           recipient={sendFlow.recipient?.address || ''}
           onConfirm={handleSendConfirm}
           loading={sendLoading}

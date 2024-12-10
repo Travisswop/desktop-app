@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -14,6 +14,7 @@ import Image from 'next/image';
 import { useDebounce } from 'use-debounce';
 import { useQuery } from '@tanstack/react-query';
 import { ReceiverData } from '@/types/wallet';
+import { truncateAddress } from '@/lib/utils';
 
 const validateEthereumAddress = (address: string) => {
   return /^0x[a-fA-F0-9]{40}$/.test(address);
@@ -24,8 +25,10 @@ const validateSolanaAddress = (address: string) => {
 };
 
 async function fetchUserByENS(
-  ensName: string
+  ensName: string,
+  network: string
 ): Promise<ReceiverData | null> {
+  console.log('🚀 ~ ensName:', ensName);
   if (!ensName) return null;
 
   if (ensName.endsWith('.swop.id')) {
@@ -35,10 +38,10 @@ async function fetchUserByENS(
       throw new Error('Failed to fetch ENS address');
     }
     const data = await response.json();
-    console.log('🚀 ~ data:', data);
 
     return {
-      address: data.owner,
+      address:
+        network === 'SOLANA' ? data.addresses['501'] : data.owner,
       ensName: data.name,
       isEns: true,
       avatar: data.domainOwner.avatar.startsWith('https://')
@@ -47,31 +50,19 @@ async function fetchUserByENS(
     };
   } else if (ensName.startsWith('0x')) {
     // Handle Ethereum address
-    // Validate Ethereum address
-    if (ensName.length !== 42) {
-      throw new Error('Invalid Ethereum address length');
-    }
-    // Assuming we have a function to validate Ethereum address
     if (!validateEthereumAddress(ensName)) {
       throw new Error('Invalid Ethereum address');
     }
 
-    console.log('🚀 ~ ensName:', ensName);
     return {
       address: ensName,
       isEns: false,
     };
   } else {
     // Handle Solana address
-    // Validate Solana address
-    if (ensName.length !== 44) {
-      throw new Error('Invalid Solana address length');
-    }
-    // Assuming we have a function to validate Solana address
     if (!validateSolanaAddress(ensName)) {
       throw new Error('Invalid Solana address');
     }
-    // Return the Solana address directly
     return {
       address: ensName,
       isEns: false,
@@ -83,33 +74,34 @@ interface SendToModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onSelectReceiver: (receiver: ReceiverData) => void;
+  network: string;
+  currentWalletAddress: string;
 }
 
 export default function SendToModal({
   open = false,
   onOpenChange,
   onSelectReceiver,
+  network,
+  currentWalletAddress,
 }: SendToModalProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [debouncedQuery] = useDebounce(searchQuery, 500);
+  const [addressError, setAddressError] = useState(false);
 
-  // Check if input is a valid wallet address
-  const isValidAddress = useMemo(() => {
-    if (!searchQuery) return false;
-    return (
-      validateEthereumAddress(searchQuery) ||
-      validateSolanaAddress(searchQuery)
-    );
-  }, [searchQuery]);
+  const isValidAddress =
+    searchQuery &&
+    ((['ETHEREUM', 'POLYGON', 'BASE'].includes(network) &&
+      validateEthereumAddress(searchQuery)) ||
+      (network === 'SOLANA' && validateSolanaAddress(searchQuery)));
 
-  // Only fetch ENS data if it's not a valid address
   const {
     data: userData,
     isLoading,
     error,
   } = useQuery({
     queryKey: ['user', debouncedQuery],
-    queryFn: () => fetchUserByENS(debouncedQuery),
+    queryFn: () => fetchUserByENS(debouncedQuery, network),
     enabled:
       Boolean(debouncedQuery) &&
       !isValidAddress &&
@@ -118,6 +110,20 @@ export default function SendToModal({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    setAddressError(false);
+
+    // Validate address is not empty or current wallet
+    if (!searchQuery.trim()) {
+      return;
+    }
+
+    if (
+      searchQuery.toLowerCase() === currentWalletAddress.toLowerCase()
+    ) {
+      setAddressError(true);
+      return;
+    }
+
     if (isValidAddress) {
       onSelectReceiver({
         address: searchQuery,
@@ -126,6 +132,29 @@ export default function SendToModal({
         avatar: undefined,
       });
     } else if (userData) {
+      // Also validate ENS resolved address
+      if (
+        userData.address.toLowerCase() ===
+        currentWalletAddress.toLowerCase()
+      ) {
+        setAddressError(true);
+        return;
+      }
+
+      // Validate resolved address format matches network
+      const isValidResolved = [
+        'ETHEREUM',
+        'POLYGON',
+        'BASE',
+      ].includes(network)
+        ? validateEthereumAddress(userData.address)
+        : validateSolanaAddress(userData.address);
+
+      if (!isValidResolved) {
+        setAddressError(true);
+        return;
+      }
+
       onSelectReceiver({
         address: userData.address,
         isEns: true,
@@ -135,9 +164,16 @@ export default function SendToModal({
     }
   };
 
-  const truncateAddress = (address: string) => {
-    return `${address.slice(0, 8)}.....${address.slice(-8)}`;
+  const handleSearchChange = (
+    e: React.ChangeEvent<HTMLInputElement>
+  ) => {
+    setSearchQuery(e.target.value);
+    setAddressError(false);
   };
+
+  console.log('error', error);
+  console.log('addressError', addressError);
+  console.log('userData', userData);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -154,14 +190,19 @@ export default function SendToModal({
               type="text"
               placeholder="Enter wallet address or ENS name"
               value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
+              onChange={handleSearchChange}
               className="pr-10 rounded-2xl border-gray-200"
             />
             <Button
               type="submit"
               size="sm"
               className="absolute right-2 top-1/2 -translate-y-1/2 rounded-full p-1 h-8 w-8"
-              disabled={(!isValidAddress && !userData) || isLoading}
+              disabled={
+                (!isValidAddress && !userData) ||
+                addressError ||
+                isLoading ||
+                !searchQuery.trim()
+              }
             >
               {isLoading ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
@@ -179,14 +220,18 @@ export default function SendToModal({
             </div>
           )}
 
-          {error && (
-            <div className="text-center text-sm text-red-500">
-              Invalid address or ENS name. Please try again.
-            </div>
-          )}
+          {(error || addressError || !isValidAddress) &&
+            searchQuery &&
+            !userData && (
+              <div className="text-center text-sm text-red-500">
+                {addressError
+                  ? 'Cannot send to your own address'
+                  : 'Invalid address or ENS name. Please try again.'}
+              </div>
+            )}
 
           {/* Show wallet address preview */}
-          {isValidAddress && (
+          {isValidAddress && !addressError && (
             <div className="w-full p-4 rounded-2xl border border-gray-100 bg-gray-50">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
@@ -197,7 +242,7 @@ export default function SendToModal({
                     <span className="text-sm text-gray-500">
                       Wallet Address
                     </span>
-                    <p className="font-medium">
+                    <p className="text-sm text-gray-500">
                       {truncateAddress(searchQuery)}
                     </p>
                   </div>
@@ -208,7 +253,10 @@ export default function SendToModal({
 
           {/* Show ENS preview */}
           {userData && userData.isEns && (
-            <div className="w-full p-4 rounded-2xl border border-gray-100 bg-gray-50">
+            <div
+              className="w-full p-4 rounded-2xl border border-gray-100 bg-gray-50 cursor-pointer hover:bg-gray-100 transition-colors"
+              onClick={() => onSelectReceiver(userData)}
+            >
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
                   <Image
@@ -233,7 +281,7 @@ export default function SendToModal({
 
           {!searchQuery && (
             <div className="text-center text-sm text-gray-500">
-              Enter a wallet address or ENS name to send to.
+              Enter a valid wallet address or ENS name to send to.
             </div>
           )}
         </div>

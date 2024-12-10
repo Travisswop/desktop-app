@@ -21,93 +21,114 @@ export default function SendTokenModal({
   token,
   onNext,
 }: SendTokenModalProps) {
-  const [isUSD, setIsUSD] = useState(true);
-  const [amount, setAmount] = useState('100.00');
+  // When price is 0, force token input mode
+  const hasPrice = parseFloat(token?.marketData?.price || '0') > 0;
+  const [isUSD, setIsUSD] = useState(hasPrice);
+  const [amount, setAmount] = useState('1.00');
 
   const maxUSDAmount = useMemo(() => {
-    if (!token) return '0.00';
+    if (!token || !hasPrice) return '0.00';
     return (
       parseFloat(token.balance) * parseFloat(token.marketData.price)
     ).toFixed(2);
-  }, [token]);
+  }, [token, hasPrice]);
+
+  const convertUSDToToken = useCallback(
+    (usdAmount: number) => {
+      if (!token?.marketData.price || !hasPrice) return '0';
+      const price = parseFloat(token.marketData.price);
+      return (usdAmount / price).toFixed(4);
+    },
+    [token, hasPrice]
+  );
+
+  const convertTokenToUSD = useCallback(
+    (tokenAmount: number) => {
+      if (!token?.marketData.price || !hasPrice) return '0';
+      return (
+        tokenAmount * parseFloat(token.marketData.price)
+      ).toFixed(2);
+    },
+    [token, hasPrice]
+  );
 
   const handleInput = useCallback(
     (value: string) => {
       if (!token) return;
 
+      // Remove non-numeric/decimal characters and multiple decimals
       const sanitizedValue = value
         .replace(/[^0-9.]/g, '')
         .replace(/(\..*)\./g, '$1');
 
+      // Handle empty or just decimal input
       if (sanitizedValue === '' || sanitizedValue === '.') {
         setAmount('0');
         return;
       }
 
-      const numericValue = parseFloat(sanitizedValue);
+      // Remove leading zeros unless it's a decimal (e.g. 0.123)
+      const normalizedValue = sanitizedValue.replace(/^0+(?=\d)/, '');
+
+      const numericValue = parseFloat(normalizedValue);
       if (isNaN(numericValue)) return;
 
-      // Check if the input exceeds the balance
-      if (isUSD) {
-        if (numericValue > parseFloat(maxUSDAmount)) {
+      if (isUSD && hasPrice) {
+        const maxUSD = parseFloat(maxUSDAmount);
+        if (numericValue > maxUSD) {
           setAmount(maxUSDAmount);
         } else {
-          setAmount(sanitizedValue);
+          setAmount(normalizedValue);
         }
       } else {
-        if (numericValue > parseFloat(token.balance)) {
+        const maxToken = parseFloat(token.balance);
+        if (numericValue > maxToken) {
           setAmount(token.balance);
         } else {
-          setAmount(sanitizedValue);
+          setAmount(normalizedValue);
         }
       }
     },
-    [isUSD, token, maxUSDAmount]
+    [isUSD, token, maxUSDAmount, hasPrice]
   );
 
   const toggleCurrency = useCallback(() => {
-    if (!token) return;
-
-    setIsUSD((prev) => !prev);
+    if (!token || !hasPrice) return;
 
     const numericAmount = parseFloat(amount);
-    if (!isNaN(numericAmount)) {
-      if (isUSD) {
-        // Convert USD to Token
-        setAmount(
-          (
-            numericAmount / parseFloat(token.marketData.price)
-          ).toFixed(4)
-        );
+    if (isNaN(numericAmount)) return;
+
+    setIsUSD((prev) => {
+      if (prev) {
+        // Converting from USD to Token
+        setAmount(convertUSDToToken(numericAmount));
       } else {
-        // convert Token to USD
-        setAmount(
-          (
-            numericAmount * parseFloat(token.marketData.price)
-          ).toFixed(2)
-        );
+        // Converting from Token to USD
+        setAmount(convertTokenToUSD(numericAmount));
       }
-    }
-  }, [amount, isUSD, token]);
+      return !prev;
+    });
+  }, [amount, token, convertUSDToToken, convertTokenToUSD, hasPrice]);
 
   const getOppositeAmount = useCallback(() => {
-    if (!token) return '0';
+    if (!token || !hasPrice) return '0';
 
     const numericAmount = parseFloat(amount);
     if (isNaN(numericAmount)) return '0';
 
     if (isUSD) {
-      // Display token amount
-      return (
-        numericAmount / parseFloat(token.marketData.price)
-      ).toFixed(4);
+      return convertUSDToToken(numericAmount);
     } else {
-      // Display USD amount
-      return (
-        numericAmount * parseFloat(token.marketData.price)
-      ).toFixed(2);
+      return convertTokenToUSD(numericAmount);
     }
-  }, [amount, isUSD, token]);
+  }, [
+    amount,
+    isUSD,
+    token,
+    convertUSDToToken,
+    convertTokenToUSD,
+    hasPrice,
+  ]);
 
   if (!token) return null;
 
@@ -127,7 +148,7 @@ export default function SendTokenModal({
         <div className="flex justify-center mt-10">
           <div>
             <span className="text-3xl font-medium">
-              {isUSD ? 'USD' : token.symbol}
+              {isUSD && hasPrice ? 'USD' : token.symbol}
             </span>
           </div>
         </div>
@@ -136,9 +157,8 @@ export default function SendTokenModal({
           <div>
             <Button
               onClick={() => {
-                const maxAmount = isUSD
-                  ? maxUSDAmount
-                  : token.balance;
+                const maxAmount =
+                  isUSD && hasPrice ? maxUSDAmount : token.balance;
                 handleInput(maxAmount);
               }}
               className="rounded-full bg-slate-300 p-6"
@@ -152,7 +172,7 @@ export default function SendTokenModal({
           </div>
           {/* Amount Input */}
           <div className="relative inline-flex items-center">
-            {isUSD && (
+            {isUSD && hasPrice && (
               <span className="text-4xl font-medium mr-1">$</span>
             )}
             <input
@@ -164,25 +184,29 @@ export default function SendTokenModal({
             />
           </div>
           {/* Toggle */}
-          <div>
-            <Button
-              size="icon"
-              variant="outline"
-              className="rounded-full bg-slate-200 p-6"
-              onClick={toggleCurrency}
-            >
-              <ArrowUpDown className="text-muted-foreground" />
-            </Button>
-          </div>
+          {hasPrice && (
+            <div>
+              <Button
+                size="icon"
+                variant="outline"
+                className="rounded-full bg-slate-200 p-6"
+                onClick={toggleCurrency}
+              >
+                <ArrowUpDown className="text-muted-foreground" />
+              </Button>
+            </div>
+          )}
         </div>
 
-        <div className="text-center mb-6">
-          <span className="text-sm text-gray-500">
-            {isUSD
-              ? `${getOppositeAmount()} ${token.symbol}`
-              : `$${getOppositeAmount()}`}
-          </span>
-        </div>
+        {hasPrice && (
+          <div className="text-center mb-6">
+            <span className="text-sm text-gray-500">
+              {isUSD
+                ? `${getOppositeAmount()} ${token.symbol}`
+                : `$${getOppositeAmount()}`}
+            </span>
+          </div>
+        )}
 
         {/* Token Selection */}
         <div className="flex items-center justify-between p-4 bg-gray-50 rounded-xl mb-6 shadow-xl">
@@ -204,10 +228,19 @@ export default function SendTokenModal({
             </div>
           </div>
           <div className="text-right">
-            <div className="font-medium">${maxUSDAmount}</div>
-            <div className="text-sm text-gray-500">
-              {parseFloat(token.balance).toFixed(4)} {token.symbol}
-            </div>
+            {hasPrice ? (
+              <>
+                <div className="font-medium">${maxUSDAmount}</div>
+                <div className="text-sm text-gray-500">
+                  {parseFloat(token.balance).toFixed(4)}{' '}
+                  {token.symbol}
+                </div>
+              </>
+            ) : (
+              <div className="font-medium">
+                {parseFloat(token.balance).toFixed(4)} {token.symbol}
+              </div>
+            )}
           </div>
         </div>
 

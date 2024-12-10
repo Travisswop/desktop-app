@@ -1,20 +1,63 @@
 import { ethers } from 'ethers';
 import { useQueries } from '@tanstack/react-query';
 import { Connection, PublicKey } from '@solana/web3.js';
+
 import {
   ChainType,
   EVMChain,
   MarketData,
   TimeSeriesDataPoint,
   SolanaTokenData,
+  TokenData,
 } from '@/types/token';
 import { useMemo } from 'react';
 import { CHAINS } from '@/types/config';
+import {
+  getAccount,
+  getAssociatedTokenAddress,
+} from '@solana/spl-token';
 
 interface TokenAccount {
   account: SolanaTokenData;
   pubkey: PublicKey;
 }
+
+const SWOP_TOKEN: TokenData = {
+  name: 'Swop',
+  symbol: 'SWOP',
+  address: 'GAehkgN1ZDNvavX81FmzCcwRnzekKMkSyUNq8WkMsjX1',
+  decimals: 9,
+  balance: '0',
+  chain: 'SOLANA',
+  logoURI: '/swop.png',
+  marketData: {
+    price: '0',
+    uuid: 'swop',
+    symbol: 'SWOP',
+    name: 'Swop',
+    color: '#000000',
+    marketCap: '0',
+    '24hVolume': '0',
+    iconUrl: '/swop.png',
+    listedAt: 0,
+    tier: 0,
+    change: '0',
+    rank: 0,
+    sparkline: [],
+    lowVolume: false,
+    coinrankingUrl: '',
+    btcPrice: '0',
+    contractAddresses: [],
+  },
+  sparklineData: [],
+  timeSeriesData: {
+    '1H': [],
+    '1D': [],
+    '1W': [],
+    '1M': [],
+    '1Y': [],
+  },
+};
 
 class TokenAPIService {
   private static async fetchWithRetry(
@@ -275,9 +318,32 @@ class SolanaService {
       const solToken = {
         ...nativeToken,
         balance: (balance / Math.pow(10, 9)).toString(),
+        address: '',
       };
 
-      return [solToken, ...validTokenData];
+      let tokens = [...validTokenData];
+
+      const swopTokenBalance = await this.getSwopTokenBalance(
+        walletAddress
+      );
+      if (swopTokenBalance) {
+        tokens = [
+          {
+            ...SWOP_TOKEN,
+            balance: (
+              Number(swopTokenBalance) /
+              Math.pow(10, SWOP_TOKEN.decimals)
+            ).toString(),
+            address: SWOP_TOKEN.address || '',
+          },
+          solToken,
+          ...validTokenData,
+        ];
+      } else {
+        tokens = [solToken, ...validTokenData];
+      }
+
+      return tokens;
     } catch (error) {
       console.error('Error fetching Solana tokens:', error);
       return [];
@@ -376,6 +442,34 @@ class SolanaService {
     } catch (error) {
       console.error('Error processing token accounts:', error);
       return [];
+    }
+  }
+
+  private static async getSwopTokenBalance(walletAddress: string) {
+    const connection = new Connection(
+      process.env.NEXT_PUBLIC_QUICKNODE_SOLANA_URL!,
+      'confirmed'
+    );
+    const publicKey = new PublicKey(walletAddress);
+    const swopToken = new PublicKey(SWOP_TOKEN.address || '');
+
+    try {
+      const associatedTokenAddress = await getAssociatedTokenAddress(
+        swopToken,
+        publicKey
+      );
+      const tokenAccount = await getAccount(
+        connection,
+        associatedTokenAddress
+      );
+      console.log(
+        '🚀 ~ SolanaService ~ getSwopTokenBalance ~ tokenAccount:',
+        tokenAccount
+      );
+      return tokenAccount.amount;
+    } catch (error) {
+      console.error('Error fetching SWOP token balance:', error);
+      return null;
     }
   }
 }
