@@ -11,11 +11,11 @@ function DashboardPage() {
       <div className="pl-64">
         <main className="container mx-auto px-6 pt-6 max-w-7xl 2xl:max-w-full">
           <DashboardContent />
-          {/* <div className="bg-white rounded-xl w-full">
+          <div className="bg-white rounded-xl w-full">
             <Suspense fallback={<p>Loading...</p>}>
               <FeedMain isFromHome={true} />
             </Suspense>
-          </div> */}
+          </div>
         </main>
       </div>
     </div>
