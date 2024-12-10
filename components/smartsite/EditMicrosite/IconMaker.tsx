@@ -15,13 +15,13 @@ import { MdInfoOutline, MdOutlineAddBox } from "react-icons/md";
 // import photosVideos from "@/public/images/websites/edit-microsite/photos-videos.svg";
 // import redeemLink from "@/public/images/websites/edit-microsite/redeem-link.svg";
 // import appIcon from "@/public/images/websites/edit-microsite/updated/app-icon.svg"
-import smallIcon from "@/public/images/smartsite_icon/small-icon.png";
+import smallIcon from "@/public/images/social-icon/small-icon.png";
 import appIcon from "@/public/images/smartsite_icon/app-icon.png";
 import embedIcon from "@/public/images/smartsite_icon/embeed.png";
 import blogIcon from "@/public/images/smartsite_icon/blog.png";
 import redeemIcon from "@/public/images/smartsite_icon/redeem-link.png";
 import marketPlaceIcon from "@/public/images/smartsite_icon/marketplace.png";
-import photoIcon from "@/public/images/smartsite_icon/photo.png";
+// import photoIcon from "@/public/images/smartsite_icon/photo.png";
 import mp3Icon from "@/public/images/smartsite_icon/audio.png";
 import videoIcon from "@/public/images/smartsite_icon/video.png";
 // import blog from "@/public/images/websites/edit-microsite/updated/blog.svg";
@@ -64,45 +64,45 @@ function SamplePrevArrow(props: any) {
 }
 
 const IconMaker = ({ handleToggleIcon, toggleIcon }: any) => {
-  const settings = {
-    // dots: true,
-    infinite: true,
-    speed: 500,
-    slidesToShow: 8,
-    slidesToScroll: 4,
-    nextArrow: <SampleNextArrow />,
-    prevArrow: <SamplePrevArrow />,
-    responsive: [
-      {
-        breakpoint: 1500,
-        settings: {
-          slidesToShow: 7,
-          slidesToScroll: 4,
-        },
-      },
-      {
-        breakpoint: 1350,
-        settings: {
-          slidesToShow: 5,
-          slidesToScroll: 4,
-        },
-      },
-      {
-        breakpoint: 1000,
-        settings: {
-          slidesToShow: 4,
-          slidesToScroll: 4,
-        },
-      },
-      {
-        breakpoint: 730,
-        settings: {
-          slidesToShow: 2,
-          slidesToScroll: 4,
-        },
-      },
-    ],
-  };
+  // const settings = {
+  //   // dots: true,
+  //   infinite: true,
+  //   speed: 500,
+  //   slidesToShow: 8,
+  //   slidesToScroll: 4,
+  //   nextArrow: <SampleNextArrow />,
+  //   prevArrow: <SamplePrevArrow />,
+  //   responsive: [
+  //     {
+  //       breakpoint: 1500,
+  //       settings: {
+  //         slidesToShow: 7,
+  //         slidesToScroll: 4,
+  //       },
+  //     },
+  //     {
+  //       breakpoint: 1350,
+  //       settings: {
+  //         slidesToShow: 5,
+  //         slidesToScroll: 4,
+  //       },
+  //     },
+  //     {
+  //       breakpoint: 1000,
+  //       settings: {
+  //         slidesToShow: 4,
+  //         slidesToScroll: 4,
+  //       },
+  //     },
+  //     {
+  //       breakpoint: 730,
+  //       settings: {
+  //         slidesToShow: 2,
+  //         slidesToScroll: 4,
+  //       },
+  //     },
+  //   ],
+  // };
 
   const iconBuilderArry = [
     {
@@ -177,12 +177,12 @@ const IconMaker = ({ handleToggleIcon, toggleIcon }: any) => {
 
   return (
     <div className="w-full">
-      <div className="grid grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-3">
+      <div className="grid grid-cols-3 lg:grid-cols-5 2xl:grid-cols-6 gap-3">
         {iconBuilderArry.map((data) => (
           <div key={data._id} className="">
             <div
               onClick={() => handleToggleIcon(data.title)}
-              className="bg-white cursor-pointer py-4 rounded-2xl flex flex-col items-center gap-1 shadow-small relative"
+              className="bg-white cursor-pointer pt-4 pb-2 2xl:py-4 rounded-2xl flex flex-col items-center gap-1 shadow-small relative"
             >
               <div className="absolute top-1 right-2">
                 <Tooltip
@@ -198,17 +198,19 @@ const IconMaker = ({ handleToggleIcon, toggleIcon }: any) => {
                 </Tooltip>
               </div>
 
-              <p className="text-center text-sm font-medium">{data.title}</p>
-              <div className="h-10 my-auto w-full flex justify-center items-center">
+              <p className="text-center text-sm font-medium mt-1 2xl:mt-0">
+                {data.title}
+              </p>
+              <div className="h-7 2xl:h-10 my-auto w-full flex justify-center items-center">
                 <Image
                   alt="icon"
                   src={data.src}
                   quality={100}
                   className={`w-auto ${
                     data.title === "Small Icon"
-                      ? "h-5"
+                      ? "h-4 2xl:h-5"
                       : data.title === "Info Bar"
-                      ? "h-7"
+                      ? "h-6 2xl:h-7"
                       : data.title === "Photo"
                       ? "h-14"
                       : "h-full"
@@ -220,11 +222,11 @@ const IconMaker = ({ handleToggleIcon, toggleIcon }: any) => {
                   // onClick={() => handleRemoveIcon(data.title)}
                   className=""
                 >
-                  <FaRegSquareMinus size={18} />
+                  <FaRegSquareMinus size={17} />
                 </button>
               ) : (
                 <button className="">
-                  <MdOutlineAddBox size={20} />
+                  <MdOutlineAddBox size={17} />
                 </button>
               )}
               {/* <button

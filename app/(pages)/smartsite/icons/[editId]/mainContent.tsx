@@ -101,11 +101,11 @@ const MicrositeEditMainContentPage = ({ data }: any) => {
     <main className="main-container overflow-hidden">
       <div
         style={{ height: "calc(100vh - 108px)" }}
-        className="flex gap-6 items-start"
+        className="flex gap-1 2xl:gap-6 items-start"
       >
         <div
           style={{ height: "100%" }}
-          className="w-[62%] relative border-r border-gray-200 pr-8 flex flex-col gap-4 overflow-y-auto pb-6"
+          className="w-[62%] relative border-r border-gray-200 pr-4 2xl:pr-8 flex flex-col gap-4 overflow-y-auto hide-scrollbar pb-6"
         >
           {/* <div className="flex items-center justify-between">
             <h5 className="heading-3">Microsite Builder</h5>
@@ -124,7 +124,7 @@ const MicrositeEditMainContentPage = ({ data }: any) => {
             />
             <p>Templates</p>
           </div>
-          <section className="px-4">
+          <section className="pl-1 2xl:px-4">
             <IconMaker
               handleToggleIcon={handleToggleIcon}
               toggleIcon={toggleIcon}

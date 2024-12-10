@@ -48,10 +48,14 @@ import { sendCloudinaryImage } from "@/lib/SendCloudineryImage";
 import SmartsiteIconLivePreview from "../SmartsiteIconLivePreview";
 import { useDesktopUserData } from "@/components/tanstackQueryApi/getUserData";
 import { HexColorPicker } from "react-colorful";
-import { MdDone } from "react-icons/md";
+import { MdDeleteOutline, MdDone } from "react-icons/md";
+import Swal from "sweetalert2";
+import { handleDeleteSmartSite } from "@/actions/deleteSmartsite";
 
 const EditSmartSite = ({ data, token }: any) => {
   const [selectedImage, setSelectedImage] = useState(null); // get user avator image
+  const [deleteLoading, setDeleteLoading] = useState(false);
+  // const router = useRouter();
 
   const demoShowToken =
     "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJfaWQiOiI2NjM4NjMyMDIzMDQxMDMyODAyOTk4MmIiLCJpYXQiOjE3MjcxNTI4MzB9.CsHnZAgUzsfkc_g_CZZyQMXc02Ko_LhnQcCVpeCwroY";
@@ -304,6 +308,80 @@ const EditSmartSite = ({ data, token }: any) => {
       setIsFormSubmitLoading(false);
     }
     // console.log("form submitted successfully", response);
+  };
+
+  const handleDeleteSmartsite = async () => {
+    const result = await Swal.fire({
+      title: "Are you sure?",
+      text: "You won't be able to revert your smartsite!",
+      icon: "warning",
+      showCancelButton: true,
+      confirmButtonText: "Yes, delete it!",
+      cancelButtonText: "No, cancel!",
+      reverseButtons: true,
+    });
+
+    if (result.isConfirmed) {
+      try {
+        setDeleteLoading(true);
+        const deleteSmartsite = await handleDeleteSmartSite(
+          data.data._id,
+          token
+        );
+
+        // console.log("data delte", data);
+
+        refetch();
+
+        if (deleteSmartsite?.state === "success") {
+          setDeleteLoading(false);
+          await Swal.fire({
+            title: "Deleted!",
+            text: "Your smartsite has been deleted.",
+            icon: "success",
+          });
+          router.push("/smartsite");
+          // router.refresh();
+        } else if (deleteSmartsite?.state === "fail") {
+          await Swal.fire({
+            title: "Error!",
+            text: deleteSmartsite.message,
+            icon: "error",
+          });
+        }
+        // Check if the deleted microsite is the one stored in localStorage
+        // const selectedSmartsite = localStorage.getItem("selected-smartsite");
+        // Ensure localStorage is accessed only on the client side
+        // if (typeof window !== "undefined") {
+        //   // console.log("hit");
+
+        //   const selectedSmartsite = localStorage.getItem("selected smartsite");
+        //   // console.log("selected smartsite", selectedSmartsite);
+
+        //   if (selectedSmartsite === microsite._id) {
+        //     // console.log("true hit");
+        //     localStorage.removeItem("selected smartsite");
+        //     router.push("/select-smartsite");
+        //   }
+        // }
+        setDeleteLoading(false);
+      } catch (error) {
+        // Handle error if the delete operation fails
+        await Swal.fire({
+          title: "Error",
+          text: "There was an issue deleting your smartsite. Please try again.",
+          icon: "error",
+        });
+        setDeleteLoading(false);
+      }
+    }
+    // else if (result.dismiss === Swal.DismissReason.cancel) {
+    //   await Swal.fire({
+    //     title: "Cancelled",
+    //     text: "Your smartsite is safe :)",
+    //     icon: "error",
+    //   });
+    // }
   };
 
   const handleChange = (e: any) => {
@@ -763,6 +841,21 @@ const EditSmartSite = ({ data, token }: any) => {
                 </>
               )}
             </DynamicPrimaryBtn>
+            <AnimateButton
+              type="button"
+              onClick={handleDeleteSmartsite}
+              className="py-2 hover:py-3 text-base !gap-1 bg-white text-black w-full"
+              // disabled={isFormSubmitLoading}
+            >
+              {deleteLoading ? (
+                <Spinner size="sm" color="default" className="py-0.5" />
+              ) : (
+                <>
+                  <MdDeleteOutline size={20} />
+                  Delete
+                </>
+              )}
+            </AnimateButton>
           </form>
         </div>
         {/* <div style={{ height: "90%" }} className="w-[38%] overflow-y-auto"> */}
