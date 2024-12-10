@@ -477,7 +477,7 @@ const CreateQRCode = ({ session }: any) => {
                 </button>
               </div>
             </div>
-            <div>
+            {/* <div>
               <p className="heading-4 mb-2">Pick QR Color: </p>
               <div className="flex items-center gap-3 bg-gray-100 p-2 rounded-lg">
                 <button type="button" onClick={() => setToggle(true)}>
@@ -495,17 +495,19 @@ const CreateQRCode = ({ session }: any) => {
               <div ref={pickerRef} className="w-max">
                 {toggle && <HexColorPicker color={color} onChange={setColor} />}
               </div>
-            </div>
+            </div> */}
             <div>
-              <p className="heading-4 mb-2">Default QR Colors: </p>
-              <div className="flex items-center gap-3">
+              <p className="heading-4 mb-2">Pick QR Colors: </p>
+              <div className="flex items-center">
                 {defaultColorArray.map((data) => (
                   <button
                     type="button"
                     key={data._id}
                     onClick={() => setColor(data.hexCode)}
-                    className={`rounded-full ${
-                      color === data.hexCode && "border-2 border-[#027AFF] p-1"
+                    className={`rounded-full border-2 p-1 ${
+                      color === data.hexCode
+                        ? "border-[#027AFF]"
+                        : "border-transparent"
                     } `}
                   >
                     <div
@@ -514,9 +516,37 @@ const CreateQRCode = ({ session }: any) => {
                     ></div>
                   </button>
                 ))}
+                <div className="w-11 h-11 rounded-full relative ml-1">
+                  {/* <div className="flex items-center gap-3 bg-gray-100 p-2 rounded-lg"> */}
+                  <button
+                    type="button"
+                    onClick={() => setToggle(true)}
+                    // className="rounded-full"
+                  >
+                    <Image
+                      alt="pick color"
+                      src={"/images/color.png"}
+                      width={200}
+                      height={200}
+                      className="rounded-full"
+                    />
+                  </button>
+                  {/* <p className="text-gray-400">
+                      {!color || color === "#NaNNaNNaN" ? "#HEX" : color}
+                    </p> */}
+                  {/* </div> */}
+                  {toggle && (
+                    <div
+                      ref={pickerRef}
+                      className="w-max absolute top-12 left-0 z-50"
+                    >
+                      <HexColorPicker color={color} onChange={setColor} />
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
-            <div>
+            {/* <div>
               <p className="heading-4 mb-2">Choose Background Color: </p>
               <div className="flex items-center gap-3 bg-gray-100 p-2 rounded-lg">
                 <button
@@ -539,18 +569,19 @@ const CreateQRCode = ({ session }: any) => {
                   <HexColorPicker color={bgColor} onChange={setBgColor} />
                 )}
               </div>
-            </div>
+            </div> */}
             <div>
               <p className="heading-4 mb-2">Default Background Colors: </p>
-              <div className="flex items-center gap-3">
+              <div className="flex items-center">
                 {defaultColorArray.map((data) => (
                   <button
                     type="button"
                     key={data._id}
                     onClick={() => setBgColor(data.hexCode)}
-                    className={`rounded-full ${
-                      bgColor === data.hexCode &&
-                      "border-2 border-[#027AFF] p-1"
+                    className={`rounded-full border-2 p-1 ${
+                      bgColor === data.hexCode
+                        ? "border-[#027AFF]"
+                        : "border-transparent"
                     } `}
                   >
                     <div
@@ -559,6 +590,33 @@ const CreateQRCode = ({ session }: any) => {
                     ></div>
                   </button>
                 ))}
+                <div className="w-11 h-11 rounded-full relative ml-1">
+                  {/* <div className="flex items-center gap-3 bg-gray-100 p-2 rounded-lg"> */}
+                  <button
+                    type="button"
+                    onClick={() => setBackgroundColorToggle(true)}
+                  >
+                    <Image
+                      alt="pick color"
+                      src={"/images/color.png"}
+                      width={200}
+                      height={200}
+                      className="rounded-full"
+                    />
+                  </button>
+                  {/* <p className="text-gray-400">
+                      {!bgColor || bgColor === "#NaNNaNNaN" ? "#HEX" : bgColor}
+                    </p> */}
+                  {/* </div> */}
+                  <div
+                    className="w-max absolute top-12 left-0 z-50"
+                    ref={backgroundPickerRef}
+                  >
+                    {backgroundColorToggle && (
+                      <HexColorPicker color={bgColor} onChange={setBgColor} />
+                    )}
+                  </div>
+                </div>
               </div>
             </div>
 
