@@ -950,7 +950,7 @@ const SmartsiteIconLivePreview = ({
                 </div>
               </div>
 
-              <div className="flex items-center justify-center gap-2 h-12 -translate-y-4 pt-3">
+              <div className="flex items-center justify-center gap-2 h-12 2xl:-translate-y-3 pt-3">
                 <Image
                   alt="swop logo"
                   src={swop}

@@ -53,7 +53,7 @@ const EmbedPlayer: React.FC<EmbedPlayerProps> = ({
             {videoData.type === "spotify" ? (
               <iframe
                 src={videoData.videoUrl}
-                width="100%"
+                width="104%"
                 height="100%"
                 style={{ borderRadius: "12px" }}
                 frameBorder="0"
