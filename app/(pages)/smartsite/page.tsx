@@ -71,7 +71,7 @@ const SmartsitePage = () => {
           </button>
         </div>
       </div>
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 pb-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-4 gap-y-6 2xl:gap-x-6 pb-4">
         {data &&
           data?.microsites?.length > 0 &&
           data?.microsites?.map((microsite: any) => (
@@ -92,15 +92,16 @@ const SmartsitePage = () => {
                         ? microsite.profilePic
                         : `/images/user_avator/${microsite.profilePic}.png`
                     }
-                    width={300}
-                    height={300}
-                    className="rounded-full w-28 h-28 border-[3px] border-gray-300"
+                    width={500}
+                    height={500}
+                    quality={100}
+                    className="rounded-full w-24 2xl:w-28 h-24 2xl:h-28 border-[3px] border-gray-300"
                   />
                 </div>
                 <SmartsiteSocialShare
                   profileUrl={microsite.profileUrl}
                   isAbsolute={false}
-                  className="bg-white hover:bg-white border-2 border-gray-600"
+                  className="bg-white hover:bg-white border-2 border-gray-600 !px-1.5 2xl:!px-2 !py-1.5 2xl:!py-2"
                 >
                   <BsSend size={18} />
                 </SmartsiteSocialShare>

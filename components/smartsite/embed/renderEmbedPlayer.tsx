@@ -35,13 +35,16 @@ const EmbedPlayer: React.FC<EmbedPlayerProps> = ({
   const renderEmbedPlayer = useMemo(
     () =>
       items.map((videoData: VideoData) => (
-        <div key={videoData._id} className="flex items-center w-full">
+        <div
+          key={videoData._id}
+          className="flex items-center w-full hide-scrollbar"
+        >
           <div
             className={`w-[96%] ${
               videoData.type === "spotify"
                 ? `${
                     !toggle
-                      ? "h-[90px] lg:h-[160px] xl:h-[160px] 2xl:h-[240px]"
+                      ? "h-[90px] lg:h-[170px] xl:h-[160px] 2xl:h-[240px]"
                       : "h-[100px] lg:h-[160px] 2xl:h-[240px]"
                   }`
                 : "h-full"
@@ -50,12 +53,13 @@ const EmbedPlayer: React.FC<EmbedPlayerProps> = ({
             {videoData.type === "spotify" ? (
               <iframe
                 src={videoData.videoUrl}
-                width="100%"
+                width="104%"
                 height="100%"
                 style={{ borderRadius: "12px" }}
                 frameBorder="0"
                 allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
                 loading="lazy"
+                className="overflow-hidden"
               ></iframe>
             ) : videoData.type === "tiktok" ? (
               <TikTokEmbed

@@ -140,10 +140,10 @@ const SmartsiteIconLivePreview = ({
 
   return (
     <main className="w-[38%] h-full overflow-y-auto overflow-x-hidden p-4">
-      <div className="relative mx-auto h-[570px] xl:h-[600px] w-[300px] xl:w-[320px] rounded-[42px] border-[12px] border-[#F7F7F7] shadow-medium">
-        <div className="absolute shadow-medium left-[-17px] top-[124px] h-[46px] w-[5px] rounded-l-lg bg-gray-100"></div>
-        <div className="absolute shadow-medium left-[-17px] top-[178px] h-[46px] w-[5px] rounded-l-lg bg-gray-100"></div>
-        <div className="absolute shadow-medium -right-[17px] top-[142px] h-[60px] w-[5px] rounded-r-xl bg-gray-100 "></div>
+      <div className="relative mx-auto h-[540px] xl:h-[600px] w-[280px] xl:w-[320px] rounded-[42px] border-[12px] border-[#F7F7F7] shadow-small xl:shadow-medium">
+        <div className="absolute shadow-small xl:shadow-medium left-[-17px] top-[124px] h-[46px] w-[5px] rounded-l-lg bg-gray-100"></div>
+        <div className="absolute shadow-small xl:shadow-medium left-[-17px] top-[178px] h-[46px] w-[5px] rounded-l-lg bg-gray-100"></div>
+        <div className="absolute shadow-small xl:shadow-medium -right-[17px] top-[142px] h-[60px] w-[5px] rounded-r-xl bg-gray-100 "></div>
         <div className="relative h-full w-full overflow-hidden break-words rounded-[32px] bg-white">
           <div className="flex items-center gap-1 justify-center absolute top-2.5 left-1/2 -translate-x-1/2 !z-10">
             <div className="h-[5px] w-[40px] rounded-md bg-gray-200"></div>
@@ -937,7 +937,7 @@ const SmartsiteIconLivePreview = ({
                   {data.info.videoUrl && (
                     <div
                       key={"embed"}
-                      className="flex flex-col gap-y-3 px-3 w-full"
+                      className="flex flex-col gap-y-3 px-3 w-full hide-scrollbar"
                     >
                       <EmbedPlayer
                         items={data.info.videoUrl}
@@ -950,7 +950,7 @@ const SmartsiteIconLivePreview = ({
                 </div>
               </div>
 
-              <div className="flex items-center justify-center gap-2 h-12 -translate-y-4 pt-3">
+              <div className="flex items-center justify-center gap-2 h-12 2xl:-translate-y-3 pt-3">
                 <Image
                   alt="swop logo"
                   src={swop}
