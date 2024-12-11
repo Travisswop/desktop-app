@@ -61,6 +61,13 @@ export default function NFTSlider({
   loading,
   error,
 }: NftListProps) {
+  const filteredNfts =
+    nfts?.filter(
+      (nft, index, self) =>
+        // First filter for unique names
+        index === self.findIndex((n) => n.name === nft.name)
+    ) || [];
+
   return (
     <Card className="w-full border-none rounded-xl">
       <CardHeader>
@@ -71,35 +78,40 @@ export default function NFTSlider({
         {error && (
           <ErrorAlert message="NFTs couldn't be loaded. Please try again later." />
         )}
-        {!loading && !error && nfts.length === 0 && (
+        {!loading && !error && filteredNfts.length === 0 && (
           <p className="text-center text-gray-500">
             No NFTs available.
           </p>
         )}
-        {!loading && !error && nfts.length > 0 && nfts.length < 2 && (
-          <div className="text-center">
-            <Card
-              className="border-0 shadow-sm cursor-pointer hover:shadow-lg transition-shadow"
-              onClick={() => onSelectNft(nfts[0])}
-            >
-              <CardContent className="p-2 space-y-2">
-                <div className="flex flex-col items-center justify-center">
-                  <Image
-                    src={nfts[0].image}
-                    alt={nfts[0].name}
-                    width={200}
-                    height={200}
-                  />
-                </div>
-                <h3 className="font-medium">{nfts[0].name}</h3>
-                <p className="text-sm text-muted-foreground mt-1 truncate-2-lines">
-                  {nfts[0].description}
-                </p>
-              </CardContent>
-            </Card>
-          </div>
-        )}
-        {!loading && !error && nfts.length >= 2 && (
+        {!loading &&
+          !error &&
+          filteredNfts.length > 0 &&
+          filteredNfts.length < 2 && (
+            <div className="text-center">
+              <Card
+                className="border-0 shadow-sm cursor-pointer hover:shadow-lg transition-shadow"
+                onClick={() => onSelectNft(filteredNfts[0])}
+              >
+                <CardContent className="p-2 space-y-2">
+                  <div className="flex flex-col items-center justify-center">
+                    <Image
+                      src={filteredNfts[0].image}
+                      alt={filteredNfts[0].name}
+                      width={200}
+                      height={200}
+                    />
+                  </div>
+                  <h3 className="font-medium">
+                    {filteredNfts[0].name}
+                  </h3>
+                  <p className="text-sm text-muted-foreground mt-1 truncate-2-lines">
+                    {filteredNfts[0].description}
+                  </p>
+                </CardContent>
+              </Card>
+            </div>
+          )}
+        {!loading && !error && filteredNfts.length >= 2 && (
           <Carousel
             opts={{
               align: 'start',
@@ -108,9 +120,9 @@ export default function NFTSlider({
             className="w-full"
           >
             <CarouselContent className="-ml-2 md:-ml-4">
-              {nfts.map((nft) => (
+              {filteredNfts.map((nft) => (
                 <CarouselItem
-                  key={nft.contract}
+                  key={`${nft.name}-${nft.tokenId}`}
                   className="pl-2 md:pl-4 md:basis-1/3 lg:basis-1/3"
                 >
                   <Card
