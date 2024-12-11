@@ -28,7 +28,6 @@ async function fetchUserByENS(
   ensName: string,
   network: string
 ): Promise<ReceiverData | null> {
-  console.log('🚀 ~ ensName:', ensName);
   if (!ensName) return null;
 
   if (ensName.endsWith('.swop.id')) {
@@ -170,10 +169,6 @@ export default function SendToModal({
     setSearchQuery(e.target.value);
     setAddressError(false);
   };
-
-  console.log('error', error);
-  console.log('addressError', addressError);
-  console.log('userData', userData);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
