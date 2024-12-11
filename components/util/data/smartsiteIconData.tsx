@@ -119,6 +119,7 @@ import Warpcast from "@/public/images/IconShop/warpcast@3x.png";
 import MessageSwopid from "@/public/images/IconShop/swop@3x.png";
 import CopyBase from "@/public/images/IconShop/copybase@3x.png";
 import CopySWOPID from "@/public/images/IconShop/copyswop@3x.png";
+import Custom_link1 from "@/public/images/IconShop/Custom_link1.png";
 import appIconReferral from "@/public/images/IconShop/Referral.png";
 
 export const icon = {
@@ -258,6 +259,7 @@ export const icon = {
   currencyIconUSDC,
   currencyIconUSD,
   appIconReferral,
+  Custom_link1,
 };
 
 export const newIconData = icon;
@@ -305,7 +307,7 @@ export const newIcons = [
     icons: [
       {
         category: "Social Media",
-        categoryIcon: icon.socialIconType,
+        categoryIcon: icon.appIconX,
         icons: [
           {
             id: 1000,
@@ -472,7 +474,7 @@ export const newIcons = [
     icons: [
       {
         category: "Link",
-        categoryIcon: icon.socialIconType,
+        categoryIcon: icon.Custom_link1,
         icons: [
           {
             id: 16005,

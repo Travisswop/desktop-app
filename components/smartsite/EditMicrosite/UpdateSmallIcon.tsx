@@ -202,7 +202,7 @@ const UpdateSmallIcon = ({ iconDataObj, isOn, setOff }: any) => {
   };
 
   const iconMap: IconMap = {
-    "Social Media": icon.SocialIconType,
+    "Social Media": icon.appIconX,
     "Chat Links": icon.ChatlinkType,
     Commands: icon.CommandType,
   };

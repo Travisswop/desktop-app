@@ -109,7 +109,7 @@ const AddAppIcon = ({ handleRemoveIcon }: any) => {
   };
 
   const iconMap: AppIconMap = {
-    Link: icon.SocialIconType,
+    Link: icon.Custom_link1,
     "Call To Action": icon.ChatlinkType,
   };
 

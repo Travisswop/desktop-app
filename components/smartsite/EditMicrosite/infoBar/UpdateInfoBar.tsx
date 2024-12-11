@@ -186,7 +186,7 @@ const UpdateInfoBar = ({ iconDataObj, isOn, setOff }: any) => {
   };
 
   const iconMap: InfoBarIconMap = {
-    Link: icon.SocialIconType,
+    Link: icon.Custom_link1,
     "Call To Action": icon.ChatlinkType,
     "Product Link": productImg,
     "Contact Card": contactCardImg,

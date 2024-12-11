@@ -127,7 +127,7 @@ const AddSmallIcon = ({ handleRemoveIcon }: any) => {
   // console.log("sesstionState", sesstionState);
 
   const iconMap: IconMap = {
-    "Social Media": icon.SocialIconType,
+    "Social Media": icon.appIconX,
     "Chat Links": icon.ChatlinkType,
     Commands: icon.CommandType,
   };
@@ -218,7 +218,9 @@ const AddSmallIcon = ({ handleRemoveIcon }: any) => {
                     <Image
                       alt="app-icon"
                       src={iconMap[selectedIconType]}
+                      // style={tintStyle}
                       className="w-5 h-auto"
+                      quality={100}
                     />
                   )}
                   {selectedIconType}
@@ -239,6 +241,7 @@ const AddSmallIcon = ({ handleRemoveIcon }: any) => {
               </DropdownItem>
               {iconData.icons.map((data: any, index: number) => (
                 <DropdownItem
+                  // onFocus={false}
                   key={index}
                   onClick={() => handleSelectIconType(data.category)}
                   className="border-b rounded-none hover:rounded-md"

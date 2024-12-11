@@ -208,7 +208,7 @@ const UpdateAppIcon = ({ iconDataObj, isOn, setOff }: any) => {
   };
 
   const iconMap: any = {
-    Link: icon.SocialIconType,
+    Link: icon.Custom_link1,
     "Call To Action": icon.ChatlinkType,
   };
 
