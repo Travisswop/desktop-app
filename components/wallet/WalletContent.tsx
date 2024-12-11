@@ -212,7 +212,7 @@ const WalletContentInner = () => {
 
   // Handler for initiating send flow
   const handleSendClick = (token: TokenData) => {
-    console.log('handleSendClick');
+    console.log('sendFlow', sendFlow);
     setSendFlow({
       step: 'amount',
       token,
@@ -223,6 +223,8 @@ const WalletContentInner = () => {
       network: network,
       hash: '',
     });
+
+    setSelectedToken(null);
   };
 
   // Handler for amount confirmation
