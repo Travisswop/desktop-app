@@ -40,6 +40,9 @@ const CreateQRCode = ({ session }: any) => {
   const [bgColor, setBgColor] = useState("#FFFFFF");
   const [qrCodeShape, setqrCodeShape] = useState("circle");
   const [qrCodeFrame, setqrCodeFrame] = useState("circle");
+  const [socialImage, setSocialImage] = useState(
+    "https://res.cloudinary.com/dziyri2ge/image/upload/v1733895036/link_jrgwpk.png"
+  );
   const [selectQrCodeSocialLink, setSelectQrCodeSocialLink] =
     useState("www.swopme.co");
 
@@ -126,55 +129,64 @@ const CreateQRCode = ({ session }: any) => {
   const defaultSocialLinkArray = [
     {
       _id: "1",
-      socialIcon: "/images/qr-code/social-icon/link.png",
+      socialIcon:
+        "https://res.cloudinary.com/dziyri2ge/image/upload/v1733895036/link_jrgwpk.png",
       socialTitle: "link",
       socialUrl: "www.swopme.co",
     },
     {
       _id: "2",
-      socialIcon: "/images/qr-code/social-icon/search.png",
+      socialIcon:
+        "https://res.cloudinary.com/dziyri2ge/image/upload/v1733895036/search_ugvgto.png",
       socialTitle: "google",
       socialUrl: "www.google.com",
     },
     {
       _id: "3",
-      socialIcon: "/images/qr-code/social-icon/youtube.png",
+      socialIcon:
+        "https://res.cloudinary.com/dziyri2ge/image/upload/v1733895036/youtube_gb2ckd.png",
       socialTitle: "youtube",
       socialUrl: "www.youtube.com",
     },
     {
       _id: "4",
-      socialIcon: "/images/qr-code/social-icon/instagram.png",
+      socialIcon:
+        "https://res.cloudinary.com/dziyri2ge/image/upload/v1733895037/instagram_dvuvuq.png",
       socialTitle: "instagram",
       socialUrl: "www.instagram.com",
     },
     {
       _id: "5",
-      socialIcon: "/images/qr-code/social-icon/linkedin.png",
+      socialIcon:
+        "https://res.cloudinary.com/dziyri2ge/image/upload/v1733895036/linkedin_pqwube.png",
       socialTitle: "linkedin",
       socialUrl: "www.linkedin.com",
     },
     {
       _id: "6",
-      socialIcon: "/images/qr-code/social-icon/tik-tok.png",
+      socialIcon:
+        "https://res.cloudinary.com/dziyri2ge/image/upload/v1733895036/tik-tok_owuxna.png",
       socialTitle: "tik-tok",
       socialUrl: "www.tiktok.com",
     },
     {
       _id: "7",
-      socialIcon: "/images/qr-code/social-icon/snapchat.png",
+      socialIcon:
+        "https://res.cloudinary.com/dziyri2ge/image/upload/v1733895036/snapchat_cgbkce.png",
       socialTitle: "snapchat",
       socialUrl: "www.snapchat.com",
     },
     {
       _id: "8",
-      socialIcon: "/images/qr-code/social-icon/twitter.png",
+      socialIcon:
+        "https://res.cloudinary.com/dziyri2ge/image/upload/v1733895036/twitter_ckhyj9.png",
       socialTitle: "twitter",
       socialUrl: "www.x.com",
     },
     {
       _id: "9",
-      socialIcon: "/images/qr-code/social-icon/spotify.png",
+      socialIcon:
+        "https://res.cloudinary.com/dziyri2ge/image/upload/v1733895037/spotify_d28luq.png",
       socialTitle: "spotify",
       socialUrl: "www.spotify.com",
     },
@@ -255,8 +267,7 @@ const CreateQRCode = ({ session }: any) => {
 
         qrData.image = imageUrl;
       } else {
-        qrData.image =
-          "https://res.cloudinary.com/dziyri2ge/image/upload/v1733291723/qr-logo_mwasoz_rovk45.png";
+        qrData.image = socialImage;
       }
 
       qrData.backgroundOptions = { color: bgColor };
@@ -335,6 +346,11 @@ const CreateQRCode = ({ session }: any) => {
     };
   }, []);
 
+  const handleSocialSelect = (data: any) => {
+    setSelectQrCodeSocialLink(data.socialUrl);
+    setSocialImage(data.socialIcon);
+  };
+
   return (
     <main className="main-container overflow-hidden">
       <div className="flex gap-6 items-start">
@@ -364,9 +380,9 @@ const CreateQRCode = ({ session }: any) => {
             </div>
             {/* I want my QR code to scan to */}
             <div className="">
-              <label htmlFor="name" className="heading-4 block mb-2">
+              <p className="heading-4 block mb-2">
                 I want my QR code to scan to:{" "}
-              </label>
+              </p>
               <div className="flex items-center gap-x-2 mb-2">
                 {defaultSocialLinkArray.map((data) => (
                   <div
@@ -376,7 +392,7 @@ const CreateQRCode = ({ session }: any) => {
                         : "border-gray-200"
                     }`}
                     key={data._id}
-                    onClick={() => setSelectQrCodeSocialLink(data.socialUrl)}
+                    onClick={() => handleSocialSelect(data)}
                   >
                     <Image
                       src={data.socialIcon}
@@ -571,7 +587,7 @@ const CreateQRCode = ({ session }: any) => {
               </div>
             </div> */}
             <div>
-              <p className="heading-4 mb-2">Default Background Colors: </p>
+              <p className="heading-4 mb-2">Pick Background Colors: </p>
               <div className="flex items-center">
                 {defaultColorArray.map((data) => (
                   <button
@@ -781,17 +797,18 @@ const CreateQRCode = ({ session }: any) => {
                   />
                 ) : (
                   <Image
-                    src={
-                      "https://res.cloudinary.com/bayshore/image/upload/v1732872687/swop-logo_n9qal7.jpg"
-                    }
+                    src={socialImage}
                     quality={100}
                     alt="logo"
                     width={200}
                     height={200}
-                    className="w-12 h-12"
+                    className="w-10 h-10"
                   />
                 )}
               </div>
+              <p className="text-[10px] text-gray-600 text-center ">
+                Powered By Swop
+              </p>
             </div>
           </div>
           {/* <p className="heading-4 mt-4">Select Download Type</p>

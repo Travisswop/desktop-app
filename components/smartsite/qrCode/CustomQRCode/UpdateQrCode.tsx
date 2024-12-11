@@ -37,6 +37,12 @@ const UpdateQRCode = ({ session, data }: any) => {
     data.data
   );
 
+  const [socialImage, setSocialImage] = useState(
+    "https://res.cloudinary.com/dziyri2ge/image/upload/v1733895036/link_jrgwpk.png"
+  );
+
+  console.log("socialImage", socialImage);
+
   const [uploadImageFileName, setUploadImageFileName] = useState("");
 
   const [toggle, setToggle] = useState(false);
@@ -93,7 +99,7 @@ const UpdateQRCode = ({ session, data }: any) => {
     setQrPattern(data.qrCodeSvgName);
     setColor(data.qrDotColor);
     setBgColor(data.backgroundColor);
-    setImageFile(data.overLayImage);
+    setSocialImage(data.overLayImage);
   }, [
     data.backgroundColor,
     data.overLayImage,
@@ -204,55 +210,64 @@ const UpdateQRCode = ({ session, data }: any) => {
   const defaultSocialLinkArray = [
     {
       _id: "1",
-      socialIcon: "/images/qr-code/social-icon/link.png",
+      socialIcon:
+        "https://res.cloudinary.com/dziyri2ge/image/upload/v1733895036/link_jrgwpk.png",
       socialTitle: "link",
       socialUrl: "www.swopme.co",
     },
     {
       _id: "2",
-      socialIcon: "/images/qr-code/social-icon/search.png",
+      socialIcon:
+        "https://res.cloudinary.com/dziyri2ge/image/upload/v1733895036/search_ugvgto.png",
       socialTitle: "google",
       socialUrl: "www.google.com",
     },
     {
       _id: "3",
-      socialIcon: "/images/qr-code/social-icon/youtube.png",
+      socialIcon:
+        "https://res.cloudinary.com/dziyri2ge/image/upload/v1733895036/youtube_gb2ckd.png",
       socialTitle: "youtube",
       socialUrl: "www.youtube.com",
     },
     {
       _id: "4",
-      socialIcon: "/images/qr-code/social-icon/instagram.png",
+      socialIcon:
+        "https://res.cloudinary.com/dziyri2ge/image/upload/v1733895037/instagram_dvuvuq.png",
       socialTitle: "instagram",
       socialUrl: "www.instagram.com",
     },
     {
       _id: "5",
-      socialIcon: "/images/qr-code/social-icon/linkedin.png",
+      socialIcon:
+        "https://res.cloudinary.com/dziyri2ge/image/upload/v1733895036/linkedin_pqwube.png",
       socialTitle: "linkedin",
       socialUrl: "www.linkedin.com",
     },
     {
       _id: "6",
-      socialIcon: "/images/qr-code/social-icon/tik-tok.png",
+      socialIcon:
+        "https://res.cloudinary.com/dziyri2ge/image/upload/v1733895036/tik-tok_owuxna.png",
       socialTitle: "tik-tok",
       socialUrl: "www.tiktok.com",
     },
     {
       _id: "7",
-      socialIcon: "/images/qr-code/social-icon/snapchat.png",
+      socialIcon:
+        "https://res.cloudinary.com/dziyri2ge/image/upload/v1733895036/snapchat_cgbkce.png",
       socialTitle: "snapchat",
       socialUrl: "www.snapchat.com",
     },
     {
       _id: "8",
-      socialIcon: "/images/qr-code/social-icon/twitter.png",
+      socialIcon:
+        "https://res.cloudinary.com/dziyri2ge/image/upload/v1733895036/twitter_ckhyj9.png",
       socialTitle: "twitter",
       socialUrl: "www.x.com",
     },
     {
       _id: "9",
-      socialIcon: "/images/qr-code/social-icon/spotify.png",
+      socialIcon:
+        "https://res.cloudinary.com/dziyri2ge/image/upload/v1733895037/spotify_d28luq.png",
       socialTitle: "spotify",
       socialUrl: "www.spotify.com",
     },
@@ -318,6 +333,8 @@ const UpdateQRCode = ({ session, data }: any) => {
       if (imageFile) {
         const imageUrl = await sendCloudinaryImage(imageFile);
         qrData.image = imageUrl;
+      } else {
+        qrData.image = socialImage;
       }
 
       qrData.backgroundOptions = { color: bgColor };
@@ -357,6 +374,11 @@ const UpdateQRCode = ({ session, data }: any) => {
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const handleSocialSelect = (data: any) => {
+    setSelectQrCodeSocialLink(data.socialUrl);
+    setSocialImage(data.socialIcon);
   };
 
   return (
@@ -411,7 +433,7 @@ const UpdateQRCode = ({ session, data }: any) => {
                         : "border-gray-200"
                     }`}
                     key={data._id}
-                    onClick={() => setSelectQrCodeSocialLink(data.socialUrl)}
+                    onClick={() => handleSocialSelect(data)}
                   >
                     <Image
                       src={data.socialIcon}
@@ -511,8 +533,8 @@ const UpdateQRCode = ({ session, data }: any) => {
                 </button>
               </div>
             </div>
-            <div>
-              <p className="heading-4 mb-2">Pick QR Color: </p>
+            {/* <div>
+              <p className="heading-4 mb-2">Pick QR Colors: </p>
               <div className="flex items-center gap-3 bg-gray-100 p-2 rounded-lg">
                 <button type="button" onClick={() => setToggle(true)}>
                   <Image
@@ -529,10 +551,10 @@ const UpdateQRCode = ({ session, data }: any) => {
               <div className="w-max" ref={updateColorPickerRef}>
                 {toggle && <HexColorPicker color={color} onChange={setColor} />}
               </div>
-            </div>
+            </div> */}
             <div>
-              <p className="heading-4 mb-2">Default QR Colors: </p>
-              <div className="flex items-center gap-3">
+              <p className="heading-4 mb-2">Pick QR Colors: </p>
+              <div className="flex items-center">
                 <button
                   type="button"
                   onClick={() => setColor(data.qrDotColor)}
@@ -545,8 +567,10 @@ const UpdateQRCode = ({ session, data }: any) => {
                     type="button"
                     key={data._id}
                     onClick={() => setColor(data.hexCode)}
-                    className={`rounded-full ${
-                      color === data.hexCode && "border-2 border-[#027AFF] p-1"
+                    className={`rounded-full border-2 p-1 ${
+                      color === data.hexCode
+                        ? "border-[#027AFF]"
+                        : "border-transparent"
                     } `}
                   >
                     <div
@@ -555,10 +579,38 @@ const UpdateQRCode = ({ session, data }: any) => {
                     ></div>
                   </button>
                 ))}
+                <div className="w-11 h-11 rounded-full relative ml-1">
+                  {/* <div className="flex items-center gap-3 bg-gray-100 p-2 rounded-lg"> */}
+                  <button
+                    type="button"
+                    onClick={() => setToggle(true)}
+                    // className="rounded-full"
+                  >
+                    <Image
+                      alt="pick color"
+                      src={"/images/color.png"}
+                      width={200}
+                      height={200}
+                      className="rounded-full"
+                    />
+                  </button>
+                  {/* <p className="text-gray-400">
+                      {!color || color === "#NaNNaNNaN" ? "#HEX" : color}
+                    </p> */}
+                  {/* </div> */}
+                  {toggle && (
+                    <div
+                      ref={updateColorPickerRef}
+                      className="w-max absolute top-12 left-0 z-50"
+                    >
+                      <HexColorPicker color={color} onChange={setColor} />
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
-            <div>
-              <p className="heading-4 mb-2">Choose Background Color: </p>
+            {/* <div>
+              <p className="heading-4 mb-2">Pick Background Colors: </p>
               <div className="flex items-center gap-3 bg-gray-100 p-2 rounded-lg">
                 <button
                   type="button"
@@ -580,10 +632,10 @@ const UpdateQRCode = ({ session, data }: any) => {
                   <HexColorPicker color={bgColor} onChange={setBgColor} />
                 )}{" "}
               </div>
-            </div>
+            </div> */}
             <div>
-              <p className="heading-4 mb-2">Default Background Colors: </p>
-              <div className="flex items-center gap-3">
+              <p className="heading-4 mb-2">Pick Background Colors: </p>
+              <div className="flex items-center">
                 <button
                   type="button"
                   onClick={() => setBgColor(data.backgroundColor)}
@@ -596,9 +648,10 @@ const UpdateQRCode = ({ session, data }: any) => {
                     type="button"
                     key={data._id}
                     onClick={() => setBgColor(data.hexCode)}
-                    className={`rounded-full ${
-                      bgColor === data.hexCode &&
-                      "border-2 border-[#027AFF] p-1"
+                    className={`rounded-full border-2 p-1 ${
+                      bgColor === data.hexCode
+                        ? "border-[#027AFF]"
+                        : "border-transparent"
                     } `}
                   >
                     <div
@@ -607,6 +660,33 @@ const UpdateQRCode = ({ session, data }: any) => {
                     ></div>
                   </button>
                 ))}
+                <div className="w-11 h-11 rounded-full relative ml-1">
+                  {/* <div className="flex items-center gap-3 bg-gray-100 p-2 rounded-lg"> */}
+                  <button
+                    type="button"
+                    onClick={() => setBackgroundColorToggle(true)}
+                  >
+                    <Image
+                      alt="pick color"
+                      src={"/images/color.png"}
+                      width={200}
+                      height={200}
+                      className="rounded-full"
+                    />
+                  </button>
+                  {/* <p className="text-gray-400">
+                      {!bgColor || bgColor === "#NaNNaNNaN" ? "#HEX" : bgColor}
+                    </p> */}
+                  {/* </div> */}
+                  <div
+                    className="w-max absolute top-12 left-0 z-50"
+                    ref={backgroundUpdatePickerRef}
+                  >
+                    {backgroundColorToggle && (
+                      <HexColorPicker color={bgColor} onChange={setBgColor} />
+                    )}
+                  </div>
+                </div>
               </div>
             </div>
 
@@ -753,14 +833,14 @@ const UpdateQRCode = ({ session, data }: any) => {
             </div>
 
             <div>
-              <DynamicPrimaryBtn disabled={isLoading} className="mt-3 w-52">
+              <DynamicPrimaryBtn disabled={isLoading} className="mt-3 w-40">
                 {isLoading ? (
                   <Spinner className="py-0.5" size="sm" color="white" />
                 ) : (
                   <>
                     {" "}
                     <FaSave size={18} />
-                    Update Changes
+                    Update
                   </>
                 )}
               </DynamicPrimaryBtn>
@@ -801,14 +881,12 @@ const UpdateQRCode = ({ session, data }: any) => {
                   />
                 ) : (
                   <Image
-                    src={
-                      "https://res.cloudinary.com/bayshore/image/upload/v1706786605/qr-logo_mwasoz.png"
-                    }
+                    src={socialImage}
                     quality={100}
                     alt="logo"
                     width={200}
                     height={200}
-                    className="w-12 h-12"
+                    className="w-10 h-10"
                   />
                 )}
               </div>
