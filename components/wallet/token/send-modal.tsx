@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useMemo, useState } from 'react';
+import { useState } from 'react';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import Image from 'next/image';
@@ -26,73 +26,65 @@ export default function SendTokenModal({
   const [isUSD, setIsUSD] = useState(hasPrice);
   const [amount, setAmount] = useState('1.00');
 
-  const maxUSDAmount = useMemo(() => {
-    if (!token || !hasPrice) return '0.00';
-    return (
-      parseFloat(token.balance) * parseFloat(token.marketData.price)
-    ).toFixed(2);
-  }, [token, hasPrice]);
+  const maxUSDAmount =
+    !token || !hasPrice
+      ? '0.00'
+      : (
+          parseFloat(token.balance) *
+          parseFloat(token.marketData.price)
+        ).toFixed(2);
 
-  const convertUSDToToken = useCallback(
-    (usdAmount: number) => {
-      if (!token?.marketData.price || !hasPrice) return '0';
-      const price = parseFloat(token.marketData.price);
-      return (usdAmount / price).toFixed(4);
-    },
-    [token, hasPrice]
-  );
+  const convertUSDToToken = (usdAmount: number) => {
+    if (!token?.marketData.price || !hasPrice) return '0';
+    const price = parseFloat(token.marketData.price);
+    return (usdAmount / price).toFixed(4);
+  };
 
-  const convertTokenToUSD = useCallback(
-    (tokenAmount: number) => {
-      if (!token?.marketData.price || !hasPrice) return '0';
-      return (
-        tokenAmount * parseFloat(token.marketData.price)
-      ).toFixed(2);
-    },
-    [token, hasPrice]
-  );
+  const convertTokenToUSD = (tokenAmount: number) => {
+    if (!token?.marketData.price || !hasPrice) return '0';
+    return (tokenAmount * parseFloat(token.marketData.price)).toFixed(
+      2
+    );
+  };
 
-  const handleInput = useCallback(
-    (value: string) => {
-      if (!token) return;
+  const handleInput = (value: string) => {
+    if (!token) return;
 
-      // Remove non-numeric/decimal characters and multiple decimals
-      const sanitizedValue = value
-        .replace(/[^0-9.]/g, '')
-        .replace(/(\..*)\./g, '$1');
+    // Remove non-numeric/decimal characters and multiple decimals
+    const sanitizedValue = value
+      .replace(/[^0-9.]/g, '')
+      .replace(/(\..*)\./g, '$1');
 
-      // Handle empty or just decimal input
-      if (sanitizedValue === '' || sanitizedValue === '.') {
-        setAmount('0');
-        return;
-      }
+    // Handle empty or just decimal input
+    if (sanitizedValue === '' || sanitizedValue === '.') {
+      setAmount('0');
+      return;
+    }
 
-      // Remove leading zeros unless it's a decimal (e.g. 0.123)
-      const normalizedValue = sanitizedValue.replace(/^0+(?=\d)/, '');
+    // Remove leading zeros unless it's a decimal (e.g. 0.123)
+    const normalizedValue = sanitizedValue.replace(/^0+(?=\d)/, '');
 
-      const numericValue = parseFloat(normalizedValue);
-      if (isNaN(numericValue)) return;
+    const numericValue = parseFloat(normalizedValue);
+    if (isNaN(numericValue)) return;
 
-      if (isUSD && hasPrice) {
-        const maxUSD = parseFloat(maxUSDAmount);
-        if (numericValue > maxUSD) {
-          setAmount(maxUSDAmount);
-        } else {
-          setAmount(normalizedValue);
-        }
+    if (isUSD && hasPrice) {
+      const maxUSD = parseFloat(maxUSDAmount);
+      if (numericValue > maxUSD) {
+        setAmount(maxUSDAmount);
       } else {
-        const maxToken = parseFloat(token.balance);
-        if (numericValue > maxToken) {
-          setAmount(token.balance);
-        } else {
-          setAmount(normalizedValue);
-        }
+        setAmount(normalizedValue);
       }
-    },
-    [isUSD, token, maxUSDAmount, hasPrice]
-  );
+    } else {
+      const maxToken = parseFloat(token.balance);
+      if (numericValue > maxToken) {
+        setAmount(token.balance);
+      } else {
+        setAmount(normalizedValue);
+      }
+    }
+  };
 
-  const toggleCurrency = useCallback(() => {
+  const toggleCurrency = () => {
     if (!token || !hasPrice) return;
 
     const numericAmount = parseFloat(amount);
@@ -108,9 +100,9 @@ export default function SendTokenModal({
       }
       return !prev;
     });
-  }, [amount, token, convertUSDToToken, convertTokenToUSD, hasPrice]);
+  };
 
-  const getOppositeAmount = useCallback(() => {
+  const getOppositeAmount = () => {
     if (!token || !hasPrice) return '0';
 
     const numericAmount = parseFloat(amount);
@@ -121,14 +113,7 @@ export default function SendTokenModal({
     } else {
       return convertTokenToUSD(numericAmount);
     }
-  }, [
-    amount,
-    isUSD,
-    token,
-    convertUSDToToken,
-    convertTokenToUSD,
-    hasPrice,
-  ]);
+  };
 
   if (!token) return null;
 
