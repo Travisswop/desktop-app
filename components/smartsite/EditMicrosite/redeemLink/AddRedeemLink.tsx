@@ -263,7 +263,7 @@ const AddRedeemLink = ({ handleRemoveIcon, handleToggleIcon }: any) => {
                 </div>
               </div>
               <div className="w-full">
-                <div className="flex items-center gap-2">
+                <div className="flex flex-col xl:flex-row items-center gap-x-2">
                   <h3 className="font-semibold text-gray-700 w-44">
                     Select Token
                   </h3>
@@ -275,7 +275,7 @@ const AddRedeemLink = ({ handleRemoveIcon, handleToggleIcon }: any) => {
                     <DropdownTrigger>
                       <button
                         type="button"
-                        className="bg-white flex justify-between items-center rounded px-2 py-2 text-sm font-medium shadow-small w-full"
+                        className="bg-white mb-2 xl:mb-0 flex justify-between items-center rounded px-2 py-2 text-sm font-medium shadow-small w-full"
                       >
                         <span className="flex items-center gap-2">
                           {/* {selectedIconType && (

@@ -116,9 +116,9 @@ const EditSmartSite = ({ data, token }: any) => {
 
   // console.log("gatedAccessError", gatedAccessError);
 
-  const { isOn, setOff }: any = useSmallIconToggleStore();
+  //const { isOn, setOff }: any = useSmallIconToggleStore();
 
-  const iconData: any = useUpdateSmartIcon(); //get trigger smarticon from zustand store
+  //const iconData: any = useUpdateSmartIcon(); //get trigger smarticon from zustand store
 
   const { isOpen, onOpen, onOpenChange } = useDisclosure();
 
