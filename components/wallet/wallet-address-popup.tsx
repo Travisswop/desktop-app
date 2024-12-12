@@ -91,7 +91,7 @@ export default function WalletAddressPopup({
         {addresses.map((item, index) => (
           <div
             key={index}
-            className="flex items-center justify-between border-t-1 border-slate-300 p-1.5 sm:p-2 text-xs sm:text-sm"
+            className="flex items-center justify-between border-t-1 border-slate-300 p-1.5 sm:p-1 text-xs sm:text-sm"
           >
             <div className="grid gap-0.5 sm:gap-1">
               <div className="font-medium">{item.chain}</div>

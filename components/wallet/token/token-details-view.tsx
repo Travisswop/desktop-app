@@ -16,7 +16,12 @@ import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Wallet, Send, ArrowRightLeft } from 'lucide-react';
 import Image from 'next/image';
 import { TimeSeriesData, TokenData } from '@/types/token';
-import { Transaction } from '@/types/transaction';
+import { TooltipProvider } from '@/components/ui/tooltip';
+import {
+  TooltipContent,
+  TooltipTrigger,
+  Tooltip as TooltipUI,
+} from '@/components/ui/tooltip';
 
 const CustomTooltip = ({
   active,
@@ -56,6 +61,7 @@ export default function TokenDetails({
   onBack,
   onSend,
 }: TokenDetailsProps) {
+  const [showMessage, setShowMessage] = useState(false);
   const [selectedPeriod, setSelectedPeriod] = useState('1H');
   const [chartData, setChartData] = useState(
     token.timeSeriesData['1H']
@@ -281,7 +287,7 @@ export default function TokenDetails({
         </div>
 
         {/* Action Buttons */}
-        <div className="grid grid-cols-2 gap-4 mb-6">
+        <div className="relative grid grid-cols-2 gap-4 mb-6">
           <Button
             variant="outline"
             className="flex items-center gap-2 cursor-not-allowed"
@@ -289,14 +295,35 @@ export default function TokenDetails({
             <Wallet className="w-4 h-4 " />
             Wallet
           </Button>
-          <Button
-            variant="outline"
-            className="flex items-center gap-2"
-            onClick={() => onSend(token)}
-          >
-            <Send className="w-4 h-4" />
-            Send
-          </Button>
+          {parseFloat(token.balance) > 0 ? (
+            <Button
+              variant="outline"
+              className="flex items-center gap-2"
+              onClick={() => {
+                onSend(token);
+              }}
+            >
+              <Send className="w-4 h-4" />
+              Send
+            </Button>
+          ) : (
+            <TooltipProvider>
+              <TooltipUI>
+                <TooltipTrigger>
+                  <Button
+                    variant="outline"
+                    className="flex items-center gap-2 cursor-not-allowed w-full"
+                  >
+                    <Send className="w-4 h-4" />
+                    Send
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent className="max-w-xs">
+                  <p>You don&apos;t have any balance to send</p>
+                </TooltipContent>
+              </TooltipUI>
+            </TooltipProvider>
+          )}
         </div>
 
         {/* History */}

@@ -337,7 +337,11 @@ export class SolanaService {
           ...validTokenData,
         ];
       } else {
-        tokens = [solToken, ...validTokenData];
+        tokens = [
+          { ...SWOP_TOKEN, balance: '0', address: '' },
+          solToken,
+          ...validTokenData,
+        ];
       }
 
       return tokens;
