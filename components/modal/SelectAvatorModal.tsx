@@ -36,6 +36,7 @@ export default function SelectAvatorModal({
             isOpen={isOpen}
             onOpenChange={onOpenChange}
             backdrop={"blur"}
+            className="h-[94vh] overflow-y-auto hide-scrollbar"
           >
             <ModalContent>
               <div className="w-[91%] mx-auto py-6">

@@ -1,3 +1,4 @@
+"use client";
 import Image from "next/image";
 import React, { useEffect, useState } from "react";
 import {
@@ -26,10 +27,20 @@ import { InfoBarIconMap, InfoBarSelectedIconType } from "@/types/smallIcon";
 import contactCardImg from "@/public/images/IconShop/appIconContactCard.png";
 import productImg from "@/public/images/product.png";
 import toast from "react-hot-toast";
+import Cookies from "js-cookie";
 
 const AddInfoBar = ({ handleRemoveIcon, handleToggleIcon }: any) => {
-  const demoToken =
-    "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJfaWQiOiI2NjM4NjMyMDIzMDQxMDMyODAyOTk4MmIiLCJpYXQiOjE3MjcxNTI4MzB9.CsHnZAgUzsfkc_g_CZZyQMXc02Ko_LhnQcCVpeCwroY";
+  const [accessToken, setAccessToken] = useState("");
+
+  useEffect(() => {
+    const getAccessToken = async () => {
+      const token = Cookies.get("access-token");
+      if (token) {
+        setAccessToken(token);
+      }
+    };
+    getAccessToken();
+  }, []);
   const state: any = useSmartSiteApiDataStore((state) => state); //get small icon store value
   //const sesstionState = useLoggedInUserStore((state) => state.state.user); //get session value
   const [selectedIconType, setSelectedIconType] =
@@ -102,7 +113,7 @@ const AddInfoBar = ({ handleRemoveIcon, handleToggleIcon }: any) => {
     };
     // console.log("smallIconInfo", infobarInfo);
     try {
-      const data = await postInfoBar(infobarInfo, demoToken);
+      const data = await postInfoBar(infobarInfo, accessToken);
       // console.log("data", data);
 
       if ((data.state = "success")) {
@@ -189,7 +200,7 @@ const AddInfoBar = ({ handleRemoveIcon, handleToggleIcon }: any) => {
         {/* middle part  */}
         <div className="flex items-center justify-between mt-4">
           <div className="flex items-center gap-2">
-            <h3 className="font-semibold text-gray-700 w-32">Info Bar Types</h3>
+            <h3 className="font-semibold text-gray-700 w-28">Info Bar Types</h3>
             <Dropdown className="w-max rounded-lg" placement="bottom-start">
               <DropdownTrigger>
                 <button
@@ -267,7 +278,7 @@ const AddInfoBar = ({ handleRemoveIcon, handleToggleIcon }: any) => {
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <h3 className="font-semibold text-gray-700 w-32">Select Icon</h3>
+          <h3 className="font-semibold text-gray-700 w-28">Select Icon</h3>
 
           <Dropdown className="w-max rounded-lg" placement="bottom-start">
             <DropdownTrigger>

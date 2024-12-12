@@ -133,9 +133,9 @@ const AddSmallIcon = ({ handleRemoveIcon }: any) => {
   };
 
   return (
-    <div className="relative bg-white rounded-xl shadow-small p-6 flex flex-col gap-4">
-      <div className="flex items-end gap-1 justify-center">
-        <h2 className="font-semibold text-gray-700 text-xl text-center">
+    <div className="relative bg-white rounded-xl shadow-small p-3 xl:p-6 flex flex-col gap-2 xl:gap-4">
+      <div className="flex items-end gap-1 justify-center mb-1">
+        <h2 className="font-semibold text-gray-700 text-xl text-center ">
           Small Icon
         </h2>
         <div className="translate-y-0.5">
@@ -167,7 +167,7 @@ const AddSmallIcon = ({ handleRemoveIcon }: any) => {
           <Image
             alt="app-icon"
             src={selectedIcon?.icon}
-            className="w-12 h-auto"
+            className="w-10 xl:w-12 h-auto"
             style={tintStyle}
             quality={100}
           />

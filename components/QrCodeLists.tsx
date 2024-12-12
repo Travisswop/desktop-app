@@ -52,21 +52,24 @@ const QrCodeLists = ({
 
   return (
     <div className="w-full overflow-x-auto">
-      <div className="mb-4 flex justify-end">
+      <div className="mb-4 flex justify-end absolute right-0 top-0">
         {/* <button
           
           className="bg-blue-500 text-white py-2 px-4 rounded-lg"
         >
           
         </button> */}
-        <DynamicPrimaryBtn onClick={handleExport} className="!rounded-full">
+        <DynamicPrimaryBtn
+          onClick={handleExport}
+          className="!rounded-full text-sm xl:text-base"
+        >
           Export
         </DynamicPrimaryBtn>
       </div>
       <table className="table-auto w-full border-collapse">
         <thead>
           <tr>
-            <th className="py-2 px-4 text-left flex items-center">
+            <th className="py-2 px-4 text-left flex items-center -translate-x-2">
               <Checkbox
                 className="bg-white py-2 px-4 rounded-full mb-5 translate-y-3"
                 size="sm"

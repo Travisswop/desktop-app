@@ -50,8 +50,8 @@ const QrCodePage = async () => {
     // };
 
     return (
-      <div className="main-container pb-6">
-        <div className="flex items-center justify-between mb-4">
+      <div className="main-container pb-6 relative">
+        <div className="flex items-center justify-between w-max">
           <p className="text-gray-700 font-semibold text-lg ">QR Codes</p>
         </div>
         {/* <table className="w-full"> */}

@@ -149,7 +149,7 @@ export default function CashflowChart() {
             {percentageChange}%
           </span>
           <span className="text-muted-foreground">in the last</span>
-          <span className="font-medium">30 days</span>
+          <span className="font-medium text-[#8A2BE2]">30 days</span>
         </div>
       </CardFooter>
     </Card>

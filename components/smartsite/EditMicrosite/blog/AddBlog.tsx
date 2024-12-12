@@ -1,6 +1,6 @@
 "use client";
 import Image from "next/image";
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { LiaFileMedicalSolid } from "react-icons/lia";
 import useSmartSiteApiDataStore from "@/zustandStore/UpdateSmartsiteInfo";
 import imagePlaceholder from "@/public/images/image_placeholder.png";
@@ -13,12 +13,22 @@ import { Editor } from "@tinymce/tinymce-react";
 import toast from "react-hot-toast";
 import { Tooltip } from "@nextui-org/react";
 import { MdInfoOutline } from "react-icons/md";
+import Cookies from "js-cookie";
 
 const AddBlog = ({ handleRemoveIcon }: any) => {
   const state: any = useSmartSiteApiDataStore((state) => state);
   //const sesstionState = useLoggedInUserStore((state) => state.state.user); //get session value
-  const demoToken =
-    "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJfaWQiOiI2NjM4NjMyMDIzMDQxMDMyODAyOTk4MmIiLCJpYXQiOjE3MjcxNTI4MzB9.CsHnZAgUzsfkc_g_CZZyQMXc02Ko_LhnQcCVpeCwroY";
+  const [accessToken, setAccessToken] = useState("");
+
+  useEffect(() => {
+    const getAccessToken = async () => {
+      const token = Cookies.get("access-token");
+      if (token) {
+        setAccessToken(token);
+      }
+    };
+    getAccessToken();
+  }, []);
   const [value, setValue] = useState("");
   // const [editorState, setEditorState] = React.useState(() =>
   //   EditorState.createEmpty()
@@ -95,7 +105,7 @@ const AddBlog = ({ handleRemoveIcon }: any) => {
       //   console.log("contactCardInfo", contactCardInfo);
 
       try {
-        const data = await postBlog(info, demoToken);
+        const data = await postBlog(info, accessToken);
         if ((data.state = "success")) {
           toast.success("Blog created successfully");
           handleRemoveIcon("Blog");
