@@ -42,16 +42,16 @@ const ProfileImage = memo(function ProfileImage({
         <Image
           src={profilePic || ''}
           alt={name || ''}
-          width={80}
-          height={80}
-          className="rounded-full w-14 xl:w-16 h-14 xl:h-16 border-2 p-0.5"
+          width={200}
+          height={200}
+          className="rounded-full w-14 xl:w-16 h-14 xl:h-16 border-2"
         />
       ) : (
         <Image
-          src={`/images/user_avator/${profilePic}.png`}
+          src={`/images/user_avator/${profilePic}@3x.png`}
           alt={name || ''}
-          width={80}
-          height={80}
+          width={200}
+          height={200}
           className="rounded-full w-14 xl:w-16 h-14 xl:h-16 border-2"
         />
       )}
@@ -68,9 +68,9 @@ const ProfileHeader = memo(function ProfileHeader() {
 
   return (
     <div className="w-full border-none rounded-xl font-[roboto]">
-      <div className="flex flex-col md:flex-row items-start lg:items-center gap-4 xl:gap-6 bg-white p-6 rounded-lg">
+      <div className="flex flex-col md:flex-row items-start lg:items-center gap-5 xl:gap-6 bg-white p-6 rounded-lg">
         {/* Profile Section */}
-        <div className="flex items-center gap-2 xl:gap-4">
+        <div className="flex items-start gap-3 xl:gap-4">
           <ProfileImage
             profilePic={user?.profilePic || ''}
             name={user?.name || ''}

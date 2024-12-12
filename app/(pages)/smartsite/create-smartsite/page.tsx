@@ -1,14 +1,14 @@
 import CreateSmartSite from "@/components/smartsite/CreateNewSmartsite";
+import { cookies } from "next/headers";
 import React from "react";
 
 const CreateSmartSitePage = async () => {
-  const demoShowToken =
-    "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJfaWQiOiI2NjM4NjMyMDIzMDQxMDMyODAyOTk4MmIiLCJpYXQiOjE3MjcxNTI4MzB9.CsHnZAgUzsfkc_g_CZZyQMXc02Ko_LhnQcCVpeCwroY";
-  return (
-    <div>
-      <CreateSmartSite token={demoShowToken} />
-    </div>
-  );
+  const cookieStore = cookies();
+
+  // Retrieve data from specific cookie
+  const accessToken = (await cookieStore).get("access-token")?.value;
+
+  return <div>{accessToken && <CreateSmartSite token={accessToken} />}</div>;
 };
 
 export default CreateSmartSitePage;

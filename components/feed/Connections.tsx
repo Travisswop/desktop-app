@@ -108,7 +108,7 @@ const Connections = ({ userId, accessToken }: any) => {
                       </p>
                     </div>
                   </div>
-                  <p className="text-sm text-gray-500 font-medium">
+                  <p className="hidden xl:block text-sm text-gray-500 font-medium">
                     {connection?.address}
                   </p>
                 </div>
