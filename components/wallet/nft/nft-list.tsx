@@ -55,8 +55,6 @@ const LoadingSkeleton = () => {
 
 export default function NFTSlider({
   onSelectNft,
-  address,
-  network,
   nfts,
   loading,
   error,

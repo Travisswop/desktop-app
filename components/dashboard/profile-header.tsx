@@ -1,12 +1,17 @@
-"use client";
-import { Card } from "@/components/ui/card";
-import isUrl from "@/lib/isUrl";
-import { useUser } from "@/lib/UserContext";
-import { MessageCircle, FileText, Star, CheckCircle2 } from "lucide-react";
-import Image from "next/image";
-import Link from "next/link";
-import { memo } from "react";
-import { FaEdit } from "react-icons/fa";
+'use client';
+import { Card } from '@/components/ui/card';
+import isUrl from '@/lib/isUrl';
+import { useUser } from '@/lib/UserContext';
+import {
+  MessageCircle,
+  FileText,
+  Star,
+  CheckCircle2,
+} from 'lucide-react';
+import Image from 'next/image';
+import Link from 'next/link';
+import { memo } from 'react';
+import { FaEdit } from 'react-icons/fa';
 
 // Memoize StatCard component since it's purely presentational
 const StatCard = memo(function StatCard({
@@ -19,7 +24,7 @@ const StatCard = memo(function StatCard({
   label: string;
 }) {
   return (
-    <Card className="flex flex-col items-center gap-2 p-4 min-w-[160px]">
+    <Card className="flex flex-col items-center gap-2 p-4 min-w-[140px]">
       <div className="flex w-full justify-center items-center bg-gray-100 rounded-md py-2">
         {icon} <span className="text-2xl font-bold">{value}</span>
       </div>
@@ -40,10 +45,10 @@ const ProfileImage = memo(function ProfileImage({
 }) {
   return (
     <div className="relative">
-      {isUrl(profilePic || "") ? (
+      {isUrl(profilePic || '') ? (
         <Image
-          src={profilePic || ""}
-          alt={name || ""}
+          src={profilePic || ''}
+          alt={name || ''}
           width={80}
           height={80}
           className="rounded-full w-16 h-16 border-2 p-0.5"
@@ -51,13 +56,13 @@ const ProfileImage = memo(function ProfileImage({
       ) : (
         <Image
           src={`/images/user_avator/${profilePic}.png`}
-          alt={name || ""}
+          alt={name || ''}
           width={80}
           height={80}
           className="rounded-full w-16 h-16 border-2"
         />
       )}
-      <Link href={"/account-settings"}>
+      <Link href={'/account-settings'}>
         <FaEdit className="absolute bottom-0 right-0 text-gray-700 bg-white rounded-full w-6 h-6 p-[3px] border border-gray-300" />
       </Link>
     </div>
@@ -74,27 +79,33 @@ const ProfileHeader = memo(function ProfileHeader() {
         {/* Profile Section */}
         <div className="flex items-center gap-4">
           <ProfileImage
-            profilePic={user?.profilePic || ""}
-            name={user?.name || ""}
+            profilePic={user?.profilePic || ''}
+            name={user?.name || ''}
           />
           <div className="space-y-1">
             <div className="flex items-center gap-2">
               <h1 className="text-md font-semibold">{user?.name}</h1>
             </div>
             <p className="text-muted-foreground">{user?.ensName}</p>
-            <p className="text-sm text-muted-foreground">{user?.address}</p>
+            <p className="text-sm text-muted-foreground">
+              {user?.address}
+            </p>
           </div>
         </div>
 
         {/* Followers Section */}
         <div className="flex gap-4">
           <div className="text-center">
-            <p className="font-semibold">{user?.followers?.toLocaleString()}</p>
+            <p className="font-semibold">
+              {user?.followers?.toLocaleString()}
+            </p>
             <p className="text-sm ">Followers</p>
           </div>
           <div className="border-l-2 border-gray-700 h-5 " />
           <div className="text-center">
-            <p className="font-semibold">{user?.following?.toLocaleString()}</p>
+            <p className="font-semibold">
+              {user?.following?.toLocaleString()}
+            </p>
             <p className="text-sm ">Following</p>
           </div>
         </div>

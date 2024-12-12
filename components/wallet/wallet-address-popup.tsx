@@ -80,26 +80,22 @@ export default function WalletAddressPopup({
     });
   }
 
-  const handleCopy = async (text: string) => {
-    await navigator.clipboard.writeText(text);
-  };
-
   return (
-    <Card className="absolute top-20 right-12 w-96 z-10 border bg-background border-none shadow-2xl shadow-slate-300">
+    <Card className="absolute top-20 right-4 sm:right-12 w-[calc(100vw-2rem)] sm:w-80 z-10 border bg-background border-none shadow-2xl shadow-slate-300">
       <CardHeader className="pb-3">
-        <CardTitle className=" text-xl font-normal">
+        <CardTitle className="text-base sm:text-lg font-normal">
           Copy Wallet Address
         </CardTitle>
       </CardHeader>
-      <CardContent className="grid gap-3">
+      <CardContent className="grid gap-2">
         {addresses.map((item, index) => (
           <div
             key={index}
-            className="flex items-center justify-between border-t-1 border-slate-300 p-2 text-sm"
+            className="flex items-center justify-between border-t-1 border-slate-300 p-1.5 sm:p-2 text-xs sm:text-sm"
           >
-            <div className="grid gap-1">
+            <div className="grid gap-0.5 sm:gap-1">
               <div className="font-medium">{item.chain}</div>
-              <div className="text-xs text-muted-foreground">
+              <div className="text-[10px] sm:text-xs text-muted-foreground">
                 {item.address.slice(0, 6)}...{item.address.slice(-6)}
               </div>
             </div>

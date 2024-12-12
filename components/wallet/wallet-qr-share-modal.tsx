@@ -9,8 +9,6 @@ import {
 import { Button } from '@/components/ui/button';
 import { QRCodeSVG } from 'qrcode.react';
 
-import { useEffect, useState } from 'react';
-
 interface WalletQRShareProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -26,21 +24,34 @@ export default function WalletQRShare({
   setQRCodeShareUrl,
   setQRCodeShareModalOpen,
 }: WalletQRShareProps) {
-  const handleShare = () => {
+  const handleShare = async () => {
     // Get the QR code SVG element
     const qrCodeElement = document.getElementById('qrcode');
     if (!qrCodeElement) return;
 
-    // Convert SVG to base64 string
+    // Convert SVG to canvas
     const svgData = new XMLSerializer().serializeToString(
       qrCodeElement
     );
-    const base64Data = btoa(svgData);
-    const base64Url = `data:image/svg+xml;base64,${base64Data}`;
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d');
+    const img = new Image();
 
-    console.log('QR Code Base64 URL:', base64Url);
-    setQRCodeShareUrl(base64Url);
-    setQRCodeShareModalOpen(true);
+    // Set canvas size to match QR code
+    canvas.width = 200;
+    canvas.height = 200;
+
+    // Convert SVG to PNG via canvas
+    img.onload = async () => {
+      ctx?.drawImage(img, 0, 0);
+      const pngUrl = canvas.toDataURL('image/png');
+
+      setQRCodeShareUrl(pngUrl);
+      setQRCodeShareModalOpen(true);
+      onOpenChange(false);
+    };
+
+    img.src = 'data:image/svg+xml;base64,' + btoa(svgData);
   };
 
   return (
