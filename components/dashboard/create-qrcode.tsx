@@ -93,6 +93,8 @@ const CreateQRCode = () => {
     setIsModalOpen(true);
   };
 
+  console.log('data', data);
+
   return (
     <>
       <Card className="w-full mx-auto border-none">

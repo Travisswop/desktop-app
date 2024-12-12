@@ -10,7 +10,7 @@ import {
   CardTitle,
 } from '@/components/ui/card';
 import { OnboardingData } from '@/lib/types';
-import { useWallets } from '@privy-io/react-auth';
+import { useWallets, useSolanaWallets } from '@privy-io/react-auth';
 import { useToast } from '@/hooks/use-toast';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
@@ -37,6 +37,7 @@ export default function CreateSwopID({
   userData,
 }: CreateSwopIDProps) {
   const { wallets } = useWallets();
+  const { createWallet, wallets: solanaWallets } = useSolanaWallets();
   const { toast } = useToast();
   const router = useRouter();
 
@@ -49,6 +50,19 @@ export default function CreateSwopID({
       type: null,
       message: '',
     });
+
+  useEffect(() => {
+    if (!solanaWallets || solanaWallets.length === 0) {
+      const createSolanaWallet = async () => {
+        try {
+          await createWallet();
+        } catch (error) {
+          console.error('Error creating Solana wallet:', error);
+        }
+      };
+      createSolanaWallet();
+    }
+  }, [solanaWallets, createWallet]);
 
   const validateSwopID = useCallback((id: string): boolean => {
     return SWOP_ID_REGEX.test(id);
@@ -110,6 +124,10 @@ export default function CreateSwopID({
         const ens = `${swopID}.swop.id`;
         const message = `Set ${ens} to ${address}`;
 
+        const solanaWallet = solanaWallets.find(
+          (w: any) => w.walletClientType === 'privy'
+        );
+
         const signature = await provider.request({
           method: 'personal_sign',
           params: [message, address],
@@ -118,7 +136,7 @@ export default function CreateSwopID({
         const requestBody = {
           name: ens,
           owner: address,
-          addresses: { 60: address, 501: '' },
+          addresses: { 60: address, 501: solanaWallet?.address },
           texts: {
             avatar: userData.userInfo?.avatar || '',
           },

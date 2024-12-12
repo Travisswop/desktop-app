@@ -44,7 +44,6 @@ export default function QRCodeShareModal({
         });
     }
   }, [qrCodeUrl]);
-
   return (
     <>
       {isOpen && (

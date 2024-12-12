@@ -26,6 +26,7 @@ export const sendCloudinaryImage = async (
     }
 
     const cloudResData = await cloudResponse.json();
+    console.log('🚀 ~ cloudResData:', cloudResData);
     const cloudPicUrl = cloudResData.secure_url;
     // console.log("Cloudinary secure URL:", cloudPicUrl);
     return cloudPicUrl;

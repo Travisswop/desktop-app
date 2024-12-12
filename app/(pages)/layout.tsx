@@ -7,7 +7,7 @@ const PageLayout = ({ children }: { children: React.ReactNode }) => {
       <Sidenav />
       <Header />
       <div className="pl-64">
-        <main className="container mx-auto px-6 pt-6 max-w-7xl 2xl:max-w-full">
+        <main className="container mx-auto px-6 py-6 max-w-7xl 2xl:max-w-full">
           {children}
         </main>
       </div>

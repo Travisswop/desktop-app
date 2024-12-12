@@ -57,25 +57,6 @@ export default function WalletQRModal({
   setWalletQRShareModalOpen,
 }: WalletQRProps) {
   const { toast } = useToast();
-  const [activeQR, setActiveQR] = useState<'ethereum' | 'solana'>(
-    'ethereum'
-  );
-
-  const handleCopy = async (address: string) => {
-    try {
-      await navigator.clipboard.writeText(address);
-      toast({
-        description: 'Address copied to clipboard',
-        duration: 2000,
-      });
-    } catch (err) {
-      toast({
-        variant: 'destructive',
-        description: 'Failed to copy address',
-        duration: 2000,
-      });
-    }
-  };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -120,13 +101,13 @@ export default function WalletQRModal({
                     variant="ghost"
                     size="icon"
                     onClick={() => {
-                      setActiveQR('ethereum');
                       setWalletQRShareModalOpen(true);
                       setWalletShareAddress(
                         walletData.length > 0
                           ? walletData[0].address
                           : ''
                       );
+                      onOpenChange(false);
                     }}
                     className="h-8 w-8 bg-gray-100 rounded-full"
                   >
@@ -186,7 +167,6 @@ export default function WalletQRModal({
                     variant="ghost"
                     size="icon"
                     onClick={() => {
-                      setActiveQR('solana');
                       setWalletQRShareModalOpen(true);
                       setWalletShareAddress(
                         walletData.length > 1
