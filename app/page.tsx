@@ -1,8 +1,10 @@
-import DashboardContent from '@/components/dashboard/DashboardContent';
-import FeedMain from '@/components/feed/FeedMain';
-import Header from '@/components/Header';
-import Sidenav from '@/components/Sidenav';
-import { Suspense } from 'react';
+import DashboardContent from "@/components/dashboard/DashboardContent";
+import FeedMain from "@/components/feed/FeedMain";
+// import FeedMain from "@/components/feed/FeedMain";
+import Header from "@/components/Header";
+import Sidenav from "@/components/Sidenav";
+import { Suspense } from "react";
+// import { Suspense } from "react";
 function DashboardPage() {
   return (
     <div className="min-h-screen">

@@ -513,7 +513,7 @@ const CreateQRCode = ({ session }: any) => {
               </div>
             </div> */}
             <div>
-              <p className="heading-4 mb-2">Pick QR Colors: </p>
+              <p className="heading-4 mb-2">Pick A Colors: </p>
               <div className="flex items-center">
                 {defaultColorArray.map((data) => (
                   <button
@@ -793,7 +793,7 @@ const CreateQRCode = ({ session }: any) => {
                     alt="logo"
                     width={200}
                     height={200}
-                    className="w-12 h-12"
+                    className="w-11 h-11 -translate-y-2"
                   />
                 ) : (
                   <Image
@@ -802,7 +802,7 @@ const CreateQRCode = ({ session }: any) => {
                     alt="logo"
                     width={200}
                     height={200}
-                    className="w-10 h-10"
+                    className="w-10 h-10 -translate-y-2"
                   />
                 )}
               </div>
