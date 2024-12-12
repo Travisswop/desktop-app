@@ -51,16 +51,26 @@ import { HexColorPicker } from "react-colorful";
 import { MdDeleteOutline, MdDone } from "react-icons/md";
 import Swal from "sweetalert2";
 import { handleDeleteSmartSite } from "@/actions/deleteSmartsite";
+import Cookies from "js-cookie";
 
 const EditSmartSite = ({ data, token }: any) => {
   const [selectedImage, setSelectedImage] = useState(null); // get user avator image
   const [deleteLoading, setDeleteLoading] = useState(false);
   // const router = useRouter();
 
-  const demoShowToken =
-    "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJfaWQiOiI2NjM4NjMyMDIzMDQxMDMyODAyOTk4MmIiLCJpYXQiOjE3MjcxNTI4MzB9.CsHnZAgUzsfkc_g_CZZyQMXc02Ko_LhnQcCVpeCwroY";
+  const [accessToken, setAccessToken] = useState("");
 
-  const { refetch } = useDesktopUserData(data?.data?.parentId, demoShowToken);
+  useEffect(() => {
+    const getAccessToken = async () => {
+      const token = Cookies.get("access-token");
+      if (token) {
+        setAccessToken(token);
+      }
+    };
+    getAccessToken();
+  }, []);
+
+  const { refetch } = useDesktopUserData(data?.data?.parentId, accessToken);
 
   console.log("hola data", data);
 

@@ -25,7 +25,7 @@ import { tintStyle } from "../util/IconTintStyle";
 import getSmallIconImage from "./retriveIconImage/getSmallIconImage";
 import EmbedPlayer from "./embed/renderEmbedPlayer";
 import getAllSmartsitesIcon from "./retriveIconImage/getAllSmartsiteIcon";
-import mockupBtn from "@/public/images/mockup-bottom-button.png";
+// import mockupBtn from "@/public/images/mockup-bottom-button.png";
 // import DynamicPrimaryBtn from "../ui/Button/DynamicPrimaryBtn";
 import { LiaFileMedicalSolid } from "react-icons/lia";
 import { Switch } from "@nextui-org/react";
@@ -37,6 +37,8 @@ import toast from "react-hot-toast";
 import AnimateButton from "../ui/Button/AnimateButton";
 import SmartsiteSocialShare from "./socialShare/SmartsiteSocialShare";
 import { fontMap } from "@/lib/fonts";
+import Cookies from "js-cookie";
+// import { access } from "fs";
 
 const SmartsiteIconLivePreview = ({
   isEditDetailsLivePreview = false,
@@ -56,12 +58,21 @@ const SmartsiteIconLivePreview = ({
   // console.log("data form live", data.info.socialLarge);
   const { formData, setFormData } = useSmartsiteFormStore();
 
-  console.log("form data from live preview data", data.info.socialLarge);
+  // console.log("form data from live preview data", data.info.socialLarge);
 
   const { setOn }: any = useSmallIconToggleStore();
 
-  const demoToken =
-    "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJfaWQiOiI2NjM4NjMyMDIzMDQxMDMyODAyOTk4MmIiLCJpYXQiOjE3MjcxNTI4MzB9.CsHnZAgUzsfkc_g_CZZyQMXc02Ko_LhnQcCVpeCwroY";
+  const [accessToken, setAccessToken] = useState("");
+
+  useEffect(() => {
+    const getAccessToken = async () => {
+      const token = Cookies.get("access-token");
+      if (token) {
+        setAccessToken(token);
+      }
+    };
+    getAccessToken();
+  }, []);
 
   const handleTriggerUpdate = (data: {
     data: any;
@@ -111,7 +122,7 @@ const SmartsiteIconLivePreview = ({
     };
 
     try {
-      const response = await handleSmartSiteUpdate(smartSiteInfo, demoToken);
+      const response = await handleSmartSiteUpdate(smartSiteInfo, accessToken);
       console.log("response", response);
 
       if (response.state === "success") {

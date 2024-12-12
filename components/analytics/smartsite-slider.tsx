@@ -92,7 +92,7 @@ export default function SmartSiteSlider({
                     </Link>
                   </div>
                 </CardHeader>
-                <CardContent className="p-0 py-6 mx-6 xl:mx-16 2xl:mx-20 ">
+                <CardContent className="p-0 py-6 mx-14 xl:mx-16 2xl:mx-20 ">
                   <div
                     // style={{
                     //   backgroundImage: item.theme
@@ -126,7 +126,7 @@ export default function SmartSiteSlider({
                         <div className="w-full h-40"></div>
                       )} */}
                       {/* <div className="absolute -bottom-8 left-1/2 -translate-x-1/2"> */}
-                      <div className="w-32 2xl:w-36 h-32 2xl:h-36 rounded-full">
+                      <div className="w-28 xl:w-32 2xl:w-36 h-28 xl:h-32 2xl:h-36 rounded-full">
                         <Image
                           src={`${
                             isUrl(item.profilePic)
@@ -209,8 +209,8 @@ export default function SmartSiteSlider({
             </CarouselItem>
           ))}
         </CarouselContent>
-        <CarouselPrevious className="absolute left-10 -translate-x-1/2 border" />
-        <CarouselNext className="absolute right-10 translate-x-1/2" />
+        <CarouselPrevious className="absolute left-6 xl:left-10 -translate-x-1/2 border" />
+        <CarouselNext className="absolute right-6 xl:right-10 translate-x-1/2" />
       </Carousel>
       {smartSiteProfileUrl && (
         <SmartSiteUrlShareModal

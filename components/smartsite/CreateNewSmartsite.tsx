@@ -1,37 +1,37 @@
-'use client';
-import Image from 'next/image';
-import React, { useEffect, useState } from 'react';
-import profileEditIcon from '@/public/images/websites/profile-edit.png';
-import { FiMinus, FiPlus, FiUser } from 'react-icons/fi';
-import { TbUserSquare } from 'react-icons/tb';
+"use client";
+import Image from "next/image";
+import React, { useEffect, useState } from "react";
+import profileEditIcon from "@/public/images/websites/profile-edit.png";
+import { FiMinus, FiPlus, FiUser } from "react-icons/fi";
+import { TbUserSquare } from "react-icons/tb";
 import {
   Select,
   SelectItem,
   Spinner,
   Switch,
   useDisclosure,
-} from '@nextui-org/react';
-import { LiaFileMedicalSolid } from 'react-icons/lia';
-import { IoMdLink } from 'react-icons/io';
-import { PiAddressBook } from 'react-icons/pi';
-import useSmartsiteFormStore from '@/zustandStore/EditSmartsiteInfo';
-import { handleCreateSmartSite } from '@/actions/update';
-import useSmallIconToggleStore from '@/zustandStore/SmallIconModalToggle';
-import useUpdateSmartIcon from '@/zustandStore/UpdateSmartIcon';
-import { MdAssignmentAdd, MdDone } from 'react-icons/md';
-import { useRouter } from 'next/navigation';
-import EditMicrositeBtn from '../ui/Button/EditMicrositeBtn';
-import DynamicPrimaryBtn from '../ui/Button/DynamicPrimaryBtn';
-import SelectBackgroudOrBannerModal from '../modal/SelectBackgroudOrBannerModal';
-import SelectAvatorModal from '../modal/SelectAvatorModal';
-import userProfileImages from '../util/data/userProfileImage';
-import smatsiteBannerImageList from '../util/data/smartsiteBannerImageList';
-import smatsiteBackgroundImageList from '../util/data/smatsiteBackgroundImageList';
-import SmartsiteLivePreview from './CreateSmartsiteLivePreview';
-import { sendCloudinaryImage } from '@/lib/SendCloudineryImage';
-import { useUser } from '@/lib/UserContext';
-import { HexColorPicker } from 'react-colorful';
-import { useDesktopUserData } from '../tanstackQueryApi/getUserData';
+} from "@nextui-org/react";
+import { LiaFileMedicalSolid } from "react-icons/lia";
+import { IoMdLink } from "react-icons/io";
+import { PiAddressBook } from "react-icons/pi";
+import useSmartsiteFormStore from "@/zustandStore/EditSmartsiteInfo";
+import { handleCreateSmartSite } from "@/actions/update";
+import useSmallIconToggleStore from "@/zustandStore/SmallIconModalToggle";
+import useUpdateSmartIcon from "@/zustandStore/UpdateSmartIcon";
+import { MdAssignmentAdd, MdDone } from "react-icons/md";
+import { useRouter } from "next/navigation";
+import EditMicrositeBtn from "../ui/Button/EditMicrositeBtn";
+import DynamicPrimaryBtn from "../ui/Button/DynamicPrimaryBtn";
+import SelectBackgroudOrBannerModal from "../modal/SelectBackgroudOrBannerModal";
+import SelectAvatorModal from "../modal/SelectAvatorModal";
+import userProfileImages from "../util/data/userProfileImage";
+import smatsiteBannerImageList from "../util/data/smartsiteBannerImageList";
+import smatsiteBackgroundImageList from "../util/data/smatsiteBackgroundImageList";
+import SmartsiteLivePreview from "./CreateSmartsiteLivePreview";
+import { sendCloudinaryImage } from "@/lib/SendCloudineryImage";
+import { useUser } from "@/lib/UserContext";
+import { HexColorPicker } from "react-colorful";
+import { useDesktopUserData } from "../tanstackQueryApi/getUserData";
 
 const CreateSmartSite = ({ token }: { token: string }) => {
   const { formData, setFormData } = useSmartsiteFormStore();
@@ -42,35 +42,33 @@ const CreateSmartSite = ({ token }: { token: string }) => {
 
   const [selectedImage, setSelectedImage] = useState(null); // get user avator image
   const [galleryImage, setGalleryImage] = useState(null); // get upload image base64 data
-  const [uploadedImageUrl, setUploadedImageUrl] = useState(''); // get uploaded url from cloudinery
+  const [uploadedImageUrl, setUploadedImageUrl] = useState(""); // get uploaded url from cloudinery
   const [isGatedAccessOpen, setIsGatedAccessOpen] = useState(false);
   const [gatedAccessError, setGatedAccessError] = useState({
-    contractAddress: '',
-    tokenId: '',
-    eventLink: '',
-    network: '',
+    contractAddress: "",
+    tokenId: "",
+    eventLink: "",
+    network: "",
   });
   const [isPrimaryMicrosite, setIsPrimaryMicrosite] = useState(false);
-  const [brandImage, setBrandImage] = useState(''); //need to set brand image
+  const [brandImage, setBrandImage] = useState(""); //need to set brand image
 
   const [isTemplateColorPickerOpen, setIsTemplateColorPickerOpen] =
     useState(false);
 
   // const [profileImage, setProfileImage] = useState("");
   const [backgroundImage, setBackgroundImage] = useState({
-    background: '',
-    banner: '',
+    background: "",
+    banner: "",
   });
   // console.log("backgroundImage", backgroundImage);
 
   // const [isBackgrundImageSelected, setIsBackgrundImageSelected] =
   //   useState(false);
 
-  const [isFormSubmitLoading, setIsFormSubmitLoading] =
-    useState(false);
+  const [isFormSubmitLoading, setIsFormSubmitLoading] = useState(false);
 
-  const [isUserProfileModalOpen, setIsUserProfileModalOpen] =
-    useState(false);
+  const [isUserProfileModalOpen, setIsUserProfileModalOpen] = useState(false);
   const [isBannerModalOpen, setIsBannerModalOpen] = useState(false);
 
   // console.log("gatedAccessError", gatedAccessError);
@@ -96,12 +94,12 @@ const CreateSmartSite = ({ token }: { token: string }) => {
   // }, [router, session.isPremiumUser]);
 
   useEffect(() => {
-    setFormData('backgroundImg', '1');
-    setFormData('bio', '');
-    setFormData('galleryImg', '');
-    setFormData('profileImg', '1');
-    setFormData('name', '');
-    setFormData('theme', false);
+    setFormData("backgroundImg", "1");
+    setFormData("bio", "");
+    setFormData("galleryImg", "");
+    setFormData("profileImg", "1");
+    setFormData("name", "");
+    setFormData("theme", false);
   }, [setFormData]);
 
   const handleChange = (e: any) => {
@@ -112,9 +110,9 @@ const CreateSmartSite = ({ token }: { token: string }) => {
   // image upload for user profile
   const handleSelectImage = (image: any) => {
     setSelectedImage(image);
-    setFormData('profileImg', image);
+    setFormData("profileImg", image);
     setGalleryImage(null);
-    setFormData('galleryImg', '');
+    setFormData("galleryImg", "");
   };
 
   const handleUserProfileModal = () => {
@@ -128,10 +126,10 @@ const CreateSmartSite = ({ token }: { token: string }) => {
       sendCloudinaryImage(galleryImage)
         .then((url) => {
           setUploadedImageUrl(url);
-          setFormData('profileImg', url);
+          setFormData("profileImg", url);
         })
         .catch((err) => {
-          console.error('Error uploading image:', err);
+          console.error("Error uploading image:", err);
         });
     }
   }, [galleryImage, setFormData]);
@@ -144,7 +142,7 @@ const CreateSmartSite = ({ token }: { token: string }) => {
       const reader = new FileReader();
       reader.onloadend = () => {
         setGalleryImage(reader.result as any);
-        setFormData('galleryImg', reader.result as any);
+        setFormData("galleryImg", reader.result as any);
       };
       reader.readAsDataURL(file);
     }
@@ -156,45 +154,42 @@ const CreateSmartSite = ({ token }: { token: string }) => {
     const newFormData = new FormData(e.currentTarget);
     // console.log("formData", formData);
 
-    console.log('hit');
+    console.log("hit");
 
     setGatedAccessError({
-      contractAddress: '',
-      tokenId: '',
-      eventLink: '',
-      network: '',
+      contractAddress: "",
+      tokenId: "",
+      eventLink: "",
+      network: "",
     });
 
     //set gated access error
     if (isGatedAccessOpen) {
       const errors = {
-        contractAddress: '',
-        tokenId: '',
-        eventLink: '',
-        network: '',
+        contractAddress: "",
+        tokenId: "",
+        eventLink: "",
+        network: "",
       };
 
-      if (!newFormData.get('contractAddress')) {
+      if (!newFormData.get("contractAddress")) {
         errors.contractAddress = "Contract address can't be empty!";
       }
 
-      if (!newFormData.get('tokenId')) {
+      if (!newFormData.get("tokenId")) {
         errors.tokenId = "Token ID can't be empty!";
       }
 
-      if (!newFormData.get('eventLink')) {
+      if (!newFormData.get("eventLink")) {
         errors.eventLink = "Mint Url can't be empty!";
       } else {
         const urlPattern = /^(https?:\/\/)/i;
-        if (
-          !urlPattern.test(newFormData.get('eventLink') as string)
-        ) {
-          errors.eventLink =
-            'Mint Url must start with http:// or https://';
+        if (!urlPattern.test(newFormData.get("eventLink") as string)) {
+          errors.eventLink = "Mint Url must start with http:// or https://";
         }
       }
 
-      if (!newFormData.get('network')) {
+      if (!newFormData.get("network")) {
         errors.network = "Network can't be empty!";
       }
 
@@ -216,17 +211,17 @@ const CreateSmartSite = ({ token }: { token: string }) => {
 
     const smartSiteInfo = {
       parentId: user?._id,
-      name: newFormData.get('name') || '',
-      bio: newFormData.get('bio') || '',
+      name: newFormData.get("name") || "",
+      bio: newFormData.get("bio") || "",
       brandImg: brandImage, //need to setup
-      profilePic: formData.profileImg || '1',
+      profilePic: formData.profileImg || "1",
       backgroundImg: formData.backgroundImg,
       gatedAccess: isGatedAccessOpen,
       gatedInfo: {
-        contractAddress: newFormData.get('contractAddress') || '',
-        tokenId: newFormData.get('tokenId') || '',
-        eventLink: newFormData.get('eventLink') || '',
-        network: newFormData.get('network') || '',
+        contractAddress: newFormData.get("contractAddress") || "",
+        tokenId: newFormData.get("tokenId") || "",
+        eventLink: newFormData.get("eventLink") || "",
+        network: newFormData.get("network") || "",
       },
       theme: formData.theme,
       //   ens: data.data.ens || "",
@@ -237,16 +232,13 @@ const CreateSmartSite = ({ token }: { token: string }) => {
       themeColor: formData.templateColor,
     };
 
-    console.log('smartsite info', smartSiteInfo);
+    console.log("smartsite info", smartSiteInfo);
 
     try {
-      const response = await handleCreateSmartSite(
-        smartSiteInfo,
-        token
-      );
-      console.log('response', response);
+      const response = await handleCreateSmartSite(smartSiteInfo, token);
+      console.log("response", response);
 
-      if (response.state === 'success') {
+      if (response.state === "success") {
         //console.log("responseeee", response);
         // const micrositeId =
         //   response?.data?.microsites[response?.data?.microsites.length - 1]._id;
@@ -283,19 +275,19 @@ const CreateSmartSite = ({ token }: { token: string }) => {
   // console.log("icon data obbbjj", iconData);
 
   const fontType = [
-    { key: 'roboto', label: 'Roboto' },
-    { key: 'poppins', label: 'Poppins' },
-    { key: 'openSans', label: 'OpenSans' },
-    { key: 'montserrat', label: 'Montserrat' },
-    { key: 'rubik', label: 'Rubik' },
+    { key: "roboto", label: "Roboto" },
+    { key: "poppins", label: "Poppins" },
+    { key: "openSans", label: "OpenSans" },
+    { key: "montserrat", label: "Montserrat" },
+    { key: "rubik", label: "Rubik" },
   ];
 
   return (
     <main className="main-container">
       <div className="flex gap-7 items-start h-[90vh]">
         <div
-          style={{ height: '100%' }}
-          className="w-[62%] overflow-y-auto"
+          style={{ height: "100%" }}
+          className="w-[62%] overflow-y-auto pb-4 xl:pb-0"
         >
           <form
             onSubmit={handleSmartSiteUpdateInfo}
@@ -307,7 +299,7 @@ const CreateSmartSite = ({ token }: { token: string }) => {
                   {selectedImage || galleryImage ? (
                     <>
                       {selectedImage ? (
-                        <div className="w-40 h-40 overflow-hidden">
+                        <div className="w-32 xl:w-40 h-32 xl:h-40 overflow-hidden">
                           <Image
                             alt="user image"
                             src={
@@ -322,7 +314,7 @@ const CreateSmartSite = ({ token }: { token: string }) => {
                           />
                         </div>
                       ) : (
-                        <div className="w-40 h-40 overflow-hidden">
+                        <div className="w-32 xl:w-40 h-32 xl:h-40 overflow-hidden">
                           <Image
                             alt="user image"
                             src={galleryImage!}
@@ -336,7 +328,7 @@ const CreateSmartSite = ({ token }: { token: string }) => {
                     </>
                   ) : (
                     <>
-                      <div className="w-40 h-40 overflow-hidden">
+                      <div className="w-32 xl:w-40 h-32 xl:h-40 overflow-hidden">
                         <Image
                           alt="user image"
                           src={`/images/user_avator/1@3x.png`}
@@ -357,17 +349,14 @@ const CreateSmartSite = ({ token }: { token: string }) => {
                       alt="edit icon"
                       src={profileEditIcon}
                       quality={100}
-                      className="w-9 h-9"
+                      className="w-8 xl:w-9 h-8 xl:h-9"
                     />
                   </button>
                 </div>
               </div>
               <div className="flex flex-col gap-4 mt-6">
                 <div>
-                  <label
-                    htmlFor="name"
-                    className="font-medium text-gray-700"
-                  >
+                  <label htmlFor="name" className="font-medium text-gray-700">
                     Name
                   </label>
                   <div className="relative flex-1 mt-1">
@@ -379,7 +368,7 @@ const CreateSmartSite = ({ token }: { token: string }) => {
                       type="text"
                       name="name"
                       required={true}
-                      defaultValue={''}
+                      defaultValue={""}
                       placeholder={`Type your name`}
                       onChange={handleChange}
                       className="w-full border border-[#ede8e8] focus:border-[#e5e0e0] rounded-xl focus:outline-none pl-10 py-2 text-gray-700 bg-white"
@@ -387,10 +376,7 @@ const CreateSmartSite = ({ token }: { token: string }) => {
                   </div>
                 </div>
                 <div>
-                  <label
-                    htmlFor="name"
-                    className="font-medium text-gray-700"
-                  >
+                  <label htmlFor="name" className="font-medium text-gray-700">
                     Bio
                   </label>
                   <div className="relative flex-1 mt-1">
@@ -400,7 +386,7 @@ const CreateSmartSite = ({ token }: { token: string }) => {
                     />
                     <textarea
                       placeholder={`Type your bio`}
-                      defaultValue={''}
+                      defaultValue={""}
                       required={true}
                       onChange={handleChange}
                       name="bio"
@@ -415,13 +401,9 @@ const CreateSmartSite = ({ token }: { token: string }) => {
               <Select
                 variant="bordered"
                 selectedKeys={[formData.fontType]}
-                onChange={(e) =>
-                  setFormData('fontType', e.target.value as any)
-                }
+                onChange={(e) => setFormData("fontType", e.target.value as any)}
                 label={
-                  <span className="text-gray-600 font-medium">
-                    Select Font
-                  </span>
+                  <span className="text-gray-600 font-medium">Select Font</span>
                 }
                 className="max-w-40 bg-white rounded-xl"
               >
@@ -434,81 +416,67 @@ const CreateSmartSite = ({ token }: { token: string }) => {
                 <div className="flex items-center gap-2 mt-1">
                   <button
                     type="button"
-                    onClick={() =>
-                      setFormData('fontColor', '#000000')
-                    }
+                    onClick={() => setFormData("fontColor", "#000000")}
                     className="bg-black w-[22px] h-[22px] rounded-full flex items-center justify-center"
                   >
-                    {formData.fontColor === '#000000' && (
+                    {formData.fontColor === "#000000" && (
                       <MdDone color="white" size={16} />
                     )}
                   </button>
                   <button
                     type="button"
-                    onClick={() =>
-                      setFormData('fontColor', '#808080')
-                    }
+                    onClick={() => setFormData("fontColor", "#808080")}
                     className="bg-gray-400 w-[22px] h-[22px] rounded-full flex items-center justify-center"
                   >
-                    {formData.fontColor === '#808080' && (
+                    {formData.fontColor === "#808080" && (
                       <MdDone color="white" size={16} />
                     )}
                   </button>
                   <button
                     type="button"
-                    onClick={() =>
-                      setFormData('fontColor', '#D3D3D3')
-                    }
+                    onClick={() => setFormData("fontColor", "#D3D3D3")}
                     className="bg-[#D3D3D3] w-[22px] h-[22px] rounded-full flex items-center justify-center"
                   >
-                    {formData.fontColor === '#D3D3D3' && (
+                    {formData.fontColor === "#D3D3D3" && (
                       <MdDone color="black" size={16} />
                     )}
                   </button>
                 </div>
               </div>
               <div>
-                <p className="text-sm font-medium text-end">
-                  Templates Color
-                </p>
+                <p className="text-sm font-medium text-end">Templates Color</p>
                 <div className="flex items-center justify-end gap-2 mt-1 w-36">
                   <button
                     type="button"
-                    onClick={() =>
-                      setFormData('templateColor', '#000000')
-                    }
+                    onClick={() => setFormData("templateColor", "#000000")}
                     className="bg-black w-[22px] h-[22px] rounded-full flex items-center justify-center"
                   >
-                    {formData.templateColor === '#000000' && (
+                    {formData.templateColor === "#000000" && (
                       <MdDone color="white" size={16} />
                     )}
                   </button>
                   <button
                     type="button"
-                    onClick={() =>
-                      setFormData('templateColor', '#808080')
-                    }
+                    onClick={() => setFormData("templateColor", "#808080")}
                     className="bg-gray-400 w-[22px] h-[22px] rounded-full flex items-center justify-center"
                   >
-                    {formData.templateColor === '#808080' && (
+                    {formData.templateColor === "#808080" && (
                       <MdDone color="white" size={16} />
                     )}
                   </button>
                   <button
                     type="button"
-                    onClick={() =>
-                      setFormData('templateColor', '#FFFFFF')
-                    }
+                    onClick={() => setFormData("templateColor", "#FFFFFF")}
                     className="bg-white w-[22px] h-[22px] rounded-full flex items-center justify-center border border-gray-300"
                   >
-                    {formData.templateColor === '#FFFFFF' && (
+                    {formData.templateColor === "#FFFFFF" && (
                       <MdDone color="black" size={16} />
                     )}
                   </button>
-                  {formData.templateColor !== '#FFFFFF' &&
-                    formData.templateColor !== '#808080' &&
-                    formData.templateColor !== '#000000' &&
-                    formData.templateColor !== '' && (
+                  {formData.templateColor !== "#FFFFFF" &&
+                    formData.templateColor !== "#808080" &&
+                    formData.templateColor !== "#000000" &&
+                    formData.templateColor !== "" && (
                       <button
                         type="button"
                         style={{
@@ -524,9 +492,7 @@ const CreateSmartSite = ({ token }: { token: string }) => {
                     <button
                       type="button"
                       onClick={() =>
-                        setIsTemplateColorPickerOpen(
-                          !isTemplateColorPickerOpen
-                        )
+                        setIsTemplateColorPickerOpen(!isTemplateColorPickerOpen)
                       }
                       className="bg-white w-[22px] h-[22px] rounded-full flex items-center justify-center border border-gray-500"
                     >
@@ -544,7 +510,7 @@ const CreateSmartSite = ({ token }: { token: string }) => {
                         <HexColorPicker
                           color={formData.templateColor}
                           onChange={(color) =>
-                            setFormData('templateColor', color)
+                            setFormData("templateColor", color)
                           }
                           className="max-w-full max-h-full"
                         />
@@ -618,7 +584,7 @@ const CreateSmartSite = ({ token }: { token: string }) => {
                   <input
                     type="text"
                     placeholder={`Contract Address`}
-                    defaultValue={''}
+                    defaultValue={""}
                     name="contractAddress"
                     className="w-full border border-[#ede8e8] focus:border-[#e5e0e0] rounded-xl focus:outline-none pl-10 py-2 text-gray-700 bg-white"
                   />
@@ -637,7 +603,7 @@ const CreateSmartSite = ({ token }: { token: string }) => {
                     type="text"
                     placeholder={`Token ID`}
                     name="tokenId"
-                    defaultValue={''}
+                    defaultValue={""}
                     className="w-full border border-[#ede8e8] focus:border-[#e5e0e0] rounded-xl focus:outline-none pl-10 py-2 text-gray-700 bg-white"
                   />
                 </div>
@@ -655,7 +621,7 @@ const CreateSmartSite = ({ token }: { token: string }) => {
                     type="text"
                     placeholder={`Mint URL`}
                     name="eventLink"
-                    defaultValue={''}
+                    defaultValue={""}
                     className="w-full border border-[#ede8e8] focus:border-[#e5e0e0] rounded-xl focus:outline-none pl-10 py-2 text-gray-700 bg-white"
                   />
                 </div>
@@ -671,7 +637,7 @@ const CreateSmartSite = ({ token }: { token: string }) => {
                   />
                   <select
                     name="network"
-                    defaultValue={''}
+                    defaultValue={""}
                     className="w-full border border-[#ede8e8] focus:border-[#e5e0e0] rounded-xl focus:outline-none pl-10 py-2 text-gray-700 bg-white"
                   >
                     <option value="" disabled>
