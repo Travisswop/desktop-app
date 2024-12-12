@@ -9,6 +9,7 @@ import { TbEdit } from "react-icons/tb";
 import AnimateButton from "../ui/Button/AnimateButton";
 // import { useDesktopUserData } from "../tanstackQueryApi/getUserData";
 import { BiWallet } from "react-icons/bi";
+import { useRouter } from "next/navigation";
 
 const ButtonList = ({ microsite, token, id }: any) => {
   // const demoShowToken =
@@ -88,6 +89,16 @@ const ButtonList = ({ microsite, token, id }: any) => {
   //   // }
   // };
 
+  const router = useRouter();
+
+  console.log("microsite", microsite);
+
+  const handleWalletRedirect = () => {
+    if (microsite.primary) {
+      router.push("/wallet");
+    }
+  };
+
   return (
     <div className="flex flex-wrap items-center justify-center gap-1">
       {/* <Link href={`/smartsite/${microsite._id}`} className="text-sm">
@@ -103,13 +114,15 @@ const ButtonList = ({ microsite, token, id }: any) => {
       <Link href={`/smartsite/icons/${microsite._id}`} className="">
         <AnimateButton
           // width="w-[5.8rem]"
+
           className="!rounded-md !text-black hover:!text-white !border-black !gap-1 2xl:!gap-1.5 text-sm 2xl:text-base !w-[4.5rem] 2xl:!w-24 !px-2.5"
         >
           Edit <TbEdit size={19} />
         </AnimateButton>
       </Link>
       <AnimateButton
-        // width="w-[6.8rem]"
+        isDisabled={!microsite.primary && true}
+        onClick={() => handleWalletRedirect()}
         className="!rounded-md !text-black hover:!text-white !border-black !gap-1 2xl:!gap-1.5 text-sm 2xl:text-base !w-[5.2rem] 2xl:!w-24 !px-2.5"
       >
         Wallet <BiWallet size={20} />

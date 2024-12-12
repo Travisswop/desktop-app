@@ -1,3 +1,4 @@
+"use client";
 import { Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -7,6 +8,7 @@ import {
   CardHeader,
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { useState } from "react";
 
 interface Plan {
   name: string;
@@ -95,6 +97,7 @@ const plans: Plan[] = [
 ];
 
 export default function SubscriptionPlans() {
+  const [selectedPlan, setSelectedPlan] = useState("Premium");
   return (
     <div className="px-4 py-8">
       <h2 className="text-xl font-semibold mb-8">All Plans</h2>
@@ -102,8 +105,9 @@ export default function SubscriptionPlans() {
         {plans.map((plan) => (
           <Card
             key={plan.name}
-            className={`relative flex flex-col ${
-              plan.isPopular ? "border-[#593ED3] shadow-lg" : ""
+            onClick={() => setSelectedPlan(plan.name)}
+            className={`relative flex flex-col !rounded-3xl ${
+              plan.name === selectedPlan ? "border-[#593ED3] shadow-lg" : ""
             }`}
           >
             {plan.isPopular && (

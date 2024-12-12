@@ -1,44 +1,43 @@
-'use client';
-import { Spinner } from '@nextui-org/react';
-import Image from 'next/image';
-import React, { useEffect, useRef, useState } from 'react';
-import { HexColorPicker } from 'react-colorful';
+"use client";
+import { Spinner } from "@nextui-org/react";
+import Image from "next/image";
+import React, { useEffect, useRef, useState } from "react";
+import { HexColorPicker } from "react-colorful";
 import {
   QrCode1,
   QrCode2,
   QrCode3,
   QrCode4,
-} from '@/components/smartsite/qrCode/QRData';
-import qrJson1 from '@/components/smartsite/qrCode/qr-code-json/1-A.json';
-import qrJson2 from '@/components/smartsite/qrCode/qr-code-json/2-A.json';
-import qrJson3 from '@/components/smartsite/qrCode/qr-code-json/3-A.json';
-import qrJson4 from '@/components/smartsite/qrCode/qr-code-json/4-A.json';
-import { FaSave } from 'react-icons/fa';
-import { postCustomQrCode } from '@/actions/customQrCode';
-import { useRouter } from 'next/navigation';
-import { sendCloudinaryImage } from '@/lib/SendCloudineryImage';
-import { useToast } from '@/hooks/use-toast';
-import CustomFileInput from '@/components/CustomFileInput';
-import DynamicPrimaryBtn from '@/components/ui/Button/DynamicPrimaryBtn';
+} from "@/components/smartsite/qrCode/QRData";
+import qrJson1 from "@/components/smartsite/qrCode/qr-code-json/1-A.json";
+import qrJson2 from "@/components/smartsite/qrCode/qr-code-json/2-A.json";
+import qrJson3 from "@/components/smartsite/qrCode/qr-code-json/3-A.json";
+import qrJson4 from "@/components/smartsite/qrCode/qr-code-json/4-A.json";
+import { FaSave } from "react-icons/fa";
+import { postCustomQrCode } from "@/actions/customQrCode";
+import { useRouter } from "next/navigation";
+import { sendCloudinaryImage } from "@/lib/SendCloudineryImage";
+import { useToast } from "@/hooks/use-toast";
+import CustomFileInput from "@/components/CustomFileInput";
+import DynamicPrimaryBtn from "@/components/ui/Button/DynamicPrimaryBtn";
 
 const EditQRCode = ({ qrCodeData, token }: any) => {
-  const [color, setColor] = useState('#B396FF');
-  const [bgColor, setBgColor] = useState('#FFFFFF');
+  const [color, setColor] = useState("#B396FF");
+  const [bgColor, setBgColor] = useState("#FFFFFF");
   const [toggle, setToggle] = useState(false);
-  const [backgroundColorToggle, setBackgroundColorToggle] =
-    useState(false);
+  const [backgroundColorToggle, setBackgroundColorToggle] = useState(false);
   // const [isModalOpen, setIsModalOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [imageFile, setImageFile] = useState<any>(null);
-  const [fileError, setFileError] = useState<string>('');
-  const [qrPattern, setQrPattern] = useState('style1');
-  const [imageUrl, setImageUrl] = useState('');
+  const [fileError, setFileError] = useState<string>("");
+  const [qrPattern, setQrPattern] = useState("style1");
+  const [imageUrl, setImageUrl] = useState("");
 
   const router = useRouter();
 
   const { toast } = useToast();
 
-  // console.log("qr code data", qrCodeData);
+  console.log("qr code data", qrCodeData);
 
   useEffect(() => {
     setQrPattern(qrCodeData.qrCodeSvgName);
@@ -54,71 +53,71 @@ const EditQRCode = ({ qrCodeData, token }: any) => {
 
   const defaultColorArray = [
     {
-      _id: '1234',
-      hexCode: '#000000',
+      _id: "1234",
+      hexCode: "#000000",
     },
     {
-      _id: '11234',
-      hexCode: '#E6379A',
+      _id: "11234",
+      hexCode: "#E6379A",
     },
     {
-      _id: '12534',
-      hexCode: '#6F2FC0',
+      _id: "12534",
+      hexCode: "#6F2FC0",
     },
     {
-      _id: '12314',
-      hexCode: '#FF6C08',
+      _id: "12314",
+      hexCode: "#FF6C08",
     },
     {
-      _id: '15234',
-      hexCode: '#FF9500',
+      _id: "15234",
+      hexCode: "#FF9500",
     },
     {
-      _id: '12334',
-      hexCode: '#6B6B6B',
+      _id: "12334",
+      hexCode: "#6B6B6B",
     },
     {
-      _id: '12324',
-      hexCode: '#BF0000',
+      _id: "12324",
+      hexCode: "#BF0000",
     },
     {
-      _id: '12344',
-      hexCode: '#027AFF',
+      _id: "12344",
+      hexCode: "#027AFF",
     },
   ];
 
   const defaultBackgroundColorArray = [
     {
-      _id: '1234',
-      hexCode: '#000000',
+      _id: "1234",
+      hexCode: "#000000",
     },
     {
-      _id: '11234',
-      hexCode: '#ffa7d9',
+      _id: "11234",
+      hexCode: "#E6379A",
     },
     {
-      _id: '12534',
-      hexCode: '#dec4ff',
+      _id: "12534",
+      hexCode: "#6F2FC0",
     },
     {
-      _id: '12314',
-      hexCode: '#ffcba8',
+      _id: "12314",
+      hexCode: "#FF6C08",
     },
     {
-      _id: '15234',
-      hexCode: '#cbcbcb',
+      _id: "15234",
+      hexCode: "#FF9500",
     },
     {
-      _id: '12334',
-      hexCode: '#d1b9b9',
+      _id: "12334",
+      hexCode: "#6B6B6B",
     },
     {
-      _id: '12324',
-      hexCode: '#feb9b9',
+      _id: "12324",
+      hexCode: "#BF0000",
     },
     {
-      _id: '12344',
-      hexCode: '#b1d5ff',
+      _id: "12344",
+      hexCode: "#027AFF",
     },
   ];
 
@@ -134,13 +133,13 @@ const EditQRCode = ({ qrCodeData, token }: any) => {
     if (file) {
       if (file.size > 10 * 1024 * 1024) {
         // Check if file size is greater than 10 MB
-        setFileError('*File size must be less than 10 MB');
+        setFileError("*File size must be less than 10 MB");
         setImageFile(null);
       } else {
         const reader = new FileReader();
         reader.onloadend = () => {
           setImageFile(reader.result as any);
-          setFileError('');
+          setFileError("");
         };
         reader.readAsDataURL(file);
       }
@@ -155,16 +154,16 @@ const EditQRCode = ({ qrCodeData, token }: any) => {
 
     let qrData;
     switch (qrPattern) {
-      case 'style1':
+      case "style1":
         qrData = { ...qrJson1, data: qrCodeData.qrCodeUrl };
         break;
-      case 'style2':
+      case "style2":
         qrData = { ...qrJson2, data: qrCodeData.qrCodeUrl };
         break;
-      case 'style3':
+      case "style3":
         qrData = { ...qrJson3, data: qrCodeData.qrCodeUrl };
         break;
-      case 'style4':
+      case "style4":
         qrData = { ...qrJson4, data: qrCodeData.qrCodeUrl };
         break;
       default:
@@ -217,18 +216,18 @@ const EditQRCode = ({ qrCodeData, token }: any) => {
 
       // console.log("data for update qr code", data);
 
-      if (data && data.state === 'success') {
+      if (data && data.state === "success") {
         router.back();
         toast({
-          title: 'Success',
-          description: 'Qr code updated',
+          title: "Success",
+          description: "Qr code updated",
         });
         setIsLoading(false);
       }
     } catch (error) {
       toast({
-        title: 'Error',
-        description: 'Something went wrong!',
+        title: "Error",
+        description: "Something went wrong!",
       });
       setIsLoading(false);
     } finally {
@@ -243,20 +242,18 @@ const EditQRCode = ({ qrCodeData, token }: any) => {
     const handleClickOutside = (event: MouseEvent) => {
       if (
         backgroundUpdatePickerRef.current &&
-        !backgroundUpdatePickerRef.current.contains(
-          event.target as Node
-        )
+        !backgroundUpdatePickerRef.current.contains(event.target as Node)
       ) {
         setBackgroundColorToggle(false);
       }
     };
 
     // Add event listener to detect clicks outside
-    document.addEventListener('mousedown', handleClickOutside);
+    document.addEventListener("mousedown", handleClickOutside);
 
     return () => {
       // Cleanup event listener when component unmounts
-      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener("mousedown", handleClickOutside);
     };
   }, []);
 
@@ -271,11 +268,11 @@ const EditQRCode = ({ qrCodeData, token }: any) => {
     };
 
     // Add event listener to detect clicks outside
-    document.addEventListener('mousedown', handleClickOutside);
+    document.addEventListener("mousedown", handleClickOutside);
 
     return () => {
       // Cleanup event listener when component unmounts
-      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener("mousedown", handleClickOutside);
     };
   }, []);
 
@@ -284,9 +281,7 @@ const EditQRCode = ({ qrCodeData, token }: any) => {
       <div className="flex gap-6 items-start">
         <div className="w-[62%] border-r border-gray-300 pr-8 flex flex-col gap-4">
           <div className="flex items-center justify-between">
-            <p className="text-lg font-bold text-gray-700">
-              Customize QR
-            </p>
+            <p className="text-lg font-bold text-gray-700">Customize QR</p>
             {/* <div onClick={handleModal}>
               <EditMicrositeBtn>
                 <FiSend />
@@ -304,75 +299,67 @@ const EditQRCode = ({ qrCodeData, token }: any) => {
                 <button
                   type="button"
                   className={`w-12 h-12 overflow-hidden rounded-lg ${
-                    qrPattern === 'style1'
-                      ? 'bg-black border-2 border-black'
-                      : 'bg-white'
+                    qrPattern === "style1"
+                      ? "bg-black border-2 border-black"
+                      : "bg-white"
                   }`}
-                  onClick={() => setQrPattern('style1')}
+                  onClick={() => setQrPattern("style1")}
                 >
                   <QrCode1
                     height={100}
                     width={100}
-                    color={qrPattern === 'style1' ? 'white' : 'black'}
-                    className={
-                      '-translate-x-[54px] -translate-y-[54px]'
-                    }
+                    color={qrPattern === "style1" ? "white" : "black"}
+                    className={"-translate-x-[54px] -translate-y-[54px]"}
                   />
                 </button>
 
                 <button
                   type="button"
                   className={`w-12 h-12 overflow-hidden rounded-lg ${
-                    qrPattern === 'style2'
-                      ? 'bg-black border-2 border-black'
-                      : 'bg-white'
+                    qrPattern === "style2"
+                      ? "bg-black border-2 border-black"
+                      : "bg-white"
                   }`}
-                  onClick={() => setQrPattern('style2')}
+                  onClick={() => setQrPattern("style2")}
                 >
                   <QrCode2
                     height={100}
                     width={100}
-                    color={qrPattern === 'style2' ? 'white' : 'black'}
-                    className={
-                      '-translate-x-[54px] -translate-y-[54px]'
-                    }
+                    color={qrPattern === "style2" ? "white" : "black"}
+                    className={"-translate-x-[54px] -translate-y-[54px]"}
                   />
                 </button>
 
                 <button
                   type="button"
                   className={`w-12 h-12 overflow-hidden rounded-lg ${
-                    qrPattern === 'style3'
-                      ? 'bg-black border-2 border-black'
-                      : 'bg-white'
+                    qrPattern === "style3"
+                      ? "bg-black border-2 border-black"
+                      : "bg-white"
                   }`}
-                  onClick={() => setQrPattern('style3')}
+                  onClick={() => setQrPattern("style3")}
                 >
                   <QrCode3
                     height={100}
                     width={100}
-                    color={qrPattern === 'style3' ? 'white' : 'black'}
-                    className={
-                      '-translate-x-[54px] -translate-y-[54px]'
-                    }
+                    color={qrPattern === "style3" ? "white" : "black"}
+                    className={"-translate-x-[54px] -translate-y-[54px]"}
                   />
                 </button>
                 <button
                   type="button"
                   className={`w-12 h-12 overflow-hidden rounded-lg ${
-                    qrPattern === 'style4'
-                      ? 'bg-black border-2 border-black'
-                      : 'bg-white'
+                    qrPattern === "style4"
+                      ? "bg-black border-2 border-black"
+                      : "bg-white"
                   }`}
-                  onClick={() => setQrPattern('style4')}
+                  onClick={() => setQrPattern("style4")}
                 >
                   <QrCode4
                     height={100}
                     width={100}
-                    color={qrPattern === 'style4' ? 'white' : 'black'}
-                    className={
-                      '-translate-x-[54px] -translate-y-[54px]'
-                    }
+                    color={qrPattern === "style4" ? "white" : "black"}
+                    className={"-translate-x-[54px] -translate-y-[54px]"}
                   />
                 </button>
               </div>
@@ -380,25 +367,20 @@ const EditQRCode = ({ qrCodeData, token }: any) => {
             <div>
               <p className="heading-4 mb-2">Pick QR Color: </p>
               <div className="flex items-center gap-3 bg-gray-100 p-2 rounded-lg">
-                <button
-                  type="button"
-                  onClick={() => setToggle(!toggle)}
-                >
+                <button type="button" onClick={() => setToggle(!toggle)}>
                   <Image
                     alt="pick color"
-                    src={'/images/color.png'}
+                    src={"/images/color.png"}
                     width={40}
                     height={40}
                   />
                 </button>
                 <p className="text-gray-400">
-                  {!color || color === '#NaNNaNNaN' ? '#HEX' : color}
+                  {!color || color === "#NaNNaNNaN" ? "#HEX" : color}
                 </p>
               </div>
               <div className="w-max" ref={updateColorPickerRef}>
-                {toggle && (
-                  <HexColorPicker color={color} onChange={setColor} />
-                )}
+                {toggle && <HexColorPicker color={color} onChange={setColor} />}
               </div>
             </div>
             <div>
@@ -410,8 +392,7 @@ const EditQRCode = ({ qrCodeData, token }: any) => {
                     key={data._id}
                     onClick={() => setColor(data.hexCode)}
                     className={`rounded-full ${
-                      color === data.hexCode &&
-                      'border-2 border-[#027AFF] p-1'
+                      color === data.hexCode && "border-2 border-[#027AFF] p-1"
                     } `}
                   >
                     <div
@@ -423,9 +404,7 @@ const EditQRCode = ({ qrCodeData, token }: any) => {
               </div>
             </div>
             <div>
-              <p className="heading-4 mb-2">
-                Choose Background Color:{' '}
-              </p>
+              <p className="heading-4 mb-2">Choose Background Color: </p>
               <div className="flex items-center gap-3 bg-gray-100 p-2 rounded-lg">
                 <button
                   type="button"
@@ -435,30 +414,23 @@ const EditQRCode = ({ qrCodeData, token }: any) => {
                 >
                   <Image
                     alt="pick color"
-                    src={'/images/color.png'}
+                    src={"/images/color.png"}
                     width={40}
                     height={40}
                   />
                 </button>
                 <p className="text-gray-400">
-                  {!bgColor || bgColor === '#NaNNaNNaN'
-                    ? '#HEX'
-                    : bgColor}
+                  {!bgColor || bgColor === "#NaNNaNNaN" ? "#HEX" : bgColor}
                 </p>
               </div>
               <div ref={backgroundUpdatePickerRef} className="w-max">
                 {backgroundColorToggle && (
-                  <HexColorPicker
-                    color={bgColor}
-                    onChange={setBgColor}
-                  />
+                  <HexColorPicker color={bgColor} onChange={setBgColor} />
                 )}
               </div>
             </div>
             <div>
-              <p className="heading-4 mb-2">
-                Default Background Colors:{' '}
-              </p>
+              <p className="heading-4 mb-2">Default Background Colors: </p>
               <div className="flex items-center gap-3">
                 {defaultBackgroundColorArray.map((data) => (
                   <button
@@ -467,7 +439,7 @@ const EditQRCode = ({ qrCodeData, token }: any) => {
                     onClick={() => setBgColor(data.hexCode)}
                     className={`rounded-full ${
                       bgColor === data.hexCode &&
-                      'border-2 border-[#027AFF] p-1'
+                      "border-2 border-[#027AFF] p-1"
                     } `}
                   >
                     <div
@@ -479,14 +451,10 @@ const EditQRCode = ({ qrCodeData, token }: any) => {
               </div>
             </div>
             <div className="flex flex-col 2xl:flex-row 2xl:items-center gap-2">
-              <p className="font-semibold text-gray-700 text-sm">
-                Edit Logo:
-              </p>
+              <p className="font-semibold text-gray-700 text-sm">Edit Logo:</p>
               <CustomFileInput handleFileChange={handleFileChange} />
               {fileError && (
-                <p className="text-red-600 text-sm font-medium">
-                  {fileError}
-                </p>
+                <p className="text-red-600 text-sm font-medium">{fileError}</p>
               )}
             </div>
             {/* <div>
@@ -558,19 +526,12 @@ const EditQRCode = ({ qrCodeData, token }: any) => {
               </div>
             </div> */}
             <div>
-              <DynamicPrimaryBtn
-                disabled={isLoading}
-                className="mt-3 w-48"
-              >
+              <DynamicPrimaryBtn disabled={isLoading} className="mt-3 w-48">
                 {isLoading ? (
-                  <Spinner
-                    className="py-0.5"
-                    size="sm"
-                    color="white"
-                  />
+                  <Spinner className="py-0.5" size="sm" color="white" />
                 ) : (
                   <>
-                    {' '}
+                    {" "}
                     <FaSave size={18} />
                     Save Changes
                   </>
@@ -582,44 +543,42 @@ const EditQRCode = ({ qrCodeData, token }: any) => {
 
         {/* live preview  */}
         <div className="w-[38%] flex flex-col items-center gap-4">
-          <p className="text-gray-500 font-medium mb-2">
-            Live Preview
-          </p>
+          <p className="text-gray-500 font-medium mb-2">Live Preview</p>
           <div className="bg-white p-2.5 rounded-xl shadow-medium">
             <div
               style={{ backgroundColor: bgColor }}
               className={`relative p-2 rounded-lg`}
             >
-              {qrPattern === 'style1' && (
+              {qrPattern === "style1" && (
                 <QrCode1
                   width={200}
                   height={200}
                   color={color}
-                  value={'hola testing'}
+                  value={"hola testing"}
                 />
               )}
-              {qrPattern === 'style2' && (
+              {qrPattern === "style2" && (
                 <QrCode2
                   width={200}
                   height={200}
                   color={color}
-                  value={'hola testing'}
+                  value={"hola testing"}
                 />
               )}
-              {qrPattern === 'style3' && (
+              {qrPattern === "style3" && (
                 <QrCode3
                   width={200}
                   height={200}
                   color={color}
-                  value={'hola testing'}
+                  value={"hola testing"}
                 />
               )}
-              {qrPattern === 'style4' && (
+              {qrPattern === "style4" && (
                 <QrCode4
                   width={200}
                   height={200}
                   color={color}
-                  value={'hola testing'}
+                  value={"hola testing"}
                 />
               )}
 

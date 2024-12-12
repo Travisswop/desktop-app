@@ -18,6 +18,7 @@ const FeedMain = ({ isFromHome = false }: any) => {
   const [isPosting, setIsPosting] = useState(false);
   const [isPostLoading, setIsPostLoading] = useState(false);
   const [accessToken, setAccessToken] = useState("");
+  const [primaryMicrositeImg, setPrimaryMicrositeImg] = useState<any>("");
 
   useEffect(() => {
     const getAccessToken = async () => {
@@ -30,6 +31,16 @@ const FeedMain = ({ isFromHome = false }: any) => {
   }, []);
 
   const { user, loading } = useUser();
+
+  useEffect(() => {
+    if (user && user?.microsites && user?.microsites?.length > 0) {
+      const smartsite = user.microsites.find((microsite) => microsite.primary);
+      setPrimaryMicrositeImg(smartsite.profilePic);
+      // console.log("smartsite detials", smartsite);
+    }
+  }, [user]);
+
+  // console.log("primaryMicrositeImg", primaryMicrositeImg);
 
   const searchParams = useSearchParams();
 
@@ -105,6 +116,7 @@ const FeedMain = ({ isFromHome = false }: any) => {
             }  overflow-y-auto`}
           >
             <PostFeed
+              primaryMicrositeImg={primaryMicrositeImg}
               userId={user?._id as any}
               token={accessToken as string}
               setIsPosting={setIsPosting}

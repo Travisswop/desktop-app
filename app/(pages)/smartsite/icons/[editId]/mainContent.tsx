@@ -21,6 +21,7 @@ import { useDisclosure } from "@nextui-org/react";
 import Image from "next/image";
 import React, { useEffect, useState } from "react";
 import templates from "@/public/images/smartsite_icon/templates.png";
+import SmartsiteIconsParentProfileCard from "@/components/smartsite/SmartsiteIconsParentProfileCard";
 
 const MicrositeEditMainContentPage = ({ data }: any) => {
   const [toggleIcon, setToggleIcon] = useState<any>([]);
@@ -41,6 +42,8 @@ const MicrositeEditMainContentPage = ({ data }: any) => {
   const iconData: any = useUpdateSmartIcon(); //get trigger smarticon from zustand store
 
   // console.log("iconData", iconData);
+
+  console.log("data from iconsss", data);
 
   // const handleAddIcon = (title: { title: string }) => {
   //   setToggleIcon([...toggleIcon, title]);
@@ -115,7 +118,7 @@ const MicrositeEditMainContentPage = ({ data }: any) => {
               <BsSend /> Share
             </EditMicrositeBtn>
           </div> */}
-          <ParentProfileCard />
+          <SmartsiteIconsParentProfileCard data={data.data} />
           <div className="flex items-center gap-1 bg-white rounded-xl w-max mx-auto px-6 py-1 font-medium shadow-medium mb-2">
             <Image
               src={templates}

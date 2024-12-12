@@ -15,14 +15,17 @@ import DynamicPrimaryBtn from "../ui/Button/DynamicPrimaryBtn";
 import { sendCloudinaryImage } from "@/lib/SendCloudineryImage";
 import { sendCloudinaryVideo } from "@/lib/sendCloudineryVideo";
 import UserImageAvatar from "../util/Avatar";
+import isUrl from "@/lib/isUrl";
 
 const PostFeed = ({
+  primaryMicrositeImg,
   userId,
   token,
   setIsPosting,
   setIsPostLoading,
 }: {
   userId: string;
+  primaryMicrositeImg: string;
   token: string;
   setIsPosting: any;
   setIsPostLoading: any;
@@ -151,7 +154,13 @@ const PostFeed = ({
   return (
     <div className="p-6">
       <div className="flex items-start gap-6">
-        <UserImageAvatar src="/images/user_avator/1.png" />
+        <UserImageAvatar
+          src={
+            isUrl(primaryMicrositeImg)
+              ? primaryMicrositeImg
+              : `/images/user_avator/${primaryMicrositeImg}.png`
+          }
+        />
         <div className="flex-1 w-full">
           <textarea
             name="user-feed"

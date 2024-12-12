@@ -3,6 +3,7 @@
 // import isUserAuthenticate from "@/util/isUserAuthenticate";
 import EditOldQRCode from "@/components/smartsite/qrCode/EditOldQrCode";
 import EditQRCode from "@/components/smartsite/qrCode/EditQrCode";
+import { cookies } from "next/headers";
 import React from "react";
 
 const EditQrCodePage = async ({
@@ -11,8 +12,10 @@ const EditQrCodePage = async ({
   params: Promise<{ id: string }>;
 }) => {
   // const session: any = await isUserAuthenticate();
-  const demoToken =
-    "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJfaWQiOiI2NjM4NjMyMDIzMDQxMDMyODAyOTk4MmIiLCJpYXQiOjE3MjcxNTI4MzB9.CsHnZAgUzsfkc_g_CZZyQMXc02Ko_LhnQcCVpeCwroY";
+  const cookieStore = cookies();
+
+  // Retrieve data from specific cookie
+  const accessToken = (await cookieStore).get("access-token")?.value;
 
   const id = (await params).id;
 
@@ -22,7 +25,7 @@ const EditQrCodePage = async ({
       method: "GET",
       headers: {
         "Content-Type": "application/json",
-        authorization: `Bearer ${demoToken}`,
+        authorization: `Bearer ${accessToken}`,
       },
     }
   );
@@ -43,7 +46,7 @@ const EditQrCodePage = async ({
         method: "GET",
         headers: {
           "Content-Type": "application/json",
-          authorization: `Bearer ${demoToken}`,
+          authorization: `Bearer ${accessToken}`,
         },
       }
     );
@@ -56,7 +59,7 @@ const EditQrCodePage = async ({
           <EditOldQRCode
             profileUrl={data.data.profileUrl}
             micrositeId={data.data._id}
-            token={demoToken}
+            token={accessToken}
           />
         )}
       </div>
@@ -70,7 +73,7 @@ const EditQrCodePage = async ({
           <EditQRCode
             qrCodeData={data.data}
             // micrositeId={data.data.microsite}
-            token={demoToken}
+            token={accessToken}
           />
         )}
       </div>
