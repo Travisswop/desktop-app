@@ -21,7 +21,7 @@ import {
 } from '@/components/ui/tooltip';
 import { NFT } from '@/types/nft';
 import Image from 'next/image';
-import { Network } from '../WalletContent';
+import { Network } from '@/types/wallet-types';
 import { TokenData } from '@/types/token';
 interface SendConfirmationProps {
   open: boolean;

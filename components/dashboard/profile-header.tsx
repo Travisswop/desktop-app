@@ -2,18 +2,12 @@
 import { Card } from '@/components/ui/card';
 import isUrl from '@/lib/isUrl';
 import { useUser } from '@/lib/UserContext';
-import {
-  MessageCircle,
-  FileText,
-  Star,
-  CheckCircle2,
-} from 'lucide-react';
+import { MessageCircle, FileText, Star } from 'lucide-react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { memo } from 'react';
 import { FaEdit } from 'react-icons/fa';
 
-// Memoize StatCard component since it's purely presentational
 const StatCard = memo(function StatCard({
   icon,
   value,
@@ -35,7 +29,6 @@ const StatCard = memo(function StatCard({
   );
 });
 
-// Memoize ProfileImage component
 const ProfileImage = memo(function ProfileImage({
   profilePic,
   name,
@@ -71,7 +64,7 @@ const ProfileImage = memo(function ProfileImage({
 
 // Main component memoized
 const ProfileHeader = memo(function ProfileHeader() {
-  const { user, loading, error } = useUser();
+  const { user } = useUser();
 
   return (
     <div className="w-full border-none rounded-xl font-[roboto]">

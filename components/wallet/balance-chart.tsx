@@ -95,12 +95,6 @@ export default function BalanceChart({
   onQRClick,
 }: WalletManagerProps) {
   const data = generateWalletData();
-  const currentValue = data[data.length - 1].value;
-  const previousValue = data[0].value;
-  const percentageChange = (
-    ((currentValue - previousValue) / previousValue) *
-    100
-  ).toFixed(1);
 
   const [isWalletManagerOpen, setIsWalletManagerOpen] =
     useState(false);
