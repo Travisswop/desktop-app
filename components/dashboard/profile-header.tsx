@@ -51,7 +51,7 @@ const ProfileImage = memo(function ProfileImage({
           alt={name || ''}
           width={80}
           height={80}
-          className="rounded-full w-16 h-16 border-2 p-0.5"
+          className="rounded-full w-14 xl:w-16 h-14 xl:h-16 border-2 p-0.5"
         />
       ) : (
         <Image
@@ -59,7 +59,7 @@ const ProfileImage = memo(function ProfileImage({
           alt={name || ''}
           width={80}
           height={80}
-          className="rounded-full w-16 h-16 border-2"
+          className="rounded-full w-14 xl:w-16 h-14 xl:h-16 border-2"
         />
       )}
       <Link href={'/account-settings'}>
@@ -75,14 +75,14 @@ const ProfileHeader = memo(function ProfileHeader() {
 
   return (
     <div className="w-full border-none rounded-xl font-[roboto]">
-      <div className="flex flex-col md:flex-row items-start 2xl:items-center gap-6 bg-white p-6 rounded-lg">
+      <div className="flex flex-col md:flex-row items-start lg:items-center gap-4 xl:gap-6 bg-white p-6 rounded-lg">
         {/* Profile Section */}
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-2 xl:gap-4">
           <ProfileImage
             profilePic={user?.profilePic || ''}
             name={user?.name || ''}
           />
-          <div className="space-y-1">
+          <div className="xl:space-y-1">
             <div className="flex items-center gap-2">
               <h1 className="text-md font-semibold">{user?.name}</h1>
             </div>

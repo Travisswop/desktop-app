@@ -69,7 +69,7 @@ export default function Sidenav() {
   return (
     <aside className="fixed left-0 top-0 z-40 h-screen w-64 border-r bg-white overflow-x-hidden">
       <div className="flex h-full flex-col">
-        <div className="flex h-20 items-center border-b px-4">
+        <div className="flex h-[89px] items-center border-b px-4">
           <Link
             href="/"
             className="h-full flex justify-start items-center translate-x-3"

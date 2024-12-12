@@ -1,4 +1,4 @@
-'use client';
+// 'use client';
 // import { withAuth } from "@/lib/withAuth";
 // import { usePrivy } from "@privy-io/react-auth";
 // import React, { useEffect } from "react";
@@ -33,9 +33,9 @@
 
 // export default withAuth(Feed);
 
-import React, { Suspense } from 'react';
-import TabSwitcher from '@/components/feed/TabSwitcher';
-import FeedMain from '@/components/feed/FeedMain';
+import React, { Suspense } from "react";
+import TabSwitcher from "@/components/feed/TabSwitcher";
+import FeedMain from "@/components/feed/FeedMain";
 
 const FeedPage = () => {
   return (

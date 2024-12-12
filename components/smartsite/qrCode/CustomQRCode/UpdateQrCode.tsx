@@ -575,7 +575,7 @@ const UpdateQRCode = ({ session, data }: any) => {
               </div>
             </div> */}
             <div>
-              <p className="heading-4 mb-2">Pick QR Colors: </p>
+              <p className="heading-4 mb-2">Pick A Colors: </p>
               <div className="flex items-center">
                 <button
                   type="button"
@@ -916,7 +916,7 @@ const UpdateQRCode = ({ session, data }: any) => {
                     alt="logo"
                     width={200}
                     height={200}
-                    className="w-12 h-12"
+                    className="w-11 h-11 -translate-y-2"
                   />
                 ) : (
                   <Image
@@ -925,10 +925,13 @@ const UpdateQRCode = ({ session, data }: any) => {
                     alt="logo"
                     width={200}
                     height={200}
-                    className="w-10 h-10"
+                    className="w-10 h-10 -translate-y-2"
                   />
                 )}
               </div>
+              <p className="text-[10px] text-gray-600 text-center ">
+                Powered By Swop
+              </p>
             </div>
           </div>
           {/* <p className="heading-4 mt-4">Select Download Type</p>
