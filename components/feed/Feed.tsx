@@ -1,21 +1,30 @@
-"use client";
+'use client';
 
-import { getUserFeed } from "@/actions/postFeed";
-import Image from "next/image";
-import React, { useState, useEffect, useRef, useCallback } from "react";
-import { FaUser } from "react-icons/fa";
-import { GoDotFill } from "react-icons/go";
-import dayjs from "dayjs";
-import PostTypeMedia from "./view/PostTypeMedia";
-import { HiDotsHorizontal } from "react-icons/hi";
-import { Popover, PopoverContent, PopoverTrigger } from "@nextui-org/react";
-import relativeTime from "dayjs/plugin/relativeTime";
-import Reaction from "./view/Reaction";
-import Link from "next/link";
-import { FiPlusCircle } from "react-icons/fi";
-import FeedLoading from "../loading/FeedLoading";
-import DeleteFeedModal from "./DeleteFeedModal";
-import isUrl from "@/lib/isUrl";
+import { getUserFeed } from '@/actions/postFeed';
+import Image from 'next/image';
+import React, {
+  useState,
+  useEffect,
+  useRef,
+  useCallback,
+} from 'react';
+import { FaUser } from 'react-icons/fa';
+import { GoDotFill } from 'react-icons/go';
+import dayjs from 'dayjs';
+import PostTypeMedia from './view/PostTypeMedia';
+import { HiDotsHorizontal } from 'react-icons/hi';
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@nextui-org/react';
+import relativeTime from 'dayjs/plugin/relativeTime';
+import Reaction from './view/Reaction';
+import Link from 'next/link';
+import { FiPlusCircle } from 'react-icons/fi';
+import FeedLoading from '../loading/FeedLoading';
+import DeleteFeedModal from './DeleteFeedModal';
+import isUrl from '@/lib/isUrl';
 
 const Feed = ({
   accessToken,
@@ -47,8 +56,17 @@ const Feed = ({
 
       const url = `${
         process.env.NEXT_PUBLIC_API_URL
-      }/api/v1/feed/user/connect/${userId}?page=${reset ? 1 : page}&limit=5`;
+      }/api/v1/feed/user/connect/${userId}?page=${
+        reset ? 1 : page
+      }&limit=5`;
       const newFeedData = await getUserFeed(url, accessToken);
+
+      if (!newFeedData?.data) {
+        setHasMore(false);
+        setIsPostLoading(false);
+        isFetching.current = false;
+        return;
+      }
 
       if (newFeedData.data.length < 5) {
         setHasMore(false);
@@ -120,7 +138,8 @@ const Feed = ({
             <div className="w-12 h-12 bg-gray-400 border border-gray-300 rounded-full overflow-hidden flex items-center justify-center">
               {(() => {
                 const profilePic =
-                  feed?.smartsiteId?.profilePic || feed?.smartsiteProfilePic;
+                  feed?.smartsiteId?.profilePic ||
+                  feed?.smartsiteProfilePic;
 
                 if (profilePic) {
                   return isUrl(profilePic) ? (
@@ -153,13 +172,13 @@ const Feed = ({
                     <p className="text-gray-700 font-semibold">
                       {feed?.smartsiteId?.name ||
                         feed?.smartsiteUserName ||
-                        "Anonymous"}
+                        'Anonymous'}
                     </p>
                     <GoDotFill size={10} />
                     <p className="text-gray-500 font-normal">
                       {feed?.smartsiteId?.ens ||
                         feed?.smartsiteEnsName ||
-                        "n/a"}
+                        'n/a'}
                     </p>
                     <GoDotFill size={10} />
                     <p className="text-gray-500 font-normal">
@@ -167,10 +186,10 @@ const Feed = ({
                     </p>
                   </div>
                   {/* Post Content */}
-                  {feed.postType === "post" && feed.content.title && (
+                  {feed.postType === 'post' && feed.content.title && (
                     <div>
                       {feed.content.title
-                        .split("\n")
+                        .split('\n')
                         .map((line: any, index: number) => (
                           <p className="break-text" key={index}>
                             {line}
@@ -179,25 +198,25 @@ const Feed = ({
                     </div>
                   )}
                   {/* Additional Post Types */}
-                  {feed.postType === "connection" && (
+                  {feed.postType === 'connection' && (
                     <p className="text-gray-600 text-sm">
-                      Connected with{" "}
+                      Connected with{' '}
                       <span className="text-gray-700 font-medium text-base">
                         {feed.content.connectedSmartsiteName}
                       </span>
                     </p>
                   )}
-                  {feed.postType === "ensClaim" && (
+                  {feed.postType === 'ensClaim' && (
                     <p className="text-gray-600 text-sm">
-                      Claim a new ENS{" "}
+                      Claim a new ENS{' '}
                       <span className="text-gray-700 font-medium text-base">
                         {feed.content.claimEnsName}
                       </span>
                     </p>
                   )}
-                  {feed.postType === "transaction" && (
+                  {feed.postType === 'transaction' && (
                     <p className="text-gray-600 text-sm">
-                      Created a new transaction{" "}
+                      Created a new transaction{' '}
                       <span className="text-gray-700 font-medium text-base">{`${feed.content.receiver_wallet_address.slice(
                         0,
                         5
@@ -238,15 +257,20 @@ const Feed = ({
               </div>
               <div>
                 {/* Post Media */}
-                {feed.postType === "post" &&
+                {feed.postType === 'post' &&
                   feed.content.post_content.length > 0 && (
-                    <PostTypeMedia mediaFiles={feed.content.post_content} />
+                    <PostTypeMedia
+                      mediaFiles={feed.content.post_content}
+                    />
                   )}
-                {feed.postType === "minting" && (
+                {feed.postType === 'minting' && (
                   <div className="w-max">
                     <p>{feed.content.title}</p>
                     <div className="shadow-medium bg-white rounded-lg mt-2 p-2 relative">
-                      <Link href={feed.content.link} className="w-max">
+                      <Link
+                        href={feed.content.link}
+                        className="w-max"
+                      >
                         <Image
                           src={feed.content.image}
                           alt="nft image"

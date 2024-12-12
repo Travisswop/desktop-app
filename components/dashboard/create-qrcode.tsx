@@ -26,7 +26,6 @@ const CreateQRCode = () => {
   const [isModalOpen, setIsModalOpen] = useState<boolean>(false);
 
   const handleCreateQrCode = async (e: any) => {
-    console.log('create qr code');
     try {
       e.preventDefault();
       setIsLoading(true);
@@ -63,8 +62,6 @@ const CreateQRCode = () => {
         accessToken ?? '' // Provide empty string fallback for null case
       );
 
-      //   console.log("create data ", data);
-
       if (data && data.status === 'success') {
         setData(data);
         toast({
@@ -92,8 +89,6 @@ const CreateQRCode = () => {
   const handleOpenShareModal = () => {
     setIsModalOpen(true);
   };
-
-  console.log('data', data);
 
   return (
     <>

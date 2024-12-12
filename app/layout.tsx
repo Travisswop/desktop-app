@@ -5,6 +5,7 @@ import { UserProvider } from '@/lib/UserContext';
 import { Roboto } from 'next/font/google';
 import { TanstackProvider } from '@/components/providers/tanstackProvider';
 import { Toaster } from 'react-hot-toast';
+import { XmtpProvider } from '@/lib/context/XmtpContext';
 
 const roboto = Roboto({
   subsets: ['latin'],
@@ -22,9 +23,9 @@ export default function RootLayout({
         <Toaster position="top-center" reverseOrder={false} />
         <TanstackProvider>
           <PrivyProvider>
-            <UserProvider>
-              {children}
-            </UserProvider>
+            <XmtpProvider>
+              <UserProvider>{children}</UserProvider>
+            </XmtpProvider>
           </PrivyProvider>
         </TanstackProvider>
       </body>

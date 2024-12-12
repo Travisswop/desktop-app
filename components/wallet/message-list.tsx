@@ -37,10 +37,14 @@ const MessageList = () => {
 
     try {
       const conversations = await xmtpClient.conversations.list();
+      console.log(
+        '🚀 ~ fetchConversations ~ conversations:',
+        conversations
+      );
       const peerList = conversations.map(
         (conversation) => conversation.peerAddress
       );
-      setPeerAddressList(peerList);
+      setPeerAddressList([...peerList].sort().reverse());
     } catch (error) {
       console.error('Failed to fetch messages:', error);
     }
@@ -118,11 +122,26 @@ const MessageList = () => {
     setSearchQuery(value);
 
     if (value.length > 2) {
-      debouncedFetchEnsData(value);
+      // First search in peerData
+      const matchingPeer = filteredPeerData.find(
+        (peer) =>
+          peer.name?.toLowerCase().includes(value.toLowerCase()) ||
+          peer.ens?.toLowerCase().includes(value.toLowerCase()) ||
+          peer.ethAddress?.toLowerCase().includes(value.toLowerCase())
+      );
+
+      if (matchingPeer) {
+        setSearchResult(matchingPeer);
+      } else {
+        // If no match found in peerData, fetch from ENS
+        debouncedFetchEnsData(value);
+      }
     } else {
       setSearchResult(null);
     }
   };
+
+  console.log('🚀 ~ filteredPeerData:', filteredPeerData);
 
   return (
     <Card className="w-full border-none rounded-xl">
@@ -157,11 +176,6 @@ const MessageList = () => {
             Searching...
           </p>
         )}
-        {searchResult && (
-          <div className="mb-4">
-            <MessageCard {...searchResult} />
-          </div>
-        )}
         <div className="max-h-[400px] overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100">
           {isLoading && (
             <p className="text-center">Loading messages...</p>
@@ -171,14 +185,21 @@ const MessageList = () => {
               Error loading messages: {error.message}
             </p>
           )}
-          {!isLoading && !error && filteredPeerData.length === 0 && (
-            <p className="text-center text-gray-500">
-              No messages found
-            </p>
+          {!isLoading &&
+            !error &&
+            !searchResult &&
+            filteredPeerData.length === 0 && (
+              <p className="text-center text-gray-500">
+                No messages found
+              </p>
+            )}
+          {searchResult ? (
+            <MessageCard {...searchResult} />
+          ) : (
+            filteredPeerData.map((person: PeerData) => (
+              <MessageCard key={person.ethAddress} {...person} />
+            ))
           )}
-          {filteredPeerData.map((person: PeerData) => (
-            <MessageCard key={person.ethAddress} {...person} />
-          ))}
         </div>
       </CardContent>
     </Card>

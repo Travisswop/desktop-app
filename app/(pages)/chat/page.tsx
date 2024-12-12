@@ -20,6 +20,7 @@ import WalletManager from '@/components/wallet/wallet-manager';
 import { useXmtpContext } from '@/lib/context/XmtpContext';
 import ChatBox from '@/components/wallet/chat/chat-box';
 import { useDebouncedCallback } from 'use-debounce';
+import { Skeleton } from '@/components/ui/skeleton';
 
 interface MessageProps {
   bio: string;
@@ -106,6 +107,7 @@ const ChatPageContent = () => {
   const [peerAddressList, setPeerAddressList] = useState<string[]>(
     []
   );
+  const [isLoadingPeerData, setIsLoadingPeerData] = useState(false);
   const [changeConversationLoading, setChangeConversationLoading] =
     useState(false);
   const [micrositeData, setMicrositeData] =
@@ -171,12 +173,15 @@ const ChatPageContent = () => {
     if (!peerAddressList.length) return;
 
     try {
+      setIsLoadingPeerData(true);
       const response = await getPeerData(peerAddressList);
       if (response.data) {
         setPeerData(response.data);
       }
     } catch (error) {
       console.error('Failed to fetch peer data:', error);
+    } finally {
+      setIsLoadingPeerData(false);
     }
   }, [peerAddressList]);
 
@@ -330,15 +335,17 @@ const ChatPageContent = () => {
           style={{ height: 'calc(100vh - 150px)' }}
           className="w-[62%] bg-white rounded-xl relative"
         >
-          {changeConversationLoading && (
+          {changeConversationLoading ? (
             <div className="w-full h-full flex items-center justify-center">
               <Loader className="animate-spin" />
             </div>
-          )}
-
-          {micrositeData && (
+          ) : !micrositeData ? (
+            <div className="w-full h-full flex items-center justify-center text-gray-500">
+              Select a conversation to start chatting
+            </div>
+          ) : (
             <div className="w-full overflow-x-hidden h-full">
-              <div className="flex items-center gap-3 justify-between border rounded-xl border-gray-300 bg-white px-4 py-2 sticky top-0 left-0 mb-2">
+              <div className="flex items-center gap-3 justify-between border rounded-xl border-gray-300 bg-white px-4 py-2 sticky top-0 left-0 mb-2 shadow-sm">
                 <div className="flex items-center flex-1 gap-3">
                   <Avatar>
                     <AvatarImage
@@ -359,20 +366,25 @@ const ChatPageContent = () => {
                   </div>
                 </div>
 
-                <button
-                  onClick={() => setIsWalletManagerOpen(true)}
-                  className="w-10 h-10 rounded-full flex items-center justify-center bg-gray-200"
-                >
-                  <Wallet />
-                </button>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setIsWalletManagerOpen(true)}
+                    className="w-10 h-10 rounded-full flex items-center justify-center bg-gray-100 hover:bg-gray-200 transition-colors"
+                  >
+                    <Wallet className="w-5 h-5" />
+                  </button>
 
-                <Link
-                  href={micrositeData.profileUrl}
-                  target="_blank"
-                  className="w-10 h-10 rounded-full flex items-center justify-center bg-gray-200"
-                >
-                  <BookUser />
-                </Link>
+                  <Link
+                    href={
+                      micrositeData.profileUrl ||
+                      `${micrositeData.ens}`
+                    }
+                    target="_blank"
+                    className="w-10 h-10 rounded-full flex items-center justify-center bg-gray-100 hover:bg-gray-200 transition-colors"
+                  >
+                    <BookUser className="w-5 h-5" />
+                  </Link>
+                </div>
               </div>
               <div className="h-full overflow-y-auto">
                 {xmtpClient && (
@@ -398,15 +410,26 @@ const ChatPageContent = () => {
               value={searchQuery}
               onChange={handleSearchInputChange}
               placeholder="Search messages..."
-              className="w-full border border-[#ede8e8] focus:border-[#e5e0e0] rounded-lg focus:outline-none pl-10 py-2 text-gray-700 bg-gray-100"
+              className="w-full border border-[#ede8e8] focus:border-[#e5e0e0] rounded-lg focus:outline-none pl-10 py-2 text-gray-700 bg-gray-50 hover:bg-gray-100 transition-colors"
             />
           </div>
 
           <div className="h-[calc(100vh-250px)] overflow-y-auto">
             {isSearchLoading && (
-              <p className="text-center text-sm text-gray-500">
-                Searching...
-              </p>
+              <div className="space-y-2">
+                {[...Array(3)].map((_, i) => (
+                  <div
+                    key={i}
+                    className="flex items-center gap-2 p-2"
+                  >
+                    <Skeleton className="h-10 w-10 rounded-full" />
+                    <div className="space-y-2">
+                      <Skeleton className="h-4 w-[100px]" />
+                      <Skeleton className="h-3 w-[150px]" />
+                    </div>
+                  </div>
+                ))}
+              </div>
             )}
             {searchResult && (
               <div className="mb-4">
@@ -416,13 +439,30 @@ const ChatPageContent = () => {
                 />
               </div>
             )}
-            {filteredPeerData.map((chat: MessageProps) => (
-              <MessageList
-                key={chat.ethAddress}
-                {...chat}
-                handleWalletClick={handleWalletClick}
-              />
-            ))}
+            {isLoadingPeerData ? (
+              <div className="space-y-2">
+                {[...Array(5)].map((_, i) => (
+                  <div
+                    key={i}
+                    className="flex items-center gap-2 p-2"
+                  >
+                    <Skeleton className="h-10 w-10 rounded-full" />
+                    <div className="space-y-2">
+                      <Skeleton className="h-4 w-[100px]" />
+                      <Skeleton className="h-3 w-[150px]" />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              filteredPeerData.map((chat: MessageProps) => (
+                <MessageList
+                  key={chat.ethAddress}
+                  {...chat}
+                  handleWalletClick={handleWalletClick}
+                />
+              ))
+            )}
           </div>
         </div>
       </div>
@@ -454,9 +494,9 @@ const MessageList = ({
   return (
     <div
       onClick={() => handleWalletClick(ethAddress)}
-      className="text-black flex items-center justify-between p-2 rounded-lg cursor-pointer border hover:bg-gray-50 mb-2"
+      className="text-black flex items-center justify-between p-3 rounded-lg cursor-pointer border hover:bg-gray-50 transition-colors mb-2"
     >
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-3">
         <Avatar>
           <AvatarImage
             src={getAvatarSrc(profilePic)}
@@ -466,7 +506,11 @@ const MessageList = ({
         </Avatar>
         <div>
           <p className="font-semibold">{name}</p>
-          {bio && <p className="text-sm text-gray-500">{bio}</p>}
+          {bio && (
+            <p className="text-sm text-gray-500 line-clamp-1">
+              {bio}
+            </p>
+          )}
         </div>
       </div>
     </div>

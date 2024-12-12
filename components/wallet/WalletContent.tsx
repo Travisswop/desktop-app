@@ -39,6 +39,7 @@ import AssetSelector from './token/asset-selector';
 import WalletQRModal from './wallet-qr-modal';
 import WalletQRShare from './wallet-qr-share-modal';
 import QRCodeShareModal from '../smartsite/socialShare/QRCodeShareModal';
+import MessageList from './message-list';
 
 export default function WalletContent() {
   return <WalletContentInner />;
@@ -279,7 +280,8 @@ const WalletContentInner = () => {
           }
           onQRClick={() => setWalletQRModalOpen(true)}
         />
-        <MessageBox />
+        {/* <MessageBox /> */}
+        <MessageList />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 my-6">
