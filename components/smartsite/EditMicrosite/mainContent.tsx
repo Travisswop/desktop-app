@@ -500,7 +500,7 @@ const EditSmartSite = ({ data, token }: any) => {
                     </>
                   )}
                   <button
-                    className="absolute right-0 bottom-4"
+                    className="absolute right-0 bottom-1"
                     onClick={handleUserProfileModal}
                     type="button"
                   >
