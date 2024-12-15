@@ -37,10 +37,7 @@ const MessageList = () => {
 
     try {
       const conversations = await xmtpClient.conversations.list();
-      console.log(
-        '🚀 ~ fetchConversations ~ conversations:',
-        conversations
-      );
+
       const peerList = conversations.map(
         (conversation) => conversation.peerAddress
       );
@@ -70,7 +67,6 @@ const MessageList = () => {
         }
 
         const data = await response.json();
-        console.log('🚀 ~ data:', data);
 
         const info: PeerData = {
           profilePic: data.domainOwner.avatar,
@@ -140,8 +136,6 @@ const MessageList = () => {
       setSearchResult(null);
     }
   };
-
-  console.log('🚀 ~ filteredPeerData:', filteredPeerData);
 
   return (
     <Card className="w-full border-none rounded-xl">

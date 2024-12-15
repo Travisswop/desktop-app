@@ -14,8 +14,7 @@ import bluePlanet from '@/public/onboard/blue-planet.svg';
 import yellowPlanet from '@/public/onboard/yellow-planet.svg';
 
 const Onboard: React.FC = () => {
-  const { authenticated, ready, user } = usePrivy();
-  console.log('🚀 ~ user:', user);
+  const { user } = usePrivy();
   const [step, setStep] = useState(0);
   const [userData, setUserData] = useState({});
 
@@ -36,7 +35,6 @@ const Onboard: React.FC = () => {
       console.log('on error', error, details);
     },
   });
-  console.log('🚀 ~ email:', email);
 
   // useEffect(() => {
   //   if (ready && authenticated && !email) {

@@ -1,10 +1,10 @@
-"use client";
-import AddIcon from "@/components/smartsite/EditMicrosite/AddIcon";
-import IconMaker from "@/components/smartsite/EditMicrosite/IconMaker";
-import UpdateModalComponents from "@/components/smartsite/EditMicrosite/UpdateModalComponents";
-import ParentProfileCard from "@/components/smartsite/ParentProfileCard";
-import SmartsiteIconLivePreview from "@/components/smartsite/SmartsiteIconLivePreview";
-import SmartSiteUrlShareModal from "@/components/smartsite/socialShare/SmartsiteShareModal";
+'use client';
+import AddIcon from '@/components/smartsite/EditMicrosite/AddIcon';
+import IconMaker from '@/components/smartsite/EditMicrosite/IconMaker';
+import UpdateModalComponents from '@/components/smartsite/EditMicrosite/UpdateModalComponents';
+import ParentProfileCard from '@/components/smartsite/ParentProfileCard';
+import SmartsiteIconLivePreview from '@/components/smartsite/SmartsiteIconLivePreview';
+import SmartSiteUrlShareModal from '@/components/smartsite/socialShare/SmartsiteShareModal';
 // import AnimateButton from "@/components/Button/AnimateButton";
 // import DynamicPrimaryBtn from "@/components/Button/DynamicPrimaryBtn";
 // import EditMicrositeBtn from "@/components/Button/EditMicrositeBtn";
@@ -13,20 +13,21 @@ import SmartSiteUrlShareModal from "@/components/smartsite/socialShare/Smartsite
 // import UpdateModalComponents from "@/components/EditMicrosite/UpdateModalComponents";
 // import LivePreview from "@/components/LivePreview";
 // import SmartSiteUrlShareModal from "@/components/ShareModal/SmartsiteShareModal";
-import useSmartsiteFormStore from "@/zustandStore/EditSmartsiteInfo";
-import useSmallIconToggleStore from "@/zustandStore/SmallIconModalToggle";
-import useUpdateSmartIcon from "@/zustandStore/UpdateSmartIcon";
-import useSmartSiteApiDataStore from "@/zustandStore/UpdateSmartsiteInfo";
-import { useDisclosure } from "@nextui-org/react";
-import Image from "next/image";
-import React, { useEffect, useState } from "react";
-import templates from "@/public/images/smartsite_icon/templates.png";
-import SmartsiteIconsParentProfileCard from "@/components/smartsite/SmartsiteIconsParentProfileCard";
+import useSmartsiteFormStore from '@/zustandStore/EditSmartsiteInfo';
+import useSmallIconToggleStore from '@/zustandStore/SmallIconModalToggle';
+import useUpdateSmartIcon from '@/zustandStore/UpdateSmartIcon';
+import useSmartSiteApiDataStore from '@/zustandStore/UpdateSmartsiteInfo';
+import { useDisclosure } from '@nextui-org/react';
+import Image from 'next/image';
+import React, { useEffect, useState } from 'react';
+import templates from '@/public/images/smartsite_icon/templates.png';
+import SmartsiteIconsParentProfileCard from '@/components/smartsite/SmartsiteIconsParentProfileCard';
 
 const MicrositeEditMainContentPage = ({ data }: any) => {
   const [toggleIcon, setToggleIcon] = useState<any>([]);
 
-  const [smartsiteProfileUrl, setSmartSiteProfileUrl] = useState<any>(null);
+  const [smartsiteProfileUrl, setSmartSiteProfileUrl] =
+    useState<any>(null);
   const { isOpen, onOpen, onOpenChange } = useDisclosure();
 
   const { formData, setFormData }: any = useSmartsiteFormStore();
@@ -43,14 +44,16 @@ const MicrositeEditMainContentPage = ({ data }: any) => {
 
   // console.log("iconData", iconData);
 
-  console.log("data from iconsss", data);
+  // console.log("data from iconsss", data);
 
   // const handleAddIcon = (title: { title: string }) => {
   //   setToggleIcon([...toggleIcon, title]);
   // };
   const handleRemoveIcon = (title: { title: string }) => {
     // console.log("title", title);
-    const filteredIcon = toggleIcon.filter((data: any) => data != title);
+    const filteredIcon = toggleIcon.filter(
+      (data: any) => data != title
+    );
     // console.log("filteredIcon", filteredIcon);
 
     setToggleIcon(filteredIcon);
@@ -76,12 +79,12 @@ const MicrositeEditMainContentPage = ({ data }: any) => {
   }, [data, setSmartSiteData]);
 
   useEffect(() => {
-    setFormData("backgroundImg", data.data.backgroundImg);
-    setFormData("bio", data.data.bio);
-    setFormData("galleryImg", "");
-    setFormData("name", data.data.name);
-    setFormData("theme", data.data.theme);
-    setFormData("profileImg", data.data.profilePic);
+    setFormData('backgroundImg', data.data.backgroundImg);
+    setFormData('bio', data.data.bio);
+    setFormData('galleryImg', '');
+    setFormData('name', data.data.name);
+    setFormData('theme', data.data.theme);
+    setFormData('profileImg', data.data.profilePic);
   }, [
     data.data.backgroundImg,
     data.data.bio,
@@ -103,11 +106,11 @@ const MicrositeEditMainContentPage = ({ data }: any) => {
   return (
     <main className="main-container overflow-hidden">
       <div
-        style={{ height: "calc(100vh - 108px)" }}
+        style={{ height: 'calc(100vh - 108px)' }}
         className="flex gap-1 2xl:gap-6 items-start"
       >
         <div
-          style={{ height: "100%" }}
+          style={{ height: '100%' }}
           className="w-[62%] relative border-r border-gray-200 pr-4 2xl:pr-8 flex flex-col gap-4 overflow-y-auto hide-scrollbar pb-6"
         >
           {/* <div className="flex items-center justify-between">

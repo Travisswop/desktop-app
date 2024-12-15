@@ -1,15 +1,15 @@
-"use client";
-import Link from "next/link";
-import React from "react";
+'use client';
+import Link from 'next/link';
+import React from 'react';
 // import Swal from "sweetalert2";
-import { MdQrCodeScanner } from "react-icons/md";
-import { TbEdit } from "react-icons/tb";
+import { MdQrCodeScanner } from 'react-icons/md';
+import { TbEdit } from 'react-icons/tb';
 // import { handleDeleteSmartSite } from "@/actions/deleteSmartsite";
 // import { useRouter } from "next/navigation";
-import AnimateButton from "../ui/Button/AnimateButton";
+import AnimateButton from '../ui/Button/AnimateButton';
 // import { useDesktopUserData } from "../tanstackQueryApi/getUserData";
-import { BiWallet } from "react-icons/bi";
-import { useRouter } from "next/navigation";
+import { BiWallet } from 'react-icons/bi';
+import { useRouter } from 'next/navigation';
 
 const ButtonList = ({ microsite, token, id }: any) => {
   // const demoShowToken =
@@ -91,11 +91,9 @@ const ButtonList = ({ microsite, token, id }: any) => {
 
   const router = useRouter();
 
-  console.log("microsite", microsite);
-
   const handleWalletRedirect = () => {
     if (microsite.primary) {
-      router.push("/wallet");
+      router.push('/wallet');
     }
   };
 

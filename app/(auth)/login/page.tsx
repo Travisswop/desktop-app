@@ -23,7 +23,6 @@ const Login: React.FC = () => {
 
   const { login } = useLogin({
     onComplete: async (user) => {
-      console.log('🚀 ~ onComplete: ~ user:', user);
       try {
         const email =
           user.google?.email ||
@@ -48,8 +47,6 @@ const Login: React.FC = () => {
             },
           }
         );
-
-        console.log('🚀 ~ onComplete: ~ response:', response);
 
         if (!response.ok) {
           console.log('User not found, redirecting to onboard');

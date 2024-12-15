@@ -128,6 +128,11 @@ export function UserProvider({
             currentPathname: pathname,
           });
 
+          if (response.status === 404) {
+            router.push('/onboard');
+            return;
+          }
+
           // Only handle redirection for specific error codes
           if (response.status === 401 || response.status === 403) {
             // Clear user session and redirect to login
