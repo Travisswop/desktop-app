@@ -60,15 +60,50 @@ interface ParsedInstruction {
 }
 
 export interface SolTxDetails {
-  blockTime: number;
-  slot: number;
-  txHash: string;
-  fee: number;
-  status: string;
-  parsedInstruction: ParsedInstruction[];
-  logMessage: string[];
-  solTransfers: SolanaTransfer[];
-  tokenBalances?: TokenBalance[];
+  data?: {
+    token_bal_change?: Array<{
+      address: string;
+      change_type: string;
+      change_amount: string;
+      decimals: number;
+      post_balance: string;
+      pre_balance: string;
+      token_address: string;
+      owner: string;
+      post_owner: string;
+      pre_owner: string;
+    }>;
+    sol_bal_change?: Array<{
+      address: string;
+      pre_balance: string;
+      post_balance: string;
+      change_amount: string;
+    }>;
+    account_keys?: Array<{
+      pubkey: string;
+      signer: boolean;
+      source: string;
+      writable: boolean;
+    }>;
+    status?: number;
+    block_time: number;
+    tx_hash: string;
+  };
+  metadata?: {
+    tokens?: {
+      [key: string]: {
+        token_address: string;
+        token_name: string;
+        token_symbol: string;
+        token_icon?: string;
+      };
+    };
+  };
+  success: boolean;
+}
+
+export interface SolTransaction {
+  data: SolTxDetails[];
 }
 
 export interface ChainConfig {

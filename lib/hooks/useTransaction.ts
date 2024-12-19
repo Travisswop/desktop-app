@@ -19,7 +19,7 @@ class TransactionAPI {
     signature: string
   ): Promise<SolTxDetails> {
     try {
-      const url = `https://pro-api.solscan.io/v1.0/transaction/${signature}`;
+      const url = `https://pro-api.solscan.io/v2.0/transaction/detail?tx=${signature}`;
       const options = {
         method: 'GET',
         headers: {
@@ -27,11 +27,10 @@ class TransactionAPI {
           token: process.env.NEXT_PUBLIC_SOLSCAN_API_KEY || '',
         },
       };
-
-      const result = (await APIUtils.fetchWithRetry(
+      const result = await APIUtils.fetchWithRetry<SolTxDetails>(
         url,
         options
-      )) as SolTxDetails;
+      );
       return result;
     } catch (error) {
       console.error(
@@ -128,7 +127,7 @@ class TransactionAPI {
     address: string
   ): Promise<Transaction[]> {
     try {
-      const url = `https://pro-api.solscan.io/v1.0/account/transactions?account=${address}&limit=50`;
+      const url = `https://pro-api.solscan.io/v2.0/account/transactions?address=${address}&limit=40`;
 
       const options = {
         method: 'GET',
@@ -138,15 +137,39 @@ class TransactionAPI {
         },
       };
 
-      const response = await APIUtils.fetchWithRetry<SolTxDetails[]>(
-        url,
-        options
-      );
+      const response = await APIUtils.fetchWithRetry<{
+        success: boolean;
+        data: Array<{
+          slot: number;
+          fee: number;
+          status: string;
+          signer: string[];
+          block_time: number;
+          tx_hash: string;
+          parsed_instructions: Array<{
+            type: string;
+            program: string;
+            program_id: string;
+          }>;
+        }>;
+      }>(url, options);
+
+      if (!response.success || !response.data) {
+        return [];
+      }
 
       const transactions = await Promise.all(
-        response.map(async (item: SolTxDetails) => {
-          const txDetails = await this.getSolTxDetails(item.txHash);
-          return this.formatSolanaTransaction(item, txDetails);
+        response.data.map(async (item) => {
+          const txDetails = await this.getSolTxDetails(item.tx_hash);
+          return this.formatSolanaTransaction(
+            {
+              blockTime: item.block_time,
+              txHash: item.tx_hash,
+              fee: item.fee,
+              status: item.status,
+            },
+            txDetails
+          );
         })
       );
 
@@ -158,61 +181,77 @@ class TransactionAPI {
   }
 
   private static formatSolanaTransaction(
-    item: SolTxDetails,
+    item: {
+      blockTime: number;
+      txHash: string;
+      fee: number;
+      status: string;
+    },
     txDetails: SolTxDetails
   ): Transaction | null {
     const { blockTime, txHash, fee, status } = item;
     const networkFee = fee / 10 ** 9;
 
-    if (!txDetails.parsedInstruction?.length) return null;
+    // Handle token transfers
+    if (txDetails.data?.token_bal_change?.length) {
+      const tokenChange = txDetails.data.token_bal_change[0];
+      const tokenInfo =
+        txDetails.metadata?.tokens?.[tokenChange.token_address];
 
-    const instruction = txDetails.parsedInstruction[0];
-
-    if (instruction.type === 'sol-transfer') {
-      const { source, destination, amount } =
-        txDetails.solTransfers[0];
       return {
         hash: txHash,
-        from: source,
-        to: destination,
-        value: String(amount / 10 ** 9),
+        from: tokenChange.pre_owner,
+        to: tokenChange.post_owner,
+        value: String(
+          Math.abs(Number(tokenChange.change_amount)) /
+            10 ** tokenChange.decimals
+        ),
         timeStamp: String(blockTime),
         gas: String(fee),
         gasPrice: String(fee),
         networkFee: String(networkFee),
-        status,
-        tokenName: 'Solana',
-        tokenSymbol: 'SOL',
-        tokenDecimal: 9,
+        status: status === 'Success' ? '1' : '0',
+        tokenName: tokenInfo?.token_name || 'Unknown Token',
+        tokenSymbol: tokenInfo?.token_symbol || 'UNKNOWN',
+        tokenDecimal: tokenChange.decimals,
         network: 'Solana',
         currentPrice: 0,
         nativeTokenPrice: 0,
       };
     }
 
-    if (instruction.extra && txDetails.tokenBalances?.[0]) {
-      const { name, symbol, decimals } =
-        txDetails.tokenBalances[0].token;
-      const { sourceOwner, destinationOwner, amount } =
-        instruction.extra;
+    // Handle SOL transfers
+    if (txDetails.data?.sol_bal_change?.length) {
+      const solChanges = txDetails.data.sol_bal_change.filter(
+        (change) => Number(change.change_amount) !== 0
+      );
 
-      return {
-        hash: txHash,
-        from: sourceOwner,
-        to: destinationOwner,
-        value: String(amount / 10 ** decimals),
-        timeStamp: String(blockTime),
-        gas: String(fee),
-        gasPrice: String(fee),
-        networkFee: String(networkFee),
-        status,
-        tokenName: name,
-        tokenSymbol: symbol || 'NFT',
-        tokenDecimal: decimals,
-        network: 'Solana',
-        currentPrice: 0,
-        nativeTokenPrice: 0,
-      };
+      if (solChanges.length > 0) {
+        const solChange = solChanges[0];
+        const recipient = txDetails.data.account_keys?.find(
+          (key) => !key.signer && key.writable
+        );
+
+        return {
+          hash: txHash,
+          from: solChange.address,
+          to: recipient?.pubkey || '',
+          value: String(
+            Math.abs(Number(solChange.change_amount)) / 10 ** 9
+          ),
+          timeStamp: String(blockTime),
+          gas: String(fee),
+          gasPrice: String(fee),
+          networkFee: String(networkFee),
+          status: status === 'Success' ? '1' : '0',
+          tokenName: 'Solana',
+          tokenSymbol: 'SOL',
+          tokenDecimal: 9,
+          network: 'Solana',
+          currentPrice: 0,
+          nativeTokenPrice: 0,
+        };
+      }
     }
 
     return null;

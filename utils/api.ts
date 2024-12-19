@@ -2,7 +2,7 @@ export class APIUtils {
   static async fetchWithRetry<T>(
     url: string,
     options: RequestInit,
-    retries = 3
+    retries = 1
   ): Promise<T> {
     try {
       const response = await fetch(url, options);
