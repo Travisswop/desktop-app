@@ -27,8 +27,8 @@ import SelectAvatorModal from "@/components/modal/SelectAvatorModal";
 import useSmartsiteFormStore from "@/zustandStore/EditSmartsiteInfo";
 import { handleSmartSiteUpdate } from "@/actions/update";
 // import { toast } from "react-toastify";
-import useSmallIconToggleStore from "@/zustandStore/SmallIconModalToggle";
-import useUpdateSmartIcon from "@/zustandStore/UpdateSmartIcon";
+// import useSmallIconToggleStore from "@/zustandStore/SmallIconModalToggle";
+// import useUpdateSmartIcon from "@/zustandStore/UpdateSmartIcon";
 // import UpdateModalComponents from "@/components/EditMicrosite/UpdateModalComponents";
 import useSmartSiteApiDataStore from "@/zustandStore/UpdateSmartsiteInfo";
 // import useLoggedInUserStore from "@/zustandStore/SetLogedInUserSession";
@@ -72,7 +72,7 @@ const EditSmartSite = ({ data, token }: any) => {
 
   const { refetch } = useDesktopUserData(data?.data?.parentId, accessToken);
 
-  console.log("hola data", data);
+  // console.log("hola data", data);
 
   const { toast } = useToast();
 
@@ -80,7 +80,7 @@ const EditSmartSite = ({ data, token }: any) => {
     useSmartsiteFormStore();
 
   // console.log("selected image", selectedImage);
-  console.log("formData from edit page", smartSiteEditFormData);
+  // console.log("formData from edit page", smartSiteEditFormData);
 
   const [galleryImage, setGalleryImage] = useState(null); // get upload image base64 data
   const [uploadedImageUrl, setUploadedImageUrl] = useState(""); // get uploaded url from cloudinery
