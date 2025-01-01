@@ -507,7 +507,8 @@ const EditSmartSite = ({ data, token }: any) => {
                     <Image
                       alt="edit icon"
                       src={editIcon}
-                      width={40}
+                      // width={400}
+                      quality={100}
                       className="w-[28px] h-[28px]"
                     />
                   </button>

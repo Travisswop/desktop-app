@@ -61,13 +61,13 @@ const ProfileImage = memo(function ProfileImage({
       >
         {/* <FaEdit className="absolute bottom-0 right-0 text-gray-700 bg-white rounded-full w-6 h-6 p-[3px] border border-gray-300" /> */}
         <button
-          className="absolute -right-0.5 -bottom-1 p-[1px] bg-white rounded-full"
+          className="absolute -right-2 bottom-0.5 p-[1px] bg-white rounded-full"
           type="button"
         >
           <Image
             alt="edit icon"
             src={editIcon}
-            width={400}
+            // width={400}
             quality={100}
             className="w-[24px] h-[24px]"
           />

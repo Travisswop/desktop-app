@@ -94,12 +94,12 @@ const CreateSmartSite = ({ token }: { token: string }) => {
   // }, [router, session.isPremiumUser]);
 
   useEffect(() => {
-    setFormData("backgroundImg", "1");
+    setFormData("backgroundImg", "5");
     setFormData("bio", "");
     setFormData("galleryImg", "");
     setFormData("profileImg", "1");
     setFormData("name", "");
-    setFormData("theme", false);
+    setFormData("theme", true);
   }, [setFormData]);
 
   const handleChange = (e: any) => {

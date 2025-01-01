@@ -159,7 +159,7 @@ const SmartsiteIconLivePreview = ({
               : "",
             height: "100%",
           }}
-          className={` overflow-y-auto shadow-medium bg-white bg-cover hide-scrollbar rounded-3xl ${
+          className={`overflow-y-auto shadow-medium bg-white bg-cover hide-scrollbar rounded-3xl ${
             formData.fontType && fontMap[formData.fontType.toLowerCase()]
           }`}
         >
