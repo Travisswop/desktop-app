@@ -74,7 +74,7 @@ export default function Sidenav() {
             href="/"
             className="h-full flex justify-start items-center translate-x-3"
           >
-            <div className="w-32 h-auto">
+            <div className="w-28 xl:w-32 h-auto">
               <Image src={swopLogo} quality={100} alt="SWOP" />
             </div>
           </Link>
@@ -101,8 +101,8 @@ export default function Sidenav() {
                       className={cn(
                         "flex items-center gap-3 rounded-lg px-3 py-2 text-[#424651]",
                         isActive
-                          ? "bg-gray-200 hover:bg-gray-200 text-[#2f333d]"
-                          : "hover:bg-gray-100"
+                          ? "bg-[#efeff7] hover:bg-[#efeff7] text-[#2f333d]"
+                          : "hover:bg-[#efeff7]"
                       )}
                     >
                       <Icon className="h-4 w-4" />

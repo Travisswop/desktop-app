@@ -16,7 +16,7 @@ export default function AuthLayout({
   return (
     // <html lang="en" className={roboto.className}>
     //   <body>
-    <div className="flex items-center justify-center min-h-screen bg-white font-[roboto]">
+    <div className="flex items-center justify-center min-h-screen bg-white font-[figTree]">
       {children}
       <Toaster />
     </div>

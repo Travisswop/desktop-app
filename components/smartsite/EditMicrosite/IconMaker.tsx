@@ -34,6 +34,9 @@ import infobarIcon from "@/public/images/smartsite_icon/info-bar.png";
 // import feed from "@/public/images/feed.png";
 import { FaRegSquareMinus } from "react-icons/fa6";
 import { Tooltip } from "@nextui-org/react";
+import plus from "@/public/images/custom-icons/plus.png";
+import minus from "@/public/images/custom-icons/minus.png";
+import { FiMinusCircle } from "react-icons/fi";
 
 function SampleNextArrow(props: any) {
   const { className, style, onClick } = props;
@@ -217,18 +220,37 @@ const IconMaker = ({ handleToggleIcon, toggleIcon }: any) => {
                   }`}
                 />
               </div>
-              {toggleIcon.find((item: any) => item == data.title) ? (
-                <button
-                  // onClick={() => handleRemoveIcon(data.title)}
-                  className=""
-                >
-                  <FaRegSquareMinus size={17} />
-                </button>
-              ) : (
-                <button className="">
-                  <MdOutlineAddBox size={17} />
-                </button>
-              )}
+              <div className="h-6">
+                {toggleIcon.find((item: any) => item == data.title) ? (
+                  <button
+                    // onClick={() => handleRemoveIcon(data.title)}
+                    className="w-6"
+                  >
+                    <Image
+                      src={minus}
+                      alt="minus icons"
+                      width={600}
+                      height={600}
+                      className="w-full h-auto"
+                      quality={100}
+                    />
+                    {/* <FiMinusCircle color="black" size={18} /> */}
+                    {/* <FaRegSquareMinus size={17} /> */}
+                  </button>
+                ) : (
+                  <button className="w-5 translate-y-0.5">
+                    <Image
+                      src={plus}
+                      alt="plus icons"
+                      width={600}
+                      height={600}
+                      className="w-full h-auto"
+                      quality={100}
+                    />
+                    {/* <MdOutlineAddBox size={17} /> */}
+                  </button>
+                )}
+              </div>
               {/* <button
                   onClick={() => handleAddIcon(data.title)}
                   className="h-[10%] "

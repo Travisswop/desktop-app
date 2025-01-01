@@ -444,7 +444,7 @@ const EditSmartSite = ({ data, token }: any) => {
       <div className="flex gap-4 2xl:gap-7 items-start h-[90vh]">
         <div
           style={{ height: "100%" }}
-          className="w-[62%] overflow-y-auto pb-6"
+          className="w-[62%] overflow-y-auto pb-6 hide-scrollbar"
         >
           <form
             onSubmit={handleSmartSiteUpdateInfo}
@@ -481,7 +481,7 @@ const EditSmartSite = ({ data, token }: any) => {
                   ) : (
                     <>
                       {isUrl(data.data.profilePic) ? (
-                        <div className="relative overflow-hidden rounded-full w-28 xl:w-36 2xl:w-40 h-28 xl:h-36 2xl:h-40 p-1 bg-white shadow-medium">
+                        <div className="relative overflow-hidden rounded-full w-28 2xl:w-32 h-28 2xl:h-32 p-1 bg-white shadow-medium">
                           <Image
                             alt="user image"
                             src={data.data.profilePic as any}
@@ -494,17 +494,22 @@ const EditSmartSite = ({ data, token }: any) => {
                           src={`/images/user_avator/${data.data.profilePic}@3x.png`}
                           width={300}
                           height={300}
-                          className="rounded-full shadow-medium p-1 w-28 xl:w-36 2xl:w-40 h-28 xl:h-36 2xl:h-40"
+                          className="rounded-full shadow-medium p-1 w-28 2xl:w-32 h-28 2xl:h-32"
                         />
                       )}
                     </>
                   )}
                   <button
-                    className="absolute right-0 bottom-1"
+                    className="absolute right-1.5 bottom-1 p-[2px] bg-white rounded-full"
                     onClick={handleUserProfileModal}
                     type="button"
                   >
-                    <Image alt="edit icon" src={editIcon} width={40} />
+                    <Image
+                      alt="edit icon"
+                      src={editIcon}
+                      width={40}
+                      className="w-[28px] h-[28px]"
+                    />
                   </button>
                 </div>
               </div>
