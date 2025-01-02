@@ -299,7 +299,7 @@ const CreateSmartSite = ({ token }: { token: string }) => {
                   {selectedImage || galleryImage ? (
                     <>
                       {selectedImage ? (
-                        <div className="w-32 xl:w-40 h-32 xl:h-40 overflow-hidden">
+                        <div className="w-28 xl:w-32 h-28 xl:h-32 overflow-hidden">
                           <Image
                             alt="user image"
                             src={
@@ -314,7 +314,7 @@ const CreateSmartSite = ({ token }: { token: string }) => {
                           />
                         </div>
                       ) : (
-                        <div className="w-32 xl:w-40 h-32 xl:h-40 overflow-hidden">
+                        <div className="w-28 xl:w-32 h-28 xl:h-32 overflow-hidden">
                           <Image
                             alt="user image"
                             src={galleryImage!}
@@ -328,7 +328,7 @@ const CreateSmartSite = ({ token }: { token: string }) => {
                     </>
                   ) : (
                     <>
-                      <div className="w-32 xl:w-40 h-32 xl:h-40 overflow-hidden">
+                      <div className="w-28 xl:w-32 h-28 xl:h-32 overflow-hidden">
                         <Image
                           alt="user image"
                           src={`/images/user_avator/1@3x.png`}
@@ -341,7 +341,7 @@ const CreateSmartSite = ({ token }: { token: string }) => {
                     </>
                   )}
                   <button
-                    className="absolute right-0 bottom-4"
+                    className="absolute right-0 bottom-2"
                     onClick={handleUserProfileModal}
                     type="button"
                   >
@@ -349,7 +349,7 @@ const CreateSmartSite = ({ token }: { token: string }) => {
                       alt="edit icon"
                       src={profileEditIcon}
                       quality={100}
-                      className="w-8 xl:w-9 h-8 xl:h-9"
+                      className="w-7 h-7"
                     />
                   </button>
                 </div>
