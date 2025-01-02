@@ -36,7 +36,7 @@ const SmartsiteLivePreview = () => {
   useEffect(() => {
     setFormData("backgroundImg", "5");
     setFormData("theme", true);
-  }, [setFormData]);
+  }, []);
 
   return (
     // <div className="relative mx-auto border-gray-800 dark:border-gray-800 bg-gray-800 border-[14px] rounded-[2.5rem] h-[600px] xl:h-[660px] w-[300px] xl:w-[360px]">
