@@ -295,11 +295,11 @@ const EditSmartSite = ({ data, token }: any) => {
       backgroundColor: smartSiteEditFormData.backgroundColor,
     };
 
-    // console.log("smartsite info", smartSiteInfo);
+    console.log("smartsite info", smartSiteInfo);
 
     try {
       const response = await handleSmartSiteUpdate(smartSiteInfo, token);
-      // console.log("response", response);
+      console.log("response", response);
 
       if (response.state === "success") {
         refetch();

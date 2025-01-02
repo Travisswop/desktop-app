@@ -181,7 +181,7 @@ const SmartsiteIconLivePreview = ({
                 )}
 
                 <div
-                  className={`relative ${
+                  className={` ${
                     !formData.theme
                       ? "absolute top-full -translate-y-1/2 left-1/2 -translate-x-1/2"
                       : "flex justify-center pt-10"
@@ -232,7 +232,7 @@ const SmartsiteIconLivePreview = ({
               </div>
               <div
                 className={`${
-                  !formData.theme && "mt-[4.5rem] xl:mt-20"
+                  !formData.theme && "mt-14"
                 }  flex flex-col gap-3 mt-2 h-full justify-start`}
               >
                 <div
