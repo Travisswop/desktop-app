@@ -146,9 +146,9 @@ const UpdateSwopPay = ({ iconDataObj, isOn, setOff }: any) => {
 
         if ((data.state = "success")) {
           setOff();
-          toast.success("Product created successfully");
+          toast.success("Product updated successfully");
         } else {
-          toast.error("Something went wrong");
+          toast.error("Something went wrong!");
         }
       } catch (error) {
         console.error(error);

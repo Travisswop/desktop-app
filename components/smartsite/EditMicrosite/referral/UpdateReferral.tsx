@@ -205,11 +205,18 @@ const UpdateReferral = ({ iconDataObj, isOn, setOff }: any) => {
                   )}
                 </div>
                 <div className="flex justify-between mt-3">
-                  <AnimateButton isLoading={isLoading} width={"w-52"}>
+                  <AnimateButton
+                    whiteLoading={true}
+                    className="bg-black text-white py-2 !border-0"
+                    isLoading={isLoading}
+                    width={"w-52"}
+                  >
                     <LiaFileMedicalSolid size={20} />
                     Update Changes
                   </AnimateButton>
                   <AnimateButton
+                    whiteLoading={true}
+                    className="bg-black text-white py-2 !border-0"
                     type="button"
                     onClick={handleDelete}
                     isLoading={isDeleteLoading}

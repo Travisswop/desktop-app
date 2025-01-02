@@ -24,14 +24,28 @@ import { isEmptyObject } from "@/components/util/checkIsEmptyObject";
 import AnimateButton from "@/components/ui/Button/AnimateButton";
 import { IconMap, SelectedIconType } from "@/types/smallIcon";
 import toast from "react-hot-toast";
+import Cookies from "js-cookie";
+// import { cookies } from "next/headers";
 // import useSmallIconToggleStore from "@/zustandStore/SmallIconModalToggle";
 // import AnimateButton from "../Button/AnimateButton";
 
 const UpdateSmallIcon = ({ iconDataObj, isOn, setOff }: any) => {
   //const sesstionState = useLoggedInUserStore((state) => state.state.user); //get session value
 
-  const demoToken =
-    "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJfaWQiOiI2NjM4NjMyMDIzMDQxMDMyODAyOTk4MmIiLCJpYXQiOjE3MjcxNTI4MzB9.CsHnZAgUzsfkc_g_CZZyQMXc02Ko_LhnQcCVpeCwroY";
+  const [accessToken, setAccessToken] = useState("");
+
+  useEffect(() => {
+    const getAccessToken = async () => {
+      const token = Cookies.get("access-token");
+      if (token) {
+        setAccessToken(token);
+      }
+    };
+    getAccessToken();
+  }, []);
+
+  // const demoToken =
+  //   "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJfaWQiOiI2NjM4NjMyMDIzMDQxMDMyODAyOTk4MmIiLCJpYXQiOjE3MjcxNTI4MzB9.CsHnZAgUzsfkc_g_CZZyQMXc02Ko_LhnQcCVpeCwroY";
 
   const [selectedIconType, setSelectedIconType] =
     useState<SelectedIconType>("Social Media");
@@ -146,8 +160,8 @@ const UpdateSmallIcon = ({ iconDataObj, isOn, setOff }: any) => {
     };
     // console.log("smallIconInfoupdate", smallIconInfo);
     try {
-      const data: any = await handleUpdateSmallIcon(smallIconInfo, demoToken);
-      // console.log("data,", data);
+      const data: any = await handleUpdateSmallIcon(smallIconInfo, accessToken);
+      console.log("data,", data);
 
       if (data && data?.state === "success") {
         toast.success("Small icon updated successfully");
@@ -185,7 +199,7 @@ const UpdateSmallIcon = ({ iconDataObj, isOn, setOff }: any) => {
       micrositeId: iconDataObj.data.micrositeId,
     };
     try {
-      const data: any = await handleDeleteSmallIcon(submitData, demoToken);
+      const data: any = await handleDeleteSmallIcon(submitData, accessToken);
       // console.log("data,", data);
 
       if (data && data?.state === "success") {

@@ -93,11 +93,11 @@ const CreateQRCode = () => {
   return (
     <>
       <Card className="w-full mx-auto border-none">
-        <CardHeader>
-          <h5 className="text-lg text-gray-700 font-semibold mb-1">
-            Create QR Code
-          </h5>
-        </CardHeader>
+        {/* <CardHeader className="pb-0"> */}
+        <h5 className="text-lg font-semibold p-4 pl-6 text-gray-800">
+          Create QR Code
+        </h5>
+        {/* </CardHeader> */}
         <CardContent>
           <div className="flex gap-6 items-center justify-between">
             <form onSubmit={handleCreateQrCode} className="w-full">
@@ -107,7 +107,7 @@ const CreateQRCode = () => {
                   placeholder="Title"
                   name="title"
                   required
-                  className="w-full bg-gray-200 py-2.5 rounded-full px-4 focus:outline-none"
+                  className="w-full bg-gray-200 py-2.5 rounded-xl px-4 focus:outline-none"
                 />
 
                 <input
@@ -115,7 +115,7 @@ const CreateQRCode = () => {
                   placeholder="URL"
                   name="url"
                   required
-                  className="w-full bg-gray-200 py-2.5 rounded-full px-4 focus:outline-none"
+                  className="w-full bg-gray-200 py-2.5 rounded-xl px-4 focus:outline-none"
                 />
               </div>
               <div className="flex justify-center w-full mt-4">
