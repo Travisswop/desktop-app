@@ -396,8 +396,8 @@ const SmartsiteLivePreview = () => {
           </div>
           <div
             className={`${
-              !formData.theme && "mt-14"
-            }  flex flex-col gap-6 mt-6`}
+              !formData.theme ? "mt-14" : "mt-6"
+            }  flex flex-col gap-6`}
           >
             <div
               className={`flex flex-col items-center ${
