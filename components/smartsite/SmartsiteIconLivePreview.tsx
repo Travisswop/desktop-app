@@ -207,7 +207,7 @@ const SmartsiteIconLivePreview = ({
                           </Link>
                         </div>
                       ) : (
-                        <div className="w-20 h-20 relative">
+                        <div className="w-20 h-20 relative mx-auto">
                           <Image
                             alt="user image"
                             src={`/images/user_avator/${formData.profileImg}@3x.png`}
