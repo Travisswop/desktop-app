@@ -232,8 +232,8 @@ const SmartsiteIconLivePreview = ({
               </div>
               <div
                 className={`${
-                  !formData.theme && "mt-14"
-                }  flex flex-col gap-3 mt-2 h-full justify-start`}
+                  !formData.theme ? "mt-14" : "mt-2"
+                }  flex flex-col gap-3 h-full justify-start`}
               >
                 <div
                   className={`flex flex-col items-center text-center ${
