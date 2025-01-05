@@ -466,34 +466,37 @@ const EditSmartSite = ({ data, token }: any) => {
                           quality={100}
                           width={300}
                           height={300}
-                          className="rounded-full shadow-medium p-1 w-44 h-44"
+                          className="rounded-full shadow-medium p-1 w-28 2xl:w-32 h-28 2xl:h-32"
                         />
                       ) : (
-                        <div className="relative overflow-hidden rounded-full w-28 xl:w-36 2xl:w-44 h-28 xl:h-36 2xl:h-44 p-1 bg-white shadow-medium">
-                          <Image
-                            alt="user image"
-                            src={galleryImage as any}
-                            fill
-                          />
-                        </div>
+                        <Image
+                          alt="user image"
+                          src={galleryImage as any}
+                          width={300}
+                          height={300}
+                          quality={100}
+                          className="rounded-full shadow-medium p-1 w-28 2xl:w-32 h-28 2xl:h-32"
+                        />
                       )}
                     </>
                   ) : (
                     <>
                       {isUrl(data.data.profilePic) ? (
-                        <div className="relative overflow-hidden rounded-full w-28 2xl:w-32 h-28 2xl:h-32 p-1 bg-white shadow-medium">
-                          <Image
-                            alt="user image"
-                            src={data.data.profilePic as any}
-                            fill
-                          />
-                        </div>
+                        <Image
+                          alt="user image"
+                          src={data.data.profilePic as any}
+                          width={300}
+                          height={300}
+                          quality={100}
+                          className="rounded-full shadow-medium p-1 w-28 2xl:w-32 h-28 2xl:h-32"
+                        />
                       ) : (
                         <Image
                           alt="user image"
                           src={`/images/user_avator/${data.data.profilePic}@3x.png`}
                           width={300}
                           height={300}
+                          quality={100}
                           className="rounded-full shadow-medium p-1 w-28 2xl:w-32 h-28 2xl:h-32"
                         />
                       )}
