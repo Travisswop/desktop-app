@@ -27,8 +27,8 @@ import SelectAvatorModal from "@/components/modal/SelectAvatorModal";
 import useSmartsiteFormStore from "@/zustandStore/EditSmartsiteInfo";
 import { handleSmartSiteUpdate } from "@/actions/update";
 // import { toast } from "react-toastify";
-import useSmallIconToggleStore from "@/zustandStore/SmallIconModalToggle";
-import useUpdateSmartIcon from "@/zustandStore/UpdateSmartIcon";
+// import useSmallIconToggleStore from "@/zustandStore/SmallIconModalToggle";
+// import useUpdateSmartIcon from "@/zustandStore/UpdateSmartIcon";
 // import UpdateModalComponents from "@/components/EditMicrosite/UpdateModalComponents";
 import useSmartSiteApiDataStore from "@/zustandStore/UpdateSmartsiteInfo";
 // import useLoggedInUserStore from "@/zustandStore/SetLogedInUserSession";
@@ -72,7 +72,7 @@ const EditSmartSite = ({ data, token }: any) => {
 
   const { refetch } = useDesktopUserData(data?.data?.parentId, accessToken);
 
-  console.log("hola data", data);
+  // console.log("hola data", data);
 
   const { toast } = useToast();
 
@@ -80,7 +80,7 @@ const EditSmartSite = ({ data, token }: any) => {
     useSmartsiteFormStore();
 
   // console.log("selected image", selectedImage);
-  console.log("formData from edit page", smartSiteEditFormData);
+  // console.log("formData from edit page", smartSiteEditFormData);
 
   const [galleryImage, setGalleryImage] = useState(null); // get upload image base64 data
   const [uploadedImageUrl, setUploadedImageUrl] = useState(""); // get uploaded url from cloudinery
@@ -295,11 +295,11 @@ const EditSmartSite = ({ data, token }: any) => {
       backgroundColor: smartSiteEditFormData.backgroundColor,
     };
 
-    // console.log("smartsite info", smartSiteInfo);
+    console.log("smartsite info", smartSiteInfo);
 
     try {
       const response = await handleSmartSiteUpdate(smartSiteInfo, token);
-      // console.log("response", response);
+      console.log("response", response);
 
       if (response.state === "success") {
         refetch();
@@ -444,7 +444,7 @@ const EditSmartSite = ({ data, token }: any) => {
       <div className="flex gap-4 2xl:gap-7 items-start h-[90vh]">
         <div
           style={{ height: "100%" }}
-          className="w-[62%] overflow-y-auto pb-6"
+          className="w-[62%] overflow-y-auto pb-6 hide-scrollbar"
         >
           <form
             onSubmit={handleSmartSiteUpdateInfo}
@@ -481,7 +481,7 @@ const EditSmartSite = ({ data, token }: any) => {
                   ) : (
                     <>
                       {isUrl(data.data.profilePic) ? (
-                        <div className="relative overflow-hidden rounded-full w-28 xl:w-36 2xl:w-40 h-28 xl:h-36 2xl:h-40 p-1 bg-white shadow-medium">
+                        <div className="relative overflow-hidden rounded-full w-28 2xl:w-32 h-28 2xl:h-32 p-1 bg-white shadow-medium">
                           <Image
                             alt="user image"
                             src={data.data.profilePic as any}
@@ -494,17 +494,23 @@ const EditSmartSite = ({ data, token }: any) => {
                           src={`/images/user_avator/${data.data.profilePic}@3x.png`}
                           width={300}
                           height={300}
-                          className="rounded-full shadow-medium p-1 w-28 xl:w-36 2xl:w-40 h-28 xl:h-36 2xl:h-40"
+                          className="rounded-full shadow-medium p-1 w-28 2xl:w-32 h-28 2xl:h-32"
                         />
                       )}
                     </>
                   )}
                   <button
-                    className="absolute right-0 bottom-1"
+                    className="absolute right-1.5 bottom-1 p-[2px] bg-white rounded-full"
                     onClick={handleUserProfileModal}
                     type="button"
                   >
-                    <Image alt="edit icon" src={editIcon} width={40} />
+                    <Image
+                      alt="edit icon"
+                      src={editIcon}
+                      // width={400}
+                      quality={100}
+                      className="w-[28px] h-[28px]"
+                    />
                   </button>
                 </div>
               </div>

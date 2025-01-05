@@ -14,6 +14,8 @@ import toast from "react-hot-toast";
 import { Tooltip } from "@nextui-org/react";
 import { MdInfoOutline } from "react-icons/md";
 import Cookies from "js-cookie";
+import placeholder from "@/public/images/image-placeholder.webp";
+import placeholder2 from "@/public/images/image-placeholder-2.png";
 
 const AddBlog = ({ handleRemoveIcon }: any) => {
   const state: any = useSmartSiteApiDataStore((state) => state);
@@ -175,11 +177,12 @@ const AddBlog = ({ handleRemoveIcon }: any) => {
                   />
                 ) : (
                   <Image
-                    src={imagePlaceholder}
+                    src={placeholder}
                     alt="blog photo"
                     fill
                     sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
                     className="rounded-md object-cover"
+                    quality={100}
                   />
                 )}
                 <div className="absolute top-1/2 -translate-y-1/2 left-1/2 -translate-x-1/2">

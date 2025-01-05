@@ -11,21 +11,22 @@ import {
   CarouselNext,
   CarouselPrevious,
 } from "@/components/ui/carousel";
-import { CirclePlus, Edit, QrCode, Send, Settings, Wallet } from "lucide-react";
+import { Edit, QrCode, Send, Settings, Wallet } from "lucide-react";
 import Link from "next/link";
 import isUrl from "@/lib/isUrl";
 import { useState } from "react";
 import SmartSiteUrlShareModal from "../smartsite/socialShare/SmartsiteShareModal";
 import { useDisclosure } from "@nextui-org/react";
 import QRCodeShareModal from "../smartsite/socialShare/QRCodeShareModal";
+import filePlus from "@/public/images/file-plus.png";
 
-interface Lead {
-  id: string;
-  name: string;
-  title: string;
-  phone: string;
-  email: string;
-}
+// interface Lead {
+//   id: string;
+//   name: string;
+//   title: string;
+//   phone: string;
+//   email: string;
+// }
 
 interface SmarsiteInfos {
   _id: string;
@@ -85,7 +86,7 @@ export default function SmartSiteSlider({
                     <h2 className="text-lg font-semibold">Smartsites</h2>
                     <Link
                       href={`/smartsite/icons/${item._id}`}
-                      className="flex items-center border px-4 py-1.5 rounded-lg"
+                      className="flex items-center border border-gray-400 px-4 py-1.5 rounded-lg"
                     >
                       <Settings className="h-4 w-4 mr-2" />
                       Manage Sites
@@ -126,7 +127,7 @@ export default function SmartSiteSlider({
                         <div className="w-full h-40"></div>
                       )} */}
                       {/* <div className="absolute -bottom-8 left-1/2 -translate-x-1/2"> */}
-                      <div className="w-28 xl:w-32 2xl:w-36 h-28 xl:h-32 2xl:h-36 rounded-full">
+                      <div className="w-24 2xl:w-28 h-24 2xl:h-28 rounded-full">
                         <Image
                           src={`${
                             isUrl(item.profilePic)
@@ -136,14 +137,14 @@ export default function SmartSiteSlider({
                           alt={item.name}
                           width={300}
                           height={300}
-                          className="rounded-full shadow-medium border-[3px] border-gray-500 p-0.5"
+                          className="rounded-full shadow-medium p-0.5"
                         />
                       </div>
                       {/* </div> */}
                     </div>
 
-                    <div className="pt-4 px-4 pb-4 text-center">
-                      <h3 className="font-semibold text-lg mb-1">
+                    <div className="p-3 text-center">
+                      <h3 className="font-semibold text-lg mb-0.5">
                         {item.name}
                       </h3>
                       <p className="text-sm text-muted-foreground">
@@ -187,7 +188,7 @@ export default function SmartSiteSlider({
                       </div>
                     </div>
                   </div>
-                  <div className="mt-8 flex justify-center">
+                  <div className="mt-6 flex justify-center">
                     <Image
                       src={item.qrcodeUrl}
                       alt="Qr code"
@@ -196,10 +197,24 @@ export default function SmartSiteSlider({
                       className=" rounded-2xl border-black border-2"
                     />
                   </div>
-                  <div className="flex justify-center mt-8">
-                    <Link href="/smartsite/create-smartsite">
+                  <div className="flex justify-center mt-6">
+                    {/* <Link href="/smartsite/create-smartsite">
                       <Button variant="black" className="gap-2 font-bold">
                         <CirclePlus className="h-6 w-6" />
+                        Create Microsite
+                      </Button>
+                    </Link> */}
+                    <Link href="/create-smartsite">
+                      <Button
+                        variant="black"
+                        className="gap-2 font-bold rounded-xl"
+                      >
+                        {/* <LiaFileMedicalSolid size={20} /> */}
+                        <Image
+                          src={filePlus}
+                          alt="file-plus"
+                          className="w-6 h-6"
+                        />
                         Create Microsite
                       </Button>
                     </Link>

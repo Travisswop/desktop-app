@@ -1,15 +1,19 @@
-import './globals.css';
-import PrivyProvider from '@/components/PrivyProvider';
-import { UserProvider } from '@/lib/UserContext';
+import "./globals.css";
+import PrivyProvider from "@/components/PrivyProvider";
+import { UserProvider } from "@/lib/UserContext";
 
-import { Roboto } from 'next/font/google';
-import { TanstackProvider } from '@/components/providers/tanstackProvider';
-import { Toaster } from 'react-hot-toast';
-import { XmtpProvider } from '@/lib/context/XmtpContext';
+import { Roboto, Figtree } from "next/font/google";
+import { TanstackProvider } from "@/components/providers/tanstackProvider";
+import { Toaster } from "react-hot-toast";
+import { XmtpProvider } from "@/lib/context/XmtpContext";
 
 const roboto = Roboto({
-  subsets: ['latin'],
-  weight: ['100', '300', '400', '500', '700', '900'],
+  subsets: ["latin"],
+  weight: ["100", "300", "400", "500", "700", "900"],
+});
+const figtree = Figtree({
+  subsets: ["latin"],
+  weight: ["300", "400", "500", "700", "900"],
 });
 
 export default function RootLayout({
@@ -18,8 +22,8 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className={roboto.className}>
-      <body className={`font-[roboto] bg-accent`}>
+    <html lang="en" className={figtree.className}>
+      <body className={`font-[figtree] bg-[#F7F7F9]`}>
         <Toaster position="top-center" reverseOrder={false} />
         <TanstackProvider>
           <PrivyProvider>

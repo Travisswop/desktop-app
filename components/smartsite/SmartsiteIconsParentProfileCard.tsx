@@ -1,16 +1,18 @@
-'use client';
+"use client";
 
-import isUrl from '@/lib/isUrl';
-import { useUser } from '@/lib/UserContext';
-import { Skeleton } from '@nextui-org/react';
-import Image from 'next/image';
-import Link from 'next/link';
-import { useState } from 'react';
-import { TbEdit } from 'react-icons/tb';
+import isUrl from "@/lib/isUrl";
+import { useUser } from "@/lib/UserContext";
+import { Skeleton } from "@nextui-org/react";
+import Image from "next/image";
+import Link from "next/link";
+import { useState } from "react";
+import { TbEdit } from "react-icons/tb";
 
 const SmartsiteIconsParentProfileCard = ({ data }: any) => {
   const [loading, setLoading] = useState(false);
   //   const { user, loading }: any = useUser();
+
+  console.log("data", data);
 
   return (
     <div className="flex items-center justify-between gap-6 bg-white p-6 rounded-lg">
@@ -29,28 +31,28 @@ const SmartsiteIconsParentProfileCard = ({ data }: any) => {
           </div>
         </div>
       ) : (
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-3">
           <div className="relative">
             {isUrl(data?.profilePic) ? (
               <Image
                 src={data?.profilePic}
-                alt={'user image'}
+                alt={"user image"}
                 width={80}
                 height={80}
-                className="rounded-full w-16 h-16 border-2"
+                className="rounded-full w-16 h-16"
               />
             ) : (
               <Image
                 src={`/images/user_avator/${data?.profilePic}.png`}
-                alt={'user image'}
+                alt={"user image"}
                 width={80}
                 height={80}
-                className="rounded-full w-16 h-16 border-2"
+                className="rounded-full w-16 h-16"
               />
             )}
             <Link
               href={`/smartsite/${data._id}`}
-              className="absolute bottom-0 -right-1 bg-white rounded-full w-[26px] h-[26px] flex items-center justify-center p-0.5"
+              className="absolute bottom-0 -right-0 bg-white rounded-full w-[23px] h-[23px] flex items-center justify-center p-0.5"
             >
               <div className="bg-black rounded-full w-full h-full flex items-center justify-center font-bold">
                 <TbEdit size={14} color="white" />
@@ -58,17 +60,16 @@ const SmartsiteIconsParentProfileCard = ({ data }: any) => {
             </Link>
             {/* <CheckCircle2 className="" /> */}
           </div>
-          <div className="space-y-1">
+          <div className=" text-[#424651]">
             <div className="flex items-center gap-2">
               <h1 className="text-md font-semibold">{data?.name}</h1>
             </div>
-            <p className="text-muted-foreground">{data?.username}</p>
-            <p className="text-sm text-muted-foreground">
-              {data?.ensName}
-            </p>
-            <p className="text-sm text-muted-foreground">
-              {data?.address}
-            </p>
+
+            {data?.address ? (
+              <p className="text-sm text-muted-foreground">{data?.address}</p>
+            ) : (
+              <p className="text-sm text-muted-foreground">{data?.bio}</p>
+            )}
           </div>
         </div>
       )}

@@ -249,7 +249,7 @@ const AddAppIcon = ({ handleRemoveIcon }: any) => {
           </Dropdown>
         </div>
         <div className="flex items-center gap-2">
-          <h3 className="font-semibold w-36">Select Icon</h3>
+          <h3 className="font-semibold w-32">Select Icon</h3>
 
           <Dropdown className="w-max rounded-lg" placement="bottom-start">
             <DropdownTrigger>

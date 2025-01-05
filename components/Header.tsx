@@ -17,6 +17,9 @@ import { useRouter } from "next/navigation";
 import isUrl from "@/lib/isUrl";
 import { useState } from "react";
 import logo from "@/public/logo.png";
+// import { LiaFileMedicalSolid } from "react-icons/lia";
+import filePlus from "@/public/images/file-plus.png";
+import bellIcon from "@/public/images/bell-icon.png";
 
 export default function Header() {
   const { logout } = usePrivy();
@@ -60,13 +63,25 @@ export default function Header() {
   }
 
   return (
-    <header className="sticky top-0 z-30 h-20 items-center  border-b bg-white px-4 flex justify-end">
+    <header className="sticky top-0 z-30 h-20 items-center border-b bg-white px-4 flex justify-end">
+      <div>
+        <Link href="/create-smartsite">
+          <Button variant="black" className="gap-2 font-bold rounded-xl">
+            {/* <LiaFileMedicalSolid size={20} /> */}
+            <Image src={filePlus} alt="file-plus" className="w-6 h-6" />
+            Create Microsite
+          </Button>
+        </Link>
+      </div>
+      <div className="bg-[#F7F7F9] p-2 rounded-full mx-3">
+        <Image src={bellIcon} alt="bell icon" className="w-7 h-7" />
+      </div>
       {user && (
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button
               variant="ghost"
-              className="relative flex items-center gap-2 px-3 py-4 rounded-full bg-slate-100 hover:bg-accent h-14"
+              className="relative flex items-center gap-2 px-3 py-4 rounded-full bg-[#F7F7F9] hover:bg-accent h-14"
               disabled={isLoggingOut}
             >
               <div className="relative h-8 w-8">
@@ -96,13 +111,19 @@ export default function Header() {
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-48">
             <DropdownMenuItem
+              color="red"
+              className="cursor-pointer"
               onSelect={() => {
                 router.push("/account-settings");
               }}
             >
               Settings
             </DropdownMenuItem>
-            <DropdownMenuItem onSelect={handleLogout} disabled={isLoggingOut}>
+            <DropdownMenuItem
+              className="cursor-pointer"
+              onSelect={handleLogout}
+              disabled={isLoggingOut}
+            >
               {isLoggingOut ? "Logging out..." : "Logout"}
             </DropdownMenuItem>
           </DropdownMenuContent>
