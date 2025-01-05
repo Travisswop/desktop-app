@@ -106,7 +106,10 @@ export function UserProvider({
       try {
         // Add timeout to prevent hanging requests
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 50000); // 10 seconds timeout
+        const timeoutId = setTimeout(
+          () => controller.abort(),
+          120000
+        ); // 120 seconds timeout
 
         const response = await fetch(
           `${process.env.NEXT_PUBLIC_API_URL}/api/v2/desktop/user/${userEmail}`,
@@ -134,13 +137,13 @@ export function UserProvider({
           }
 
           // Only handle redirection for specific error codes
-          if (response.status === 401 || response.status === 403) {
-            // Clear user session and redirect to login
-            clearAllCookies();
-            await logout(); // Add logout from Privy
-            router.push('/login');
-            return;
-          }
+          // if (response.status === 401 || response.status === 403) {
+          //   // Clear user session and redirect to login
+          //   clearAllCookies();
+          //   await logout(); // Add logout from Privy
+          //   router.push('/login');
+          //   return;
+          // }
 
           // For other non-excluded routes, throw an error
           if (
