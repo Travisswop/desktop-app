@@ -24,10 +24,9 @@ export default function ChatBox({
   conversation,
   messageHistory,
 }: ChatProps) {
-  console.log('🚀 ~ client:', client);
   const [inputMessage, setInputMessage] = useState('');
   const lastMessageRef = useRef<HTMLDivElement>(null);
-  console.log('messageHistory', messageHistory);
+
   useEffect(() => {
     if (lastMessageRef.current) {
       lastMessageRef.current.scrollIntoView({ behavior: 'smooth' });
