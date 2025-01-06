@@ -40,7 +40,7 @@ import { fontMap } from "@/lib/fonts";
 import Cookies from "js-cookie";
 // import { access } from "fs";
 // import mobileMockup from "@/public/images/mobile-mockup.png";
-import { TbEdit } from "react-icons/tb";
+// import { TbEdit } from "react-icons/tb";
 
 const SmartsiteIconLivePreview = ({
   isEditDetailsLivePreview = false,
