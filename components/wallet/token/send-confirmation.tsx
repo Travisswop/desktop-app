@@ -23,6 +23,9 @@ import { NFT } from '@/types/nft';
 import Image from 'next/image';
 import { Network } from '@/types/wallet-types';
 import { TokenData } from '@/types/token';
+import { useEffect, useState } from 'react';
+import { calculateEVMGasFee } from '../tools/gas_fee_evm';
+
 interface SendConfirmationProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -36,6 +39,7 @@ interface SendConfirmationProps {
   networkFee: string;
   network: Network;
   isUSD: boolean;
+  nativeTokenPrice: number;
 }
 
 export default function SendConfirmation({
@@ -51,7 +55,29 @@ export default function SendConfirmation({
   networkFee,
   network,
   isUSD,
+  nativeTokenPrice,
 }: SendConfirmationProps) {
+  const [gasFeeUSD, setGasFeeUSD] = useState(0);
+  if (network === 'SOLANA') {
+    networkFee = '0.000005';
+  }
+
+  useEffect(() => {
+    const fetchGasFee = async () => {
+      if (network === 'SOLANA') {
+        const networkFeeUSD = (
+          Number(networkFee) * nativeTokenPrice
+        ).toFixed(5);
+        setGasFeeUSD(Number(networkFeeUSD));
+      } else {
+        const gasFee = await calculateEVMGasFee(network);
+        const gasFeeUSD = Number(gasFee) * nativeTokenPrice;
+        setGasFeeUSD(Number(gasFeeUSD.toFixed(5)));
+      }
+    };
+    fetchGasFee();
+  }, [network, nativeTokenPrice, networkFee]);
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className=" p-6 rounded-3xl">
@@ -165,15 +191,20 @@ export default function SendConfirmation({
                     </Tooltip>
                   </TooltipProvider>
                 </div>
-                <div className="font-medium">
-                  {networkFee}{' '}
-                  {network === 'SOLANA'
-                    ? 'SOL'
-                    : network === 'ETHEREUM'
-                    ? 'ETH'
-                    : network === 'POLYGON'
-                    ? 'MATIC'
-                    : 'BASE'}
+                <div className="text-right">
+                  <div className="font-medium">
+                    {networkFee}{' '}
+                    {network === 'SOLANA'
+                      ? 'SOL'
+                      : network === 'ETHEREUM'
+                      ? 'ETH'
+                      : network === 'POLYGON'
+                      ? 'MATIC'
+                      : 'BASE'}
+                  </div>
+                  <div className="text-sm text-gray-500">
+                    $ {gasFeeUSD}
+                  </div>
                 </div>
               </div>
             </div>

@@ -55,6 +55,7 @@ const SWOP_TOKEN: TokenData = {
     '1M': [],
     '1Y': [],
   },
+  nativeTokenPrice: 0,
 };
 
 export class TokenAPIService {
@@ -260,6 +261,7 @@ export class TokenContractService {
       {nativeToken.symbol}.png`,
       marketData: marketData,
       sparklineData: processSparklineData(timeSeriesData),
+      isNative: true,
     };
   }
 }
@@ -386,6 +388,7 @@ export class SolanaService {
         chain: 'SOLANA',
         marketData,
         sparklineData: processSparklineData(timeSeriesData),
+        isNative: true,
       };
     } catch (error) {
       console.error('Error fetching native SOL token:', error);

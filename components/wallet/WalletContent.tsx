@@ -268,6 +268,9 @@ const WalletContentInner = () => {
   };
   const handleBack = () => setSelectedToken(null);
 
+  const nativeTokenPrice = tokens.find((token) => token.isNative)
+    ?.marketData.price;
+
   return (
     <div className="">
       <ProfileHeader />
@@ -361,6 +364,7 @@ const WalletContentInner = () => {
           recipientName={sendFlow.recipient?.ensName || ''}
           networkFee={sendFlow.networkFee || ''}
           network={sendFlow.network}
+          nativeTokenPrice={nativeTokenPrice}
         />
         <TransactionSuccess
           open={sendFlow.step === 'success'}
