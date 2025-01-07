@@ -12,7 +12,7 @@ interface SendTokenModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   token: TokenData;
-  onNext: (amount: string) => void;
+  onNext: (amount: string, isUSD: boolean) => void;
 }
 
 export default function SendTokenModal({
@@ -240,7 +240,7 @@ export default function SendTokenModal({
           </Button>
           <Button
             className="flex-1 rounded-xl py-6 bg-black text-white hover:bg-gray-800"
-            onClick={() => onNext(amount)}
+            onClick={() => onNext(amount, isUSD)}
           >
             Next
           </Button>

@@ -352,6 +352,7 @@ const WalletContentInner = () => {
           open={sendFlow.step === 'confirm'}
           onOpenChange={(open) => !open && resetSendFlow()}
           amount={sendFlow.amount}
+          isUSD={sendFlow.isUSD}
           token={sendFlow.token!}
           recipient={sendFlow.recipient?.address || ''}
           onConfirm={handleSendConfirm}

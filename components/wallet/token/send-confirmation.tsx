@@ -35,6 +35,7 @@ interface SendConfirmationProps {
   nft: NFT | null;
   networkFee: string;
   network: Network;
+  isUSD: boolean;
 }
 
 export default function SendConfirmation({
@@ -49,6 +50,7 @@ export default function SendConfirmation({
   nft,
   networkFee,
   network,
+  isUSD,
 }: SendConfirmationProps) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -89,16 +91,23 @@ export default function SendConfirmation({
                   token && (
                     <div className="text-center space-y-2">
                       <div className="text-3xl font-bold text-gray-700">
-                        {amount} {token.symbol}
+                        {isUSD
+                          ? (
+                              parseFloat(amount) /
+                              parseFloat(token.marketData.price)
+                            ).toFixed(2)
+                          : parseFloat(amount).toFixed(2)}{' '}
+                        {token.symbol}
                       </div>
                       {token.marketData.price && (
                         <p className="text-gray-500">
                           ≈ $
-                          {(
-                            parseFloat(amount) *
-                            parseFloat(token.marketData.price)
-                          ).toFixed(2)}{' '}
-                          USD
+                          {isUSD
+                            ? parseFloat(amount).toFixed(2)
+                            : (
+                                parseFloat(amount) *
+                                parseFloat(token.marketData.price)
+                              ).toFixed(2)}
                         </p>
                       )}
                     </div>

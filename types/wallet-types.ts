@@ -21,6 +21,7 @@ export interface SendFlowState {
     | null;
   token: TokenData | null;
   amount: string;
+  isUSD: boolean;
   recipient: ReceiverData | null;
   nft: NFT | null;
   networkFee: string;
