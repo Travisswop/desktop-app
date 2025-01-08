@@ -1,19 +1,20 @@
-import "./globals.css";
-import PrivyProvider from "@/components/PrivyProvider";
-import { UserProvider } from "@/lib/UserContext";
+import './globals.css';
+import PrivyProvider from '@/components/PrivyProvider';
+import { UserProvider } from '@/lib/UserContext';
 
-import { Roboto, Figtree } from "next/font/google";
-import { TanstackProvider } from "@/components/providers/tanstackProvider";
-import { Toaster } from "react-hot-toast";
-import { XmtpProvider } from "@/lib/context/XmtpContext";
+import { Figtree } from 'next/font/google';
+import { TanstackProvider } from '@/components/providers/tanstackProvider';
+import { Toaster } from 'react-hot-toast';
+import { XmtpProvider } from '@/lib/context/XmtpContext';
+// import { XmtpProvider } from "@/lib/context/XmtpContext";
 
-const roboto = Roboto({
-  subsets: ["latin"],
-  weight: ["100", "300", "400", "500", "700", "900"],
-});
+// const roboto = Roboto({
+//   subsets: ["latin"],
+//   weight: ["100", "300", "400", "500", "700", "900"],
+// });
 const figtree = Figtree({
-  subsets: ["latin"],
-  weight: ["300", "400", "500", "700", "900"],
+  subsets: ['latin'],
+  weight: ['300', '400', '500', '700', '900'],
 });
 
 export default function RootLayout({

@@ -8,7 +8,7 @@ import useUpdateSmartIcon from "@/zustandStore/UpdateSmartIcon";
 import useSmallIconToggleStore from "@/zustandStore/SmallIconModalToggle";
 // import getSmallIconImage from "@/util/retriveIconImage/getSmallIconImage";
 // import getAppIconImage from "@/util/retriveIconImage/getAppIconImage";
-import { FaEdit, FaEye, FaPause, FaPlay } from "react-icons/fa";
+import { FaEdit, FaPause, FaPlay } from "react-icons/fa";
 import useSideBarToggleStore from "@/zustandStore/SideBarToggleStore";
 // import AnimateButton from "./Button/AnimateButton";
 import AudioPlayer from "react-h5-audio-player";
@@ -40,7 +40,7 @@ import { fontMap } from "@/lib/fonts";
 import Cookies from "js-cookie";
 // import { access } from "fs";
 // import mobileMockup from "@/public/images/mobile-mockup.png";
-import { TbEdit } from "react-icons/tb";
+// import { TbEdit } from "react-icons/tb";
 
 const SmartsiteIconLivePreview = ({
   isEditDetailsLivePreview = false,
@@ -197,14 +197,14 @@ const SmartsiteIconLivePreview = ({
                             quality={100}
                             fill
                           />
-                          <Link
+                          {/* <Link
                             href={`/smartsite/${data._id}`}
                             className="absolute bottom-0 -right-1 bg-white rounded-full w-[26px] h-[26px] flex items-center justify-center p-0.5"
                           >
                             <div className="bg-black rounded-full w-full h-full flex items-center justify-center font-bold">
                               <TbEdit size={14} color="white" />
                             </div>
-                          </Link>
+                          </Link> */}
                         </div>
                       ) : (
                         <div className="w-20 h-20 relative mx-auto">
@@ -216,14 +216,14 @@ const SmartsiteIconLivePreview = ({
                             quality={100}
                             className="rounded-full w-20 h-20 bg-white shadow-medium border-2 border-gray-200 z-0"
                           />
-                          <Link
+                          {/* <Link
                             href={`/smartsite/${data._id}`}
                             className="absolute bottom-0.5 right-0.5 bg-white rounded-full w-[23px] h-[23px] flex items-center justify-center p-0.5"
                           >
                             <div className="bg-black rounded-full w-full h-full flex items-center justify-center font-bold">
                               <TbEdit size={14} color="white" />
                             </div>
-                          </Link>
+                          </Link> */}
                         </div>
                       )}
                     </>

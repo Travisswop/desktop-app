@@ -20,6 +20,7 @@ const Reaction = ({
   accessToken,
   commentId = null,
   replyId = null,
+  isLiked = false,
 }: {
   postId: string;
   likeCount: number;
@@ -29,6 +30,7 @@ const Reaction = ({
   accessToken: string;
   commentId?: string | null;
   replyId?: string | null;
+  isLiked?: boolean;
 }) => {
   const [liked, setLiked] = useState(false);
   const [likeCount, setLikeCount] = useState(initialLikeCount);
@@ -41,7 +43,16 @@ const Reaction = ({
   const handleLike = async () => {
     // Optimistically update the like state
     setLiked(!liked);
-    setLikeCount((prevCount) => (liked ? prevCount - 1 : prevCount + 1));
+    setLikeCount((prevCount) => {
+      if (liked) {
+        // If already liked and count is 0, return 0
+        return prevCount > 0 ? prevCount - 1 : 0;
+      } else {
+        // If not liked, increment the count
+        return prevCount + 1;
+      }
+    });
+
     if (!liked) {
       setAnimate(true); // Start animation
       setTimeout(() => setAnimate(false), 500); // Stop animation after 500ms
@@ -52,14 +63,22 @@ const Reaction = ({
         await postFeedLike({ postId, smartsiteId }, accessToken);
       } else {
         const payload = { postId, smartsiteId, commentId, replyId };
-        const remove = await removeFeedLike(payload, accessToken);
+        await removeFeedLike(payload, accessToken);
         // console.log("remove like", remove);
       }
     } catch (error) {
       console.error("Error updating like status:", error);
       // Revert the like state if the API call fails
       setLiked(liked); // Reset to previous state
-      setLikeCount((prevCount) => (liked ? prevCount + 1 : prevCount - 1));
+      setLikeCount((prevCount) => {
+        if (liked) {
+          // If already liked and count is 0, return 0
+          return prevCount > 0 ? prevCount - 1 : 0;
+        } else {
+          // If not liked, increment the count
+          return prevCount + 1;
+        }
+      });
     }
   };
 
@@ -70,22 +89,26 @@ const Reaction = ({
       setSmartsiteId(user.primaryMicrosite);
     }
 
-    const fetchLikeStatus = async () => {
-      try {
-        const payload = {
-          postId,
-          smartsiteId: user.primaryMicrosite,
-          commentId,
-          replyId,
-        };
-        const like = await isPostLiked(payload, accessToken);
-        setLiked(like.liked);
-      } catch (error) {
-        console.error("Error fetching like status:", error);
-      }
-    };
-    fetchLikeStatus();
-  }, [accessToken, commentId, postId, replyId, user]);
+    // const fetchLikeStatus = async () => {
+    //   try {
+    //     const payload = {
+    //       postId,
+    //       smartsiteId: user.primaryMicrosite,
+    //       commentId,
+    //       replyId,
+    //     };
+    //     const like = await isPostLiked(payload, accessToken);
+    //     setLiked(like.liked);
+    //   } catch (error) {
+    //     console.error("Error fetching like status:", error);
+    //   }
+    // };
+    // fetchLikeStatus();
+  }, [user]);
+
+  useEffect(() => {
+    setLiked(isLiked);
+  }, []); //don't change
 
   // console.log("commentPostContent", commentPostContent);
 

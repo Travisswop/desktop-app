@@ -13,6 +13,7 @@ import {
   SolanaTokenData,
 } from '@/types/token';
 import { CHAINS } from '@/types/config';
+import { fetchPrice } from '@/components/wallet/tools/fetch_price';
 
 interface TokenAccount {
   account: SolanaTokenData;
@@ -54,6 +55,7 @@ const SWOP_TOKEN: TokenData = {
     '1M': [],
     '1Y': [],
   },
+  nativeTokenPrice: 0,
 };
 
 export class TokenAPIService {
@@ -259,6 +261,7 @@ export class TokenContractService {
       {nativeToken.symbol}.png`,
       marketData: marketData,
       sparklineData: processSparklineData(timeSeriesData),
+      isNative: true,
     };
   }
 }
@@ -324,6 +327,15 @@ export class SolanaService {
         walletAddress
       );
       if (swopTokenBalance) {
+        const swopTokenPrice = await this.fetchTokenPrice(
+          SWOP_TOKEN.address || ''
+        );
+
+        const swopTokenMarketData = {
+          ...SWOP_TOKEN.marketData,
+          price: swopTokenPrice,
+        };
+
         tokens = [
           {
             ...SWOP_TOKEN,
@@ -332,6 +344,7 @@ export class SolanaService {
               Math.pow(10, SWOP_TOKEN.decimals)
             ).toString(),
             address: SWOP_TOKEN.address || '',
+            marketData: swopTokenMarketData,
           },
           solToken,
           ...validTokenData,
@@ -375,6 +388,7 @@ export class SolanaService {
         chain: 'SOLANA',
         marketData,
         sparklineData: processSparklineData(timeSeriesData),
+        isNative: true,
       };
     } catch (error) {
       console.error('Error fetching native SOL token:', error);
@@ -471,6 +485,10 @@ export class SolanaService {
       console.error('Error fetching SWOP token balance:', error);
       return null;
     }
+  }
+
+  private static async fetchTokenPrice(mint: string) {
+    return fetchPrice(new PublicKey(mint));
   }
 }
 

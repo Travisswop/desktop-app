@@ -20,6 +20,7 @@ import logo from "@/public/logo.png";
 // import { LiaFileMedicalSolid } from "react-icons/lia";
 import filePlus from "@/public/images/file-plus.png";
 import bellIcon from "@/public/images/bell-icon.png";
+import { BiMessageSquareDots } from "react-icons/bi";
 
 export default function Header() {
   const { logout } = usePrivy();
@@ -65,15 +66,17 @@ export default function Header() {
   return (
     <header className="sticky top-0 z-30 h-20 items-center border-b bg-white px-4 flex justify-end">
       <div>
-        <Link href="/create-smartsite">
-          <Button variant="black" className="gap-2 font-bold rounded-xl">
-            {/* <LiaFileMedicalSolid size={20} /> */}
+        <Link href="/chat">
+          <button className="rounded-full w-[38px] h-[38px] bg-black flex items-center justify-center">
+            <BiMessageSquareDots color="white" size={19} />
+          </button>
+          {/* <Button variant="black" className="gap-2 font-bold rounded-xl">
             <Image src={filePlus} alt="file-plus" className="w-6 h-6" />
             Create Microsite
-          </Button>
+          </Button> */}
         </Link>
       </div>
-      <div className="bg-[#F7F7F9] p-2 rounded-full mx-3">
+      <div className="bg-[#f6f6fd] p-2 rounded-full mx-2">
         <Image src={bellIcon} alt="bell icon" className="w-7 h-7" />
       </div>
       {user && (

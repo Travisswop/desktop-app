@@ -8,6 +8,7 @@ const initialState: SendFlowState = {
   step: null,
   token: null,
   amount: '',
+  isUSD: false,
   recipient: null,
   nft: null,
   networkFee: '0',
@@ -20,11 +21,12 @@ export function useSendFlow(network: Network) {
     useState<SendFlowState>(initialState);
   const [sendLoading, setSendLoading] = useState(false);
 
-  const handleAmountConfirm = (amount: string) => {
+  const handleAmountConfirm = (amount: string, isUSD: boolean) => {
     setSendFlow((prev) => ({
       ...prev,
       step: 'recipient',
       amount,
+      isUSD,
     }));
   };
 

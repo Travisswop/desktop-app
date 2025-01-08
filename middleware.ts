@@ -84,6 +84,11 @@ class AuthMiddleware {
     return response;
   }
 
+  // New method to check if the request is from a mobile device
+  private isMobileDevice(userAgent: string): boolean {
+    return /Mobi|Android/i.test(userAgent);
+  }
+
   // Validate environment configuration
   private validateEnvironment(): void {
     if (
@@ -105,6 +110,24 @@ class AuthMiddleware {
       this.validateEnvironment();
 
       const { pathname } = req.nextUrl;
+
+      // Check if the request is from a mobile device
+      if (this.isMobileDevice(req.headers.get('user-agent') || '')) {
+        const playStoreUrl =
+          'https://play.google.com/store/apps/details?id=com.travisheron.swop&fbclid=IwAR2nRw3Ey1N0RQhFhNUfBUNA-77I_3Z7iNgJjIchiY4-5WhA7jjGLMetSTo';
+
+        const appStoreUrl =
+          'https://apps.apple.com/us/app/swopnew/id1593201322?fbclid=IwAR3yh6c7ri7DK56JEeXyOsIZHzJ4ZGNCJidFuZj-j4UCRXN8BxaK49HD3-I#?platform=iphone';
+
+        // Redirect to the app store or play store based on the user agent
+        if (req.headers.get('user-agent')?.includes('Android')) {
+          return NextResponse.redirect(
+            new URL(playStoreUrl, req.url)
+          );
+        } else {
+          return NextResponse.redirect(new URL(appStoreUrl, req.url));
+        }
+      }
 
       // Skip authentication for specific pages or if not a protected route
       if (
