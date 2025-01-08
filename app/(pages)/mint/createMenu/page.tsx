@@ -240,8 +240,9 @@ const CreateMenuPage = () => {
   };
 
   return (
-    <div className="main-container flex">
-      <div className="w-1/2 p-5">
+    <div className="main-container flex justify-center">
+      <div className="bg-white p-5 rounded-lg shadow-md border border-gray-300 w-full flex flex-wrap md:flex-nowrap">
+      <div className="w-full md:w-1/2 p-5">
         <div className="bg-white p-4 rounded-lg shadow-md border border-gray-300">
           <div className="flex flex-col gap-4">
             <h2 className="text-2xl font-bold">Create Menu</h2>
@@ -478,7 +479,7 @@ const CreateMenuPage = () => {
         </div>
       </div>
 
-      <div className="w-1/2 flex justify-center items-center p-5">
+      <div className="w-full md:w-1/2 flex justify-center items-center p-5">
         <div className="bg-white p-4 rounded-lg shadow-md border border-gray-300 w-full max-w-md aspect-[3/4] flex flex-col items-start">
           <div className="w-full aspect-square bg-gray-200 flex items-center justify-center rounded-t-lg mb-4">
             {formData.image ? (
@@ -519,6 +520,8 @@ const CreateMenuPage = () => {
             </ul>
           </div>
         </div>
+      </div>
+
       </div>
     </div>
   );

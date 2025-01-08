@@ -117,20 +117,70 @@ const MintDashboard = () => {
   }
 
   if (!mintData || ("noCollections" in mintData && mintData.noCollections)) {
+    const staticSamples = nftTypes.map((nftType) => ({
+      nftType,
+      templates: [
+        {
+          templateId: `${nftType}-sample`,
+          metadata: {
+            image: `https://cdn-icons-png.freepik.com/512/16982/16982993.png`, // Replace with your sample images
+            name: `${capitalizeFirstLetter(nftType)} Sample`,
+          },
+          supply: {
+            limit: 100,
+            minted: 0,
+          },
+        },
+      ],
+    }));
+  
     return (
       <main className="main-container">
-        <div className="bg-white p-4 text-center">
-          <h4>No collections found.</h4>
-          <Link href="/mint/createCollection">
-            <PushToMintCollectionButton className="!py-2">
-              Create Collection
-            </PushToMintCollectionButton>
-          </Link>
+        <div className="bg-white p-4">
+          <h2 className="text-center text-2xl font-bold mb-6">
+            Explore NFT Types
+          </h2>
+          {staticSamples.map((sampleGroup) => (
+            <div key={sampleGroup.nftType}>
+              <h3 className="text-xl font-semibold mb-2">
+                {capitalizeFirstLetter(sampleGroup.nftType)}
+              </h3>
+              <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 xl:gap-10">
+                {sampleGroup.templates.map((template) => (
+                  <MintCart
+                    key={template.templateId}
+                    img={template.metadata.image}
+                    title={template.metadata.name}
+                    text={`Limit: ${template.supply.limit}, Minted: ${template.supply.minted}`}
+                    collectionId="static-sample"
+                    templateId={template.templateId}
+                  />
+                ))}
+                <div
+                  className="min-h-[360px] min-w-[365px] h-full w-full"
+                  onClick={() =>
+                    (window.location.href = `/mint/create${capitalizeFirstLetter(
+                      sampleGroup.nftType
+                    )}`)
+                  }
+                >
+                  <SaveToLocalAndNavigate collectionId="static-sample" />
+                </div>
+              </div>
+            </div>
+          ))}
+          <div className="flex justify-center mt-8">
+            <Link href="/mint/createCollection">
+              <PushToMintCollectionButton className="!py-2">
+                Create Collection
+              </PushToMintCollectionButton>
+            </Link>
+          </div>
         </div>
       </main>
     );
   }
-
+  
   return (
     <main className="main-container">
       <div className="bg-white p-4">
