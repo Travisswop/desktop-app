@@ -42,6 +42,8 @@ const Timeline = ({
 
   const { user, loading, error: userError }: any = useUser();
 
+  console.log("feedData", feedData);
+
   // useEffect(() => {
   //   if (typeof window !== "undefined") {
   //     const id = localStorage.getItem("userPrimaryMicrosite");
@@ -299,6 +301,7 @@ const Timeline = ({
               </div>
               <Reaction
                 postId={feed._id}
+                isLiked={feed.isLiked}
                 likeCount={feed.likeCount}
                 commentCount={feed.commentCount}
                 repostCount={feed.repostCount}
