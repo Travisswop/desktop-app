@@ -123,7 +123,7 @@ const MintDashboard = () => {
         {
           templateId: `${nftType}-sample`,
           metadata: {
-            image: `/static/samples/${nftType}.png`, // Replace with your sample images
+            image: `https://cdn-icons-png.freepik.com/512/16982/16982993.png`, // Replace with your sample images
             name: `${capitalizeFirstLetter(nftType)} Sample`,
           },
           supply: {
