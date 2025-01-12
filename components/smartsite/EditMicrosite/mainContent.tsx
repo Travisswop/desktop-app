@@ -344,12 +344,12 @@ const EditSmartSite = ({ data, token }: any) => {
         refetch();
 
         if (deleteSmartsite?.state === "success") {
-          setDeleteLoading(false);
-          await Swal.fire({
-            title: "Deleted!",
-            text: "Your smartsite has been deleted.",
-            icon: "success",
-          });
+          // setDeleteLoading(false);
+          // await Swal.fire({
+          //   title: "Deleted!",
+          //   text: "Your smartsite has been deleted.",
+          //   icon: "success",
+          // });
           router.push("/smartsite");
           // router.refresh();
         } else if (deleteSmartsite?.state === "fail") {
