@@ -39,7 +39,6 @@ export default function Registration({
   user,
   onComplete,
 }: RegistrationProps) {
-  console.log('user', user);
   const { toast } = useToast();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [name, setName] = useState(user?.name || '');
@@ -118,10 +117,13 @@ export default function Registration({
         name,
         email: user.email,
         mobileNo: phone || '',
-        address: `${apartment || ''} ${address || ''}`.trim(),
+        address: address || '',
         bio: bio || '',
         dob: birthdate.toString(),
         profilePic: avatarUrl,
+        apt: apartment || '',
+        countryFlag: 'US',
+        countryCode: 'US',
       };
 
       // Create user and smartsite

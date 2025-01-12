@@ -11,7 +11,7 @@
   "imageOptions": { "hideBackgroundDots": true, "imageSize": 0.5, "margin": 6 },
   "dotsOptions": { "type": "extra-rounded", "color": "#f99d36" },
   "backgroundOptions": { "color": "#ffffff00" },
-  "image": "https://res.cloudinary.com/bayshore/image/upload/v1727760981/qr-logo_mwasoz_oqmux8.png",
+  "image": "https://app.apiswop.co/public/swop.jpeg",
   "dotsOptionsHelper": {
     "colorType": { "single": true, "gradient": false },
     "gradient": {

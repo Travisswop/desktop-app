@@ -64,6 +64,7 @@ export default function OrderPage() {
   const { accessToken } = useUser();
   const params = useParams();
   console.log('Params:', params);
+  console.log('token:', accessToken);
   const orderId = params.id as string;
 
   const [order, setOrder] = useState<OrderData | null>(null);

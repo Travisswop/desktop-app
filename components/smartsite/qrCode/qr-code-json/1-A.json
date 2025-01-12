@@ -11,7 +11,7 @@
   "imageOptions": { "hideBackgroundDots": true, "imageSize": 0.5, "margin": 6 },
   "dotsOptions": { "type": "dots", "color": "#f99d36" },
   "backgroundOptions": { "color": "#ffffff" },
-  "image": "https://res.cloudinary.com/dziyri2ge/image/upload/v1733291723/qr-logo_mwasoz_rovk45.png",
+  "image": "https://app.apiswop.co/public/swop.jpeg",
   "dotsOptionsHelper": {
     "colorType": { "single": true, "gradient": false },
     "gradient": {

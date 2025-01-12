@@ -1,12 +1,12 @@
-"use client";
+'use client';
 // import { Card } from "@/components/ui/card";
-import isUrl from "@/lib/isUrl";
-import { useUser } from "@/lib/UserContext";
-import { MessageCircle, FileText, Star } from "lucide-react";
-import Image from "next/image";
-import Link from "next/link";
-import { memo } from "react";
-import editIcon from "@/public/images/websites/edit-icon.svg";
+import isUrl from '@/lib/isUrl';
+import { useUser } from '@/lib/UserContext';
+import { MessageCircle, FileText, Star } from 'lucide-react';
+import Image from 'next/image';
+import Link from 'next/link';
+import { memo } from 'react';
+import editIcon from '@/public/images/websites/edit-icon.svg';
 
 const StatCard = memo(function StatCard({
   icon,
@@ -38,10 +38,10 @@ const ProfileImage = memo(function ProfileImage({
 }) {
   return (
     <div className="relative">
-      {isUrl(profilePic || "") ? (
+      {isUrl(profilePic || '') ? (
         <Image
-          src={profilePic || ""}
-          alt={name || ""}
+          src={profilePic || ''}
+          alt={name || ''}
           width={200}
           height={200}
           className="rounded-full w-14 xl:w-16 h-14 xl:h-16"
@@ -49,14 +49,14 @@ const ProfileImage = memo(function ProfileImage({
       ) : (
         <Image
           src={`/images/user_avator/${profilePic}@3x.png`}
-          alt={name || ""}
+          alt={name || ''}
           width={200}
           height={200}
           className="rounded-full w-14 xl:w-16 h-14 xl:h-16"
         />
       )}
       <Link
-        href={"/account-settings"}
+        href={'/account-settings'}
         // className="absolute bottom-0 right-0 text-gray-700 bg-white rounded-full w-6 h-6 p-[3px] border border-gray-300"
       >
         {/* <FaEdit className="absolute bottom-0 right-0 text-gray-700 bg-white rounded-full w-6 h-6 p-[3px] border border-gray-300" /> */}
@@ -87,8 +87,8 @@ const ProfileHeader = memo(function ProfileHeader() {
         {/* Profile Section */}
         <div className="flex items-center gap-3">
           <ProfileImage
-            profilePic={user?.profilePic || ""}
-            name={user?.name || ""}
+            profilePic={user?.profilePic || ''}
+            name={user?.name || ''}
           />
           <div className="">
             <div className="flex items-center gap-2">
@@ -102,12 +102,16 @@ const ProfileHeader = memo(function ProfileHeader() {
         {/* Followers Section */}
         <div className="flex gap-4">
           <div className="text-center">
-            <p className="font-semibold">{user?.followers?.toLocaleString()}</p>
+            <p className="font-semibold">
+              {user?.followers?.toLocaleString()}
+            </p>
             <p className="font-medium">Followers</p>
           </div>
           <div className="border-l-2 border-gray-700 h-5 " />
           <div className="text-center">
-            <p className="font-semibold">{user?.following?.toLocaleString()}</p>
+            <p className="font-semibold">
+              {user?.following?.toLocaleString()}
+            </p>
             <p className="font-medium">Following</p>
           </div>
         </div>
