@@ -23,7 +23,7 @@ export default function DashboardContent() {
 
       <CashflowChart />
 
-      <TestChart />
+      {/* <TestChart /> */}
 
       <DashboardAnalytics data={user} />
     </div>

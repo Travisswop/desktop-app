@@ -10,13 +10,7 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import {
-  Card,
-  CardContent,
-  CardFooter,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { Card, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { getCurrentCashFlow } from "@/actions/cashflow";
 import { useUser } from "@/lib/UserContext";
 
@@ -38,37 +32,39 @@ const CustomTooltip = ({ active, payload }: any) => {
 export default function CashflowChart() {
   const [cashflowData, setCashflowData] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [percentageChange, setPercentageChange] = useState<any>(0);
-  const [previousValue, setPreviousValue] = useState<any>(0);
-  const [currentValue, setCurrentValue] = useState<any>(0);
   const [totalCashflow, setTotalCashflow] = useState<any>(0);
   const [dateRange, setDateRange] = useState<number>(30); // Default to 30 days
-
   const { accessToken } = useUser();
+
+  // Placeholder data for loading state
+  const placeholderData = Array.from({ length: 10 }, (_, index) => ({
+    date: `Day ${index + 1}`,
+    value: 0,
+    transactions: 0,
+  }));
 
   useEffect(() => {
     const fetchData = async () => {
       try {
-        setIsLoading(true);
         if (accessToken) {
+          setIsLoading(true); // Start loading
           const monthlyCashFlow = await getCurrentCashFlow(
             accessToken,
             dateRange
           );
-          console.log("monthlyCashFlow", monthlyCashFlow);
-
           setCashflowData(monthlyCashFlow.data);
+          setIsLoading(false); // End loading
         }
-        setIsLoading(false);
       } catch (err: any) {
-        setError(err.message);
         setIsLoading(false);
       }
     };
 
-    fetchData();
-  }, [accessToken, dateRange]); // Re-fetch data when `dateRange` changes
+    if (accessToken) {
+      fetchData();
+    }
+  }, [accessToken, dateRange]); // Fetch data only when dateRange changes
 
   useEffect(() => {
     const getTotalCashflow = cashflowData.reduce(
@@ -78,15 +74,10 @@ export default function CashflowChart() {
     setTotalCashflow(getTotalCashflow);
 
     const getCurrentValue = cashflowData[cashflowData.length - 1]?.value || 0;
-    setCurrentValue(getCurrentValue);
     const getPreviousValue = cashflowData[0]?.value || 1; // Avoid division by zero
-    setPreviousValue(getPreviousValue);
-
-    const percentageChange3 = (
-      ((getCurrentValue - getPreviousValue) / getPreviousValue) *
-      100
-    ).toFixed(1);
-    setPercentageChange(percentageChange3);
+    const percentageChange =
+      ((getCurrentValue - getPreviousValue) / getPreviousValue) * 100;
+    setPercentageChange(percentageChange.toFixed(1));
   }, [cashflowData]);
 
   const handleDateRangeChange = (
@@ -94,14 +85,6 @@ export default function CashflowChart() {
   ) => {
     setDateRange(Number(event.target.value)); // Update date range when the user selects a new option
   };
-
-  if (isLoading) {
-    return <div>Loading...</div>;
-  }
-
-  if (error) {
-    return <div>Error: {error}</div>;
-  }
 
   return (
     <Card className="w-full border-none rounded-xl my-4 xl:my-6">
@@ -113,7 +96,6 @@ export default function CashflowChart() {
               ${totalCashflow}
             </div>
           </div>
-          {/* Dropdown for date range selection */}
           <div>
             <select
               value={dateRange}
@@ -127,51 +109,47 @@ export default function CashflowChart() {
           </div>
         </div>
       </CardHeader>
-      <CardContent>
-        <div className="h-[300px] mt-4">
-          <ResponsiveContainer width="100%" height="100%">
-            <AreaChart
-              data={cashflowData}
-              margin={{ top: 20, right: 20, left: 20, bottom: 20 }}
-            >
-              <defs>
-                <linearGradient id="colorGradient" x1="0" y1="0" x2="1" y2="0">
-                  <stop offset="0%" stopColor="rgba(34, 197, 94, 1)" />
-                  <stop offset="100%" stopColor="rgba(59, 130, 246, 1)" />
-                </linearGradient>
-                <linearGradient id="areaGradient" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="rgba(34, 197, 94, 0.2)" />
-                  <stop offset="100%" stopColor="rgba(59, 130, 246, 0.05)" />
-                </linearGradient>
-              </defs>
-              <CartesianGrid strokeDasharray="3 3" opacity={0.1} />
-              <XAxis
-                dataKey="date"
-                tickLine={false}
-                axisLine={false}
-                tick={{ fontSize: 12 }}
-              />
-              <YAxis
-                tickLine={false}
-                axisLine={false}
-                tick={{ fontSize: 12 }}
-                domain={[0, 1]} // Force the Y-axis to always have a visible range
-                tickFormatter={(value) => `$${value}`}
-              />
-              <Tooltip content={<CustomTooltip />} />
-              <Area
-                type="monotone"
-                dataKey="value"
-                stroke="url(#colorGradient)"
-                fill="url(#areaGradient)"
-                strokeWidth={2}
-                dot={false}
-                activeDot={{ r: 6, fill: "#22c55e" }}
-              />
-            </AreaChart>
-          </ResponsiveContainer>
-        </div>
-      </CardContent>
+      <div className="h-[400px] relative">
+        {isLoading && (
+          <div className="absolute inset-0 flex items-center justify-center bg-opacity-50 bg-white z-10">
+            <div className="loader border-t-4 border-blue-500 rounded-full w-8 h-8 animate-spin"></div>
+          </div>
+        )}
+        <ResponsiveContainer width="100%" height="100%">
+          <AreaChart
+            data={isLoading ? placeholderData : cashflowData}
+            margin={{ top: 10, right: 30, left: 0, bottom: 0 }}
+          >
+            <defs>
+              <linearGradient id="colorValue" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor="#CFFAD6" stopOpacity={1} />
+                <stop offset="100%" stopColor="#EFFDF1" stopOpacity={1} />
+              </linearGradient>
+            </defs>
+            <CartesianGrid strokeDasharray="3 3" opacity={0.1} />
+            <XAxis
+              dataKey="date"
+              tickLine={false}
+              axisLine={false}
+              tick={{ fontSize: 12 }}
+            />
+            <YAxis
+              tickLine={false}
+              tick={{ fontSize: 12 }}
+              domain={["auto", "auto"]}
+              tickFormatter={(value) => `$${value.toLocaleString()}`}
+            />
+            <Tooltip content={<CustomTooltip />} />
+            <Area
+              type="monotone"
+              dataKey="value"
+              stroke="#9BEBB5"
+              strokeWidth={2.5}
+              fill="url(#colorValue)"
+            />
+          </AreaChart>
+        </ResponsiveContainer>
+      </div>
       <CardFooter>
         <div className="flex items-center gap-2 text-sm">
           <span
