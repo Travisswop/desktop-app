@@ -59,7 +59,7 @@ const Transaction = ({
     }
   }, [user]);
 
-  console.log("smartsiteId", typeof smartsiteId);
+  console.log("transactions feedData", feedData);
 
   dayjs.extend(relativeTime);
 
@@ -194,44 +194,44 @@ const Transaction = ({
                     </p>
                   </div>
                   {/* Post Content */}
-                  {feed.postType === "post" && feed.content.title && (
-                    <div>
-                      {feed.content.title
-                        .split("\n")
-                        .map((line: any, index: number) => (
-                          <p className="break-text" key={index}>
-                            {line}
-                          </p>
-                        ))}
-                    </div>
-                  )}
-                  {/* Additional Post Types */}
-                  {feed.postType === "connection" && (
-                    <p className="text-gray-600 text-sm">
-                      Connected with{" "}
-                      <span className="text-gray-700 font-medium text-base">
-                        {feed.content.connectedSmartsiteName}
-                      </span>
-                    </p>
-                  )}
-                  {feed.postType === "ensClaim" && (
-                    <p className="text-gray-600 text-sm">
-                      Claim a new ENS{" "}
-                      <span className="text-gray-700 font-medium text-base">
-                        {feed.content.claimEnsName}
-                      </span>
-                    </p>
-                  )}
                   {feed.postType === "transaction" && (
-                    <p className="text-gray-600 text-sm">
-                      Created a new transaction{" "}
-                      <span className="text-gray-700 font-medium text-base">{`${feed.content.receiver_wallet_address.slice(
-                        0,
-                        5
-                      )}....${feed.content.receiver_wallet_address.slice(
-                        -5
-                      )}`}</span>
-                    </p>
+                    <div>
+                      <p className="text-gray-600 text-sm">
+                        {feed.content.transaction_type == "nft"
+                          ? `Send ${feed.content.name} nft to `
+                          : `Created a new ${feed.content.transaction_type} transaction to `}
+                        {feed.content.transaction_type == "nft" &&
+                        !feed.content.receiver_ens ? (
+                          <span className="text-gray-700 font-medium text-base">{`${feed.content.receiver_wallet_address.slice(
+                            0,
+                            5
+                          )}....${feed.content.receiver_wallet_address.slice(
+                            -5
+                          )}`}</span>
+                        ) : (
+                          feed.content.receiver_ens
+                        )}
+                      </p>
+                      {feed.content.transaction_type == "nft" && (
+                        <div className="w-52">
+                          <Image
+                            src={feed.content.image}
+                            alt="nft image"
+                            width={300}
+                            height={300}
+                            className="w-full h-auto"
+                          />
+                          <p className="text-sm text-gray-600 font-medium mt-0.5 text-center">
+                            {feed.content.amount} {feed.content.currency}
+                          </p>
+                        </div>
+                      )}
+                      {feed.content.transaction_type != "nft" && (
+                        <p className="text-sm text-gray-600 font-medium mt-0.5">
+                          {feed.content.amount} {feed.content.currency}
+                        </p>
+                      )}
+                    </div>
                   )}
                 </div>
                 {userId === feed.userId && (
@@ -263,37 +263,9 @@ const Transaction = ({
                   </div>
                 )}
               </div>
-              <div>
-                {/* Post Media */}
-                {feed.postType === "post" &&
-                  feed.content.post_content.length > 0 && (
-                    <PostTypeMedia mediaFiles={feed.content.post_content} />
-                  )}
-                {feed.postType === "minting" && (
-                  <div className="w-max">
-                    <p>{feed.content.title}</p>
-                    <div className="shadow-medium bg-white rounded-lg mt-2 p-2 relative">
-                      <Link href={feed.content.link} className="w-max">
-                        <Image
-                          src={feed.content.image}
-                          alt="nft image"
-                          width={200}
-                          height={200}
-                        />
-                        <p className="text-center text-sm text-gray-500 font-medium">
-                          {feed.content.price}
-                        </p>
-                        <FiPlusCircle
-                          className="absolute top-2 right-2"
-                          size={24}
-                        />
-                      </Link>
-                    </div>
-                  </div>
-                )}
-              </div>
               <Reaction
                 postId={feed._id}
+                isLiked={feed.isLiked}
                 likeCount={feed.likeCount}
                 commentCount={feed.commentCount}
                 repostCount={feed.repostCount}

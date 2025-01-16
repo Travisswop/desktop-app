@@ -205,15 +205,43 @@ const Feed = ({
                     </p>
                   )}
                   {feed.postType === "transaction" && (
-                    <p className="text-gray-600 text-sm">
-                      Created a new transaction{" "}
-                      <span className="text-gray-700 font-medium text-base">{`${feed.content.receiver_wallet_address.slice(
-                        0,
-                        5
-                      )}....${feed.content.receiver_wallet_address.slice(
-                        -5
-                      )}`}</span>
-                    </p>
+                    <div>
+                      <p className="text-gray-600 text-sm">
+                        {feed.content.transaction_type == "nft"
+                          ? `Send ${feed.content.name} nft to `
+                          : `Created a new ${feed.content.transaction_type} transaction to `}
+                        {feed.content.transaction_type == "nft" &&
+                        !feed.content.receiver_ens ? (
+                          <span className="text-gray-700 font-medium text-base">{`${feed.content.receiver_wallet_address.slice(
+                            0,
+                            5
+                          )}....${feed.content.receiver_wallet_address.slice(
+                            -5
+                          )}`}</span>
+                        ) : (
+                          feed.content.receiver_ens
+                        )}
+                      </p>
+                      {feed.content.transaction_type == "nft" && (
+                        <div className="w-52">
+                          <Image
+                            src={feed.content.image}
+                            alt="nft image"
+                            width={300}
+                            height={300}
+                            className="w-full h-auto"
+                          />
+                          <p className="text-xs text-gray-600 font-medium mt-[1px] text-center">
+                            {feed.content.amount} {feed.content.currency}
+                          </p>
+                        </div>
+                      )}
+                      {feed.content.transaction_type != "nft" && (
+                        <p className="text-sm text-gray-600 font-medium mt-0.5">
+                          {feed.content.amount} {feed.content.currency}
+                        </p>
+                      )}
+                    </div>
                   )}
                 </div>
                 {userId === feed.userId && (
