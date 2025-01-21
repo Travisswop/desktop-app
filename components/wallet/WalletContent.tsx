@@ -40,7 +40,6 @@ import WalletQRModal from './wallet-qr-modal';
 import WalletQRShare from './wallet-qr-share-modal';
 import QRCodeShareModal from '../smartsite/socialShare/QRCodeShareModal';
 import MessageList from './message-list';
-import { postFeed } from '@/actions/postFeed';
 import { useUser } from '@/lib/UserContext';
 
 export default function WalletContent() {
@@ -86,7 +85,6 @@ const WalletContentInner = () => {
   const [qrcodeShareUrl, setQrcodeShareUrl] = useState('');
   const [QRCodeShareModalOpen, setQRCodeShareModalOpen] =
     useState(false);
-  const [token, setToken] = useState('');
 
   const [payload, setPayload] = useState({
     smartsiteId: '',
@@ -110,6 +108,7 @@ const WalletContentInner = () => {
   // Hooks
   const { authenticated, ready, user: PrivyUser } = usePrivy();
   const { wallets: ethWallets } = useWallets();
+
   const { createWallet, wallets: solanaWallets } = useSolanaWallets();
   const { toast } = useToast();
   const { user } = useUser();
@@ -130,8 +129,6 @@ const WalletContentInner = () => {
       const primaryMicrositeData = user?.microsites?.find(
         (microsite) => microsite.primary
       );
-      console.log('primaryMicrositeData', primaryMicrositeData);
-
       setPayload((prevPayload) => ({
         ...prevPayload, // Preserve other fields in the payload
         smartsiteId: user?.primaryMicrosite,
@@ -264,7 +261,7 @@ const WalletContentInner = () => {
     //   hash: '0xhdlsfjsljfladjflsajfljdslafjldjfsjf',
     //   step: 'success',
     // }));
-    return;
+    //return;
 
     try {
       let hash = '';

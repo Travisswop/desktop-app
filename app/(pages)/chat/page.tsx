@@ -87,7 +87,7 @@ const getPeerData = async (peerAddresses: string[]) => {
 };
 
 const ChatPageContent = () => {
-  const xmtpClient = useXmtpContext();
+  const { client: xmtpClient } = useXmtpContext();
   const { user: PrivyUser } = usePrivy();
   const searchParams = useSearchParams();
 
@@ -121,9 +121,9 @@ const ChatPageContent = () => {
 
     try {
       const conversations = await xmtpClient.conversations.list();
-      const peerList = conversations.map((conversation) => {
-        return conversation.peerAddress;
-      });
+      const peerList = conversations.map(
+        (conversation: any) => conversation.peerAddress
+      );
       setPeerAddressList(peerList);
     } catch (error) {
       console.error('Failed to fetch conversations:', error);

@@ -48,6 +48,7 @@ export interface TokenData {
     '1Y': Array<{ timestamp: number; value: number }>;
   };
   isNative?: boolean;
+  nativeTokenPrice?: number;
 }
 
 export interface SolanaTokenData {

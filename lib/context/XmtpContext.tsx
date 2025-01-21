@@ -13,7 +13,17 @@ import { useWallets } from '@privy-io/react-auth';
 import { usePrivyUser } from '@/lib/hooks/usePrivyUser';
 import { usePathname } from 'next/navigation';
 
-const XmtpContext = createContext<Client | null>(null);
+interface XmtpContextType {
+  client: Client | null;
+  isLoading: boolean;
+  error: Error | null;
+}
+
+const XmtpContext = createContext<XmtpContextType>({
+  client: null,
+  isLoading: false,
+  error: null,
+});
 
 export const XmtpProvider: React.FC<{
   children: React.ReactNode;
@@ -24,8 +34,9 @@ export const XmtpProvider: React.FC<{
   const xmtpClientRef = useRef<Client | null>(null);
   const initializingRef = useRef(false);
   const pathname = usePathname();
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<Error | null>(null);
 
-  // Memoize the wallet and linked account information
   const linkedEthereumWallet = useMemo(() => {
     if (!wallets?.length || !user?.linkedAccounts?.length)
       return null;
@@ -46,21 +57,18 @@ export const XmtpProvider: React.FC<{
   }, [wallets, user]);
 
   useEffect(() => {
-    // Reset client if on login or onboard pages
     if (pathname === '/login' || pathname === '/onboard') {
       setXmtpClient(null);
       xmtpClientRef.current = null;
       return;
     }
 
-    // Only initialize if we have a valid wallet
     if (!linkedEthereumWallet) {
       setXmtpClient(null);
       xmtpClientRef.current = null;
       return;
     }
 
-    // Check if we already have a client initialized
     if (
       xmtpClientRef.current?.address?.toLowerCase() ===
       linkedEthereumWallet.address.toLowerCase()
@@ -68,87 +76,118 @@ export const XmtpProvider: React.FC<{
       return;
     }
 
-    // Prevent concurrent initializations
     if (initializingRef.current) return;
 
     const initXmtp = async () => {
       try {
+        setIsLoading(true);
         initializingRef.current = true;
 
-        // Try to load from local storage first
-        const keys = localStorage.getItem(
-          `xmtp-keys-${linkedEthereumWallet.address.toLowerCase()}`
+        // Get current wallet address in lowercase for consistency
+        const walletAddress =
+          linkedEthereumWallet.address.toLowerCase();
+
+        // Check for stored XMTP keys with a more secure key format
+        const storedKeysData = localStorage.getItem(
+          `xmtp-keys-${walletAddress}`
         );
 
-        let client;
-
-        if (keys) {
+        if (storedKeysData) {
           try {
-            // Create client with stored keys
-            client = await Client.create(null, {
-              env: 'production',
-              privateKeyOverride: new Uint8Array(
-                Buffer.from(keys, 'hex')
-              ),
-            });
-          } catch (err) {
-            console.log('🚀 ~ initXmtp ~ err:', err);
-            // Clear invalid keys from local storage
-            localStorage.removeItem(
-              `xmtp-keys-${linkedEthereumWallet.address.toLowerCase()}`
+            const { keys, address } = JSON.parse(storedKeysData);
+
+            // Verify the stored keys belong to the current wallet
+            if (address.toLowerCase() === walletAddress) {
+              const client = await Client.create(null, {
+                env: 'production',
+                privateKeyOverride: new Uint8Array(keys),
+              });
+
+              // Double check the created client matches the wallet address
+              if (client.address.toLowerCase() === walletAddress) {
+                setXmtpClient(client);
+                xmtpClientRef.current = client;
+                return;
+              }
+            }
+
+            // If validation fails, remove the invalid keys
+            console.warn(
+              'Stored XMTP keys do not match current wallet'
             );
+            localStorage.removeItem(`xmtp-keys-${walletAddress}`);
+          } catch (err) {
+            console.error(
+              'Failed to create client with stored keys:',
+              err
+            );
+            localStorage.removeItem(`xmtp-keys-${walletAddress}`);
           }
         }
 
-        if (!client) {
-          // Create new client and store keys
-          const signer = {
-            account: linkedEthereumWallet.address,
-            signMessage: async (message: string) => {
-              try {
-                return await linkedEthereumWallet.sign(message);
-              } catch (err) {
-                console.error('Failed to sign message:', err);
-                throw err;
-              }
-            },
-            getAddress: () =>
-              Promise.resolve(linkedEthereumWallet.address),
-          };
+        // Create new client if no valid stored keys
+        const provider =
+          await linkedEthereumWallet.getEthereumProvider();
+        const signer = {
+          getAddress: () => Promise.resolve(walletAddress),
+          signMessage: async (message: string) => {
+            try {
+              return await provider.request({
+                method: 'personal_sign',
+                params: [message, walletAddress],
+              });
+            } catch (err) {
+              console.error('Failed to sign message:', err);
+              throw err;
+            }
+          },
+        };
 
-          // Store the wallet address in localStorage
-          localStorage.setItem(
-            `xmtp-signer-address-${linkedEthereumWallet.address.toLowerCase()}`,
-            linkedEthereumWallet.address
-          );
+        // Get keys first (requires one signature)
+        const keys = await Client.getKeys(signer, {
+          env: 'production',
+        });
 
-          client = await Client.create(signer, {
-            env: 'production',
-          });
+        // Create client using the keys (no signature needed)
+        const client = await Client.create(null, {
+          env: 'production',
+          privateKeyOverride: keys,
+        });
 
-          // Store keys in localStorage
-          localStorage.setItem(
-            `xmtp-keys-${linkedEthereumWallet.address.toLowerCase()}`,
-            client.toString()
-          );
-        }
+        // Store keys with wallet address for validation
+        localStorage.setItem(
+          `xmtp-keys-${walletAddress}`,
+          JSON.stringify({
+            keys: Array.from(keys),
+            address: walletAddress,
+            timestamp: Date.now(), // Add timestamp for potential key rotation
+          })
+        );
 
         setXmtpClient(client);
         xmtpClientRef.current = client;
       } catch (error) {
         console.error('XMTP client initialization failed:', error);
+        setError(
+          error instanceof Error
+            ? error
+            : new Error('Failed to initialize XMTP')
+        );
         setXmtpClient(null);
         xmtpClientRef.current = null;
       } finally {
+        setIsLoading(false);
         initializingRef.current = false;
       }
     };
 
     initXmtp();
-  }, [linkedEthereumWallet, pathname]);
+  }, [linkedEthereumWallet, pathname, user]);
 
   return (
-    <XmtpContext.Provider value={xmtpClient}>
+    <XmtpContext.Provider
+      value={{ client: xmtpClient, isLoading, error }}
+    >
       {children}
     </XmtpContext.Provider>
   );
@@ -156,11 +195,10 @@ export const XmtpProvider: React.FC<{
 
 export const useXmtpContext = () => {
   const context = useContext(XmtpContext);
-  if (context === null) {
-    console.warn(
+  if (!context) {
+    throw new Error(
       'useXmtpContext must be used within an XmtpProvider'
     );
-    return null;
   }
   return context;
 };

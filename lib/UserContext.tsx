@@ -12,6 +12,7 @@ import { useRouter, usePathname } from 'next/navigation';
 import { usePrivy } from '@privy-io/react-auth';
 
 export interface UserData {
+  primaryMicrosite: string;
   _id: string;
   address?: string;
   apt?: string;

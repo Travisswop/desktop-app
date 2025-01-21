@@ -21,7 +21,8 @@ interface MessageProps {
 }
 
 const MessageList = () => {
-  const xmtpClient = useXmtpContext();
+  const { client: xmtpClient, isLoading: xmtpIsLoading } =
+    useXmtpContext();
   const [peerAddressList, setPeerAddressList] = useState<string[]>(
     []
   );
@@ -30,6 +31,7 @@ const MessageList = () => {
   const [searchResult, setSearchResult] = useState<PeerData | null>(
     null
   );
+
   const { peerData, isLoading, error } = usePeerData(peerAddressList);
 
   const fetchConversations = useCallback(async () => {
@@ -136,6 +138,47 @@ const MessageList = () => {
       setSearchResult(null);
     }
   };
+
+  if (xmtpIsLoading)
+    return (
+      <Card className="w-full border-none rounded-xl">
+        <CardHeader>
+          <div className="flex items-center gap-2">
+            <MessageCircle className="h-5 w-5" />
+            <CardTitle>Messages</CardTitle>
+          </div>
+          <p className="text-sm text-muted-foreground">
+            Chat with your connections
+          </p>
+        </CardHeader>
+        <CardContent>
+          <div className="flex items-center mb-6">
+            <Input
+              type="text"
+              value={searchQuery}
+              onChange={handleSearchInputChange}
+              placeholder="Search messages..."
+              className="border rounded-e-none p-2 text-sm focus-visible:ring-0 focus-visible:ring-offset-0"
+            />
+            <Button
+              variant="black"
+              size="icon"
+              className="rounded-s-none px-6 font-bold"
+            >
+              <Search className="h-5 w-5" />
+            </Button>
+          </div>
+          {isSearchLoading && (
+            <p className="text-center text-sm text-gray-500">
+              Searching...
+            </p>
+          )}
+          <div className="max-h-[400px] overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100">
+            <p className="text-center">Loading messages...</p>
+          </div>
+        </CardContent>
+      </Card>
+    );
 
   return (
     <Card className="w-full border-none rounded-xl">

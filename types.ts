@@ -28,7 +28,7 @@ export interface UserData {
     };
     referral: any[];
   };
-  primaryMicrosite: string;
+  primaryMicrosite?: string;
   profilePic: string;
   referralCode: string;
   referralLink: string;
