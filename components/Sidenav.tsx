@@ -1,6 +1,6 @@
-"use client";
-import Image from "next/image";
-import Link from "next/link";
+'use client';
+import Image from 'next/image';
+import Link from 'next/link';
 import {
   QrCode,
   Wallet,
@@ -11,26 +11,28 @@ import {
   LayoutDashboard,
   Newspaper,
   LayoutGrid,
-} from "lucide-react";
-import { usePathname, useRouter } from "next/navigation";
-import { cn } from "@/lib/utils";
-import swopLogo from "@/public/images/swop-logo.png";
-import { MdOutlineShoppingCart } from "react-icons/md";
-import { useState } from "react";
-import { HiOutlineLogout } from "react-icons/hi";
-import { usePrivy } from "@privy-io/react-auth";
-import { useUser } from "@/lib/UserContext";
+  Bot,
+} from 'lucide-react';
+import { usePathname, useRouter } from 'next/navigation';
+import { cn } from '@/lib/utils';
+import swopLogo from '@/public/images/swop-logo.png';
+import { MdOutlineShoppingCart } from 'react-icons/md';
+import { useState } from 'react';
+import { HiOutlineLogout } from 'react-icons/hi';
+import { usePrivy } from '@privy-io/react-auth';
+import { useUser } from '@/lib/UserContext';
 
 const navItems = [
-  { href: "/", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/feed", label: "Feed", icon: Newspaper },
-  { href: "/smartsite", label: "Smartsites", icon: LayoutGrid },
-  { href: "/qr-code", label: "QR Code", icon: QrCode },
-  { href: "/wallet", label: "Wallet", icon: Wallet },
-  { href: "/analytics", label: "Analytics", icon: BarChart2 },
-  { href: "/mint", label: "Mint", icon: ImageIcon },
-  { href: "/order", label: "Orders", icon: ShoppingBag },
-  { href: "/content", label: "Content", icon: FileText },
+  { href: '/', label: 'Dashboard', icon: LayoutDashboard },
+  { href: '/feed', label: 'Feed', icon: Newspaper },
+  { href: '/smartsite', label: 'Smartsites', icon: LayoutGrid },
+  { href: '/qr-code', label: 'QR Code', icon: QrCode },
+  { href: '/wallet', label: 'Wallet', icon: Wallet },
+  { href: '/analytics', label: 'Analytics', icon: BarChart2 },
+  { href: '/mint', label: 'Mint', icon: ImageIcon },
+  { href: '/order', label: 'Orders', icon: ShoppingBag },
+  { href: '/content', label: 'Content', icon: FileText },
+  { href: '/agent', lable: 'Agent', icon: Bot },
 ];
 
 export default function Sidenav() {
@@ -45,7 +47,7 @@ export default function Sidenav() {
   const handleLogout = async () => {
     // Prevent multiple logout attempts
     if (isLoggingOut) {
-      console.log("Logout already in progress");
+      console.log('Logout already in progress');
       return;
     }
 
@@ -55,9 +57,9 @@ export default function Sidenav() {
       clearCache();
 
       // Perform logout and navigation in parallel for better performance
-      await Promise.all([logout(), router.replace("/login")]);
+      await Promise.all([logout(), router.replace('/login')]);
     } catch (error) {
-      console.error("Logout failed:", error);
+      console.error('Logout failed:', error);
       // Revert loading state on error
       setIsLoggingOut(false);
       throw error; // Re-throw to allow error handling by parent components
@@ -82,7 +84,7 @@ export default function Sidenav() {
         <div className="h-full flex flex-col overflow-y-auto">
           <nav
             className={`${
-              hideUpgradePlan ? "flex-1" : "pb-10"
+              hideUpgradePlan ? 'flex-1' : 'pb-10'
             } space-y-1 px-2 pt-4`}
           >
             <ul className="flex-1 px-2 py-2 space-y-1 font-normal">
@@ -92,17 +94,17 @@ export default function Sidenav() {
                 // Check if pathname starts with item's href
                 const isActive =
                   pathname === item.href ||
-                  pathname.startsWith(item.href + "/");
+                  pathname.startsWith(item.href + '/');
 
                 return (
                   <li key={item.href}>
                     <Link
                       href={item.href}
                       className={cn(
-                        "flex items-center gap-3 rounded-lg px-3 py-2 text-[#424651]",
+                        'flex items-center gap-3 rounded-lg px-3 py-2 text-[#424651]',
                         isActive
-                          ? "bg-[#efeff7] hover:bg-[#efeff7] text-[#2f333d]"
-                          : "hover:bg-[#efeff7]"
+                          ? 'bg-[#efeff7] hover:bg-[#efeff7] text-[#2f333d]'
+                          : 'hover:bg-[#efeff7]'
                       )}
                     >
                       <Icon className="h-4 w-4" />
@@ -121,7 +123,9 @@ export default function Sidenav() {
                   size={20}
                   className="mb-3"
                 />
-                <h5 className="mb-2 font-medium">Unlock Unlimited Access</h5>
+                <h5 className="mb-2 font-medium">
+                  Unlock Unlimited Access
+                </h5>
                 <p className="mb-3 text-xs text-gray-600 font-normal">
                   Free NFC with a yearly <br /> subscription
                 </p>
@@ -133,7 +137,7 @@ export default function Sidenav() {
                     Dismiss
                   </button>
                   <Link
-                    href={"/account-settings?upgrade=true"}
+                    href={'/account-settings?upgrade=true'}
                     className="text-black font-semibold"
                   >
                     Upgrade Plan

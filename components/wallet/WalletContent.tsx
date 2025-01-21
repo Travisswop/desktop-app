@@ -266,84 +266,86 @@ const WalletContentInner = () => {
     // }));
     //return;
 
-    // try {
-    //   let hash = "";
-    //   let newTransaction;
+    try {
+      let hash = '';
+      let newTransaction;
 
-    //   const connection = new Connection(
-    //     process.env.NEXT_PUBLIC_QUICKNODE_SOLANA_URL!,
-    //     "confirmed"
-    //   );
+      const connection = new Connection(
+        process.env.NEXT_PUBLIC_QUICKNODE_SOLANA_URL!,
+        'confirmed'
+      );
 
-    //   const solanaWallet = solanaWallets.find(
-    //     (w: any) => w.walletClientType === "privy"
-    //   );
+      const solanaWallet = solanaWallets.find(
+        (w: any) => w.walletClientType === 'privy'
+      );
 
-    //   const linkedEthereumWallet = PrivyUser?.linkedAccounts.find(
-    //     (item: any) => item.chainType === "ethereum" && item.address
-    //   );
+      const linkedEthereumWallet = PrivyUser?.linkedAccounts.find(
+        (item: any) => item.chainType === 'ethereum' && item.address
+      );
 
-    //   const evmWallet = ethWallets.find(
-    //     (w) =>
-    //       w.address?.toLowerCase() ===
-    //       (linkedEthereumWallet as any)?.address?.toLowerCase()
-    //   );
+      const evmWallet = ethWallets.find(
+        (w) =>
+          w.address?.toLowerCase() ===
+          (linkedEthereumWallet as any)?.address?.toLowerCase()
+      );
 
-    //   if (sendFlow.nft) {
-    //     if (network === "SOLANA") {
-    //       hash = await TransactionService.handleSolanaNFTTransfer(
-    //         solanaWallet,
-    //         sendFlow,
-    //         connection
-    //       );
-    //     } else {
-    //       await evmWallet?.switchChain(CHAIN_ID[network]);
-    //       hash = await TransactionService.handleNFTTransfer(
-    //         evmWallet,
-    //         sendFlow
-    //       );
-    //     }
-    //     refetchNFTs();
-    //   } else {
-    //     // Handle token transfer
-    //     if (sendFlow.token?.chain === "SOLANA") {
-    //       hash = await TransactionService.handleSolanaSend(
-    //         solanaWallet,
-    //         sendFlow,
-    //         connection
-    //       );
-    //     } else {
-    //       const result = await TransactionService.handleEVMSend(
-    //         evmWallet,
-    //         sendFlow,
-    //         network
-    //       );
-    //       hash = result.hash;
-    //       newTransaction = result.transaction;
-    //     }
-    //   }
+      if (sendFlow.nft) {
+        if (network === 'SOLANA') {
+          hash = await TransactionService.handleSolanaNFTTransfer(
+            solanaWallet,
+            sendFlow,
+            connection
+          );
+        } else {
+          await evmWallet?.switchChain(CHAIN_ID[network]);
+          hash = await TransactionService.handleNFTTransfer(
+            evmWallet,
+            sendFlow
+          );
+        }
+        refetchNFTs();
+      } else {
+        // Handle token transfer
+        if (sendFlow.token?.chain === 'SOLANA') {
+          hash = await TransactionService.handleSolanaSend(
+            solanaWallet,
+            sendFlow,
+            connection
+          );
+        } else {
+          const result = await TransactionService.handleEVMSend(
+            evmWallet,
+            sendFlow,
+            network
+          );
+          hash = result.hash;
+          newTransaction = result.transaction;
+        }
+      }
 
-    //   setSendFlow((prev) => ({
-    //     ...prev,
-    //     hash,
-    //     step: "success",
-    //   }));
+      setSendFlow((prev) => ({
+        ...prev,
+        hash,
+        step: 'success',
+      }));
 
-    //   if (newTransaction) {
-    //     setNewTransactions([newTransaction]);
-    //   }
-    // } catch (error) {
-    //   console.error("Error sending token/NFT:", error);
-    //   toast({
-    //     variant: "destructive",
-    //     title: "Error",
-    //     description:
-    //       error instanceof Error ? error.message : "Failed to send transaction",
-    //   });
-    //   resetSendFlow();
-    // } finally {
-    //   setSendLoading(false);
-    // }
+      if (newTransaction) {
+        setNewTransactions([newTransaction]);
+      }
+    } catch (error) {
+      console.error('Error sending token/NFT:', error);
+      toast({
+        variant: 'destructive',
+        title: 'Error',
+        description:
+          error instanceof Error
+            ? error.message
+            : 'Failed to send transaction',
+      });
+      resetSendFlow();
+    } finally {
+      setSendLoading(false);
+    }
   };
 
   // UI Event handlers
@@ -374,7 +376,6 @@ const WalletContentInner = () => {
           }
           onQRClick={() => setWalletQRModalOpen(true)}
         />
-        {/* <MessageBox /> */}
         <MessageList />
       </div>
 
