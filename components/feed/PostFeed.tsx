@@ -181,7 +181,7 @@ const PostFeed = ({
 
           {/* Render media files */}
           {mediaFiles.length > 0 && (
-            <div className="mt-4 w-4/5 xl:w-2/3 2xl:w-1/2">
+            <div className="mt-4 w-full">
               {mediaFiles.length === 1 && (
                 <div className="relative w-full min-h-96 max-h-[30rem] border border-black bg-black rounded-2xl overflow-hidden">
                   <button

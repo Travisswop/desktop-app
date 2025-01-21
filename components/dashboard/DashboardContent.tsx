@@ -4,6 +4,7 @@ import { Skeleton } from "../ui/skeleton";
 import ProfileHeader from "./profile-header";
 import CashflowChart from "./cashflow-chart";
 import DashboardAnalytics from "./analytics";
+import TestChart from "./test-chart";
 
 export default function DashboardContent() {
   const { user, loading, error } = useUser();
@@ -21,6 +22,8 @@ export default function DashboardContent() {
       <ProfileHeader />
 
       <CashflowChart />
+
+      {/* <TestChart /> */}
 
       <DashboardAnalytics data={user} />
     </div>

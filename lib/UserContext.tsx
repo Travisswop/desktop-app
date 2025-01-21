@@ -12,7 +12,6 @@ import { useRouter, usePathname } from 'next/navigation';
 import { usePrivy } from '@privy-io/react-auth';
 
 export interface UserData {
-  primaryMicrosite: string;
   _id: string;
   address?: string;
   apt?: string;
@@ -30,10 +29,12 @@ export interface UserData {
   followers: number;
   following: number;
   ensName?: string;
+  primaryMicrosite?: string;
 }
 
 interface UserContextType {
   user: UserData | null;
+  primaryMicrosite?: string;
   accessToken: string | null;
   loading: boolean;
   error: Error | null;
@@ -41,7 +42,7 @@ interface UserContextType {
   clearCache: () => void;
 }
 
-const UserContext = createContext<UserContextType>({
+const UserContext = createContext<any>({
   user: null,
   accessToken: null,
   loading: true,
