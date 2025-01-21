@@ -113,8 +113,6 @@ const WalletContentInner = () => {
   const { toast } = useToast();
   const { user } = useUser();
 
-  console.log('userss', user);
-
   const {
     sendFlow,
     setSendFlow,

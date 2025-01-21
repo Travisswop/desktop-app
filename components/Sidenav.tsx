@@ -17,12 +17,13 @@ import { usePathname, useRouter } from 'next/navigation';
 import { cn } from '@/lib/utils';
 import swopLogo from '@/public/images/swop-logo.png';
 import { MdOutlineShoppingCart } from 'react-icons/md';
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { HiOutlineLogout } from 'react-icons/hi';
 import { usePrivy } from '@privy-io/react-auth';
 import { useUser } from '@/lib/UserContext';
 
-const navItems = [
+// First, create the base nav items without the Agent item
+const baseNavItems = [
   { href: '/', label: 'Dashboard', icon: LayoutDashboard },
   { href: '/feed', label: 'Feed', icon: Newspaper },
   { href: '/smartsite', label: 'Smartsites', icon: LayoutGrid },
@@ -32,17 +33,27 @@ const navItems = [
   { href: '/mint', label: 'Mint', icon: ImageIcon },
   { href: '/order', label: 'Orders', icon: ShoppingBag },
   { href: '/content', label: 'Content', icon: FileText },
-  { href: '/agent', lable: 'Agent', icon: Bot },
 ];
 
 export default function Sidenav() {
   const [hideUpgradePlan, setHideUpgradePlan] = useState(true);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
 
-  const { loading, clearCache } = useUser();
+  const { email, clearCache } = useUser();
   const pathname = usePathname();
   const { logout } = usePrivy();
   const router = useRouter();
+
+  // Create the final nav items array based on email
+  const navItems = useMemo(() => {
+    if (email === 'salman@gmail.com') {
+      return [
+        ...baseNavItems,
+        { href: '/agent', label: 'Agent', icon: Bot },
+      ];
+    }
+    return baseNavItems;
+  }, [email]);
 
   const handleLogout = async () => {
     // Prevent multiple logout attempts
