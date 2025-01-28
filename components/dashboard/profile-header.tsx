@@ -1,12 +1,20 @@
-'use client';
+"use client";
 // import { Card } from "@/components/ui/card";
-import isUrl from '@/lib/isUrl';
-import { useUser } from '@/lib/UserContext';
-import { MessageCircle, FileText, Star } from 'lucide-react';
-import Image from 'next/image';
-import Link from 'next/link';
-import { memo } from 'react';
-import editIcon from '@/public/images/websites/edit-icon.svg';
+import isUrl from "@/lib/isUrl";
+import { useUser } from "@/lib/UserContext";
+import {
+  MessageCircle,
+  // FileText,
+  // Star,
+  // LucideMessageCircleMore,
+} from "lucide-react";
+import Image from "next/image";
+import Link from "next/link";
+import { memo, useEffect, useState } from "react";
+import editIcon from "@/public/images/websites/edit-icon.svg";
+import { MdRedeem } from "react-icons/md";
+import { FaRegFileAlt } from "react-icons/fa";
+// import { AiOutlineMessage } from "react-icons/ai";
 
 const StatCard = memo(function StatCard({
   icon,
@@ -19,11 +27,11 @@ const StatCard = memo(function StatCard({
 }) {
   return (
     <div className="flex flex-col items-center gap-2 p-2 2xl:p-4 min-w-28 2xl:min-w-[140px] shadow-medium rounded-lg">
-      <div className="flex w-full justify-center items-center bg-gray-100 rounded-md py-2">
-        {icon} <span className="text-2xl font-bold">{value}</span>
+      <div className="flex gap-1 w-full justify-center items-center bg-gray-100 rounded-md p-2">
+        {icon} <span className="text-xl font-bold">{value}</span>
       </div>
       <div>
-        <p className="text-sm ">{label}</p>
+        <p className="text-sm font-medium">{label}</p>
       </div>
     </div>
   );
@@ -38,10 +46,10 @@ const ProfileImage = memo(function ProfileImage({
 }) {
   return (
     <div className="relative">
-      {isUrl(profilePic || '') ? (
+      {isUrl(profilePic || "") ? (
         <Image
-          src={profilePic || ''}
-          alt={name || ''}
+          src={profilePic || ""}
+          alt={name || ""}
           width={200}
           height={200}
           className="rounded-full w-14 xl:w-16 h-14 xl:h-16"
@@ -49,14 +57,14 @@ const ProfileImage = memo(function ProfileImage({
       ) : (
         <Image
           src={`/images/user_avator/${profilePic}@3x.png`}
-          alt={name || ''}
+          alt={name || ""}
           width={200}
           height={200}
           className="rounded-full w-14 xl:w-16 h-14 xl:h-16"
         />
       )}
       <Link
-        href={'/account-settings'}
+        href={"/account-settings"}
         // className="absolute bottom-0 right-0 text-gray-700 bg-white rounded-full w-6 h-6 p-[3px] border border-gray-300"
       >
         {/* <FaEdit className="absolute bottom-0 right-0 text-gray-700 bg-white rounded-full w-6 h-6 p-[3px] border border-gray-300" /> */}
@@ -80,6 +88,26 @@ const ProfileImage = memo(function ProfileImage({
 // Main component memoized
 const ProfileHeader = memo(function ProfileHeader() {
   const { user } = useUser();
+  const [points, setPoints] = useState(0);
+
+  useEffect(() => {
+    const fetchSwopplePoints = async () => {
+      try {
+        // setLoading(true);
+        const response = await fetch(
+          `${process.env.NEXT_PUBLIC_API_URL}/api/v1/points/user/point/${user?._id}`
+        );
+        if (!response.ok) {
+          throw new Error("Failed to fetch data");
+        }
+        const result = await response.json();
+        setPoints(result.availablePoints);
+      } catch (err: any) {
+        console.error(err.message);
+      }
+    };
+    fetchSwopplePoints();
+  }, [user?._id]);
 
   return (
     <div className="w-full border-none rounded-xl font-[figTree]">
@@ -87,8 +115,8 @@ const ProfileHeader = memo(function ProfileHeader() {
         {/* Profile Section */}
         <div className="flex items-center gap-3">
           <ProfileImage
-            profilePic={user?.profilePic || ''}
-            name={user?.name || ''}
+            profilePic={user?.profilePic || ""}
+            name={user?.name || ""}
           />
           <div className="">
             <div className="flex items-center gap-2">
@@ -102,16 +130,12 @@ const ProfileHeader = memo(function ProfileHeader() {
         {/* Followers Section */}
         <div className="flex gap-4">
           <div className="text-center">
-            <p className="font-semibold">
-              {user?.followers?.toLocaleString()}
-            </p>
+            <p className="font-semibold">{user?.followers?.toLocaleString()}</p>
             <p className="font-medium">Followers</p>
           </div>
           <div className="border-l-2 border-gray-700 h-5 " />
           <div className="text-center">
-            <p className="font-semibold">
-              {user?.following?.toLocaleString()}
-            </p>
+            <p className="font-semibold">{user?.following?.toLocaleString()}</p>
             <p className="font-medium">Following</p>
           </div>
         </div>
@@ -119,18 +143,34 @@ const ProfileHeader = memo(function ProfileHeader() {
         {/* Stats Cards */}
         <div className="flex flex-wrap gap-2 xl:gap-4">
           <StatCard
-            icon={<MessageCircle className="w-5 h-5" />}
+            icon={
+              <MessageCircle className="w-5 h-5" />
+              // <AiOutlineMessage size={18} />
+            }
             value={0}
             label="Messages"
           />
           <StatCard
-            icon={<FileText className="w-5 h-5" />}
+            icon={
+              // <FileText className="w-5 h-5" />
+              <FaRegFileAlt size={18} />
+            }
             value={0}
             label="Orders"
           />
           <StatCard
-            icon={<Star className="w-5 h-5" />}
-            value={0}
+            icon={
+              // <Image
+              //   src={"/images/point.png"}
+              //   width={320}
+              //   height={280}
+              //   quality={100}
+              //   className="w-5 h-7"
+              //   alt=""
+              // />
+              <MdRedeem size={20} />
+            }
+            value={points}
             label="Swopple Points"
           />
         </div>
