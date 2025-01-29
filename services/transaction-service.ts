@@ -341,4 +341,87 @@ export class TransactionService {
       return { hash: receipt.hash, transaction };
     }
   }
+
+  /**
+   * Handles token redeem setup and transfer
+   */
+  static async handleRedeemTransaction(
+    solanaWallet: any,
+    connection: Connection,
+    config: {
+      totalAmount: number;
+      tokenAddress: string | null;
+      tokenDecimals: number;
+      tempAddress: string;
+    }
+  ) {
+    if (!solanaWallet) throw new Error('No Solana wallet found');
+
+    if (!config.tokenAddress) {
+      // Native SOL transfer
+      const tx = new SolanaTransaction().add(
+        SystemProgram.transfer({
+          fromPubkey: new PublicKey(solanaWallet.address),
+          toPubkey: new PublicKey(config.tempAddress),
+          lamports: config.totalAmount,
+        })
+      );
+
+      const { blockhash } = await connection.getLatestBlockhash();
+      tx.recentBlockhash = blockhash;
+      tx.feePayer = new PublicKey(solanaWallet.address);
+
+      const signedTx = await solanaWallet.signTransaction(tx);
+      return await connection.sendRawTransaction(
+        signedTx.serialize()
+      );
+    } else {
+      // SPL Token transfer
+      const fromTokenAccount = await getAssociatedTokenAddress(
+        new PublicKey(config.tokenAddress),
+        new PublicKey(solanaWallet.address)
+      );
+
+      const toTokenAccount = await getAssociatedTokenAddress(
+        new PublicKey(config.tokenAddress),
+        new PublicKey(config.tempAddress)
+      );
+
+      const tx = new SolanaTransaction();
+
+      // Create recipient token account if needed
+      if (!(await connection.getAccountInfo(toTokenAccount))) {
+        tx.add(
+          createAssociatedTokenAccountInstruction(
+            new PublicKey(solanaWallet.address),
+            toTokenAccount,
+            new PublicKey(config.tempAddress),
+            new PublicKey(config.tokenAddress)
+          )
+        );
+      }
+
+      const tokenAmount = Math.floor(
+        config.totalAmount * Math.pow(10, config.tokenDecimals)
+      );
+
+      tx.add(
+        createTransferInstruction(
+          fromTokenAccount,
+          toTokenAccount,
+          new PublicKey(solanaWallet.address),
+          tokenAmount
+        )
+      );
+
+      const { blockhash } = await connection.getLatestBlockhash();
+      tx.recentBlockhash = blockhash;
+      tx.feePayer = new PublicKey(solanaWallet.address);
+
+      const signedTx = await solanaWallet.signTransaction(tx);
+      return await connection.sendRawTransaction(
+        signedTx.serialize()
+      );
+    }
+  }
 }

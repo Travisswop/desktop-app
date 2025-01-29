@@ -41,6 +41,7 @@ import WalletQRShare from './wallet-qr-share-modal';
 import QRCodeShareModal from '../smartsite/socialShare/QRCodeShareModal';
 import MessageList from './message-list';
 import { useUser } from '@/lib/UserContext';
+import RedeemTokenList from './redeem/token-list';
 
 export default function WalletContent() {
   return <WalletContentInner />;
@@ -485,6 +486,7 @@ const WalletContentInner = () => {
           qrCodeUrl={qrcodeShareUrl}
         />
       </div>
+      <RedeemTokenList />
       <NetworkDock network={network} setNetwork={setNetwork} />
       <Toaster />
     </div>

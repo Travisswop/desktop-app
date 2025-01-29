@@ -39,21 +39,21 @@ export default function Sidenav() {
   const [hideUpgradePlan, setHideUpgradePlan] = useState(true);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
 
-  const { email, clearCache } = useUser();
+  const { user, clearCache } = useUser();
   const pathname = usePathname();
   const { logout } = usePrivy();
   const router = useRouter();
 
   // Create the final nav items array based on email
   const navItems = useMemo(() => {
-    if (email === 'salman@gmail.com') {
+    if (user?.email === 'salmansaikote9@gmail.com') {
       return [
         ...baseNavItems,
         { href: '/agent', label: 'Agent', icon: Bot },
       ];
     }
     return baseNavItems;
-  }, [email]);
+  }, [user?.email]);
 
   const handleLogout = async () => {
     // Prevent multiple logout attempts

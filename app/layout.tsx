@@ -6,6 +6,7 @@ import { Figtree } from 'next/font/google';
 import { TanstackProvider } from '@/components/providers/tanstackProvider';
 import { Toaster } from 'react-hot-toast';
 import { XmtpProvider } from '@/lib/context/XmtpContext';
+import { initializeApp } from './init';
 
 // const roboto = Roboto({
 //   subsets: ["latin"],
@@ -15,6 +16,9 @@ const figtree = Figtree({
   subsets: ['latin'],
   weight: ['300', '400', '500', '700', '900'],
 });
+
+// Initialize the app
+initializeApp().catch(console.error);
 
 export default function RootLayout({
   children,
