@@ -2,7 +2,7 @@
 import AddIcon from "@/components/smartsite/EditMicrosite/AddIcon";
 import IconMaker from "@/components/smartsite/EditMicrosite/IconMaker";
 import UpdateModalComponents from "@/components/smartsite/EditMicrosite/UpdateModalComponents";
-import ParentProfileCard from "@/components/smartsite/ParentProfileCard";
+// import ParentProfileCard from "@/components/smartsite/ParentProfileCard";
 import SmartsiteIconLivePreview from "@/components/smartsite/SmartsiteIconLivePreview";
 import SmartSiteUrlShareModal from "@/components/smartsite/socialShare/SmartsiteShareModal";
 // import AnimateButton from "@/components/Button/AnimateButton";
@@ -142,7 +142,7 @@ const MicrositeEditMainContentPage = ({ data }: any) => {
           />
 
           {/* create new icon  */}
-          <div className="flex flex-col-reverse gap-4 px-14 2xl:px-24">
+          <div className="flex flex-col-reverse gap-4 px-8 xl:px-14 2xl:px-24">
             {toggleIcon.map((info: any, index: number) => (
               <AddIcon
                 key={index}

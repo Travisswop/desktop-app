@@ -23,7 +23,7 @@ const AddIcon = ({
   handleRemoveIcon: any;
   handleToggleIcon: any;
 }) => {
-  console.log("data", data);
+  console.log("datas", data);
 
   return (
     <div>
