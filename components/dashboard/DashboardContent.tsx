@@ -4,10 +4,12 @@ import { Skeleton } from "../ui/skeleton";
 import ProfileHeader from "./profile-header";
 import CashflowChart from "./cashflow-chart";
 import DashboardAnalytics from "./analytics";
-import TestChart from "./test-chart";
+// import TestChart from "./test-chart";
 
 export default function DashboardContent() {
   const { user, loading, error } = useUser();
+
+  console.log("user", user);
 
   if (loading) {
     return <DashboardSkeleton />;
