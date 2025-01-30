@@ -66,6 +66,8 @@ const SmartsiteIconLivePreview = ({
 
   const [accessToken, setAccessToken] = useState("");
 
+  console.log("data hola", data);
+
   useEffect(() => {
     const getAccessToken = async () => {
       const token = Cookies.get("access-token");
@@ -529,6 +531,60 @@ const SmartsiteIconLivePreview = ({
                     </div>
                   )}
 
+                  {/* redeemable link display here start */}
+                  {data.info.redeemLink.length > 0 && (
+                    <div className="flex flex-col gap-y-3 px-3">
+                      {data.info.redeemLink.map((data: any) => (
+                        <button
+                          key={data._id}
+                          onClick={() =>
+                            handleTriggerUpdate({
+                              data,
+                              categoryForTrigger: "redeemLink",
+                            })
+                          }
+                          style={{
+                            backgroundColor: formData.templateColor
+                              ? formData.templateColor
+                              : "white",
+                          }}
+                          className="flex items-center gap-2 py-2 px-3 rounded-lg shadow-medium"
+                        >
+                          <Image
+                            src={data.imageUrl}
+                            alt="icon"
+                            width={200}
+                            height={200}
+                            quality={100}
+                            className="w-8 h-8"
+                            style={{
+                              filter:
+                                formData.templateColor === "#000000" &&
+                                ("brightness(1) invert(1)" as any),
+                            }}
+                          />
+                          <div
+                            style={{
+                              color: formData.fontColor
+                                ? formData.fontColor
+                                : "black",
+                            }}
+                            className="flex flex-col items-start gap-0.5 text-start"
+                          >
+                            <p className="text-sm">{data.mintName}</p>
+                            <p
+                              className={`text-xs ${
+                                !formData.fontColor && "text-gray-400"
+                              }`}
+                            >
+                              {data.description}
+                            </p>
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                  {/* redeemable link display here start */}
                   {/* contact card display here start */}
                   {data.info.contact.length > 0 && (
                     <div className="flex flex-col gap-y-3 px-3">

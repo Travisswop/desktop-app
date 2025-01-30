@@ -12,7 +12,7 @@ const SmartsiteIconsParentProfileCard = ({ data }: any) => {
   const [loading, setLoading] = useState(false);
   //   const { user, loading }: any = useUser();
 
-  console.log("data", data);
+  console.log("datag", data);
 
   return (
     <div className="flex items-center justify-between gap-6 bg-white p-6 rounded-lg">

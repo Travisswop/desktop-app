@@ -1,6 +1,6 @@
-'use client';
+"use client";
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState } from "react";
 import {
   Table,
   TableBody,
@@ -8,25 +8,15 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from '@/components/ui/table';
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import toast from 'react-hot-toast';
-import { RefreshCw } from 'lucide-react';
-import { cn } from '@/lib/utils';
-import Image from 'next/image';
-import { usePrivy } from '@privy-io/react-auth';
-import {
-  Tabs,
-  TabsContent,
-  TabsList,
-  TabsTrigger,
-} from '@/components/ui/tabs';
+} from "@/components/ui/table";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import toast from "react-hot-toast";
+import { RefreshCw } from "lucide-react";
+import { cn } from "@/lib/utils";
+import Image from "next/image";
+import { usePrivy } from "@privy-io/react-auth";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 interface RedemptionPool {
   pool_id: string;
@@ -64,24 +54,22 @@ export default function RedeemTokenList() {
     fetchPools();
   }, []);
 
+  console.log("pools", pools);
+
   const fetchPools = async () => {
     try {
-      const response = await fetch(
-        `/api/redeem/list?privyUserId=${user?.id}`
-      );
+      const response = await fetch(`/api/redeem/list?privyUserId=${user?.id}`);
       const data = await response.json();
-      console.log('🚀 ~ fetchPools ~ data:', data);
+      console.log("🚀 ~ fetchPools ~ data:", data);
 
       if (data.success) {
         setPools(data.pools);
       } else {
-        toast.error(
-          data.message || 'Failed to fetch redemption pools'
-        );
+        toast.error(data.message || "Failed to fetch redemption pools");
       }
     } catch (error) {
-      console.error('Error fetching pools:', error);
-      toast.error('Failed to fetch redemption pools');
+      console.error("Error fetching pools:", error);
+      toast.error("Failed to fetch redemption pools");
     } finally {
       setLoading(false);
     }
@@ -90,10 +78,10 @@ export default function RedeemTokenList() {
   const copyToClipboard = async (link: string) => {
     try {
       await navigator.clipboard.writeText(link);
-      toast.success('Link copied to clipboard!');
+      toast.success("Link copied to clipboard!");
     } catch (error) {
-      console.error('Error copying to clipboard:', error);
-      toast.error('Failed to copy link');
+      console.error("Error copying to clipboard:", error);
+      toast.error("Failed to copy link");
     }
   };
 
@@ -114,7 +102,7 @@ export default function RedeemTokenList() {
           onClick={handleRefresh}
           variant="ghost"
           size="sm"
-          className={cn('gap-2', loading && 'animate-spin')}
+          className={cn("gap-2", loading && "animate-spin")}
           disabled={loading}
         >
           <RefreshCw className="h-4 w-4" />
@@ -167,28 +155,21 @@ export default function RedeemTokenList() {
                             {pool.total_amount} {pool.token_symbol}
                           </TableCell>
                           <TableCell>
-                            {pool.remaining_amount}{' '}
-                            {pool.token_symbol}
+                            {pool.remaining_amount} {pool.token_symbol}
                           </TableCell>
                           <TableCell>
-                            {pool.tokens_per_wallet}{' '}
-                            {pool.token_symbol}
+                            {pool.tokens_per_wallet} {pool.token_symbol}
                           </TableCell>
                           <TableCell>
                             {pool.total_redemptions} (
-                            {pool.total_redeemed_amount}{' '}
-                            {pool.token_symbol})
+                            {pool.total_redeemed_amount} {pool.token_symbol})
                           </TableCell>
                           <TableCell>
-                            {new Date(
-                              pool.created_at
-                            ).toLocaleDateString()}
+                            {new Date(pool.created_at).toLocaleDateString()}
                           </TableCell>
                           <TableCell>
                             <Button
-                              onClick={() =>
-                                copyToClipboard(pool.redeemLink)
-                              }
+                              onClick={() => copyToClipboard(pool.redeemLink)}
                               variant="ghost"
                               size="sm"
                             >

@@ -11,6 +11,7 @@ import UpdateAudio from "./audio/UpdateAudio";
 import UpdateSwopPay from "./SwopPay/UpdateSwopPay";
 import UpdateReferral from "./referral/UpdateReferral";
 import UpdateENS from "./message/UpdateMessage";
+import UpdateRedeemLink from "./redeemLink/UpdateRedeemLink";
 
 // Define the type for the iconData object
 interface IconData {
@@ -103,6 +104,12 @@ const UpdateModalComponents: React.FC<UpdateModalComponentsProps> = ({
         <UpdateENS iconDataObj={iconData} isOn={isOn} setOff={setOff} />
       )}
       {/* update message/ens modal end   */}
+
+      {/* update redeemLink modal start */}
+      {isOn && iconData?.categoryForTrigger === "redeemLink" && (
+        <UpdateRedeemLink iconDataObj={iconData} isOn={isOn} setOff={setOff} />
+      )}
+      {/* update redeemLink modal end   */}
     </div>
   );
 };
