@@ -187,7 +187,43 @@ const Feed = ({
                         ))}
                     </div>
                   )}
+
                   {/* Additional Post Types */}
+
+                  {/* Redeem Content */}
+                  {feed.postType === "redeem" && (
+                    <div className="flex flex-col gap-2 text-gray-600 text-sm">
+                      <div>
+                        <p>
+                          Created a new {feed.content.redeemName} Redeemable
+                          Link -{" "}
+                          <Link
+                            href={feed.content.link}
+                            className="text-blue-500 underline"
+                          >
+                            Claim
+                          </Link>
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-2 text-sm font-medium">
+                        <Image
+                          src={feed.content.tokenImgUrl}
+                          alt=""
+                          width={300}
+                          height={300}
+                          quality={100}
+                          className="w-24 h-auto border-r border-gray-300 pr-2"
+                        />
+                        <div className="font-semibold text-sm">
+                          <p>{feed.content.network}</p>
+                          <p>
+                            {feed.content.amount} {feed.content.symbol}
+                          </p>
+                          <p>Limit: {feed.content.mintLimit}</p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
                   {feed.postType === "connection" && (
                     <p className="text-gray-600 text-sm">
                       Connected with{" "}

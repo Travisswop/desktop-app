@@ -5,51 +5,35 @@ import {
   DropdownItem,
   DropdownMenu,
   DropdownTrigger,
+  Switch,
   Tooltip,
 } from "@nextui-org/react";
-import { IoLinkOutline } from "react-icons/io5";
 import { LiaFileMedicalSolid } from "react-icons/lia";
-// import { icon, newIcons } from "@/util/data/smartsiteIconData";
-// import { isEmptyObject } from "@/util/checkIsEmptyObject";
-import useSmartSiteApiDataStore from "@/zustandStore/UpdateSmartsiteInfo";
-// import useLoggedInUserStore from "@/zustandStore/SetLogedInUserSession";
-// import { toast } from "react-toastify";
-// import AnimateButton from "../../Button/AnimateButton";
-import { postInfoBar } from "@/actions/infoBar";
 import { FaAngleDown, FaTimes } from "react-icons/fa";
-import { icon, newIcons } from "@/components/util/data/smartsiteIconData";
 
 import filePlaceholder from "@/public/images/placeholder-photo.png";
 import AnimateButton from "@/components/ui/Button/AnimateButton";
 import { MdInfoOutline } from "react-icons/md";
-import { InfoBarIconMap, InfoBarSelectedIconType } from "@/types/smallIcon";
-import contactCardImg from "@/public/images/IconShop/appIconContactCard.png";
-import productImg from "@/public/images/product.png";
 import toast from "react-hot-toast";
 import placeholder from "@/public/images/image_placeholder.png";
 import CustomFileInput from "@/components/CustomFileInput";
 import { usePrivy } from "@privy-io/react-auth";
 import { sendCloudinaryImage } from "@/lib/SendCloudineryImage";
 // import { useRouter } from "next/router";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname } from "next/navigation";
+import { postRedeem } from "@/actions/redeem";
+import Cookies from "js-cookie";
+import { postFeed } from "@/actions/postFeed";
+import { useUser } from "@/lib/UserContext";
 
 const AddRedeemLink = ({ handleRemoveIcon, handleToggleIcon }: any) => {
   const { user } = usePrivy();
-  const demoToken =
-    "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJfaWQiOiI2NjM4NjMyMDIzMDQxMDMyODAyOTk4MmIiLCJpYXQiOjE3MjcxNTI4MzB9.CsHnZAgUzsfkc_g_CZZyQMXc02Ko_LhnQcCVpeCwroY";
-  const state: any = useSmartSiteApiDataStore((state) => state);
-  const [selectedIconType, setSelectedIconType] =
-    useState<InfoBarSelectedIconType>("Link");
-  const [selectedIcon, setSelectedIcon] = useState({
-    name: "Amazon Music",
-    icon: icon.appIconAmazonMusic,
-    placeHolder: "https://www.music.amazon.com/abc",
-    inputText: "Amazon Music Link",
-    url: "https://music.amazon.com",
-  });
-  const [selectedIconData, setSelectedIconData] = useState<any>({});
+  const { user: userInfo } = useUser();
+
+  console.log("usser form userInfo", userInfo);
+
   const [isLoading, setIsLoading] = useState<boolean>(false);
-  const [buttonName, setButtonName] = useState(selectedIcon.name);
+
   const [description, setDescription] = useState("");
   const [linkName, setLinkName] = useState("");
   const [imageFile, setImageFile] = useState<any>(null);
@@ -57,9 +41,18 @@ const AddRedeemLink = ({ handleRemoveIcon, handleToggleIcon }: any) => {
   const [pools, setPools] = useState<any>([]);
   const [isPoolLoading, setIsPoolLoading] = useState(false);
   const [selectedToken, setSelectedToken] = useState<any>(null); // State to store the selected token
+  const [accessToken, setAccessToken] = useState<any>(null);
+  const [isSelected, setIsSelected] = useState(false);
 
-  console.log("isPoolLoading", isPoolLoading);
-  console.log("pools", pools);
+  useEffect(() => {
+    const getAccessToken = async () => {
+      const token = Cookies.get("access-token");
+      if (token) {
+        setAccessToken(token);
+      }
+    };
+    getAccessToken();
+  }, []);
 
   const smartsiteid = usePathname();
 
@@ -118,7 +111,7 @@ const AddRedeemLink = ({ handleRemoveIcon, handleToggleIcon }: any) => {
       imageUrl = await sendCloudinaryImage(imageFile);
     }
 
-    console.log("imageUrl", imageUrl);
+    // console.log("imageUrl", imageUrl);
 
     // const formData = new FormData(e.currentTarget);
     const redeemInfo = {
@@ -136,20 +129,48 @@ const AddRedeemLink = ({ handleRemoveIcon, handleToggleIcon }: any) => {
       micrositeId: smartsiteid.split("/").pop(),
       tokenUrl: imageUrl,
     };
-    console.log("redeemInfo", redeemInfo);
-    // try {
-    //   const data = await postInfoBar(redeemInfo, demoToken);
-    //   if ((data.state = "success")) {
-    //     toast.success("Info bar crated successfully");
-    //     handleRemoveIcon("Info Bar");
-    //   } else {
-    //     toast.error("Something went wrong");
-    //   }
-    // } catch (error) {
-    //   console.error(error);
-    // } finally {
-    //   setIsLoading(false);
-    // }
+    // console.log("redeemInfo", redeemInfo);
+    try {
+      const data = await postRedeem(redeemInfo, accessToken);
+      // console.log("datassdg", data);
+
+      if ((data.state = "success")) {
+        if (isSelected) {
+          const id = smartsiteid.split("/").pop();
+          const smartsite = userInfo?.microsites?.find(
+            (microsite: any) => microsite._id == id
+          );
+
+          const payload = {
+            smartsiteId: id,
+            userId: userInfo?._id,
+            smartsiteUserName: smartsite.name,
+            smartsiteEnsName: smartsite.ens || smartsite.ensData.name,
+            smartsiteProfilePic: smartsite.profilePic,
+            postType: "redeem",
+            content: {
+              redeemName: redeemInfo.mintName,
+              symbol: redeemInfo.symbol,
+              network: redeemInfo.network,
+              link: redeemInfo.link,
+              amount: redeemInfo.amount,
+              mintLimit: redeemInfo.mintLimit,
+              tokenImgUrl: redeemInfo.imageUrl,
+            },
+          };
+          await postFeed(payload, accessToken);
+        }
+
+        toast.success("Redeem crated successfully");
+        handleRemoveIcon("Redeem Link");
+      } else {
+        toast.error("Something went wrong");
+      }
+    } catch (error) {
+      console.error(error);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handleTokenSelect = (pool: any) => {
@@ -256,6 +277,14 @@ const AddRedeemLink = ({ handleRemoveIcon, handleToggleIcon }: any) => {
                 </div>
               </div>
               <div className="w-full">
+                <div className="flex items-center gap-1 mb-1">
+                  <p className="font-medium">Post in Feed</p>
+                  <Switch
+                    size="sm"
+                    isSelected={isSelected}
+                    onValueChange={setIsSelected}
+                  />
+                </div>
                 <div className="flex flex-col">
                   <h3 className="font-semibold text-gray-700 w-44">
                     Select Token
