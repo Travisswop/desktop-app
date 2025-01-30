@@ -197,12 +197,13 @@ const Feed = ({
                         <p>
                           Created a new {feed.content.redeemName} Redeemable
                           Link -{" "}
-                          <Link
+                          <a
                             href={feed.content.link}
+                            target="_blank"
                             className="text-blue-500 underline"
                           >
                             Claim
-                          </Link>
+                          </a>
                         </p>
                       </div>
                       <div className="flex items-center gap-2 text-sm font-medium">
