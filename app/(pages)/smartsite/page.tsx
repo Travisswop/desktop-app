@@ -1,26 +1,26 @@
-'use client';
+"use client";
 // import SecondaryButton from "@/components/SecondaryButton";
 // import { Checkbox, useDisclosure } from "@nextui-org/react";
-import Image from 'next/image';
-import React from 'react';
+import Image from "next/image";
+import React from "react";
 // import { AiOutlineSelect } from "react-icons/ai";
 // import { BsSend, BsSendFill } from "react-icons/bs";
 // import { IoDuplicateOutline } from "react-icons/io5";
 // import { TbTransfer } from "react-icons/tb";
-import { LiaFileMedicalSolid } from 'react-icons/lia';
-import Link from 'next/link';
-import ButtonList from '@/components/smartsite/ButtonList';
-import isUrl from '@/lib/isUrl';
-import SmartsiteSocialShare from '@/components/smartsite/socialShare/SmartsiteSocialShare';
-import { useUser } from '@/lib/UserContext';
-import { useDesktopUserData } from '@/components/tanstackQueryApi/getUserData';
-import SmartSitePageLoading from '@/components/loading/SmartSitePageLoading';
-import { AiOutlineSelect } from 'react-icons/ai';
-import { IoDuplicateOutline } from 'react-icons/io5';
-import { TbTransfer } from 'react-icons/tb';
-import { Checkbox } from '@nextui-org/react';
-import { BsSend } from 'react-icons/bs';
-import { useRouter } from 'next/navigation';
+import { LiaFileMedicalSolid } from "react-icons/lia";
+import Link from "next/link";
+import ButtonList from "@/components/smartsite/ButtonList";
+import isUrl from "@/lib/isUrl";
+import SmartsiteSocialShare from "@/components/smartsite/socialShare/SmartsiteSocialShare";
+import { useUser } from "@/lib/UserContext";
+import { useDesktopUserData } from "@/components/tanstackQueryApi/getUserData";
+import SmartSitePageLoading from "@/components/loading/SmartSitePageLoading";
+import { AiOutlineSelect } from "react-icons/ai";
+import { IoDuplicateOutline } from "react-icons/io5";
+import { TbTransfer } from "react-icons/tb";
+import { Checkbox } from "@nextui-org/react";
+import { BsSend } from "react-icons/bs";
+import { useRouter } from "next/navigation";
 // import ButtonList from "@/components/smartsiteList/ButtonList";
 // import SmartSiteUrlShareModal from "@/components/ShareModal/SmartsiteShareModal";
 // import SmartsiteSocialShare from "@/components/SmartsiteSocialShare";
@@ -37,7 +37,7 @@ const SmartsitePage = () => {
     isLoading,
     // isFetching,
     //refetch,
-  } = useDesktopUserData(user?._id, accessToken || '');
+  } = useDesktopUserData(user?._id, accessToken || "");
 
   if (loading) {
     return <SmartSitePageLoading />;
@@ -50,7 +50,6 @@ const SmartsitePage = () => {
   if (error) {
     return <p>Something Went Wrong!</p>;
   }
-
   return (
     <div className="">
       <div className="flex items-center justify-between mb-3">
@@ -78,9 +77,7 @@ const SmartsitePage = () => {
               className="bg-white p-4 rounded-xl shadow-small"
             >
               <div
-                onClick={() =>
-                  router.push(`/smartsite/${microsite._id}`)
-                }
+                onClick={() => router.push(`/smartsite/${microsite._id}`)}
                 className="flex justify-between items-start mb-3 relative cursor-pointer"
               >
                 <Checkbox onClick={(e) => e.stopPropagation()} />
@@ -112,21 +109,20 @@ const SmartsitePage = () => {
                   <h3 className="text-lg font-bold text-black">
                     {microsite.name}
                   </h3>
-                  <p className="font-medium text-gray-500">
-                    {microsite.bio}
-                  </p>
+                  <p className="font-medium text-gray-500">{microsite.bio}</p>
                 </div>
                 <ButtonList
                   microsite={microsite}
-                  token={accessToken || ''}
-                  id={user?._id || ''}
+                  token={accessToken || ""}
+                  id={user?._id || ""}
+                  qrEmbeddedUrl={microsite.profileUrl}
                 />
               </div>
             </div>
           ))}
 
         <Link
-          href={'/smartsite/create-smartsite'}
+          href={"/smartsite/create-smartsite"}
           className="bg-white px-4 py-[4rem] rounded-xl shadow-small flex flex-col gap-6 items-center"
         >
           <div className="p-5 bg-gray-200 w-max rounded-full">

@@ -15,16 +15,14 @@ import {
   WhatsappIcon,
 } from "react-share";
 import { FcOk } from "react-icons/fc";
-import { useUser } from "@/lib/UserContext";
 
 export default function SmartSiteUrlShareModal({
   isOpen,
   onOpenChange,
   smartSiteProfileUrl,
 }: any) {
-  const { user } = useUser();
   // Initial text
-  const [textToCopy, setTextToCopy] = useState(user?.ensName);
+  const [textToCopy, setTextToCopy] = useState(smartSiteProfileUrl);
   // State to manage copied effect
   const [isCopied, setIsCopied] = useState(false);
   // State to manage notification visibility
@@ -76,7 +74,7 @@ export default function SmartSiteUrlShareModal({
                       >
                         <input
                           type="text"
-                          value={user?.ensName}
+                          value={smartSiteProfileUrl}
                           disabled
                           style={{
                             padding: "8px 16px",
