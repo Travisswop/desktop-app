@@ -1,0 +1,6 @@
+.copy-box {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  border: 1px solid #216c17;
+}

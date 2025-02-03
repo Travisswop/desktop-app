@@ -52,7 +52,7 @@ const AddAppIcon = ({ handleRemoveIcon }: any) => {
   useEffect(() => {
     if (selectedIconType) {
       const data = iconData.icons.find(
-        (item: any) => item.category === selectedIconType
+        (item: any) => item.category === selectedIconType,
       );
       setSelectedIconData(data);
     }
