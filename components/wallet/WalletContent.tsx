@@ -42,6 +42,7 @@ import QRCodeShareModal from '../smartsite/socialShare/QRCodeShareModal';
 import MessageList from './message-list';
 import { useUser } from '@/lib/UserContext';
 import RedeemTokenList from './redeem/token-list';
+import { addSwopPoint } from '@/actions/addPoint';
 
 export default function WalletContent() {
   return <WalletContentInner />;
@@ -230,6 +231,19 @@ const WalletContentInner = () => {
       !sendFlow.amount
     )
       return;
+
+    await addSwopPoint({
+      userId: user?._id,
+      pointType: 'Using Swop.ID for Transactions',
+      actionKey: 'launch-swop',
+    });
+
+    setSendFlow((prev) => ({
+      ...prev,
+      hash: '0xhdlsfjsljfladjflsajfljdslafjldjfsjf',
+      step: 'success',
+    }));
+    return;
 
     // setSendLoading(true);
     const amount =
