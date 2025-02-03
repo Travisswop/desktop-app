@@ -56,7 +56,7 @@ const AddRedeemLink = ({ handleRemoveIcon, handleToggleIcon }: any) => {
 
   const smartsiteid = usePathname();
 
-  // console.log("id", id);
+  console.log("selectedToken", selectedToken);
 
   useEffect(() => {
     const fetchPools = async () => {
@@ -66,6 +66,8 @@ const AddRedeemLink = ({ handleRemoveIcon, handleToggleIcon }: any) => {
           `/api/redeem/list?privyUserId=${user?.id}`
         );
         const data = await response.json();
+        console.log("pools data", data);
+
         if (data.success) {
           setPools(data.pools);
         } else {
@@ -156,6 +158,7 @@ const AddRedeemLink = ({ handleRemoveIcon, handleToggleIcon }: any) => {
               amount: redeemInfo.amount,
               mintLimit: redeemInfo.mintLimit,
               tokenImgUrl: redeemInfo.imageUrl,
+              poolId: selectedToken.pool_id,
             },
           };
           await postFeed(payload, accessToken);

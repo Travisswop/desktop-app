@@ -8,7 +8,12 @@ import { GoDotFill } from "react-icons/go";
 import dayjs from "dayjs";
 import PostTypeMedia from "./view/PostTypeMedia";
 import { HiDotsHorizontal } from "react-icons/hi";
-import { Popover, PopoverContent, PopoverTrigger } from "@nextui-org/react";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+  useDisclosure,
+} from "@nextui-org/react";
 import relativeTime from "dayjs/plugin/relativeTime";
 import Reaction from "./view/Reaction";
 import Link from "next/link";
@@ -16,6 +21,7 @@ import { FiPlusCircle } from "react-icons/fi";
 import FeedLoading from "../loading/FeedLoading";
 import DeleteFeedModal from "./DeleteFeedModal";
 import isUrl from "@/lib/isUrl";
+import RedeemClaimModal from "../modal/RedeemClaim";
 
 const Feed = ({
   accessToken,
@@ -37,8 +43,11 @@ const Feed = ({
   const [hasMore, setHasMore] = useState(true);
   const observerRef = useRef<HTMLDivElement>(null);
   const isFetching = useRef(false);
+  const { isOpen, onOpen, onOpenChange } = useDisclosure();
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [redeemFeedData, setRedeemFeedData] = useState({});
 
-  console.log("feedData", feedData);
+  // console.log("redeemFeedData", redeemFeedData);
 
   dayjs.extend(relativeTime);
 
@@ -117,6 +126,12 @@ const Feed = ({
 
     return () => observer.disconnect();
   }, [hasMore]);
+
+  const openRedeemModal = (data: any) => {
+    onOpen();
+    setIsModalOpen(true);
+    setRedeemFeedData(data);
+  };
 
   return (
     <div className="w-full flex gap-10">
@@ -199,13 +214,19 @@ const Feed = ({
                         <p>
                           Created a new {feed.content.redeemName} Redeemable
                           Link -{" "}
-                          <a
+                          <button
+                            onClick={() => openRedeemModal(feed.content)}
+                            className="text-blue-500 underline"
+                          >
+                            Claim
+                          </button>
+                          {/* <a
                             href={feed.content.link}
                             target="_blank"
                             className="text-blue-500 underline"
                           >
                             Claim
-                          </a>
+                          </a> */}
                         </p>
                       </div>
                       <div className="flex items-center gap-2 text-sm font-medium">
@@ -359,6 +380,13 @@ const Feed = ({
           </div>
         )}
       </div>
+      {isModalOpen && (
+        <RedeemClaimModal
+          isOpen={isOpen}
+          onOpenChange={onOpenChange}
+          redeemFeedData={redeemFeedData}
+        />
+      )}
     </div>
   );
 };
