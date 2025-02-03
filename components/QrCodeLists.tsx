@@ -31,13 +31,13 @@ const QrCodeLists = ({
 
   const handleRowSelection = (id: string) => {
     setSelectedIds((prev) =>
-      prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]
+      prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id],
     );
   };
 
   const handleExport = () => {
     const selectedItems = data.filter((item: any) =>
-      selectedIds.includes(item._id)
+      selectedIds.includes(item._id),
     );
 
     selectedItems.forEach((item: any) => {
@@ -125,7 +125,10 @@ const QrCodeLists = ({
                   {accessToken && (
                     <DeleteQRCode id={item._id} token={accessToken} />
                   )}
-                  <ShareCustomQRCode url={item.qrCodeUrl} />
+                  <ShareCustomQRCode
+                    url={item.qrCodeUrl}
+                    smartSiteButton={false}
+                  />
                   <a
                     href={item.qrCodeUrl}
                     download="qrcode.png"
