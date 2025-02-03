@@ -10,12 +10,13 @@ import { AiOutlineClose } from "react-icons/ai"; // Icon for close button
 import { Spinner } from "@nextui-org/react";
 import { postFeed } from "@/actions/postFeed";
 import { useUser } from "@/lib/UserContext";
-import { useToast } from "@/hooks/use-toast";
+// import { useToast } from "@/hooks/use-toast";
 import DynamicPrimaryBtn from "../ui/Button/DynamicPrimaryBtn";
 import { sendCloudinaryImage } from "@/lib/SendCloudineryImage";
 import { sendCloudinaryVideo } from "@/lib/sendCloudineryVideo";
 import UserImageAvatar from "../util/Avatar";
 import isUrl from "@/lib/isUrl";
+import toast from "react-hot-toast";
 
 const PostFeed = ({
   primaryMicrositeImg,
@@ -40,9 +41,9 @@ const PostFeed = ({
   >([]);
   const [error, setError] = useState("");
 
-  const { toast } = useToast();
+  // const { toast } = useToast();
 
-  // console.log("mediaFiles", mediaFiles);
+  console.log("mediaFiles", mediaFiles);
   // console.log("gifContent", gifContent);
 
   // Callback function to handle emoji selection
@@ -50,15 +51,17 @@ const PostFeed = ({
     setPostContent((prevContent) => prevContent + emoji);
   };
 
+  console.log("fileError", fileError);
+
   useEffect(() => {
     if (fileError) {
-      toast({
-        title: "Error",
-        description: fileError,
-      });
-      // toast.error(fileError);
+      // toast({
+      //   title: "Error",
+      //   description: fileError,
+      // });
+      toast.error(fileError);
     }
-  }, [fileError, toast]);
+  }, [fileError]);
 
   const { user, loading, error: userError }: any = useUser();
 
@@ -113,19 +116,21 @@ const PostFeed = ({
       };
       const data = await postFeed(payload, token);
       if (data?.state === "success") {
-        toast({
-          title: "Success",
-          description: "You posted successfully!",
-        });
+        // toast({
+        //   title: "Success",
+        //   description: "You posted successfully!",
+        // });
+        toast.success("You posted successfully!");
         setMediaFiles([]);
         setPostContent("");
         setIsPosting(true);
       }
       if (data?.state === "not-allowed") {
-        toast({
-          title: "Error",
-          description: "You not allowed to create feed post!",
-        });
+        // toast({
+        //   title: "Error",
+        //   description: "You not allowed to create feed post!",
+        // });
+        toast.error("You not allowed to create feed post!");
       }
       // console.log("payload", payload);
       // console.log("data", data);

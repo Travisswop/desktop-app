@@ -1,4 +1,5 @@
 import React, { useRef } from "react";
+import toast from "react-hot-toast";
 import { FaRegImage } from "react-icons/fa";
 
 interface ImageContentProps {
@@ -22,6 +23,9 @@ const ImageContent = ({
     }
   };
 
+  const validImageTypes = ["image/jpeg", "image/jpg", "image/png", "image/gif"];
+  const validVideoTypes = ["video/mp4", "video/webm"];
+
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const files = event.target.files;
     if (files && files.length > 0) {
@@ -38,21 +42,38 @@ const ImageContent = ({
         } else {
           const reader = new FileReader();
           reader.onloadend = () => {
-            const fileType = file.type.startsWith("image/")
-              ? "image"
-              : file.type.startsWith("video/")
-              ? "video"
-              : null;
+            console.log("file", file);
 
-            if (fileType) {
+            if (validImageTypes.includes(file.type)) {
               selectedFiles.push({
-                type: fileType,
+                type: "image",
                 src: reader.result as string,
               });
-              setFileError("");
+            } else if (validVideoTypes.includes(file.type)) {
+              selectedFiles.push({
+                type: "video",
+                src: reader.result as string,
+              });
             } else {
-              setFileError("Only images and videos are allowed");
+              toast.error("Unsupported file format.");
             }
+
+            //previous one
+            // const fileType = file.type.startsWith("image/")
+            //   ? "image"
+            //   : file.type.startsWith("video/")
+            //   ? "video"
+            //   : null;
+
+            // if (fileType) {
+            //   selectedFiles.push({
+            //     type: fileType,
+            //     src: reader.result as string,
+            //   });
+            //   setFileError("");
+            // } else {
+            //   setFileError("Only images and videos are allowed");
+            // }
 
             // After all files are processed, update the state
             if (selectedFiles.length === files.length) {
@@ -61,11 +82,17 @@ const ImageContent = ({
                 ...selectedFiles,
               ]);
             }
+            // Reset the file input value to allow re-selecting the same file
+            if (fileInputRef.current) {
+              fileInputRef.current.value = "";
+            }
           };
           reader.readAsDataURL(file);
         }
       });
+      // Reset the file input value to allow selecting the same file again
     }
+    // event.target.value = "";
   };
 
   return (
