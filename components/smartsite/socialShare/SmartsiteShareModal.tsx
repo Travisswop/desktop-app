@@ -64,6 +64,7 @@ export default function SmartSiteUrlShareModal({
                         marginTop: "20px",
                         flexDirection: "column",
                       }}
+                      className="w-full"
                     >
                       <div
                         style={{
@@ -84,7 +85,7 @@ export default function SmartSiteUrlShareModal({
                             border: "1px solid #ccc",
                             width: "full",
                           }}
-                          className="rounded-full"
+                          className="w-full rounded-full"
                         />
                         <button
                           onClick={handleCopy}
