@@ -71,19 +71,20 @@ export default function SmartSiteUrlShareModal({
                           alignItems: "center",
                           gap: "10px",
                         }}
-                        className="pb-5"
+                        className="pb-5 w-full px-10"
                       >
                         <input
                           type="text"
                           value={user?.ensName}
                           disabled
                           style={{
-                            padding: "8px",
+                            padding: "8px 16px",
                             fontSize: "16px",
-                            borderRadius: "4px",
+                            borderRadius: "20px",
                             border: "1px solid #ccc",
                             width: "full",
                           }}
+                          className="rounded-full"
                         />
                         <button
                           onClick={handleCopy}
@@ -99,7 +100,7 @@ export default function SmartSiteUrlShareModal({
                             position: "absolute",
                             overflow: "hidden",
                           }}
-                          className="translate-x-[400%]"
+                          className="right-[17%]"
                         >
                           {isCopied ? (
                             <FcOk className="text-[#28a745] size-6" />
