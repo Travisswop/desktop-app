@@ -144,55 +144,53 @@ export default function TokenDetails({
     const totalAmount = parseFloat(config.totalAmount.toString());
 
     // Create redemption link
-    const response = await fetch('/api/redeem/create', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        privyUserId: user?.id,
-        tokenName: token.name,
-        tokenMint: token.address,
-        tokenSymbol: token.symbol,
-        tokenLogo: token.logoURI,
-        amount: totalAmount,
-        tokenDecimals: token.decimals,
-        tokensPerWallet: config.tokensPerWallet,
-        maxWallets: config.maxWallets,
-        creator: solanaWallet.address,
-        isNative: token.isNative,
-      }),
-    });
+    const response = await fetch(
+      `${process.env.NEXT_PUBLIC_API_URL}/api/v2/desktop/wallet/createRedeemptionPool`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          privyUserId: user?.id,
+          tokenName: token.name,
+          tokenMint: token.address,
+          tokenSymbol: token.symbol,
+          tokenLogo: token.logoURI,
+          totalAmount,
+          tokenDecimals: token.decimals,
+          tokensPerWallet: config.tokensPerWallet,
+          maxWallets: config.maxWallets,
+          creator: solanaWallet.address,
+          isNative: token.isNative,
+        }),
+      }
+    );
 
-    const data = await response.json();
-
-    if (!data.success) {
-      throw new Error(
-        data.message || 'Failed to generate redeem link'
-      );
+    if (!response.ok) {
+      throw new Error('Failed to generate redeem link');
     }
 
     // Update step 1 to completed and step 2 to processing
     updateStep(0, 'completed');
     updateStep(1, 'processing');
 
-    // Execute setup transaction if required
-    if (data.requiresSetup && data.setupTransaction) {
-      try {
-        const setupTx = Transaction.from(
-          Buffer.from(data.setupTransaction, 'base64')
-        );
-        const signedSetupTx = await solanaWallet.signTransaction(
-          setupTx
-        );
-        const setupSignature = await connection.sendRawTransaction(
-          signedSetupTx.serialize()
-        );
-        await connection.confirmTransaction(setupSignature);
-        await new Promise((resolve) => setTimeout(resolve, 2000));
-      } catch (error) {
-        throw new Error('Failed to set up temporary account');
-      }
+    const { data } = await response.json();
+
+    try {
+      const setupTx = Transaction.from(
+        Buffer.from(data.serializedTransaction, 'base64')
+      );
+      const signedSetupTx = await solanaWallet.signTransaction(
+        setupTx
+      );
+      const setupSignature = await connection.sendRawTransaction(
+        signedSetupTx.serialize()
+      );
+      await connection.confirmTransaction(setupSignature);
+      await new Promise((resolve) => setTimeout(resolve, 2000));
+    } catch (error) {
+      throw new Error('Failed to set up temporary account');
     }
 
     // Update step 2 to completed and step 3 to processing
