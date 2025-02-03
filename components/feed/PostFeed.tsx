@@ -158,7 +158,7 @@ const PostFeed = ({
 
   return (
     <div className="p-6">
-      <div className="flex items-start gap-6">
+      <div className="flex items-start gap-2">
         <UserImageAvatar
           src={
             isUrl(primaryMicrositeImg)

@@ -144,7 +144,7 @@ const Transaction = ({
             key={feed._id}
             className="flex gap-2 border-b border-gray-200 pb-4"
           >
-            <div className="w-12 h-12 bg-gray-400 border border-gray-300 rounded-full overflow-hidden flex items-center justify-center">
+            <div className="w-10 xl:w-12 h-10 xl:h-12 bg-gray-400 border border-gray-300 rounded-full overflow-hidden flex items-center justify-center">
               {(() => {
                 const profilePic =
                   feed?.smartsiteId?.profilePic || feed?.smartsiteProfilePic;
@@ -154,16 +154,18 @@ const Transaction = ({
                     <Image
                       alt="user image"
                       src={profilePic}
-                      width={90}
-                      height={90}
+                      width={300}
+                      height={300}
+                      quality={100}
                       className="rounded-full w-full h-full"
                     />
                   ) : (
                     <Image
                       alt="user image"
                       src={`/images/user_avator/${profilePic}.png`}
-                      width={90}
-                      height={90}
+                      width={300}
+                      height={300}
+                      quality={100}
                       className="rounded-full w-full h-full"
                     />
                   );
@@ -172,7 +174,7 @@ const Transaction = ({
                 }
               })()}
             </div>
-            <div className="w-full">
+            <div className="flex-1">
               {/* User and Feed Info */}
               <div className="flex items-start justify-between">
                 <div>
