@@ -14,21 +14,21 @@ import {
   FacebookIcon,
   WhatsappIcon,
 } from "react-share";
+import { FcOk } from "react-icons/fc";
+import { useUser } from "@/lib/UserContext";
 
 export default function SmartSiteUrlShareModal({
   isOpen,
   onOpenChange,
   smartSiteProfileUrl,
 }: any) {
-  // console.log("smartstie", smartSiteProfileUrl);
+  const { user } = useUser();
   // Initial text
-  const [textToCopy, setTextToCopy] = useState("Copy this text2222");
+  const [textToCopy, setTextToCopy] = useState(user?.ensName);
   // State to manage copied effect
   const [isCopied, setIsCopied] = useState(false);
   // State to manage notification visibility
   const [showNotification, setShowNotification] = useState(false);
-  // State for the new input field
-  const [newInputValue, setNewInputValue] = useState("");
 
   const handleCopy = (e: any) => {
     e.stopPropagation();
@@ -52,7 +52,7 @@ export default function SmartSiteUrlShareModal({
             backdrop={"blur"}
           >
             <ModalContent>
-              <div className="w-[91%] mx-auto py-6">
+              <div className="w-[91%] mx-auto py-10">
                 <ModalBody className="text-center">
                   <div>
                     <p className="font-bold">Share Your Smartsite Link Via</p>
@@ -71,12 +71,12 @@ export default function SmartSiteUrlShareModal({
                           alignItems: "center",
                           gap: "10px",
                         }}
-                        className=""
+                        className="pb-5"
                       >
                         <input
                           type="text"
-                          value={textToCopy}
-                          onChange={(e) => setTextToCopy(e.target.value)}
+                          value={user?.ensName}
+                          disabled
                           style={{
                             padding: "8px",
                             fontSize: "16px",
@@ -102,7 +102,7 @@ export default function SmartSiteUrlShareModal({
                           className="translate-x-[400%]"
                         >
                           {isCopied ? (
-                            <IoCopyOutline className="text-[#28a745] size-6" />
+                            <FcOk className="text-[#28a745] size-6" />
                           ) : (
                             <IoCopyOutline className=" text-gray-500 size-6" />
                           )}
