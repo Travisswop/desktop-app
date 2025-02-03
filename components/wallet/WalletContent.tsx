@@ -486,7 +486,7 @@ const WalletContentInner = () => {
           qrCodeUrl={qrcodeShareUrl}
         />
       </div>
-      <RedeemTokenList />
+      {network === 'SOLANA' && <RedeemTokenList />}
       <NetworkDock network={network} setNetwork={setNetwork} />
       <Toaster />
     </div>
