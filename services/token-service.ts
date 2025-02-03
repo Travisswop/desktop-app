@@ -275,11 +275,11 @@ export class SolanaService {
     if (!walletAddress) return [];
 
     try {
-      const connection = new Connection(
-        process.env.NEXT_PUBLIC_QUICKNODE_SOLANA_URL!,
-        'confirmed'
-      );
-      // const connection = new Connection(clusterApiUrl('devnet'));
+      // const connection = new Connection(
+      //   process.env.NEXT_PUBLIC_QUICKNODE_SOLANA_URL!,
+      //   'confirmed'
+      // );
+      const connection = new Connection(clusterApiUrl('devnet'));
       const publicKey = new PublicKey(walletAddress);
 
       // Validate the public key

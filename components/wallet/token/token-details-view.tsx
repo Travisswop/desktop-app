@@ -158,12 +158,12 @@ export default function TokenDetails({
       );
     }
 
-    // const connection = new Connection(clusterApiUrl('devnet'));
+    const connection = new Connection(clusterApiUrl('devnet'));
 
-    const connection = new Connection(
-      process.env.NEXT_PUBLIC_QUICKNODE_SOLANA_URL ||
-        'https://api.devnet.solana.com'
-    );
+    // const connection = new Connection(
+    //   process.env.NEXT_PUBLIC_QUICKNODE_SOLANA_URL ||
+    //     'https://api.devnet.solana.com'
+    // );
 
     // Convert amount to proper decimal format
     const totalAmount = parseFloat(config.totalAmount.toString());
