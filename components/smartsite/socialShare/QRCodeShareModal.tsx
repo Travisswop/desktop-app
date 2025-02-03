@@ -93,13 +93,13 @@ export default function QRCodeShareModal({
               <div className="w-[91%] mx-auto py-12">
                 <ModalBody className="text-center">
                   <div>
-                    <p className="font-bold">Your QR Code</p>
+                    <p className="font-bold text-xl">Your QR Code</p>
                     <Image
                       src={qrCodeUrl}
                       alt="qrcode"
                       width={300}
                       height={300}
-                      className="w-52 h-52 mx-auto"
+                      className="w-52 h-52 mx-auto border-2 border-gray-300 rounded-md mt-1"
                     />
                   </div>
                   {/* <div className="flex w-full justify-center items-center gap-5"> */}
@@ -281,13 +281,13 @@ export default function QRCodeShareModal({
               <div className="w-[91%] mx-auto py-12">
                 <ModalBody className="text-center">
                   <div>
-                    <p className="font-bold">Your QR Code</p>
+                    <p className="font-bold text-xl">Your QR Code</p>
                     <Image
                       src={qrCodeUrl}
                       alt="qrcode"
                       width={300}
                       height={300}
-                      className="w-52 h-52 mx-auto"
+                      className="w-52 h-52 mx-auto border-2 border-gray-300 rounded-md mt-1"
                     />
                   </div>
                   <div className="flex w-full justify-center items-center gap-5">
