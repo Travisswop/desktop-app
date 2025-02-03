@@ -25,6 +25,10 @@ import { postRedeem } from "@/actions/redeem";
 import Cookies from "js-cookie";
 import { postFeed } from "@/actions/postFeed";
 import { useUser } from "@/lib/UserContext";
+import {
+  fromTokenLamports,
+  RedemptionPool,
+} from "@/components/wallet/redeem/token-list";
 
 const AddRedeemLink = ({ handleRemoveIcon, handleToggleIcon }: any) => {
   const { user } = usePrivy();
@@ -63,15 +67,35 @@ const AddRedeemLink = ({ handleRemoveIcon, handleToggleIcon }: any) => {
       try {
         setIsPoolLoading(true);
         const response = await fetch(
-          `/api/redeem/list?privyUserId=${user?.id}`
+          `${process.env.NEXT_PUBLIC_API_URL}/api/v2/desktop/wallet/getRedeemPoolList/${user?.id}`
         );
-        const data = await response.json();
-        console.log("pools data", data);
 
-        if (data.success) {
-          setPools(data.pools);
+        if (response.ok) {
+          const { data } = await response.json();
+          console.log("🚀 ~ fetchPools ~ data:", data);
+          const items = data.map((pool: RedemptionPool) => ({
+            ...pool,
+            total_amount: fromTokenLamports(
+              pool.total_amount,
+              pool.token_decimals
+            ),
+            remaining_amount: fromTokenLamports(
+              pool.remaining_amount,
+              pool.token_decimals
+            ),
+            tokens_per_wallet: fromTokenLamports(
+              pool.tokens_per_wallet,
+              pool.token_decimals
+            ),
+            total_redeemed_amount: fromTokenLamports(
+              pool.total_redeemed_amount || "0",
+              pool.token_decimals
+            ),
+            redeemLink: `${process.env.NEXT_PUBLIC_APP_URL}/redeem/${pool.pool_id}`,
+          }));
+          setPools(items);
         } else {
-          toast.error(data.message || "Failed to fetch redemption pools");
+          toast.error("Failed to fetch redemption pools");
         }
       } catch (error) {
         console.error("Error fetching pools:", error);

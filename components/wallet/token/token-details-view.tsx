@@ -120,6 +120,26 @@ export default function TokenDetails({
     }
   }, [selectedPeriod, day.data, week.data, month.data, year.data]);
 
+  const deleteRedeemLink = async (userId: string, poolId: string) => {
+    const response = await fetch(
+      `${process.env.NEXT_PUBLIC_API_URL}/api/v2/desktop/wallet/deleteRedeemLink`,
+      {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          privyUserId: userId,
+          poolId: poolId,
+        }),
+      }
+    );
+
+    if (!response.ok) {
+      throw new Error('Failed to delete redeem link');
+    }
+  };
+
   const handleRedeem = async (
     config: RedeemConfig,
     updateStep: (
@@ -139,6 +159,11 @@ export default function TokenDetails({
     }
 
     const connection = new Connection(clusterApiUrl('devnet'));
+
+    // const connection = new Connection(
+    //   process.env.NEXT_PUBLIC_QUICKNODE_SOLANA_URL ||
+    //     'https://api.devnet.solana.com'
+    // );
 
     // Convert amount to proper decimal format
     const totalAmount = parseFloat(config.totalAmount.toString());
@@ -176,6 +201,7 @@ export default function TokenDetails({
     updateStep(1, 'processing');
 
     const { data } = await response.json();
+    console.log('🚀 ~ data:', data);
 
     try {
       const setupTx = Transaction.from(
@@ -190,6 +216,8 @@ export default function TokenDetails({
       await connection.confirmTransaction(setupSignature);
       await new Promise((resolve) => setTimeout(resolve, 2000));
     } catch (error) {
+      console.log('🚀 ~ error:', error);
+      await deleteRedeemLink(user?.id || '', data.poolId);
       throw new Error('Failed to set up temporary account');
     }
 
@@ -215,10 +243,11 @@ export default function TokenDetails({
 
       // Update final step to completed
       updateStep(2, 'completed');
-
+      const redeemLink = `${process.env.NEXT_PUBLIC_APP_URL}/redeem/${data.poolId}`;
       // Set the redeem link
-      setRedeemLink(data.redeemLink);
+      setRedeemLink(redeemLink);
     } catch (error: any) {
+      await deleteRedeemLink(user?.id || '', data.poolId); // Call to delete redeem link
       throw new Error('Failed to transfer tokens');
     }
   };

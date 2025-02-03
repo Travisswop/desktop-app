@@ -9,12 +9,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import toast from 'react-hot-toast';
 import { RefreshCw } from 'lucide-react';
@@ -28,7 +23,7 @@ import {
   TabsTrigger,
 } from '@/components/ui/tabs';
 
-interface RedemptionPool {
+export interface RedemptionPool {
   pool_id: string;
   total_amount: number;
   remaining_amount: number;
@@ -43,6 +38,13 @@ interface RedemptionPool {
   total_redemptions: number;
   total_redeemed_amount: number;
   redeemLink: string;
+}
+
+export function fromTokenLamports(
+  lamports: string | number,
+  decimals: number
+): number {
+  return Number(lamports) / Math.pow(10, decimals);
 }
 
 const TableSkeleton = () => (
@@ -67,17 +69,35 @@ export default function RedeemTokenList() {
   const fetchPools = async () => {
     try {
       const response = await fetch(
-        `/api/redeem/list?privyUserId=${user?.id}`
+        `${process.env.NEXT_PUBLIC_API_URL}/api/v2/desktop/wallet/getRedeemPoolList/${user?.id}`
       );
-      const data = await response.json();
-      console.log('🚀 ~ fetchPools ~ data:', data);
 
-      if (data.success) {
-        setPools(data.pools);
+      if (response.ok) {
+        const { data } = await response.json();
+        console.log('🚀 ~ fetchPools ~ data:', data);
+        const items = data.map((pool: RedemptionPool) => ({
+          ...pool,
+          total_amount: fromTokenLamports(
+            pool.total_amount,
+            pool.token_decimals
+          ),
+          remaining_amount: fromTokenLamports(
+            pool.remaining_amount,
+            pool.token_decimals
+          ),
+          tokens_per_wallet: fromTokenLamports(
+            pool.tokens_per_wallet,
+            pool.token_decimals
+          ),
+          total_redeemed_amount: fromTokenLamports(
+            pool.total_redeemed_amount || '0',
+            pool.token_decimals
+          ),
+          redeemLink: `${process.env.NEXT_PUBLIC_APP_URL}/redeem/${pool.pool_id}`,
+        }));
+        setPools(items);
       } else {
-        toast.error(
-          data.message || 'Failed to fetch redemption pools'
-        );
+        toast.error('Failed to fetch redemption pools');
       }
     } catch (error) {
       console.error('Error fetching pools:', error);

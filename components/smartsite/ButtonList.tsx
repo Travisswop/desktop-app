@@ -1,17 +1,18 @@
-'use client';
-import Link from 'next/link';
-import React from 'react';
+"use client";
+import Link from "next/link";
+import React from "react";
 // import Swal from "sweetalert2";
-import { MdQrCodeScanner } from 'react-icons/md';
-import { TbEdit } from 'react-icons/tb';
+import { MdQrCodeScanner } from "react-icons/md";
+import { TbEdit } from "react-icons/tb";
 // import { handleDeleteSmartSite } from "@/actions/deleteSmartsite";
 // import { useRouter } from "next/navigation";
-import AnimateButton from '../ui/Button/AnimateButton';
+import AnimateButton from "../ui/Button/AnimateButton";
 // import { useDesktopUserData } from "../tanstackQueryApi/getUserData";
-import { BiWallet } from 'react-icons/bi';
-import { useRouter } from 'next/navigation';
+import { BiWallet } from "react-icons/bi";
+import { useRouter } from "next/navigation";
+import ShareCustomQRCode from "./socialShare/ShareCustomQRCode";
 
-const ButtonList = ({ microsite, token, id }: any) => {
+const ButtonList = ({ microsite, token, id, qrEmbeddedUrl }: any) => {
   // const demoShowToken =
   //   "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJfaWQiOiI2NjM4NjMyMDIzMDQxMDMyODAyOTk4MmIiLCJpYXQiOjE3MjcxNTI4MzB9.CsHnZAgUzsfkc_g_CZZyQMXc02Ko_LhnQcCVpeCwroY";
   // const { refetch } = useDesktopUserData(id, demoShowToken);
@@ -93,10 +94,9 @@ const ButtonList = ({ microsite, token, id }: any) => {
 
   const handleWalletRedirect = () => {
     if (microsite.primary) {
-      router.push('/wallet');
+      router.push("/wallet");
     }
   };
-
   return (
     <div className="flex flex-wrap items-center justify-center gap-1">
       {/* <Link href={`/smartsite/${microsite._id}`} className="text-sm">
@@ -125,14 +125,15 @@ const ButtonList = ({ microsite, token, id }: any) => {
       >
         Wallet <BiWallet size={20} />
       </AnimateButton>
-      <Link href={`/smartsite/qr-code/${microsite._id}`} className="">
-        <AnimateButton
-          // width="w-[5.8rem]"
-          className="!rounded-md !text-black hover:!text-white !border-black !gap-1 2xl:!gap-1.5 text-sm 2xl:text-base !w-[3.7rem] 2xl:!w-20 !px-2.5"
-        >
-          QR <MdQrCodeScanner size={18} />
-        </AnimateButton>
-      </Link>
+
+      <ShareCustomQRCode
+        url={microsite?.qrcodeUrl}
+        micrositeIdforEditingQR={microsite?._id}
+        smartSiteButton
+      >
+        QR <MdQrCodeScanner size={18} />
+      </ShareCustomQRCode>
+
       {/* <AnimateButton
         isLoading={deleteLoading}
         onClick={handleDeleteSmartsite}

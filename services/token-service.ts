@@ -277,7 +277,7 @@ export class SolanaService {
     try {
       // const connection = new Connection(
       //   process.env.NEXT_PUBLIC_QUICKNODE_SOLANA_URL!,
-      //   "confirmed"
+      //   'confirmed'
       // );
       const connection = new Connection(clusterApiUrl('devnet'));
       const publicKey = new PublicKey(walletAddress);
