@@ -25,6 +25,7 @@ const PostTypeMedia = ({ mediaFiles }: any) => {
           {mediaFiles.length === 1 && (
             <div className={``}>
               {mediaFiles[0].type === "image" ||
+              mediaFiles[0].type === "photo" ||
               mediaFiles[0].type === "gif" ? (
                 <div className="relative min-h-96 max-h-[30rem] border border-black bg-black rounded-2xl overflow-hidden">
                   <Image
@@ -61,7 +62,9 @@ const PostTypeMedia = ({ mediaFiles }: any) => {
                   key={index}
                   className="relative w-full h-full aspect-[4/3] overflow-hidden"
                 >
-                  {file.type === "image" || file.type === "gif" ? (
+                  {file.type === "image" ||
+                  mediaFiles[0].type === "photo" ||
+                  file.type === "gif" ? (
                     <Image
                       src={file.src}
                       alt="media"
@@ -90,7 +93,9 @@ const PostTypeMedia = ({ mediaFiles }: any) => {
                   key={index}
                   className="relative w-full h-full aspect-[4/3] overflow-hidden"
                 >
-                  {file.type === "image" || file.type === "gif" ? (
+                  {file.type === "image" ||
+                  mediaFiles[0].type === "photo" ||
+                  file.type === "gif" ? (
                     <Image
                       src={file.src}
                       alt="media"
@@ -119,7 +124,9 @@ const PostTypeMedia = ({ mediaFiles }: any) => {
                   key={index}
                   className="relative w-full h-full aspect-[4/3] overflow-hidden"
                 >
-                  {file.type === "image" || file.type === "gif" ? (
+                  {file.type === "image" ||
+                  mediaFiles[0].type === "photo" ||
+                  file.type === "gif" ? (
                     <Image
                       src={file.src}
                       alt="media"
