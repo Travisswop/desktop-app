@@ -1,5 +1,4 @@
 export async function addSwopPoint(payload: any) {
-  console.log('🚀 ~ addSwopPoint ~ payload:', payload);
   try {
     await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/v1/points`, {
       method: 'POST',

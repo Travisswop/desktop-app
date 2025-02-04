@@ -331,6 +331,7 @@ export class SolanaService {
       const swopTokenBalance = await this.getSwopTokenBalance(
         walletAddress
       );
+
       if (swopTokenBalance) {
         const swopTokenPrice = await this.fetchTokenPrice(
           SWOP_TOKEN.address || ''
@@ -480,10 +481,28 @@ export class SolanaService {
         swopToken,
         publicKey
       );
+
+      // Check if the associated token address is valid
+      if (!associatedTokenAddress) {
+        console.error(
+          'Associated token address not found for SWOP token'
+        );
+        return null;
+      }
+
       const tokenAccount = await getAccount(
         connection,
         associatedTokenAddress
       );
+
+      // Check if the token account is valid
+      if (!tokenAccount) {
+        console.error(
+          'Token account not found for associated address:',
+          associatedTokenAddress.toString()
+        );
+        return null;
+      }
 
       return tokenAccount.amount;
     } catch (error) {
