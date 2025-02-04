@@ -11,6 +11,7 @@ import {
   Switch,
   useDisclosure,
 } from "@nextui-org/react";
+import { Button } from "@nextui-org/react";
 // import EditMicrositeBtn from "@/components/Button/EditMicrositeBtn";
 import { LiaFileMedicalSolid } from "react-icons/lia";
 import { IoMdLink } from "react-icons/io";
@@ -52,6 +53,7 @@ import { MdDeleteOutline, MdDone } from "react-icons/md";
 import Swal from "sweetalert2";
 import { handleDeleteSmartSite } from "@/actions/deleteSmartsite";
 import Cookies from "js-cookie";
+import DeleteModal from "./DeleteModal";
 
 const EditSmartSite = ({ data, token }: any) => {
   const [selectedImage, setSelectedImage] = useState(null); // get user avator image
@@ -295,7 +297,7 @@ const EditSmartSite = ({ data, token }: any) => {
       backgroundColor: smartSiteEditFormData.backgroundColor,
     };
 
-    console.log("smartsite info", smartSiteInfo);
+    // console.log("smartsite info", smartSiteInfo);
 
     try {
       const response = await handleSmartSiteUpdate(smartSiteInfo, token);
@@ -324,7 +326,7 @@ const EditSmartSite = ({ data, token }: any) => {
     const result = await Swal.fire({
       title: "Are you sure?",
       text: "You won't be able to revert your smartsite!",
-      icon: "warning",
+      // icon: "warning",
       showCancelButton: true,
       confirmButtonText: "Yes, delete it!",
       cancelButtonText: "No, cancel!",
@@ -336,7 +338,7 @@ const EditSmartSite = ({ data, token }: any) => {
         setDeleteLoading(true);
         const deleteSmartsite = await handleDeleteSmartSite(
           data.data._id,
-          token
+          token,
         );
 
         // console.log("data delte", data);
@@ -408,7 +410,7 @@ const EditSmartSite = ({ data, token }: any) => {
   // console.log("toogle icon", toggleIcon);
 
   const setSmartSiteData = useSmartSiteApiDataStore(
-    (state: any) => state.setSmartSiteData
+    (state: any) => state.setSmartSiteData,
   ); //get setter for setting smartsite info from zustand store
 
   //get setter for setting session info from zustand store
@@ -862,7 +864,7 @@ const EditSmartSite = ({ data, token }: any) => {
             </DynamicPrimaryBtn>
             <AnimateButton
               type="button"
-              onClick={handleDeleteSmartsite}
+              onClick={() => onOpen()}
               className="py-2 hover:py-3 text-base !gap-1 bg-white text-black w-full"
               // disabled={isFormSubmitLoading}
             >
@@ -875,6 +877,16 @@ const EditSmartSite = ({ data, token }: any) => {
                 </>
               )}
             </AnimateButton>
+
+            {isOpen && (
+              <DeleteModal
+                isOpen={isOpen}
+                onOpenChange={onOpenChange}
+                parentId={data?.data?.parentId}
+                _id={data?.data?._id}
+                accessToken={token}
+              />
+            )}
           </form>
         </div>
         {/* <div style={{ height: "90%" }} className="w-[38%] overflow-y-auto"> */}
