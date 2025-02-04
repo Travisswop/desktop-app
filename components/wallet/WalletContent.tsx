@@ -43,7 +43,8 @@ import MessageList from './message-list';
 import { useUser } from '@/lib/UserContext';
 import RedeemTokenList from './redeem/token-list';
 import { addSwopPoint } from '@/actions/addPoint';
-
+import { postFeed } from '@/actions/postFeed';
+import Cookies from 'js-cookie';
 export default function WalletContent() {
   return <WalletContentInner />;
 }
@@ -87,6 +88,7 @@ const WalletContentInner = () => {
   const [qrcodeShareUrl, setQrcodeShareUrl] = useState('');
   const [QRCodeShareModalOpen, setQRCodeShareModalOpen] =
     useState(false);
+  const [accessToken, setAccessToken] = useState('');
 
   const [payload, setPayload] = useState({
     smartsiteId: '',
@@ -144,6 +146,16 @@ const WalletContentInner = () => {
       }));
     }
   }, [user]);
+
+  useEffect(() => {
+    const getAccessToken = async () => {
+      const token = Cookies.get('access-token');
+      if (token) {
+        setAccessToken(token);
+      }
+    };
+    getAccessToken();
+  }, []);
 
   // Memoized values
   const currentWalletAddress = useMemo(() => {
@@ -232,18 +244,12 @@ const WalletContentInner = () => {
     )
       return;
 
-    await addSwopPoint({
-      userId: user?._id,
-      pointType: 'Using Swop.ID for Transactions',
-      actionKey: 'launch-swop',
-    });
-
-    setSendFlow((prev) => ({
-      ...prev,
-      hash: '0xhdlsfjsljfladjflsajfljdslafjldjfsjf',
-      step: 'success',
-    }));
-    return;
+    // setSendFlow((prev) => ({
+    //   ...prev,
+    //   hash: '0xhdlsfjsljfladjflsajfljdslafjldjfsjf',
+    //   step: 'success',
+    // }));
+    // return;
 
     // setSendLoading(true);
     const amount =
@@ -252,32 +258,30 @@ const WalletContentInner = () => {
           Number(sendFlow.token.marketData.price)
         : sendFlow.amount;
 
-    console.log('sendFlow', sendFlow);
+    // setPayload((prevPayload) => ({
+    //   ...prevPayload,
+    //   content: {
+    //     transaction_type: sendFlow.nft ? 'nft' : 'token',
+    //     sender_ens: payload.smartsiteEnsName,
+    //     sender_wallet_address: currentWalletAddress || '',
+    //     receiver_ens: sendFlow.recipient?.ensName || '',
+    //     receiver_wallet_address: sendFlow.recipient?.address || '',
+    //     amount: Number(amount),
+    //     currency: sendFlow.token?.symbol || '',
+    //     transaction_hash: '0xhdlsfjsljfladjflsajfljdslafjldjfsjf',
+    //   },
+    // }));
 
-    setPayload((prevPayload) => ({
-      ...prevPayload,
-      content: {
-        transaction_type: sendFlow.nft ? 'nft' : 'token',
-        sender_ens: payload.smartsiteEnsName,
-        sender_wallet_address: currentWalletAddress || '',
-        receiver_ens: sendFlow.recipient?.ensName || '',
-        receiver_wallet_address: sendFlow.recipient?.address || '',
-        amount: Number(amount),
-        currency: sendFlow.token?.symbol || '',
-        transaction_hash: '0xhdlsfjsljfladjflsajfljdslafjldjfsjf',
-      },
-    }));
+    // console.log('payload', payload);
 
-    console.log('payload', payload);
-
-    // await postFeed(payload, token);
+    // await postFeed(payload, accessToken);
 
     // setSendFlow((prev) => ({
     //   ...prev,
     //   hash: '0xhdlsfjsljfladjflsajfljdslafjldjfsjf',
     //   step: 'success',
     // }));
-    //return;
+    // return;
 
     try {
       let hash = '';
@@ -335,6 +339,30 @@ const WalletContentInner = () => {
           newTransaction = result.transaction;
         }
       }
+
+      if (sendFlow.recipient.isEns) {
+        addSwopPoint({
+          userId: user?._id,
+          pointType: 'Using Swop.ID for Transactions',
+          actionKey: 'launch-swop',
+        });
+      }
+
+      setPayload((prevPayload) => ({
+        ...prevPayload,
+        content: {
+          transaction_type: sendFlow.nft ? 'nft' : 'token',
+          sender_ens: payload.smartsiteEnsName,
+          sender_wallet_address: currentWalletAddress || '',
+          receiver_ens: sendFlow.recipient?.ensName || '',
+          receiver_wallet_address: sendFlow.recipient?.address || '',
+          amount: Number(amount),
+          currency: sendFlow.token?.symbol || '',
+          transaction_hash: hash,
+        },
+      }));
+
+      postFeed(payload, accessToken);
 
       setSendFlow((prev) => ({
         ...prev,
