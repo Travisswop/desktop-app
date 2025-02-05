@@ -44,13 +44,15 @@ const AddMarketplace = ({ handleRemoveIcon, handleToggleIcon }: any) => {
         const data = await response.json();
         if (data.state === "success") {
           const templatesData = data.data.flatMap((item: any) =>
-            Object.values(item.templatesByNftType).flat().map((template: any) => ({
-              collectionId: item.collection.id,
-              templateId: template.templateId,
-              name: template.metadata.name,
-              description: template.metadata.description,
-              image: template.metadata.image,
-            }))
+            Object.values(item.templatesByNftType)
+              .flat()
+              .map((template: any) => ({
+                collectionId: item.collection.id,
+                templateId: template.templateId,
+                name: template.metadata.name,
+                description: template.metadata.description,
+                image: template.metadata.image,
+              }))
           );
           setTemplates(templatesData);
         } else {
@@ -64,7 +66,10 @@ const AddMarketplace = ({ handleRemoveIcon, handleToggleIcon }: any) => {
     fetchTemplates();
   }, []);
 
-  const handleSelectTemplate = async (collectionId: string, templateId: string) => {
+  const handleSelectTemplate = async (
+    collectionId: string,
+    templateId: string
+  ) => {
     setIsLoading(true);
     try {
       const response = await fetch(
@@ -111,8 +116,8 @@ const AddMarketplace = ({ handleRemoveIcon, handleToggleIcon }: any) => {
             size="sm"
             content={
               <span className="font-medium">
-                You will be able to set the icon type, choose an icon, specify a button
-                name, provide a link, and add a description.
+                You will be able to set the icon type, choose an icon, specify a
+                button name, provide a link, and add a description.
               </span>
             }
             className="max-w-40 h-auto"
@@ -158,7 +163,7 @@ const AddMarketplace = ({ handleRemoveIcon, handleToggleIcon }: any) => {
                       whiteLoading={true}
                       className="bg-black text-white py-2 !border-0"
                       isLoading={isLoading}
-                      width="w-40"
+                      width="w-fit text-nowrap 2xl:w-40"
                     >
                       Price ${selectedTemplate.price}
                     </AnimateButton>
@@ -166,7 +171,7 @@ const AddMarketplace = ({ handleRemoveIcon, handleToggleIcon }: any) => {
                       whiteLoading={true}
                       className="bg-black text-white py-2 !border-0"
                       isLoading={isLoading}
-                      width="w-44"
+                      width="w-fit text-nowrap 2xl:w-44"
                     >
                       Add to Cart
                       <LiaFileMedicalSolid size={20} />
@@ -186,12 +191,12 @@ const AddMarketplace = ({ handleRemoveIcon, handleToggleIcon }: any) => {
             <h3 className="font-semibold text-gray-700 w-20">Add Item</h3>
             <Dropdown className="w-max rounded-lg" placement="bottom-start">
               <DropdownTrigger>
-                <button
-                  className="bg-white w-48 2xl:w-64 flex justify-between items-center rounded px-2 py-2 text-sm font-medium shadow-small"
-                >
+                <button className="bg-white w-48 2xl:w-64 flex justify-between items-center rounded px-2 py-2 text-sm font-medium shadow-small">
                   <span className="flex items-center gap-2">
                     <div className="w-5 h-5 bg-black rounded-full"></div>
-                    {selectedTemplate ? selectedTemplate.metadata.name : "Select Item"}
+                    {selectedTemplate
+                      ? selectedTemplate.metadata.name
+                      : "Select Item"}
                   </span>
                   <FaAngleDown />
                 </button>
@@ -201,7 +206,10 @@ const AddMarketplace = ({ handleRemoveIcon, handleToggleIcon }: any) => {
                   <DropdownItem
                     key={template.templateId}
                     onClick={() =>
-                      handleSelectTemplate(template.collectionId, template.templateId)
+                      handleSelectTemplate(
+                        template.collectionId,
+                        template.templateId
+                      )
                     }
                   >
                     {template.name}
