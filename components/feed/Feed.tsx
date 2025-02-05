@@ -243,7 +243,7 @@ const Feed = ({
                           <p>
                             {feed.content.amount} {feed.content.symbol}
                           </p>
-                          <p>Limit: {feed.content.mintLimit}</p>
+                          {/* <p>Limit: {feed.content.mintLimit}</p> */}
                         </div>
                       </div>
                     </div>

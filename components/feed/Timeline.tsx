@@ -42,7 +42,7 @@ const Timeline = ({
 
   const { user, loading, error: userError }: any = useUser();
 
-  console.log("feedData", feedData);
+  // console.log("feedData", feedData);
 
   // useEffect(() => {
   //   if (typeof window !== "undefined") {
@@ -229,7 +229,7 @@ const Timeline = ({
                           <p>
                             {feed.content.amount} {feed.content.symbol}
                           </p>
-                          <p>Limit: {feed.content.mintLimit}</p>
+                          {/* <p>Limit: {feed.content.mintLimit}</p> */}
                         </div>
                       </div>
                     </div>
