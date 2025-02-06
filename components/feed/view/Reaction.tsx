@@ -1,5 +1,9 @@
 "use client";
-import { isPostLiked, postFeedLike, removeFeedLike } from "@/actions/postFeed";
+import {
+  addFeedLikePoints,
+  postFeedLike,
+  removeFeedLike,
+} from "@/actions/postFeed";
 import { Tooltip } from "@nextui-org/react";
 import React, { useEffect, useState } from "react";
 import { FiShare } from "react-icons/fi";
@@ -61,6 +65,22 @@ const Reaction = ({
     try {
       if (!liked) {
         await postFeedLike({ postId, smartsiteId }, accessToken);
+        //add points for feed like
+        if (user?._id) {
+          const payloadForPoints = {
+            userId: user._id,
+            pointType: "Receiving a Like on Your Feed",
+            actionKey: "launch-swop", //use same value
+            feedPostId: postId,
+          };
+          console.log("payloadForPoints", payloadForPoints);
+
+          const response = await addFeedLikePoints(
+            payloadForPoints,
+            accessToken
+          );
+          console.log("response", response);
+        }
       } else {
         const payload = { postId, smartsiteId, commentId, replyId };
         await removeFeedLike(payload, accessToken);
@@ -83,6 +103,7 @@ const Reaction = ({
   };
 
   const { user, loading, error: userError }: any = useUser();
+  // console.log("user", user);
 
   useEffect(() => {
     if (user) {
