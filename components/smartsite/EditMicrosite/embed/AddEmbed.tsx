@@ -115,7 +115,7 @@ const AddEmbed = ({ handleRemoveIcon }: any) => {
           <FaTimes size={18} />
         </button>
       </div>
-      <div className="border-2 border-[#d8acff] w-2/3 mx-auto h-auto flex justify-center p-1 bg-slate-100 rounded-lg">
+      <div className="border-2 border-[#d8acff] w-[100%] mx-auto h-auto flex justify-center p-1 bg-slate-100 rounded-lg">
         {!embedLink ? (
           <div className="relative w-full h-80">
             <Image
