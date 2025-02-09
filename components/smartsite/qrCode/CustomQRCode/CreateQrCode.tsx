@@ -282,6 +282,8 @@ const CreateQRCode = ({ session }: any) => {
         color: color,
       };
 
+      console.log("payloadd", payload);
+
       // Send the updated JSON data in a POST request
       const data: any = await postUserCustomQrCode(
         payload,
