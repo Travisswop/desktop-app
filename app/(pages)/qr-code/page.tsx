@@ -8,7 +8,7 @@ import QrCodeLists from "@/components/QrCodeLists";
 // import ShareCustomQRCode from "@/components/ShareModal/ShareCustomQRCode";
 import DynamicPrimaryBtn from "@/components/ui/Button/DynamicPrimaryBtn";
 // import { getFormattedDate } from "@/components/util/getFormattedDate";
-import { Checkbox, Switch } from "@nextui-org/react";
+// import { Checkbox, Switch } from "@nextui-org/react";
 import { cookies } from "next/headers";
 // import TestShare from "@/components/TestShare";
 // import { getFormattedDate } from "@/util/getFormattedDate";

@@ -58,7 +58,7 @@ export async function updateUserCustomQrCode(
     // console.log("sessionfff", session);
 
     const response = await fetch(
-      `${process.env.NEXT_PUBLIC_API_URL}/api/v1/desktop/user/customQRCodes/${id}`,
+      `${process.env.NEXT_PUBLIC_API_URL}/api/v1/desktop/user/qr-code/customQRCodes/${id}`,
       {
         method: "PATCH",
         headers: {
@@ -79,7 +79,7 @@ export async function updateUserCustomQrCode(
 export async function deleteQrCode(id: any, token: string) {
   try {
     await fetch(
-      `${process.env.NEXT_PUBLIC_API_URL}/api/v1/desktop/user/customQRCodes/${id}`,
+      `${process.env.NEXT_PUBLIC_API_URL}/api/v1/desktop/user/qr-code/customQRCodes/${id}`,
       {
         method: "DELETE",
         headers: {

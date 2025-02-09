@@ -31,6 +31,8 @@ const UpdateQrCodePage = async ({
   );
   const data = await response.json();
 
+  console.log("single qr data", data);
+
   return (
     <div>
       <UpdateQRCode data={data.data} session={session} />
