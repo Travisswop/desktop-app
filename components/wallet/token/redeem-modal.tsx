@@ -7,7 +7,7 @@ import {
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { Info, CheckCircle, XCircle } from 'lucide-react';
 import Image from 'next/image';
 import { toast } from '@/hooks/use-toast';
@@ -29,6 +29,7 @@ interface RedeemModalProps {
   tokenDecimals: number;
   tokenBalance: string;
   tokenLogo: string;
+  tokenAmount: number;
 }
 
 export interface RedeemConfig {
@@ -54,12 +55,13 @@ export default function RedeemModal({
   tokenDecimals,
   tokenBalance,
   tokenLogo,
+  tokenAmount,
 }: RedeemModalProps) {
-  const [totalAmount, setTotalAmount] = useState('');
   const [maxWallets, setMaxWallets] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
   const [redeemLink, setRedeemLink] = useState('');
+  const [tokensPerWallet, setTokensPerWallet] = useState(0);
   const [steps, setSteps] = useState<ProcessingStep[]>([
     {
       status: 'pending',
@@ -76,30 +78,21 @@ export default function RedeemModal({
   ]);
   const [isSuccess, setIsSuccess] = useState(false);
 
-  const userBalance = parseFloat(tokenBalance);
-
   const handleAmountChange = (
     e: React.ChangeEvent<HTMLInputElement>
   ) => {
     const value = formatNumber(e.target.value);
-    const numValue = parseFloat(value);
+    const numValue = parseInt(value, 10);
 
-    if (numValue > userBalance) {
-      setTotalAmount(userBalance.toString());
-      setErrorMessage('Amount cannot exceed your balance');
+    // Ensure numValue is a valid integer and greater than 0
+    if (numValue > 0) {
+      const perWallet = tokenAmount / numValue;
+      setTokensPerWallet(perWallet);
     } else {
-      setTotalAmount(value);
-      setErrorMessage('');
+      setTokensPerWallet(0); // Reset tokensPerWallet if numValue is invalid
     }
+    setMaxWallets(numValue.toString());
   };
-
-  const handleMaxClick = () => {
-    setTotalAmount(userBalance.toString());
-  };
-
-  useEffect(() => {
-    setErrorMessage('');
-  }, [totalAmount, maxWallets]);
 
   const updateStep = (
     index: number,
@@ -123,11 +116,11 @@ export default function RedeemModal({
       // Update first step to processing
       updateStep(0, 'processing');
 
-      await onConfirm(
+      onConfirm(
         {
-          totalAmount: parseFloat(totalAmount),
+          totalAmount: tokenAmount,
           maxWallets: parseInt(maxWallets),
-          tokensPerWallet: parseFloat(tokensPerWallet),
+          tokensPerWallet: tokensPerWallet,
         },
         updateStep,
         setRedeemLink
@@ -147,16 +140,8 @@ export default function RedeemModal({
     }
   };
 
-  const tokensPerWallet =
-    totalAmount && maxWallets
-      ? (parseFloat(totalAmount) / parseInt(maxWallets)).toFixed(
-          tokenDecimals
-        )
-      : '0';
-
   const handleClose = () => {
     // Clear all states
-    setTotalAmount('');
     setMaxWallets('');
     setErrorMessage('');
     setIsProcessing(false);
@@ -206,15 +191,15 @@ export default function RedeemModal({
               {/* Current Balance Display */}
               <div className="bg-gray-50 p-4 rounded-lg">
                 <div className="text-sm text-gray-600">
-                  Available Balance
+                  Amount to Redeem
                 </div>
                 <div className="text-xl font-semibold mt-1">
-                  {parseFloat(tokenBalance).toFixed(4)} {tokenSymbol}
+                  {tokenAmount.toFixed(4)} {tokenSymbol}
                 </div>
               </div>
 
               {/* Amount Input */}
-              <div className="space-y-2">
+              {/* <div className="space-y-2">
                 <Label className="text-sm font-medium">
                   Amount to Redeem
                 </Label>
@@ -244,7 +229,7 @@ export default function RedeemModal({
                 <div className="text-xs text-gray-500">
                   Max: {userBalance.toFixed(4)} {tokenSymbol}
                 </div>
-              </div>
+              </div> */}
 
               {/* Number of Wallets Input */}
               <div className="space-y-2">
@@ -255,8 +240,9 @@ export default function RedeemModal({
                   type="number"
                   placeholder="Enter number of wallets"
                   value={maxWallets}
-                  onChange={(e) => setMaxWallets(e.target.value)}
+                  onChange={handleAmountChange}
                   min="1"
+                  step="1"
                 />
               </div>
 
@@ -288,12 +274,7 @@ export default function RedeemModal({
               </Button>
               <Button
                 onClick={handleConfirm}
-                disabled={
-                  !totalAmount ||
-                  !maxWallets ||
-                  parseFloat(tokensPerWallet) <= 0 ||
-                  parseFloat(totalAmount) > userBalance
-                }
+                disabled={!maxWallets || tokensPerWallet <= 0}
               >
                 Create Link
               </Button>

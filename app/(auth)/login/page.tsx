@@ -80,7 +80,6 @@ const Login: React.FC = () => {
             headers: {
               'Content-Type': 'application/json',
             },
-            body: JSON.stringify(walletData),
           }
         );
 

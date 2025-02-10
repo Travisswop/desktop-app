@@ -409,7 +409,6 @@ const WalletContentInner = () => {
   const nativeTokenPrice = tokens.find((token) => token.isNative)
     ?.marketData.price;
 
-  console.log('walletdata', walletData);
   return (
     <div className="">
       <ProfileHeader />
@@ -488,6 +487,8 @@ const WalletContentInner = () => {
           onSelectReceiver={handleRecipientSelect}
           network={network}
           currentWalletAddress={currentWalletAddress || ''}
+          selectedToken={sendFlow.token!}
+          amount={sendFlow.amount!}
         />
         <SendConfirmation
           open={sendFlow.step === 'confirm'}

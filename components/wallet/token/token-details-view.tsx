@@ -13,7 +13,7 @@ import {
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Send, WalletMinimal } from 'lucide-react';
+import { Send, Wallet, WalletMinimal } from 'lucide-react';
 import Image from 'next/image';
 import { TimeSeriesData, TokenData } from '@/types/token';
 import { TooltipProvider } from '@/components/ui/tooltip';
@@ -22,16 +22,7 @@ import {
   TooltipTrigger,
   Tooltip as TooltipUI,
 } from '@/components/ui/tooltip';
-import RedeemModal, { RedeemConfig } from './redeem-modal';
-import { clusterApiUrl, Transaction } from '@solana/web3.js';
-import { Connection } from '@solana/web3.js';
-import { usePrivy, useSolanaWallets } from '@privy-io/react-auth';
 
-import { TransactionService } from '@/services/transaction-service';
-type ProcessingStep = {
-  status: 'pending' | 'processing' | 'completed' | 'error';
-  message: string;
-};
 const CustomTooltip = ({
   active,
   payload,
@@ -70,10 +61,6 @@ export default function TokenDetails({
   onBack,
   onSend,
 }: TokenDetailsProps) {
-  const { user } = usePrivy();
-  const { wallets: solanaWallets } = useSolanaWallets();
-
-  const [isRedeemModalOpen, setIsRedeemModalOpen] = useState(false);
   const [selectedPeriod, setSelectedPeriod] = useState('1H');
   const [chartData, setChartData] = useState(
     token.timeSeriesData['1H']
@@ -119,140 +106,6 @@ export default function TokenDetails({
       setChangePercentage(newChange);
     }
   }, [selectedPeriod, day.data, week.data, month.data, year.data]);
-
-  const deleteRedeemLink = async (userId: string, poolId: string) => {
-    const response = await fetch(
-      `${process.env.NEXT_PUBLIC_API_URL}/api/v2/desktop/wallet/deleteRedeemLink`,
-      {
-        method: 'DELETE',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          privyUserId: userId,
-          poolId: poolId,
-        }),
-      }
-    );
-
-    if (!response.ok) {
-      throw new Error('Failed to delete redeem link');
-    }
-  };
-
-  const handleRedeem = async (
-    config: RedeemConfig,
-    updateStep: (
-      index: number,
-      status: ProcessingStep['status'],
-      message?: string
-    ) => void,
-    setRedeemLink: (link: string) => void
-  ) => {
-    const solanaWallet = solanaWallets.find(
-      (w: any) => w.walletClientType === 'privy'
-    );
-    if (!solanaWallet?.address) {
-      throw new Error(
-        'Please connect your wallet to create a redeem link.'
-      );
-    }
-
-    // const connection = new Connection(clusterApiUrl('devnet'));
-
-    const connection = new Connection(
-      process.env.NEXT_PUBLIC_QUICKNODE_SOLANA_URL ||
-        'https://api.devnet.solana.com'
-    );
-
-    // Convert amount to proper decimal format
-    const totalAmount = parseFloat(config.totalAmount.toString());
-
-    console.log('token', token);
-
-    // Create redemption link
-    const response = await fetch(
-      `${process.env.NEXT_PUBLIC_API_URL}/api/v2/desktop/wallet/createRedeemptionPool`,
-      {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          privyUserId: user?.id,
-          tokenName: token.name,
-          tokenMint: token.address,
-          tokenSymbol: token.symbol,
-          tokenLogo: token.logoURI,
-          totalAmount,
-          tokenDecimals: token.decimals,
-          tokensPerWallet: config.tokensPerWallet,
-          maxWallets: config.maxWallets,
-          creator: solanaWallet.address,
-          isNative: token.isNative,
-        }),
-      }
-    );
-
-    if (!response.ok) {
-      throw new Error('Failed to generate redeem link');
-    }
-
-    // Update step 1 to completed and step 2 to processing
-    updateStep(0, 'completed');
-    updateStep(1, 'processing');
-
-    const { data } = await response.json();
-    console.log('🚀 ~ data:', data);
-
-    try {
-      const setupTx = Transaction.from(
-        Buffer.from(data.serializedTransaction, 'base64')
-      );
-      const signedSetupTx = await solanaWallet.signTransaction(
-        setupTx
-      );
-      const setupSignature = await connection.sendRawTransaction(
-        signedSetupTx.serialize()
-      );
-      await connection.confirmTransaction(setupSignature);
-      await new Promise((resolve) => setTimeout(resolve, 2000));
-    } catch (error) {
-      console.log('🚀 ~ error:', error);
-      await deleteRedeemLink(user?.id || '', data.poolId);
-      throw new Error('Failed to set up temporary account');
-    }
-
-    // Update step 2 to completed and step 3 to processing
-    updateStep(1, 'completed');
-    updateStep(2, 'processing');
-
-    // Handle token transfer
-    try {
-      const txSignature =
-        await TransactionService.handleRedeemTransaction(
-          solanaWallet,
-          connection,
-          {
-            totalAmount: totalAmount * Math.pow(10, token.decimals),
-            tokenAddress: token.address,
-            tokenDecimals: token.decimals,
-            tempAddress: data.tempAddress,
-          }
-        );
-
-      await connection.confirmTransaction(txSignature);
-
-      // Update final step to completed
-      updateStep(2, 'completed');
-      const redeemLink = `${process.env.NEXT_PUBLIC_APP_URL}/redeem/${data.poolId}`;
-      // Set the redeem link
-      setRedeemLink(redeemLink);
-    } catch (error: any) {
-      await deleteRedeemLink(user?.id || '', data.poolId); // Call to delete redeem link
-      throw new Error('Failed to transfer tokens');
-    }
-  };
 
   return (
     <>
@@ -442,13 +295,10 @@ export default function TokenDetails({
           <div className="relative grid grid-cols-2 gap-4 mb-6">
             <Button
               variant="outline"
-              className="flex items-center gap-2"
-              onClick={() => {
-                setIsRedeemModalOpen(true);
-              }}
+              className="flex items-center gap-2 cursor-not-allowed"
             >
-              <WalletMinimal className="w-4 h-4 " />
-              Redeem
+              <Wallet className="w-4 h-4 " />
+              Wallet
             </Button>
             {parseFloat(token.balance) > 0 ? (
               <Button
@@ -514,7 +364,7 @@ export default function TokenDetails({
           </Button>
         </CardContent>
       </Card>
-      <RedeemModal
+      {/* <RedeemModal
         isOpen={isRedeemModalOpen}
         onClose={() => setIsRedeemModalOpen(false)}
         onConfirm={(
@@ -530,7 +380,7 @@ export default function TokenDetails({
         tokenLogo={token.logoURI}
         tokenSymbol={token.symbol}
         tokenDecimals={token.decimals}
-      />
+      /> */}
     </>
   );
 }
