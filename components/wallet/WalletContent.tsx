@@ -172,6 +172,8 @@ const WalletContentInner = () => {
     error: tokenError,
   } = useMultiChainTokenData(currentWalletAddress, [network]);
 
+  console.log('tokens', tokens);
+
   const {
     nfts,
     loading: nftLoading,
@@ -251,7 +253,7 @@ const WalletContentInner = () => {
     // }));
     // return;
 
-    // setSendLoading(true);
+    setSendLoading(true);
     const amount =
       sendFlow.isUSD && sendFlow.token?.marketData.price
         ? Number(sendFlow.amount) *
@@ -329,6 +331,8 @@ const WalletContentInner = () => {
             sendFlow,
             connection
           );
+          console.log('hash', hash);
+          await connection.confirmTransaction(hash);
         } else {
           const result = await TransactionService.handleEVMSend(
             evmWallet,

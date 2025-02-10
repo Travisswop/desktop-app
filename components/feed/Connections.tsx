@@ -1,15 +1,15 @@
-"use client";
-import { useState, useEffect } from "react";
-import Image from "next/image";
-import React from "react";
-import { CiSearch } from "react-icons/ci";
-import { getConnectedUserMicrosite } from "@/actions/connectedUserMicrosite";
-import isUrl from "@/lib/isUrl";
-import ConnectionLoading from "../loading/ConnectionLoading";
+'use client';
+import { useState, useEffect } from 'react';
+import Image from 'next/image';
+import React from 'react';
+import { CiSearch } from 'react-icons/ci';
+import { getConnectedUserMicrosite } from '@/actions/connectedUserMicrosite';
+import isUrl from '@/lib/isUrl';
+import ConnectionLoading from '../loading/ConnectionLoading';
 
 const Connections = ({ userId, accessToken }: any) => {
   const [connectionData, setConnectionData] = useState<any>(null);
-  const [searchQuery, setSearchQuery] = useState("");
+  const [searchQuery, setSearchQuery] = useState('');
   const [filteredConnections, setFilteredConnections] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -18,7 +18,10 @@ const Connections = ({ userId, accessToken }: any) => {
   useEffect(() => {
     const fetchConnectionData = async () => {
       setLoading(true);
-      const connections = await getConnectedUserMicrosite(userId, accessToken);
+      const connections = await getConnectedUserMicrosite(
+        userId,
+        accessToken
+      );
       setConnectionData(connections);
       setLoading(false);
     };
@@ -29,7 +32,9 @@ const Connections = ({ userId, accessToken }: any) => {
     const handleSearch = () => {
       // setLoading(true);
       if (!searchQuery) {
-        setFilteredConnections(connectionData?.data?.childConnection || []);
+        setFilteredConnections(
+          connectionData?.data?.childConnection || []
+        );
         // setLoading(false);
       } else {
         const filtered = connectionData?.data?.childConnection.filter(
@@ -50,9 +55,13 @@ const Connections = ({ userId, accessToken }: any) => {
     };
   }, [connectionData?.data?.childConnection, searchQuery]);
 
+  console.log('connection', filteredConnections);
+
   return (
     <div className="py-5 px-6 bg-white rounded-lg">
-      <p className="text-lg text-gray-700 font-semibold mb-4">Connections</p>
+      <p className="text-lg text-gray-700 font-semibold mb-4">
+        Connections
+      </p>
       <div className="relative w-full mb-4">
         <CiSearch
           className="absolute left-4 top-1/2 -translate-y-[50%] font-bold text-gray-600"
@@ -72,51 +81,57 @@ const Connections = ({ userId, accessToken }: any) => {
       ) : (
         <div className="flex flex-col gap-3 h-full">
           {filteredConnections.length > 0 ? (
-            filteredConnections.map((connection: any, index: number) => (
-              <a
-                key={index}
-                href={
-                  connection?.account?.profileUrl
-                    ? connection?.account?.profileUrl
-                    : "#"
-                }
-                target="_blank"
-              >
-                <div className="bg-white py-4 px-3 flex items-center justify-between shadow-small rounded-xl hover:shadow-medium">
-                  <div className="flex items-center gap-3">
-                    {isUrl(connection.account.profilePic) ? (
-                      <Image
-                        src={connection?.account?.profilePic}
-                        alt="user image"
-                        width={100}
-                        height={100}
-                        className="border w-14 h-14 rounded-full"
-                      />
-                    ) : (
-                      <Image
-                        src={`/images/user_avator/${connection?.account?.profilePic}.png`}
-                        alt="user image"
-                        width={100}
-                        height={100}
-                        className="border w-14 h-14 rounded-full"
-                      />
-                    )}
-                    <div className="flex flex-col gap-0.5">
-                      <h3 className="font-bold">{connection?.account?.name}</h3>
-                      <p className="text-sm text-gray-500 font-medium">
-                        {connection?.account?.bio}
-                      </p>
+            filteredConnections.map(
+              (connection: any, index: number) => (
+                <a
+                  key={index}
+                  href={
+                    connection?.account?.profileUrl
+                      ? connection?.account?.profileUrl
+                      : '#'
+                  }
+                  target="_blank"
+                >
+                  <div className="bg-white py-4 px-3 flex items-center justify-between shadow-small rounded-xl hover:shadow-medium">
+                    <div className="flex items-center gap-3">
+                      {isUrl(connection.account.profilePic) ? (
+                        <Image
+                          src={connection?.account?.profilePic}
+                          alt="user image"
+                          width={100}
+                          height={100}
+                          className="border w-14 h-14 rounded-full"
+                        />
+                      ) : (
+                        <Image
+                          src={`/images/user_avator/${connection?.account?.profilePic}.png`}
+                          alt="user image"
+                          width={100}
+                          height={100}
+                          className="border w-14 h-14 rounded-full"
+                        />
+                      )}
+                      <div className="flex flex-col gap-0.5">
+                        <h3 className="font-bold">
+                          {connection?.account?.name}
+                        </h3>
+                        <p className="text-sm text-gray-500 font-medium">
+                          {connection?.account?.bio}
+                        </p>
+                      </div>
                     </div>
+                    <p className="hidden xl:block text-sm text-gray-500 font-medium">
+                      {connection?.address}
+                    </p>
                   </div>
-                  <p className="hidden xl:block text-sm text-gray-500 font-medium">
-                    {connection?.address}
-                  </p>
-                </div>
-              </a>
-            ))
+                </a>
+              )
+            )
           ) : (
             <div className="flex justify-center items-center">
-              <p className="text-center text-gray-500">No connections found</p>
+              <p className="text-center text-gray-500">
+                No connections found
+              </p>
             </div>
           )}
         </div>

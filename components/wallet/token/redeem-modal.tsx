@@ -133,6 +133,7 @@ export default function RedeemModal({
         setRedeemLink
       );
     } catch (error: any) {
+      console.log('error', error);
       setErrorMessage(
         error.message || 'Failed to complete redeem process'
       );

@@ -60,6 +60,7 @@ const SWOP_TOKEN: any = {
     '1Y': [],
   },
   nativeTokenPrice: 0,
+  isNative: false,
 };
 
 export class TokenAPIService {
@@ -449,6 +450,7 @@ export class SolanaService {
             symbol: marketData.symbol,
             marketData,
             sparklineData: processSparklineData(timeSeriesData),
+            isNative: false,
           };
         } catch (error) {
           console.error(

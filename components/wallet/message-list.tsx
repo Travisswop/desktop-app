@@ -213,7 +213,7 @@ const MessageList = () => {
             Searching...
           </p>
         )}
-        <div className="max-h-[400px] overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100">
+        <div className="max-h-[300px] overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100">
           {isLoading && (
             <p className="text-center">Loading messages...</p>
           )}
@@ -277,7 +277,9 @@ const MessageCard = ({
           <div>
             <h3 className="font-semibold">{name}</h3>
             {bio && (
-              <p className="text-xs text-muted-foreground">{bio}</p>
+              <p className="text-xs text-muted-foreground line-clamp-2">
+                {bio}
+              </p>
             )}
           </div>
         </div>

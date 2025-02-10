@@ -1,17 +1,17 @@
-"use client";
+'use client';
 
-import React, { useState } from "react";
-import Registration from "@/components/onboard/Registration";
-import SmartSiteInformation from "@/components/onboard/SmartSiteInformation";
-import CreateSwopID from "@/components/onboard/CreateSwopID";
-import { useLinkAccount, usePrivy } from "@privy-io/react-auth";
-import { OnboardingData, PrivyUser } from "@/lib/types";
-import Image from "next/image";
-import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
-import astronot from "@/public/onboard/astronot.svg";
-import bluePlanet from "@/public/onboard/blue-planet.svg";
-import yellowPlanet from "@/public/onboard/yellow-planet.svg";
+import React, { useState } from 'react';
+import Registration from '@/components/onboard/Registration';
+import SmartSiteInformation from '@/components/onboard/SmartSiteInformation';
+import CreateSwopID from '@/components/onboard/CreateSwopID';
+import { useLinkAccount, usePrivy } from '@privy-io/react-auth';
+import { OnboardingData, PrivyUser } from '@/lib/types';
+import Image from 'next/image';
+import { Button } from '@/components/ui/button';
+import { Card } from '@/components/ui/card';
+import astronot from '@/public/onboard/astronot.svg';
+import bluePlanet from '@/public/onboard/blue-planet.svg';
+import yellowPlanet from '@/public/onboard/yellow-planet.svg';
 
 const Onboard: React.FC = () => {
   const { user } = usePrivy();
@@ -21,16 +21,18 @@ const Onboard: React.FC = () => {
   const email =
     user?.google?.email ||
     user?.email?.address ||
-    user?.linkedAccounts.find((account) => account.type === "email")?.address ||
-    user?.linkedAccounts.find((account) => account.type === "google_oauth")
-      ?.email;
+    user?.linkedAccounts.find((account) => account.type === 'email')
+      ?.address ||
+    user?.linkedAccounts.find(
+      (account) => account.type === 'google_oauth'
+    )?.email;
 
   const { linkEmail } = useLinkAccount({
     onSuccess: (user, linkMethod, linkedAccount) => {
-      console.log("on success", user, linkMethod, linkedAccount);
+      console.log('on success', user, linkMethod, linkedAccount);
     },
     onError: (error, details) => {
-      console.log("on error", error, details);
+      console.log('on error', error, details);
     },
   });
 
@@ -96,8 +98,8 @@ const Onboard: React.FC = () => {
 
   const privyUser: PrivyUser = {
     ...user,
-    name: user?.google?.name || "",
-    email: email || "",
+    name: user?.google?.name || '',
+    email: email || '',
     wallet: user.wallet
       ? {
           address: user.wallet.address,
@@ -128,7 +130,10 @@ const OnboardingFlow: React.FC<{
       return <Registration user={user} onComplete={onNextStep} />;
     case 1:
       return (
-        <SmartSiteInformation onComplete={onNextStep} userData={userData} />
+        <SmartSiteInformation
+          onComplete={onNextStep}
+          userData={userData}
+        />
       );
     case 2:
       return <CreateSwopID userData={userData} />;

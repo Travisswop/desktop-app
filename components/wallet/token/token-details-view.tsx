@@ -168,6 +168,8 @@ export default function TokenDetails({
     // Convert amount to proper decimal format
     const totalAmount = parseFloat(config.totalAmount.toString());
 
+    console.log('token', token);
+
     // Create redemption link
     const response = await fetch(
       `${process.env.NEXT_PUBLIC_API_URL}/api/v2/desktop/wallet/createRedeemptionPool`,

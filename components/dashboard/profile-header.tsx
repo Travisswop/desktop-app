@@ -101,7 +101,6 @@ const ProfileHeader = memo(function ProfileHeader() {
           throw new Error('Failed to fetch data');
         }
         const result = await response.json();
-        console.log('🚀 ~ fetchSwopplePoints ~ result:', result);
         setPoints(result.availablePoints);
       } catch (err: any) {
         console.error(err.message);
