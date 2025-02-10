@@ -409,6 +409,7 @@ const WalletContentInner = () => {
   const nativeTokenPrice = tokens.find((token) => token.isNative)
     ?.marketData.price;
 
+  console.log('walletdata', walletData);
   return (
     <div className="">
       <ProfileHeader />

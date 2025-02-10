@@ -11,15 +11,50 @@ import Image from 'next/image';
 import astronot from '@/public/onboard/astronot.svg';
 import bluePlanet from '@/public/onboard/blue-planet.svg';
 import yellowPlanet from '@/public/onboard/yellow-planet.svg';
+import { WalletItem } from '@/types/wallet';
 
 const Login: React.FC = () => {
-  const { ready, authenticated } = usePrivy();
+  const { authenticated, ready, user: PrivyUser } = usePrivy();
+  console.log('privyuser', PrivyUser);
   const { logout } = useLogout();
   const router = useRouter();
   const loginInitiated = useRef(false);
   const [isLoading, setIsLoading] = useState(false);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [isRedirecting, setIsRedirecting] = useState(false);
+  const [walletData, setWalletData] = useState<WalletItem[] | null>(
+    null
+  );
+  useEffect(() => {
+    if (authenticated && ready && PrivyUser) {
+      const linkWallet = PrivyUser?.linkedAccounts
+        .map((item: any) => {
+          if (item.chainType === 'ethereum') {
+            return {
+              address: item.address,
+              isActive:
+                item.walletClientType === 'privy' ||
+                item.connectorType === 'embedded',
+              isEVM: true,
+              walletClientType: item.walletClientType,
+            };
+          } else if (item.chainType === 'solana') {
+            return {
+              address: item.address,
+              isActive:
+                item.walletClientType === 'privy' ||
+                item.connectorType === 'embedded',
+              isEVM: false,
+              walletClientType: item.walletClientType,
+            };
+          }
+          return null;
+        })
+        .filter(Boolean);
+
+      setWalletData(linkWallet as WalletItem[]);
+    }
+  }, [PrivyUser, authenticated, ready]);
 
   const { login } = useLogin({
     onComplete: async (user) => {
@@ -45,6 +80,7 @@ const Login: React.FC = () => {
             headers: {
               'Content-Type': 'application/json',
             },
+            body: JSON.stringify(walletData),
           }
         );
 

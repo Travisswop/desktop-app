@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import Image from 'next/image';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -30,6 +30,8 @@ import editIcon from '@/public/images/websites/edit-icon.svg';
 import { useDisclosure } from '@nextui-org/react';
 import userProfileImages from '../util/data/userProfileImage';
 import SelectAvatorModal from '../modal/SelectAvatorModal';
+import { usePrivy } from '@privy-io/react-auth';
+import { WalletItem } from '@/types/wallet';
 interface RegistrationProps {
   user: PrivyUser;
   onComplete: (data: Partial<OnboardingData>) => void;
@@ -51,11 +53,47 @@ export default function Registration({
   const [profileImageUrl, setProfileImageUrl] = useState(
     '/images/user_avator/0.png?height=32&width=32'
   );
+  const [walletData, setWalletData] = useState<WalletItem[] | null>(
+    null
+  );
 
   const [isUserProfileModalOpen, setIsUserProfileModalOpen] =
     useState(false);
 
   const { isOpen, onOpen, onOpenChange } = useDisclosure();
+  const { authenticated, ready, user: PrivyUser } = usePrivy();
+  console.log('privyuser', PrivyUser);
+
+  useEffect(() => {
+    if (authenticated && ready && PrivyUser) {
+      const linkWallet = PrivyUser?.linkedAccounts
+        .map((item: any) => {
+          if (item.chainType === 'ethereum') {
+            return {
+              address: item.address,
+              isActive:
+                item.walletClientType === 'privy' ||
+                item.connectorType === 'embedded',
+              isEVM: true,
+              walletClientType: item.walletClientType,
+            };
+          } else if (item.chainType === 'solana') {
+            return {
+              address: item.address,
+              isActive:
+                item.walletClientType === 'privy' ||
+                item.connectorType === 'embedded',
+              isEVM: false,
+              walletClientType: item.walletClientType,
+            };
+          }
+          return null;
+        })
+        .filter(Boolean);
+
+      setWalletData(linkWallet as WalletItem[]);
+    }
+  }, [PrivyUser, authenticated, ready]);
 
   // Fetch the base64 image when the component mounts
 
@@ -166,7 +204,7 @@ export default function Registration({
     }
   };
 
-  console.log('profileImage', profileImage);
+  console.log('walletdata', walletData);
 
   return (
     <div className="relative w-full max-w-3xl mx-auto border-0 my-20">
