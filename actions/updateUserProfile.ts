@@ -21,3 +21,23 @@ export async function updateUserProfile(payload: any, token: string) {
     console.error("Error from action:", error);
   }
 }
+
+export async function updateUserWalletInfo(payload: any, email: string) {
+  try {
+    const response = await fetch(
+      `${process.env.NEXT_PUBLIC_API_URL}/api/v1/user/update-user-wallet-info/${email}`,
+      {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          // authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(payload),
+      }
+    );
+    const data = await response.json();
+    return data;
+  } catch (error) {
+    console.error("Error from action:", error);
+  }
+}

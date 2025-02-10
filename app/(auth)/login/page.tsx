@@ -1,49 +1,48 @@
-'use client';
+"use client";
 
-import { usePrivy, useLogin, useLogout } from '@privy-io/react-auth';
-import { useRouter } from 'next/navigation';
-import { useEffect, useRef, useState } from 'react';
-import { Card } from '@/components/ui/card';
-import Loader from '@/components/loading/Loader';
-import { Button } from '@/components/ui/button';
-import { ChevronRight } from 'lucide-react';
-import Image from 'next/image';
-import astronot from '@/public/onboard/astronot.svg';
-import bluePlanet from '@/public/onboard/blue-planet.svg';
-import yellowPlanet from '@/public/onboard/yellow-planet.svg';
-import { WalletItem } from '@/types/wallet';
+import { usePrivy, useLogin, useLogout } from "@privy-io/react-auth";
+import { useRouter } from "next/navigation";
+import { useEffect, useRef, useState } from "react";
+import { Card } from "@/components/ui/card";
+import Loader from "@/components/loading/Loader";
+import { Button } from "@/components/ui/button";
+import { ChevronRight } from "lucide-react";
+import Image from "next/image";
+import astronot from "@/public/onboard/astronot.svg";
+import bluePlanet from "@/public/onboard/blue-planet.svg";
+import yellowPlanet from "@/public/onboard/yellow-planet.svg";
+import { WalletItem } from "@/types/wallet";
+import { updateUserWalletInfo } from "@/actions/updateUserProfile";
 
 const Login: React.FC = () => {
   const { authenticated, ready, user: PrivyUser } = usePrivy();
-  console.log('privyuser', PrivyUser);
+  console.log("privyuser", PrivyUser);
   const { logout } = useLogout();
   const router = useRouter();
   const loginInitiated = useRef(false);
   const [isLoading, setIsLoading] = useState(false);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [isRedirecting, setIsRedirecting] = useState(false);
-  const [walletData, setWalletData] = useState<WalletItem[] | null>(
-    null
-  );
+  const [walletData, setWalletData] = useState<WalletItem[] | null>(null);
   useEffect(() => {
     if (authenticated && ready && PrivyUser) {
       const linkWallet = PrivyUser?.linkedAccounts
         .map((item: any) => {
-          if (item.chainType === 'ethereum') {
+          if (item.chainType === "ethereum") {
             return {
               address: item.address,
               isActive:
-                item.walletClientType === 'privy' ||
-                item.connectorType === 'embedded',
+                item.walletClientType === "privy" ||
+                item.connectorType === "embedded",
               isEVM: true,
               walletClientType: item.walletClientType,
             };
-          } else if (item.chainType === 'solana') {
+          } else if (item.chainType === "solana") {
             return {
               address: item.address,
               isActive:
-                item.walletClientType === 'privy' ||
-                item.connectorType === 'embedded',
+                item.walletClientType === "privy" ||
+                item.connectorType === "embedded",
               isEVM: false,
               walletClientType: item.walletClientType,
             };
@@ -62,46 +61,54 @@ const Login: React.FC = () => {
         const email =
           user.google?.email ||
           user.email?.address ||
-          user.linkedAccounts.find(
-            (account) => account.type === 'email'
-          )?.address ||
-          user.linkedAccounts.find(
-            (account) => account.type === 'google_oauth'
-          )?.email;
+          user.linkedAccounts.find((account) => account.type === "email")
+            ?.address ||
+          user.linkedAccounts.find((account) => account.type === "google_oauth")
+            ?.email;
 
         if (!email) {
-          console.log('No email found, redirecting to onboard');
-          router.push('/onboard');
+          console.log("No email found, redirecting to onboard");
+          router.push("/onboard");
           return;
         }
         const response = await fetch(
           `${process.env.NEXT_PUBLIC_API_URL}/api/v2/desktop/user/${email}`,
           {
             headers: {
-              'Content-Type': 'application/json',
+              "Content-Type": "application/json",
             },
           }
         );
 
         if (!response.ok) {
-          console.log('User not found, redirecting to onboard');
-          router.push('/onboard');
+          console.log("User not found, redirecting to onboard");
+          router.push("/onboard");
           return;
         }
 
-        console.log('User found, redirecting to home');
+        const payload = {
+          privyId: PrivyUser?.id,
+          ethereumWallet:
+            walletData && walletData.find((wallet) => wallet?.isEVM)?.address,
+          solanaWallet:
+            walletData && walletData.find((wallet) => !wallet?.isEVM)?.address,
+        };
+
+        await updateUserWalletInfo(payload, email);
+
+        console.log("User found, redirecting to home");
         setIsRedirecting(true);
-        router.push('/');
+        router.push("/");
       } catch (error) {
-        console.error('Error verifying user:', error);
-        router.push('/onboard');
+        console.error("Error verifying user:", error);
+        router.push("/onboard");
       } finally {
         loginInitiated.current = false;
         setIsLoading(false);
       }
     },
     onError: (error) => {
-      console.error('Login error:', error);
+      console.error("Login error:", error);
       loginInitiated.current = false;
       setIsLoading(false);
     },
@@ -109,8 +116,8 @@ const Login: React.FC = () => {
 
   useEffect(() => {
     // Check for privy tokens in cookies
-    const privyToken = document.cookie.includes('privy-token');
-    const privyIdToken = document.cookie.includes('privy-id-token');
+    const privyToken = document.cookie.includes("privy-token");
+    const privyIdToken = document.cookie.includes("privy-id-token");
 
     // If tokens not found but user is authenticated, log them out
     if ((!privyToken || !privyIdToken) && authenticated) {
@@ -136,7 +143,7 @@ const Login: React.FC = () => {
       loginInitiated.current = true;
       login();
     } catch (error) {
-      console.error('Handle login error:', error);
+      console.error("Handle login error:", error);
       loginInitiated.current = false;
       setIsLoading(false);
     }
@@ -198,7 +205,7 @@ const Login: React.FC = () => {
               <div className="w-6 h-6 rounded-full bg-gray-100 flex items-center justify-center">
                 <span className="text-sm">👤</span>
               </div>
-              {isLoading ? 'Logging in...' : 'Login with Privy'}
+              {isLoading ? "Logging in..." : "Login with Privy"}
             </div>
             <ChevronRight className="h-5 w-5 text-gray-400" />
           </Button>
