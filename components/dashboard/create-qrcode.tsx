@@ -5,7 +5,8 @@ import Image from "next/image";
 import qrcode from "@/public/images/websites/qrcode.png";
 import edit from "@/public/images/websites/icon/edit.svg";
 import send from "@/public/images/websites/icon/send.svg";
-import qrJson1 from "@/components/smartsite/qrCode/qr-code-json/1-A.json";
+// import qrJson1 from "@/components/smartsite/qrCode/qr-code-json/1-A.json";
+import qrJson from "@/components/smartsite/qrCode/qr-code-json/customQr.json";
 import { postUserCustomQrCode } from "@/actions/customQrCode";
 import Link from "next/link";
 
@@ -13,7 +14,7 @@ import { QrCode1 } from "@/components/smartsite/qrCode/QRData";
 import { FiDownload } from "react-icons/fi";
 import QRCodeShareModal from "../smartsite/socialShare/QRCodeShareModal";
 import { useToast } from "@/hooks/use-toast";
-import { Card, CardContent, CardHeader } from "../ui/card";
+import { Card, CardContent } from "../ui/card";
 import { Button } from "@nextui-org/react";
 import { Loader2, QrCode } from "lucide-react";
 import { useUser } from "@/lib/UserContext";
@@ -30,16 +31,36 @@ const CreateQRCode = () => {
       e.preventDefault();
       setIsLoading(true);
 
-      const qrData = { ...qrJson1 };
+      const qrData = { ...qrJson };
 
       const formData = new FormData(e.currentTarget);
 
+      // const payload = {
+      //   userId: user?._id,
+      //   customQrData: qrData,
+      //   qrCodeName: formData.get("title"),
+      //   data: formData.get("url"),
+      //   qrCodeSvgName: "QrCode1",
+      // };
+
       const payload = {
         userId: user?._id,
-        customQrData: qrData,
         qrCodeName: formData.get("title"),
         data: formData.get("url"),
-        qrCodeSvgName: "QrCode1",
+        qrCodeSvgName: "dots",
+        customQrData: qrData,
+        dotsOptions: {
+          dotType: "dots",
+          color: "#000000",
+        },
+        cornersDotOptions: {
+          dotType: "dot",
+          color: "#000000",
+        },
+        cornersSquareOptions: {
+          squareType: "dot",
+          color: "#000000",
+        },
       };
 
       qrData.dotsOptions = {
@@ -56,11 +77,18 @@ const CreateQRCode = () => {
         color: "#000000",
       };
 
+      qrData.image =
+        "https://res.cloudinary.com/dziyri2ge/image/upload/v1733895036/link_jrgwpk.png";
+
+      console.log("payload ", payload);
+
       // Send the updated JSON data in a POST request
       const data: any = await postUserCustomQrCode(
         payload,
         accessToken ?? "" // Provide empty string fallback for null case
       );
+
+      console.log("data for response", data);
 
       if (data && data.status === "success") {
         setData(data);
