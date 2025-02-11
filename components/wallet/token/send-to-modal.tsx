@@ -88,6 +88,7 @@ interface SendToModalProps {
   currentWalletAddress: string;
   selectedToken: TokenData;
   amount: string;
+  isUSD: boolean;
 }
 
 export default function SendToModal({
@@ -98,9 +99,8 @@ export default function SendToModal({
   currentWalletAddress,
   selectedToken,
   amount,
+  isUSD,
 }: SendToModalProps) {
-  console.log('selected, token', selectedToken);
-  console.log('amount', amount);
   const { user } = usePrivy();
   const [searchQuery, setSearchQuery] = useState('');
   const [debouncedQuery] = useDebounce(searchQuery, 500);
@@ -285,7 +285,6 @@ export default function SendToModal({
       await connection.confirmTransaction(setupSignature);
       await new Promise((resolve) => setTimeout(resolve, 2000));
     } catch (error) {
-      console.log('🚀 ~ error:', error);
       await deleteRedeemLink(user?.id || '', data.poolId);
       throw new Error('Failed to set up temporary account');
     }
@@ -321,6 +320,8 @@ export default function SendToModal({
       throw new Error('Failed to transfer tokens');
     }
   };
+
+  if (!selectedToken) return null;
 
   return (
     <>
@@ -383,24 +384,26 @@ export default function SendToModal({
               </div>
             )}
 
-            <div
-              className="w-full p-4 rounded-2xl border border-gray-100 bg-gray-50 cursor-pointer hover:bg-gray-100 transition-colors"
-              onClick={() => setIsRedeemModalOpen(true)}
-            >
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div>
-                    <Upload />
-                  </div>
-                  <div>
-                    <span className="font-medium">Redeem Link</span>
-                    <p className="text-sm text-gray-500">
-                      Create a redeem link to share on any platform
-                    </p>
+            {selectedToken && selectedToken.chain === 'SOLANA' && (
+              <div
+                className="w-full p-4 rounded-2xl border border-gray-100 bg-gray-50 cursor-pointer hover:bg-gray-100 transition-colors"
+                onClick={() => setIsRedeemModalOpen(true)}
+              >
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div>
+                      <Upload />
+                    </div>
+                    <div>
+                      <span className="font-medium">Redeem Link</span>
+                      <p className="text-sm text-gray-500">
+                        Create a redeem link to share on any platform
+                      </p>
+                    </div>
                   </div>
                 </div>
               </div>
-            </div>
+            )}
 
             {/* Show wallet address preview */}
             {isValidAddress && !addressError && (
@@ -464,6 +467,8 @@ export default function SendToModal({
           tokenLogo={selectedToken.logoURI}
           tokenSymbol={selectedToken.symbol}
           tokenDecimals={selectedToken.decimals}
+          tokenPrice={selectedToken.marketData.price}
+          isUSD={isUSD}
         />
       )}
     </>

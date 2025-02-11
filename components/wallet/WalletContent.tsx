@@ -172,8 +172,6 @@ const WalletContentInner = () => {
     error: tokenError,
   } = useMultiChainTokenData(currentWalletAddress, [network]);
 
-  console.log('tokens', tokens);
-
   const {
     nfts,
     loading: nftLoading,
@@ -331,7 +329,6 @@ const WalletContentInner = () => {
             sendFlow,
             connection
           );
-          console.log('hash', hash);
           await connection.confirmTransaction(hash);
         } else {
           const result = await TransactionService.handleEVMSend(
@@ -489,6 +486,7 @@ const WalletContentInner = () => {
           currentWalletAddress={currentWalletAddress || ''}
           selectedToken={sendFlow.token!}
           amount={sendFlow.amount!}
+          isUSD={sendFlow.isUSD}
         />
         <SendConfirmation
           open={sendFlow.step === 'confirm'}

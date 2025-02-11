@@ -74,7 +74,6 @@ export default function RedeemTokenList() {
 
       if (response.ok) {
         const { data } = await response.json();
-        console.log('🚀 ~ fetchPools ~ data:', data);
         const items = data.map((pool: RedemptionPool) => ({
           ...pool,
           total_amount: fromTokenLamports(
@@ -112,7 +111,6 @@ export default function RedeemTokenList() {
       await navigator.clipboard.writeText(link);
       toast.success('Link copied to clipboard!');
     } catch (error) {
-      console.error('Error copying to clipboard:', error);
       toast.error('Failed to copy link');
     }
   };
@@ -143,7 +141,7 @@ export default function RedeemTokenList() {
       <Tabs defaultValue="tokens" className="mb-8">
         <TabsList>
           <TabsTrigger value="tokens">Tokens</TabsTrigger>
-          <TabsTrigger value="nft">NFT</TabsTrigger>
+          {/* <TabsTrigger value="nft">NFT</TabsTrigger> */}
         </TabsList>
         <TabsContent value="tokens">
           <Card>
