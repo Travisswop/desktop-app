@@ -17,7 +17,6 @@ import { createLoginWalletBalance } from "@/actions/createWallet";
 
 const Login: React.FC = () => {
   const { authenticated, ready, user: PrivyUser } = usePrivy();
-  console.log("privyuser", PrivyUser);
   const { logout } = useLogout();
   const router = useRouter();
   const loginInitiated = useRef(false);

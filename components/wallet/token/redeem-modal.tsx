@@ -7,7 +7,7 @@ import {
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Info, CheckCircle, XCircle } from 'lucide-react';
 import Image from 'next/image';
 import { toast } from '@/hooks/use-toast';
@@ -30,6 +30,8 @@ interface RedeemModalProps {
   tokenBalance: string;
   tokenLogo: string;
   tokenAmount: number;
+  isUSD: boolean;
+  tokenPrice: string;
 }
 
 export interface RedeemConfig {
@@ -56,7 +58,10 @@ export default function RedeemModal({
   tokenBalance,
   tokenLogo,
   tokenAmount,
+  isUSD,
+  tokenPrice,
 }: RedeemModalProps) {
+  const [totalToken, setTotalToken] = useState(0);
   const [maxWallets, setMaxWallets] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
@@ -78,6 +83,15 @@ export default function RedeemModal({
   ]);
   const [isSuccess, setIsSuccess] = useState(false);
 
+  useEffect(() => {
+    if (isUSD) {
+      const token = tokenAmount / parseFloat(tokenPrice);
+      setTotalToken(token);
+    } else {
+      setTotalToken(tokenAmount);
+    }
+  }, [isUSD, tokenAmount, tokenPrice]);
+
   const handleAmountChange = (
     e: React.ChangeEvent<HTMLInputElement>
   ) => {
@@ -86,7 +100,7 @@ export default function RedeemModal({
 
     // Ensure numValue is a valid integer and greater than 0
     if (numValue > 0) {
-      const perWallet = tokenAmount / numValue;
+      const perWallet = totalToken / numValue;
       setTokensPerWallet(perWallet);
     } else {
       setTokensPerWallet(0); // Reset tokensPerWallet if numValue is invalid
@@ -118,7 +132,7 @@ export default function RedeemModal({
 
       onConfirm(
         {
-          totalAmount: tokenAmount,
+          totalAmount: totalToken,
           maxWallets: parseInt(maxWallets),
           tokensPerWallet: tokensPerWallet,
         },
@@ -126,7 +140,6 @@ export default function RedeemModal({
         setRedeemLink
       );
     } catch (error: any) {
-      console.log('error', error);
       setErrorMessage(
         error.message || 'Failed to complete redeem process'
       );
@@ -194,7 +207,7 @@ export default function RedeemModal({
                   Amount to Redeem
                 </div>
                 <div className="text-xl font-semibold mt-1">
-                  {tokenAmount.toFixed(4)} {tokenSymbol}
+                  {totalToken.toFixed(4)} {tokenSymbol}
                 </div>
               </div>
 
@@ -234,7 +247,8 @@ export default function RedeemModal({
               {/* Number of Wallets Input */}
               <div className="space-y-2">
                 <Label className="text-sm font-medium">
-                  Number of Wallets
+                  Total wallets to claim {totalToken.toFixed(4)}{' '}
+                  {tokenSymbol}
                 </Label>
                 <Input
                   type="number"
@@ -251,10 +265,10 @@ export default function RedeemModal({
                 <Info className="w-4 h-4 text-blue-500 mt-0.5" />
                 <div>
                   <div className="text-sm font-medium">
-                    Tokens Per Wallet
+                    Claim limit Per Wallet
                   </div>
                   <div className="text-sm text-gray-600 mt-1">
-                    Each wallet will receive {tokensPerWallet}{' '}
+                    Each wallet can claim {tokensPerWallet.toFixed(4)}{' '}
                     {tokenSymbol}
                   </div>
                 </div>
