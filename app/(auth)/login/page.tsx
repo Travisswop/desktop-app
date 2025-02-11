@@ -13,6 +13,7 @@ import bluePlanet from "@/public/onboard/blue-planet.svg";
 import yellowPlanet from "@/public/onboard/yellow-planet.svg";
 import { WalletItem } from "@/types/wallet";
 import { updateUserWalletInfo } from "@/actions/updateUserProfile";
+import { createLoginWalletBalance } from "@/actions/createWallet";
 
 const Login: React.FC = () => {
   const { authenticated, ready, user: PrivyUser } = usePrivy();
@@ -80,6 +81,10 @@ const Login: React.FC = () => {
           }
         );
 
+        const data = await response.json();
+
+        // console.log("user response for login", data);
+
         if (!response.ok) {
           console.log("User not found, redirecting to onboard");
           router.push("/onboard");
@@ -87,18 +92,16 @@ const Login: React.FC = () => {
         }
 
         const payload = {
-          privyId: PrivyUser?.id,
-          ethereumWallet:
+          userId: data.user._id,
+          ethAddress:
             walletData && walletData.find((wallet) => wallet?.isEVM)?.address,
-          solanaWallet:
+          solanaAddress:
             walletData && walletData.find((wallet) => !wallet?.isEVM)?.address,
         };
-
-        await updateUserWalletInfo(payload, email);
-
         console.log("User found, redirecting to home");
         setIsRedirecting(true);
         router.push("/");
+        await createLoginWalletBalance(payload);
       } catch (error) {
         console.error("Error verifying user:", error);
         router.push("/onboard");

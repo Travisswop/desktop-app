@@ -41,3 +41,45 @@ export async function createWalletAction(
     console.error("Error from action:", error);
   }
 }
+
+export async function createWalletBalance(payload: any) {
+  try {
+    console.log("payload in action", payload);
+
+    const response = await fetch(
+      `${process.env.NEXT_PUBLIC_API_URL}/api/v5/wallet/create-balance`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          // authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(payload),
+      }
+    );
+    const data = await response.json();
+    return data;
+  } catch (error) {
+    console.error("Error from action:", error);
+  }
+}
+
+export async function createLoginWalletBalance(payload: any) {
+  try {
+    const response = await fetch(
+      `${process.env.NEXT_PUBLIC_API_URL}/api/v5/wallet/create-login-balance`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          // authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(payload),
+      }
+    );
+    const data = await response.json();
+    return data;
+  } catch (error) {
+    console.error("Error from action:", error);
+  }
+}
