@@ -287,196 +287,173 @@ export default function BalanceChart({
             </div>
           </div>
         </CardHeader>
-
-        {totalBalance === 0 ? (
-          <CardContent className="flex flex-col items-center justify-center py-12">
-            <div className="flex flex-col items-center text-center space-y-4">
-              <AlertCircle className="h-12 w-12 text-muted-foreground" />
-              <div className="space-y-2">
-                <h3 className="text-lg font-medium">
-                  No Assets Found
-                </h3>
-                <p className="text-sm text-muted-foreground max-w-[300px]">
-                  Start building your portfolio by depositing or
-                  receiving assets to your wallet.
-                </p>
-              </div>
+        <>
+          <CardContent>
+            <div className="h-[300px]">
+              <ResponsiveContainer width="100%" height="100%">
+                {hasData ? (
+                  <AreaChart
+                    data={chartData}
+                    margin={{
+                      top: 20,
+                      right: 20,
+                      left: 0,
+                      bottom: 20,
+                    }}
+                  >
+                    <defs>
+                      <linearGradient
+                        id="colorGradient"
+                        x1="0"
+                        y1="0"
+                        x2="1"
+                        y2="0"
+                      >
+                        <stop
+                          offset="0%"
+                          stopColor="rgba(34, 197, 94, 1)"
+                        />
+                        <stop
+                          offset="100%"
+                          stopColor="rgba(59, 130, 246, 1)"
+                        />
+                      </linearGradient>
+                      <linearGradient
+                        id="areaGradient"
+                        x1="0"
+                        y1="0"
+                        x2="0"
+                        y2="1"
+                      >
+                        <stop
+                          offset="0%"
+                          stopColor="rgba(34, 197, 94, 0.2)"
+                        />
+                        <stop
+                          offset="100%"
+                          stopColor="rgba(59, 130, 246, 0.05)"
+                        />
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid
+                      strokeDasharray="3 3"
+                      opacity={0.1}
+                    />
+                    {/* <XAxis
+                      dataKey="date"
+                      tickLine={false}
+                      axisLine={false}
+                      tick={{ fontSize: 12 }}
+                    /> */}
+                    {/* <YAxis
+                      tickFormatter={(value) =>
+                        `$${(value / 1000).toFixed(0)}k`
+                      }
+                      tickLine={false}
+                      axisLine={false}
+                      tick={{ fontSize: 12 }}
+                    /> */}
+                    <Tooltip content={<CustomTooltip />} />
+                    <Area
+                      type="monotone"
+                      dataKey="value"
+                      stroke="url(#colorGradient)"
+                      fill="url(#areaGradient)"
+                      strokeWidth={2}
+                      dot={false}
+                      activeDot={{ r: 6, fill: '#22c55e' }}
+                    />
+                  </AreaChart>
+                ) : (
+                  <ComposedChart
+                    data={chartData}
+                    margin={{
+                      top: 20,
+                      right: 20,
+                      left: 0,
+                      bottom: 20,
+                    }}
+                  >
+                    <CartesianGrid
+                      strokeDasharray="3 3"
+                      opacity={0.1}
+                    />
+                    {/* <XAxis
+                      dataKey="date"
+                      tickLine={false}
+                      axisLine={false}
+                      tick={{ fontSize: 12 }}
+                    /> */}
+                    {/* <YAxis
+                      tickFormatter={(value) => `$${value}`}
+                      tickLine={false}
+                      axisLine={false}
+                      tick={{ fontSize: 12 }}
+                    /> */}
+                    <Line
+                      type="monotone"
+                      dataKey="value"
+                      stroke="#e5e7eb"
+                      strokeWidth={2}
+                      dot={false}
+                    />
+                  </ComposedChart>
+                )}
+              </ResponsiveContainer>
             </div>
           </CardContent>
-        ) : (
-          <>
-            <CardContent>
-              <div className="h-[300px]">
-                <ResponsiveContainer width="100%" height="100%">
-                  {hasData ? (
-                    <AreaChart
-                      data={chartData}
-                      margin={{
-                        top: 20,
-                        right: 20,
-                        left: 0,
-                        bottom: 20,
-                      }}
-                    >
-                      <defs>
-                        <linearGradient
-                          id="colorGradient"
-                          x1="0"
-                          y1="0"
-                          x2="1"
-                          y2="0"
-                        >
-                          <stop
-                            offset="0%"
-                            stopColor="rgba(34, 197, 94, 1)"
-                          />
-                          <stop
-                            offset="100%"
-                            stopColor="rgba(59, 130, 246, 1)"
-                          />
-                        </linearGradient>
-                        <linearGradient
-                          id="areaGradient"
-                          x1="0"
-                          y1="0"
-                          x2="0"
-                          y2="1"
-                        >
-                          <stop
-                            offset="0%"
-                            stopColor="rgba(34, 197, 94, 0.2)"
-                          />
-                          <stop
-                            offset="100%"
-                            stopColor="rgba(59, 130, 246, 0.05)"
-                          />
-                        </linearGradient>
-                      </defs>
-                      <CartesianGrid
-                        strokeDasharray="3 3"
-                        opacity={0.1}
-                      />
-                      <XAxis
-                        dataKey="date"
-                        tickLine={false}
-                        axisLine={false}
-                        tick={{ fontSize: 12 }}
-                      />
-                      <YAxis
-                        tickFormatter={(value) =>
-                          `$${(value / 1000).toFixed(0)}k`
-                        }
-                        tickLine={false}
-                        axisLine={false}
-                        tick={{ fontSize: 12 }}
-                      />
-                      <Tooltip content={<CustomTooltip />} />
-                      <Area
-                        type="monotone"
-                        dataKey="value"
-                        stroke="url(#colorGradient)"
-                        fill="url(#areaGradient)"
-                        strokeWidth={2}
-                        dot={false}
-                        activeDot={{ r: 6, fill: '#22c55e' }}
-                      />
-                    </AreaChart>
-                  ) : (
-                    <ComposedChart
-                      data={chartData}
-                      margin={{
-                        top: 20,
-                        right: 20,
-                        left: 0,
-                        bottom: 20,
-                      }}
-                    >
-                      <CartesianGrid
-                        strokeDasharray="3 3"
-                        opacity={0.1}
-                      />
-                      <XAxis
-                        dataKey="date"
-                        tickLine={false}
-                        axisLine={false}
-                        tick={{ fontSize: 12 }}
-                      />
-                      <YAxis
-                        tickFormatter={(value) =>
-                          `$${(value / 1000).toFixed(0)}k`
-                        }
-                        tickLine={false}
-                        axisLine={false}
-                        tick={{ fontSize: 12 }}
-                      />
-                      <Line
-                        type="monotone"
-                        dataKey="value"
-                        stroke="#e5e7eb"
-                        strokeWidth={2}
-                        dot={false}
-                      />
-                    </ComposedChart>
-                  )}
-                </ResponsiveContainer>
-              </div>
-            </CardContent>
-            <CardFooter>
-              <div className="flex items-center gap-2 text-sm">
-                {hasData ? (
-                  <>
-                    <span
-                      className={`inline-flex items-center rounded-md px-2 py-1 ${
-                        growth >= 0
-                          ? 'bg-green-50 text-green-600'
-                          : 'bg-red-50 text-red-600'
-                      }`}
-                    >
-                      {growth >= 0 ? '+' : ''}
-                      {growth.toFixed(1)}%
-                    </span>
-                    <span className="text-muted-foreground">
-                      in the last
-                    </span>
-                  </>
-                ) : (
-                  <span className="text-muted-foreground">Show</span>
-                )}
-                <Button
-                  variant="ghost"
-                  className="h-auto p-0 text-sm font-medium"
-                  onClick={() => {
-                    const timeFrames: TimeFrame[] = [
-                      'daily',
-                      'weekly',
-                      'monthly',
-                      '6months',
-                      'yearly',
-                    ];
-                    const currentIndex =
-                      timeFrames.indexOf(timeFrame);
-                    setTimeFrame(
-                      timeFrames[
-                        (currentIndex + 1) % timeFrames.length
-                      ]
-                    );
-                  }}
-                >
-                  {timeFrame === 'daily'
-                    ? '7 days'
-                    : timeFrame === 'weekly'
-                    ? '4 weeks'
-                    : timeFrame === 'monthly'
-                    ? '6 months'
-                    : timeFrame === '6months'
-                    ? '12 months'
-                    : '2 years'}
-                  <ChevronDown className="ml-1 h-4 w-4" />
-                </Button>
-              </div>
-            </CardFooter>
-          </>
-        )}
+          <CardFooter>
+            <div className="flex items-center gap-2 text-sm">
+              {hasData ? (
+                <>
+                  <span
+                    className={`inline-flex items-center rounded-md px-2 py-1 ${
+                      growth >= 0
+                        ? 'bg-green-50 text-green-600'
+                        : 'bg-red-50 text-red-600'
+                    }`}
+                  >
+                    {growth >= 0 ? '+' : ''}
+                    {growth.toFixed(1)}%
+                  </span>
+                  <span className="text-muted-foreground">
+                    in the last
+                  </span>
+                </>
+              ) : (
+                <span className="text-muted-foreground">Show</span>
+              )}
+              <Button
+                variant="ghost"
+                className="h-auto p-0 text-sm font-medium"
+                onClick={() => {
+                  const timeFrames: TimeFrame[] = [
+                    'daily',
+                    'weekly',
+                    'monthly',
+                    '6months',
+                    'yearly',
+                  ];
+                  const currentIndex = timeFrames.indexOf(timeFrame);
+                  setTimeFrame(
+                    timeFrames[(currentIndex + 1) % timeFrames.length]
+                  );
+                }}
+              >
+                {timeFrame === 'daily'
+                  ? '7 days'
+                  : timeFrame === 'weekly'
+                  ? '4 weeks'
+                  : timeFrame === 'monthly'
+                  ? '6 months'
+                  : timeFrame === '6months'
+                  ? '12 months'
+                  : '2 years'}
+                <ChevronDown className="ml-1 h-4 w-4" />
+              </Button>
+            </div>
+          </CardFooter>
+        </>
       </Card>
 
       <WalletAddressPopup walletData={walletData} show={showPopup} />
