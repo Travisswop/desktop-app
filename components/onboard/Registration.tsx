@@ -28,6 +28,7 @@ import userProfileImages from "../util/data/userProfileImage";
 import SelectAvatorModal from "../modal/SelectAvatorModal";
 import { usePrivy } from "@privy-io/react-auth";
 import { WalletItem } from "@/types/wallet";
+import { createWalletBalance } from "@/actions/createWallet";
 interface RegistrationProps {
   user: PrivyUser;
   onComplete: (data: Partial<OnboardingData>) => void;
@@ -154,9 +155,9 @@ export default function Registration({ user, onComplete }: RegistrationProps) {
         apt: apartment || "",
         countryFlag: "US",
         countryCode: "US",
-        privyId: PrivyUser?.id,
-        ethereumWallet: ethereumWallet && ethereumWallet.address, // Ethereum Wallet Address
-        solanaWallet: solanaWallet && solanaWallet.address, // Solana Wallet Address
+        // privyId: PrivyUser?.id,
+        // ethereumWallet: ethereumWallet && ethereumWallet.address, // Ethereum Wallet Address
+        // solanaWallet: solanaWallet && solanaWallet.address, // Solana Wallet Address
       };
 
       // Create user and smartsite
@@ -186,6 +187,16 @@ export default function Registration({ user, onComplete }: RegistrationProps) {
       onComplete({
         userInfo: result.data,
       });
+      const payload = {
+        ethAddress: ethereumWallet?.address,
+        solanaAddress: solanaWallet?.address,
+        userId: result.data._id,
+      };
+
+      console.log("payload for wallet", payload);
+
+      const walletResponse = await createWalletBalance(payload);
+      console.log("respnse for wallet", walletResponse);
     } catch (error) {
       setIsSubmitting(false);
       console.error("Error creating account:", error);
