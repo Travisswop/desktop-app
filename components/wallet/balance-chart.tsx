@@ -1,6 +1,6 @@
-'use client';
+"use client";
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from "react";
 import {
   Area,
   AreaChart,
@@ -11,16 +11,16 @@ import {
   Tooltip,
   XAxis,
   YAxis,
-} from 'recharts';
+} from "recharts";
 import {
   Card,
   CardContent,
   CardFooter,
   CardHeader,
   CardTitle,
-} from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import BalanceData from '@/utils/balance.json';
+} from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+// import BalanceData from "@/utils/balance.json";
 import {
   ArrowLeftRight,
   BadgeDollarSign,
@@ -29,17 +29,13 @@ import {
   Rocket,
   Wallet,
   AlertCircle,
-} from 'lucide-react';
-import WalletManager from './wallet-manager';
-import { WalletItem } from '@/types/wallet';
-import WalletAddressPopup from './wallet-address-popup';
+} from "lucide-react";
+import WalletManager from "./wallet-manager";
+import { WalletItem } from "@/types/wallet";
+import WalletAddressPopup from "./wallet-address-popup";
+import { useUser } from "@/lib/UserContext";
 
-type TimeFrame =
-  | 'daily'
-  | 'weekly'
-  | 'monthly'
-  | '6months'
-  | 'yearly';
+type TimeFrame = "daily" | "weekly" | "monthly" | "6months" | "yearly";
 
 interface WalletManagerProps {
   walletData: WalletItem[];
@@ -50,49 +46,47 @@ interface WalletManagerProps {
 
 const formatDate = (date: Date, timeFrame: TimeFrame): string => {
   switch (timeFrame) {
-    case 'daily':
-      return date.toLocaleDateString('en-US', {
-        month: 'short',
-        day: 'numeric',
+    case "daily":
+      return date.toLocaleDateString("en-US", {
+        month: "short",
+        day: "numeric",
       });
-    case 'weekly':
-      return date.toLocaleDateString('en-US', {
-        month: 'short',
-        day: 'numeric',
+    case "weekly":
+      return date.toLocaleDateString("en-US", {
+        month: "short",
+        day: "numeric",
       });
-    case 'monthly':
-    case '6months':
-      return date.toLocaleDateString('en-US', {
-        year: 'numeric',
-        month: 'short',
+    case "monthly":
+    case "6months":
+      return date.toLocaleDateString("en-US", {
+        year: "numeric",
+        month: "short",
       });
-    case 'yearly':
-      return date.toLocaleDateString('en-US', { year: 'numeric' });
+    case "yearly":
+      return date.toLocaleDateString("en-US", { year: "numeric" });
     default:
       return date.toLocaleDateString();
   }
 };
 
-const getDateRange = (
-  timeFrame: TimeFrame
-): { start: Date; end: Date } => {
+const getDateRange = (timeFrame: TimeFrame): { start: Date; end: Date } => {
   const end = new Date();
   const start = new Date();
 
   switch (timeFrame) {
-    case 'daily':
+    case "daily":
       start.setDate(end.getDate() - 7); // Show last 7 days for daily view
       break;
-    case 'weekly':
+    case "weekly":
       start.setDate(end.getDate() - 28); // Show last 4 weeks
       break;
-    case 'monthly':
+    case "monthly":
       start.setMonth(end.getMonth() - 6); // Show last 6 months
       break;
-    case '6months':
+    case "6months":
       start.setMonth(end.getMonth() - 12); // Show last 12 months
       break;
-    case 'yearly':
+    case "yearly":
       start.setFullYear(end.getFullYear() - 2); // Show last 2 years
       break;
   }
@@ -113,17 +107,17 @@ const generateEmptyData = (timeFrame: TimeFrame) => {
     });
 
     switch (timeFrame) {
-      case 'daily':
+      case "daily":
         currentDate.setDate(currentDate.getDate() + 1);
         break;
-      case 'weekly':
+      case "weekly":
         currentDate.setDate(currentDate.getDate() + 7);
         break;
-      case 'monthly':
-      case '6months':
+      case "monthly":
+      case "6months":
         currentDate.setMonth(currentDate.getMonth() + 1);
         break;
-      case 'yearly':
+      case "yearly":
         currentDate.setMonth(currentDate.getMonth() + 3);
         break;
     }
@@ -132,66 +126,63 @@ const generateEmptyData = (timeFrame: TimeFrame) => {
   return emptyData;
 };
 
-const aggregateData = (timeFrame: TimeFrame) => {
+const aggregateData = (timeFrame: TimeFrame, balanceData: any) => {
   const { start, end } = getDateRange(timeFrame);
   const aggregatedData: Map<string, number> = new Map();
 
-  // Sort balance history by date
-  const sortedHistory = [...BalanceData.balanceHistory].sort(
-    (a, b) =>
-      new Date(a.createdAt).getTime() -
-      new Date(b.createdAt).getTime()
-  );
+  if (balanceData?.balanceData?.balanceHistory) {
+    // Sort balance history by date
+    const sortedHistory = [...balanceData?.balanceData?.balanceHistory].sort(
+      (a, b) =>
+        new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+    );
 
-  // If there's no data or only one data point, return empty data
-  if (sortedHistory.length <= 1) {
-    return generateEmptyData(timeFrame);
+    // If there's no data or only one data point, return empty data
+    if (sortedHistory.length <= 1) {
+      return generateEmptyData(timeFrame);
+    }
+
+    // Initialize data points for the entire range
+    const currentDate = new Date(start);
+    while (currentDate <= end) {
+      const key = formatDate(new Date(currentDate), timeFrame);
+      if (!aggregatedData.has(key)) {
+        // Use the last known balance or 0 if no previous balance
+        const lastBalance = Array.from(aggregatedData.values()).pop() || 0;
+        aggregatedData.set(key, lastBalance);
+      }
+
+      switch (timeFrame) {
+        case "daily":
+          currentDate.setDate(currentDate.getDate() + 1);
+          break;
+        case "weekly":
+          currentDate.setDate(currentDate.getDate() + 7);
+          break;
+        case "monthly":
+        case "6months":
+          currentDate.setMonth(currentDate.getMonth() + 1);
+          break;
+        case "yearly":
+          currentDate.setMonth(currentDate.getMonth() + 3);
+          break;
+      }
+    }
+
+    // Aggregate actual balance data
+    sortedHistory.forEach((item) => {
+      const date = new Date(item.createdAt);
+      if (date >= start && date <= end) {
+        const key = formatDate(date, timeFrame);
+        aggregatedData.set(key, item.amount);
+      }
+    });
   }
-
-  // Initialize data points for the entire range
-  const currentDate = new Date(start);
-  while (currentDate <= end) {
-    const key = formatDate(new Date(currentDate), timeFrame);
-    if (!aggregatedData.has(key)) {
-      // Use the last known balance or 0 if no previous balance
-      const lastBalance =
-        Array.from(aggregatedData.values()).pop() || 0;
-      aggregatedData.set(key, lastBalance);
-    }
-
-    switch (timeFrame) {
-      case 'daily':
-        currentDate.setDate(currentDate.getDate() + 1);
-        break;
-      case 'weekly':
-        currentDate.setDate(currentDate.getDate() + 7);
-        break;
-      case 'monthly':
-      case '6months':
-        currentDate.setMonth(currentDate.getMonth() + 1);
-        break;
-      case 'yearly':
-        currentDate.setMonth(currentDate.getMonth() + 3);
-        break;
-    }
-  }
-
-  // Aggregate actual balance data
-  sortedHistory.forEach((item) => {
-    const date = new Date(item.createdAt);
-    if (date >= start && date <= end) {
-      const key = formatDate(date, timeFrame);
-      aggregatedData.set(key, item.amount);
-    }
-  });
 
   // Convert to array and sort
   return Array.from(aggregatedData.entries())
     .map(([date, value]) => ({ date, value }))
-    .sort(
-      (a, b) =>
-        new Date(a.date).getTime() - new Date(b.date).getTime()
-    );
+    .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 };
 
 const CustomTooltip = ({ active, payload, label }: any) => {
@@ -199,9 +190,7 @@ const CustomTooltip = ({ active, payload, label }: any) => {
     return (
       <div className="bg-white p-4 rounded-lg shadow-lg border">
         <p className="font-medium">{label}</p>
-        <p className="text-green-600">
-          ${payload[0].value.toLocaleString()}
-        </p>
+        <p className="text-green-600">${payload[0].value.toLocaleString()}</p>
       </div>
     );
   }
@@ -214,21 +203,49 @@ export default function BalanceChart({
   onSelectAsset,
   onQRClick,
 }: WalletManagerProps) {
-  const [timeFrame, setTimeFrame] = useState<TimeFrame>('daily');
-  const [isWalletManagerOpen, setIsWalletManagerOpen] =
-    useState(false);
+  const [timeFrame, setTimeFrame] = useState<TimeFrame>("daily");
+  const [isWalletManagerOpen, setIsWalletManagerOpen] = useState(false);
   const [showPopup, setShowPopup] = useState(false);
+  const [balanceData, setBalanceData] = useState<any>(null);
+
+  const { user } = useUser();
+
+  console.log("user", user);
+  console.log("balanceData", balanceData);
+
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        const response = await fetch(
+          `${process.env.NEXT_PUBLIC_API_URL}/api/v5/wallet/getBalance/${user._id}`
+        );
+        if (!response.ok) {
+          throw new Error("Network response was not ok");
+        }
+        const result = await response.json();
+        setBalanceData(result);
+        console.log("result", result);
+      } catch (error) {
+        // setError(error);
+        console.log("error", error);
+      } finally {
+        // setLoading(false);
+      }
+    };
+
+    fetchData();
+  }, [user?._id]);
 
   const chartData = useMemo(
-    () => aggregateData(timeFrame),
-    [timeFrame]
+    () => aggregateData(timeFrame, balanceData),
+    [balanceData, timeFrame]
   );
 
   const hasData = useMemo(
     () =>
-      BalanceData.balanceHistory.length > 1 &&
+      balanceData?.balanceData?.balanceHistory?.length > 1 &&
       chartData.some((item) => item.value > 0),
-    [chartData]
+    [balanceData?.balanceData?.balanceHistory?.length, chartData]
   );
 
   const calculateGrowth = () => {
@@ -259,9 +276,7 @@ export default function BalanceChart({
               <Button
                 variant="black"
                 size="icon"
-                className={
-                  totalBalance === 0 ? 'cursor-not-allowed' : ''
-                }
+                className={totalBalance === 0 ? "cursor-not-allowed" : ""}
                 disabled={totalBalance === 0}
                 onClick={onSelectAsset}
               >
@@ -288,17 +303,15 @@ export default function BalanceChart({
           </div>
         </CardHeader>
 
-        {totalBalance === 0 ? (
+        {false ? (
           <CardContent className="flex flex-col items-center justify-center py-12">
             <div className="flex flex-col items-center text-center space-y-4">
               <AlertCircle className="h-12 w-12 text-muted-foreground" />
               <div className="space-y-2">
-                <h3 className="text-lg font-medium">
-                  No Assets Found
-                </h3>
+                <h3 className="text-lg font-medium">No Assets Found</h3>
                 <p className="text-sm text-muted-foreground max-w-[300px]">
-                  Start building your portfolio by depositing or
-                  receiving assets to your wallet.
+                  Start building your portfolio by depositing or receiving
+                  assets to your wallet.
                 </p>
               </div>
             </div>
@@ -326,10 +339,7 @@ export default function BalanceChart({
                           x2="1"
                           y2="0"
                         >
-                          <stop
-                            offset="0%"
-                            stopColor="rgba(34, 197, 94, 1)"
-                          />
+                          <stop offset="0%" stopColor="rgba(34, 197, 94, 1)" />
                           <stop
                             offset="100%"
                             stopColor="rgba(59, 130, 246, 1)"
@@ -352,10 +362,7 @@ export default function BalanceChart({
                           />
                         </linearGradient>
                       </defs>
-                      <CartesianGrid
-                        strokeDasharray="3 3"
-                        opacity={0.1}
-                      />
+                      <CartesianGrid strokeDasharray="3 3" opacity={0.1} />
                       <XAxis
                         dataKey="date"
                         tickLine={false}
@@ -378,7 +385,7 @@ export default function BalanceChart({
                         fill="url(#areaGradient)"
                         strokeWidth={2}
                         dot={false}
-                        activeDot={{ r: 6, fill: '#22c55e' }}
+                        activeDot={{ r: 6, fill: "#22c55e" }}
                       />
                     </AreaChart>
                   ) : (
@@ -391,10 +398,7 @@ export default function BalanceChart({
                         bottom: 20,
                       }}
                     >
-                      <CartesianGrid
-                        strokeDasharray="3 3"
-                        opacity={0.1}
-                      />
+                      <CartesianGrid strokeDasharray="3 3" opacity={0.1} />
                       <XAxis
                         dataKey="date"
                         tickLine={false}
@@ -428,16 +432,14 @@ export default function BalanceChart({
                     <span
                       className={`inline-flex items-center rounded-md px-2 py-1 ${
                         growth >= 0
-                          ? 'bg-green-50 text-green-600'
-                          : 'bg-red-50 text-red-600'
+                          ? "bg-green-50 text-green-600"
+                          : "bg-red-50 text-red-600"
                       }`}
                     >
-                      {growth >= 0 ? '+' : ''}
+                      {growth >= 0 ? "+" : ""}
                       {growth.toFixed(1)}%
                     </span>
-                    <span className="text-muted-foreground">
-                      in the last
-                    </span>
+                    <span className="text-muted-foreground">in the last</span>
                   </>
                 ) : (
                   <span className="text-muted-foreground">Show</span>
@@ -447,30 +449,27 @@ export default function BalanceChart({
                   className="h-auto p-0 text-sm font-medium"
                   onClick={() => {
                     const timeFrames: TimeFrame[] = [
-                      'daily',
-                      'weekly',
-                      'monthly',
-                      '6months',
-                      'yearly',
+                      "daily",
+                      "weekly",
+                      "monthly",
+                      "6months",
+                      "yearly",
                     ];
-                    const currentIndex =
-                      timeFrames.indexOf(timeFrame);
+                    const currentIndex = timeFrames.indexOf(timeFrame);
                     setTimeFrame(
-                      timeFrames[
-                        (currentIndex + 1) % timeFrames.length
-                      ]
+                      timeFrames[(currentIndex + 1) % timeFrames.length]
                     );
                   }}
                 >
-                  {timeFrame === 'daily'
-                    ? '7 days'
-                    : timeFrame === 'weekly'
-                    ? '4 weeks'
-                    : timeFrame === 'monthly'
-                    ? '6 months'
-                    : timeFrame === '6months'
-                    ? '12 months'
-                    : '2 years'}
+                  {timeFrame === "daily"
+                    ? "7 days"
+                    : timeFrame === "weekly"
+                    ? "4 weeks"
+                    : timeFrame === "monthly"
+                    ? "6 months"
+                    : timeFrame === "6months"
+                    ? "12 months"
+                    : "2 years"}
                   <ChevronDown className="ml-1 h-4 w-4" />
                 </Button>
               </div>
