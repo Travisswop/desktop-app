@@ -1,9 +1,12 @@
 'use client';
 
+import { useState, useMemo } from 'react';
 import {
   Area,
   AreaChart,
   CartesianGrid,
+  Line,
+  ComposedChart,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -17,7 +20,7 @@ import {
   CardTitle,
 } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-
+import BalanceData from '@/utils/balance.json';
 import {
   ArrowLeftRight,
   BadgeDollarSign,
@@ -29,8 +32,14 @@ import {
 } from 'lucide-react';
 import WalletManager from './wallet-manager';
 import { WalletItem } from '@/types/wallet';
-import { useState } from 'react';
 import WalletAddressPopup from './wallet-address-popup';
+
+type TimeFrame =
+  | 'daily'
+  | 'weekly'
+  | 'monthly'
+  | '6months'
+  | 'yearly';
 
 interface WalletManagerProps {
   walletData: WalletItem[];
@@ -39,36 +48,150 @@ interface WalletManagerProps {
   onQRClick: () => void;
 }
 
-const generateWalletData = () => {
-  const points = 30; // One month of data
-  const data = [];
-  const baseValue = 15000;
-  const volatility = 0.15; // 15% volatility
-
-  for (let i = 0; i < points; i++) {
-    const date = new Date();
-    date.setDate(date.getDate() - (points - 1 - i));
-
-    // Create more realistic fluctuations
-    const randomFactor = 1 + (Math.random() - 0.5) * volatility;
-    const trendFactor = 1 + (i / points) * 0.3; // Upward trend
-    const value = baseValue * randomFactor * trendFactor;
-
-    // Add weekly patterns
-    const dayOfWeek = date.getDay();
-    const weekendDip = dayOfWeek === 0 || dayOfWeek === 6 ? 0.85 : 1;
-
-    data.push({
-      date: date.toLocaleDateString('en-US', {
+const formatDate = (date: Date, timeFrame: TimeFrame): string => {
+  switch (timeFrame) {
+    case 'daily':
+      return date.toLocaleDateString('en-US', {
         month: 'short',
         day: 'numeric',
-      }),
-      value: Math.round(value * weekendDip),
-      transactions: Math.floor(Math.random() * 15) + 5, // Random number of daily transactions
-    });
+      });
+    case 'weekly':
+      return date.toLocaleDateString('en-US', {
+        month: 'short',
+        day: 'numeric',
+      });
+    case 'monthly':
+    case '6months':
+      return date.toLocaleDateString('en-US', {
+        year: 'numeric',
+        month: 'short',
+      });
+    case 'yearly':
+      return date.toLocaleDateString('en-US', { year: 'numeric' });
+    default:
+      return date.toLocaleDateString();
+  }
+};
+
+const getDateRange = (
+  timeFrame: TimeFrame
+): { start: Date; end: Date } => {
+  const end = new Date();
+  const start = new Date();
+
+  switch (timeFrame) {
+    case 'daily':
+      start.setDate(end.getDate() - 7); // Show last 7 days for daily view
+      break;
+    case 'weekly':
+      start.setDate(end.getDate() - 28); // Show last 4 weeks
+      break;
+    case 'monthly':
+      start.setMonth(end.getMonth() - 6); // Show last 6 months
+      break;
+    case '6months':
+      start.setMonth(end.getMonth() - 12); // Show last 12 months
+      break;
+    case 'yearly':
+      start.setFullYear(end.getFullYear() - 2); // Show last 2 years
+      break;
   }
 
-  return data;
+  return { start, end };
+};
+
+const generateEmptyData = (timeFrame: TimeFrame) => {
+  const { start, end } = getDateRange(timeFrame);
+  const emptyData = [];
+  const value = 0; // Constant value for the straight line
+
+  const currentDate = new Date(start);
+  while (currentDate <= end) {
+    emptyData.push({
+      date: formatDate(new Date(currentDate), timeFrame),
+      value: value,
+    });
+
+    switch (timeFrame) {
+      case 'daily':
+        currentDate.setDate(currentDate.getDate() + 1);
+        break;
+      case 'weekly':
+        currentDate.setDate(currentDate.getDate() + 7);
+        break;
+      case 'monthly':
+      case '6months':
+        currentDate.setMonth(currentDate.getMonth() + 1);
+        break;
+      case 'yearly':
+        currentDate.setMonth(currentDate.getMonth() + 3);
+        break;
+    }
+  }
+
+  return emptyData;
+};
+
+const aggregateData = (timeFrame: TimeFrame) => {
+  const { start, end } = getDateRange(timeFrame);
+  const aggregatedData: Map<string, number> = new Map();
+
+  // Sort balance history by date
+  const sortedHistory = [...BalanceData.balanceHistory].sort(
+    (a, b) =>
+      new Date(a.createdAt).getTime() -
+      new Date(b.createdAt).getTime()
+  );
+
+  // If there's no data or only one data point, return empty data
+  if (sortedHistory.length <= 1) {
+    return generateEmptyData(timeFrame);
+  }
+
+  // Initialize data points for the entire range
+  const currentDate = new Date(start);
+  while (currentDate <= end) {
+    const key = formatDate(new Date(currentDate), timeFrame);
+    if (!aggregatedData.has(key)) {
+      // Use the last known balance or 0 if no previous balance
+      const lastBalance =
+        Array.from(aggregatedData.values()).pop() || 0;
+      aggregatedData.set(key, lastBalance);
+    }
+
+    switch (timeFrame) {
+      case 'daily':
+        currentDate.setDate(currentDate.getDate() + 1);
+        break;
+      case 'weekly':
+        currentDate.setDate(currentDate.getDate() + 7);
+        break;
+      case 'monthly':
+      case '6months':
+        currentDate.setMonth(currentDate.getMonth() + 1);
+        break;
+      case 'yearly':
+        currentDate.setMonth(currentDate.getMonth() + 3);
+        break;
+    }
+  }
+
+  // Aggregate actual balance data
+  sortedHistory.forEach((item) => {
+    const date = new Date(item.createdAt);
+    if (date >= start && date <= end) {
+      const key = formatDate(date, timeFrame);
+      aggregatedData.set(key, item.amount);
+    }
+  });
+
+  // Convert to array and sort
+  return Array.from(aggregatedData.entries())
+    .map(([date, value]) => ({ date, value }))
+    .sort(
+      (a, b) =>
+        new Date(a.date).getTime() - new Date(b.date).getTime()
+    );
 };
 
 const CustomTooltip = ({ active, payload, label }: any) => {
@@ -78,9 +201,6 @@ const CustomTooltip = ({ active, payload, label }: any) => {
         <p className="font-medium">{label}</p>
         <p className="text-green-600">
           ${payload[0].value.toLocaleString()}
-        </p>
-        <p className="text-gray-500 text-sm">
-          {payload[0].payload.transactions} transactions
         </p>
       </div>
     );
@@ -94,11 +214,31 @@ export default function BalanceChart({
   onSelectAsset,
   onQRClick,
 }: WalletManagerProps) {
-  const data = generateWalletData();
-
+  const [timeFrame, setTimeFrame] = useState<TimeFrame>('daily');
   const [isWalletManagerOpen, setIsWalletManagerOpen] =
     useState(false);
   const [showPopup, setShowPopup] = useState(false);
+
+  const chartData = useMemo(
+    () => aggregateData(timeFrame),
+    [timeFrame]
+  );
+
+  const hasData = useMemo(
+    () =>
+      BalanceData.balanceHistory.length > 1 &&
+      chartData.some((item) => item.value > 0),
+    [chartData]
+  );
+
+  const calculateGrowth = () => {
+    if (!hasData || chartData.length < 2) return 0;
+    const oldValue = chartData[0].value;
+    const newValue = chartData[chartData.length - 1].value;
+    return oldValue ? ((newValue - oldValue) / oldValue) * 100 : 0;
+  };
+
+  const growth = calculateGrowth();
 
   return (
     <div className="relative">
@@ -123,7 +263,7 @@ export default function BalanceChart({
                   totalBalance === 0 ? 'cursor-not-allowed' : ''
                 }
                 disabled={totalBalance === 0}
-                onClick={() => onSelectAsset()}
+                onClick={onSelectAsset}
               >
                 <Rocket />
               </Button>
@@ -141,11 +281,7 @@ export default function BalanceChart({
               >
                 <ArrowLeftRight />
               </Button>
-              <Button
-                variant="black"
-                size="icon"
-                onClick={() => onQRClick()}
-              >
+              <Button variant="black" size="icon" onClick={onQRClick}>
                 <QrCode />
               </Button>
             </div>
@@ -172,94 +308,169 @@ export default function BalanceChart({
             <CardContent>
               <div className="h-[300px]">
                 <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart
-                    data={data}
-                    margin={{
-                      top: 20,
-                      right: 20,
-                      left: 0,
-                      bottom: 20,
-                    }}
-                  >
-                    <defs>
-                      <linearGradient
-                        id="colorGradient"
-                        x1="0"
-                        y1="0"
-                        x2="1"
-                        y2="0"
-                      >
-                        <stop
-                          offset="0%"
-                          stopColor="rgba(34, 197, 94, 1)"
-                        />
-                        <stop
-                          offset="100%"
-                          stopColor="rgba(59, 130, 246, 1)"
-                        />
-                      </linearGradient>
-                      <linearGradient
-                        id="areaGradient"
-                        x1="0"
-                        y1="0"
-                        x2="0"
-                        y2="1"
-                      >
-                        <stop
-                          offset="0%"
-                          stopColor="rgba(34, 197, 94, 0.2)"
-                        />
-                        <stop
-                          offset="100%"
-                          stopColor="rgba(59, 130, 246, 0.05)"
-                        />
-                      </linearGradient>
-                    </defs>
-                    <CartesianGrid
-                      strokeDasharray="3 3"
-                      opacity={0.1}
-                    />
-                    <XAxis
-                      dataKey="date"
-                      tickLine={false}
-                      axisLine={false}
-                      tick={{ fontSize: 12 }}
-                    />
-                    <YAxis
-                      tickFormatter={(value) =>
-                        `$${(value / 1000).toFixed(0)}k`
-                      }
-                      tickLine={false}
-                      axisLine={false}
-                      tick={{ fontSize: 12 }}
-                    />
-                    <Tooltip content={<CustomTooltip />} />
-                    <Area
-                      type="monotone"
-                      dataKey="value"
-                      stroke="url(#colorGradient)"
-                      fill="url(#areaGradient)"
-                      strokeWidth={2}
-                      dot={false}
-                      activeDot={{ r: 6, fill: '#22c55e' }}
-                    />
-                  </AreaChart>
+                  {hasData ? (
+                    <AreaChart
+                      data={chartData}
+                      margin={{
+                        top: 20,
+                        right: 20,
+                        left: 0,
+                        bottom: 20,
+                      }}
+                    >
+                      <defs>
+                        <linearGradient
+                          id="colorGradient"
+                          x1="0"
+                          y1="0"
+                          x2="1"
+                          y2="0"
+                        >
+                          <stop
+                            offset="0%"
+                            stopColor="rgba(34, 197, 94, 1)"
+                          />
+                          <stop
+                            offset="100%"
+                            stopColor="rgba(59, 130, 246, 1)"
+                          />
+                        </linearGradient>
+                        <linearGradient
+                          id="areaGradient"
+                          x1="0"
+                          y1="0"
+                          x2="0"
+                          y2="1"
+                        >
+                          <stop
+                            offset="0%"
+                            stopColor="rgba(34, 197, 94, 0.2)"
+                          />
+                          <stop
+                            offset="100%"
+                            stopColor="rgba(59, 130, 246, 0.05)"
+                          />
+                        </linearGradient>
+                      </defs>
+                      <CartesianGrid
+                        strokeDasharray="3 3"
+                        opacity={0.1}
+                      />
+                      <XAxis
+                        dataKey="date"
+                        tickLine={false}
+                        axisLine={false}
+                        tick={{ fontSize: 12 }}
+                      />
+                      <YAxis
+                        tickFormatter={(value) =>
+                          `$${(value / 1000).toFixed(0)}k`
+                        }
+                        tickLine={false}
+                        axisLine={false}
+                        tick={{ fontSize: 12 }}
+                      />
+                      <Tooltip content={<CustomTooltip />} />
+                      <Area
+                        type="monotone"
+                        dataKey="value"
+                        stroke="url(#colorGradient)"
+                        fill="url(#areaGradient)"
+                        strokeWidth={2}
+                        dot={false}
+                        activeDot={{ r: 6, fill: '#22c55e' }}
+                      />
+                    </AreaChart>
+                  ) : (
+                    <ComposedChart
+                      data={chartData}
+                      margin={{
+                        top: 20,
+                        right: 20,
+                        left: 0,
+                        bottom: 20,
+                      }}
+                    >
+                      <CartesianGrid
+                        strokeDasharray="3 3"
+                        opacity={0.1}
+                      />
+                      <XAxis
+                        dataKey="date"
+                        tickLine={false}
+                        axisLine={false}
+                        tick={{ fontSize: 12 }}
+                      />
+                      <YAxis
+                        tickFormatter={(value) =>
+                          `$${(value / 1000).toFixed(0)}k`
+                        }
+                        tickLine={false}
+                        axisLine={false}
+                        tick={{ fontSize: 12 }}
+                      />
+                      <Line
+                        type="monotone"
+                        dataKey="value"
+                        stroke="#e5e7eb"
+                        strokeWidth={2}
+                        dot={false}
+                      />
+                    </ComposedChart>
+                  )}
                 </ResponsiveContainer>
               </div>
             </CardContent>
             <CardFooter>
               <div className="flex items-center gap-2 text-sm">
-                <span className="inline-flex items-center rounded-md bg-green-50 px-2 py-1 text-green-600">
-                  + 24%
-                </span>
-                <span className="text-muted-foreground">
-                  in the last
-                </span>
+                {hasData ? (
+                  <>
+                    <span
+                      className={`inline-flex items-center rounded-md px-2 py-1 ${
+                        growth >= 0
+                          ? 'bg-green-50 text-green-600'
+                          : 'bg-red-50 text-red-600'
+                      }`}
+                    >
+                      {growth >= 0 ? '+' : ''}
+                      {growth.toFixed(1)}%
+                    </span>
+                    <span className="text-muted-foreground">
+                      in the last
+                    </span>
+                  </>
+                ) : (
+                  <span className="text-muted-foreground">Show</span>
+                )}
                 <Button
                   variant="ghost"
                   className="h-auto p-0 text-sm font-medium"
+                  onClick={() => {
+                    const timeFrames: TimeFrame[] = [
+                      'daily',
+                      'weekly',
+                      'monthly',
+                      '6months',
+                      'yearly',
+                    ];
+                    const currentIndex =
+                      timeFrames.indexOf(timeFrame);
+                    setTimeFrame(
+                      timeFrames[
+                        (currentIndex + 1) % timeFrames.length
+                      ]
+                    );
+                  }}
                 >
-                  30 days
+                  {timeFrame === 'daily'
+                    ? '7 days'
+                    : timeFrame === 'weekly'
+                    ? '4 weeks'
+                    : timeFrame === 'monthly'
+                    ? '6 months'
+                    : timeFrame === '6months'
+                    ? '12 months'
+                    : '2 years'}
                   <ChevronDown className="ml-1 h-4 w-4" />
                 </Button>
               </div>
