@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import {
   Area,
   AreaChart,
@@ -20,7 +20,7 @@ import {
   CardTitle,
 } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import BalanceData from '@/utils/balance.json';
+// import BalanceData from "@/utils/balance.json";
 import {
   ArrowLeftRight,
   BadgeDollarSign,
@@ -33,6 +33,7 @@ import {
 import WalletManager from './wallet-manager';
 import { WalletItem } from '@/types/wallet';
 import WalletAddressPopup from './wallet-address-popup';
+import { useUser } from '@/lib/UserContext';
 
 type TimeFrame =
   | 'daily'
@@ -46,6 +47,11 @@ interface WalletManagerProps {
   totalBalance: number;
   onSelectAsset: () => void;
   onQRClick: () => void;
+}
+
+interface BalanceHistoryItem {
+  createdAt: string;
+  amount: number;
 }
 
 const formatDate = (date: Date, timeFrame: TimeFrame): string => {
@@ -132,58 +138,66 @@ const generateEmptyData = (timeFrame: TimeFrame) => {
   return emptyData;
 };
 
-const aggregateData = (timeFrame: TimeFrame) => {
+const aggregateData = (
+  timeFrame: TimeFrame,
+  balanceData: BalanceHistoryItem[] | null
+) => {
   const { start, end } = getDateRange(timeFrame);
   const aggregatedData: Map<string, number> = new Map();
+  console.log('🚀 ~ aggregateData ~ balanceHistory:', balanceData);
+  if (balanceData) {
+    console.log('🚀 🚀 🚀');
+    // Sort balance history by date
+    const sortedHistory = balanceData.sort(
+      (a, b) =>
+        new Date(a.createdAt).getTime() -
+        new Date(b.createdAt).getTime()
+    );
 
-  // Sort balance history by date
-  const sortedHistory = [...BalanceData.balanceHistory].sort(
-    (a, b) =>
-      new Date(a.createdAt).getTime() -
-      new Date(b.createdAt).getTime()
-  );
+    // If there's no data or only one data point, return empty data
+    if (sortedHistory.length <= 1) {
+      return generateEmptyData(timeFrame);
+    }
 
-  // If there's no data or only one data point, return empty data
-  if (sortedHistory.length <= 1) {
-    return generateEmptyData(timeFrame);
+    // Initialize data points for the entire range
+    const currentDate = new Date(start);
+    while (currentDate <= end) {
+      const key = formatDate(new Date(currentDate), timeFrame);
+      if (!aggregatedData.has(key)) {
+        // Use the last known balance or 0 if no previous balance
+        const lastBalance =
+          Array.from(aggregatedData.values()).pop() || 0;
+        aggregatedData.set(key, lastBalance);
+      }
+
+      switch (timeFrame) {
+        case 'daily':
+          currentDate.setDate(currentDate.getDate() + 1);
+          break;
+        case 'weekly':
+          currentDate.setDate(currentDate.getDate() + 7);
+          break;
+        case 'monthly':
+        case '6months':
+          currentDate.setMonth(currentDate.getMonth() + 1);
+          break;
+        case 'yearly':
+          currentDate.setMonth(currentDate.getMonth() + 3);
+          break;
+      }
+    }
+
+    console.log('sorted', sortedHistory);
+
+    // Aggregate actual balance data
+    sortedHistory.forEach((item) => {
+      const date = new Date(item.createdAt);
+      if (date >= start && date <= end) {
+        const key = formatDate(date, timeFrame);
+        aggregatedData.set(key, item.amount);
+      }
+    });
   }
-
-  // Initialize data points for the entire range
-  const currentDate = new Date(start);
-  while (currentDate <= end) {
-    const key = formatDate(new Date(currentDate), timeFrame);
-    if (!aggregatedData.has(key)) {
-      // Use the last known balance or 0 if no previous balance
-      const lastBalance =
-        Array.from(aggregatedData.values()).pop() || 0;
-      aggregatedData.set(key, lastBalance);
-    }
-
-    switch (timeFrame) {
-      case 'daily':
-        currentDate.setDate(currentDate.getDate() + 1);
-        break;
-      case 'weekly':
-        currentDate.setDate(currentDate.getDate() + 7);
-        break;
-      case 'monthly':
-      case '6months':
-        currentDate.setMonth(currentDate.getMonth() + 1);
-        break;
-      case 'yearly':
-        currentDate.setMonth(currentDate.getMonth() + 3);
-        break;
-    }
-  }
-
-  // Aggregate actual balance data
-  sortedHistory.forEach((item) => {
-    const date = new Date(item.createdAt);
-    if (date >= start && date <= end) {
-      const key = formatDate(date, timeFrame);
-      aggregatedData.set(key, item.amount);
-    }
-  });
 
   // Convert to array and sort
   return Array.from(aggregatedData.entries())
@@ -194,11 +208,12 @@ const aggregateData = (timeFrame: TimeFrame) => {
     );
 };
 
-const CustomTooltip = ({ active, payload, label }: any) => {
+const CustomTooltip = ({ active, payload }: any) => {
+  console.log('payload', payload);
   if (active && payload && payload.length) {
     return (
       <div className="bg-white p-4 rounded-lg shadow-lg border">
-        <p className="font-medium">{label}</p>
+        <p className="font-medium"> ${payload[0].payload.date}</p>
         <p className="text-green-600">
           ${payload[0].value.toLocaleString()}
         </p>
@@ -218,18 +233,52 @@ export default function BalanceChart({
   const [isWalletManagerOpen, setIsWalletManagerOpen] =
     useState(false);
   const [showPopup, setShowPopup] = useState(false);
+  const [balanceData, setBalanceData] = useState<
+    BalanceHistoryItem[] | null
+  >(null);
+
+  const { user } = useUser();
+
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        const response = await fetch(
+          `${process.env.NEXT_PUBLIC_API_URL}/api/v5/wallet/getBalance/${user._id}`
+        );
+        if (!response.ok) {
+          throw new Error('Network response was not ok');
+        }
+        const { balanceData } = await response.json();
+
+        setBalanceData(balanceData.balanceHistory);
+      } catch (error) {
+        // setError(error);
+        console.log('error', error);
+      } finally {
+        // setLoading(false);
+      }
+    };
+
+    fetchData();
+  }, [user?._id]);
 
   const chartData = useMemo(
-    () => aggregateData(timeFrame),
-    [timeFrame]
+    () => aggregateData(timeFrame, balanceData),
+    [balanceData, timeFrame]
   );
+
+  console.log('chartdata', chartData);
 
   const hasData = useMemo(
     () =>
-      BalanceData.balanceHistory.length > 1 &&
-      chartData.some((item) => item.value > 0),
-    [chartData]
+      Boolean(
+        balanceData?.length &&
+          chartData.some((item) => item.value > 0)
+      ),
+    [balanceData, chartData]
   );
+
+  console.log('hasdata', hasData);
 
   const calculateGrowth = () => {
     if (!hasData || chartData.length < 2) return 0;
