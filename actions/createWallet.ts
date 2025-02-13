@@ -83,3 +83,23 @@ export async function createLoginWalletBalance(payload: any) {
     console.error("Error from action:", error);
   }
 }
+
+export async function getWalletCurrentBalance(payload: any) {
+  try {
+    const response = await fetch(
+      `${process.env.NEXT_PUBLIC_API_URL}/api/v5/wallet/tokenTotalPrice`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          // authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(payload),
+      }
+    );
+    const data = await response.json();
+    return data;
+  } catch (error) {
+    console.error("Error from action:", error);
+  }
+}

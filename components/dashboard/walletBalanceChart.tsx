@@ -1,3 +1,4 @@
+import { getWalletCurrentBalance } from "@/actions/createWallet";
 import { useUser } from "@/lib/UserContext";
 import React, { useState, useMemo, useEffect } from "react";
 import {
@@ -10,34 +11,82 @@ import {
   ResponsiveContainer,
 } from "recharts";
 
-const BalanceChart = ({ balanceHistory }: any) => {
-  const [timeRange, setTimeRange] = useState("7days"); // Default to last 7 days
+const BalanceChart = ({ balanceHistory, walletList }: any) => {
+  const [timeRange, setTimeRange] = useState("7days");
+  const [currentWalletBalace, setCurrentWalletBalace] = useState(0);
+  // console.log("currentWalletBalalce", currentWalletBalace);
 
-  // Function to filter data based on the selected time range
+  // Generate data with 0-filled missing dates
   const filteredData = useMemo(() => {
-    const now: any = new Date();
-    return balanceHistory.filter((entry: any) => {
-      const entryDate: any = new Date(entry.createdAt);
-      switch (timeRange) {
-        case "7days":
-          return now - entryDate <= 7 * 24 * 60 * 60 * 1000;
-        case "1month":
-          return now - entryDate <= 30 * 24 * 60 * 60 * 1000;
-        case "6months":
-          return now - entryDate <= 6 * 30 * 24 * 60 * 60 * 1000;
-        case "1year":
-          return now - entryDate <= 365 * 24 * 60 * 60 * 1000;
-        default:
-          return true;
-      }
+    const now = new Date();
+    let startDate = new Date(now.getTime());
+
+    // Calculate start date based on time range
+    switch (timeRange) {
+      case "7days":
+        startDate.setDate(now.getDate() - 7);
+        break;
+      case "1month":
+        startDate = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+        break;
+      case "6months":
+        startDate = new Date(now.getTime() - 180 * 24 * 60 * 60 * 1000);
+        break;
+      case "1year":
+        startDate = new Date(now.getTime() - 365 * 24 * 60 * 60 * 1000);
+        break;
+      default:
+        startDate = new Date(0);
+    }
+
+    // Generate all dates in range
+    const datesInRange: Date[] = [];
+    const currentDate = new Date(startDate);
+    currentDate.setHours(0, 0, 0, 0);
+    const endDate = new Date(now);
+    endDate.setHours(23, 59, 59, 999);
+
+    while (currentDate <= endDate) {
+      datesInRange.push(new Date(currentDate));
+      currentDate.setDate(currentDate.getDate() + 1);
+    }
+
+    // Create date-to-amount map
+    const dateAmountMap = balanceHistory.reduce((acc: any, entry: any) => {
+      const entryDate = new Date(entry.createdAt).toISOString().split("T")[0];
+      acc[entryDate] = entry.amount;
+      return acc;
+    }, {});
+
+    // Fill missing dates with 0
+    return datesInRange.map((date) => {
+      const dateStr = date.toISOString().split("T")[0];
+      return {
+        createdAt: date.toISOString(),
+        amount: dateAmountMap[dateStr] || 0,
+      };
     });
   }, [balanceHistory, timeRange]);
+
+  useEffect(() => {
+    const walletBalance = async () => {
+      const data = await getWalletCurrentBalance(walletList);
+      console.log("resffsfsfsf data", data);
+
+      setCurrentWalletBalace(data.totalWalletValue);
+    };
+    if (walletList) {
+      walletBalance();
+    }
+  }, [walletList]);
 
   return (
     <div className="bg-white my-4 p-5">
       <div>
         <h2 className="font-bold text-xl text-gray-700">Cashflow</h2>
-        <p className="font-bold text-xl text-gray-700">$100</p>
+        <p className="font-bold text-xl text-gray-700">
+          ${currentWalletBalace}
+        </p>
       </div>
       <ResponsiveContainer width="100%" height={400}>
         <AreaChart data={filteredData}>
@@ -53,10 +102,10 @@ const BalanceChart = ({ balanceHistory }: any) => {
           </defs>
           <CartesianGrid strokeDasharray="3 3" opacity={0.1} />
           <XAxis
+            dataKey="createdAt"
             tickLine={false}
             tick={false}
             axisLine={false}
-            dataKey="createdAt"
             tickFormatter={(str) => new Date(str).toLocaleDateString()}
           />
           <YAxis axisLine={false} tick={false} tickLine={false} />
@@ -72,7 +121,7 @@ const BalanceChart = ({ balanceHistory }: any) => {
           />
         </AreaChart>
       </ResponsiveContainer>
-      <div className="flex items-center " style={{ marginBottom: "20px" }}>
+      <div className="flex items-center" style={{ marginBottom: "20px" }}>
         <p className="text-[#00E725] font-semibold bg-[#7AE38B33] p-2 rounded-lg mr-2">
           +24%
         </p>
@@ -94,71 +143,9 @@ const BalanceChart = ({ balanceHistory }: any) => {
 
 // Example usage with the provided data
 const App = () => {
-  const balanceHistory = [
-    {
-      amount: 40,
-      _id: "67ab2a6fea26089ba39b8dd8",
-      createdAt: "2025-01-02T10:46:07.881Z",
-    },
-    {
-      amount: 100,
-      _id: "67ab2a6fea26089ba39b8dd8",
-      createdAt: "2025-01-03T10:46:07.881Z",
-    },
-    {
-      amount: 90,
-      _id: "67ab2a6fea26089ba39b8dd8",
-      createdAt: "2025-01-04T10:46:07.881Z",
-    },
-    {
-      amount: 100,
-      _id: "67ab2a6fea26089ba39b8dd8",
-      createdAt: "2025-02-05T10:46:07.881Z",
-    },
-    {
-      amount: 50,
-      _id: "67ab2a6fea26089ba39b8dd8",
-      createdAt: "2025-02-06T10:46:07.881Z",
-    },
-    {
-      amount: 30,
-      _id: "67ab2a6fea26089ba39b8dd8",
-      createdAt: "2025-02-07T10:46:07.881Z",
-    },
-    {
-      amount: 90,
-      _id: "67ab2a6fea26089ba39b8dd8",
-      createdAt: "2025-02-08T10:46:07.881Z",
-    },
-    {
-      amount: 60,
-      _id: "67ab2a6fea26089ba39b8dd8",
-      createdAt: "2025-02-09T10:46:07.881Z",
-    },
-    {
-      amount: 70,
-      _id: "67ab2a6fea26089ba39b8dd8",
-      createdAt: "2025-02-10T10:46:07.881Z",
-    },
-    {
-      amount: 140,
-      _id: "67ab2a6fea26089ba39b8dd8",
-      createdAt: "2025-02-11T10:46:07.881Z",
-    },
-    {
-      amount: 120,
-      _id: "67abe48678c8301cf9a0e0d7",
-      createdAt: "2025-02-12T00:00:06.489Z",
-    },
-    {
-      amount: 100,
-      _id: "67ad360659f74a114219e378",
-      createdAt: "2025-02-13T00:00:06.258Z",
-    },
-  ];
-
   const { user } = useUser();
   const [balanceData, setBalanceData] = useState([]);
+  const [walletList, setWalletList] = useState({});
 
   console.log("users", user);
   console.log("balanceData", balanceData);
@@ -173,6 +160,7 @@ const App = () => {
           throw new Error("Network response was not ok");
         }
         const result = await response.json();
+        setWalletList(result.balanceData.wallet);
         setBalanceData(result.balanceData.balanceHistory);
         console.log("result", result);
       } catch (error) {
@@ -187,7 +175,9 @@ const App = () => {
 
   return (
     <>
-      {balanceData.length > 0 && <BalanceChart balanceHistory={balanceData} />}
+      {balanceData.length > 0 && (
+        <BalanceChart balanceHistory={balanceData} walletList={walletList} />
+      )}
     </>
   );
 };
