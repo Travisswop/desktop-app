@@ -29,7 +29,7 @@ const CustomTooltip = ({ active, payload }: any) => {
   return null;
 };
 
-export default function CashflowChart() {
+export default function CashflowChartPrevious() {
   const [cashflowData, setCashflowData] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [percentageChange, setPercentageChange] = useState<any>(0);
@@ -43,6 +43,8 @@ export default function CashflowChart() {
     value: 0,
     transactions: 0,
   }));
+
+  console.log("cashflow data", cashflowData);
 
   useEffect(() => {
     const fetchData = async () => {
