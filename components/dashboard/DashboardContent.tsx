@@ -2,8 +2,9 @@
 import { useUser } from "@/lib/UserContext";
 import { Skeleton } from "../ui/skeleton";
 import ProfileHeader from "./profile-header";
-import CashflowChart from "./cashflow-chart";
+// import CashflowChart from "./cashflow-chart";
 import DashboardAnalytics from "./analytics";
+import CashflowChart from "./walletBalanceChart";
 // import TestChart from "./test-chart";
 
 export default function DashboardContent() {
