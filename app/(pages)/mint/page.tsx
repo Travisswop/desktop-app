@@ -1,19 +1,22 @@
-"use client";
+'use client';
 
-import React, { useState, useEffect } from "react";
-import MintCart from "@/components/MintCart";
-import Link from "next/link";
-import PushToMintCollectionButton from "@/components/Button/PushToMintCollectionButton";
-import SaveToLocalAndNavigate from "@/components/SaveToLocalAndNavigate";
-import HomePageLoading from "@/components/loading/HomePageLoading";
-import getMintPageData, { GroupedTemplates } from "@/utils/fetchingData/getMintPageData";
-import { useUser } from "@/lib/UserContext";
+import React, { useState, useEffect } from 'react';
+import MintCart from '@/components/MintCart';
+import Link from 'next/link';
+import PushToMintCollectionButton from '@/components/Button/PushToMintCollectionButton';
+import SaveToLocalAndNavigate from '@/components/SaveToLocalAndNavigate';
+import HomePageLoading from '@/components/loading/HomePageLoading';
+import getMintPageData, {
+  GroupedTemplates,
+} from '@/utils/fetchingData/getMintPageData';
+import { useUser } from '@/lib/UserContext';
 
 interface Template {
   templateId: string;
   metadata: {
     image: string;
     name: string;
+    description: string;
   };
   supply: {
     limit: number;
@@ -29,6 +32,7 @@ interface Collection {
   id: string;
   metadata: {
     name: string;
+    description?: string;
   };
 }
 
@@ -38,12 +42,47 @@ interface GroupedTemplatesByCollection {
 }
 
 const nftTypes = [
-  "collectible",
-  "subscription",
-  "membership",
-  "coupon",
-  "menu",
-  "phygital",
+  'collectible',
+  'subscription',
+  'membership',
+  'coupon',
+  'menu',
+  'phygital',
+];
+
+const nftCollection = [
+  {
+    name: 'collectible',
+    mint_address: 'Tf39QyKnuY99j1pUoNrEyAcBAxSmoogYSmuRiSAfhjg',
+    image:
+      'https://quicknode.quicknode-ipfs.com/ipfs/QmPrxJi3rVPQZVqLnEfTEx1Urb9FKbGSk1J2HYrLqnyZyn',
+  },
+  {
+    name: 'subscription',
+    mint_address: '8ngpZFQaARzprfJewfdTJJqs1MP6rE4xc1tpwbntADFp',
+  },
+  {
+    name: 'membership',
+    mint_address: 'CszXhmv3c36NmNxKRfYsttWE3DTA32krStf3rqpyaidq',
+  },
+  {
+    name: 'coupon',
+    mint_address: 'FyaZ99koNBLavhTEFkHCYbXECFfvwN3iBcDsBAkGa2LM',
+    image:
+      'https://quicknode.quicknode-ipfs.com/ipfs/QmbyMj44c159eBx5wmAJuDVb7DoDuBjr9N6dsx7CgopwwA',
+  },
+  {
+    name: 'menu',
+    mint_address: '6upDsvqvX87Hzr5zYL87BED7U998S3WgHNcdBC9zwznn',
+    image:
+      'https://quicknode.quicknode-ipfs.com/ipfs/QmdSukD82bzFnxAwWunpKdzHmm8zpXSv9sbRAWR1xgLcVm',
+  },
+  {
+    name: 'phygital',
+    mint_address: '23WshXUoW2Mi38E3XFL8NeqcKZ4PXpN1PTKBGJzZzu4q',
+    image:
+      'https://quicknode.quicknode-ipfs.com/ipfs/QmSEdUJoU9L2vkKCpvMTjkL8yhsXKPJqdaUg62wxaK9AqG',
+  },
 ];
 
 const capitalizeFirstLetter = (str: string) =>
@@ -51,7 +90,9 @@ const capitalizeFirstLetter = (str: string) =>
 
 const MintDashboard = () => {
   const [mintData, setMintData] = useState<
-    { data: GroupedTemplatesByCollection[] } | { noCollections: boolean } | null
+    | { data: GroupedTemplatesByCollection[] }
+    | { noCollections: boolean }
+    | null
   >(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
@@ -76,13 +117,13 @@ const MintDashboard = () => {
           if (err instanceof Error) {
             setError(err);
           } else {
-            setError(new Error("An unexpected error occurred."));
+            setError(new Error('An unexpected error occurred.'));
           }
         } finally {
           setLoading(false);
         }
       } else if (!waitForToken) {
-        setError(new Error("Access token is required."));
+        setError(new Error('Access token is required.'));
         setLoading(false);
       }
     };
@@ -91,9 +132,11 @@ const MintDashboard = () => {
   }, [accessToken, waitForToken]);
 
   const handleCheckout = () => {
-    const itemsString = localStorage.getItem("swop_desktop_cart_item_list");
+    const itemsString = localStorage.getItem(
+      'swop_desktop_cart_item_list'
+    );
     if (!itemsString) {
-      alert("No items in the cart.");
+      alert('No items in the cart.');
       return;
     }
 
@@ -103,8 +146,8 @@ const MintDashboard = () => {
       const url = `http://localhost:3001/GetClient?items=${encodedItems}`;
       window.location.href = url;
     } catch (err) {
-      console.error("Error parsing cart items:", err);
-      alert("Failed to process cart items.");
+      console.error('Error parsing cart items:', err);
+      alert('Failed to process cart items.');
     }
   };
 
@@ -116,15 +159,19 @@ const MintDashboard = () => {
     return <div>Error loading dashboard: {error.message}</div>;
   }
 
-  if (!mintData || ("noCollections" in mintData && mintData.noCollections)) {
-    const staticSamples = nftTypes.map((nftType) => ({
-      nftType,
+  if (
+    !mintData ||
+    ('noCollections' in mintData && mintData.noCollections)
+  ) {
+    const staticSamples = nftCollection.map((nftType) => ({
+      nftType: nftType.name,
       templates: [
         {
-          templateId: `${nftType}-sample`,
+          templateId: `${nftType.mint_address}`,
           metadata: {
-            image: `https://cdn-icons-png.freepik.com/512/16982/16982993.png`, // Replace with your sample images
-            name: `${capitalizeFirstLetter(nftType)} Sample`,
+            image: `/assets/collections/${nftType.name}.png`, // Replace with your sample images
+            name: `${capitalizeFirstLetter(nftType.name)}`,
+            description: `A unique digital collectible that represents ownership of exclusive ${nftType} content. Each piece is verifiably authentic on the blockchain.`,
           },
           supply: {
             limit: 100,
@@ -133,7 +180,7 @@ const MintDashboard = () => {
         },
       ],
     }));
-  
+
     return (
       <main className="main-container">
         <div className="bg-white p-4">
@@ -142,7 +189,7 @@ const MintDashboard = () => {
           </h2>
           {staticSamples.map((sampleGroup) => (
             <div key={sampleGroup.nftType}>
-              <h3 className="text-xl font-semibold mb-2">
+              <h3 className="text-xl font-semibold my-2">
                 {capitalizeFirstLetter(sampleGroup.nftType)}
               </h3>
               <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 xl:gap-10">
@@ -154,6 +201,7 @@ const MintDashboard = () => {
                     text={`Limit: ${template.supply.limit}, Minted: ${template.supply.minted}`}
                     collectionId="static-sample"
                     templateId={template.templateId}
+                    description={template.metadata.description}
                   />
                 ))}
                 <div
@@ -169,23 +217,23 @@ const MintDashboard = () => {
               </div>
             </div>
           ))}
-          <div className="flex justify-center mt-8">
+          {/* <div className="flex justify-center mt-8">
             <Link href="/mint/createCollection">
               <PushToMintCollectionButton className="!py-2">
                 Create Collection
               </PushToMintCollectionButton>
             </Link>
-          </div>
+          </div> */}
         </div>
       </main>
     );
   }
-  
+
   return (
     <main className="main-container">
       <div className="bg-white p-4">
         {mintData &&
-          "data" in mintData &&
+          'data' in mintData &&
           Array.isArray(mintData.data) &&
           mintData.data.map((group) => (
             <div key={group.collection.id}>
@@ -200,14 +248,17 @@ const MintDashboard = () => {
                   Go for Checkout
                 </button>
               </div>
-              {nftTypes.map((nftType) => (
-                <div key={nftType}>
+              {nftCollection.map((nftType) => (
+                <div key={nftType.mint_address}>
                   <h3 className="text-xl font-semibold mb-2">
-                    {capitalizeFirstLetter(nftType)}
+                    {capitalizeFirstLetter(nftType.name)}
                   </h3>
                   <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 xl:gap-10">
-                    {group.templatesByNftType[nftType]?.length
-                      ? group.templatesByNftType[nftType].map((template) => (
+                    {group.templatesByNftType[nftType.mint_address]
+                      ?.length
+                      ? group.templatesByNftType[
+                          nftType.mint_address
+                        ].map((template) => (
                           <MintCart
                             key={template.templateId}
                             img={template.metadata.image}
@@ -215,6 +266,9 @@ const MintDashboard = () => {
                             text={`Limit: ${template.supply.limit}, Minted: ${template.supply.minted}`}
                             collectionId={group.collection.id}
                             templateId={template.templateId}
+                            description={
+                              template.metadata.description
+                            }
                           />
                         ))
                       : null}
@@ -222,7 +276,7 @@ const MintDashboard = () => {
                       className="min-h-[360px] min-w-[365px] h-full w-full"
                       onClick={() =>
                         (window.location.href = `/mint/create${capitalizeFirstLetter(
-                          nftType
+                          nftType.name
                         )}`)
                       }
                     >
@@ -236,13 +290,13 @@ const MintDashboard = () => {
             </div>
           ))}
 
-        <div className="flex justify-center mt-8">
+        {/* <div className="flex justify-center mt-8">
           <Link href="/mint/createCollection">
             <PushToMintCollectionButton className="!py-2">
               Create Collection
             </PushToMintCollectionButton>
           </Link>
-        </div>
+        </div> */}
       </div>
     </main>
   );
