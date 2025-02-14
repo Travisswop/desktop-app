@@ -14,7 +14,7 @@ import {
 const BalanceChart = ({ balanceHistory, walletList }: any) => {
   const [timeRange, setTimeRange] = useState("7days");
   const [currentWalletBalace, setCurrentWalletBalace] = useState(0);
-  // console.log("currentWalletBalalce", currentWalletBalace);
+  console.log("walletList", walletList);
 
   // Generate data with 0-filled missing dates
   const filteredData = useMemo(() => {
