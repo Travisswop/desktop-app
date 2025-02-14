@@ -1,12 +1,13 @@
-'use client';
-import { useState, DragEvent, useEffect } from 'react';
-import PushToMintCollectionButton from '@/components/Button/PushToMintCollectionButton';
-import Image from 'next/image';
-import { sendCloudinaryImage } from '@/lib/SendCloudineryImage';
-import { usePrivy, useSolanaWallets } from '@privy-io/react-auth';
-import { useUser } from '@/lib/UserContext';
+"use client";
+import { useState, DragEvent, useEffect } from "react";
+import PushToMintCollectionButton from "@/components/Button/PushToMintCollectionButton";
+import Image from "next/image";
+import { sendCloudinaryImage } from "@/lib/SendCloudineryImage";
+import { usePrivy, useSolanaWallets } from "@privy-io/react-auth";
+import { useUser } from "@/lib/UserContext";
 
 interface FormData {
+  collectionId: string;
   name: string;
   nftType: string;
   description: string;
@@ -20,35 +21,38 @@ interface FormData {
   verifyIdentity: boolean;
   limitQuantity: boolean;
   quantity?: number;
+  royaltyPercentage: number;
 }
 
 const CreateCouponPage = () => {
   const [formData, setFormData] = useState<FormData>({
-    name: '',
-    nftType: 'coupon',
-    description: '',
-    image: '',
-    price: '',
-    recipientAddress: '',
-    currency: 'usdc',
+    collectionId: "FyaZ99koNBLavhTEFkHCYbXECFfvwN3iBcDsBAkGa2LM",
+    name: "",
+    nftType: "coupon",
+    description: "",
+    image: "",
+    price: "",
+    recipientAddress: "",
+    currency: "usdc",
     benefits: [],
     requirements: [],
     enableCreditCard: false,
     verifyIdentity: false,
     limitQuantity: false,
     quantity: undefined,
+    royaltyPercentage: 10,
   });
 
-  const [newBenefit, setNewBenefit] = useState('');
-  const [newRequirement, setNewRequirement] = useState('');
-  const [selectedImageName, setSelectedImageName] = useState<
-    string | null
-  >(null);
+  const [newBenefit, setNewBenefit] = useState("");
+  const [newRequirement, setNewRequirement] = useState("");
+  const [selectedImageName, setSelectedImageName] = useState<string | null>(
+    null
+  );
   const [imageUploading, setImageUploading] = useState(false);
-  const { accessToken } = useUser();
+  const { user, accessToken } = useUser();
   const { ready, authenticated } = usePrivy();
   const { wallets } = useSolanaWallets();
-  const [solanaAddress, setSolanaAddress] = useState('');
+  const [solanaAddress, setSolanaAddress] = useState("");
   const [waitForToken, setWaitForToken] = useState(true);
 
   useEffect(() => {
@@ -81,7 +85,7 @@ const CreateCouponPage = () => {
   ) => {
     const { name, value, type } = e.target;
 
-    if (type === 'checkbox') {
+    if (type === "checkbox") {
       setFormData((prevState) => ({
         ...prevState,
         [name]: (e.target as HTMLInputElement).checked, // Explicitly cast to HTMLInputElement
@@ -94,9 +98,7 @@ const CreateCouponPage = () => {
     }
   };
 
-  const handleQuantityChange = (
-    e: React.ChangeEvent<HTMLInputElement>
-  ) => {
+  const handleQuantityChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = parseInt(e.target.value, 10);
     setFormData((prevState) => ({
       ...prevState,
@@ -125,17 +127,15 @@ const CreateCouponPage = () => {
         }));
         setImageUploading(false);
       } catch (error) {
-        console.error('Error uploading image:', error);
+        console.error("Error uploading image:", error);
         setImageUploading(false);
-        alert('Failed to upload image. Please try again.');
+        alert("Failed to upload image. Please try again.");
       }
     };
     reader.readAsDataURL(file);
   };
 
-  const handleImageDrop = async (
-    event: DragEvent<HTMLDivElement>
-  ) => {
+  const handleImageDrop = async (event: DragEvent<HTMLDivElement>) => {
     event.preventDefault();
     const file = event.dataTransfer.files?.[0];
     if (!file) return;
@@ -155,9 +155,9 @@ const CreateCouponPage = () => {
         }));
         setImageUploading(false);
       } catch (error) {
-        console.error('Error uploading image:', error);
+        console.error("Error uploading image:", error);
         setImageUploading(false);
-        alert('Failed to upload image. Please try again.');
+        alert("Failed to upload image. Please try again.");
       }
     };
     reader.readAsDataURL(file);
@@ -169,7 +169,7 @@ const CreateCouponPage = () => {
         ...prevState,
         benefits: [...prevState.benefits, newBenefit.trim()],
       }));
-      setNewBenefit('');
+      setNewBenefit("");
     }
   };
 
@@ -185,76 +185,67 @@ const CreateCouponPage = () => {
     if (newRequirement.trim()) {
       setFormData((prevState) => ({
         ...prevState,
-        requirements: [
-          ...prevState.requirements,
-          newRequirement.trim(),
-        ],
+        requirements: [...prevState.requirements, newRequirement.trim()],
       }));
-      setNewRequirement('');
+      setNewRequirement("");
     }
   };
 
   const handleRemoveRequirement = (index: number) => {
     setFormData((prevState) => ({
       ...prevState,
-      requirements: prevState.requirements.filter(
-        (_, i) => i !== index
-      ),
+      requirements: prevState.requirements.filter((_, i) => i !== index),
     }));
   };
 
-  const handleSubmit = async (
-    e: React.MouseEvent<HTMLButtonElement>
-  ) => {
+  const handleSubmit = async (e: React.MouseEvent<HTMLButtonElement>) => {
     e.preventDefault();
 
     try {
       if (!accessToken && !waitForToken) {
-        alert('Access token is required. Please log in again.');
+        alert("Access token is required. Please log in again.");
         return;
       }
 
       if (!accessToken && waitForToken) {
-        alert('Waiting for access token. Please try again shortly.');
+        alert("Waiting for access token. Please try again shortly.");
         return;
       }
 
       if (!accessToken) {
-        alert('Access token is required. Please log in again.');
+        alert("Access token is required. Please log in again.");
         return;
       }
 
       if (!solanaAddress) {
-        alert(
-          'No Solana wallet connected. Please connect your wallet.'
-        );
+        alert("No Solana wallet connected. Please connect your wallet.");
         return;
       }
 
       const collectionId = localStorage.getItem(
-        'swop_desktop_collectionId_for_createTemplate'
+        "swop_desktop_collectionId_for_createTemplate"
       );
       if (!collectionId) {
-        alert('Collection ID not found. Please select a collection.');
+        alert("Collection ID not found. Please select a collection.");
         return;
       }
       // Map and prepare final data
       const finalData = {
         ...formData,
-        supplyLimit: formData.limitQuantity
-          ? Number(formData.quantity)
-          : undefined,
+        supplyLimit: Number(formData.quantity),
+
         price: Number(formData.price), // Ensure price is a number
         collectionId, // Include collectionId
         wallet: formData.recipientAddress, // Include wallet in payload
+        userId: user._id,
       };
 
       const response = await fetch(
         `${process.env.NEXT_PUBLIC_API_URL}/api/v1/desktop/nft/template`,
         {
-          method: 'POST',
+          method: "POST",
           headers: {
-            'Content-Type': 'application/json',
+            "Content-Type": "application/json",
             Authorization: `Bearer ${accessToken}`,
           },
           body: JSON.stringify(finalData),
@@ -263,18 +254,18 @@ const CreateCouponPage = () => {
 
       if (response.ok) {
         const data = await response.json();
-        if (data.state === 'success') {
-          alert('Subscription created successfully!');
+        if (data.state === "success") {
+          alert("Subscription created successfully!");
         } else {
-          alert(data.message || 'Failed to create subscription.');
+          alert(data.message || "Failed to create subscription.");
         }
       } else {
         const errorData = await response.json();
-        alert(errorData.message || 'Failed to create subscription.');
+        alert(errorData.message || "Failed to create subscription.");
       }
     } catch (error) {
-      console.error('Unexpected error:', error);
-      alert('An unexpected error occurred. Please try again.');
+      console.error("Unexpected error:", error);
+      alert("An unexpected error occurred. Please try again.");
     }
   };
 
@@ -289,10 +280,7 @@ const CreateCouponPage = () => {
 
               {/* Name Input */}
               <div>
-                <label
-                  htmlFor="name"
-                  className="mb-1 block font-medium"
-                >
+                <label htmlFor="name" className="mb-1 block font-medium">
                   Name
                 </label>
                 <input
@@ -306,8 +294,7 @@ const CreateCouponPage = () => {
                   required
                 />
                 <p className="text-sm text-gray-500 mt-1">
-                  Note: Your coupon name can&#39;t be changed after
-                  creation
+                  Note: Your coupon name can&#39;t be changed after creation
                 </p>
               </div>
 
@@ -317,7 +304,7 @@ const CreateCouponPage = () => {
               </label>
               <div
                 className="bg-gray-100 p-4 rounded-lg border border-dashed border-gray-300 text-center"
-                style={{ minWidth: '300px', width: '50%' }} // Adjusted to 50%
+                style={{ minWidth: "300px", width: "50%" }} // Adjusted to 50%
                 onDragOver={(e) => e.preventDefault()}
                 onDrop={handleImageDrop}
               >
@@ -369,10 +356,7 @@ const CreateCouponPage = () => {
 
               {/* Description */}
               <div>
-                <label
-                  htmlFor="description"
-                  className="mb-1 block font-medium"
-                >
+                <label htmlFor="description" className="mb-1 block font-medium">
                   Description
                 </label>
                 <textarea
@@ -388,10 +372,7 @@ const CreateCouponPage = () => {
 
               {/* Price */}
               <div>
-                <label
-                  htmlFor="price"
-                  className="mb-1 block font-medium"
-                >
+                <label htmlFor="price" className="mb-1 block font-medium">
                   Price
                 </label>
                 <input
@@ -406,6 +387,23 @@ const CreateCouponPage = () => {
                 />
                 <p className="text-sm text-gray-500 mt-1">
                   Note: Currency can&#39;t be changed after creation
+                </p>
+              </div>
+
+              <div>
+                <label htmlFor="price" className="mb-1 block font-medium">
+                  Limit quantity
+                </label>
+                <input
+                  type="number"
+                  min="1"
+                  placeholder="Enter quantity"
+                  value={formData.quantity || ""}
+                  onChange={handleQuantityChange}
+                  className="w-full border border-gray-300 rounded-lg px-4 py-2 mt-2"
+                />
+                <p className="text-sm text-gray-500 mt-1">
+                  Limit the number of times this coupon can be purchased.
                 </p>
               </div>
 
@@ -459,10 +457,7 @@ const CreateCouponPage = () => {
 
               {/* Add Benefits Section */}
               <div>
-                <label
-                  htmlFor="benefits"
-                  className="mb-1 block font-medium"
-                >
+                <label htmlFor="benefits" className="mb-1 block font-medium">
                   Benefits
                 </label>
                 <div className="flex items-center">
@@ -498,15 +493,13 @@ const CreateCouponPage = () => {
                     </div>
                   ))}
                   {formData.benefits.length === 0 && (
-                    <p className="text-sm text-gray-500">
-                      No benefits added.
-                    </p>
+                    <p className="text-sm text-gray-500">No benefits added.</p>
                   )}
                 </div>
               </div>
 
               {/* Enable Credit Card & Verify Identity */}
-              <div className="bg-gray-100 p-4 rounded-lg border border-gray-300">
+              {/* <div className="bg-gray-100 p-4 rounded-lg border border-gray-300">
                 <h3 className="text-md font-medium">
                   Enable Pay with Credit Card
                 </h3>
@@ -515,10 +508,9 @@ const CreateCouponPage = () => {
                 </p>
                 <div className="flex items-center justify-between mt-4">
                   <div
-                    className={`w-14 h-8 flex items-center rounded-full p-1 cursor-pointer ${formData.enableCreditCard
-                        ? 'bg-black'
-                        : 'bg-gray-300'
-                      }`}
+                    className={`w-14 h-8 flex items-center rounded-full p-1 cursor-pointer ${
+                      formData.enableCreditCard ? "bg-black" : "bg-gray-300"
+                    }`}
                     onClick={() =>
                       setFormData((prevState) => ({
                         ...prevState,
@@ -527,46 +519,38 @@ const CreateCouponPage = () => {
                     }
                   >
                     <div
-                      className={`h-6 w-6 bg-white rounded-full shadow-md transform duration-300 ${formData.enableCreditCard ? 'translate-x-6' : ''
-                        }`}
+                      className={`h-6 w-6 bg-white rounded-full shadow-md transform duration-300 ${
+                        formData.enableCreditCard ? "translate-x-6" : ""
+                      }`}
                     ></div>
                   </div>
                 </div>
 
                 <div className="mt-4">
-                  <h3 className="text-md font-medium">
-                    Verify Identity
-                  </h3>
+                  <h3 className="text-md font-medium">Verify Identity</h3>
                   <p className="text-sm text-gray-600">
-                    Verify your identity to enable credit card payments.
-                    You only complete this process once.
+                    Verify your identity to enable credit card payments. You
+                    only complete this process once.
                   </p>
                   <button
                     type="button"
-                    onClick={() =>
-                      alert('Verification process started!')
-                    }
+                    onClick={() => alert("Verification process started!")}
                     className="bg-black text-white px-4 py-2 rounded-lg mt-2"
                   >
                     Verify Identity
                   </button>
                 </div>
-              </div>
+              </div> */}
 
               {/* Advanced Settings */}
-              <div className="bg-gray-100 p-4 rounded-lg border border-gray-300">
-                <h3 className="text-md font-medium">
-                  Advanced Settings
-                </h3>
+              {/* <div className="bg-gray-100 p-4 rounded-lg border border-gray-300">
+                <h3 className="text-md font-medium">Advanced Settings</h3>
                 <div className="flex items-center justify-between mt-4">
-                  <span className="text-sm font-medium">
-                    Limit Quantity
-                  </span>
+                  <span className="text-sm font-medium">Limit Quantity</span>
                   <div
-                    className={`w-14 h-8 flex items-center rounded-full p-1 cursor-pointer ${formData.limitQuantity
-                        ? 'bg-black'
-                        : 'bg-gray-300'
-                      }`}
+                    className={`w-14 h-8 flex items-center rounded-full p-1 cursor-pointer ${
+                      formData.limitQuantity ? "bg-black" : "bg-gray-300"
+                    }`}
                     onClick={() =>
                       setFormData((prevState) => ({
                         ...prevState,
@@ -575,8 +559,9 @@ const CreateCouponPage = () => {
                     }
                   >
                     <div
-                      className={`h-6 w-6 bg-white rounded-full shadow-md transform duration-300 ${formData.limitQuantity ? 'translate-x-6' : ''
-                        }`}
+                      className={`h-6 w-6 bg-white rounded-full shadow-md transform duration-300 ${
+                        formData.limitQuantity ? "translate-x-6" : ""
+                      }`}
                     ></div>
                   </div>
                 </div>
@@ -585,23 +570,20 @@ const CreateCouponPage = () => {
                     type="number"
                     min="1"
                     placeholder="Enter quantity"
-                    value={formData.quantity || ''}
+                    value={formData.quantity || ""}
                     onChange={handleQuantityChange}
                     className="w-full border border-gray-300 rounded-lg px-4 py-2 mt-2"
                   />
                 )}
                 <p className="text-sm text-gray-500 mt-1">
-                  Limit the number of times this coupon can be
-                  purchased.
+                  Limit the number of times this coupon can be purchased.
                 </p>
-              </div>
+              </div> */}
 
               {/* Privacy Policy Agreement */}
               <div className="mt-4 flex items-center">
                 <input type="checkbox" required className="mr-2" />
-                <label>
-                  I agree with Swop Minting Privacy & Policy
-                </label>
+                <label>I agree with Swop Minting Privacy & Policy</label>
               </div>
             </div>
 
@@ -635,21 +617,21 @@ const CreateCouponPage = () => {
             <div className="mb-2">
               <p className="text-lg font-bold">Name</p>
               <p className="text-sm text-gray-500">
-                {formData.name || 'Name will appear here'}
+                {formData.name || "Name will appear here"}
               </p>
             </div>
 
             <div className="mb-2">
               <p className="text-lg font-bold">Price</p>
               <p className="text-sm text-gray-500">
-                {formData.price ? `$${formData.price}` : 'Free'}
+                {formData.price ? `$${formData.price}` : "Free"}
               </p>
             </div>
 
             <div className="mb-2">
               <p className="text-lg font-bold">Description</p>
               <p className="text-sm text-gray-500">
-                {formData.description || 'Description will appear here'}
+                {formData.description || "Description will appear here"}
               </p>
             </div>
 
