@@ -1,14 +1,13 @@
-"use client";
-import { useState, DragEvent, useEffect } from "react";
-import PushToMintCollectionButton from "@/components/Button/PushToMintCollectionButton";
-import Image from "next/image";
-import { sendCloudinaryImage } from "@/lib/SendCloudineryImage";
-import { usePrivy, useSolanaWallets } from "@privy-io/react-auth";
-import { useUser } from "@/lib/UserContext";
-
-
+'use client';
+import { useState, DragEvent, useEffect } from 'react';
+import PushToMintCollectionButton from '@/components/Button/PushToMintCollectionButton';
+import Image from 'next/image';
+import { sendCloudinaryImage } from '@/lib/SendCloudineryImage';
+import { usePrivy, useSolanaWallets } from '@privy-io/react-auth';
+import { useUser } from '@/lib/UserContext';
 
 interface FormData {
+  collectionId: string;
   name: string;
   nftType: string;
   description: string;
@@ -26,13 +25,14 @@ interface FormData {
 
 const CreateMembershipPage = () => {
   const [formData, setFormData] = useState<FormData>({
-    name: "",
-    nftType: "membership",
-    description: "",
-    image: "",
-    price: "",
-    recipientAddress: "",
-    currency: "usdc",
+    collectionId: 'CszXhmv3c36NmNxKRfYsttWE3DTA32krStf3rqpyaidq',
+    name: '',
+    nftType: 'membership',
+    description: '',
+    image: '',
+    price: '',
+    recipientAddress: '',
+    currency: 'usdc',
     benefits: [],
     enableCreditCard: false,
     verifyIdentity: false,
@@ -41,17 +41,21 @@ const CreateMembershipPage = () => {
     royaltyPercentage: 10, // Default royalty percentage
   });
 
-  const [newBenefit, setNewBenefit] = useState("");
-  const [selectedImageName, setSelectedImageName] = useState<string | null>(null);
+  const [newBenefit, setNewBenefit] = useState('');
+  const [selectedImageName, setSelectedImageName] = useState<
+    string | null
+  >(null);
   const [imageUploading, setImageUploading] = useState(false);
   const { ready, authenticated } = usePrivy(); // Checks Privy authentication readiness
   const { wallets } = useSolanaWallets(); // Access connected wallets
-  const { accessToken } = useUser(); // Access token from the UserContext
+  const { user, accessToken } = useUser(); // Access token from the UserContext
 
-  const [solanaAddress, setSolanaAddress] = useState("");
+  const [solanaAddress, setSolanaAddress] = useState('');
   const [waitForToken, setWaitForToken] = useState(true); // Manage token readiness
   const [isSubmitting, setIsSubmitting] = useState(false); // Manage submission state
-  const [submissionError, setSubmissionError] = useState<string | null>(null); // Manage submission errors
+  const [submissionError, setSubmissionError] = useState<
+    string | null
+  >(null); // Manage submission errors
 
   useEffect(() => {
     const timeoutId = setTimeout(() => {
@@ -60,7 +64,6 @@ const CreateMembershipPage = () => {
 
     return () => clearTimeout(timeoutId); // Cleanup timeout
   }, []);
-
 
   useEffect(() => {
     if (
@@ -84,7 +87,7 @@ const CreateMembershipPage = () => {
   ) => {
     const { name, value, type } = e.target;
 
-    if (type === "checkbox") {
+    if (type === 'checkbox') {
       setFormData((prevState) => ({
         ...prevState,
         [name]: (e.target as HTMLInputElement).checked,
@@ -92,12 +95,14 @@ const CreateMembershipPage = () => {
     } else {
       setFormData((prevState) => ({
         ...prevState,
-        [name]: type === "number" ? parseFloat(value) : value,
+        [name]: type === 'number' ? parseFloat(value) : value,
       }));
     }
   };
 
-  const handleQuantityChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleQuantityChange = (
+    e: React.ChangeEvent<HTMLInputElement>
+  ) => {
     const value = parseInt(e.target.value, 10);
     setFormData((prevState) => ({
       ...prevState,
@@ -105,7 +110,9 @@ const CreateMembershipPage = () => {
     }));
   };
 
-  const handleImageUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImageUpload = async (
+    event: React.ChangeEvent<HTMLInputElement>
+  ) => {
     const file = event.target.files?.[0];
     if (!file) return;
 
@@ -124,15 +131,17 @@ const CreateMembershipPage = () => {
         }));
         setImageUploading(false);
       } catch (error) {
-        console.error("Error uploading image:", error);
+        console.error('Error uploading image:', error);
         setImageUploading(false);
-        alert("Failed to upload image. Please try again.");
+        alert('Failed to upload image. Please try again.');
       }
     };
     reader.readAsDataURL(file);
   };
 
-  const handleImageDrop = async (event: DragEvent<HTMLDivElement>) => {
+  const handleImageDrop = async (
+    event: DragEvent<HTMLDivElement>
+  ) => {
     event.preventDefault();
     const file = event.dataTransfer.files?.[0];
     if (!file) return;
@@ -152,9 +161,9 @@ const CreateMembershipPage = () => {
         }));
         setImageUploading(false);
       } catch (error) {
-        console.error("Error uploading image:", error);
+        console.error('Error uploading image:', error);
         setImageUploading(false);
-        alert("Failed to upload image. Please try again.");
+        alert('Failed to upload image. Please try again.');
       }
     };
     reader.readAsDataURL(file);
@@ -166,7 +175,7 @@ const CreateMembershipPage = () => {
         ...prevState,
         benefits: [...prevState.benefits, newBenefit.trim()],
       }));
-      setNewBenefit("");
+      setNewBenefit('');
     }
   };
 
@@ -177,60 +186,70 @@ const CreateMembershipPage = () => {
     }));
   };
 
-  const handleSubmit = async (e: React.MouseEvent<HTMLButtonElement>) => {
+  const handleSubmit = async (
+    e: React.MouseEvent<HTMLButtonElement>
+  ) => {
     e.preventDefault();
     setIsSubmitting(true);
     setSubmissionError(null);
 
     // Authentication and wallet checks
     if (!ready || !authenticated) {
-      alert("Please log in to continue.");
+      alert('Please log in to continue.');
       setIsSubmitting(false);
       return;
     }
 
     if (!accessToken && !waitForToken) {
-      alert("Access token is required. Please log in again.");
+      alert('Access token is required. Please log in again.');
       setIsSubmitting(false);
       return;
     }
 
     if (!accessToken && waitForToken) {
-      alert("Waiting for access token. Please try again shortly.");
+      alert('Waiting for access token. Please try again shortly.');
       setIsSubmitting(false);
       return;
     }
 
     if (!solanaAddress) {
-      alert("No Solana wallet connected. Please connect your wallet.");
+      alert(
+        'No Solana wallet connected. Please connect your wallet.'
+      );
       setIsSubmitting(false);
       return;
     }
-
+    /*
     // Retrieve collectionId from local storage
-    const collectionId = localStorage.getItem("swop_desktop_collectionId_for_createTemplate");
+    const collectionId = localStorage.getItem(
+      'swop_desktop_collectionId_for_createTemplate'
+    );
     if (!collectionId) {
-      alert("Collection ID not found. Please select a collection.");
+      alert('Collection ID not found. Please select a collection.');
       setIsSubmitting(false);
       return;
     }
+    */
 
     try {
       const finalData = {
         ...formData,
-        supplyLimit: formData.limitQuantity ? Number(formData.quantity) : undefined,
+        supplyLimit: formData.limitQuantity
+          ? Number(formData.quantity)
+          : undefined,
         price: Number(formData.price), // Ensure price is a number
         royaltyPercentage: formData.royaltyPercentage,
-        collectionId, // Include collectionId
+        collectionId: formData.collectionId, // Include collectionId
         wallet: solanaAddress, // Add wallet to the payload
+        userId: user._id,
       };
 
       const response = await fetch(
         `${process.env.NEXT_PUBLIC_API_URL}/api/v1/desktop/nft/template`,
         {
-          method: "POST",
+          method: 'POST',
           headers: {
-            "Content-Type": "application/json",
+            'Content-Type': 'application/json',
             Authorization: `Bearer ${accessToken}`,
           },
           body: JSON.stringify(finalData),
@@ -239,13 +258,21 @@ const CreateMembershipPage = () => {
 
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(errorData.message || "Failed to create membership.");
+        throw new Error(
+          errorData.message || 'Failed to create membership.'
+        );
       }
 
       const data = await response.json();
-      alert(data.state === "success" ? "Membership created successfully!" : data.message);
+      alert(
+        data.state === 'success'
+          ? 'Membership created successfully!'
+          : data.message
+      );
     } catch (error) {
-      setSubmissionError(error instanceof Error ? error.message : "Unexpected error.");
+      setSubmissionError(
+        error instanceof Error ? error.message : 'Unexpected error.'
+      );
     } finally {
       setIsSubmitting(false);
     }
@@ -258,11 +285,16 @@ const CreateMembershipPage = () => {
         <div className="w-full md:w-1/2 p-5">
           <div className="bg-white p-4 rounded-lg shadow-md border border-gray-300">
             <div className="flex flex-col gap-4">
-              <h2 className="text-2xl font-bold">Create Membership</h2>
+              <h2 className="text-2xl font-bold">
+                Create Membership
+              </h2>
 
               {/* Name Input */}
               <div>
-                <label htmlFor="name" className="mb-1 block font-medium">
+                <label
+                  htmlFor="name"
+                  className="mb-1 block font-medium"
+                >
                   Name
                 </label>
                 <input
@@ -276,17 +308,21 @@ const CreateMembershipPage = () => {
                   required
                 />
                 <p className="text-sm text-gray-500 mt-1">
-                  Note: Your membership name can&apos;t be changed after creation
+                  Note: Your membership name can&apos;t be changed
+                  after creation
                 </p>
               </div>
 
               {/* Image Upload */}
-              <label htmlFor="image" className="mb-1 block font-medium">
+              <label
+                htmlFor="image"
+                className="mb-1 block font-medium"
+              >
                 Image (JPEG, JPG, PNG)
               </label>
               <div
                 className="bg-gray-100 p-4 rounded-lg border border-dashed border-gray-300 text-center"
-                style={{ minWidth: "300px", width: "50%" }}
+                style={{ minWidth: '300px', width: '50%' }}
                 onDragOver={(e) => e.preventDefault()}
                 onDrop={handleImageDrop}
               >
@@ -334,12 +370,14 @@ const CreateMembershipPage = () => {
                   className="hidden"
                 />
                 {imageUploading && <p>Uploading image...</p>}
-
               </div>
 
               {/* Description */}
               <div>
-                <label htmlFor="description" className="mb-1 block font-medium">
+                <label
+                  htmlFor="description"
+                  className="mb-1 block font-medium"
+                >
                   Description
                 </label>
                 <textarea
@@ -355,7 +393,10 @@ const CreateMembershipPage = () => {
 
               {/* Price */}
               <div>
-                <label htmlFor="price" className="mb-1 block font-medium">
+                <label
+                  htmlFor="price"
+                  className="mb-1 block font-medium"
+                >
                   Price
                 </label>
                 <input
@@ -375,7 +416,10 @@ const CreateMembershipPage = () => {
 
               {/* Benefits */}
               <div>
-                <label htmlFor="benefits" className="mb-1 block font-medium">
+                <label
+                  htmlFor="benefits"
+                  className="mb-1 block font-medium"
+                >
                   Benefits
                 </label>
                 <input
@@ -420,8 +464,11 @@ const CreateMembershipPage = () => {
                   Let users buy this membership with a credit card.
                 </p>
                 <div
-                  className={`w-14 h-8 flex items-center rounded-full p-1 cursor-pointer ${formData.enableCreditCard ? "bg-black" : "bg-gray-300"
-                    }`}
+                  className={`w-14 h-8 flex items-center rounded-full p-1 cursor-pointer ${
+                    formData.enableCreditCard
+                      ? 'bg-black'
+                      : 'bg-gray-300'
+                  }`}
                   onClick={() =>
                     setFormData((prevState) => ({
                       ...prevState,
@@ -430,20 +477,25 @@ const CreateMembershipPage = () => {
                   }
                 >
                   <div
-                    className={`h-6 w-6 bg-white rounded-full shadow-md transform duration-300 ${formData.enableCreditCard ? "translate-x-6" : ""
-                      }`}
+                    className={`h-6 w-6 bg-white rounded-full shadow-md transform duration-300 ${
+                      formData.enableCreditCard ? 'translate-x-6' : ''
+                    }`}
                   ></div>
                 </div>
 
                 <div className="mt-4">
-                  <h3 className="text-md font-medium">Verify Identity</h3>
+                  <h3 className="text-md font-medium">
+                    Verify Identity
+                  </h3>
                   <p className="text-sm text-gray-600">
-                    Verify your identity to enable credit card payments. You only
-                    complete this process once.
+                    Verify your identity to enable credit card
+                    payments. You only complete this process once.
                   </p>
                   <button
                     type="button"
-                    onClick={() => alert("Verification process started!")}
+                    onClick={() =>
+                      alert('Verification process started!')
+                    }
                     className="bg-black text-white px-4 py-2 rounded-lg mt-2"
                   >
                     Verify Identity
@@ -453,12 +505,19 @@ const CreateMembershipPage = () => {
 
               {/* Advanced Settings with Royalty */}
               <div className="bg-gray-100 p-4 rounded-lg border border-gray-300 mt-4">
-                <h3 className="text-md font-medium">Advanced Settings</h3>
+                <h3 className="text-md font-medium">
+                  Advanced Settings
+                </h3>
                 <div className="flex items-center justify-between mt-2">
-                  <span className="text-sm font-medium">Limit quantity</span>
+                  <span className="text-sm font-medium">
+                    Limit quantity
+                  </span>
                   <div
-                    className={`w-14 h-8 flex items-center rounded-full p-1 cursor-pointer ${formData.limitQuantity ? "bg-black" : "bg-gray-300"
-                      }`}
+                    className={`w-14 h-8 flex items-center rounded-full p-1 cursor-pointer ${
+                      formData.limitQuantity
+                        ? 'bg-black'
+                        : 'bg-gray-300'
+                    }`}
                     onClick={() =>
                       setFormData((prevState) => ({
                         ...prevState,
@@ -467,8 +526,9 @@ const CreateMembershipPage = () => {
                     }
                   >
                     <div
-                      className={`h-6 w-6 bg-white rounded-full shadow-md transform duration-300 ${formData.limitQuantity ? "translate-x-6" : ""
-                        }`}
+                      className={`h-6 w-6 bg-white rounded-full shadow-md transform duration-300 ${
+                        formData.limitQuantity ? 'translate-x-6' : ''
+                      }`}
                     ></div>
                   </div>
                 </div>
@@ -477,18 +537,22 @@ const CreateMembershipPage = () => {
                     type="number"
                     min="1"
                     placeholder="Enter quantity"
-                    value={formData.quantity || ""}
+                    value={formData.quantity || ''}
                     onChange={handleQuantityChange}
                     className="w-full border border-gray-300 rounded-lg px-4 py-2 mt-2"
                   />
                 )}
                 <p className="text-sm text-gray-500 mt-1">
-                  Limit the number of times this digital good can be purchased.
+                  Limit the number of times this digital good can be
+                  purchased.
                 </p>
 
                 {/* Royalty Percentage */}
                 <div className="mt-4">
-                  <label htmlFor="royaltyPercentage" className="block font-medium mb-1">
+                  <label
+                    htmlFor="royaltyPercentage"
+                    className="block font-medium mb-1"
+                  >
                     Royalty Percentage
                   </label>
                   <div className="flex items-center">
@@ -509,15 +573,21 @@ const CreateMembershipPage = () => {
 
               {/* Privacy Policy Agreement */}
               <div className="mt-4">
-                <input type="checkbox" required /> I agree with Swop Minting
-                Privacy & Policy
+                <input type="checkbox" required /> I agree with Swop
+                Minting Privacy & Policy
               </div>
 
               {/* Submit Button */}
-              <PushToMintCollectionButton className="w-max mt-4" disabled={isSubmitting} onClick={handleSubmit}>
-                {isSubmitting ? "Creating..." : "Create Membership"}
+              <PushToMintCollectionButton
+                className="w-max mt-4"
+                disabled={isSubmitting}
+                onClick={handleSubmit}
+              >
+                {isSubmitting ? 'Creating...' : 'Create Membership'}
               </PushToMintCollectionButton>
-              {submissionError && <p className="text-red-500 mt-2">{submissionError}</p>}
+              {submissionError && (
+                <p className="text-red-500 mt-2">{submissionError}</p>
+              )}
             </div>
           </div>
         </div>
@@ -542,21 +612,22 @@ const CreateMembershipPage = () => {
             <div className="mb-2">
               <p className="text-lg font-bold">Name</p>
               <p className="text-sm text-gray-500">
-                {formData.name || "Name will appear here"}
+                {formData.name || 'Name will appear here'}
               </p>
             </div>
 
             <div className="mb-2">
               <p className="text-lg font-bold">Price</p>
               <p className="text-sm text-gray-500">
-                {formData.price ? `$${formData.price}` : "Free"}
+                {formData.price ? `$${formData.price}` : 'Free'}
               </p>
             </div>
 
             <div className="mb-2">
               <p className="text-lg font-bold">Description</p>
               <p className="text-sm text-gray-500">
-                {formData.description || "Description will appear here"}
+                {formData.description ||
+                  'Description will appear here'}
               </p>
             </div>
 
@@ -582,7 +653,6 @@ const CreateMembershipPage = () => {
             </div>
           </div>
         </div>
-
       </div>
     </div>
   );
