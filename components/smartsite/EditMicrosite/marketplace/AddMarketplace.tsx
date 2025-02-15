@@ -32,6 +32,7 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip';
 import { Info } from 'lucide-react';
+import { createMarketPlace } from '@/actions/handleMarketPlace';
 
 const nftCollection = [
   {
@@ -129,7 +130,7 @@ const AddMarketplace = ({
     collectionId: string,
     collectionName: string
   ) => {
-    setIsLoading(true);
+    // setIsLoading(true);
     setSelectedTemplate(null);
     setNftList([]);
     setSelectedCollection(collectionName);
@@ -159,7 +160,7 @@ const AddMarketplace = ({
       console.error('Error fetching template details:', error);
       toast.error('Error fetching template details.');
     } finally {
-      setIsLoading(false);
+      // setIsLoading(false);
     }
   };
 
@@ -170,29 +171,44 @@ const AddMarketplace = ({
     }
 
     try {
-      const response = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL}/api/v4/microsite/createMarketPlace`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            authorization: `Bearer ${accessToken}`,
-          },
-          body: JSON.stringify({
-            micrositeId: state.data._id,
-            collectionId: selectedTemplate.collectionId,
-            templateId: selectedTemplate._id,
-            itemName: selectedTemplate.name,
-            itemImageUrl: selectedTemplate.image,
-            itemDescription: selectedTemplate.description,
-            itemPrice: selectedTemplate.price,
-            itemCategory: selectedTemplate.nftType,
-          }),
-        }
-      );
+      // const response = await fetch(
+      //   `${process.env.NEXT_PUBLIC_API_URL}/api/v4/microsite/createMarketPlace`,
+      //   {
+      //     method: 'POST',
+      //     headers: {
+      //       'Content-Type': 'application/json',
+      //       authorization: `Bearer ${accessToken}`,
+      //     },
+      //     body: JSON.stringify({
+      //       micrositeId: state.data._id,
+      //       collectionId: selectedTemplate.collectionId,
+      //       templateId: selectedTemplate._id,
+      //       itemName: selectedTemplate.name,
+      //       itemImageUrl: selectedTemplate.image,
+      //       itemDescription: selectedTemplate.description,
+      //       itemPrice: selectedTemplate.price,
+      //       itemCategory: selectedTemplate.nftType,
+      //     }),
+      //   }
+      // );
+
+      setIsLoading(true);
+
+      const payload = {
+        micrositeId: state.data._id,
+        collectionId: selectedTemplate.collectionId,
+        templateId: selectedTemplate._id,
+        itemName: selectedTemplate.name,
+        itemImageUrl: selectedTemplate.image,
+        itemDescription: selectedTemplate.description,
+        itemPrice: selectedTemplate.price,
+        itemCategory: selectedTemplate.nftType,
+      };
+
+      const response = await createMarketPlace(payload, accessToken);
 
       console.log('response', response);
-      if (!response.ok) {
+      if (response.state !== 'success') {
         throw new Error('');
       }
       toast.success('Marketplace crated successfully');

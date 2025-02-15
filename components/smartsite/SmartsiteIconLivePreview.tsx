@@ -28,7 +28,13 @@ import getAllSmartsitesIcon from "./retriveIconImage/getAllSmartsiteIcon";
 // import mockupBtn from "@/public/images/mockup-bottom-button.png";
 // import DynamicPrimaryBtn from "../ui/Button/DynamicPrimaryBtn";
 import { LiaFileMedicalSolid } from "react-icons/lia";
-import { Switch } from "@nextui-org/react";
+import {
+  Modal,
+  ModalBody,
+  ModalContent,
+  Switch,
+  useDisclosure,
+} from "@nextui-org/react";
 import { IoIosSend } from "react-icons/io";
 import Link from "next/link";
 import { handleSmartSiteUpdate } from "@/actions/update";
@@ -38,6 +44,9 @@ import AnimateButton from "../ui/Button/AnimateButton";
 import SmartsiteSocialShare from "./socialShare/SmartsiteSocialShare";
 import { fontMap } from "@/lib/fonts";
 import Cookies from "js-cookie";
+import { MdDelete, MdDeleteForever } from "react-icons/md";
+import { handleDeleteMarketPlace } from "@/actions/handleMarketPlace";
+import { RiDeleteBinFill } from "react-icons/ri";
 // import { access } from "fs";
 // import mobileMockup from "@/public/images/mobile-mockup.png";
 // import { TbEdit } from "react-icons/tb";
@@ -149,6 +158,41 @@ const SmartsiteIconLivePreview = ({
       data: item,
       categoryForTrigger: "showBlog",
     });
+  };
+
+  const { isOpen, onOpen, onOpenChange } = useDisclosure();
+  const [marketPlaceDeleteInfo, setMarketPlaceDeleteInfo] = useState({
+    id: "",
+    micrositeId: "",
+  });
+  const [isMarketPlaceDeleteLoading, setIsMarketPlaceDeleteLoading] =
+    useState(false);
+
+  const handleMarketPlaceDelete = async (id: string, micrositeId: string) => {
+    onOpen();
+    setMarketPlaceDeleteInfo({
+      id,
+      micrositeId,
+    });
+  };
+
+  const deleteMarketPlace = async () => {
+    setIsMarketPlaceDeleteLoading(true);
+    try {
+      const payload = {
+        _id: marketPlaceDeleteInfo?.id,
+        micrositeId: marketPlaceDeleteInfo?.micrositeId,
+      };
+      const response = await handleDeleteMarketPlace(payload, accessToken);
+      console.log("response", response);
+      toast.success("Market Place Deleted");
+      setIsMarketPlaceDeleteLoading(false);
+      onOpenChange();
+    } catch (error) {
+      toast.error("Something Went Wrong!");
+      console.log(error);
+      setIsMarketPlaceDeleteLoading(false);
+    }
   };
 
   return (
@@ -966,6 +1010,90 @@ const SmartsiteIconLivePreview = ({
                     </div>
                   )}
                   {/* audio||music display here end */}
+                  {/* marketPlace display here start */}
+                  {data.info.marketPlace.length > 0 && (
+                    <div className="flex flex-col gap-y-3 px-3">
+                      {data.info.marketPlace.map((data: any) => (
+                        <div
+                          key={data._id}
+                          className="flex items-center gap-0.5"
+                        >
+                          <div className="flex items-center gap-2 w-full">
+                            <div
+                              style={{
+                                color: formData.fontColor
+                                  ? formData.fontColor
+                                  : "black",
+
+                                backgroundColor: formData.templateColor
+                                  ? formData.templateColor
+                                  : "white",
+                              }}
+                              className={`w-full h-full py-2 px-3 rounded-lg shadow-medium`}
+                            >
+                              <div
+                                // onClick={() =>
+                                //   handleTriggerUpdate({
+                                //     data: data,
+                                //     categoryForTrigger: "swopPay",
+                                //   })
+                                // }
+                                className="flex items-center justify-between gap-1 w-full"
+                              >
+                                <div className="flex items-center gap-2 w-full">
+                                  <div className="relative">
+                                    <Image
+                                      src={data.itemImageUrl}
+                                      alt="nft photo"
+                                      width={160}
+                                      height={90}
+                                      quality={100}
+                                      className="w-8 h-8 rounded-md object-cover"
+                                    />
+                                  </div>
+                                  <div className="text-start">
+                                    <p className="text-sm mb-0.5">
+                                      {data.itemName}
+                                    </p>
+                                    <p className="text-xs">
+                                      {data.itemDescription}
+                                    </p>
+                                  </div>
+                                </div>
+                                <div className="custom-audio text-sm min-w-max">
+                                  {data.itemPrice} usdc
+                                </div>
+                              </div>
+                            </div>
+                            {/* <div className="w-[4%]">
+                <button
+                  onClick={() =>
+                    handleTriggerUpdate({
+                      data: audioData,
+                      categoryForTrigger: "audio",
+                    })
+                  }
+                  className=""
+                >
+                  <FaEdit size={18} />
+                </button>
+              </div> */}
+                          </div>
+                          <button
+                            onClick={() =>
+                              handleMarketPlaceDelete(
+                                data._id,
+                                data.micrositeId
+                              )
+                            }
+                          >
+                            <MdDeleteForever size={18} />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  {/* marketPlace display here end */}
                 </div>
                 {/* video display here start */}
                 {data.info.video.length > 0 && (
@@ -1111,6 +1239,36 @@ const SmartsiteIconLivePreview = ({
           </div>
         </div>
       )}
+
+      <Modal
+        // size="4xl"
+        isOpen={isOpen}
+        onOpenChange={onOpenChange}
+        // backdrop={"blur"}
+        className=" overflow-y-auto hide-scrollbar"
+      >
+        <ModalContent>
+          <div className="w-[91%] mx-auto py-6">
+            <ModalBody className="text-center">
+              <div className="text-center flex flex-col items-center ">
+                <p className="text-lg font-bold">Do you want to delete your</p>
+                <p className="text-lg font-bold">Market place?</p>
+                <RiDeleteBinFill size={40} className="my-3" />
+                <AnimateButton
+                  whiteLoading={true}
+                  type="button"
+                  onClick={deleteMarketPlace}
+                  isLoading={isMarketPlaceDeleteLoading}
+                  width={"w-28"}
+                  className="bg-black text-white py-2 !border-0"
+                >
+                  <MdDelete size={20} /> Delete
+                </AnimateButton>
+              </div>
+            </ModalBody>
+          </div>
+        </ModalContent>
+      </Modal>
     </main>
   );
 };
