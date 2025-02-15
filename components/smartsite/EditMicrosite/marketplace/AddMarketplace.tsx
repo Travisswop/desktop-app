@@ -26,6 +26,12 @@ import {
 import contactCardImg from '@/public/images/IconShop/appIconContactCard.png';
 import productImg from '@/public/images/product.png';
 import toast from 'react-hot-toast';
+import {
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
+import { Info } from 'lucide-react';
 
 const nftCollection = [
   {
@@ -216,22 +222,31 @@ const AddMarketplace = ({
                     className="w-48 h-auto rounded-full"
                   />
                 </div>
-                <div className="px-20 flex flex-col items-center gap-2">
-                  <p className="text-gray-700 font-semibold">
+                <div className="px-10 flex flex-col  gap-2">
+                  <p className="text-gray-700 font-semibold text-center">
                     {selectedTemplate.name}
                   </p>
                   <p className="text-gray-600 font-normal text-sm text-center">
                     {selectedTemplate.description}
                   </p>
-                  <div className="flex items-center justify-between gap-4">
-                    <AnimateButton
-                      whiteLoading={true}
-                      className="bg-black text-white py-2 !border-0"
-                      isLoading={isLoading}
-                      width="w-fit text-nowrap 2xl:w-40"
-                    >
-                      Price ${selectedTemplate.price}
-                    </AnimateButton>
+                  <div className="flex justify-between items-center my-4">
+                    <div>
+                      <p className="text-sm text-gray-500">Price</p>
+                      <p className="font-bold">
+                        {selectedTemplate.price}{' '}
+                        {selectedTemplate.currency}
+                      </p>
+                    </div>
+                    {selectedTemplate.supplyLimit && (
+                      <div className="text-right">
+                        <p className="text-sm text-gray-500">
+                          Mint Limit
+                        </p>
+                        <p className="font-mono text-sm">
+                          #{selectedTemplate.supplyLimit}
+                        </p>
+                      </div>
+                    )}
                   </div>
                 </div>
               </>
@@ -244,84 +259,157 @@ const AddMarketplace = ({
         </div>
 
         {/* Dropdown Section */}
-        <div className="flex items-center justify-between mt-4">
-          <div className="flex items-center gap-2">
-            <h3 className="font-semibold text-gray-700 w-20">
-              Sellect Collection
-            </h3>
+        <div className="flex items-center justify-between mt-6">
+          <div className="flex flex-col w-full gap-2">
+            <div className="flex items-center gap-2">
+              <h3 className="font-semibold text-gray-700">
+                Select Collection
+              </h3>
+            </div>
+
             <Dropdown
-              className="w-max rounded-lg"
+              className="w-full rounded-lg"
               placement="bottom-start"
             >
               <DropdownTrigger>
-                <button className="bg-white w-48 2xl:w-64 flex justify-between items-center rounded px-2 py-2 text-sm font-medium shadow-small">
-                  <span className="flex items-center gap-2">
-                    <div className="w-5 h-5 bg-black rounded-full"></div>
-                    {selectedCollection
-                      ? capitalizeFirstLetter(selectedCollection)
-                      : 'Select Item'}
+                <button className="bg-white w-full flex justify-between items-center rounded-lg px-4 py-3 text-sm font-medium border border-gray-200 hover:border-gray-300 transition-colors">
+                  <span className="flex items-center gap-3">
+                    {selectedCollection ? (
+                      <>
+                        <Image
+                          src={`/assets/collections/${selectedCollection}.png`}
+                          alt={selectedCollection}
+                          width={24}
+                          height={24}
+                          className="rounded-full object-cover"
+                        />
+                        <span className="truncate">
+                          {capitalizeFirstLetter(selectedCollection)}
+                        </span>
+                      </>
+                    ) : (
+                      <>
+                        <div className="w-6 h-6 bg-gray-200 rounded-full animate-pulse"></div>
+                        <span className="text-gray-500">
+                          Choose a collection
+                        </span>
+                      </>
+                    )}
                   </span>
-                  <FaAngleDown />
+                  <FaAngleDown className="text-gray-400" />
                 </button>
               </DropdownTrigger>
-              <DropdownMenu aria-label="Select Template">
-                {nftCollection.map((template: any) => (
-                  <DropdownItem
-                    key={template.mint_address}
-                    onClick={() =>
-                      handleSelectTemplate(
-                        template.mint_address,
-                        template.name
-                      )
-                    }
-                  >
-                    {capitalizeFirstLetter(template.name)}
+              <DropdownMenu
+                aria-label="Select Template"
+                className="w-full max-h-[300px] overflow-y-auto"
+              >
+                {nftCollection.length > 0 ? (
+                  nftCollection.map((template: any) => (
+                    <DropdownItem
+                      key={template.mint_address}
+                      onClick={() =>
+                        handleSelectTemplate(
+                          template.mint_address,
+                          template.name
+                        )
+                      }
+                      className="py-2 px-4 hover:bg-gray-50"
+                    >
+                      <div className="flex items-center gap-3">
+                        <Image
+                          src={`/assets/collections/${template.name}.png`}
+                          alt={template.name}
+                          width={24}
+                          height={24}
+                          className="rounded-full object-cover"
+                        />
+                        <span className="truncate">
+                          {capitalizeFirstLetter(template.name)}
+                        </span>
+                      </div>
+                    </DropdownItem>
+                  ))
+                ) : (
+                  <DropdownItem className="text-gray-500 text-center py-4">
+                    No collections available
                   </DropdownItem>
-                ))}
+                )}
               </DropdownMenu>
             </Dropdown>
           </div>
         </div>
 
         {/* NFT List Dropdown Section */}
-        <div className="flex items-center justify-between mt-4">
-          <div className="flex items-center gap-2">
-            <h3 className="font-semibold text-gray-700 w-20">
-              Select NFT
-            </h3>
+        <div className="flex items-center justify-between mt-2 mb-2">
+          <div className="flex flex-col w-full gap-2">
+            <div className="flex items-center gap-2">
+              <h3 className="font-semibold text-gray-700">
+                Select NFT
+              </h3>
+            </div>
+
             <Dropdown
-              className="w-max rounded-lg"
+              className="w-full rounded-lg"
               placement="bottom-start"
             >
               <DropdownTrigger>
-                <button className="bg-white w-48 2xl:w-64 flex justify-between items-center rounded px-2 py-2 text-sm font-medium shadow-small">
-                  <span className="flex items-center gap-2">
-                    <div className="w-5 h-5 bg-black rounded-full"></div>
-                    {selectedTemplate
-                      ? selectedTemplate.name
-                      : 'Select Item'}
+                <button className="bg-white w-full flex justify-between items-center rounded-lg px-4 py-3 text-sm font-medium border border-gray-200 hover:border-gray-300 transition-colors">
+                  <span className="flex items-center gap-3">
+                    {selectedTemplate ? (
+                      <>
+                        <Image
+                          src={selectedTemplate.image || productImg}
+                          alt={selectedTemplate.name}
+                          width={24}
+                          height={24}
+                          className="rounded-full object-cover"
+                        />
+                        <span className="truncate">
+                          {selectedTemplate.name}
+                        </span>
+                      </>
+                    ) : (
+                      <>
+                        <div className="w-6 h-6 bg-gray-200 rounded-full animate-pulse"></div>
+                        <span className="text-gray-500">
+                          Select an NFT
+                        </span>
+                      </>
+                    )}
                   </span>
-                  <FaAngleDown />
+                  <FaAngleDown className="text-gray-400" />
                 </button>
               </DropdownTrigger>
-
-              <DropdownMenu aria-label="Select NFT">
-                {nftList.map((nft: any) => (
-                  <DropdownItem
-                    key={nft._id}
-                    className="cursor-pointer"
-                    onClick={() => {
-                      setSelectedTemplate(nft);
-                    }}
-                  >
-                    {nft.name || 'Unnamed NFT'}
-                  </DropdownItem>
-                ))}
-                {/* {nftList.length === 0 && (
-                  <DropdownItem className="cursor-pointer">
+              <DropdownMenu
+                aria-label="Select Template"
+                className="w-full max-h-[300px] overflow-y-auto"
+              >
+                {nftList.length > 0 ? (
+                  nftList.map((nft: any) => (
+                    <DropdownItem
+                      key={nft._id}
+                      onClick={() => setSelectedTemplate(nft)}
+                      className="py-2 px-4 hover:bg-gray-50"
+                    >
+                      <div className="flex items-center gap-3">
+                        <Image
+                          src={nft.image || productImg}
+                          alt={nft.name}
+                          width={24}
+                          height={24}
+                          className="rounded-full object-cover"
+                        />
+                        <span className="truncate">
+                          {nft.name || 'Unnamed NFT'}
+                        </span>
+                      </div>
+                    </DropdownItem>
+                  ))
+                ) : (
+                  <DropdownItem className="text-gray-500 text-center py-4">
                     No NFTs available
                   </DropdownItem>
-                )} */}
+                )}
               </DropdownMenu>
             </Dropdown>
           </div>
