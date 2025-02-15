@@ -4,7 +4,8 @@ import { Skeleton } from "../ui/skeleton";
 import ProfileHeader from "./profile-header";
 // import CashflowChart from "./cashflow-chart";
 import DashboardAnalytics from "./analytics";
-import CashflowChart from "./walletBalanceChart";
+import WalletBalanceChart from "./walletBalanceChart";
+// import CashflowChart from "./walletBalanceChart";
 // import TestChart from "./test-chart";
 
 export default function DashboardContent() {
@@ -24,7 +25,8 @@ export default function DashboardContent() {
     <div className="">
       <ProfileHeader />
 
-      <CashflowChart />
+      {/* CashflowChart */}
+      <WalletBalanceChart />
 
       {/* <TestChart /> */}
 

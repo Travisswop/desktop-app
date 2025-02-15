@@ -1,5 +1,12 @@
 import { getWalletCurrentBalance } from "@/actions/createWallet";
 import { useUser } from "@/lib/UserContext";
+import {
+  ArrowLeftRight,
+  BadgeDollarSign,
+  QrCode,
+  Rocket,
+  Wallet,
+} from "lucide-react";
 import React, { useState, useMemo, useEffect } from "react";
 import {
   AreaChart,
@@ -10,11 +17,21 @@ import {
   Tooltip,
   ResponsiveContainer,
 } from "recharts";
+import { Button } from "../ui/button";
+import WalletAddressPopup from "./wallet-address-popup";
 
-const BalanceChart = ({ balanceHistory, walletList }: any) => {
+const BalanceChart = ({
+  balanceHistory,
+  walletList,
+  totalBalance,
+  onSelectAsset,
+  onQRClick,
+  walletData,
+}: any) => {
   const [timeRange, setTimeRange] = useState("7days");
   console.log("walletList", walletList);
   const [currentWalletBalance, setCurrentWalletBalance] = useState(0);
+  const [showPopup, setShowPopup] = useState(false);
 
   // Generate data with 0-filled missing dates
   const filteredData = useMemo(() => {
@@ -119,18 +136,48 @@ const BalanceChart = ({ balanceHistory, walletList }: any) => {
   const growthPercentage: any = calculateGrowthPercentage();
 
   return (
-    <div className="bg-white my-4 p-5 rounded-xl">
-      <div>
-        <h2 className="font-bold text-xl text-gray-700">Cashflow</h2>
-        <p className="font-bold text-xl text-gray-700">
-          $
-          {currentWalletBalance.toLocaleString(undefined, {
-            minimumFractionDigits: 2,
-            maximumFractionDigits: 2,
-          })}
-        </p>
+    <div className="bg-white p-5 rounded-xl shadow-sm relative">
+      <div className="flex justify-between">
+        <div>
+          <div className="flex items-center gap-1">
+            <BadgeDollarSign />
+            <h2 className="font-bold text-xl text-gray-700">Balance</h2>
+          </div>
+          <p className="font-bold text-xl text-gray-700 pl-7">
+            $
+            {currentWalletBalance.toLocaleString(undefined, {
+              minimumFractionDigits: 2,
+              maximumFractionDigits: 2,
+            })}
+          </p>
+        </div>
+
+        <div className="flex gap-2">
+          <Button
+            variant="black"
+            size="icon"
+            className={totalBalance === 0 ? "cursor-not-allowed" : ""}
+            disabled={totalBalance === 0}
+            onClick={onSelectAsset}
+          >
+            <Rocket />
+          </Button>
+          <Button
+            variant="black"
+            size="icon"
+            onClick={() => setShowPopup(!showPopup)}
+          >
+            <Wallet />
+          </Button>
+          <Button variant="black" size="icon" className="cursor-not-allowed">
+            <ArrowLeftRight />
+          </Button>
+          <Button variant="black" size="icon" onClick={onQRClick}>
+            <QrCode />
+          </Button>
+        </div>
       </div>
-      <ResponsiveContainer width="100%" height={400}>
+      <ResponsiveContainer width="100%" maxHeight={320}>
         <AreaChart data={filteredData}>
           <defs>
             <linearGradient id="colorValue" x1="0" y1="0" x2="0" y2="1">
@@ -195,14 +242,18 @@ const BalanceChart = ({ balanceHistory, walletList }: any) => {
           <option value="1year">1 Year</option>
         </select>
       </div>
+      <WalletAddressPopup walletData={walletData} show={showPopup} />
     </div>
   );
 };
 
 // Example usage with the provided data
-const WalletBalanceChart = ({ isFromWallet = false }) => {
-  console.log("isFromWallet", isFromWallet);
-
+const WalletBalanceChartForWalletPage = ({
+  walletData,
+  totalBalance,
+  onSelectAsset,
+  onQRClick,
+}: any) => {
   const { user } = useUser();
   const [balanceData, setBalanceData] = useState([]);
   const [walletList, setWalletList] = useState({});
@@ -236,10 +287,17 @@ const WalletBalanceChart = ({ isFromWallet = false }) => {
   return (
     <>
       {balanceData.length > 0 && (
-        <BalanceChart balanceHistory={balanceData} walletList={walletList} />
+        <BalanceChart
+          balanceHistory={balanceData}
+          walletList={walletList}
+          totalBalance={totalBalance}
+          onSelectAsset={onSelectAsset}
+          onQRClick={onQRClick}
+          walletData={walletData}
+        />
       )}
     </>
   );
 };
 
-export default WalletBalanceChart;
+export default WalletBalanceChartForWalletPage;

@@ -1,5 +1,5 @@
 import Image from "next/image";
-import React, { useEffect, useState } from "react";
+import React, { useState } from "react";
 import { useUser } from "@/lib/UserContext";
 import {
   Dropdown,
@@ -8,24 +8,14 @@ import {
   DropdownTrigger,
   Tooltip,
 } from "@nextui-org/react";
-import { IoLinkOutline } from "react-icons/io5";
 import { LiaFileMedicalSolid } from "react-icons/lia";
 import useSmartSiteApiDataStore from "@/zustandStore/UpdateSmartsiteInfo";
 import { FaAngleDown, FaTimes } from "react-icons/fa";
-import { icon, newIcons } from "@/components/util/data/smartsiteIconData";
-import { isEmptyObject } from "@/components/util/checkIsEmptyObject";
 import AnimateButton from "@/components/ui/Button/AnimateButton";
 import { MdInfoOutline } from "react-icons/md";
-import { InfoBarIconMap, InfoBarSelectedIconType } from "@/types/smallIcon";
-import contactCardImg from "@/public/images/IconShop/appIconContactCard.png";
 import productImg from "@/public/images/product.png";
 import toast from "react-hot-toast";
-import {
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
-import { Info } from "lucide-react";
+
 import { createMarketPlace } from "@/actions/handleMarketPlace";
 
 const nftCollection = [
@@ -69,13 +59,11 @@ const nftCollection = [
 const capitalizeFirstLetter = (str: string) =>
   str.charAt(0).toUpperCase() + str.slice(1);
 
-const AddMarketplace = ({ handleRemoveIcon, handleToggleIcon }: any) => {
+const AddMarketplace = ({ handleRemoveIcon }: any) => {
   const state: any = useSmartSiteApiDataStore((state) => state);
 
-  const [templates, setTemplates] = useState([]);
   const [selectedTemplate, setSelectedTemplate] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(false);
-  const [categoryName, setCategoryName] = useState("");
   const [nftList, setNftList] = useState([]);
   const [selectedCollection, setSelectedCollection] = useState("");
 
