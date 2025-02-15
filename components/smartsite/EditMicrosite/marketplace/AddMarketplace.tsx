@@ -151,11 +151,6 @@ const AddMarketplace = ({
       const { data } = await response.json();
       console.log('data from action', data);
       setNftList(data);
-      // if (data.state === 'success') {
-      //   setSelectedTemplate(data.data.template);
-      // } else {
-      //   toast.error('Failed to fetch template details.');
-      // }
     } catch (error) {
       console.error('Error fetching template details:', error);
       toast.error('Error fetching template details.');
@@ -164,14 +159,46 @@ const AddMarketplace = ({
     }
   };
 
-  const handleCreateCategory = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!categoryName) {
-      toast.error('Category name cannot be empty.');
+  const handleCreateMarket = async (e: React.FormEvent) => {
+    if (!selectedTemplate) {
+      toast.error('Please select a NFT');
       return;
     }
-    toast.success(`Category "${categoryName}" created successfully.`);
-    setCategoryName('');
+
+    try {
+      const response = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL}/api/v4/microsite/createMarketPlace`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            authorization: `Bearer ${accessToken}`,
+          },
+          body: JSON.stringify({
+            micrositeId: state.data._id,
+            collectionId: selectedTemplate.collectionId,
+            templateId: selectedTemplate._id,
+            itemName: selectedTemplate.name,
+            itemImageUrl: selectedTemplate.image,
+            itemDescription: selectedTemplate.description,
+            itemPrice: selectedTemplate.price,
+            itemCategory: selectedTemplate.nftType,
+          }),
+        }
+      );
+
+      console.log('response', response);
+      if (!response.ok) {
+        throw new Error('');
+      }
+      toast.success('Marketplace crated successfully');
+      handleRemoveIcon('Marketplace');
+    } catch (error) {
+      console.error(error);
+      toast.error('Something went wrong! Please try again');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -417,23 +444,19 @@ const AddMarketplace = ({
 
         {/* Category Input Section */}
         <div>
-          <form
-            onSubmit={handleCreateCategory}
-            className="flex flex-col gap-3"
-          >
-            <div className="flex justify-center">
-              <AnimateButton
-                whiteLoading={true}
-                className="bg-black text-white py-2 !border-0"
-                isLoading={isLoading}
-                width="w-52"
-                isDisabled={!selectedTemplate}
-              >
-                <LiaFileMedicalSolid size={20} />
-                Create
-              </AnimateButton>
-            </div>
-          </form>
+          <div className="flex justify-center">
+            <AnimateButton
+              whiteLoading={true}
+              className="bg-black text-white py-2 !border-0"
+              isLoading={isLoading}
+              width="w-52"
+              isDisabled={!selectedTemplate}
+              onClick={handleCreateMarket}
+            >
+              <LiaFileMedicalSolid size={20} />
+              Create
+            </AnimateButton>
+          </div>
         </div>
       </div>
     </div>
