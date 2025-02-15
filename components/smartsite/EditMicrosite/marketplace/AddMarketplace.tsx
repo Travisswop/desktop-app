@@ -43,10 +43,14 @@ const nftCollection = [
   {
     name: 'subscription',
     mint_address: '8ngpZFQaARzprfJewfdTJJqs1MP6rE4xc1tpwbntADFp',
+    image:
+      'https://quicknode.quicknode-ipfs.com/ipfs/QmSvPHcb7T2AVd8ebaYgKfRBwDXNwzTHUJ7D19LRmaRHia',
   },
   {
     name: 'membership',
     mint_address: 'CszXhmv3c36NmNxKRfYsttWE3DTA32krStf3rqpyaidq',
+    image:
+      'https://quicknode.quicknode-ipfs.com/ipfs/QmSdMaGMHjKvjNxLyta33MU5NzKLJEUQb82we2JjtRjwU7',
   },
   {
     name: 'coupon',
