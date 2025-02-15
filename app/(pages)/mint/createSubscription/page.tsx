@@ -8,9 +8,8 @@ import { sendCloudinaryImage } from "@/lib/SendCloudineryImage";
 import { usePrivy, useSolanaWallets } from "@privy-io/react-auth";
 import { useUser } from "@/lib/UserContext";
 
-
-
 interface FormData {
+  collectionId: string;
   name: string;
   nftType: string;
   description: string;
@@ -32,6 +31,7 @@ const CreateSubscriptionPage = () => {
   const today = new Date();
 
   const [formData, setFormData] = useState<FormData>({
+    collectionId: "8ngpZFQaARzprfJewfdTJJqs1MP6rE4xc1tpwbntADFp",
     name: "",
     nftType: "subscription",
     description: "",
@@ -50,14 +50,15 @@ const CreateSubscriptionPage = () => {
   });
 
   const [newBenefit, setNewBenefit] = useState("");
-  const [selectedImageName, setSelectedImageName] = useState<string | null>(null);
+  const [selectedImageName, setSelectedImageName] = useState<string | null>(
+    null
+  );
   const [imageUploading, setImageUploading] = useState(false);
-  const { accessToken } = useUser();
+  const { user, accessToken } = useUser();
   const { ready, authenticated } = usePrivy();
   const { wallets } = useSolanaWallets();
   const [solanaAddress, setSolanaAddress] = useState("");
   const [waitForToken, setWaitForToken] = useState(true);
-
 
   useEffect(() => {
     const timeoutId = setTimeout(() => {
@@ -82,9 +83,10 @@ const CreateSubscriptionPage = () => {
     }
   }, [ready, authenticated, wallets, formData.recipientAddress]);
 
-
   const handleChange = (
-    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>
+    e: React.ChangeEvent<
+      HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement
+    >
   ) => {
     const { name, value, type } = e.target;
 
@@ -134,7 +136,9 @@ const CreateSubscriptionPage = () => {
     }));
   };
 
-  const handleImageUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImageUpload = async (
+    event: React.ChangeEvent<HTMLInputElement>
+  ) => {
     const file = event.target.files?.[0];
     if (!file) return;
 
@@ -230,7 +234,9 @@ const CreateSubscriptionPage = () => {
         return;
       }
 
-      const collectionId = localStorage.getItem("swop_desktop_collectionId_for_createTemplate");
+      const collectionId = localStorage.getItem(
+        "swop_desktop_collectionId_for_createTemplate"
+      );
       if (!collectionId) {
         alert("Collection ID not found. Please select a collection.");
         return;
@@ -241,11 +247,12 @@ const CreateSubscriptionPage = () => {
         ...formData,
         startDate: formData.startDate.toISOString(), // Convert to ISO format
         endDate: formData.endDate.toISOString(), // Convert to ISO format
-        supplyLimit: formData.limitQuantity ? Number(formData.quantity) : undefined,
+        supplyLimit: Number(formData.quantity),
         price: Number(formData.price), // Ensure price is a number
         royaltyPercentage: formData.royaltyPercentage,
         collectionId, // Include collectionId
-        wallet: formData.recipientAddress,          // Include wallet in payload
+        wallet: formData.recipientAddress, // Include wallet in payload
+        userId: user._id,
       };
 
       const response = await fetch(
@@ -300,7 +307,8 @@ const CreateSubscriptionPage = () => {
                   required
                 />
                 <p className="text-sm text-gray-500 mt-1">
-                  Note: Your subscription name can&apos;t be changed after creation
+                  Note: Your subscription name can&apos;t be changed after
+                  creation
                 </p>
               </div>
 
@@ -309,7 +317,7 @@ const CreateSubscriptionPage = () => {
               </label>
               <div
                 className="bg-gray-100 p-4 rounded-lg border border-dashed border-gray-300 text-center"
-                style={{ minWidth: '300px', width: '50%' }}
+                style={{ minWidth: "300px", width: "50%" }}
                 onDragOver={(e) => e.preventDefault()}
                 onDrop={handleImageDrop}
               >
@@ -322,7 +330,9 @@ const CreateSubscriptionPage = () => {
                       alt="Preview"
                       className="rounded-lg object-cover"
                     />
-                    <p className="text-sm mt-2 text-gray-700">{selectedImageName}</p>
+                    <p className="text-sm mt-2 text-gray-700">
+                      {selectedImageName}
+                    </p>
                     <label
                       htmlFor="image"
                       className="inline-block bg-black text-white px-4 py-2 rounded-lg mt-2 cursor-pointer"
@@ -334,7 +344,9 @@ const CreateSubscriptionPage = () => {
                   <div>
                     <div className="flex flex-col items-center justify-center h-32 cursor-pointer">
                       <div className="text-6xl text-gray-400">📷</div>
-                      <p className="text-gray-500">Browse or drag and drop an image here.</p>
+                      <p className="text-gray-500">
+                        Browse or drag and drop an image here.
+                      </p>
                       <label
                         htmlFor="image"
                         className="inline-block bg-black text-white px-4 py-2 rounded-lg mt-2 cursor-pointer"
@@ -353,7 +365,6 @@ const CreateSubscriptionPage = () => {
                   className="hidden"
                 />
                 {imageUploading && <p>Uploading image...</p>}
-
               </div>
               <div>
                 <label htmlFor="description" className="mb-1 block font-medium">
@@ -389,6 +400,47 @@ const CreateSubscriptionPage = () => {
                 </p>
               </div>
 
+              <div>
+                <label htmlFor="price" className="mb-1 block font-medium">
+                  Limit quantity
+                </label>
+                <input
+                  type="text"
+                  id="quantity"
+                  name="quantity"
+                  placeholder="Quantity"
+                  value={formData.quantity}
+                  onChange={handleChange}
+                  className="w-full border border-gray-300 rounded-lg px-4 py-2"
+                  required
+                />
+                <p className="text-sm text-gray-500 mt-1">
+                  Limit the number of times this digital good can be purchased.
+                </p>
+              </div>
+
+              <div className="mt-4">
+                <label
+                  htmlFor="royaltyPercentage"
+                  className="mb-1 block font-medium"
+                >
+                  Royalty Percentage
+                </label>
+                <div className="flex items-center">
+                  <input
+                    type="number"
+                    id="royaltyPercentage"
+                    name="royaltyPercentage"
+                    value={formData.royaltyPercentage}
+                    onChange={handleChange}
+                    className="w-full border border-gray-300 rounded-lg px-4 py-2"
+                    min="0"
+                    max="100"
+                  />
+                  <span className="ml-2">%</span>
+                </div>
+              </div>
+
               <div className="flex gap-4">
                 <div className="flex-1">
                   <label htmlFor="startDate" className="mb-1 block font-medium">
@@ -396,7 +448,9 @@ const CreateSubscriptionPage = () => {
                   </label>
                   <DatePicker
                     selected={formData.startDate}
-                    onChange={(date) => handleDateChange(date as Date, "startDate")}
+                    onChange={(date) =>
+                      handleDateChange(date as Date, "startDate")
+                    }
                     className="w-full border border-gray-300 rounded-lg px-4 py-2"
                     dateFormat="yyyy-MM-dd"
                   />
@@ -459,16 +513,17 @@ const CreateSubscriptionPage = () => {
                 </div>
               </div>
 
-
-
-              <div className="bg-gray-100 p-4 rounded-lg border border-gray-300 mt-4">
-                <h3 className="text-md font-medium">Enable Pay with Credit Card</h3>
+              {/* <div className="bg-gray-100 p-4 rounded-lg border border-gray-300 mt-4">
+                <h3 className="text-md font-medium">
+                  Enable Pay with Credit Card
+                </h3>
                 <p className="text-sm text-gray-600 mb-2">
                   Let users buy this subscription with a credit card.
                 </p>
                 <div
-                  className={`w-14 h-8 flex items-center rounded-full p-1 cursor-pointer ${formData.enableCreditCard ? "bg-black" : "bg-gray-300"
-                    }`}
+                  className={`w-14 h-8 flex items-center rounded-full p-1 cursor-pointer ${
+                    formData.enableCreditCard ? "bg-black" : "bg-gray-300"
+                  }`}
                   onClick={() =>
                     setFormData((prevState) => ({
                       ...prevState,
@@ -477,15 +532,17 @@ const CreateSubscriptionPage = () => {
                   }
                 >
                   <div
-                    className={`h-6 w-6 bg-white rounded-full shadow-md transform duration-300 ${formData.enableCreditCard ? "translate-x-6" : ""
-                      }`}
+                    className={`h-6 w-6 bg-white rounded-full shadow-md transform duration-300 ${
+                      formData.enableCreditCard ? "translate-x-6" : ""
+                    }`}
                   ></div>
                 </div>
 
                 <div className="mt-4">
                   <h3 className="text-md font-medium">Verify Identity</h3>
                   <p className="text-sm text-gray-600">
-                    Verify your identity to enable credit card payments. You only complete this process once.
+                    Verify your identity to enable credit card payments. You
+                    only complete this process once.
                   </p>
                   <button
                     type="button"
@@ -495,15 +552,16 @@ const CreateSubscriptionPage = () => {
                     Verify
                   </button>
                 </div>
-              </div>
+              </div> */}
 
-              <div className="bg-gray-100 p-4 rounded-lg border border-gray-300 mt-4">
+              {/* <div className="bg-gray-100 p-4 rounded-lg border border-gray-300 mt-4">
                 <h3 className="text-md font-medium">Advanced Settings</h3>
                 <div className="flex items-center justify-between mt-2">
                   <span className="text-sm font-medium">Limit quantity</span>
                   <div
-                    className={`w-14 h-8 flex items-center rounded-full p-1 cursor-pointer ${formData.limitQuantity ? "bg-black" : "bg-gray-300"
-                      }`}
+                    className={`w-14 h-8 flex items-center rounded-full p-1 cursor-pointer ${
+                      formData.limitQuantity ? "bg-black" : "bg-gray-300"
+                    }`}
                     onClick={() =>
                       setFormData((prevState) => ({
                         ...prevState,
@@ -512,8 +570,9 @@ const CreateSubscriptionPage = () => {
                     }
                   >
                     <div
-                      className={`h-6 w-6 bg-white rounded-full shadow-md transform duration-300 ${formData.limitQuantity ? "translate-x-6" : ""
-                        }`}
+                      className={`h-6 w-6 bg-white rounded-full shadow-md transform duration-300 ${
+                        formData.limitQuantity ? "translate-x-6" : ""
+                      }`}
                     ></div>
                   </div>
                 </div>
@@ -532,7 +591,10 @@ const CreateSubscriptionPage = () => {
                 </p>
 
                 <div className="mt-4">
-                  <label htmlFor="royaltyPercentage" className="block font-medium mb-1">
+                  <label
+                    htmlFor="royaltyPercentage"
+                    className="block font-medium mb-1"
+                  >
                     Royalty Percentage
                   </label>
                   <div className="flex items-center">
@@ -549,13 +611,17 @@ const CreateSubscriptionPage = () => {
                     <span className="ml-2">%</span>
                   </div>
                 </div>
-              </div>
+              </div> */}
 
               <div className="mt-4">
-                <input type="checkbox" required /> I agree with swop Minting Privacy & Policy
+                <input type="checkbox" required /> I agree with swop Minting
+                Privacy & Policy
               </div>
 
-              <PushToMintCollectionButton className="w-max mt-4" onClick={handleSubmit}>
+              <PushToMintCollectionButton
+                className="w-max mt-4"
+                onClick={handleSubmit}
+              >
                 Create
               </PushToMintCollectionButton>
             </div>
@@ -580,47 +646,60 @@ const CreateSubscriptionPage = () => {
 
             <div className="mb-2">
               <p className="text-lg font-bold">Name</p>
-              <p className="text-sm text-gray-500">{formData.name || "Name will appear here"}</p>
+              <p className="text-sm text-gray-500">
+                {formData.name || "Name will appear here"}
+              </p>
             </div>
 
             <div className="mb-2">
               <p className="text-lg font-bold">Price</p>
-              <p className="text-sm text-gray-500">{formData.price ? `$${formData.price}` : "Free"}</p>
+              <p className="text-sm text-gray-500">
+                {formData.price ? `$${formData.price}` : "Free"}
+              </p>
             </div>
 
             <div className="mb-2">
               <p className="text-lg font-bold">Description</p>
-              <p className="text-sm text-gray-500">{formData.description || "Description will appear here"}</p>
+              <p className="text-sm text-gray-500">
+                {formData.description || "Description will appear here"}
+              </p>
             </div>
 
             <div className="mb-2">
               <p className="text-lg font-bold">Start Date</p>
-              <p className="text-sm text-gray-500">{formData.startDate.toDateString()}</p>
+              <p className="text-sm text-gray-500">
+                {formData.startDate.toDateString()}
+              </p>
             </div>
 
             <div className="mb-2">
               <p className="text-lg font-bold">End Date</p>
-              <p className="text-sm text-gray-500">{formData.endDate.toDateString()}</p>
+              <p className="text-sm text-gray-500">
+                {formData.endDate.toDateString()}
+              </p>
             </div>
 
             <div className="mb-2">
               <p className="text-lg font-bold">Royalty Percentage</p>
-              <p className="text-sm text-gray-500">{formData.royaltyPercentage}%</p>
+              <p className="text-sm text-gray-500">
+                {formData.royaltyPercentage}%
+              </p>
             </div>
 
             <div className="mt-4 w-full">
               <p className="text-lg font-bold">Benefits</p>
               <ul className="list-disc list-inside text-sm text-gray-500">
-                {formData.benefits.length > 0
-                  ? formData.benefits.map((benefit, index) => (
+                {formData.benefits.length > 0 ? (
+                  formData.benefits.map((benefit, index) => (
                     <li key={index}>{benefit}</li>
                   ))
-                  : <li>No benefits added</li>}
+                ) : (
+                  <li>No benefits added</li>
+                )}
               </ul>
             </div>
           </div>
         </div>
-
       </div>
     </div>
   );

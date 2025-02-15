@@ -6,8 +6,8 @@ import { sendCloudinaryImage } from "@/lib/SendCloudineryImage";
 import { usePrivy, useSolanaWallets } from "@privy-io/react-auth";
 import { useUser } from "@/lib/UserContext";
 
-
 interface FormData {
+  collectionId: string;
   name: string;
   nftType: string;
   description: string;
@@ -20,10 +20,12 @@ interface FormData {
   verifyIdentity: boolean;
   limitQuantity: boolean;
   quantity?: number;
+  royaltyPercentage: number;
 }
 
 const CreatePhygitalPage = () => {
   const [formData, setFormData] = useState<FormData>({
+    collectionId: "23WshXUoW2Mi38E3XFL8NeqcKZ4PXpN1PTKBGJzZzu4q",
     name: "",
     nftType: "phygital",
     description: "",
@@ -36,12 +38,15 @@ const CreatePhygitalPage = () => {
     verifyIdentity: false,
     limitQuantity: false,
     quantity: undefined,
+    royaltyPercentage: 10,
   });
 
   const [newBenefit, setNewBenefit] = useState("");
-  const [selectedImageName, setSelectedImageName] = useState<string | null>(null);
+  const [selectedImageName, setSelectedImageName] = useState<string | null>(
+    null
+  );
   const [imageUploading, setImageUploading] = useState(false);
-  const { accessToken } = useUser();
+  const { user, accessToken } = useUser();
   const { ready, authenticated } = usePrivy();
   const { wallets } = useSolanaWallets();
   const [solanaAddress, setSolanaAddress] = useState("");
@@ -69,7 +74,6 @@ const CreatePhygitalPage = () => {
       }));
     }
   }, [ready, authenticated, wallets, formData.recipientAddress]);
-
 
   const handleChange = (
     e: React.ChangeEvent<
@@ -99,7 +103,9 @@ const CreatePhygitalPage = () => {
     }));
   };
 
-  const handleImageUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImageUpload = async (
+    event: React.ChangeEvent<HTMLInputElement>
+  ) => {
     const file = event.target.files?.[0];
     if (!file) return;
 
@@ -195,7 +201,9 @@ const CreatePhygitalPage = () => {
         return;
       }
 
-      const collectionId = localStorage.getItem("swop_desktop_collectionId_for_createTemplate");
+      const collectionId = localStorage.getItem(
+        "swop_desktop_collectionId_for_createTemplate"
+      );
       if (!collectionId) {
         alert("Collection ID not found. Please select a collection.");
         return;
@@ -204,10 +212,11 @@ const CreatePhygitalPage = () => {
       // Map and prepare final data
       const finalData = {
         ...formData,
-        supplyLimit: formData.limitQuantity ? Number(formData.quantity) : undefined,
+        supplyLimit: Number(formData.quantity),
         price: Number(formData.price), // Ensure price is a number
         collectionId, // Include collectionId
-        wallet: formData.recipientAddress,          // Include wallet in payload
+        wallet: formData.recipientAddress, // Include wallet in payload
+        userId: user._id,
       };
 
       const response = await fetch(
@@ -262,7 +271,8 @@ const CreatePhygitalPage = () => {
                   required
                 />
                 <p className="text-sm text-gray-500 mt-1">
-                  Note: Your phygital item name can&apos;t be changed after creation
+                  Note: Your phygital item name can&apos;t be changed after
+                  creation
                 </p>
               </div>
 
@@ -284,7 +294,9 @@ const CreatePhygitalPage = () => {
                       alt="Preview"
                       className="rounded-lg object-cover"
                     />
-                    <p className="text-sm mt-2 text-gray-700">{selectedImageName}</p>
+                    <p className="text-sm mt-2 text-gray-700">
+                      {selectedImageName}
+                    </p>
                     <label
                       htmlFor="image"
                       className="inline-block bg-black text-white px-4 py-2 rounded-lg mt-2 cursor-pointer"
@@ -317,7 +329,6 @@ const CreatePhygitalPage = () => {
                   className="hidden"
                 />
                 {imageUploading && <p>Uploading image...</p>}
-
               </div>
               <div>
                 <label htmlFor="description" className="mb-1 block font-medium">
@@ -353,6 +364,22 @@ const CreatePhygitalPage = () => {
                 </p>
               </div>
 
+              <div>
+                <label htmlFor="price" className="mb-1 block font-medium">
+                  Limit quantity
+                </label>
+                <input
+                  type="number"
+                  min="1"
+                  placeholder="Enter quantity"
+                  value={formData.quantity || ""}
+                  onChange={handleQuantityChange}
+                  className="w-full border border-gray-300 rounded-lg px-4 py-2 mt-2"
+                />
+                <p className="text-sm text-gray-500 mt-1">
+                  Limit the number of times this phygital item can be purchased
+                </p>
+              </div>
 
               <div>
                 <label htmlFor="benefits" className="mb-1 block font-medium">
@@ -391,12 +418,17 @@ const CreatePhygitalPage = () => {
                 </div>
               </div>
 
-              <div className="bg-gray-100 p-4 rounded-lg border border-gray-300 mt-4">
-                <h3 className="text-md font-medium">Enable Pay with Credit Card</h3>
-                <p className="text-sm text-gray-600 mb-2">Let users buy this phygital item with a credit card</p>
+              {/* <div className="bg-gray-100 p-4 rounded-lg border border-gray-300 mt-4">
+                <h3 className="text-md font-medium">
+                  Enable Pay with Credit Card
+                </h3>
+                <p className="text-sm text-gray-600 mb-2">
+                  Let users buy this phygital item with a credit card
+                </p>
                 <div
-                  className={`w-14 h-8 flex items-center rounded-full p-1 cursor-pointer ${formData.enableCreditCard ? "bg-black" : "bg-gray-300"
-                    }`}
+                  className={`w-14 h-8 flex items-center rounded-full p-1 cursor-pointer ${
+                    formData.enableCreditCard ? "bg-black" : "bg-gray-300"
+                  }`}
                   onClick={() =>
                     setFormData((prevState) => ({
                       ...prevState,
@@ -405,15 +437,18 @@ const CreatePhygitalPage = () => {
                   }
                 >
                   <div
-                    className={`h-6 w-6 bg-white rounded-full shadow-md transform duration-300 ${formData.enableCreditCard ? "translate-x-6" : ""
-                      }`}
+                    className={`h-6 w-6 bg-white rounded-full shadow-md transform duration-300 ${
+                      formData.enableCreditCard ? "translate-x-6" : ""
+                    }`}
                   ></div>
                 </div>
 
-
                 <div className="mt-4">
                   <h3 className="text-md font-medium">Verify Identity</h3>
-                  <p className="text-sm text-gray-600">Verify your identity to enable credit card payments. You only complete this process once.</p>
+                  <p className="text-sm text-gray-600">
+                    Verify your identity to enable credit card payments. You
+                    only complete this process once.
+                  </p>
                   <button
                     type="button"
                     onClick={() => alert("Verification triggered!")}
@@ -422,15 +457,16 @@ const CreatePhygitalPage = () => {
                     Verify
                   </button>
                 </div>
-              </div>
+              </div> */}
 
-              <div className="bg-gray-100 p-4 rounded-lg border border-gray-300 mt-4">
+              {/* <div className="bg-gray-100 p-4 rounded-lg border border-gray-300 mt-4">
                 <h3 className="text-md font-medium">Advanced Settings</h3>
                 <div className="flex items-center justify-between mt-2">
                   <span className="text-sm font-medium">Limit quantity</span>
                   <div
-                    className={`w-14 h-8 flex items-center rounded-full p-1 cursor-pointer ${formData.limitQuantity ? "bg-black" : "bg-gray-300"
-                      }`}
+                    className={`w-14 h-8 flex items-center rounded-full p-1 cursor-pointer ${
+                      formData.limitQuantity ? "bg-black" : "bg-gray-300"
+                    }`}
                     onClick={() =>
                       setFormData((prevState) => ({
                         ...prevState,
@@ -439,11 +475,11 @@ const CreatePhygitalPage = () => {
                     }
                   >
                     <div
-                      className={`h-6 w-6 bg-white rounded-full shadow-md transform duration-300 ${formData.limitQuantity ? "translate-x-6" : ""
-                        }`}
+                      className={`h-6 w-6 bg-white rounded-full shadow-md transform duration-300 ${
+                        formData.limitQuantity ? "translate-x-6" : ""
+                      }`}
                     ></div>
                   </div>
-
                 </div>
                 {formData.limitQuantity && (
                   <input
@@ -458,13 +494,17 @@ const CreatePhygitalPage = () => {
                 <p className="text-sm text-gray-500 mt-1">
                   Limit the number of times this phygital item can be purchased
                 </p>
-              </div>
+              </div> */}
 
               <div className="mt-4">
-                <input type="checkbox" required /> I agree with swop Minting Privacy & Policy
+                <input type="checkbox" required /> I agree with swop Minting
+                Privacy & Policy
               </div>
 
-              <PushToMintCollectionButton className="w-max mt-4" onClick={handleSubmit}>
+              <PushToMintCollectionButton
+                className="w-max mt-4"
+                onClick={handleSubmit}
+              >
                 Create
               </PushToMintCollectionButton>
             </div>
@@ -489,27 +529,35 @@ const CreatePhygitalPage = () => {
 
             <div className="mb-2">
               <p className="text-lg font-bold">Name</p>
-              <p className="text-sm text-gray-500">{formData.name || "Name will appear here"}</p>
+              <p className="text-sm text-gray-500">
+                {formData.name || "Name will appear here"}
+              </p>
             </div>
 
             <div className="mb-2">
               <p className="text-lg font-bold">Price</p>
-              <p className="text-sm text-gray-500">{formData.price ? `$${formData.price}` : "Free"}</p>
+              <p className="text-sm text-gray-500">
+                {formData.price ? `$${formData.price}` : "Free"}
+              </p>
             </div>
 
             <div className="mb-2">
               <p className="text-lg font-bold">Description</p>
-              <p className="text-sm text-gray-500">{formData.description || "Description will appear here"}</p>
+              <p className="text-sm text-gray-500">
+                {formData.description || "Description will appear here"}
+              </p>
             </div>
 
             <div className="mt-4 w-full">
               <p className="text-lg font-bold">Benefits</p>
               <ul className="list-disc list-inside text-sm text-gray-500">
-                {formData.benefits.length > 0
-                  ? formData.benefits.map((benefit, index) => (
+                {formData.benefits.length > 0 ? (
+                  formData.benefits.map((benefit, index) => (
                     <li key={index}>{benefit}</li>
                   ))
-                  : <li>No benefits added</li>}
+                ) : (
+                  <li>No benefits added</li>
+                )}
               </ul>
             </div>
           </div>
