@@ -1060,8 +1060,8 @@ const SmartsiteIconLivePreview = ({
                                     </p>
                                   </div>
                                 </div>
-                                <div className="custom-audio text-sm min-w-max">
-                                  {data.itemPrice} usdc
+                                <div className="custom-audio text-xs min-w-max font-medium">
+                                  {data.itemPrice} USDC
                                 </div>
                               </div>
                             </div>

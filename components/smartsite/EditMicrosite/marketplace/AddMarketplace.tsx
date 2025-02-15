@@ -265,7 +265,7 @@ const AddMarketplace = ({ handleRemoveIcon, handleToggleIcon }: any) => {
                   <div className="flex justify-between items-center my-4">
                     <div>
                       <p className="text-sm text-gray-500">Price</p>
-                      <p className="font-bold">
+                      <p className="font-bold uppercase">
                         {selectedTemplate.price} {selectedTemplate.currency}
                       </p>
                     </div>
