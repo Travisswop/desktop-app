@@ -1,7 +1,6 @@
 import { PrivyClient } from '@privy-io/server-auth';
 import { NextRequest, NextResponse } from 'next/server';
 
-// Define a type for cached authentication results
 type AuthCacheEntry = {
   timestamp: number;
   isValid: boolean;
@@ -10,13 +9,14 @@ type AuthCacheEntry = {
 
 class AuthMiddleware {
   private authCache: Map<string, AuthCacheEntry>;
-  private protectedRoutes: string[];
-  private CACHE_DURATION: number;
-  private MAX_CACHE_SIZE: number;
+  private protectedRoutes: Set<string>; // Changed to Set for O(1) lookup
+  private readonly CACHE_DURATION: number;
+  private readonly MAX_CACHE_SIZE: number;
+  private readonly AUTH_ROUTES: Set<string>; // New: Routes only for non-authenticated users
 
   constructor() {
     this.authCache = new Map();
-    this.protectedRoutes = [
+    this.protectedRoutes = new Set([
       '/',
       '/feed',
       '/smartsite',
@@ -26,204 +26,198 @@ class AuthMiddleware {
       '/mint',
       '/order',
       '/content',
-    ];
-    this.CACHE_DURATION = 720 * 60 * 1000; // 720 minutes
+    ]);
+    this.AUTH_ROUTES = new Set(['/login', '/onboard']); // New: Authentication routes
+    this.CACHE_DURATION = 2 * 24 * 60 * 60 * 1000; // 2 days
     this.MAX_CACHE_SIZE = 1000;
   }
 
-  // Check if a route is protected
   private isProtectedRoute(pathname: string): boolean {
-    return this.protectedRoutes.some(
-      (route) =>
-        pathname === route || pathname.startsWith(`${route}/`)
+    return (
+      this.protectedRoutes.has(pathname) ||
+      [...this.protectedRoutes].some((route) =>
+        pathname.startsWith(`${route}/`)
+      )
     );
+  }
+
+  private isAuthRoute(pathname: string): boolean {
+    return this.AUTH_ROUTES.has(pathname);
   }
 
   // Clean up the authentication cache
   private cleanupCache(): void {
     const now = Date.now();
-    for (const [key, value] of this.authCache.entries()) {
-      if (now - value.timestamp > this.CACHE_DURATION) {
+    const expiredTime = now - this.CACHE_DURATION;
+
+    // Single iteration to find both expired and excess entries
+    const entries = [...this.authCache.entries()].sort(
+      (a, b) => a[1].timestamp - b[1].timestamp
+    );
+
+    // Remove expired entries
+    entries.forEach(([key, value]) => {
+      if (value.timestamp < expiredTime) {
         this.authCache.delete(key);
       }
-    }
+    });
 
+    // Remove oldest entries if cache is too large
     if (this.authCache.size > this.MAX_CACHE_SIZE) {
-      const oldestEntries = [...this.authCache.entries()]
-        .sort((a, b) => a[1].timestamp - b[1].timestamp)
-        .slice(0, this.authCache.size - this.MAX_CACHE_SIZE);
-
-      oldestEntries.forEach(([key]) => this.authCache.delete(key));
+      entries
+        .slice(0, this.authCache.size - this.MAX_CACHE_SIZE)
+        .forEach(([key]) => this.authCache.delete(key));
     }
   }
 
-  // Create a response to redirect to login
-  private createLoginRedirect(
+  private createRedirect(
     req: NextRequest,
-    reason: string
+    target: string
   ): NextResponse {
-    console.info(`Redirecting to login: ${reason}`);
+    const response = NextResponse.redirect(new URL(target, req.url));
 
-    const response = NextResponse.redirect(
-      new URL('/login', req.url)
-    );
+    if (target === '/login') {
+      const cookiesToClear = new Set([
+        'privy-token',
+        'privy-id-token',
+        'privy-refresh-token',
+        'privy-session',
+        'access-token',
+        'user-id',
+      ]);
 
-    // Clear all authentication-related cookies
-    const cookiesToClear = [
-      'privy-token',
-      'privy-id-token',
-      'privy-refresh-token',
-      'privy-session',
-      'access-token',
-      'user-id',
-    ];
-    cookiesToClear.forEach((cookie) =>
-      response.cookies.delete(cookie)
-    );
+      cookiesToClear.forEach((cookie) =>
+        response.cookies.delete(cookie)
+      );
+    }
 
     return response;
   }
 
-  // New method to check if the request is from a mobile device
   private isMobileDevice(userAgent: string): boolean {
     return /Mobi|Android/i.test(userAgent);
   }
 
-  // Validate environment configuration
   private validateEnvironment(): void {
-    if (
-      !process.env.NEXT_PUBLIC_PRIVY_APP_ID ||
-      !process.env.NEXT_PUBLIC_PRIVY_APP_SECRET
-    ) {
+    const requiredEnvVars = {
+      NEXT_PUBLIC_PRIVY_APP_ID: process.env.NEXT_PUBLIC_PRIVY_APP_ID,
+      NEXT_PUBLIC_PRIVY_APP_SECRET:
+        process.env.NEXT_PUBLIC_PRIVY_APP_SECRET,
+    };
+
+    const missingVars = Object.entries(requiredEnvVars)
+      .filter(([, value]) => !value)
+      .map(([key]) => key);
+
+    if (missingVars.length > 0) {
       throw new Error(
-        'Privy authentication credentials are not configured'
+        `Missing required environment variables: ${missingVars.join(
+          ', '
+        )}`
       );
     }
   }
 
-  // Main middleware authentication logic
-  public async authenticate(
-    req: NextRequest
-  ): Promise<NextResponse | null> {
+  private handleMobileRedirect(userAgent: string): string | null {
+    if (!this.isMobileDevice(userAgent)) return null;
+
+    return userAgent.includes('Android')
+      ? 'https://play.google.com/store/apps/details?id=com.travisheron.swop'
+      : 'https://apps.apple.com/us/app/swopnew/id1593201322';
+  }
+
+  public async authenticate(req: NextRequest): Promise<NextResponse> {
     try {
-      // Validate environment first
       this.validateEnvironment();
 
       const { pathname } = req.nextUrl;
+      const userAgent = req.headers.get('user-agent') || '';
 
-      // Check if the request is from a mobile device
-      if (this.isMobileDevice(req.headers.get('user-agent') || '')) {
-        const playStoreUrl =
-          'https://play.google.com/store/apps/details?id=com.travisheron.swop&fbclid=IwAR2nRw3Ey1N0RQhFhNUfBUNA-77I_3Z7iNgJjIchiY4-5WhA7jjGLMetSTo';
-
-        const appStoreUrl =
-          'https://apps.apple.com/us/app/swopnew/id1593201322?fbclid=IwAR3yh6c7ri7DK56JEeXyOsIZHzJ4ZGNCJidFuZj-j4UCRXN8BxaK49HD3-I#?platform=iphone';
-
-        // Redirect to the app store or play store based on the user agent
-        if (req.headers.get('user-agent')?.includes('Android')) {
-          return NextResponse.redirect(
-            new URL(playStoreUrl, req.url)
-          );
-        } else {
-          return NextResponse.redirect(new URL(appStoreUrl, req.url));
-        }
-      }
-
-      // Skip authentication for specific pages or if not a protected route
-      if (
-        pathname === '/login' ||
-        pathname === '/onboard' ||
-        !this.isProtectedRoute(pathname) ||
-        pathname.startsWith('/api')
-      ) {
-        return NextResponse.next();
-      }
-
-      // Extract the Privy token from cookies
-      const token = req.cookies.get('privy-token')?.value;
-
-      // No token for protected routes
-      if (!token) {
-        return this.createLoginRedirect(
-          req,
-          'No authentication token'
+      // Handle mobile redirects
+      const mobileRedirect = this.handleMobileRedirect(userAgent);
+      if (mobileRedirect) {
+        return NextResponse.redirect(
+          new URL(mobileRedirect, req.url)
         );
       }
 
-      // Check cache first
-      this.cleanupCache();
-      const cacheKey = `${token}`;
-      const cachedResult = this.authCache.get(cacheKey);
-      const now = Date.now();
-
-      // Use cached result if valid
-      if (
-        cachedResult &&
-        now - cachedResult.timestamp < this.CACHE_DURATION
-      ) {
-        if (cachedResult.isValid) {
-          return NextResponse.next();
-        } else {
-          return this.createLoginRedirect(
-            req,
-            'Cached invalid token'
-          );
-        }
-      }
-
-      // Initialize Privy Client
-      const privyServer = new PrivyClient(
-        process.env.NEXT_PUBLIC_PRIVY_APP_ID as string,
-        process.env.NEXT_PUBLIC_PRIVY_APP_SECRET as string
-      );
-
-      // Verify the Privy token
-      const verifiedClaims = await privyServer.verifyAuthToken(token);
-
-      // Cache successful authentication
-      this.authCache.set(cacheKey, {
-        timestamp: now,
-        isValid: true,
-        userId: verifiedClaims.userId,
-      });
-
-      // Additional verification
-      if (verifiedClaims.userId) {
+      // Skip API routes
+      if (pathname.startsWith('/api')) {
         return NextResponse.next();
       }
 
-      // Unauthorized access
-      return this.createLoginRedirect(req, 'No user ID found');
-    } catch (error) {
-      // Comprehensive error logging
-      console.error('Authentication middleware error:', {
-        errorName:
-          error instanceof Error ? error.name : 'Unknown Error',
-        errorMessage:
-          error instanceof Error ? error.message : 'No error message',
-        path: req.nextUrl.pathname,
-      });
+      const token = req.cookies.get('privy-token')?.value;
+      const isAuthRoute = this.isAuthRoute(pathname);
 
-      // Specific error handling
-      if (error instanceof Error) {
-        switch (error.name) {
-          case 'TokenExpiredError':
-            return this.createLoginRedirect(req, 'Token expired');
-          case 'JsonWebTokenError':
-            return this.createLoginRedirect(req, 'Invalid token');
-          default:
-            return this.createLoginRedirect(
-              req,
-              'Authentication failed'
+      // Handle authentication state
+      if (token) {
+        try {
+          // Check cache first
+          this.cleanupCache();
+          const cacheKey = token;
+          const cachedResult = this.authCache.get(cacheKey);
+          const now = Date.now();
+
+          let isValidToken = false;
+
+          if (
+            cachedResult &&
+            now - cachedResult.timestamp < this.CACHE_DURATION
+          ) {
+            isValidToken = cachedResult.isValid;
+          } else {
+            // Verify token with Privy
+            const privyServer = new PrivyClient(
+              process.env.NEXT_PUBLIC_PRIVY_APP_ID!,
+              process.env.NEXT_PUBLIC_PRIVY_APP_SECRET!
             );
+
+            const verifiedClaims = await privyServer.verifyAuthToken(
+              token
+            );
+            isValidToken = Boolean(verifiedClaims.userId);
+
+            // Update cache
+            this.authCache.set(cacheKey, {
+              timestamp: now,
+              isValid: isValidToken,
+              userId: verifiedClaims.userId,
+            });
+          }
+
+          if (isValidToken) {
+            // Redirect authenticated users away from auth routes
+            if (isAuthRoute) {
+              return this.createRedirect(req, '/');
+            }
+            return NextResponse.next();
+          }
+        } catch (error) {
+          // Invalid token, clear it and redirect to login
+          return this.createRedirect(req, '/login');
         }
       }
 
-      // Fallback error handling
-      return this.createLoginRedirect(
-        req,
-        'Unexpected authentication error'
-      );
+      // Handle unauthenticated requests
+      if (this.isProtectedRoute(pathname)) {
+        return this.createRedirect(req, '/login');
+      }
+
+      return NextResponse.next();
+    } catch (error) {
+      console.error('Authentication middleware error:', {
+        error:
+          error instanceof Error
+            ? {
+                name: error.name,
+                message: error.message,
+                stack: error.stack,
+              }
+            : 'Unknown error',
+        path: req.nextUrl.pathname,
+      });
+
+      return this.createRedirect(req, '/login');
     }
   }
 }
@@ -231,12 +225,10 @@ class AuthMiddleware {
 // Create a singleton instance
 const authMiddleware = new AuthMiddleware();
 
-// Middleware function
 export async function middleware(req: NextRequest) {
   return await authMiddleware.authenticate(req);
 }
 
-// Route matcher configuration
 export const config = {
   matcher: [
     '/',

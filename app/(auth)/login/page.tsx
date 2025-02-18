@@ -1,155 +1,272 @@
-"use client";
+'use client';
 
-import { usePrivy, useLogin, useLogout } from "@privy-io/react-auth";
-import { useRouter } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
-import { Card } from "@/components/ui/card";
-import Loader from "@/components/loading/Loader";
-import { Button } from "@/components/ui/button";
-import { ChevronRight } from "lucide-react";
-import Image from "next/image";
-import astronot from "@/public/onboard/astronot.svg";
-import bluePlanet from "@/public/onboard/blue-planet.svg";
-import yellowPlanet from "@/public/onboard/yellow-planet.svg";
-import { WalletItem } from "@/types/wallet";
-import { updateUserWalletInfo } from "@/actions/updateUserProfile";
-import { createLoginWalletBalance } from "@/actions/createWallet";
+import {
+  usePrivy,
+  useLogout,
+  useLoginWithEmail,
+} from '@privy-io/react-auth';
+import { useRouter } from 'next/navigation';
+import {
+  useEffect,
+  useRef,
+  useState,
+  useCallback,
+  useMemo,
+} from 'react';
+import { Card } from '@/components/ui/card';
+import Loader from '@/components/loading/Loader';
+import { Button } from '@/components/ui/button';
+import Image from 'next/image';
+import astronot from '@/public/onboard/astronot.svg';
+import bluePlanet from '@/public/onboard/blue-planet.svg';
+import yellowPlanet from '@/public/onboard/yellow-planet.svg';
+import { WalletItem } from '@/types/wallet';
+import { createLoginWalletBalance } from '@/actions/createWallet';
+import { Input } from '@/components/ui/input';
 
 const Login: React.FC = () => {
-  const { authenticated, ready, user: PrivyUser } = usePrivy();
+  const { authenticated, ready, user } = usePrivy();
   const { logout } = useLogout();
   const router = useRouter();
   const loginInitiated = useRef(false);
+
   const [isLoading, setIsLoading] = useState(false);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [isRedirecting, setIsRedirecting] = useState(false);
-  const [walletData, setWalletData] = useState<WalletItem[] | null>(null);
-  useEffect(() => {
-    if (authenticated && ready && PrivyUser) {
-      const linkWallet = PrivyUser?.linkedAccounts
-        .map((item: any) => {
-          if (item.chainType === "ethereum") {
-            return {
-              address: item.address,
-              isActive:
-                item.walletClientType === "privy" ||
-                item.connectorType === "embedded",
-              isEVM: true,
-              walletClientType: item.walletClientType,
-            };
-          } else if (item.chainType === "solana") {
-            return {
-              address: item.address,
-              isActive:
-                item.walletClientType === "privy" ||
-                item.connectorType === "embedded",
-              isEVM: false,
-              walletClientType: item.walletClientType,
-            };
-          }
-          return null;
-        })
-        .filter(Boolean);
+  const [walletData, setWalletData] = useState<WalletItem[] | null>(
+    null
+  );
 
-      setWalletData(linkWallet as WalletItem[]);
-    }
-  }, [PrivyUser, authenticated, ready]);
+  const [email, setEmail] = useState('');
+  const [code, setCode] = useState('');
 
-  const { login } = useLogin({
-    onComplete: async (user) => {
+  // Memoize wallet data transformation
+  const processWalletData = useCallback((user: any) => {
+    return user?.linkedAccounts
+      .map((item: any) => {
+        if (item.chainType === 'ethereum') {
+          return {
+            address: item.address,
+            isActive:
+              item.walletClientType === 'privy' ||
+              item.connectorType === 'embedded',
+            isEVM: true,
+            walletClientType: item.walletClientType,
+          };
+        } else if (item.chainType === 'solana') {
+          return {
+            address: item.address,
+            isActive:
+              item.walletClientType === 'privy' ||
+              item.connectorType === 'embedded',
+            isEVM: false,
+            walletClientType: item.walletClientType,
+          };
+        }
+        return null;
+      })
+      .filter(Boolean);
+  }, []);
+
+  // Memoize email extraction
+  const extractEmail = useCallback((user: any) => {
+    return (
+      user.google?.email ||
+      user.email?.address ||
+      user.linkedAccounts.find(
+        (account: any) => account.type === 'email'
+      )?.address ||
+      user.linkedAccounts.find(
+        (account: any) => account.type === 'google_oauth'
+      )?.email
+    );
+  }, []);
+
+  // Memoize API URL
+  const apiUrl = useMemo(
+    () => `${process.env.NEXT_PUBLIC_API_URL}/api/v2/desktop/user/`,
+    []
+  );
+
+  const handleUserVerification = useCallback(
+    async (user: any) => {
       try {
-        const email =
-          user.google?.email ||
-          user.email?.address ||
-          user.linkedAccounts.find((account) => account.type === "email")
-            ?.address ||
-          user.linkedAccounts.find((account) => account.type === "google_oauth")
-            ?.email;
-
+        setIsLoading(true);
+        const email = extractEmail(user);
         if (!email) {
-          console.log("No email found, redirecting to onboard");
-          router.push("/onboard");
+          router.push('/onboard');
           return;
         }
-        const response = await fetch(
-          `${process.env.NEXT_PUBLIC_API_URL}/api/v2/desktop/user/${email}`,
-          {
-            headers: {
-              "Content-Type": "application/json",
-            },
-          }
-        );
+
+        const response = await fetch(`${apiUrl}${email}`, {
+          headers: { 'Content-Type': 'application/json' },
+        });
 
         const data = await response.json();
 
-        // console.log("user response for login", data);
-
         if (!response.ok) {
-          console.log("User not found, redirecting to onboard");
-          router.push("/onboard");
+          router.push('/onboard');
           return;
         }
 
         const payload = {
           userId: data.user._id,
-          ethAddress:
-            walletData && walletData.find((wallet) => wallet?.isEVM)?.address,
-          solanaAddress:
-            walletData && walletData.find((wallet) => !wallet?.isEVM)?.address,
+          ethAddress: walletData?.find((wallet) => wallet?.isEVM)
+            ?.address,
+          solanaAddress: walletData?.find((wallet) => !wallet?.isEVM)
+            ?.address,
         };
-        console.log("User found, redirecting to home");
+
         setIsRedirecting(true);
-        router.push("/");
         await createLoginWalletBalance(payload);
+        router.push('/');
       } catch (error) {
-        console.error("Error verifying user:", error);
-        router.push("/onboard");
+        console.error('Error verifying user:', error);
+        router.push('/onboard');
       } finally {
         loginInitiated.current = false;
         setIsLoading(false);
       }
     },
-    onError: (error) => {
-      console.error("Login error:", error);
-      loginInitiated.current = false;
-      setIsLoading(false);
-    },
-  });
+    [apiUrl, extractEmail, router, walletData]
+  );
+
+  // Privy
+  const { state, sendCode, loginWithCode } = useLoginWithEmail();
 
   useEffect(() => {
-    // Check for privy tokens in cookies
-    const privyToken = document.cookie.includes("privy-token");
-    const privyIdToken = document.cookie.includes("privy-id-token");
+    if (authenticated && ready && user) {
+      const processedWalletData = processWalletData(user);
+      setWalletData(processedWalletData);
+    }
+  }, [authenticated, ready, user, processWalletData]);
 
-    // If tokens not found but user is authenticated, log them out
+  useEffect(() => {
+    const privyToken = document.cookie.includes('privy-token');
+    const privyIdToken = document.cookie.includes('privy-id-token');
+
     if ((!privyToken || !privyIdToken) && authenticated) {
       setIsLoggingOut(true);
-      logout().then(() => {
-        login();
-      });
+      logout();
     }
-  }, [authenticated, login, logout]);
+  }, [authenticated, logout]);
 
-  // Auto-trigger login when component mounts
+  // Effect for handling OTP completion
   useEffect(() => {
-    if (ready && !authenticated && !loginInitiated.current) {
-      handleLogin();
+    if (state.status === 'done' && user) {
+      handleUserVerification(user);
     }
-  }, [ready, authenticated]);
+  }, [state, user, handleUserVerification]);
 
-  const handleLogin = () => {
-    if (loginInitiated.current) return;
+  const handleEmailChange = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      setEmail(e.currentTarget.value);
+    },
+    []
+  );
 
-    try {
-      setIsLoading(true);
-      loginInitiated.current = true;
-      login();
-    } catch (error) {
-      console.error("Handle login error:", error);
-      loginInitiated.current = false;
-      setIsLoading(false);
-    }
-  };
+  const handleCodeChange = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      setCode(e.currentTarget.value);
+    },
+    []
+  );
+
+  const handleSendCode = useCallback(() => {
+    sendCode({ email });
+  }, [email, sendCode]);
+
+  const handleSubmitCode = useCallback(() => {
+    loginWithCode({ code });
+  }, [code, loginWithCode]);
+
+  console.log('state', state);
+  console.log('user', user);
+
+  if (!user) {
+    return (
+      <div className="relative w-full max-w-2xl mx-auto p-8">
+        <div className="absolute -top-20 left-0 w-32 h-32 animate-float">
+          <Image
+            src={astronot}
+            alt="astronot image"
+            className="w-48 h-auto"
+            priority
+          />
+        </div>
+        <div className="absolute -top-20 right-0 w-32 h-32">
+          <Image
+            src={yellowPlanet}
+            alt="yellow planet"
+            className="w-48 h-auto"
+            priority
+          />
+        </div>
+        <div className="absolute -bottom-20 left-8 w-24 h-24">
+          <Image
+            src={bluePlanet}
+            alt="blue planet"
+            className="w-56 h-auto"
+            priority
+          />
+        </div>
+        <Card className="relative w-full bg-white/80 backdrop-blur-sm shadow-xl rounded-3xl p-16 max-w-md mx-auto">
+          <div className="text-center space-y-6">
+            <div className="flex justify-center">
+              <div className="flex items-center gap-2">
+                <div className="w-6 h-6 rounded-full bg-black" />
+                <span className="text-4xl font-semibold">SWOP</span>
+              </div>
+            </div>
+
+            {!user &&
+              (state.status === 'initial' ||
+                state.status === 'sending-code' ||
+                state.status === 'done') && (
+                <div className="flex flex-col gap-4">
+                  <Input
+                    className="border border-slate-600"
+                    onChange={handleEmailChange}
+                    value={email}
+                  />
+                  <Button
+                    className="py-4 rounded-xl text-md font-normal px-6"
+                    onClick={handleSendCode}
+                    disabled={state.status === 'sending-code'}
+                  >
+                    Send Code
+                  </Button>
+                  {state.status === 'sending-code' && (
+                    <span>Sending Code...</span>
+                  )}
+                </div>
+              )}
+
+            {(state.status === 'awaiting-code-input' ||
+              state.status === 'submitting-code') && (
+              <div className="flex flex-col gap-4">
+                <Input onChange={handleCodeChange} value={code} />
+                <Button
+                  className="border border-slate-600"
+                  disabled={state.status !== 'awaiting-code-input'}
+                  onClick={handleSubmitCode}
+                >
+                  Enter OTP
+                </Button>
+                {state.status === 'submitting-code' && (
+                  <span>Logging in...</span>
+                )}
+              </div>
+            )}
+
+            {state.status === 'error' && (
+              <span className="text-red-400">Invalid OTP</span>
+            )}
+          </div>
+        </Card>
+      </div>
+    );
+  }
 
   if (!ready || isLoggingOut || isRedirecting) {
     return <Loader />;
@@ -162,59 +279,6 @@ const Login: React.FC = () => {
       </div>
     );
   }
-
-  return (
-    <div className="relative w-full max-w-2xl mx-auto p-8">
-      <div className="absolute -top-20 left-0 w-32 h-32 animate-float">
-        <Image
-          src={astronot}
-          alt="astronot image"
-          className="w-48 h-auto"
-          priority
-        />
-      </div>
-      <div className="absolute -top-20 right-0 w-32 h-32">
-        <Image
-          src={yellowPlanet}
-          alt="yellow planet"
-          className="w-48 h-auto"
-          priority
-        />
-      </div>
-      <div className="absolute -bottom-20 left-8 w-24 h-24">
-        <Image
-          src={bluePlanet}
-          alt="blue planet"
-          className="w-56 h-auto"
-          priority
-        />
-      </div>
-      <Card className="relative w-full bg-white/80 backdrop-blur-sm shadow-xl rounded-3xl p-16 max-w-md mx-auto">
-        <div className="text-center space-y-6">
-          <div className="flex justify-center">
-            <div className="flex items-center gap-2">
-              <div className="w-6 h-6 rounded-full bg-black" />
-              <span className="text-4xl font-semibold">privy</span>
-            </div>
-          </div>
-          <Button
-            variant="outline"
-            className="w-full py-6 rounded-full relative text-lg font-normal justify-between px-6"
-            onClick={handleLogin}
-            disabled={isLoading}
-          >
-            <div className="flex items-center gap-3">
-              <div className="w-6 h-6 rounded-full bg-gray-100 flex items-center justify-center">
-                <span className="text-sm">👤</span>
-              </div>
-              {isLoading ? "Logging in..." : "Login with Privy"}
-            </div>
-            <ChevronRight className="h-5 w-5 text-gray-400" />
-          </Button>
-        </div>
-      </Card>
-    </div>
-  );
 };
 
 export default Login;
