@@ -19,6 +19,7 @@ import {
 } from 'recharts';
 import { Button } from '../ui/button';
 import WalletAddressPopup from './wallet-address-popup';
+import { Skeleton } from '../ui/skeleton';
 
 const BalanceChart = ({
   balanceHistory,
@@ -252,6 +253,30 @@ const BalanceChart = ({
   );
 };
 
+const SkeletonBalanceChart = () => (
+  <div className="bg-white my-4 p-5 rounded-xl">
+    <div className="flex justify-between">
+      <div>
+        <h2 className="font-bold text-xl text-gray-700">
+          <Skeleton className="h-10 w-40 rounded-full" />
+        </h2>
+        <p className="font-bold text-xl text-gray-700 my-2">
+          <Skeleton className="h-10 w-40 rounded-full" />
+        </p>
+      </div>
+      <div className="flex gap-2">
+        <Skeleton className="h-10 w-10" />
+        <Skeleton className="h-10 w-10" />
+        <Skeleton className="h-10 w-10" />
+        <Skeleton className="h-10 w-10" />
+      </div>
+    </div>
+    <ResponsiveContainer width="100%" height={400}>
+      <Skeleton className="h-full rounded-lg" />
+    </ResponsiveContainer>
+  </div>
+);
+
 // Example usage with the provided data
 const WalletBalanceChartForWalletPage = ({
   walletData,
@@ -292,7 +317,7 @@ const WalletBalanceChartForWalletPage = ({
 
   return (
     <>
-      {balanceData.length > 0 && (
+      {balanceData.length > 0 ? (
         <BalanceChart
           balanceHistory={balanceData}
           walletList={walletList}
@@ -302,6 +327,8 @@ const WalletBalanceChartForWalletPage = ({
           walletData={walletData}
           totalTokensValue={totalTokensValue}
         />
+      ) : (
+        <SkeletonBalanceChart /> // Render Skeleton while loading
       )}
     </>
   );

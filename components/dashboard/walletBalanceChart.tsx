@@ -10,6 +10,23 @@ import {
   Tooltip,
   ResponsiveContainer,
 } from 'recharts';
+import { Skeleton } from '../ui/skeleton';
+
+const SkeletonBalanceChart = () => (
+  <div className="bg-white my-4 p-5 rounded-xl">
+    <div className="">
+      <h2 className="font-bold text-xl text-gray-700">
+        <Skeleton className="h-10 w-40 rounded-full" />
+      </h2>
+      <p className="font-bold text-xl text-gray-700 my-2">
+        <Skeleton className="h-10 w-40 rounded-full" />
+      </p>
+    </div>
+    <ResponsiveContainer width="100%" height={400}>
+      <Skeleton className="h-full rounded-lg" />
+    </ResponsiveContainer>
+  </div>
+);
 
 const BalanceChart = ({ balanceHistory, totalTokensValue }: any) => {
   const [timeRange, setTimeRange] = useState('7days');
@@ -235,12 +252,14 @@ const WalletBalanceChart = ({ isFromWallet = false }) => {
 
   return (
     <>
-      {balanceData.length > 0 && (
+      {balanceData.length > 0 ? (
         <BalanceChart
           balanceHistory={balanceData}
           walletList={walletList}
           totalTokensValue={totalTokensValue}
         />
+      ) : (
+        <SkeletonBalanceChart /> // Render Skeleton while loading
       )}
     </>
   );
