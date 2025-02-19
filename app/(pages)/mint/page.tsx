@@ -6,10 +6,9 @@ import Link from 'next/link';
 import PushToMintCollectionButton from '@/components/Button/PushToMintCollectionButton';
 import SaveToLocalAndNavigate from '@/components/SaveToLocalAndNavigate';
 import HomePageLoading from '@/components/loading/HomePageLoading';
-import getMintPageData, {
-  GroupedTemplates,
-} from '@/utils/fetchingData/getMintPageData';
+import getMintPageData from '@/utils/fetchingData/getMintPageData';
 import { useUser } from '@/lib/UserContext';
+import { PlusCircle } from 'lucide-react';
 
 interface Template {
   templateId: string;
@@ -24,21 +23,11 @@ interface Template {
   };
 }
 
-interface GroupedByNftType {
-  [nftType: string]: Template[];
-}
-
 interface Collection {
-  id: string;
-  metadata: {
-    name: string;
-    description?: string;
-  };
-}
-
-interface GroupedTemplatesByCollection {
-  collection: Collection;
-  templatesByNftType: GroupedByNftType;
+  _id: string;
+  name: string;
+  mint_address: string;
+  image: string;
 }
 
 const nftTypes = [
@@ -60,10 +49,14 @@ const nftCollection = [
   {
     name: 'subscription',
     mint_address: '8ngpZFQaARzprfJewfdTJJqs1MP6rE4xc1tpwbntADFp',
+    image:
+      'https://quicknode.quicknode-ipfs.com/ipfs/QmSvPHcb7T2AVd8ebaYgKfRBwDXNwzTHUJ7D19LRmaRHia',
   },
   {
     name: 'membership',
     mint_address: 'CszXhmv3c36NmNxKRfYsttWE3DTA32krStf3rqpyaidq',
+    image:
+      'https://quicknode.quicknode-ipfs.com/ipfs/QmSdMaGMHjKvjNxLyta33MU5NzKLJEUQb82we2JjtRjwU7',
   },
   {
     name: 'coupon',
@@ -89,11 +82,7 @@ const capitalizeFirstLetter = (str: string) =>
   str.charAt(0).toUpperCase() + str.slice(1);
 
 const MintDashboard = () => {
-  const [mintData, setMintData] = useState<
-    | { data: GroupedTemplatesByCollection[] }
-    | { noCollections: boolean }
-    | null
-  >(null);
+  const [collections, setCollections] = useState<Collection[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
   const { accessToken } = useUser();
@@ -111,8 +100,8 @@ const MintDashboard = () => {
     const fetchData = async () => {
       if (accessToken) {
         try {
-          const data = await getMintPageData(accessToken);
-          setMintData(data);
+          const { data } = await getMintPageData(accessToken);
+          setCollections(data);
         } catch (err) {
           if (err instanceof Error) {
             setError(err);
@@ -130,26 +119,6 @@ const MintDashboard = () => {
 
     fetchData();
   }, [accessToken, waitForToken]);
-
-  const handleCheckout = () => {
-    const itemsString = localStorage.getItem(
-      'swop_desktop_cart_item_list'
-    );
-    if (!itemsString) {
-      alert('No items in the cart.');
-      return;
-    }
-
-    try {
-      const items = JSON.parse(itemsString);
-      const encodedItems = encodeURIComponent(JSON.stringify(items));
-      const url = `http://localhost:3001/GetClient?items=${encodedItems}`;
-      window.location.href = url;
-    } catch (err) {
-      console.error('Error parsing cart items:', err);
-      alert('Failed to process cart items.');
-    }
-  };
 
   if (loading) {
     return <HomePageLoading />;
@@ -173,104 +142,36 @@ const MintDashboard = () => {
     },
   }));
 
-  // if (!mintData || ("noCollections" in mintData && mintData.noCollections)) {
-  //   const staticSamples = nftCollection.map((nftType) => ({
-  //     nftType: nftType.name,
-  //     templates: [
-  //       {
-  //         templateId: `${nftType.mint_address}`,
-  //         metadata: {
-  //           image: `/assets/collections/${nftType.name}.png`, // Replace with your sample images
-  //           name: `${capitalizeFirstLetter(nftType.name)}`,
-  //           description: `A unique digital collectible that represents ownership of exclusive ${nftType} content. Each piece is verifiably authentic on the blockchain.`,
-  //         },
-  //         supply: {
-  //           limit: 100,
-  //           minted: 0,
-  //         },
-  //       },
-  //     ],
-  //   }));
-
-  //   return (
-  //     <main className="main-container">
-  //       <div className="bg-white p-4">
-  //         <h2 className="text-center text-2xl font-bold mb-6">
-  //           Explore NFT Types
-  //         </h2>
-  //         {staticSamples.map((sampleGroup) => (
-  //           <div key={sampleGroup.nftType}>
-  //             <h3 className="text-xl font-semibold my-2">
-  //               {capitalizeFirstLetter(sampleGroup.nftType)}
-  //             </h3>
-  //             <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 xl:gap-10">
-  //               {sampleGroup.templates.map((template) => (
-  //                 <MintCart
-  //                 key={template.templateId}
-  //                 img={template.metadata.image}
-  //                 title={template.metadata.name}
-  //                 text={`Limit: ${template.supply.limit}, Minted: ${template.supply.minted}`}
-  //                 collectionId={group.collection.id}
-  //                 templateId={template.templateId}
-  //                 description={template.metadata.description}
-  //                 />
-  //               ))}
-  //               <div
-  //                 className="min-h-[360px] min-w-[365px] h-full w-full"
-  //                 onClick={() =>
-  //                   (window.location.href = `/mint/create${capitalizeFirstLetter(
-  //                     sampleGroup.nftType
-  //                   )}`)
-  //                 }
-  //               >
-  //                 <SaveToLocalAndNavigate collectionId="static-sample" />
-  //               </div>
-  //             </div>
-  //           </div>
-  //         ))}
-  //         {/* <div className="flex justify-center mt-8">
-  //           <Link href="/mint/createCollection">
-  //             <PushToMintCollectionButton className="!py-2">
-  //               Create Collection
-  //             </PushToMintCollectionButton>
-  //           </Link>
-  //         </div> */}
-  //       </div>
-  //     </main>
-  //   );
-  // }
+  console.log('collections', collections);
 
   return (
     <main className="main-container">
       <div className="bg-white p-4">
-        {nftCollection &&
-          staticSamples.map((nftType) => (
-            <div key={nftType.templateId}>
+        {collections.length > 0 &&
+          collections.map((collection) => (
+            <div key={collection._id}>
               <h3 className="text-xl font-semibold my-2">
-                {capitalizeFirstLetter(nftType.nftType)}
+                {capitalizeFirstLetter(collection.name)}
               </h3>
               <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 xl:gap-10">
                 <MintCart
-                  key={nftType.templateId}
-                  img={nftType.metadata.image}
-                  title={nftType.metadata.name}
-                  text={`Limit: ${nftType.supply.limit}, Minted: ${nftType.supply.minted}`}
-                  collectionId={nftType.templateId}
-                  templateId={nftType.templateId}
-                  description={nftType.metadata.description}
+                  key={collection._id}
+                  img={collection.image}
+                  title={collection.name}
+                  collectionId={collection.mint_address}
+                  description={`A unique digital collectible that represents ownership of exclusive ${collection.name} content. Each piece is verifiably authentic on the blockchain.`}
                 />
-                <div
+                <a
                   className="min-h-[360px] min-w-[365px] h-full w-full"
-                  onClick={() =>
-                    (window.location.href = `/mint/create${capitalizeFirstLetter(
-                      nftType.nftType
-                    )}`)
-                  }
+                  href={`/mint/create/${collection.name}/${collection.mint_address}`}
                 >
-                  <SaveToLocalAndNavigate
-                    collectionId={nftType.templateId}
-                  />
-                </div>
+                  <div className="shadow-medium rounded-lg px-5 py-6 flex flex-col items-center justify-center cursor-pointer hover:bg-gray-100 h-full w-full">
+                    <PlusCircle className="w-24 h-24 text-gray-400 mb-4 stroke-1" />
+                    <p className="text-lg font-semibold text-gray-700">
+                      Add NFTs To This Type
+                    </p>
+                  </div>
+                </a>
               </div>
             </div>
           ))}
