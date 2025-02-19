@@ -175,7 +175,7 @@ const ProfileHeader = memo(function ProfileHeader() {
               <MdRedeem size={20} />
             }
             value={points}
-            label="Swopple Points"
+            label="Swop Tokens"
           />
         </div>
       </div>
