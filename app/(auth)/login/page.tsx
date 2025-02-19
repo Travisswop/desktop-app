@@ -153,7 +153,10 @@ const Login: React.FC = () => {
 
   // Effect for handling OTP completion
   useEffect(() => {
-    if (state.status === 'done' && user) {
+    if (
+      (state.status === 'initial' || state.status === 'done') &&
+      user
+    ) {
       handleUserVerification(user);
     }
   }, [state, user, handleUserVerification]);
