@@ -2,104 +2,164 @@
 
 import { createLoginWalletBalance } from "@/actions/createWallet";
 import Loader from "@/components/loading/Loader";
-import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import astronot from "@/public/onboard/astronot.svg";
 import bluePlanet from "@/public/onboard/blue-planet.svg";
 import yellowPlanet from "@/public/onboard/yellow-planet.svg";
+import swopLogo from "@/public/swopLogo.png";
 import { WalletItem } from "@/types/wallet";
-import { useLogin, useLogout, usePrivy } from "@privy-io/react-auth";
-import { ChevronRight } from "lucide-react";
+import { useLoginWithEmail, useLogout, usePrivy } from "@privy-io/react-auth";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { GoArrowLeft } from "react-icons/go";
+import { IoCloseOutline } from "react-icons/io5";
+import { LuArrowRight } from "react-icons/lu";
+import { RiMailSendLine } from "react-icons/ri";
 
 const Login: React.FC = () => {
-  const { authenticated, ready, user: PrivyUser } = usePrivy();
+  const { authenticated, ready, user } = usePrivy();
   const { logout } = useLogout();
   const router = useRouter();
   const loginInitiated = useRef(false);
+
   const [isLoading, setIsLoading] = useState(false);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [isRedirecting, setIsRedirecting] = useState(false);
   const [walletData, setWalletData] = useState<WalletItem[] | null>(null);
-  useEffect(() => {
-    if (authenticated && ready && PrivyUser) {
-      const linkWallet = PrivyUser?.linkedAccounts
-        .map((item: any) => {
-          if (item.chainType === "ethereum") {
-            return {
-              address: item.address,
-              isActive:
-                item.walletClientType === "privy" ||
-                item.connectorType === "embedded",
-              isEVM: true,
-              walletClientType: item.walletClientType,
-            };
-          } else if (item.chainType === "solana") {
-            return {
-              address: item.address,
-              isActive:
-                item.walletClientType === "privy" ||
-                item.connectorType === "embedded",
-              isEVM: false,
-              walletClientType: item.walletClientType,
-            };
-          }
-          return null;
-        })
-        .filter(Boolean);
 
-      setWalletData(linkWallet as WalletItem[]);
+  const [email, setEmail] = useState("");
+  const [code, setCode] = useState("");
+
+  const otpLength = 6;
+  const [otp, setOtp] = useState(new Array(otpLength).fill(""));
+  const inputRefs = useRef<Array<HTMLInputElement | null>>(
+    new Array(otpLength).fill(null)
+  );
+
+  // Handle typing in OTP fields
+  const handleChange = (
+    index: number,
+    event: React.ChangeEvent<HTMLInputElement>
+  ) => {
+    const value = event.target.value;
+    if (isNaN(Number(value))) return;
+
+    const newOtp = [...otp];
+    newOtp[index] = value.substring(value.length - 1);
+    setOtp(newOtp);
+
+    if (value && index < otpLength - 1) {
+      inputRefs.current[index + 1]?.focus();
     }
-  }, [PrivyUser, authenticated, ready]);
+  };
 
-  const { login } = useLogin({
-    onComplete: async (user) => {
+  // Handle backspace to move focus to previous field
+  const handleKeyDown = (
+    index: number,
+    event: React.KeyboardEvent<HTMLInputElement>
+  ) => {
+    if (event.key === "Backspace" && !otp[index] && index > 0) {
+      inputRefs.current[index - 1]?.focus();
+    }
+  };
+
+  // Handle pasting OTP
+  const handlePaste = (event: React.ClipboardEvent<HTMLInputElement>) => {
+    const pasteData = event.clipboardData
+      .getData("text")
+      .slice(0, otpLength)
+      .split("");
+    if (pasteData.some((char) => isNaN(Number(char)))) return;
+
+    setOtp([...pasteData, ...new Array(otpLength - pasteData.length).fill("")]);
+
+    pasteData.forEach((char, index) => {
+      if (inputRefs.current[index]) {
+        inputRefs.current[index]!.value = char;
+      }
+    });
+
+    inputRefs.current[Math.min(pasteData.length, otpLength - 1)]?.focus();
+  };
+
+  // Memoize wallet data transformation
+  const processWalletData = useCallback((user: any) => {
+    return user?.linkedAccounts
+      .map((item: any) => {
+        if (item.chainType === "ethereum") {
+          return {
+            address: item.address,
+            isActive:
+              item.walletClientType === "privy" ||
+              item.connectorType === "embedded",
+            isEVM: true,
+            walletClientType: item.walletClientType,
+          };
+        } else if (item.chainType === "solana") {
+          return {
+            address: item.address,
+            isActive:
+              item.walletClientType === "privy" ||
+              item.connectorType === "embedded",
+            isEVM: false,
+            walletClientType: item.walletClientType,
+          };
+        }
+        return null;
+      })
+      .filter(Boolean);
+  }, []);
+
+  // Memoize email extraction
+  const extractEmail = useCallback((user: any) => {
+    return (
+      user.google?.email ||
+      user.email?.address ||
+      user.linkedAccounts.find((account: any) => account.type === "email")
+        ?.address ||
+      user.linkedAccounts.find(
+        (account: any) => account.type === "google_oauth"
+      )?.email
+    );
+  }, []);
+
+  // Memoize API URL
+  const apiUrl = useMemo(
+    () => `${process.env.NEXT_PUBLIC_API_URL}/api/v2/desktop/user/`,
+    []
+  );
+
+  const handleUserVerification = useCallback(
+    async (user: any) => {
       try {
-        const email =
-          user.google?.email ||
-          user.email?.address ||
-          user.linkedAccounts.find((account) => account.type === "email")
-            ?.address ||
-          user.linkedAccounts.find((account) => account.type === "google_oauth")
-            ?.email;
-
+        setIsLoading(true);
+        const email = extractEmail(user);
         if (!email) {
-          console.log("No email found, redirecting to onboard");
           router.push("/onboard");
           return;
         }
-        const response = await fetch(
-          `${process.env.NEXT_PUBLIC_API_URL}/api/v2/desktop/user/${email}`,
-          {
-            headers: {
-              "Content-Type": "application/json",
-            },
-          }
-        );
+
+        const response = await fetch(`${apiUrl}${email}`, {
+          headers: { "Content-Type": "application/json" },
+        });
 
         const data = await response.json();
 
-        // console.log("user response for login", data);
-
         if (!response.ok) {
-          console.log("User not found, redirecting to onboard");
           router.push("/onboard");
           return;
         }
 
         const payload = {
           userId: data.user._id,
-          ethAddress:
-            walletData && walletData.find((wallet) => wallet?.isEVM)?.address,
-          solanaAddress:
-            walletData && walletData.find((wallet) => !wallet?.isEVM)?.address,
+          ethAddress: walletData?.find((wallet) => wallet?.isEVM)?.address,
+          solanaAddress: walletData?.find((wallet) => !wallet?.isEVM)?.address,
         };
-        console.log("User found, redirecting to home");
+
         setIsRedirecting(true);
-        router.push("/");
         await createLoginWalletBalance(payload);
+        router.push("/");
       } catch (error) {
         console.error("Error verifying user:", error);
         router.push("/onboard");
@@ -108,47 +168,232 @@ const Login: React.FC = () => {
         setIsLoading(false);
       }
     },
-    onError: (error) => {
-      console.error("Login error:", error);
-      loginInitiated.current = false;
-      setIsLoading(false);
-    },
-  });
+    [apiUrl, extractEmail, router, walletData]
+  );
+
+  // Privy
+  const { state, sendCode, loginWithCode } = useLoginWithEmail();
 
   useEffect(() => {
-    // Check for privy tokens in cookies
+    if (authenticated && ready && user) {
+      const processedWalletData = processWalletData(user);
+      setWalletData(processedWalletData);
+    }
+  }, [authenticated, ready, user, processWalletData]);
+
+  useEffect(() => {
     const privyToken = document.cookie.includes("privy-token");
     const privyIdToken = document.cookie.includes("privy-id-token");
 
-    // If tokens not found but user is authenticated, log them out
     if ((!privyToken || !privyIdToken) && authenticated) {
       setIsLoggingOut(true);
-      logout().then(() => {
-        login();
-      });
+      logout();
     }
-  }, [authenticated, login, logout]);
+  }, [authenticated, logout]);
 
-  // Auto-trigger login when component mounts
+  // Effect for handling OTP completion
   useEffect(() => {
-    if (ready && !authenticated && !loginInitiated.current) {
-      handleLogin();
+    if ((state.status === "initial" || state.status === "done") && user) {
+      handleUserVerification(user);
     }
-  }, [ready, authenticated]);
+  }, [state, user, handleUserVerification]);
 
-  const handleLogin = () => {
-    if (loginInitiated.current) return;
+  const handleEmailChange = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      setEmail(e.currentTarget.value);
+    },
+    []
+  );
 
-    try {
-      setIsLoading(true);
-      loginInitiated.current = true;
-      login();
-    } catch (error) {
-      console.error("Handle login error:", error);
-      loginInitiated.current = false;
-      setIsLoading(false);
+  const handleCodeChange = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      setCode(e.currentTarget.value);
+    },
+    []
+  );
+
+  const handleSendCode = useCallback(() => {
+    sendCode({ email });
+  }, [email, sendCode]);
+
+  const loginWithCodeCallback = useCallback(
+    (code: string) => {
+      loginWithCode({ code });
+    },
+    [loginWithCode]
+  );
+
+  useEffect(() => {
+    const code = otp.join("");
+
+    if (code.length === otpLength) {
+      loginWithCodeCallback(code);
     }
-  };
+  }, [otp, otpLength, loginWithCodeCallback]);
+
+  // const handleSubmitCode = useCallback(() => {
+  //   loginWithCode({ code });
+  // }, [code, loginWithCode]);
+
+  console.log("state", state);
+  console.log("user", user);
+
+  if (!user) {
+    return (
+      <div className="">
+        {!user &&
+          (state.status === "initial" ||
+            state.status === "sending-code" ||
+            state.status === "done") && (
+            <div className="relative w-full max-w-2xl mx-auto p-8 flex justify-center items-center">
+              {/* Background Images */}
+              <div className="absolute -top-[16%] -left-[11%] w-32 h-32 animate-float">
+                <Image
+                  src={astronot}
+                  alt="astronot"
+                  className="w-40 h-auto"
+                  priority
+                />
+              </div>
+              <div className="absolute -top-[5%] -right-[5%] w-32 h-32">
+                <Image
+                  src={yellowPlanet}
+                  alt="yellow planet"
+                  className="w-40 h-auto"
+                  priority
+                />
+              </div>
+              <div className="absolute -bottom-[5%] -left-[2%] w-24 h-24">
+                <Image
+                  src={bluePlanet}
+                  alt="blue planet"
+                  className="w-40 h-auto"
+                  priority
+                />
+              </div>
+
+              {/* Card */}
+              <Card className="relative w-full bg-white/15 backdrop-blur-md shadow-xl rounded-3xl max-w-lg mx-auto p-10">
+                <div className="flex flex-col items-center space-y-6 text-center py-24">
+                  {/* SWOP Logo */}
+                  <Image
+                    src={swopLogo}
+                    alt="swop logo"
+                    className="w-40 h-auto"
+                    priority
+                  />
+
+                  {/* Email Input Field */}
+                  <div className="flex items-center border border-black rounded-xl overflow-hidden w-[350px]">
+                    <div className="p-2 pl-4">
+                      <RiMailSendLine className="text-gray-400" size={20} />
+                    </div>
+                    <input
+                      type="email"
+                      placeholder="Enter your email address"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      className="flex-1 px-2 py-2 text-gray-600 placeholder-gray-400 outline-none bg-transparent"
+                    />
+                    <button
+                      className="bg-black text-white p-2 rounded-lg m-1 px-4"
+                      onClick={handleSendCode}
+                      disabled={state.status === "sending-code"}
+                    >
+                      <LuArrowRight className="text-gray-50" size={20} />
+                    </button>
+                  </div>
+
+                  {state.status === "sending-code" && (
+                    <span>Sending Code...</span>
+                  )}
+                </div>
+              </Card>
+            </div>
+          )}
+
+        {/* <Input
+                  className="border border-slate-600"
+                  onChange={handleEmailChange}
+                  value={email}
+                />
+                <Button
+                  className="py-4 rounded-xl text-md font-normal px-6"
+                  onClick={handleSendCode}
+                  disabled={state.status === "sending-code"}
+                >
+                  Send Code
+                </Button>
+               */}
+
+        {state.status === "error" && (
+          <span className="text-red-400">Invalid OTP</span>
+        )}
+
+        {(state.status === "awaiting-code-input" ||
+          state.status === "submitting-code") && (
+          <div className="flex flex-col items-center justify-center p-8 bg-white rounded-2xl shadow-lg w-[400px] border">
+            {" "}
+            {/* <div className="flex flex-col gap-4">
+              <Input onChange={handleCodeChange} value={code} />
+              <Button
+                className="border border-slate-600"
+                disabled={state.status !== "awaiting-code-input"}
+                onClick={handleSubmitCode}
+              >
+                Enter OTP
+              </Button>
+              {state.status === "submitting-code" && <span>Logging in...</span>}
+            </div> */}
+            {/* Close & Back Buttons */}
+            <div className="flex justify-between w-full text-gray-500">
+              <button className="text-lg">
+                <GoArrowLeft className="text-gray-800 " size={25} />
+              </button>
+              <span className="text-base">Log in or sign up</span>
+              <button className="text-lg">
+                <IoCloseOutline className="text-gray-800 " size={25} />
+              </button>
+            </div>
+            {/* Mail Icon */}
+            <RiMailSendLine className="text-indigo-500 mt-6" size={40} />
+            {/* Title */}
+            <h2 className="font-semibold text-lg mt-4">
+              Enter Configuration Code
+            </h2>
+            {/* Email Info */}
+            <p className="text-sm text-gray-600 text-center mt-3">
+              Please check <span className="font-medium">{email}</span> for an
+              email from privy.io and enter your code below.
+            </p>
+            {/* OTP Input Fields */}
+            <div className="flex justify-center gap-3 mt-12">
+              {otp.map((_, index) => (
+                <input
+                  key={index}
+                  ref={(el) => (inputRefs.current[index] = el)}
+                  type="text"
+                  maxLength={1}
+                  value={otp[index]}
+                  onChange={(e) => handleChange(index, e)}
+                  onKeyDown={(e) => handleKeyDown(index, e)}
+                  onPaste={handlePaste}
+                  className="w-12 h-16 border border-gray-300 rounded-lg text-center text-xl focus:outline-none focus:border-indigo-500"
+                />
+              ))}
+            </div>
+            {/* Resend Code */}
+            <p className="text-sm text-gray-500 mt-5">
+              Didn’t get an email?{"  "}
+              <span className="text-indigo-600 cursor-pointer">
+                Resend code
+              </span>
+            </p>
+          </div>
+        )}
+      </div>
+    );
+  }
 
   if (!ready || isLoggingOut || isRedirecting) {
     return <Loader />;
@@ -161,59 +406,6 @@ const Login: React.FC = () => {
       </div>
     );
   }
-
-  return (
-    <div className="relative w-full max-w-2xl mx-auto p-8">
-      <div className="absolute -top-20 left-0 w-32 h-32 animate-float">
-        <Image
-          src={astronot}
-          alt="astronot image"
-          className="w-48 h-auto"
-          priority
-        />
-      </div>
-      <div className="absolute -top-20 right-0 w-32 h-32">
-        <Image
-          src={yellowPlanet}
-          alt="yellow planet"
-          className="w-48 h-auto"
-          priority
-        />
-      </div>
-      <div className="absolute -bottom-20 left-8 w-24 h-24">
-        <Image
-          src={bluePlanet}
-          alt="blue planet"
-          className="w-56 h-auto"
-          priority
-        />
-      </div>
-      <Card className="relative w-full bg-white/80 backdrop-blur-sm shadow-xl rounded-3xl p-16 max-w-md mx-auto">
-        <div className="text-center space-y-6">
-          <div className="flex justify-center">
-            <div className="flex items-center gap-2">
-              <div className="w-6 h-6 rounded-full bg-black" />
-              <span className="text-4xl font-semibold">privy</span>
-            </div>
-          </div>
-          <Button
-            variant="outline"
-            className="w-full py-6 rounded-full relative text-lg font-normal justify-between px-6"
-            onClick={handleLogin}
-            disabled={isLoading}
-          >
-            <div className="flex items-center gap-3">
-              <div className="w-6 h-6 rounded-full bg-gray-100 flex items-center justify-center">
-                <span className="text-sm">👤</span>
-              </div>
-              {isLoading ? "Logging in..." : "Login with Privy"}
-            </div>
-            <ChevronRight className="h-5 w-5 text-gray-400" />
-          </Button>
-        </div>
-      </Card>
-    </div>
-  );
 };
 
 export default Login;

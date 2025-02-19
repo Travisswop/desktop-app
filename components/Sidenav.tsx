@@ -24,8 +24,8 @@ import { useUser } from '@/lib/UserContext';
 
 // First, create the base nav items without the Agent item
 const baseNavItems = [
-  { href: '/', label: 'Dashboard', icon: LayoutDashboard },
-  { href: '/feed', label: 'Feed', icon: Newspaper },
+  { href: '/', label: 'Feed', icon: Newspaper },
+  { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { href: '/smartsite', label: 'Smartsites', icon: LayoutGrid },
   { href: '/qr-code', label: 'QR Code', icon: QrCode },
   { href: '/wallet', label: 'Wallet', icon: Wallet },
