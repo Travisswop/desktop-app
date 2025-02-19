@@ -3,15 +3,8 @@ import { useState, DragEvent, useEffect } from 'react';
 import PushToMintCollectionButton from '@/components/Button/PushToMintCollectionButton';
 import Image from 'next/image';
 import { sendCloudinaryImage } from '@/lib/SendCloudineryImage';
-import { sendCloudinaryFile } from '@/lib/SendCloudineryAnyFile';
-import { useUser } from '@/lib/UserContext';
 import { useSolanaWallets } from '@privy-io/react-auth';
-
-interface ContentFile {
-  url: string;
-  name: string;
-  type: string;
-}
+import { useUser } from '@/lib/UserContext';
 
 interface FormData {
   name: string;
@@ -21,7 +14,6 @@ interface FormData {
   price: string;
   currency: string;
   benefits: string[];
-  content: ContentFile[];
   enableCreditCard: boolean;
   verifyIdentity: boolean;
   limitQuantity: boolean;
@@ -29,25 +21,24 @@ interface FormData {
   royaltyPercentage: number;
 }
 
-const CreateCollectible = ({
+const CreateMembershipPage = ({
   collectionId,
 }: {
   collectionId: string;
 }) => {
   const [formData, setFormData] = useState<FormData>({
     name: '',
-    nftType: 'collectible',
+    nftType: 'membership',
     description: '',
     image: '',
     price: '',
     currency: 'usdc',
     benefits: [],
-    content: [],
     enableCreditCard: false,
     verifyIdentity: false,
     limitQuantity: false,
     quantity: undefined,
-    royaltyPercentage: 10,
+    royaltyPercentage: 0,
   });
 
   const [newBenefit, setNewBenefit] = useState('');
@@ -55,13 +46,17 @@ const CreateCollectible = ({
     string | null
   >(null);
   const [imageUploading, setImageUploading] = useState(false);
-  const [isDragOver, setIsDragOver] = useState(false);
-  const [uploadingContent, setUploadingContent] = useState(false);
-  const [waitForToken, setWaitForToken] = useState(true);
-  const { user, accessToken } = useUser();
-  const { wallets } = useSolanaWallets();
 
-  const solanaAddress = wallets?.[0]?.address || null; // Fallback to null if no wallet is connected
+  const { wallets } = useSolanaWallets();
+  const { user, accessToken } = useUser();
+
+  const [waitForToken, setWaitForToken] = useState(true); // Manage token readiness
+  const [isSubmitting, setIsSubmitting] = useState(false); // Manage submission state
+  const [submissionError, setSubmissionError] = useState<
+    string | null
+  >(null); // Manage submission errors
+
+  const solanaAddress = wallets?.[0]?.address || null;
 
   useEffect(() => {
     const timeoutId = setTimeout(() => {
@@ -86,7 +81,7 @@ const CreateCollectible = ({
     } else {
       setFormData((prevState) => ({
         ...prevState,
-        [name]: value,
+        [name]: type === 'number' ? parseFloat(value) : value,
       }));
     }
   };
@@ -160,85 +155,6 @@ const CreateCollectible = ({
     reader.readAsDataURL(file);
   };
 
-  const handleContentUpload = async (
-    event: React.ChangeEvent<HTMLInputElement>
-  ) => {
-    const files = Array.from(event.target.files || []);
-    if (files.length === 0) return;
-
-    try {
-      setUploadingContent(true);
-      const uploadedFiles = await Promise.all(
-        files.map(async (file) => {
-          const reader = new FileReader();
-          const base64File = await new Promise<string>(
-            (resolve, reject) => {
-              reader.onloadend = () =>
-                resolve(reader.result as string);
-              reader.onerror = () => reject('Error reading file');
-              reader.readAsDataURL(file);
-            }
-          );
-
-          const fileUrl = await sendCloudinaryFile(
-            base64File,
-            file.type,
-            file.name
-          );
-          return { url: fileUrl, name: file.name, type: file.type };
-        })
-      );
-
-      // Update the formData with uploaded files
-      setFormData((prevState) => ({
-        ...prevState,
-        content: [...prevState.content, ...uploadedFiles],
-      }));
-    } catch (error) {
-      console.error('Error uploading files:', error);
-      alert('Failed to upload some files. Please try again.');
-    } finally {
-      setUploadingContent(false);
-    }
-  };
-
-  const handleFileDrop = async (event: DragEvent<HTMLDivElement>) => {
-    event.preventDefault();
-    const files = Array.from(event.dataTransfer.files);
-    if (files.length === 0) return;
-
-    try {
-      const uploadedFiles = await Promise.all(
-        files.map(async (file) => {
-          const reader = new FileReader();
-          const base64File = await new Promise<string>(
-            (resolve, reject) => {
-              reader.onloadend = () =>
-                resolve(reader.result as string);
-              reader.onerror = () => reject('Error reading file');
-              reader.readAsDataURL(file);
-            }
-          );
-
-          const fileUrl = await sendCloudinaryFile(
-            base64File,
-            file.type,
-            file.name
-          );
-          return { url: fileUrl, name: file.name, type: file.type };
-        })
-      );
-
-      setFormData((prevState) => ({
-        ...prevState,
-        content: [...prevState.content, ...uploadedFiles],
-      }));
-    } catch (error) {
-      console.error('Error uploading files:', error);
-      alert('Failed to upload some files. Please try again.');
-    }
-  };
-
   const handleAddBenefit = () => {
     if (newBenefit.trim()) {
       setFormData((prevState) => ({
@@ -256,27 +172,23 @@ const CreateCollectible = ({
     }));
   };
 
-  const getFileTypeIcon = (type: string) => {
-    if (type.startsWith('image')) return '🖼️';
-    if (type.startsWith('audio')) return '🎵';
-    if (type.startsWith('video')) return '🎥';
-    if (type === 'application/pdf') return '📄';
-    return '📁';
-  };
-
   const handleSubmit = async (
     e: React.MouseEvent<HTMLButtonElement>
   ) => {
     e.preventDefault();
+    setIsSubmitting(true);
+    setSubmissionError(null);
 
     try {
-      // Explicitly convert supplyLimit and price to numbers before submitting
       const finalData = {
         ...formData,
+        mintLimit: formData.limitQuantity
+          ? Number(formData.quantity)
+          : undefined,
+        price: Number(formData.price),
+        royaltyPercentage: formData.royaltyPercentage,
+        collectionId: collectionId,
         ownerAddress: solanaAddress,
-        mintLimit: Number(formData.quantity), // Ensure it's a number
-        price: Number(formData.price), // Ensure it's a number
-        collectionId, // Include collectionId in the payload
         userId: user._id,
       };
 
@@ -292,32 +204,40 @@ const CreateCollectible = ({
         }
       );
 
-      if (response.ok) {
-        const data = await response.json();
-        if (data.state === 'success') {
-          alert('NFT Template created successfully!');
-        } else {
-          alert('Failed to create template');
-        }
-      } else {
-        alert('Failed to create template');
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(
+          errorData.message || 'Failed to create membership.'
+        );
       }
+
+      const data = await response.json();
+      alert(
+        data.state === 'success'
+          ? 'Membership created successfully!'
+          : data.message
+      );
     } catch (error) {
-      console.error('Error creating template:', error);
-      alert('Failed to create template');
+      setSubmissionError(
+        error instanceof Error ? error.message : 'Unexpected error.'
+      );
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
   return (
     <div className="main-container flex justify-center">
       <div className="bg-white p-5 rounded-lg shadow-md border border-gray-300 w-full flex flex-wrap md:flex-nowrap">
+        {/* Form Section */}
         <div className="w-full md:w-1/2 p-5">
           <div className="bg-white p-4 rounded-lg shadow-md border border-gray-300">
             <div className="flex flex-col gap-4">
               <h2 className="text-2xl font-bold">
-                Create Collectible
+                Create Membership
               </h2>
 
+              {/* Name Input */}
               <div>
                 <label
                   htmlFor="name"
@@ -329,18 +249,19 @@ const CreateCollectible = ({
                   type="text"
                   id="name"
                   name="name"
-                  placeholder="Give your digital good a name."
+                  placeholder="Give your membership a name."
                   value={formData.name}
                   onChange={handleChange}
                   className="w-full border border-gray-300 rounded-lg px-4 py-2"
                   required
                 />
                 <p className="text-sm text-gray-500 mt-1">
-                  Note: Your pass name can&#39;t be changed after
-                  creation
+                  Note: Your membership name can&apos;t be changed
+                  after creation
                 </p>
               </div>
 
+              {/* Image Upload */}
               <label
                 htmlFor="image"
                 className="mb-1 block font-medium"
@@ -399,6 +320,7 @@ const CreateCollectible = ({
                 {imageUploading && <p>Uploading image...</p>}
               </div>
 
+              {/* Description */}
               <div>
                 <label
                   htmlFor="description"
@@ -417,6 +339,7 @@ const CreateCollectible = ({
                 />
               </div>
 
+              {/* Price */}
               <div>
                 <label
                   htmlFor="price"
@@ -435,86 +358,11 @@ const CreateCollectible = ({
                   required
                 />
                 <p className="text-sm text-gray-500 mt-1">
-                  Note: Currency can&#39;t be changed after creation
+                  Note: Currency can&apos;t be changed after creation
                 </p>
               </div>
 
-              <div>
-                <label
-                  htmlFor="price"
-                  className="mb-1 block font-medium"
-                >
-                  Limit quantity
-                </label>
-                <input
-                  type="number"
-                  min="1"
-                  placeholder="Enter quantity"
-                  value={formData.quantity || ''}
-                  onChange={handleQuantityChange}
-                  className="w-full border border-gray-300 rounded-lg px-4 py-2 mt-2"
-                />
-                <p className="text-sm text-gray-500 mt-1">
-                  Limit the number of times this digital good can be
-                  purchased
-                </p>
-              </div>
-
-              <div
-                className={`bg-gray-100 p-4 rounded-lg border ${
-                  isDragOver
-                    ? 'border-blue-500 bg-blue-100'
-                    : 'border-gray-300'
-                }`}
-                style={{ minWidth: '300px', width: '50%' }}
-                onDragOver={(e) => {
-                  e.preventDefault();
-                  setIsDragOver(true);
-                }}
-                onDragLeave={() => setIsDragOver(false)}
-                onDrop={(e) => {
-                  handleFileDrop(e);
-                  setIsDragOver(false);
-                }}
-              >
-                <h3 className="text-lg font-medium text-black-600">
-                  Content
-                </h3>
-                <p className="text-sm text-gray-600">
-                  Add content to sell. You can upload images, audio,
-                  video, PDFs, or other digital files.
-                </p>
-
-                {/* File Input for Manual Upload */}
-                <input
-                  type="file"
-                  id="content"
-                  name="content"
-                  multiple
-                  accept="*/*"
-                  onChange={handleContentUpload}
-                  className="w-full border border-dashed border-gray-300 rounded-lg px-4 py-2 mt-2"
-                />
-
-                {/* Display Uploaded Files */}
-                <div className="grid grid-cols-3 gap-4 mt-4">
-                  {uploadingContent && <p>Uploading files...</p>}
-                  {formData.content.map((file, index) => (
-                    <div
-                      key={index}
-                      className="flex flex-col items-center p-2 bg-white border rounded shadow-sm w-full"
-                    >
-                      <div className="text-2xl">
-                        {getFileTypeIcon(file.type)}
-                      </div>
-                      <p className="text-xs text-gray-600 mt-1 text-center truncate w-full overflow-hidden text-ellipsis whitespace-nowrap">
-                        {file.name}
-                      </p>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
+              {/* Benefits */}
               <div>
                 <label
                   htmlFor="benefits"
@@ -554,17 +402,20 @@ const CreateCollectible = ({
                   ))}
                 </div>
               </div>
-              {/*
+
+              {/* Enable Credit Card & Verify Identity */}
               <div className="bg-gray-100 p-4 rounded-lg border border-gray-300 mt-4">
                 <h3 className="text-md font-medium">
                   Enable Pay with Credit Card
                 </h3>
                 <p className="text-sm text-gray-600 mb-2">
-                  Let fans buy this pass with a credit card
+                  Let users buy this membership with a credit card.
                 </p>
                 <div
                   className={`w-14 h-8 flex items-center rounded-full p-1 cursor-pointer ${
-                    formData.enableCreditCard ? "bg-black" : "bg-gray-300"
+                    formData.enableCreditCard
+                      ? 'bg-black'
+                      : 'bg-gray-300'
                   }`}
                   onClick={() =>
                     setFormData((prevState) => ({
@@ -575,34 +426,45 @@ const CreateCollectible = ({
                 >
                   <div
                     className={`h-6 w-6 bg-white rounded-full shadow-md transform duration-300 ${
-                      formData.enableCreditCard ? "translate-x-6" : ""
+                      formData.enableCreditCard ? 'translate-x-6' : ''
                     }`}
                   ></div>
                 </div>
 
                 <div className="mt-4">
-                  <h3 className="text-md font-medium">Verify Identity</h3>
+                  <h3 className="text-md font-medium">
+                    Verify Identity
+                  </h3>
                   <p className="text-sm text-gray-600">
-                    Verify your identity to enable credit card payments. You
-                    only complete this process once.
+                    Verify your identity to enable credit card
+                    payments. You only complete this process once.
                   </p>
                   <button
                     type="button"
-                    onClick={() => alert("Verification triggered!")}
+                    onClick={() =>
+                      alert('Verification process started!')
+                    }
                     className="bg-black text-white px-4 py-2 rounded-lg mt-2"
                   >
-                    Verify
+                    Verify Identity
                   </button>
                 </div>
-              </div> */}
-              {/*
+              </div>
+
+              {/* Advanced Settings with Royalty */}
               <div className="bg-gray-100 p-4 rounded-lg border border-gray-300 mt-4">
-                <h3 className="text-md font-medium">Advanced Settings</h3>
+                <h3 className="text-md font-medium">
+                  Advanced Settings
+                </h3>
                 <div className="flex items-center justify-between mt-2">
-                  <span className="text-sm font-medium">Limit quantity</span>
+                  <span className="text-sm font-medium">
+                    Limit quantity
+                  </span>
                   <div
                     className={`w-14 h-8 flex items-center rounded-full p-1 cursor-pointer ${
-                      formData.limitQuantity ? "bg-black" : "bg-gray-300"
+                      formData.limitQuantity
+                        ? 'bg-black'
+                        : 'bg-gray-300'
                     }`}
                     onClick={() =>
                       setFormData((prevState) => ({
@@ -613,7 +475,7 @@ const CreateCollectible = ({
                   >
                     <div
                       className={`h-6 w-6 bg-white rounded-full shadow-md transform duration-300 ${
-                        formData.limitQuantity ? "translate-x-6" : ""
+                        formData.limitQuantity ? 'translate-x-6' : ''
                       }`}
                     ></div>
                   </div>
@@ -623,31 +485,62 @@ const CreateCollectible = ({
                     type="number"
                     min="1"
                     placeholder="Enter quantity"
-                    value={formData.quantity || ""}
+                    value={formData.quantity || ''}
                     onChange={handleQuantityChange}
                     className="w-full border border-gray-300 rounded-lg px-4 py-2 mt-2"
                   />
                 )}
                 <p className="text-sm text-gray-500 mt-1">
-                  Limit the number of times this digital good can be purchased
+                  Limit the number of times this digital good can be
+                  purchased.
                 </p>
-              </div> */}
 
+                {/* Royalty Percentage */}
+                <div className="mt-4">
+                  <label
+                    htmlFor="royaltyPercentage"
+                    className="block font-medium mb-1"
+                  >
+                    Royalty Percentage
+                  </label>
+                  <div className="flex items-center">
+                    <input
+                      type="number"
+                      id="royaltyPercentage"
+                      name="royaltyPercentage"
+                      value={formData.royaltyPercentage}
+                      onChange={handleChange}
+                      className="w-full border border-gray-300 rounded-lg px-4 py-2"
+                      min="0"
+                      max="100"
+                    />
+                    <span className="ml-2">%</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Privacy Policy Agreement */}
               <div className="mt-4">
-                <input type="checkbox" required /> I agree with swop
+                <input type="checkbox" required /> I agree with Swop
                 Minting Privacy & Policy
               </div>
 
+              {/* Submit Button */}
               <PushToMintCollectionButton
                 className="w-max mt-4"
+                disabled={isSubmitting}
                 onClick={handleSubmit}
               >
-                Create
+                {isSubmitting ? 'Creating...' : 'Create Membership'}
               </PushToMintCollectionButton>
+              {submissionError && (
+                <p className="text-red-500 mt-2">{submissionError}</p>
+              )}
             </div>
           </div>
         </div>
 
+        {/* Preview Section */}
         <div className="w-full md:w-1/2 flex justify-center items-center p-5">
           <div className="bg-white p-4 rounded-lg shadow-md border border-gray-300 w-full max-w-md aspect-[3/4] flex flex-col items-start">
             <div className="w-full aspect-square bg-gray-200 flex items-center justify-center rounded-t-lg mb-4">
@@ -686,6 +579,14 @@ const CreateCollectible = ({
               </p>
             </div>
 
+            {/* Royalty Percentage in Preview */}
+            <div className="mb-2">
+              <p className="text-lg font-bold">Royalty Percentage</p>
+              <p className="text-sm text-gray-500">
+                {formData.royaltyPercentage}%
+              </p>
+            </div>
+
             <div className="mt-4 w-full">
               <p className="text-lg font-bold">Benefits</p>
               <ul className="list-disc list-inside text-sm text-gray-500">
@@ -705,4 +606,4 @@ const CreateCollectible = ({
   );
 };
 
-export default CreateCollectible;
+export default CreateMembershipPage;
