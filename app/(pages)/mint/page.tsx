@@ -8,6 +8,7 @@ import SaveToLocalAndNavigate from '@/components/SaveToLocalAndNavigate';
 import HomePageLoading from '@/components/loading/HomePageLoading';
 import getMintPageData from '@/utils/fetchingData/getMintPageData';
 import { useUser } from '@/lib/UserContext';
+import { PlusCircle } from 'lucide-react';
 
 interface Template {
   templateId: string;
@@ -143,73 +144,6 @@ const MintDashboard = () => {
 
   console.log('collections', collections);
 
-  // if (!mintData || ("noCollections" in mintData && mintData.noCollections)) {
-  //   const staticSamples = nftCollection.map((nftType) => ({
-  //     nftType: nftType.name,
-  //     templates: [
-  //       {
-  //         templateId: `${nftType.mint_address}`,
-  //         metadata: {
-  //           image: `/assets/collections/${nftType.name}.png`, // Replace with your sample images
-  //           name: `${capitalizeFirstLetter(nftType.name)}`,
-  //           description: `A unique digital collectible that represents ownership of exclusive ${nftType} content. Each piece is verifiably authentic on the blockchain.`,
-  //         },
-  //         supply: {
-  //           limit: 100,
-  //           minted: 0,
-  //         },
-  //       },
-  //     ],
-  //   }));
-
-  //   return (
-  //     <main className="main-container">
-  //       <div className="bg-white p-4">
-  //         <h2 className="text-center text-2xl font-bold mb-6">
-  //           Explore NFT Types
-  //         </h2>
-  //         {staticSamples.map((sampleGroup) => (
-  //           <div key={sampleGroup.nftType}>
-  //             <h3 className="text-xl font-semibold my-2">
-  //               {capitalizeFirstLetter(sampleGroup.nftType)}
-  //             </h3>
-  //             <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 xl:gap-10">
-  //               {sampleGroup.templates.map((template) => (
-  //                 <MintCart
-  //                 key={template.templateId}
-  //                 img={template.metadata.image}
-  //                 title={template.metadata.name}
-  //                 text={`Limit: ${template.supply.limit}, Minted: ${template.supply.minted}`}
-  //                 collectionId={group.collection.id}
-  //                 templateId={template.templateId}
-  //                 description={template.metadata.description}
-  //                 />
-  //               ))}
-  //               <div
-  //                 className="min-h-[360px] min-w-[365px] h-full w-full"
-  //                 onClick={() =>
-  //                   (window.location.href = `/mint/create${capitalizeFirstLetter(
-  //                     sampleGroup.nftType
-  //                   )}`)
-  //                 }
-  //               >
-  //                 <SaveToLocalAndNavigate collectionId="static-sample" />
-  //               </div>
-  //             </div>
-  //           </div>
-  //         ))}
-  //         {/* <div className="flex justify-center mt-8">
-  //           <Link href="/mint/createCollection">
-  //             <PushToMintCollectionButton className="!py-2">
-  //               Create Collection
-  //             </PushToMintCollectionButton>
-  //           </Link>
-  //         </div> */}
-  //       </div>
-  //     </main>
-  //   );
-  // }
-
   return (
     <main className="main-container">
       <div className="bg-white p-4">
@@ -227,18 +161,17 @@ const MintDashboard = () => {
                   collectionId={collection.mint_address}
                   description={`A unique digital collectible that represents ownership of exclusive ${collection.name} content. Each piece is verifiably authentic on the blockchain.`}
                 />
-                <div
+                <a
                   className="min-h-[360px] min-w-[365px] h-full w-full"
-                  onClick={() =>
-                    (window.location.href = `/mint/create${capitalizeFirstLetter(
-                      collection.name
-                    )}`)
-                  }
+                  href={`/mint/create/${collection.name}/${collection.mint_address}`}
                 >
-                  <SaveToLocalAndNavigate
-                    collectionId={collection.mint_address}
-                  />
-                </div>
+                  <div className="shadow-medium rounded-lg px-5 py-6 flex flex-col items-center justify-center cursor-pointer hover:bg-gray-100 h-full w-full">
+                    <PlusCircle className="w-24 h-24 text-gray-400 mb-4 stroke-1" />
+                    <p className="text-lg font-semibold text-gray-700">
+                      Add NFTs To This Type
+                    </p>
+                  </div>
+                </a>
               </div>
             </div>
           ))}
