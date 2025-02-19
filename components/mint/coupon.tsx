@@ -22,11 +22,7 @@ interface FormData {
   royaltyPercentage: number;
 }
 
-const CreateCouponPage = ({
-  collectionId,
-}: {
-  collectionId: string;
-}) => {
+const CreateCoupon = ({ collectionId }: { collectionId: string }) => {
   const [formData, setFormData] = useState<FormData>({
     name: '',
     nftType: 'coupon',
@@ -664,4 +660,4 @@ const CreateCouponPage = ({
   );
 };
 
-export default CreateCouponPage;
+export default CreateCoupon;

@@ -21,7 +21,7 @@ interface FormData {
   royaltyPercentage: number;
 }
 
-const CreatePhygitalPage = ({
+const CreatePhygital = ({
   collectionId,
 }: {
   collectionId: string;
@@ -552,4 +552,4 @@ const CreatePhygitalPage = ({
   );
 };
 
-export default CreatePhygitalPage;
+export default CreatePhygital;

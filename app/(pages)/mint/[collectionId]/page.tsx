@@ -1,10 +1,10 @@
 'use client';
 
-import { getTemplateDetails } from '@/utils/fetchingData/getTemplateDetails';
-import MintDetails from '@/components/MintDetails';
 import { useUser } from '@/lib/UserContext';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { ParsedUrlQuery } from 'querystring';
+import MintDetails from '@/components/MintDetails';
+import { Skeleton } from '@/components/ui/skeleton';
 
 interface Params extends ParsedUrlQuery {
   collectionId: string;
@@ -16,94 +16,99 @@ interface Props {
 }
 
 export default function TemplateDetailsPage({ params }: Props) {
-  const [collectionId, setCollectionId] = useState<string | null>(
-    null
-  );
-  const [templateId, setTemplateId] = useState<string | null>(null);
-  const { user, accessToken } = useUser(); // Access context value
-  console.log('🚀 ~ TemplateDetailsPage ~ accessToken:', accessToken);
-  const [templateDetails, setTemplateDetails] = useState(null);
+  const { user, accessToken } = useUser();
   const [error, setError] = useState<string | null>(null);
-  const [waitForToken, setWaitForToken] = useState(true);
   const [loading, setLoading] = useState(true);
-  const [nftList, setNftList] = useState([]);
+  const [nftList, setNftList] = useState<any[]>([]);
 
-  useEffect(() => {
-    const timeoutId = setTimeout(() => {
-      setWaitForToken(false);
-    }, 30000); // 30 seconds
-
-    // Cleanup function to clear the timeout if the component unmounts
-    return () => clearTimeout(timeoutId);
-  }, []);
-
-  // useEffect(() => {
-  //   const fetchParams = async () => {
-  //     try {
-  //       const resolvedParams = await params;
-  //       setCollectionId(resolvedParams.collectionId);
-  //       setTemplateId(resolvedParams.templateId);
-  //     } catch (err) {
-  //       console.error('Error resolving params:', err);
-  //       setError('Error resolving route parameters.');
-  //       setLoading(false);
-  //     }
-  //   };
-
-  //   fetchParams();
-  // }, [params]);
-
-  useEffect(() => {
-    const fetchDetails = async () => {
-      if (accessToken) {
-        // try {
-        //   const details = await getTemplateDetails(collectionId, templateId, accessToken);
-        //   setTemplateDetails(details);
-        // } catch (err) {
-        //   console.error("Error fetching template details:", err);
-        //   setError("Error fetching template details.");
-        // } finally {
-        //   setLoading(false);
-        // }
-
-        try {
-          const response = await fetch(
-            `${process.env.NEXT_PUBLIC_API_URL}/api/v1/desktop/nft/getNFTListByCollectionAndUser`,
-            {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                authorization: `Bearer ${accessToken}`,
-              },
-              body: JSON.stringify({
-                userId: user._id,
-                collectionId: (await params).collectionId,
-              }),
-            }
-          );
-          if (!response.ok) {
-            throw new Error('Something went wrong');
+  const fetchNFTList = useCallback(
+    async (collectionId: string, userId: string, token: string) => {
+      try {
+        const response = await fetch(
+          `${process.env.NEXT_PUBLIC_API_URL}/api/v1/desktop/nft/getNFTListByCollectionAndUser`,
+          {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              authorization: `Bearer ${token}`,
+            },
+            body: JSON.stringify({
+              userId,
+              collectionId,
+            }),
           }
-          const { data } = await response.json();
-          console.log('data from action', data);
+        );
+
+        if (!response.ok) {
+          throw new Error(
+            `Server responded with ${response.status}: ${response.statusText}`
+          );
+        }
+
+        const { data } = await response.json();
+        return data;
+      } catch (error) {
+        console.error('Error fetching NFT list:', error);
+        throw error;
+      }
+    },
+    []
+  );
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const loadData = async () => {
+      if (!accessToken || !user?._id) {
+        const tokenTimeout = setTimeout(() => {
+          if (isMounted && !accessToken) {
+            setError('Authentication required. Please log in.');
+            setLoading(false);
+          }
+        }, 5000);
+
+        return () => clearTimeout(tokenTimeout);
+      }
+
+      try {
+        const resolvedParams = await params;
+        const data = await fetchNFTList(
+          resolvedParams.collectionId,
+          user._id,
+          accessToken
+        );
+
+        if (isMounted) {
           setNftList(data);
-        } catch (error) {
-          console.error('Error from posting feed:', error);
-        } finally {
+        }
+      } catch (error) {
+        if (isMounted) {
+          setError('Failed to load NFT list. Please try again.');
+        }
+      } finally {
+        if (isMounted) {
           setLoading(false);
         }
       }
     };
 
-    fetchDetails();
-  }, [accessToken, collectionId, templateId]);
+    loadData();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [accessToken, user, params, fetchNFTList]);
 
   if (loading) {
-    return <div>Loading template details...</div>;
+    return <LoadingSkeleton />;
   }
 
   if (error) {
-    return <div>{error}</div>;
+    return (
+      <div className="text-center py-10">
+        <p className="text-red-600">{error}</p>
+      </div>
+    );
   }
 
   return (
@@ -118,3 +123,21 @@ export default function TemplateDetailsPage({ params }: Props) {
     </div>
   );
 }
+
+const LoadingSkeleton = () => {
+  return (
+    <div className="main-container bg-white p-10 ">
+      <div className="">
+        <Skeleton className="h-10 w-40" />
+        <div className="my-5 flex gap-2">
+          <Skeleton className="h-20 w-40" />
+          <Skeleton className="h-20 w-40" />
+        </div>
+        <div className="my-5 flex gap-2">
+          <Skeleton className="h-60 w-80" />
+          <Skeleton className="h-60 w-80" />
+        </div>
+      </div>
+    </div>
+  );
+};

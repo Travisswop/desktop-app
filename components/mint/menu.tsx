@@ -21,11 +21,7 @@ interface FormData {
   royaltyPercentage: number;
 }
 
-const CreateMenuPage = ({
-  collectionId,
-}: {
-  collectionId: string;
-}) => {
+const CreateMenu = ({ collectionId }: { collectionId: string }) => {
   const [formData, setFormData] = useState<FormData>({
     name: '',
     nftType: 'menu',
@@ -572,4 +568,4 @@ const CreateMenuPage = ({
   );
 };
 
-export default CreateMenuPage;
+export default CreateMenu;

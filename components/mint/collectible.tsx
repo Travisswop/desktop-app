@@ -6,6 +6,7 @@ import { sendCloudinaryImage } from '@/lib/SendCloudineryImage';
 import { sendCloudinaryFile } from '@/lib/SendCloudineryAnyFile';
 import { useUser } from '@/lib/UserContext';
 import { useSolanaWallets } from '@privy-io/react-auth';
+import { SiSolana } from 'react-icons/si';
 
 interface ContentFile {
   url: string;
@@ -310,46 +311,47 @@ const CreateCollectible = ({
 
   return (
     <div className="main-container flex justify-center">
-      <div className="bg-white p-5 rounded-lg shadow-md border border-gray-300 w-full flex flex-wrap md:flex-nowrap">
+      <div className="bg-white p-5 rounded-lg shadow-md border border-gray-300 w-full flex items-start flex-wrap md:flex-nowrap">
         <div className="w-full md:w-1/2 p-5">
           <div className="bg-white p-4 rounded-lg shadow-md border border-gray-300">
             <div className="flex flex-col gap-4">
               <h2 className="text-2xl font-bold">
                 Create Collectible
               </h2>
+              <label className="-mt-2 block font-normal text-sm text-gray-600">
+                <span className="text-red-400"> *</span> Required
+                fields
+              </label>
 
               <div>
                 <label
                   htmlFor="name"
                   className="mb-1 block font-medium"
                 >
-                  Name
+                  Name <span className="text-red-400"> *</span>
                 </label>
                 <input
                   type="text"
                   id="name"
                   name="name"
-                  placeholder="Give your digital good a name."
+                  placeholder="Give your digital good a name..."
                   value={formData.name}
                   onChange={handleChange}
                   className="w-full border border-gray-300 rounded-lg px-4 py-2"
                   required
                 />
-                <p className="text-sm text-gray-500 mt-1">
+                <p className="text-sm text-gray-500 mt-2">
                   Note: Your pass name can&#39;t be changed after
                   creation
                 </p>
               </div>
 
-              <label
-                htmlFor="image"
-                className="mb-1 block font-medium"
-              >
-                Image (JPEG, JPG, PNG)
+              <label htmlFor="image" className="block font-medium">
+                Image <span className="text-red-400"> *</span>
               </label>
               <div
-                className="bg-gray-100 p-4 rounded-lg border border-dashed border-gray-300 text-center"
-                style={{ minWidth: '300px', width: '50%' }}
+                className="bg-gray-100 p-8 rounded-lg border-2 border-dashed text-center border-gray-300 h-[250px] -mt-2"
+                style={{ minWidth: '300px', width: '70%' }}
                 onDragOver={(e) => e.preventDefault()}
                 onDrop={handleImageDrop}
               >
@@ -360,7 +362,7 @@ const CreateCollectible = ({
                       width={100}
                       height={100}
                       alt="Preview"
-                      className="rounded-lg object-cover"
+                      className="rounded-lg object-cover w-[100px] h-[100px]"
                     />
                     <p className="text-sm mt-2 text-gray-700">
                       {selectedImageName}
@@ -374,14 +376,25 @@ const CreateCollectible = ({
                   </div>
                 ) : (
                   <div>
-                    <div className="flex flex-col items-center justify-center h-32 cursor-pointer">
-                      <div className="text-6xl text-gray-400">📷</div>
-                      <p className="text-gray-500">
-                        Browse or drag and drop an image here.
+                    <div className="flex flex-col items-center justify-center cursor-pointer ">
+                      <div className="text-6xl text-gray-400">
+                        <Image
+                          src={
+                            '/assets/mintIcon/image-upload-icon.png'
+                          }
+                          width={100}
+                          height={100}
+                          alt="Preview"
+                          className="w-[90px] h-auto"
+                        />
+                      </div>
+                      <p className="text-gray-500 my-3 text-sm">
+                        Browse or drag and drop an image here . <br />
+                        ( JPEG, JPG, PNG )
                       </p>
                       <label
                         htmlFor="image"
-                        className="inline-block bg-black text-white px-4 py-2 rounded-lg mt-2 cursor-pointer"
+                        className="inline-block bg-black text-white px-9 py-2 rounded-lg mt-2 cursor-pointer "
                       >
                         Browse
                       </label>
@@ -396,7 +409,11 @@ const CreateCollectible = ({
                   onChange={handleImageUpload}
                   className="hidden"
                 />
-                {imageUploading && <p>Uploading image...</p>}
+                {imageUploading && (
+                  <p className="text-sm text-gray-400 mt-1">
+                    Uploading image...
+                  </p>
+                )}
               </div>
 
               <div>
@@ -404,7 +421,7 @@ const CreateCollectible = ({
                   htmlFor="description"
                   className="mb-1 block font-medium"
                 >
-                  Description
+                  Description<span className="text-red-400"> *</span>
                 </label>
                 <textarea
                   id="description"
@@ -422,19 +439,28 @@ const CreateCollectible = ({
                   htmlFor="price"
                   className="mb-1 block font-medium"
                 >
-                  Price
+                  Price <span className="text-red-400"> *</span>
                 </label>
-                <input
-                  type="text"
-                  id="price"
-                  name="price"
-                  placeholder="Price"
-                  value={formData.price}
-                  onChange={handleChange}
-                  className="w-full border border-gray-300 rounded-lg px-4 py-2"
-                  required
-                />
-                <p className="text-sm text-gray-500 mt-1">
+                <div className="flex items-center space-x-4">
+                  {' '}
+                  <input
+                    type="text"
+                    id="price"
+                    name="price"
+                    placeholder="$ 0"
+                    value={formData.price}
+                    onChange={handleChange}
+                    className="w-full border border-gray-300 rounded-lg px-4 py-2 flex items-center space-x-4"
+                    required
+                  />
+                  <div className="w-full border border-gray-300 rounded-lg px-4 py-2 flex items-center space-x-2">
+                    <SiSolana className="text-gray-900 size-5" />
+                    <label htmlFor="price" className="font-medium">
+                      USDC
+                    </label>
+                  </div>
+                </div>
+                <p className="text-sm text-gray-500 mt-2">
                   Note: Currency can&#39;t be changed after creation
                 </p>
               </div>
@@ -444,7 +470,8 @@ const CreateCollectible = ({
                   htmlFor="price"
                   className="mb-1 block font-medium"
                 >
-                  Limit quantity
+                  Limit quantity{' '}
+                  <span className="text-red-400"> *</span>
                 </label>
                 <input
                   type="number"
@@ -454,19 +481,17 @@ const CreateCollectible = ({
                   onChange={handleQuantityChange}
                   className="w-full border border-gray-300 rounded-lg px-4 py-2 mt-2"
                 />
-                <p className="text-sm text-gray-500 mt-1">
+                <p className="text-sm text-gray-500 mt-2">
                   Limit the number of times this digital good can be
                   purchased
                 </p>
               </div>
-
+              {/*
               <div
                 className={`bg-gray-100 p-4 rounded-lg border ${
-                  isDragOver
-                    ? 'border-blue-500 bg-blue-100'
-                    : 'border-gray-300'
+                  isDragOver ? "border-blue-500 bg-blue-100" : "border-gray-300"
                 }`}
-                style={{ minWidth: '300px', width: '50%' }}
+                style={{ minWidth: "300px", width: "50%" }}
                 onDragOver={(e) => {
                   e.preventDefault();
                   setIsDragOver(true);
@@ -477,26 +502,24 @@ const CreateCollectible = ({
                   setIsDragOver(false);
                 }}
               >
-                <h3 className="text-lg font-medium text-black-600">
-                  Content
-                </h3>
+                <h3 className="text-lg font-medium text-black-600">Content</h3>
                 <p className="text-sm text-gray-600">
-                  Add content to sell. You can upload images, audio,
-                  video, PDFs, or other digital files.
+                  Add content to sell. You can upload images, audio, video,
+                  PDFs, or other digital files.
                 </p>
 
-                {/* File Input for Manual Upload */}
+
                 <input
                   type="file"
                   id="content"
                   name="content"
                   multiple
-                  accept="*/*"
+                  // accept=""
                   onChange={handleContentUpload}
                   className="w-full border border-dashed border-gray-300 rounded-lg px-4 py-2 mt-2"
                 />
 
-                {/* Display Uploaded Files */}
+
                 <div className="grid grid-cols-3 gap-4 mt-4">
                   {uploadingContent && <p>Uploading files...</p>}
                   {formData.content.map((file, index) => (
@@ -513,14 +536,14 @@ const CreateCollectible = ({
                     </div>
                   ))}
                 </div>
-              </div>
+              </div> */}
 
               <div>
                 <label
                   htmlFor="benefits"
                   className="mb-1 block font-medium"
                 >
-                  Benefits
+                  Benefits <span className="text-red-400"> *</span>
                 </label>
                 <input
                   type="text"
@@ -633,13 +656,13 @@ const CreateCollectible = ({
                 </p>
               </div> */}
 
-              <div className="mt-4">
+              <div className="mt-1">
                 <input type="checkbox" required /> I agree with swop
                 Minting Privacy & Policy
               </div>
 
               <PushToMintCollectionButton
-                className="w-max mt-4"
+                className="w-[140px] mt-4 "
                 onClick={handleSubmit}
               >
                 Create
@@ -648,7 +671,7 @@ const CreateCollectible = ({
           </div>
         </div>
 
-        <div className="w-full md:w-1/2 flex justify-center items-center p-5">
+        <div className="w-full md:w-1/2 flex justify-center items-center p-5 mt-6">
           <div className="bg-white p-4 rounded-lg shadow-md border border-gray-300 w-full max-w-md aspect-[3/4] flex flex-col items-start">
             <div className="w-full aspect-square bg-gray-200 flex items-center justify-center rounded-t-lg mb-4">
               {formData.image ? (

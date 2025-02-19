@@ -25,7 +25,7 @@ interface FormData {
   endDate: Date;
 }
 
-const CreateSubscriptionPage = ({
+const CreateSubscription = ({
   collectionId,
 }: {
   collectionId: string;
@@ -701,4 +701,4 @@ const CreateSubscriptionPage = ({
   );
 };
 
-export default CreateSubscriptionPage;
+export default CreateSubscription;

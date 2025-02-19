@@ -1,25 +1,8 @@
-// app/components/MintDetails.tsx
 'use client';
 
 import Image from 'next/image';
-import React, { useState } from 'react';
-import { Accordion, AccordionItem } from '@nextui-org/react';
-import { HiOutlineBars3BottomLeft } from 'react-icons/hi2';
-import Link from 'next/link';
-import { LucideBarChartHorizontalBig, Info } from 'lucide-react';
-import { Card, CardContent } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from '@/components/ui/tooltip';
 
-interface NFTAttributes {
-  trait_type: string;
-  value: string;
-}
+import { Card, CardContent } from '@/components/ui/card';
 
 interface NFTDetails {
   image: string;
@@ -27,10 +10,7 @@ interface NFTDetails {
   description: string;
   price: number;
   currency: string;
-  supplyLimit: number;
-  attributes?: NFTAttributes[];
-  creator?: string;
-  tokenId?: string;
+  mintLimit: number;
   collectionName?: string;
 }
 
@@ -59,19 +39,6 @@ const MintDetails = ({
                   </div>
                 </CardContent>
               </Card>
-              {/* <Card>
-                <CardContent className="p-6">
-                  <div className="text-sm text-gray-500">
-                    Floor Price
-                  </div>
-                  <div className="text-2xl font-bold">
-                    {Math.min(
-                      ...templateDetails.map((nft) => nft.price)
-                    )}{' '}
-                    {templateDetails[0]?.currency}
-                  </div>
-                </CardContent>
-              </Card> */}
               <Card>
                 <CardContent className="p-6">
                   <div className="text-sm text-gray-500">
@@ -86,16 +53,6 @@ const MintDetails = ({
                   </div>
                 </CardContent>
               </Card>
-              {/* <Card>
-                <CardContent className="p-6">
-                  <div className="text-sm text-gray-500">
-                    Supply Limit
-                  </div>
-                  <div className="text-2xl font-bold">
-                    {templateDetails[0]?.supplyLimit || 'Unlimited'}
-                  </div>
-                </CardContent>
-              </Card> */}
             </div>
           </div>
 
@@ -133,46 +90,17 @@ const MintDetails = ({
                           {nft.price} {nft.currency}
                         </p>
                       </div>
-                      {nft.supplyLimit && (
+                      {nft.mintLimit && (
                         <div className="text-right">
                           <p className="text-sm text-gray-500">
                             Mint Limit
                           </p>
                           <p className="font-mono text-sm">
-                            #{nft.supplyLimit}
+                            #{nft.mintLimit}
                           </p>
                         </div>
                       )}
                     </div>
-
-                    {nft.attributes && nft.attributes.length > 0 && (
-                      <div className="mb-4">
-                        <p className="text-sm text-gray-500 mb-2">
-                          Attributes
-                        </p>
-                        <div className="flex flex-wrap gap-2">
-                          {nft.attributes
-                            .slice(0, 3)
-                            .map((attr, idx) => (
-                              <div
-                                key={idx}
-                                className="bg-gray-100 rounded-full px-3 py-1 text-xs"
-                              >
-                                {attr.trait_type}: {attr.value}
-                              </div>
-                            ))}
-                          {nft.attributes.length > 3 && (
-                            <div className="bg-gray-100 rounded-full px-3 py-1 text-xs">
-                              +{nft.attributes.length - 3} more
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    )}
-
-                    {/* <Button className="w-full" variant="outline">
-                      Mint Now
-                    </Button> */}
                   </div>
                 </CardContent>
               </Card>

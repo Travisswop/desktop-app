@@ -21,7 +21,7 @@ interface FormData {
   royaltyPercentage: number;
 }
 
-const CreateMembershipPage = ({
+const CreateMembership = ({
   collectionId,
 }: {
   collectionId: string;
@@ -606,4 +606,4 @@ const CreateMembershipPage = ({
   );
 };
 
-export default CreateMembershipPage;
+export default CreateMembership;

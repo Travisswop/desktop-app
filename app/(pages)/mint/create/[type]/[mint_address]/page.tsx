@@ -1,41 +1,33 @@
 import CreateCollectible from '@/components/mint/collectible';
-import CreateCouponPage from '@/components/mint/coupon';
-import CreateMembershipPage from '@/components/mint/membership';
-import CreateMenuPage from '@/components/mint/menu';
-import CreatePhygitalPage from '@/components/mint/phygital';
-import CreateSubscriptionPage from '@/components/mint/subscription';
+import CreateCoupon from '@/components/mint/coupon';
+import CreateMembership from '@/components/mint/membership';
+import CreateMenu from '@/components/mint/menu';
+import CreatePhygital from '@/components/mint/phygital';
+import CreateSubscription from '@/components/mint/subscription';
 
-const CreateCollectiblePage = async ({
-  params,
-}: {
+const COLLECTION_COMPONENTS = {
+  collectible: CreateCollectible,
+  coupon: CreateCoupon,
+  membership: CreateMembership,
+  menu: CreateMenu,
+  phygital: CreatePhygital,
+  subscription: CreateSubscription,
+};
+
+interface Props {
   params: Promise<{ type: string; mint_address: string }>;
-}) => {
-  const collection = await params;
-  const collectionType = collection.type;
-  const collectionId = collection.mint_address;
-  if (collectionType === 'collectible') {
-    return <CreateCollectible collectionId={collectionId} />;
-  }
-  if (collectionType === 'coupon') {
-    return <CreateCouponPage collectionId={collectionId} />;
-  }
-  if (collectionType === 'membership') {
-    return <CreateMembershipPage collectionId={collectionId} />;
-  }
-  if (collectionType === 'menu') {
-    return <CreateMenuPage collectionId={collectionId} />;
-  }
-  if (collectionType === 'phygital') {
-    return <CreatePhygitalPage collectionId={collectionId} />;
-  }
-  if (collectionType === 'subscription') {
-    return <CreateSubscriptionPage collectionId={collectionId} />;
-  }
-  return (
-    <>
-      Hello {collectionType} {collectionId}
-    </>
+}
+
+const CreateNFTTemplatePage = async ({ params }: Props) => {
+  const { type, mint_address } = await params;
+
+  const Component =
+    COLLECTION_COMPONENTS[type as keyof typeof COLLECTION_COMPONENTS];
+  return Component ? (
+    <Component collectionId={mint_address} />
+  ) : (
+    <></>
   );
 };
 
-export default CreateCollectiblePage;
+export default CreateNFTTemplatePage;
