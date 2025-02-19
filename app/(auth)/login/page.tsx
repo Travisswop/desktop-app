@@ -1,19 +1,18 @@
 "use client";
 
-import { usePrivy, useLogin, useLogout } from "@privy-io/react-auth";
-import { useRouter } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
-import { Card } from "@/components/ui/card";
+import { createLoginWalletBalance } from "@/actions/createWallet";
 import Loader from "@/components/loading/Loader";
 import { Button } from "@/components/ui/button";
-import { ChevronRight } from "lucide-react";
-import Image from "next/image";
+import { Card } from "@/components/ui/card";
 import astronot from "@/public/onboard/astronot.svg";
 import bluePlanet from "@/public/onboard/blue-planet.svg";
 import yellowPlanet from "@/public/onboard/yellow-planet.svg";
 import { WalletItem } from "@/types/wallet";
-import { updateUserWalletInfo } from "@/actions/updateUserProfile";
-import { createLoginWalletBalance } from "@/actions/createWallet";
+import { useLogin, useLogout, usePrivy } from "@privy-io/react-auth";
+import { ChevronRight } from "lucide-react";
+import Image from "next/image";
+import { useRouter } from "next/navigation";
+import { useEffect, useRef, useState } from "react";
 
 const Login: React.FC = () => {
   const { authenticated, ready, user: PrivyUser } = usePrivy();
