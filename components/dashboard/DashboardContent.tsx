@@ -1,17 +1,15 @@
-"use client";
-import { useUser } from "@/lib/UserContext";
-import { Skeleton } from "../ui/skeleton";
-import ProfileHeader from "./profile-header";
+'use client';
+import { useUser } from '@/lib/UserContext';
+import { Skeleton } from '../ui/skeleton';
+import ProfileHeader from './profile-header';
 // import CashflowChart from "./cashflow-chart";
-import DashboardAnalytics from "./analytics";
-import WalletBalanceChart from "./walletBalanceChart";
+import DashboardAnalytics from './analytics';
+import WalletBalanceChart from './walletBalanceChart';
 // import CashflowChart from "./walletBalanceChart";
 // import TestChart from "./test-chart";
 
 export default function DashboardContent() {
   const { user, loading, error } = useUser();
-
-  console.log("user", user);
 
   if (loading) {
     return <DashboardSkeleton />;
