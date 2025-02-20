@@ -1,6 +1,6 @@
 'use server';
 
-export async function getMintPageData(token: string) {
+export async function getCollectionData(token: string) {
   try {
     const res = await fetch(
       `${process.env.NEXT_PUBLIC_API_URL}/api/v1/desktop/nft/getCollections`,
@@ -26,4 +26,4 @@ export async function getMintPageData(token: string) {
   }
 }
 
-export default getMintPageData;
+export default getCollectionData;

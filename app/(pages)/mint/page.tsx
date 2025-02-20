@@ -4,7 +4,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import MintCart from '@/components/MintCart';
 import Link from 'next/link';
 import HomePageLoading from '@/components/loading/HomePageLoading';
-import getMintPageData from '@/utils/fetchingData/getMintPageData';
+import getCollectionData from '@/utils/fetchingData/getCollectionData';
 import { useUser } from '@/lib/UserContext';
 import { PlusCircle } from 'lucide-react';
 
@@ -32,7 +32,7 @@ const MintDashboard = () => {
     }
 
     try {
-      const { data } = await getMintPageData(accessToken);
+      const { data } = await getCollectionData(accessToken);
       setCollections(data);
     } catch (err) {
       setError(

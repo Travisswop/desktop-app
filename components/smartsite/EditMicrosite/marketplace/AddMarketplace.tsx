@@ -1,109 +1,80 @@
-import Image from "next/image";
-import React, { useState } from "react";
-import { useUser } from "@/lib/UserContext";
+import Image from 'next/image';
+import React, { useCallback, useEffect, useState } from 'react';
+import { useUser } from '@/lib/UserContext';
 import {
   Dropdown,
   DropdownItem,
   DropdownMenu,
   DropdownTrigger,
   Tooltip,
-} from "@nextui-org/react";
-import { LiaFileMedicalSolid } from "react-icons/lia";
-import useSmartSiteApiDataStore from "@/zustandStore/UpdateSmartsiteInfo";
-import { FaAngleDown, FaTimes } from "react-icons/fa";
-import AnimateButton from "@/components/ui/Button/AnimateButton";
-import { MdInfoOutline } from "react-icons/md";
-import productImg from "@/public/images/product.png";
-import toast from "react-hot-toast";
+} from '@nextui-org/react';
+import { LiaFileMedicalSolid } from 'react-icons/lia';
+import useSmartSiteApiDataStore from '@/zustandStore/UpdateSmartsiteInfo';
+import { FaAngleDown, FaTimes } from 'react-icons/fa';
+import AnimateButton from '@/components/ui/Button/AnimateButton';
+import { MdInfoOutline } from 'react-icons/md';
+import productImg from '@/public/images/product.png';
+import toast from 'react-hot-toast';
+import getCollectionData from '@/utils/fetchingData/getCollectionData';
+import { createMarketPlace } from '@/actions/handleMarketPlace';
 
-import { createMarketPlace } from "@/actions/handleMarketPlace";
-
-const nftCollection = [
-  {
-    name: "collectible",
-    mint_address: "Tf39QyKnuY99j1pUoNrEyAcBAxSmoogYSmuRiSAfhjg",
-    image:
-      "https://quicknode.quicknode-ipfs.com/ipfs/QmPrxJi3rVPQZVqLnEfTEx1Urb9FKbGSk1J2HYrLqnyZyn",
-  },
-  {
-    name: "subscription",
-    mint_address: "8ngpZFQaARzprfJewfdTJJqs1MP6rE4xc1tpwbntADFp",
-    image:
-      "https://quicknode.quicknode-ipfs.com/ipfs/QmSvPHcb7T2AVd8ebaYgKfRBwDXNwzTHUJ7D19LRmaRHia",
-  },
-  {
-    name: "membership",
-    mint_address: "CszXhmv3c36NmNxKRfYsttWE3DTA32krStf3rqpyaidq",
-    image:
-      "https://quicknode.quicknode-ipfs.com/ipfs/QmSdMaGMHjKvjNxLyta33MU5NzKLJEUQb82we2JjtRjwU7",
-  },
-  {
-    name: "coupon",
-    mint_address: "FyaZ99koNBLavhTEFkHCYbXECFfvwN3iBcDsBAkGa2LM",
-    image:
-      "https://quicknode.quicknode-ipfs.com/ipfs/QmbyMj44c159eBx5wmAJuDVb7DoDuBjr9N6dsx7CgopwwA",
-  },
-  {
-    name: "menu",
-    mint_address: "6upDsvqvX87Hzr5zYL87BED7U998S3WgHNcdBC9zwznn",
-    image:
-      "https://quicknode.quicknode-ipfs.com/ipfs/QmdSukD82bzFnxAwWunpKdzHmm8zpXSv9sbRAWR1xgLcVm",
-  },
-  {
-    name: "phygital",
-    mint_address: "23WshXUoW2Mi38E3XFL8NeqcKZ4PXpN1PTKBGJzZzu4q",
-    image:
-      "https://quicknode.quicknode-ipfs.com/ipfs/QmSEdUJoU9L2vkKCpvMTjkL8yhsXKPJqdaUg62wxaK9AqG",
-  },
-];
+interface Collection {
+  _id: string;
+  name: string;
+  mint_address: string;
+  image: string;
+}
 const capitalizeFirstLetter = (str: string) =>
   str.charAt(0).toUpperCase() + str.slice(1);
 
 const AddMarketplace = ({ handleRemoveIcon }: any) => {
   const state: any = useSmartSiteApiDataStore((state) => state);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<Error | null>(null);
 
   const [selectedTemplate, setSelectedTemplate] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [nftList, setNftList] = useState([]);
-  const [selectedCollection, setSelectedCollection] = useState("");
+  const [selectedCollection, setSelectedCollection] = useState('');
+  const [collections, setCollections] = useState<Collection[]>([]);
 
   const { accessToken, user } = useUser();
 
-  // useEffect(() => {
-  //   const fetchTemplates = async () => {
-  //     try {
-  //       const response = await fetch(
-  //         `${process.env.NEXT_PUBLIC_API_URL}/api/v1/desktop/nft/getAllTemplatesAndCollections`,
-  //         {
-  //           headers: {
-  //             Authorization: `Bearer ${accessToken}`,
-  //           },
-  //         }
-  //       );
-  //       const data = await response.json();
-  //       if (data.state === 'success') {
-  //         const templatesData = data.data.flatMap((item: any) =>
-  //           Object.values(item.templatesByNftType)
-  //             .flat()
-  //             .map((template: any) => ({
-  //               collectionId: item.collection.id,
-  //               templateId: template.templateId,
-  //               name: template.metadata.name,
-  //               description: template.metadata.description,
-  //               image: template.metadata.image,
-  //             }))
-  //         );
-  //         setTemplates(templatesData);
-  //       } else {
-  //         toast.error('Failed to fetch templates.');
-  //       }
-  //     } catch (error) {
-  //       console.error('Error fetching templates:', error);
-  //       toast.error('Error fetching templates.');
-  //     }
-  //   };
-  //   fetchTemplates();
-  // }, []);
+  const fetchData = useCallback(async () => {
+    if (!accessToken) {
+      setError(new Error('Access token is required.'));
+      setLoading(false);
+      return;
+    }
+
+    try {
+      const { data } = await getCollectionData(accessToken);
+      setCollections(data);
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err
+          : new Error('An unexpected error occurred.')
+      );
+    } finally {
+      setLoading(false);
+    }
+  }, [accessToken]);
+
+  useEffect(() => {
+    if (accessToken) {
+      fetchData();
+    } else {
+      const timeoutId = setTimeout(() => {
+        if (!accessToken) {
+          setError(new Error('Access token is required.'));
+          setLoading(false);
+        }
+      }, 5000);
+
+      return () => clearTimeout(timeoutId);
+    }
+  }, [accessToken, fetchData]);
 
   const handleSelectTemplate = async (
     collectionId: string,
@@ -114,13 +85,13 @@ const AddMarketplace = ({ handleRemoveIcon }: any) => {
     setNftList([]);
     setSelectedCollection(collectionName);
     try {
-      console.log("collectionid", collectionId);
+      console.log('collectionid', collectionId);
       const response = await fetch(
         `${process.env.NEXT_PUBLIC_API_URL}/api/v1/desktop/nft/getNFTListByCollectionAndUser`,
         {
-          method: "POST",
+          method: 'POST',
           headers: {
-            "Content-Type": "application/json",
+            'Content-Type': 'application/json',
             authorization: `Bearer ${accessToken}`,
           },
           body: JSON.stringify({
@@ -130,14 +101,14 @@ const AddMarketplace = ({ handleRemoveIcon }: any) => {
         }
       );
       if (!response.ok) {
-        throw new Error("Something went wrong");
+        throw new Error('Something went wrong');
       }
       const { data } = await response.json();
-      console.log("data from action", data);
+      console.log('data from action', data);
       setNftList(data);
     } catch (error) {
-      console.error("Error fetching template details:", error);
-      toast.error("Error fetching template details.");
+      console.error('Error fetching template details:', error);
+      toast.error('Error fetching template details.');
     } finally {
       // setIsLoading(false);
     }
@@ -145,7 +116,7 @@ const AddMarketplace = ({ handleRemoveIcon }: any) => {
 
   const handleCreateMarket = async (e: React.FormEvent) => {
     if (!selectedTemplate) {
-      toast.error("Please select a NFT");
+      toast.error('Please select a NFT');
       return;
     }
 
@@ -175,30 +146,29 @@ const AddMarketplace = ({ handleRemoveIcon }: any) => {
 
       const payload = {
         micrositeId: state.data._id,
-        collectionId: selectedTemplate.collectionId,
-        templateId: selectedTemplate._id,
-        itemName: selectedTemplate.name,
-        itemImageUrl: selectedTemplate.image,
-        itemDescription: selectedTemplate.description,
-        itemPrice: selectedTemplate.price,
-        itemCategory: selectedTemplate.nftType,
+        template: {
+          templateId: selectedTemplate._id,
+          ...selectedTemplate,
+        },
       };
 
       const response = await createMarketPlace(payload, accessToken);
 
-      console.log("response", response);
-      if (response.state !== "success") {
-        throw new Error("");
+      console.log('response', response);
+      if (!response) {
+        throw new Error('Marketplace creating failed');
       }
-      toast.success("Marketplace crated successfully");
-      handleRemoveIcon("Marketplace");
-    } catch (error) {
+      toast.success('Marketplace created successfully');
+      handleRemoveIcon('Marketplace');
+    } catch (error: any) {
       console.error(error);
-      toast.error("Something went wrong! Please try again");
+      toast.error(error.message);
     } finally {
       setIsLoading(false);
     }
   };
+
+  console.log('collectionid', selectedTemplate);
 
   return (
     <div className="relative bg-white rounded-xl shadow-small p-6 flex flex-col gap-4">
@@ -212,8 +182,9 @@ const AddMarketplace = ({ handleRemoveIcon }: any) => {
             size="sm"
             content={
               <span className="font-medium">
-                You will be able to set the icon type, choose an icon, specify a
-                button name, provide a link, and add a description.
+                You will be able to set the icon type, choose an icon,
+                specify a button name, provide a link, and add a
+                description.
               </span>
             }
             className="max-w-40 h-auto"
@@ -227,7 +198,7 @@ const AddMarketplace = ({ handleRemoveIcon }: any) => {
       <button
         className="absolute top-3 right-3"
         type="button"
-        onClick={() => handleRemoveIcon("Marketplace")}
+        onClick={() => handleRemoveIcon('Marketplace')}
       >
         <FaTimes size={18} />
       </button>
@@ -258,14 +229,17 @@ const AddMarketplace = ({ handleRemoveIcon }: any) => {
                     <div>
                       <p className="text-sm text-gray-500">Price</p>
                       <p className="font-bold uppercase">
-                        {selectedTemplate.price} {selectedTemplate.currency}
+                        {selectedTemplate.price}{' '}
+                        {selectedTemplate.currency}
                       </p>
                     </div>
-                    {selectedTemplate.supplyLimit && (
+                    {selectedTemplate.mintLimit && (
                       <div className="text-right">
-                        <p className="text-sm text-gray-500">Mint Limit</p>
+                        <p className="text-sm text-gray-500">
+                          Mint Limit
+                        </p>
                         <p className="font-mono text-sm">
-                          #{selectedTemplate.supplyLimit}
+                          #{selectedTemplate.mintLimit}
                         </p>
                       </div>
                     )}
@@ -273,7 +247,9 @@ const AddMarketplace = ({ handleRemoveIcon }: any) => {
                 </div>
               </>
             ) : (
-              <p className="text-gray-500 text-center">No item selected.</p>
+              <p className="text-gray-500 text-center">
+                No item selected.
+              </p>
             )}
           </div>
         </div>
@@ -282,10 +258,15 @@ const AddMarketplace = ({ handleRemoveIcon }: any) => {
         <div className="flex items-center justify-between mt-6">
           <div className="flex flex-col w-full gap-2">
             <div className="flex items-center gap-2">
-              <h3 className="font-semibold text-gray-700">Select Collection</h3>
+              <h3 className="font-semibold text-gray-700">
+                Select Collection
+              </h3>
             </div>
 
-            <Dropdown className="w-full rounded-lg" placement="bottom-start">
+            <Dropdown
+              className="w-full rounded-lg"
+              placement="bottom-start"
+            >
               <DropdownTrigger>
                 <button className="bg-white w-full flex justify-between items-center rounded-lg px-4 py-3 text-sm font-medium border border-gray-200 hover:border-gray-300 transition-colors">
                   <span className="flex items-center gap-3">
@@ -318,28 +299,28 @@ const AddMarketplace = ({ handleRemoveIcon }: any) => {
                 aria-label="Select Template"
                 className="w-full max-h-[300px] overflow-y-auto"
               >
-                {nftCollection.length > 0 ? (
-                  nftCollection.map((template: any) => (
+                {collections.length > 0 ? (
+                  collections.map((collection: any) => (
                     <DropdownItem
-                      key={template.mint_address}
+                      key={collection.mint_address}
                       onClick={() =>
                         handleSelectTemplate(
-                          template.mint_address,
-                          template.name
+                          collection.mint_address,
+                          collection.name
                         )
                       }
                       className="py-2 px-4 hover:bg-gray-50"
                     >
                       <div className="flex items-center gap-3">
                         <Image
-                          src={`/assets/collections/${template.name}.png`}
-                          alt={template.name}
+                          src={collection.image}
+                          alt={collection.name}
                           width={24}
                           height={24}
                           className="rounded-full object-cover"
                         />
                         <span className="truncate">
-                          {capitalizeFirstLetter(template.name)}
+                          {capitalizeFirstLetter(collection.name)}
                         </span>
                       </div>
                     </DropdownItem>
@@ -358,10 +339,15 @@ const AddMarketplace = ({ handleRemoveIcon }: any) => {
         <div className="flex items-center justify-between mt-2 mb-2">
           <div className="flex flex-col w-full gap-2">
             <div className="flex items-center gap-2">
-              <h3 className="font-semibold text-gray-700">Select NFT</h3>
+              <h3 className="font-semibold text-gray-700">
+                Select NFT
+              </h3>
             </div>
 
-            <Dropdown className="w-full rounded-lg" placement="bottom-start">
+            <Dropdown
+              className="w-full rounded-lg"
+              placement="bottom-start"
+            >
               <DropdownTrigger>
                 <button className="bg-white w-full flex justify-between items-center rounded-lg px-4 py-3 text-sm font-medium border border-gray-200 hover:border-gray-300 transition-colors">
                   <span className="flex items-center gap-3">
@@ -381,7 +367,9 @@ const AddMarketplace = ({ handleRemoveIcon }: any) => {
                     ) : (
                       <>
                         <div className="w-6 h-6 bg-gray-200 rounded-full animate-pulse"></div>
-                        <span className="text-gray-500">Select an NFT</span>
+                        <span className="text-gray-500">
+                          Select an NFT
+                        </span>
                       </>
                     )}
                   </span>
@@ -408,7 +396,7 @@ const AddMarketplace = ({ handleRemoveIcon }: any) => {
                           className="rounded-full object-cover"
                         />
                         <span className="truncate">
-                          {nft.name || "Unnamed NFT"}
+                          {nft.name || 'Unnamed NFT'}
                         </span>
                       </div>
                     </DropdownItem>
