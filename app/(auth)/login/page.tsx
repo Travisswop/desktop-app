@@ -43,6 +43,7 @@ const Login: React.FC = () => {
 
   const [email, setEmail] = useState('');
   const [code, setCode] = useState('');
+  const [activeModal, setActiveModal] = useState('email');
 
   const otpLength = 6;
   const [otp, setOtp] = useState(new Array(otpLength).fill(''));
@@ -226,6 +227,7 @@ const Login: React.FC = () => {
 
   const handleSendCode = useCallback(() => {
     sendCode({ email });
+    setActiveModal('otp');
   }, [email, sendCode]);
 
   const loginWithCodeCallback = useCallback(
@@ -251,7 +253,8 @@ const Login: React.FC = () => {
     return (
       <div>
         {(state.status === 'initial' ||
-          state.status === 'sending-code') && (
+          state.status === 'sending-code' ||
+          activeModal === 'email') && (
           <div className="relative w-full max-w-2xl mx-auto p-8 flex justify-center items-center">
             {/* Background Images */}
             <div className="absolute -top-[16%] -left-[11%] w-32 h-32 animate-float">
@@ -326,71 +329,76 @@ const Login: React.FC = () => {
         )}
 
         {(state.status === 'awaiting-code-input' ||
-          state.status === 'submitting-code') && (
-          <div className="flex flex-col items-center justify-center p-8 bg-white rounded-2xl shadow-lg w-[400px] border">
-            {/* Close & Back Buttons */}
-            <div className="flex justify-between w-full text-gray-500">
-              <button
-                className="text-lg"
-                onClick={() => {
-                  setOtp(new Array(otpLength).fill(''));
-                }}
-              >
-                <GoArrowLeft className="text-gray-800 " size={25} />
-              </button>
-              <span className="text-base">Log in or sign up</span>
-              <button className="text-lg">
-                <IoCloseOutline
-                  className="text-gray-800 "
-                  size={25}
-                />
-              </button>
-            </div>
-            {/* Mail Icon */}
-            <RiMailSendLine
-              className="text-indigo-500 mt-6"
-              size={40}
-            />
-            {/* Title */}
-            <h2 className="font-semibold text-lg mt-4">
-              Enter Configuration Code
-            </h2>
-            {/* Email Info */}
-            <p className="text-sm text-gray-600 text-center mt-3">
-              Please check{' '}
-              <span className="font-medium">{email}</span> for an
-              email from privy.io and enter your code below.
-            </p>
-            {/* OTP Input Fields */}
-            <div className="flex justify-center gap-3 mt-12">
-              {otp.map((_, index) => (
-                <input
-                  key={index}
-                  ref={(el) => {
-                    if (el) inputRefs.current[index] = el;
+          state.status === 'submitting-code' ||
+          state.status === 'error') &&
+          activeModal === 'otp' && (
+            <div className="flex flex-col items-center justify-center p-8 bg-white rounded-2xl shadow-lg w-[400px] border">
+              {/* Close & Back Buttons */}
+              <div className="flex justify-between w-full text-gray-500">
+                <button
+                  className="text-lg"
+                  onClick={() => {
+                    setOtp(new Array(otpLength).fill(''));
+                    setActiveModal('email');
                   }}
-                  type="text"
-                  maxLength={1}
-                  value={otp[index]}
-                  onChange={(e) => handleChange(index, e)}
-                  onKeyDown={(e) => handleKeyDown(index, e)}
-                  onPaste={handlePaste}
-                  className="w-12 h-16 border border-gray-300 rounded-lg text-center text-xl focus:outline-none focus:border-indigo-500"
-                />
-              ))}
+                >
+                  <GoArrowLeft className="text-gray-800 " size={25} />
+                </button>
+                <span className="text-base">Log in or sign up</span>
+                <button className="text-lg">
+                  <IoCloseOutline
+                    className="text-gray-800 "
+                    size={25}
+                  />
+                </button>
+              </div>
+              {/* Mail Icon */}
+              <RiMailSendLine
+                className="text-indigo-500 mt-6"
+                size={40}
+              />
+              {/* Title */}
+              <h2 className="font-semibold text-lg mt-4">
+                Enter Configuration Code
+              </h2>
+              {/* Email Info */}
+              <p className="text-sm text-gray-600 text-center mt-3">
+                Please check{' '}
+                <span className="font-medium">{email}</span> for an
+                email from privy.io and enter your code below.
+              </p>
+              {/* OTP Input Fields */}
+              <div className="flex justify-center gap-3 mt-12">
+                {otp.map((_, index) => (
+                  <input
+                    key={index}
+                    ref={(el) => {
+                      if (el) inputRefs.current[index] = el;
+                    }}
+                    type="text"
+                    maxLength={1}
+                    value={otp[index]}
+                    onChange={(e) => handleChange(index, e)}
+                    onKeyDown={(e) => handleKeyDown(index, e)}
+                    onPaste={handlePaste}
+                    className="w-12 h-16 border border-gray-300 rounded-lg text-center text-xl focus:outline-none focus:border-indigo-500"
+                  />
+                ))}
+              </div>
+              {/* Resend Code */}
+              <p className="text-sm text-gray-500 mt-5">
+                Didn&apos;t get an email?{'  '}
+                <span
+                  className="text-indigo-600 cursor-pointer"
+                  onClick={handleSendCode}
+                >
+                  Resend code
+                </span>
+              </p>
+              {/* Error */}
+              {state.status === 'error' && <p>Invalid OTP</p>}
             </div>
-            {/* Resend Code */}
-            <p className="text-sm text-gray-500 mt-5">
-              Didn&apos;t get an email?{'  '}
-              <span
-                className="text-indigo-600 cursor-pointer"
-                onClick={handleSendCode}
-              >
-                Resend code
-              </span>
-            </p>
-          </div>
-        )}
+          )}
       </div>
     );
   }
