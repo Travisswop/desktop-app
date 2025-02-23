@@ -1,32 +1,30 @@
 'use client';
 
-import {
-  usePrivy,
-  useLogout,
-  useLoginWithEmail,
-} from '@privy-io/react-auth';
-import { useRouter } from 'next/navigation';
-import {
-  useEffect,
-  useRef,
-  useState,
-  useCallback,
-  useMemo,
-} from 'react';
-import { Card } from '@/components/ui/card';
+import { createLoginWalletBalance } from '@/actions/createWallet';
 import Loader from '@/components/loading/Loader';
-import { Button } from '@/components/ui/button';
-import Image from 'next/image';
+import { Card } from '@/components/ui/card';
 import astronot from '@/public/onboard/astronot.svg';
 import bluePlanet from '@/public/onboard/blue-planet.svg';
 import yellowPlanet from '@/public/onboard/yellow-planet.svg';
-import { WalletItem } from '@/types/wallet';
-import { createLoginWalletBalance } from '@/actions/createWallet';
 import swopLogo from '@/public/swopLogo.png';
+import { WalletItem } from '@/types/wallet';
+import {
+  useLoginWithEmail,
+  useLogout,
+  usePrivy,
+} from '@privy-io/react-auth';
+import Image from 'next/image';
+import { useRouter } from 'next/navigation';
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
+import { GoArrowLeft } from 'react-icons/go';
 import { LuArrowRight } from 'react-icons/lu';
 import { RiMailSendLine } from 'react-icons/ri';
-import { GoArrowLeft } from 'react-icons/go';
-import { IoCloseOutline } from 'react-icons/io5';
 
 const Login: React.FC = () => {
   const { authenticated, ready, user } = usePrivy();
@@ -44,6 +42,8 @@ const Login: React.FC = () => {
   const [email, setEmail] = useState('');
   const [code, setCode] = useState('');
   const [activeModal, setActiveModal] = useState('email');
+  const [checkEmailValidation, setCheckEmailValidation] =
+    useState('');
 
   const otpLength = 6;
   const [otp, setOtp] = useState(new Array(otpLength).fill(''));
@@ -225,9 +225,28 @@ const Login: React.FC = () => {
     }
   }, [state, user, handleUserVerification]);
 
+  const isValidEmail = (email: string | null): string => {
+    if (!email) {
+      return 'Email is required';
+    }
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      return 'Email is invalid';
+    }
+
+    return 'Valid email';
+  };
+
   const handleSendCode = useCallback(() => {
-    sendCode({ email });
-    setActiveModal('otp');
+    const checkEmail = isValidEmail(email);
+    if (checkEmail === 'Valid email') {
+      setCheckEmailValidation('');
+      sendCode({ email });
+      setActiveModal('otp');
+    } else {
+      setCheckEmailValidation(checkEmail);
+    }
   }, [email, sendCode]);
 
   const loginWithCodeCallback = useCallback(
@@ -281,7 +300,7 @@ const Login: React.FC = () => {
 
             {/* Card */}
             <Card className="relative w-full bg-white/15 backdrop-blur-md shadow-xl rounded-3xl max-w-lg mx-auto p-10">
-              <div className="flex flex-col items-center space-y-6 text-center py-24">
+              <div className="flex flex-col items-center space-y-6 text-center pt-24 pb-20">
                 {/* SWOP Logo */}
                 <Image
                   src={swopLogo}
@@ -317,9 +336,17 @@ const Login: React.FC = () => {
                   </button>
                 </div>
 
-                {state.status === 'sending-code' && (
-                  <span>Sending Code...</span>
-                )}
+                <div className="h-3">
+                  {state.status === 'sending-code' && (
+                    <span>Sending Code...</span>
+                  )}
+
+                  {checkEmailValidation !== 'Valid email' && (
+                    <p className="text-red-400 text-sm">
+                      {checkEmailValidation}
+                    </p>
+                  )}
+                </div>
               </div>
             </Card>
           </div>
@@ -341,12 +368,11 @@ const Login: React.FC = () => {
                 >
                   <GoArrowLeft className="text-gray-800 " size={25} />
                 </button>
-                <span className="text-base">Log in or sign up</span>
+                <span className="text-base -ml-5">
+                  Log in or sign up
+                </span>
                 <button className="text-lg">
-                  <IoCloseOutline
-                    className="text-gray-800 "
-                    size={25}
-                  />
+                  {/* <IoCloseOutline className="text-gray-800 " size={25} /> */}
                 </button>
               </div>
               {/* Mail Icon */}
@@ -393,7 +419,13 @@ const Login: React.FC = () => {
                 </span>
               </p>
               {/* Error */}
-              {state.status === 'error' && <p>Invalid OTP</p>}
+              <div className="h-3">
+                {state.status === 'error' && (
+                  <p className="text-red-400 text-sm mt-2">
+                    Invalid OTP
+                  </p>
+                )}
+              </div>
             </div>
           )}
       </div>
