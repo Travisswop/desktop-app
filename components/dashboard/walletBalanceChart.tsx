@@ -38,9 +38,10 @@ const BalanceChart = ({ balanceHistory, totalTokensValue }: any) => {
   //   const now = new Date();
   //   let startDate = new Date(now.getTime());
 
+  //   // Calculate start date based on time range
   //   switch (timeRange) {
   //     case "7days":
-  //       startDate.setTime(now.getTime() - 7 * 24 * 60 * 60 * 1000); // Fixed line
+  //       startDate.setTime(now.getTime() - 7 * 24 * 60 * 60 * 1000);
   //       break;
   //     case "1month":
   //       startDate.setTime(now.getTime() - 30 * 24 * 60 * 60 * 1000);
@@ -55,39 +56,93 @@ const BalanceChart = ({ balanceHistory, totalTokensValue }: any) => {
   //       startDate = new Date(0);
   //   }
 
-  //   // Generate all dates in range
+  //   // Generate all dates in the range
   //   const datesInRange: Date[] = [];
   //   const currentDate = new Date(startDate);
-  //   currentDate.setHours(0, 0, 0, 0);
+  //   currentDate.setHours(0, 0, 0, 0); // Normalize to start of day
   //   const endDate = new Date(now);
-  //   endDate.setHours(23, 59, 59, 999);
+  //   endDate.setHours(23, 59, 59, 999); // Normalize to end of day
 
   //   while (currentDate <= endDate) {
   //     datesInRange.push(new Date(currentDate));
-  //     currentDate.setDate(currentDate.getDate() + 1);
+  //     currentDate.setDate(currentDate.getDate() + 1); // Move to the next day
   //   }
 
-  //   // Create date-to-amount map
+  //   // Create a map of date strings to the latest amount for that day
   //   const dateAmountMap = balanceHistory.reduce((acc: any, entry: any) => {
-  //     const entryDate = new Date(entry.createdAt).toISOString().split("T")[0];
+  //     const entryDate = new Date(entry.createdAt).toISOString().split("T")[0]; // Extract date part
+  //     const existingEntry = acc[entryDate];
+
+  //     // If no entry exists for this date, or the current entry is newer, update the map
+  //     if (
+  //       !existingEntry ||
+  //       new Date(entry.createdAt) > new Date(existingEntry.createdAt)
+  //     ) {
+  //       acc[entryDate] = entry;
+  //     }
+
+  //     return acc;
+  //   }, {});
+
+  //   // Generate the final data with missing dates set to 0
+  //   return datesInRange.map((date) => {
+  //     const dateStr = date.toISOString().split("T")[0]; // Extract date part
+  //     const entry = dateAmountMap[dateStr];
+
+  //     return {
+  //       createdAt: date.toISOString(),
+  //       amount: entry ? entry.amount : 0, // Use the latest amount or 0 if no data exists
+  //     };
+  //   });
+  // }, [balanceHistory, timeRange]);
+
+  // const filteredData = useMemo(() => {
+  //   const now = new Date();
+  //   let startDate = new Date(now.getTime());
+
+  //   // Calculate start date based on time range
+  //   switch (timeRange) {
+  //     case "7days":
+  //       startDate.setTime(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+  //       break;
+  //     case "1month":
+  //       startDate.setTime(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+  //       break;
+  //     case "6months":
+  //       startDate.setTime(now.getTime() - 180 * 24 * 60 * 60 * 1000);
+  //       break;
+  //     case "1year":
+  //       startDate.setTime(now.getTime() - 365 * 24 * 60 * 60 * 1000);
+  //       break;
+  //     default:
+  //       startDate = new Date(0);
+  //   }
+
+  //   // Generate all dates in the range
+  //   const datesInRange: Date[] = [];
+  //   const currentDate = new Date(startDate);
+  //   currentDate.setHours(0, 0, 0, 0); // Normalize to start of day
+  //   const endDate = new Date(now);
+  //   endDate.setHours(23, 59, 59, 999); // Normalize to end of day
+
+  //   while (currentDate <= endDate) {
+  //     datesInRange.push(new Date(currentDate));
+  //     currentDate.setDate(currentDate.getDate() + 1); // Move to the next day
+  //   }
+
+  //   // Create a map of date strings to amounts
+  //   const dateAmountMap = balanceHistory.reduce((acc: any, entry: any) => {
+  //     const entryDate = new Date(entry.createdAt).toISOString().split("T")[0]; // Extract date part
   //     acc[entryDate] = entry.amount;
   //     return acc;
   //   }, {});
 
-  //   console.log("dateAmountMap", dateAmountMap);
-
-  //   // Fill missing dates with previous value or 0
-  //   let lastKnownAmount = 0;
-  //   console.log("lastKnownAmount", lastKnownAmount);
-
+  //   // Generate the final data with missing dates set to 0
   //   return datesInRange.map((date) => {
-  //     const dateStr = date.toISOString().split("T")[0];
-  //     if (dateAmountMap[dateStr]) {
-  //       lastKnownAmount = dateAmountMap[dateStr];
-  //     }
+  //     const dateStr = date.toISOString().split("T")[0]; // Extract date part
   //     return {
   //       createdAt: date.toISOString(),
-  //       amount: dateAmountMap[dateStr] || lastKnownAmount,
+  //       amount: dateAmountMap[dateStr] || 0, // Use 0 if no data exists for this date
   //     };
   //   });
   // }, [balanceHistory, timeRange]);
@@ -114,31 +169,42 @@ const BalanceChart = ({ balanceHistory, totalTokensValue }: any) => {
         startDate = new Date(0);
     }
 
-    // Generate all dates in the range
+    // Generate all dates in the range (UTC)
     const datesInRange: Date[] = [];
     const currentDate = new Date(startDate);
-    currentDate.setHours(0, 0, 0, 0); // Normalize to start of day
+    currentDate.setUTCHours(0, 0, 0, 0); // Normalize to start of day (UTC)
     const endDate = new Date(now);
-    endDate.setHours(23, 59, 59, 999); // Normalize to end of day
+    endDate.setUTCHours(23, 59, 59, 999); // Normalize to end of day (UTC)
 
     while (currentDate <= endDate) {
       datesInRange.push(new Date(currentDate));
-      currentDate.setDate(currentDate.getDate() + 1); // Move to the next day
+      currentDate.setUTCDate(currentDate.getUTCDate() + 1); // Move to the next day (UTC)
     }
 
-    // Create a map of date strings to amounts
+    // Create a map of date strings to the latest amount for that day (UTC)
     const dateAmountMap = balanceHistory.reduce((acc: any, entry: any) => {
-      const entryDate = new Date(entry.createdAt).toISOString().split("T")[0]; // Extract date part
-      acc[entryDate] = entry.amount;
+      const entryDate = new Date(entry.createdAt).toISOString().split("T")[0]; // Extract UTC date part
+      const existingEntry = acc[entryDate];
+
+      // If no entry exists for this date, or the current entry is newer, update the map
+      if (
+        !existingEntry ||
+        new Date(entry.createdAt) > new Date(existingEntry.createdAt)
+      ) {
+        acc[entryDate] = entry;
+      }
+
       return acc;
     }, {});
 
-    // Generate the final data with missing dates set to 0
+    // Generate the final data with missing dates set to 0 (UTC)
     return datesInRange.map((date) => {
-      const dateStr = date.toISOString().split("T")[0]; // Extract date part
+      const dateStr = date.toISOString().split("T")[0]; // Extract UTC date part
+      const entry = dateAmountMap[dateStr];
+
       return {
-        createdAt: date.toISOString(),
-        amount: dateAmountMap[dateStr] || 0, // Use 0 if no data exists for this date
+        createdAt: date.toISOString(), // Use UTC date
+        amount: entry ? entry.amount : 0, // Use the latest amount or 0 if no data exists
       };
     });
   }, [balanceHistory, timeRange]);
