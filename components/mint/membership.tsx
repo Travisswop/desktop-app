@@ -1,10 +1,11 @@
-'use client';
-import { useState, DragEvent, useEffect } from 'react';
-import PushToMintCollectionButton from '@/components/Button/PushToMintCollectionButton';
-import Image from 'next/image';
-import { sendCloudinaryImage } from '@/lib/SendCloudineryImage';
-import { useSolanaWallets } from '@privy-io/react-auth';
-import { useUser } from '@/lib/UserContext';
+"use client";
+import PushToMintCollectionButton from "@/components/Button/PushToMintCollectionButton";
+import { sendCloudinaryImage } from "@/lib/SendCloudineryImage";
+import { useUser } from "@/lib/UserContext";
+import { useSolanaWallets } from "@privy-io/react-auth";
+import Image from "next/image";
+import { DragEvent, useEffect, useState } from "react";
+import { SiSolana } from "react-icons/si";
 
 interface FormData {
   name: string;
@@ -21,18 +22,14 @@ interface FormData {
   royaltyPercentage: number;
 }
 
-const CreateMembership = ({
-  collectionId,
-}: {
-  collectionId: string;
-}) => {
+const CreateMembership = ({ collectionId }: { collectionId: string }) => {
   const [formData, setFormData] = useState<FormData>({
-    name: '',
-    nftType: 'membership',
-    description: '',
-    image: '',
-    price: '',
-    currency: 'usdc',
+    name: "",
+    nftType: "membership",
+    description: "",
+    image: "",
+    price: "",
+    currency: "usdc",
     benefits: [],
     enableCreditCard: false,
     verifyIdentity: false,
@@ -41,10 +38,10 @@ const CreateMembership = ({
     royaltyPercentage: 0,
   });
 
-  const [newBenefit, setNewBenefit] = useState('');
-  const [selectedImageName, setSelectedImageName] = useState<
-    string | null
-  >(null);
+  const [newBenefit, setNewBenefit] = useState("");
+  const [selectedImageName, setSelectedImageName] = useState<string | null>(
+    null
+  );
   const [imageUploading, setImageUploading] = useState(false);
 
   const { wallets } = useSolanaWallets();
@@ -52,9 +49,7 @@ const CreateMembership = ({
 
   const [waitForToken, setWaitForToken] = useState(true); // Manage token readiness
   const [isSubmitting, setIsSubmitting] = useState(false); // Manage submission state
-  const [submissionError, setSubmissionError] = useState<
-    string | null
-  >(null); // Manage submission errors
+  const [submissionError, setSubmissionError] = useState<string | null>(null); // Manage submission errors
 
   const solanaAddress = wallets?.[0]?.address || null;
 
@@ -73,7 +68,7 @@ const CreateMembership = ({
   ) => {
     const { name, value, type } = e.target;
 
-    if (type === 'checkbox') {
+    if (type === "checkbox") {
       setFormData((prevState) => ({
         ...prevState,
         [name]: (e.target as HTMLInputElement).checked,
@@ -81,14 +76,12 @@ const CreateMembership = ({
     } else {
       setFormData((prevState) => ({
         ...prevState,
-        [name]: type === 'number' ? parseFloat(value) : value,
+        [name]: type === "number" ? parseFloat(value) : value,
       }));
     }
   };
 
-  const handleQuantityChange = (
-    e: React.ChangeEvent<HTMLInputElement>
-  ) => {
+  const handleQuantityChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = parseInt(e.target.value, 10);
     setFormData((prevState) => ({
       ...prevState,
@@ -117,17 +110,15 @@ const CreateMembership = ({
         }));
         setImageUploading(false);
       } catch (error) {
-        console.error('Error uploading image:', error);
+        console.error("Error uploading image:", error);
         setImageUploading(false);
-        alert('Failed to upload image. Please try again.');
+        alert("Failed to upload image. Please try again.");
       }
     };
     reader.readAsDataURL(file);
   };
 
-  const handleImageDrop = async (
-    event: DragEvent<HTMLDivElement>
-  ) => {
+  const handleImageDrop = async (event: DragEvent<HTMLDivElement>) => {
     event.preventDefault();
     const file = event.dataTransfer.files?.[0];
     if (!file) return;
@@ -147,9 +138,9 @@ const CreateMembership = ({
         }));
         setImageUploading(false);
       } catch (error) {
-        console.error('Error uploading image:', error);
+        console.error("Error uploading image:", error);
         setImageUploading(false);
-        alert('Failed to upload image. Please try again.');
+        alert("Failed to upload image. Please try again.");
       }
     };
     reader.readAsDataURL(file);
@@ -161,7 +152,7 @@ const CreateMembership = ({
         ...prevState,
         benefits: [...prevState.benefits, newBenefit.trim()],
       }));
-      setNewBenefit('');
+      setNewBenefit("");
     }
   };
 
@@ -172,9 +163,7 @@ const CreateMembership = ({
     }));
   };
 
-  const handleSubmit = async (
-    e: React.MouseEvent<HTMLButtonElement>
-  ) => {
+  const handleSubmit = async (e: React.MouseEvent<HTMLButtonElement>) => {
     e.preventDefault();
     setIsSubmitting(true);
     setSubmissionError(null);
@@ -182,9 +171,7 @@ const CreateMembership = ({
     try {
       const finalData = {
         ...formData,
-        mintLimit: formData.limitQuantity
-          ? Number(formData.quantity)
-          : undefined,
+        mintLimit: Number(formData.quantity),
         price: Number(formData.price),
         royaltyPercentage: formData.royaltyPercentage,
         collectionId: collectionId,
@@ -195,9 +182,9 @@ const CreateMembership = ({
       const response = await fetch(
         `${process.env.NEXT_PUBLIC_API_URL}/api/v1/desktop/nft/template`,
         {
-          method: 'POST',
+          method: "POST",
           headers: {
-            'Content-Type': 'application/json',
+            "Content-Type": "application/json",
             Authorization: `Bearer ${accessToken}`,
           },
           body: JSON.stringify(finalData),
@@ -206,20 +193,18 @@ const CreateMembership = ({
 
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(
-          errorData.message || 'Failed to create membership.'
-        );
+        throw new Error(errorData.message || "Failed to create membership.");
       }
 
       const data = await response.json();
       alert(
-        data.state === 'success'
-          ? 'Membership created successfully!'
+        data.state === "success"
+          ? "Membership created successfully!"
           : data.message
       );
     } catch (error) {
       setSubmissionError(
-        error instanceof Error ? error.message : 'Unexpected error.'
+        error instanceof Error ? error.message : "Unexpected error."
       );
     } finally {
       setIsSubmitting(false);
@@ -228,22 +213,21 @@ const CreateMembership = ({
 
   return (
     <div className="main-container flex justify-center">
-      <div className="bg-white p-5 rounded-lg shadow-md border border-gray-300 w-full flex flex-wrap md:flex-nowrap">
+      <div className="bg-white p-5 rounded-lg shadow-md border border-gray-300 w-full flex flex-wrap md:flex-nowrap items-start">
         {/* Form Section */}
         <div className="w-full md:w-1/2 p-5">
           <div className="bg-white p-4 rounded-lg shadow-md border border-gray-300">
             <div className="flex flex-col gap-4">
-              <h2 className="text-2xl font-bold">
-                Create Membership
-              </h2>
+              <h2 className="text-2xl font-bold">Create Membership</h2>
+
+              <label className="-mt-2 block font-normal text-sm text-gray-600">
+                <span className="text-red-400"> *</span> Required fields
+              </label>
 
               {/* Name Input */}
               <div>
-                <label
-                  htmlFor="name"
-                  className="mb-1 block font-medium"
-                >
-                  Name
+                <label htmlFor="name" className="mb-1 block font-medium">
+                  Name<span className="text-red-400"> *</span>
                 </label>
                 <input
                   type="text"
@@ -256,21 +240,18 @@ const CreateMembership = ({
                   required
                 />
                 <p className="text-sm text-gray-500 mt-1">
-                  Note: Your membership name can&apos;t be changed
-                  after creation
+                  Note: Your membership name can&apos;t be changed after
+                  creation
                 </p>
               </div>
 
               {/* Image Upload */}
-              <label
-                htmlFor="image"
-                className="mb-1 block font-medium"
-              >
-                Image (JPEG, JPG, PNG)
+              <label htmlFor="image" className="block font-medium">
+                Image <span className="text-red-400"> *</span>
               </label>
               <div
-                className="bg-gray-100 p-4 rounded-lg border border-dashed border-gray-300 text-center"
-                style={{ minWidth: '300px', width: '50%' }}
+                className="bg-gray-100 p-8 rounded-lg border-2 border-dashed text-center border-gray-300 h-[255px] -mt-2"
+                style={{ minWidth: "300px", width: "70%" }}
                 onDragOver={(e) => e.preventDefault()}
                 onDrop={handleImageDrop}
               >
@@ -281,7 +262,7 @@ const CreateMembership = ({
                       width={100}
                       height={100}
                       alt="Preview"
-                      className="rounded-lg object-cover"
+                      className="rounded-lg object-cover w-[100px] h-[100px]"
                     />
                     <p className="text-sm mt-2 text-gray-700">
                       {selectedImageName}
@@ -295,14 +276,23 @@ const CreateMembership = ({
                   </div>
                 ) : (
                   <div>
-                    <div className="flex flex-col items-center justify-center h-32 cursor-pointer">
-                      <div className="text-6xl text-gray-400">📷</div>
-                      <p className="text-gray-500">
-                        Browse or drag and drop an image here.
+                    <div className="flex flex-col items-center justify-center cursor-pointer ">
+                      <div className="text-6xl text-gray-400">
+                        <Image
+                          src={"/assets/mintIcon/image-upload-icon.png"}
+                          width={100}
+                          height={100}
+                          alt="Preview"
+                          className="w-[90px] h-auto"
+                        />
+                      </div>
+                      <p className="text-gray-500 my-3 text-sm">
+                        Browse or drag and drop an image here . <br />( JPEG,
+                        JPG, PNG )
                       </p>
                       <label
                         htmlFor="image"
-                        className="inline-block bg-black text-white px-4 py-2 rounded-lg mt-2 cursor-pointer"
+                        className="inline-block bg-black text-white px-9 py-2 rounded-lg mt-2 cursor-pointer "
                       >
                         Browse
                       </label>
@@ -317,16 +307,16 @@ const CreateMembership = ({
                   onChange={handleImageUpload}
                   className="hidden"
                 />
-                {imageUploading && <p>Uploading image...</p>}
+
+                {imageUploading && (
+                  <p className="text-sm text-gray-400">Uploading image...</p>
+                )}
               </div>
 
               {/* Description */}
               <div>
-                <label
-                  htmlFor="description"
-                  className="mb-1 block font-medium"
-                >
-                  Description
+                <label htmlFor="description" className="mb-1 block font-medium">
+                  Description <span className="text-red-400"> *</span>
                 </label>
                 <textarea
                   id="description"
@@ -341,34 +331,179 @@ const CreateMembership = ({
 
               {/* Price */}
               <div>
-                <label
-                  htmlFor="price"
-                  className="mb-1 block font-medium"
+                <label htmlFor="price" className="mb-1 block font-medium">
+                  Price <span className="text-red-400"> *</span>
+                </label>
+                <div className="flex items-center space-x-4">
+                  {" "}
+                  <input
+                    type="text"
+                    id="price"
+                    name="price"
+                    placeholder="$ 0"
+                    value={formData.price}
+                    onChange={handleChange}
+                    className="w-full border border-gray-300 rounded-lg px-4 py-2 flex items-center space-x-4"
+                    required
+                  />
+                  <div className="w-full border border-gray-300 rounded-lg px-4 py-2 flex items-center space-x-2">
+                    <SiSolana className="text-gray-900 size-5" />
+                    <label htmlFor="price" className="font-medium">
+                      USDC
+                    </label>
+                  </div>
+                </div>
+                <p className="text-sm text-gray-500 mt-2">
+                  Note: Currency can&#39;t be changed after creation
+                </p>
+              </div>
+
+              {/* Enable Credit Card & Verify Identity */}
+              {/* <div className="bg-gray-100 p-4 rounded-lg border border-gray-300 mt-4">
+                <h3 className="text-md font-medium">
+                  Enable Pay with Credit Card
+                </h3>
+                <p className="text-sm text-gray-600 mb-2">
+                  Let users buy this membership with a credit card.
+                </p>
+                <div
+                  className={`w-14 h-8 flex items-center rounded-full p-1 cursor-pointer ${
+                    formData.enableCreditCard ? "bg-black" : "bg-gray-300"
+                  }`}
+                  onClick={() =>
+                    setFormData((prevState) => ({
+                      ...prevState,
+                      enableCreditCard: !prevState.enableCreditCard,
+                    }))
+                  }
                 >
-                  Price
+                  <div
+                    className={`h-6 w-6 bg-white rounded-full shadow-md transform duration-300 ${
+                      formData.enableCreditCard ? "translate-x-6" : ""
+                    }`}
+                  ></div>
+                </div>
+
+                <div className="mt-4">
+                  <h3 className="text-md font-medium">Verify Identity</h3>
+                  <p className="text-sm text-gray-600">
+                    Verify your identity to enable credit card payments. You
+                    only complete this process once.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => alert("Verification process started!")}
+                    className="bg-black text-white px-4 py-2 rounded-lg mt-2"
+                  >
+                    Verify Identity
+                  </button>
+                </div>
+              </div> */}
+
+              {/* Advanced Settings with Royalty */}
+              {/* <div className="bg-gray-100 p-4 rounded-lg border border-gray-300 mt-4">
+                <h3 className="text-md font-medium">Advanced Settings</h3>
+                <div className="flex items-center justify-between mt-2">
+                  <span className="text-sm font-medium">Limit quantity</span>
+                  <div
+                    className={`w-14 h-8 flex items-center rounded-full p-1 cursor-pointer ${
+                      formData.limitQuantity ? "bg-black" : "bg-gray-300"
+                    }`}
+                    onClick={() =>
+                      setFormData((prevState) => ({
+                        ...prevState,
+                        limitQuantity: !prevState.limitQuantity,
+                      }))
+                    }
+                  >
+                    <div
+                      className={`h-6 w-6 bg-white rounded-full shadow-md transform duration-300 ${
+                        formData.limitQuantity ? "translate-x-6" : ""
+                      }`}
+                    ></div>
+                  </div>
+                </div>
+                {formData.limitQuantity && (
+                  <input
+                    type="number"
+                    min="1"
+                    placeholder="Enter quantity"
+                    value={formData.quantity || ""}
+                    onChange={handleQuantityChange}
+                    className="w-full border border-gray-300 rounded-lg px-4 py-2 mt-2"
+                  />
+                )}
+                <p className="text-sm text-gray-500 mt-1">
+                  Limit the number of times this digital good can be purchased.
+                </p>
+
+                <div className="mt-4">
+                  <label
+                    htmlFor="royaltyPercentage"
+                    className="block font-medium mb-1"
+                  >
+                    Royalty Percentage
+                  </label>
+                  <div className="flex items-center">
+                    <input
+                      type="number"
+                      id="royaltyPercentage"
+                      name="royaltyPercentage"
+                      value={formData.royaltyPercentage}
+                      onChange={handleChange}
+                      className="w-full border border-gray-300 rounded-lg px-4 py-2"
+                      min="0"
+                      max="100"
+                    />
+                    <span className="ml-2">%</span>
+                  </div>
+                </div>
+              </div> */}
+
+              <div className="mt-4">
+                <label className="block font-medium mb-1">
+                  Limit quantity <span className="text-red-400"> *</span>
                 </label>
                 <input
-                  type="text"
-                  id="price"
-                  name="price"
-                  placeholder="Price"
-                  value={formData.price}
-                  onChange={handleChange}
+                  type="number"
+                  min="1"
+                  placeholder="Enter quantity"
+                  value={formData.quantity || ""}
+                  onChange={handleQuantityChange}
                   className="w-full border border-gray-300 rounded-lg px-4 py-2"
-                  required
                 />
                 <p className="text-sm text-gray-500 mt-1">
-                  Note: Currency can&apos;t be changed after creation
+                  Limit the number of times this digital good can be purchased.
                 </p>
+              </div>
+
+              {/* Royalty Percentage */}
+              <div className="mt-4">
+                <label
+                  htmlFor="royaltyPercentage"
+                  className="block font-medium mb-1"
+                >
+                  Royalty Percentage <span className="text-red-400"> *</span>
+                </label>
+                <div className="flex items-center">
+                  <input
+                    type="number"
+                    id="royaltyPercentage"
+                    name="royaltyPercentage"
+                    value={formData.royaltyPercentage}
+                    onChange={handleChange}
+                    className="w-full border border-gray-300 rounded-lg px-4 py-2"
+                    min="0"
+                    max="100"
+                  />
+                  <span className="ml-2">%</span>
+                </div>
               </div>
 
               {/* Benefits */}
               <div>
-                <label
-                  htmlFor="benefits"
-                  className="mb-1 block font-medium"
-                >
-                  Benefits
+                <label htmlFor="benefits" className="mb-1 block font-medium">
+                  Benefits <span className="text-red-400"> *</span>
                 </label>
                 <input
                   type="text"
@@ -403,126 +538,10 @@ const CreateMembership = ({
                 </div>
               </div>
 
-              {/* Enable Credit Card & Verify Identity */}
-              <div className="bg-gray-100 p-4 rounded-lg border border-gray-300 mt-4">
-                <h3 className="text-md font-medium">
-                  Enable Pay with Credit Card
-                </h3>
-                <p className="text-sm text-gray-600 mb-2">
-                  Let users buy this membership with a credit card.
-                </p>
-                <div
-                  className={`w-14 h-8 flex items-center rounded-full p-1 cursor-pointer ${
-                    formData.enableCreditCard
-                      ? 'bg-black'
-                      : 'bg-gray-300'
-                  }`}
-                  onClick={() =>
-                    setFormData((prevState) => ({
-                      ...prevState,
-                      enableCreditCard: !prevState.enableCreditCard,
-                    }))
-                  }
-                >
-                  <div
-                    className={`h-6 w-6 bg-white rounded-full shadow-md transform duration-300 ${
-                      formData.enableCreditCard ? 'translate-x-6' : ''
-                    }`}
-                  ></div>
-                </div>
-
-                <div className="mt-4">
-                  <h3 className="text-md font-medium">
-                    Verify Identity
-                  </h3>
-                  <p className="text-sm text-gray-600">
-                    Verify your identity to enable credit card
-                    payments. You only complete this process once.
-                  </p>
-                  <button
-                    type="button"
-                    onClick={() =>
-                      alert('Verification process started!')
-                    }
-                    className="bg-black text-white px-4 py-2 rounded-lg mt-2"
-                  >
-                    Verify Identity
-                  </button>
-                </div>
-              </div>
-
-              {/* Advanced Settings with Royalty */}
-              <div className="bg-gray-100 p-4 rounded-lg border border-gray-300 mt-4">
-                <h3 className="text-md font-medium">
-                  Advanced Settings
-                </h3>
-                <div className="flex items-center justify-between mt-2">
-                  <span className="text-sm font-medium">
-                    Limit quantity
-                  </span>
-                  <div
-                    className={`w-14 h-8 flex items-center rounded-full p-1 cursor-pointer ${
-                      formData.limitQuantity
-                        ? 'bg-black'
-                        : 'bg-gray-300'
-                    }`}
-                    onClick={() =>
-                      setFormData((prevState) => ({
-                        ...prevState,
-                        limitQuantity: !prevState.limitQuantity,
-                      }))
-                    }
-                  >
-                    <div
-                      className={`h-6 w-6 bg-white rounded-full shadow-md transform duration-300 ${
-                        formData.limitQuantity ? 'translate-x-6' : ''
-                      }`}
-                    ></div>
-                  </div>
-                </div>
-                {formData.limitQuantity && (
-                  <input
-                    type="number"
-                    min="1"
-                    placeholder="Enter quantity"
-                    value={formData.quantity || ''}
-                    onChange={handleQuantityChange}
-                    className="w-full border border-gray-300 rounded-lg px-4 py-2 mt-2"
-                  />
-                )}
-                <p className="text-sm text-gray-500 mt-1">
-                  Limit the number of times this digital good can be
-                  purchased.
-                </p>
-
-                {/* Royalty Percentage */}
-                <div className="mt-4">
-                  <label
-                    htmlFor="royaltyPercentage"
-                    className="block font-medium mb-1"
-                  >
-                    Royalty Percentage
-                  </label>
-                  <div className="flex items-center">
-                    <input
-                      type="number"
-                      id="royaltyPercentage"
-                      name="royaltyPercentage"
-                      value={formData.royaltyPercentage}
-                      onChange={handleChange}
-                      className="w-full border border-gray-300 rounded-lg px-4 py-2"
-                      min="0"
-                      max="100"
-                    />
-                    <span className="ml-2">%</span>
-                  </div>
-                </div>
-              </div>
-
               {/* Privacy Policy Agreement */}
               <div className="mt-4">
-                <input type="checkbox" required /> I agree with Swop
-                Minting Privacy & Policy
+                <input type="checkbox" required /> I agree with Swop Minting
+                Privacy & Policy
               </div>
 
               {/* Submit Button */}
@@ -531,7 +550,7 @@ const CreateMembership = ({
                 disabled={isSubmitting}
                 onClick={handleSubmit}
               >
-                {isSubmitting ? 'Creating...' : 'Create Membership'}
+                {isSubmitting ? "Creating..." : "Create Membership"}
               </PushToMintCollectionButton>
               {submissionError && (
                 <p className="text-red-500 mt-2">{submissionError}</p>
@@ -541,7 +560,7 @@ const CreateMembership = ({
         </div>
 
         {/* Preview Section */}
-        <div className="w-full md:w-1/2 flex justify-center items-center p-5">
+        <div className="w-full md:w-1/2 flex justify-center items-center p-5 mt-6">
           <div className="bg-white p-4 rounded-lg shadow-md border border-gray-300 w-full max-w-md aspect-[3/4] flex flex-col items-start">
             <div className="w-full aspect-square bg-gray-200 flex items-center justify-center rounded-t-lg mb-4">
               {formData.image ? (
@@ -560,22 +579,21 @@ const CreateMembership = ({
             <div className="mb-2">
               <p className="text-lg font-bold">Name</p>
               <p className="text-sm text-gray-500">
-                {formData.name || 'Name will appear here'}
+                {formData.name || "Name will appear here"}
               </p>
             </div>
 
             <div className="mb-2">
               <p className="text-lg font-bold">Price</p>
               <p className="text-sm text-gray-500">
-                {formData.price ? `$${formData.price}` : 'Free'}
+                {formData.price ? `$${formData.price}` : "Free"}
               </p>
             </div>
 
             <div className="mb-2">
               <p className="text-lg font-bold">Description</p>
               <p className="text-sm text-gray-500">
-                {formData.description ||
-                  'Description will appear here'}
+                {formData.description || "Description will appear here"}
               </p>
             </div>
 

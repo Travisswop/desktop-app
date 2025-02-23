@@ -1,12 +1,12 @@
-'use client';
-import { useState, DragEvent, useEffect } from 'react';
-import PushToMintCollectionButton from '@/components/Button/PushToMintCollectionButton';
-import Image from 'next/image';
-import { sendCloudinaryImage } from '@/lib/SendCloudineryImage';
-import { sendCloudinaryFile } from '@/lib/SendCloudineryAnyFile';
-import { useUser } from '@/lib/UserContext';
-import { useSolanaWallets } from '@privy-io/react-auth';
-import { SiSolana } from 'react-icons/si';
+"use client";
+import PushToMintCollectionButton from "@/components/Button/PushToMintCollectionButton";
+import { sendCloudinaryFile } from "@/lib/SendCloudineryAnyFile";
+import { sendCloudinaryImage } from "@/lib/SendCloudineryImage";
+import { useUser } from "@/lib/UserContext";
+import { useSolanaWallets } from "@privy-io/react-auth";
+import Image from "next/image";
+import { DragEvent, useEffect, useState } from "react";
+import { SiSolana } from "react-icons/si";
 
 interface ContentFile {
   url: string;
@@ -30,18 +30,14 @@ interface FormData {
   royaltyPercentage: number;
 }
 
-const CreateCollectible = ({
-  collectionId,
-}: {
-  collectionId: string;
-}) => {
+const CreateCollectible = ({ collectionId }: { collectionId: string }) => {
   const [formData, setFormData] = useState<FormData>({
-    name: '',
-    nftType: 'collectible',
-    description: '',
-    image: '',
-    price: '',
-    currency: 'usdc',
+    name: "",
+    nftType: "collectible",
+    description: "",
+    image: "",
+    price: "",
+    currency: "usdc",
     benefits: [],
     content: [],
     enableCreditCard: false,
@@ -51,10 +47,10 @@ const CreateCollectible = ({
     royaltyPercentage: 10,
   });
 
-  const [newBenefit, setNewBenefit] = useState('');
-  const [selectedImageName, setSelectedImageName] = useState<
-    string | null
-  >(null);
+  const [newBenefit, setNewBenefit] = useState("");
+  const [selectedImageName, setSelectedImageName] = useState<string | null>(
+    null
+  );
   const [imageUploading, setImageUploading] = useState(false);
   const [isDragOver, setIsDragOver] = useState(false);
   const [uploadingContent, setUploadingContent] = useState(false);
@@ -79,7 +75,7 @@ const CreateCollectible = ({
   ) => {
     const { name, value, type } = e.target;
 
-    if (type === 'checkbox') {
+    if (type === "checkbox") {
       setFormData((prevState) => ({
         ...prevState,
         [name]: (e.target as HTMLInputElement).checked,
@@ -92,9 +88,7 @@ const CreateCollectible = ({
     }
   };
 
-  const handleQuantityChange = (
-    e: React.ChangeEvent<HTMLInputElement>
-  ) => {
+  const handleQuantityChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = parseInt(e.target.value, 10);
     setFormData((prevState) => ({
       ...prevState,
@@ -123,17 +117,15 @@ const CreateCollectible = ({
         }));
         setImageUploading(false);
       } catch (error) {
-        console.error('Error uploading image:', error);
+        console.error("Error uploading image:", error);
         setImageUploading(false);
-        alert('Failed to upload image. Please try again.');
+        alert("Failed to upload image. Please try again.");
       }
     };
     reader.readAsDataURL(file);
   };
 
-  const handleImageDrop = async (
-    event: DragEvent<HTMLDivElement>
-  ) => {
+  const handleImageDrop = async (event: DragEvent<HTMLDivElement>) => {
     event.preventDefault();
     const file = event.dataTransfer.files?.[0];
     if (!file) return;
@@ -153,9 +145,9 @@ const CreateCollectible = ({
         }));
         setImageUploading(false);
       } catch (error) {
-        console.error('Error uploading image:', error);
+        console.error("Error uploading image:", error);
         setImageUploading(false);
-        alert('Failed to upload image. Please try again.');
+        alert("Failed to upload image. Please try again.");
       }
     };
     reader.readAsDataURL(file);
@@ -172,14 +164,11 @@ const CreateCollectible = ({
       const uploadedFiles = await Promise.all(
         files.map(async (file) => {
           const reader = new FileReader();
-          const base64File = await new Promise<string>(
-            (resolve, reject) => {
-              reader.onloadend = () =>
-                resolve(reader.result as string);
-              reader.onerror = () => reject('Error reading file');
-              reader.readAsDataURL(file);
-            }
-          );
+          const base64File = await new Promise<string>((resolve, reject) => {
+            reader.onloadend = () => resolve(reader.result as string);
+            reader.onerror = () => reject("Error reading file");
+            reader.readAsDataURL(file);
+          });
 
           const fileUrl = await sendCloudinaryFile(
             base64File,
@@ -196,8 +185,8 @@ const CreateCollectible = ({
         content: [...prevState.content, ...uploadedFiles],
       }));
     } catch (error) {
-      console.error('Error uploading files:', error);
-      alert('Failed to upload some files. Please try again.');
+      console.error("Error uploading files:", error);
+      alert("Failed to upload some files. Please try again.");
     } finally {
       setUploadingContent(false);
     }
@@ -212,14 +201,11 @@ const CreateCollectible = ({
       const uploadedFiles = await Promise.all(
         files.map(async (file) => {
           const reader = new FileReader();
-          const base64File = await new Promise<string>(
-            (resolve, reject) => {
-              reader.onloadend = () =>
-                resolve(reader.result as string);
-              reader.onerror = () => reject('Error reading file');
-              reader.readAsDataURL(file);
-            }
-          );
+          const base64File = await new Promise<string>((resolve, reject) => {
+            reader.onloadend = () => resolve(reader.result as string);
+            reader.onerror = () => reject("Error reading file");
+            reader.readAsDataURL(file);
+          });
 
           const fileUrl = await sendCloudinaryFile(
             base64File,
@@ -235,8 +221,8 @@ const CreateCollectible = ({
         content: [...prevState.content, ...uploadedFiles],
       }));
     } catch (error) {
-      console.error('Error uploading files:', error);
-      alert('Failed to upload some files. Please try again.');
+      console.error("Error uploading files:", error);
+      alert("Failed to upload some files. Please try again.");
     }
   };
 
@@ -246,7 +232,7 @@ const CreateCollectible = ({
         ...prevState,
         benefits: [...prevState.benefits, newBenefit.trim()],
       }));
-      setNewBenefit('');
+      setNewBenefit("");
     }
   };
 
@@ -258,16 +244,14 @@ const CreateCollectible = ({
   };
 
   const getFileTypeIcon = (type: string) => {
-    if (type.startsWith('image')) return '🖼️';
-    if (type.startsWith('audio')) return '🎵';
-    if (type.startsWith('video')) return '🎥';
-    if (type === 'application/pdf') return '📄';
-    return '📁';
+    if (type.startsWith("image")) return "🖼️";
+    if (type.startsWith("audio")) return "🎵";
+    if (type.startsWith("video")) return "🎥";
+    if (type === "application/pdf") return "📄";
+    return "📁";
   };
 
-  const handleSubmit = async (
-    e: React.MouseEvent<HTMLButtonElement>
-  ) => {
+  const handleSubmit = async (e: React.MouseEvent<HTMLButtonElement>) => {
     e.preventDefault();
 
     try {
@@ -284,9 +268,9 @@ const CreateCollectible = ({
       const response = await fetch(
         `${process.env.NEXT_PUBLIC_API_URL}/api/v1/desktop/nft/template`,
         {
-          method: 'POST',
+          method: "POST",
           headers: {
-            'Content-Type': 'application/json',
+            "Content-Type": "application/json",
             Authorization: `Bearer ${accessToken}`,
           },
           body: JSON.stringify(finalData),
@@ -295,17 +279,17 @@ const CreateCollectible = ({
 
       if (response.ok) {
         const data = await response.json();
-        if (data.state === 'success') {
-          alert('NFT Template created successfully!');
+        if (data.state === "success") {
+          alert("NFT Template created successfully!");
         } else {
-          alert('Failed to create template');
+          alert("Failed to create template");
         }
       } else {
-        alert('Failed to create template');
+        alert("Failed to create template");
       }
     } catch (error) {
-      console.error('Error creating template:', error);
-      alert('Failed to create template');
+      console.error("Error creating template:", error);
+      alert("Failed to create template");
     }
   };
 
@@ -315,19 +299,13 @@ const CreateCollectible = ({
         <div className="w-full md:w-1/2 p-5">
           <div className="bg-white p-4 rounded-lg shadow-md border border-gray-300">
             <div className="flex flex-col gap-4">
-              <h2 className="text-2xl font-bold">
-                Create Collectible
-              </h2>
+              <h2 className="text-2xl font-bold">Create Collectible</h2>
               <label className="-mt-2 block font-normal text-sm text-gray-600">
-                <span className="text-red-400"> *</span> Required
-                fields
+                <span className="text-red-400"> *</span> Required fields
               </label>
 
               <div>
-                <label
-                  htmlFor="name"
-                  className="mb-1 block font-medium"
-                >
+                <label htmlFor="name" className="mb-1 block font-medium">
                   Name <span className="text-red-400"> *</span>
                 </label>
                 <input
@@ -341,8 +319,7 @@ const CreateCollectible = ({
                   required
                 />
                 <p className="text-sm text-gray-500 mt-2">
-                  Note: Your pass name can&#39;t be changed after
-                  creation
+                  Note: Your pass name can&#39;t be changed after creation
                 </p>
               </div>
 
@@ -350,8 +327,8 @@ const CreateCollectible = ({
                 Image <span className="text-red-400"> *</span>
               </label>
               <div
-                className="bg-gray-100 p-8 rounded-lg border-2 border-dashed text-center border-gray-300 h-[250px] -mt-2"
-                style={{ minWidth: '300px', width: '70%' }}
+                className="bg-gray-100 p-8 rounded-lg border-2 border-dashed text-center border-gray-300 h-[255px] -mt-2"
+                style={{ minWidth: "300px", width: "70%" }}
                 onDragOver={(e) => e.preventDefault()}
                 onDrop={handleImageDrop}
               >
@@ -379,9 +356,7 @@ const CreateCollectible = ({
                     <div className="flex flex-col items-center justify-center cursor-pointer ">
                       <div className="text-6xl text-gray-400">
                         <Image
-                          src={
-                            '/assets/mintIcon/image-upload-icon.png'
-                          }
+                          src={"/assets/mintIcon/image-upload-icon.png"}
                           width={100}
                           height={100}
                           alt="Preview"
@@ -389,8 +364,8 @@ const CreateCollectible = ({
                         />
                       </div>
                       <p className="text-gray-500 my-3 text-sm">
-                        Browse or drag and drop an image here . <br />
-                        ( JPEG, JPG, PNG )
+                        Browse or drag and drop an image here . <br />( JPEG,
+                        JPG, PNG )
                       </p>
                       <label
                         htmlFor="image"
@@ -409,18 +384,14 @@ const CreateCollectible = ({
                   onChange={handleImageUpload}
                   className="hidden"
                 />
+
                 {imageUploading && (
-                  <p className="text-sm text-gray-400 mt-1">
-                    Uploading image...
-                  </p>
+                  <p className="text-sm text-gray-400">Uploading image...</p>
                 )}
               </div>
 
               <div>
-                <label
-                  htmlFor="description"
-                  className="mb-1 block font-medium"
-                >
+                <label htmlFor="description" className="mb-1 block font-medium">
                   Description<span className="text-red-400"> *</span>
                 </label>
                 <textarea
@@ -435,14 +406,11 @@ const CreateCollectible = ({
               </div>
 
               <div>
-                <label
-                  htmlFor="price"
-                  className="mb-1 block font-medium"
-                >
+                <label htmlFor="price" className="mb-1 block font-medium">
                   Price <span className="text-red-400"> *</span>
                 </label>
                 <div className="flex items-center space-x-4">
-                  {' '}
+                  {" "}
                   <input
                     type="text"
                     id="price"
@@ -466,24 +434,19 @@ const CreateCollectible = ({
               </div>
 
               <div>
-                <label
-                  htmlFor="price"
-                  className="mb-1 block font-medium"
-                >
-                  Limit quantity{' '}
-                  <span className="text-red-400"> *</span>
+                <label htmlFor="price" className="mb-1 block font-medium">
+                  Limit quantity <span className="text-red-400"> *</span>
                 </label>
                 <input
                   type="number"
                   min="1"
                   placeholder="Enter quantity"
-                  value={formData.quantity || ''}
+                  value={formData.quantity || ""}
                   onChange={handleQuantityChange}
                   className="w-full border border-gray-300 rounded-lg px-4 py-2 mt-2"
                 />
                 <p className="text-sm text-gray-500 mt-2">
-                  Limit the number of times this digital good can be
-                  purchased
+                  Limit the number of times this digital good can be purchased
                 </p>
               </div>
               {/*
@@ -539,10 +502,7 @@ const CreateCollectible = ({
               </div> */}
 
               <div>
-                <label
-                  htmlFor="benefits"
-                  className="mb-1 block font-medium"
-                >
+                <label htmlFor="benefits" className="mb-1 block font-medium">
                   Benefits <span className="text-red-400"> *</span>
                 </label>
                 <input
@@ -657,8 +617,8 @@ const CreateCollectible = ({
               </div> */}
 
               <div className="mt-1">
-                <input type="checkbox" required /> I agree with swop
-                Minting Privacy & Policy
+                <input type="checkbox" required /> I agree with swop Minting
+                Privacy & Policy
               </div>
 
               <PushToMintCollectionButton
@@ -690,22 +650,21 @@ const CreateCollectible = ({
             <div className="mb-2">
               <p className="text-lg font-bold">Name</p>
               <p className="text-sm text-gray-500">
-                {formData.name || 'Name will appear here'}
+                {formData.name || "Name will appear here"}
               </p>
             </div>
 
             <div className="mb-2">
               <p className="text-lg font-bold">Price</p>
               <p className="text-sm text-gray-500">
-                {formData.price ? `$${formData.price}` : 'Free'}
+                {formData.price ? `$${formData.price}` : "Free"}
               </p>
             </div>
 
             <div className="mb-2">
               <p className="text-lg font-bold">Description</p>
               <p className="text-sm text-gray-500">
-                {formData.description ||
-                  'Description will appear here'}
+                {formData.description || "Description will appear here"}
               </p>
             </div>
 

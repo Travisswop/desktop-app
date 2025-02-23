@@ -1,10 +1,11 @@
-'use client';
-import { useState, DragEvent, useEffect } from 'react';
-import PushToMintCollectionButton from '@/components/Button/PushToMintCollectionButton';
-import Image from 'next/image';
-import { sendCloudinaryImage } from '@/lib/SendCloudineryImage';
-import { usePrivy, useSolanaWallets } from '@privy-io/react-auth';
-import { useUser } from '@/lib/UserContext';
+"use client";
+import PushToMintCollectionButton from "@/components/Button/PushToMintCollectionButton";
+import { sendCloudinaryImage } from "@/lib/SendCloudineryImage";
+import { useUser } from "@/lib/UserContext";
+import { usePrivy, useSolanaWallets } from "@privy-io/react-auth";
+import Image from "next/image";
+import { DragEvent, useEffect, useState } from "react";
+import { SiSolana } from "react-icons/si";
 
 interface FormData {
   name: string;
@@ -21,18 +22,14 @@ interface FormData {
   royaltyPercentage: number;
 }
 
-const CreatePhygital = ({
-  collectionId,
-}: {
-  collectionId: string;
-}) => {
+const CreatePhygital = ({ collectionId }: { collectionId: string }) => {
   const [formData, setFormData] = useState<FormData>({
-    name: '',
-    nftType: 'phygital',
-    description: '',
-    image: '',
-    price: '',
-    currency: 'usdc',
+    name: "",
+    nftType: "phygital",
+    description: "",
+    image: "",
+    price: "",
+    currency: "usdc",
     benefits: [],
     enableCreditCard: false,
     verifyIdentity: false,
@@ -41,10 +38,10 @@ const CreatePhygital = ({
     royaltyPercentage: 10,
   });
 
-  const [newBenefit, setNewBenefit] = useState('');
-  const [selectedImageName, setSelectedImageName] = useState<
-    string | null
-  >(null);
+  const [newBenefit, setNewBenefit] = useState("");
+  const [selectedImageName, setSelectedImageName] = useState<string | null>(
+    null
+  );
   const [imageUploading, setImageUploading] = useState(false);
   const { user, accessToken } = useUser();
   const { ready, authenticated } = usePrivy();
@@ -67,7 +64,7 @@ const CreatePhygital = ({
   ) => {
     const { name, value, type } = e.target;
 
-    if (type === 'checkbox') {
+    if (type === "checkbox") {
       setFormData((prevState) => ({
         ...prevState,
         [name]: (e.target as HTMLInputElement).checked,
@@ -80,9 +77,7 @@ const CreatePhygital = ({
     }
   };
 
-  const handleQuantityChange = (
-    e: React.ChangeEvent<HTMLInputElement>
-  ) => {
+  const handleQuantityChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = parseInt(e.target.value, 10);
     setFormData((prevState) => ({
       ...prevState,
@@ -111,17 +106,15 @@ const CreatePhygital = ({
         }));
         setImageUploading(false);
       } catch (error) {
-        console.error('Error uploading image:', error);
+        console.error("Error uploading image:", error);
         setImageUploading(false);
-        alert('Failed to upload image. Please try again.');
+        alert("Failed to upload image. Please try again.");
       }
     };
     reader.readAsDataURL(file);
   };
 
-  const handleImageDrop = async (
-    event: DragEvent<HTMLDivElement>
-  ) => {
+  const handleImageDrop = async (event: DragEvent<HTMLDivElement>) => {
     event.preventDefault();
     const file = event.dataTransfer.files?.[0];
     if (!file) return;
@@ -141,9 +134,9 @@ const CreatePhygital = ({
         }));
         setImageUploading(false);
       } catch (error) {
-        console.error('Error uploading image:', error);
+        console.error("Error uploading image:", error);
         setImageUploading(false);
-        alert('Failed to upload image. Please try again.');
+        alert("Failed to upload image. Please try again.");
       }
     };
     reader.readAsDataURL(file);
@@ -155,7 +148,7 @@ const CreatePhygital = ({
         ...prevState,
         benefits: [...prevState.benefits, newBenefit.trim()],
       }));
-      setNewBenefit('');
+      setNewBenefit("");
     }
   };
 
@@ -166,9 +159,7 @@ const CreatePhygital = ({
     }));
   };
 
-  const handleSubmit = async (
-    e: React.MouseEvent<HTMLButtonElement>
-  ) => {
+  const handleSubmit = async (e: React.MouseEvent<HTMLButtonElement>) => {
     e.preventDefault();
 
     try {
@@ -185,9 +176,9 @@ const CreatePhygital = ({
       const response = await fetch(
         `${process.env.NEXT_PUBLIC_API_URL}/api/v1/desktop/nft/template`,
         {
-          method: 'POST',
+          method: "POST",
           headers: {
-            'Content-Type': 'application/json',
+            "Content-Type": "application/json",
             Authorization: `Bearer ${accessToken}`,
           },
           body: JSON.stringify(finalData),
@@ -196,37 +187,35 @@ const CreatePhygital = ({
 
       if (response.ok) {
         const data = await response.json();
-        if (data.state === 'success') {
-          alert('Subscription created successfully!');
+        if (data.state === "success") {
+          alert("Subscription created successfully!");
         } else {
-          alert(data.message || 'Failed to create subscription.');
+          alert(data.message || "Failed to create subscription.");
         }
       } else {
         const errorData = await response.json();
-        alert(errorData.message || 'Failed to create subscription.');
+        alert(errorData.message || "Failed to create subscription.");
       }
     } catch (error) {
-      console.error('Unexpected error:', error);
-      alert('An unexpected error occurred. Please try again.');
+      console.error("Unexpected error:", error);
+      alert("An unexpected error occurred. Please try again.");
     }
   };
 
   return (
     <div className="main-container flex justify-center">
-      <div className="bg-white p-5 rounded-lg shadow-md border border-gray-300 w-full flex flex-wrap md:flex-nowrap">
+      <div className="bg-white p-5 rounded-lg shadow-md border border-gray-300 w-full flex flex-wrap md:flex-nowrap items-start">
         <div className="w-full md:w-1/2 p-5">
           <div className="bg-white p-4 rounded-lg shadow-md border border-gray-300">
             <div className="flex flex-col gap-4">
-              <h2 className="text-2xl font-bold">
-                Create Phygital Item
-              </h2>
+              <h2 className="text-2xl font-bold">Create Phygital Item</h2>
+              <label className="-mt-2 block font-normal text-sm text-gray-600">
+                <span className="text-red-400"> *</span> Required fields
+              </label>
 
               <div>
-                <label
-                  htmlFor="name"
-                  className="mb-1 block font-medium"
-                >
-                  Name
+                <label htmlFor="name" className="mb-1 block font-medium">
+                  Name <span className="text-red-400"> *</span>
                 </label>
                 <input
                   type="text"
@@ -239,20 +228,17 @@ const CreatePhygital = ({
                   required
                 />
                 <p className="text-sm text-gray-500 mt-1">
-                  Note: Your phygital item name can&apos;t be changed
-                  after creation
+                  Note: Your phygital item name can&apos;t be changed after
+                  creation
                 </p>
               </div>
 
-              <label
-                htmlFor="image"
-                className="mb-1 block font-medium"
-              >
-                Image (JPEG, JPG, PNG)
+              <label htmlFor="image" className="block font-medium">
+                Image <span className="text-red-400"> *</span>
               </label>
               <div
-                className="bg-gray-100 p-4 rounded-lg border border-dashed border-gray-300 text-center"
-                style={{ minWidth: '300px', width: '50%' }}
+                className="bg-gray-100 p-8 rounded-lg border-2 border-dashed text-center border-gray-300 h-[255px] -mt-2"
+                style={{ minWidth: "300px", width: "70%" }}
                 onDragOver={(e) => e.preventDefault()}
                 onDrop={handleImageDrop}
               >
@@ -263,7 +249,7 @@ const CreatePhygital = ({
                       width={100}
                       height={100}
                       alt="Preview"
-                      className="rounded-lg object-cover"
+                      className="rounded-lg object-cover w-[100px] h-[100px]"
                     />
                     <p className="text-sm mt-2 text-gray-700">
                       {selectedImageName}
@@ -277,14 +263,23 @@ const CreatePhygital = ({
                   </div>
                 ) : (
                   <div>
-                    <div className="flex flex-col items-center justify-center h-32 cursor-pointer">
-                      <div className="text-6xl text-gray-400">📷</div>
-                      <p className="text-gray-500">
-                        Browse or drag and drop an image here.
+                    <div className="flex flex-col items-center justify-center cursor-pointer ">
+                      <div className="text-6xl text-gray-400">
+                        <Image
+                          src={"/assets/mintIcon/image-upload-icon.png"}
+                          width={100}
+                          height={100}
+                          alt="Preview"
+                          className="w-[90px] h-auto"
+                        />
+                      </div>
+                      <p className="text-gray-500 my-3 text-sm">
+                        Browse or drag and drop an image here . <br />( JPEG,
+                        JPG, PNG )
                       </p>
                       <label
                         htmlFor="image"
-                        className="inline-block bg-black text-white px-4 py-2 rounded-lg mt-2 cursor-pointer"
+                        className="inline-block bg-black text-white px-9 py-2 rounded-lg mt-2 cursor-pointer "
                       >
                         Browse
                       </label>
@@ -299,14 +294,15 @@ const CreatePhygital = ({
                   onChange={handleImageUpload}
                   className="hidden"
                 />
-                {imageUploading && <p>Uploading image...</p>}
+
+                {imageUploading && (
+                  <p className="text-sm text-gray-400">Uploading image...</p>
+                )}
               </div>
+
               <div>
-                <label
-                  htmlFor="description"
-                  className="mb-1 block font-medium"
-                >
-                  Description
+                <label htmlFor="description" className="mb-1 block font-medium">
+                  Description <span className="text-red-400"> *</span>
                 </label>
                 <textarea
                   id="description"
@@ -320,54 +316,53 @@ const CreatePhygital = ({
               </div>
 
               <div>
-                <label
-                  htmlFor="price"
-                  className="mb-1 block font-medium"
-                >
-                  Price
+                <label htmlFor="price" className="mb-1 block font-medium">
+                  Price <span className="text-red-400"> *</span>
                 </label>
-                <input
-                  type="text"
-                  id="price"
-                  name="price"
-                  placeholder="Price"
-                  value={formData.price}
-                  onChange={handleChange}
-                  className="w-full border border-gray-300 rounded-lg px-4 py-2"
-                  required
-                />
-                <p className="text-sm text-gray-500 mt-1">
-                  Note: Currency can&apos;t be changed after creation
+                <div className="flex items-center space-x-4">
+                  {" "}
+                  <input
+                    type="text"
+                    id="price"
+                    name="price"
+                    placeholder="$ 0"
+                    value={formData.price}
+                    onChange={handleChange}
+                    className="w-full border border-gray-300 rounded-lg px-4 py-2 flex items-center space-x-4"
+                    required
+                  />
+                  <div className="w-full border border-gray-300 rounded-lg px-4 py-2 flex items-center space-x-2">
+                    <SiSolana className="text-gray-900 size-5" />
+                    <label htmlFor="price" className="font-medium">
+                      USDC
+                    </label>
+                  </div>
+                </div>
+                <p className="text-sm text-gray-500 mt-2">
+                  Note: Currency can&#39;t be changed after creation
                 </p>
               </div>
 
               <div>
-                <label
-                  htmlFor="price"
-                  className="mb-1 block font-medium"
-                >
-                  Limit quantity
+                <label htmlFor="price" className="mb-1 block font-medium">
+                  Limit quantity <span className="text-red-400"> *</span>
                 </label>
                 <input
                   type="number"
                   min="1"
                   placeholder="Enter quantity"
-                  value={formData.quantity || ''}
+                  value={formData.quantity || ""}
                   onChange={handleQuantityChange}
                   className="w-full border border-gray-300 rounded-lg px-4 py-2 mt-2"
                 />
                 <p className="text-sm text-gray-500 mt-1">
-                  Limit the number of times this phygital item can be
-                  purchased
+                  Limit the number of times this phygital item can be purchased
                 </p>
               </div>
 
               <div>
-                <label
-                  htmlFor="benefits"
-                  className="mb-1 block font-medium"
-                >
-                  Benefits
+                <label htmlFor="benefits" className="mb-1 block font-medium">
+                  Benefits <span className="text-red-400"> *</span>
                 </label>
                 <input
                   type="text"
@@ -481,8 +476,8 @@ const CreatePhygital = ({
               </div> */}
 
               <div className="mt-4">
-                <input type="checkbox" required /> I agree with swop
-                Minting Privacy & Policy
+                <input type="checkbox" required /> I agree with swop Minting
+                Privacy & Policy
               </div>
 
               <PushToMintCollectionButton
@@ -495,7 +490,7 @@ const CreatePhygital = ({
           </div>
         </div>
 
-        <div className="w-full md:w-1/2 flex justify-center items-center p-5">
+        <div className="w-full md:w-1/2 flex justify-center items-center p-5 mt-6">
           <div className="bg-white p-4 rounded-lg shadow-md border border-gray-300 w-full max-w-md aspect-[3/4] flex flex-col items-start">
             <div className="w-full aspect-square bg-gray-200 flex items-center justify-center rounded-t-lg mb-4">
               {formData.image ? (
@@ -514,22 +509,21 @@ const CreatePhygital = ({
             <div className="mb-2">
               <p className="text-lg font-bold">Name</p>
               <p className="text-sm text-gray-500">
-                {formData.name || 'Name will appear here'}
+                {formData.name || "Name will appear here"}
               </p>
             </div>
 
             <div className="mb-2">
               <p className="text-lg font-bold">Price</p>
               <p className="text-sm text-gray-500">
-                {formData.price ? `$${formData.price}` : 'Free'}
+                {formData.price ? `$${formData.price}` : "Free"}
               </p>
             </div>
 
             <div className="mb-2">
               <p className="text-lg font-bold">Description</p>
               <p className="text-sm text-gray-500">
-                {formData.description ||
-                  'Description will appear here'}
+                {formData.description || "Description will appear here"}
               </p>
             </div>
 
