@@ -349,7 +349,7 @@ const CreateMembership = ({ collectionId }: { collectionId: string }) => {
                   <div className="w-full border border-gray-300 rounded-lg px-4 py-2 flex items-center space-x-2">
                     <SiSolana className="text-gray-900 size-5" />
                     <label htmlFor="price" className="font-medium">
-                      USDC
+                      Solana
                     </label>
                   </div>
                 </div>
@@ -539,9 +539,12 @@ const CreateMembership = ({ collectionId }: { collectionId: string }) => {
               </div>
 
               {/* Privacy Policy Agreement */}
+
               <div className="mt-4">
-                <input type="checkbox" required /> I agree with Swop Minting
-                Privacy & Policy
+                <input type="checkbox" required /> I agree with swop Minting
+                <span className="text-[#8A2BE2] underline ml-1">
+                  Privacy & Policy
+                </span>
               </div>
 
               {/* Submit Button */}

@@ -5,7 +5,6 @@ import { useUser } from "@/lib/UserContext";
 import { useSolanaWallets } from "@privy-io/react-auth";
 import Image from "next/image";
 import { DragEvent, useEffect, useState } from "react";
-import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
 import { SiSolana } from "react-icons/si";
 
@@ -369,7 +368,7 @@ const CreateSubscription = ({ collectionId }: { collectionId: string }) => {
                   <div className="w-full border border-gray-300 rounded-lg px-4 py-2 flex items-center space-x-2">
                     <SiSolana className="text-gray-900 size-5" />
                     <label htmlFor="price" className="font-medium">
-                      USDC
+                      Solana
                     </label>
                   </div>
                 </div>
@@ -419,7 +418,7 @@ const CreateSubscription = ({ collectionId }: { collectionId: string }) => {
                 </div>
               </div>
 
-              <div className="flex gap-4 w-full">
+              {/* <div className="flex gap-4 w-full">
                 <div className="w-full">
                   <label htmlFor="startDate" className="mb-1 block font-medium">
                     Start Date <span className="text-red-400"> *</span>
@@ -452,7 +451,7 @@ const CreateSubscription = ({ collectionId }: { collectionId: string }) => {
                     <option value="Yearly">Yearly</option>
                   </select>
                 </div>
-              </div>
+              </div> */}
 
               <div>
                 <label htmlFor="benefits" className="mb-1 block font-medium">
@@ -593,7 +592,9 @@ const CreateSubscription = ({ collectionId }: { collectionId: string }) => {
 
               <div className="mt-4">
                 <input type="checkbox" required /> I agree with swop Minting
-                Privacy & Policy
+                <span className="text-[#8A2BE2] underline ml-1">
+                  Privacy & Policy
+                </span>
               </div>
 
               <PushToMintCollectionButton
