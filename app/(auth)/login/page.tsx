@@ -1,32 +1,20 @@
-'use client';
+"use client";
 
-import {
-  usePrivy,
-  useLogout,
-  useLoginWithEmail,
-} from '@privy-io/react-auth';
-import { useRouter } from 'next/navigation';
-import {
-  useEffect,
-  useRef,
-  useState,
-  useCallback,
-  useMemo,
-} from 'react';
-import { Card } from '@/components/ui/card';
-import Loader from '@/components/loading/Loader';
-import { Button } from '@/components/ui/button';
-import Image from 'next/image';
-import astronot from '@/public/onboard/astronot.svg';
-import bluePlanet from '@/public/onboard/blue-planet.svg';
-import yellowPlanet from '@/public/onboard/yellow-planet.svg';
-import { WalletItem } from '@/types/wallet';
-import { createLoginWalletBalance } from '@/actions/createWallet';
-import swopLogo from '@/public/swopLogo.png';
-import { LuArrowRight } from 'react-icons/lu';
-import { RiMailSendLine } from 'react-icons/ri';
-import { GoArrowLeft } from 'react-icons/go';
-import { IoCloseOutline } from 'react-icons/io5';
+import { createLoginWalletBalance } from "@/actions/createWallet";
+import Loader from "@/components/loading/Loader";
+import { Card } from "@/components/ui/card";
+import astronot from "@/public/onboard/astronot.svg";
+import bluePlanet from "@/public/onboard/blue-planet.svg";
+import yellowPlanet from "@/public/onboard/yellow-planet.svg";
+import swopLogo from "@/public/swopLogo.png";
+import { WalletItem } from "@/types/wallet";
+import { useLoginWithEmail, useLogout, usePrivy } from "@privy-io/react-auth";
+import Image from "next/image";
+import { useRouter } from "next/navigation";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { GoArrowLeft } from "react-icons/go";
+import { LuArrowRight } from "react-icons/lu";
+import { RiMailSendLine } from "react-icons/ri";
 
 const Login: React.FC = () => {
   const { authenticated, ready, user } = usePrivy();
@@ -37,16 +25,15 @@ const Login: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [isRedirecting, setIsRedirecting] = useState(false);
-  const [walletData, setWalletData] = useState<WalletItem[] | null>(
-    null
-  );
+  const [walletData, setWalletData] = useState<WalletItem[] | null>(null);
 
-  const [email, setEmail] = useState('');
-  const [code, setCode] = useState('');
-  const [activeModal, setActiveModal] = useState('email');
+  const [email, setEmail] = useState("");
+  const [code, setCode] = useState("");
+  const [activeModal, setActiveModal] = useState("email");
+  const [checkEmailValidation, setCheckEmailValidation] = useState();
 
   const otpLength = 6;
-  const [otp, setOtp] = useState(new Array(otpLength).fill(''));
+  const [otp, setOtp] = useState(new Array(otpLength).fill(""));
   const inputRefs = useRef<Array<HTMLInputElement | null>>(
     new Array(otpLength).fill(null)
   );
@@ -73,25 +60,20 @@ const Login: React.FC = () => {
     index: number,
     event: React.KeyboardEvent<HTMLInputElement>
   ) => {
-    if (event.key === 'Backspace' && !otp[index] && index > 0) {
+    if (event.key === "Backspace" && !otp[index] && index > 0) {
       inputRefs.current[index - 1]?.focus();
     }
   };
 
   // Handle pasting OTP
-  const handlePaste = (
-    event: React.ClipboardEvent<HTMLInputElement>
-  ) => {
+  const handlePaste = (event: React.ClipboardEvent<HTMLInputElement>) => {
     const pasteData = event.clipboardData
-      .getData('text')
+      .getData("text")
       .slice(0, otpLength)
-      .split('');
+      .split("");
     if (pasteData.some((char) => isNaN(Number(char)))) return;
 
-    setOtp([
-      ...pasteData,
-      ...new Array(otpLength - pasteData.length).fill(''),
-    ]);
+    setOtp([...pasteData, ...new Array(otpLength - pasteData.length).fill("")]);
 
     pasteData.forEach((char, index) => {
       if (inputRefs.current[index]) {
@@ -99,30 +81,28 @@ const Login: React.FC = () => {
       }
     });
 
-    inputRefs.current[
-      Math.min(pasteData.length, otpLength - 1)
-    ]?.focus();
+    inputRefs.current[Math.min(pasteData.length, otpLength - 1)]?.focus();
   };
 
   // Memoize wallet data transformation
   const processWalletData = useCallback((user: any) => {
     return user?.linkedAccounts
       .map((item: any) => {
-        if (item.chainType === 'ethereum') {
+        if (item.chainType === "ethereum") {
           return {
             address: item.address,
             isActive:
-              item.walletClientType === 'privy' ||
-              item.connectorType === 'embedded',
+              item.walletClientType === "privy" ||
+              item.connectorType === "embedded",
             isEVM: true,
             walletClientType: item.walletClientType,
           };
-        } else if (item.chainType === 'solana') {
+        } else if (item.chainType === "solana") {
           return {
             address: item.address,
             isActive:
-              item.walletClientType === 'privy' ||
-              item.connectorType === 'embedded',
+              item.walletClientType === "privy" ||
+              item.connectorType === "embedded",
             isEVM: false,
             walletClientType: item.walletClientType,
           };
@@ -137,11 +117,10 @@ const Login: React.FC = () => {
     return (
       user.google?.email ||
       user.email?.address ||
+      user.linkedAccounts.find((account: any) => account.type === "email")
+        ?.address ||
       user.linkedAccounts.find(
-        (account: any) => account.type === 'email'
-      )?.address ||
-      user.linkedAccounts.find(
-        (account: any) => account.type === 'google_oauth'
+        (account: any) => account.type === "google_oauth"
       )?.email
     );
   }, []);
@@ -158,35 +137,33 @@ const Login: React.FC = () => {
         setIsLoading(true);
         const email = extractEmail(user);
         if (!email) {
-          router.push('/onboard');
+          router.push("/onboard");
           return;
         }
 
         const response = await fetch(`${apiUrl}${email}`, {
-          headers: { 'Content-Type': 'application/json' },
+          headers: { "Content-Type": "application/json" },
         });
 
         const data = await response.json();
 
         if (!response.ok) {
-          router.push('/onboard');
+          router.push("/onboard");
           return;
         }
 
         const payload = {
           userId: data.user._id,
-          ethAddress: walletData?.find((wallet) => wallet?.isEVM)
-            ?.address,
-          solanaAddress: walletData?.find((wallet) => !wallet?.isEVM)
-            ?.address,
+          ethAddress: walletData?.find((wallet) => wallet?.isEVM)?.address,
+          solanaAddress: walletData?.find((wallet) => !wallet?.isEVM)?.address,
         };
 
         setIsRedirecting(true);
         createLoginWalletBalance(payload);
-        router.push('/');
+        router.push("/");
       } catch (error) {
-        console.error('Error verifying user:', error);
-        router.push('/onboard');
+        console.error("Error verifying user:", error);
+        router.push("/onboard");
       } finally {
         loginInitiated.current = false;
         setIsLoading(false);
@@ -206,8 +183,8 @@ const Login: React.FC = () => {
   }, [authenticated, ready, user, processWalletData]);
 
   useEffect(() => {
-    const privyToken = document.cookie.includes('privy-token');
-    const privyIdToken = document.cookie.includes('privy-id-token');
+    const privyToken = document.cookie.includes("privy-token");
+    const privyIdToken = document.cookie.includes("privy-id-token");
 
     if ((!privyToken || !privyIdToken) && authenticated) {
       setIsLoggingOut(true);
@@ -217,17 +194,33 @@ const Login: React.FC = () => {
 
   // Effect for handling OTP completion
   useEffect(() => {
-    if (
-      (state.status === 'initial' || state.status === 'done') &&
-      user
-    ) {
+    if ((state.status === "initial" || state.status === "done") && user) {
       handleUserVerification(user);
     }
   }, [state, user, handleUserVerification]);
 
+  const isValidEmail = (email: string | null): string => {
+    if (!email) {
+      return "Email is required";
+    }
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      return "Email is invalid";
+    }
+
+    return "Valid email";
+  };
+
   const handleSendCode = useCallback(() => {
-    sendCode({ email });
-    setActiveModal('otp');
+    const checkEmail = isValidEmail(email);
+    if (checkEmail === "Valid email") {
+      setCheckEmailValidation();
+      sendCode({ email });
+      setActiveModal("otp");
+    } else {
+      setCheckEmailValidation(checkEmail);
+    }
   }, [email, sendCode]);
 
   const loginWithCodeCallback = useCallback(
@@ -238,23 +231,23 @@ const Login: React.FC = () => {
   );
 
   useEffect(() => {
-    if (state.status === 'awaiting-code-input') {
-      if (otp.every((digit) => digit !== '')) {
+    if (state.status === "awaiting-code-input") {
+      if (otp.every((digit) => digit !== "")) {
         // Check if all OTP fields are filled
-        loginWithCodeCallback(otp.join('')); // Join only when all fields are filled
+        loginWithCodeCallback(otp.join("")); // Join only when all fields are filled
       }
     }
   }, [otp, state, loginWithCodeCallback]);
 
-  console.log('state', state);
-  console.log('user', user);
+  console.log("state", state);
+  console.log("user", user);
 
   if (!user) {
     return (
       <div>
-        {(state.status === 'initial' ||
-          state.status === 'sending-code' ||
-          activeModal === 'email') && (
+        {(state.status === "initial" ||
+          state.status === "sending-code" ||
+          activeModal === "email") && (
           <div className="relative w-full max-w-2xl mx-auto p-8 flex justify-center items-center">
             {/* Background Images */}
             <div className="absolute -top-[16%] -left-[11%] w-32 h-32 animate-float">
@@ -284,7 +277,7 @@ const Login: React.FC = () => {
 
             {/* Card */}
             <Card className="relative w-full bg-white/15 backdrop-blur-md shadow-xl rounded-3xl max-w-lg mx-auto p-10">
-              <div className="flex flex-col items-center space-y-6 text-center py-24">
+              <div className="flex flex-col items-center space-y-6 text-center pt-24 pb-20">
                 {/* SWOP Logo */}
                 <Image
                   src={swopLogo}
@@ -296,10 +289,7 @@ const Login: React.FC = () => {
                 {/* Email Input Field */}
                 <div className="flex items-center border border-black rounded-xl overflow-hidden w-[350px]">
                   <div className="p-2 pl-4">
-                    <RiMailSendLine
-                      className="text-gray-400"
-                      size={20}
-                    />
+                    <RiMailSendLine className="text-gray-400" size={20} />
                   </div>
                   <input
                     type="email"
@@ -311,60 +301,58 @@ const Login: React.FC = () => {
                   <button
                     className="bg-black text-white p-2 rounded-lg m-1 px-4"
                     onClick={handleSendCode}
-                    disabled={state.status === 'sending-code'}
+                    disabled={state.status === "sending-code"}
                   >
-                    <LuArrowRight
-                      className="text-gray-50"
-                      size={20}
-                    />
+                    <LuArrowRight className="text-gray-50" size={20} />
                   </button>
                 </div>
 
-                {state.status === 'sending-code' && (
-                  <span>Sending Code...</span>
-                )}
+                <div className="h-3">
+                  {state.status === "sending-code" && (
+                    <span>Sending Code...</span>
+                  )}
+
+                  {checkEmailValidation !== "Valid email" && (
+                    <p className="text-red-400 text-sm">
+                      {checkEmailValidation}
+                    </p>
+                  )}
+                </div>
               </div>
             </Card>
           </div>
         )}
 
-        {(state.status === 'awaiting-code-input' ||
-          state.status === 'submitting-code' ||
-          state.status === 'error') &&
-          activeModal === 'otp' && (
+        {(state.status === "awaiting-code-input" ||
+          state.status === "submitting-code" ||
+          state.status === "error") &&
+          activeModal === "otp" && (
             <div className="flex flex-col items-center justify-center p-8 bg-white rounded-2xl shadow-lg w-[400px] border">
               {/* Close & Back Buttons */}
               <div className="flex justify-between w-full text-gray-500">
                 <button
                   className="text-lg"
                   onClick={() => {
-                    setOtp(new Array(otpLength).fill(''));
-                    setActiveModal('email');
+                    setOtp(new Array(otpLength).fill(""));
+                    setActiveModal("email");
                   }}
                 >
                   <GoArrowLeft className="text-gray-800 " size={25} />
                 </button>
-                <span className="text-base">Log in or sign up</span>
+                <span className="text-base -ml-5">Log in or sign up</span>
                 <button className="text-lg">
-                  <IoCloseOutline
-                    className="text-gray-800 "
-                    size={25}
-                  />
+                  {/* <IoCloseOutline className="text-gray-800 " size={25} /> */}
                 </button>
               </div>
               {/* Mail Icon */}
-              <RiMailSendLine
-                className="text-indigo-500 mt-6"
-                size={40}
-              />
+              <RiMailSendLine className="text-indigo-500 mt-6" size={40} />
               {/* Title */}
               <h2 className="font-semibold text-lg mt-4">
                 Enter Configuration Code
               </h2>
               {/* Email Info */}
               <p className="text-sm text-gray-600 text-center mt-3">
-                Please check{' '}
-                <span className="font-medium">{email}</span> for an
+                Please check <span className="font-medium">{email}</span> for an
                 email from privy.io and enter your code below.
               </p>
               {/* OTP Input Fields */}
@@ -387,7 +375,7 @@ const Login: React.FC = () => {
               </div>
               {/* Resend Code */}
               <p className="text-sm text-gray-500 mt-5">
-                Didn&apos;t get an email?{'  '}
+                Didn&apos;t get an email?{"  "}
                 <span
                   className="text-indigo-600 cursor-pointer"
                   onClick={handleSendCode}
@@ -396,7 +384,11 @@ const Login: React.FC = () => {
                 </span>
               </p>
               {/* Error */}
-              {state.status === 'error' && <p>Invalid OTP</p>}
+              <div className="h-3">
+                {state.status === "error" && (
+                  <p className="text-red-400 text-sm mt-2">Invalid OTP</p>
+                )}
+              </div>
             </div>
           )}
       </div>
