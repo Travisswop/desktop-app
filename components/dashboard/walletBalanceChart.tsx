@@ -223,9 +223,6 @@ const WalletBalanceChart = ({ isFromWallet = false }) => {
   const [totalTokensValue, setTotalTokensValue] = useState(0);
   const [walletList, setWalletList] = useState({});
 
-  console.log('users', user);
-  console.log('balanceData', balanceData);
-
   useEffect(() => {
     const fetchData = async () => {
       try {

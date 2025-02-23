@@ -246,9 +246,6 @@ const Login: React.FC = () => {
     }
   }, [otp, state, loginWithCodeCallback]);
 
-  console.log('state', state);
-  console.log('user', user);
-
   if (!user) {
     return (
       <div>

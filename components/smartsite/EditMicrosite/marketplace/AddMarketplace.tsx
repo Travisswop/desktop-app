@@ -85,7 +85,6 @@ const AddMarketplace = ({ handleRemoveIcon }: any) => {
     setNftList([]);
     setSelectedCollection(collectionName);
     try {
-      console.log('collectionid', collectionId);
       const response = await fetch(
         `${process.env.NEXT_PUBLIC_API_URL}/api/v1/desktop/nft/getNFTListByCollectionAndUser`,
         {
@@ -153,8 +152,6 @@ const AddMarketplace = ({ handleRemoveIcon }: any) => {
       };
 
       const response = await createMarketPlace(payload, accessToken);
-
-      console.log('response', response);
       if (!response) {
         throw new Error('Marketplace creating failed');
       }
@@ -167,8 +164,6 @@ const AddMarketplace = ({ handleRemoveIcon }: any) => {
       setIsLoading(false);
     }
   };
-
-  console.log('collectionid', selectedTemplate);
 
   return (
     <div className="relative bg-white rounded-xl shadow-small p-6 flex flex-col gap-4">
@@ -302,10 +297,10 @@ const AddMarketplace = ({ handleRemoveIcon }: any) => {
                 {collections.length > 0 ? (
                   collections.map((collection: any) => (
                     <DropdownItem
-                      key={collection.mint_address}
+                      key={collection._id}
                       onClick={() =>
                         handleSelectTemplate(
-                          collection.mint_address,
+                          collection._id,
                           collection.name
                         )
                       }
