@@ -2,11 +2,12 @@
 import PushToMintCollectionButton from "@/components/Button/PushToMintCollectionButton";
 import { sendCloudinaryImage } from "@/lib/SendCloudineryImage";
 import { useUser } from "@/lib/UserContext";
+import { useDisclosure } from "@nextui-org/react";
 import { useSolanaWallets } from "@privy-io/react-auth";
 import Image from "next/image";
 import { DragEvent, useEffect, useState } from "react";
 import { SiSolana } from "react-icons/si";
-
+import MintAlertModal from "./MintAlertModal";
 interface FormData {
   name: string;
   nftType: string;
@@ -23,6 +24,13 @@ interface FormData {
 }
 
 const CreateMenu = ({ collectionId }: { collectionId: string }) => {
+  const { isOpen, onOpenChange } = useDisclosure();
+  const [modelInfo, setModelInfo] = useState({
+    flag: null,
+    title: "",
+    description: "",
+  });
+
   const [formData, setFormData] = useState<FormData>({
     name: "",
     nftType: "menu",
@@ -209,13 +217,31 @@ const CreateMenu = ({ collectionId }: { collectionId: string }) => {
       if (response.ok) {
         const data = await response.json();
         if (data.state === "success") {
-          alert("Subscription created successfully!");
+          // alert("Subscription created successfully!");
+          onOpenChange(true);
+          setModelInfo({
+            flag: true,
+            title: "Subscription created successfully!",
+            description: "",
+          });
         } else {
-          alert(data.message || "Failed to create subscription.");
+          // alert(data.message || "Failed to create subscription.");
+          onOpenChange(true);
+          setModelInfo({
+            flag: false,
+            title: "Failed to create subscription.",
+            description: "",
+          });
         }
       } else {
         const errorData = await response.json();
-        alert(errorData.message || "Failed to create subscription.");
+        // alert(errorData.message || "Failed to create subscription.");
+        onOpenChange(true);
+        setModelInfo({
+          flag: false,
+          title: "Failed to create subscription.",
+          description: "",
+        });
       }
     } catch (error) {
       console.error("Unexpected error:", error);
@@ -567,6 +593,13 @@ const CreateMenu = ({ collectionId }: { collectionId: string }) => {
           </div>
         </div>
       </div>
+      {/* Mint Alert */}
+
+      <MintAlertModal
+        isOpen={isOpen}
+        onOpenChange={onOpenChange}
+        modelInfo={modelInfo}
+      />
     </div>
   );
 };
