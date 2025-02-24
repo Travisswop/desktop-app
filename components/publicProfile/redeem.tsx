@@ -64,7 +64,7 @@ const Redeem: FC<Props> = ({ data, socialType, parentId, number }) => {
 
   const openLink = useCallback(() => {
     updateCount();
-    if (network.toLowerCase() === "solana") {
+    if (network?.toLowerCase() === "solana") {
       window.open(link, "_self");
     } else if (availableLinks.length > 0) {
       window.open(availableLinks[0], "_self");
@@ -74,7 +74,7 @@ const Redeem: FC<Props> = ({ data, socialType, parentId, number }) => {
   }, [network, link, availableLinks, updateCount, toast]);
 
   useEffect(() => {
-    if (network.toLowerCase() !== "solana") {
+    if (network?.toLowerCase() !== "solana") {
       const fetchValidLinks = async () => {
         const validLinks = await Promise.all(
           evmLink.map(async (item: any) => {
@@ -138,7 +138,7 @@ const Redeem: FC<Props> = ({ data, socialType, parentId, number }) => {
         <div className="max-w-xs overflow-hidden">
           <h4 className="text-md font-semibold">{mintName}</h4>
           <p className="text-xs ">{description}</p>
-          {network.toLowerCase() !== "solana" && (
+          {network?.toLowerCase() !== "solana" && (
             <span className="text-xs font-bold">
               {availableLinks.length} Available
             </span>

@@ -123,6 +123,11 @@ const EditSmartSite = ({ data, token }: any) => {
   //const iconData: any = useUpdateSmartIcon(); //get trigger smarticon from zustand store
 
   const { isOpen, onOpen, onOpenChange } = useDisclosure();
+  const {
+    isOpen: isDeleteOpen,
+    onOpen: onDeleteOpen,
+    onOpenChange: onDeleteOpenChange,
+  } = useDisclosure();
 
   const router = useRouter();
 
@@ -338,7 +343,7 @@ const EditSmartSite = ({ data, token }: any) => {
         setDeleteLoading(true);
         const deleteSmartsite = await handleDeleteSmartSite(
           data.data._id,
-          token,
+          token
         );
 
         // console.log("data delte", data);
@@ -410,7 +415,7 @@ const EditSmartSite = ({ data, token }: any) => {
   // console.log("toogle icon", toggleIcon);
 
   const setSmartSiteData = useSmartSiteApiDataStore(
-    (state: any) => state.setSmartSiteData,
+    (state: any) => state.setSmartSiteData
   ); //get setter for setting smartsite info from zustand store
 
   //get setter for setting session info from zustand store
@@ -864,7 +869,7 @@ const EditSmartSite = ({ data, token }: any) => {
             </DynamicPrimaryBtn>
             <AnimateButton
               type="button"
-              onClick={() => onOpen()}
+              onClick={() => onDeleteOpen()}
               className="py-2 hover:py-3 text-base !gap-1 bg-white text-black w-full"
               // disabled={isFormSubmitLoading}
             >
@@ -878,10 +883,10 @@ const EditSmartSite = ({ data, token }: any) => {
               )}
             </AnimateButton>
 
-            {isOpen && (
+            {isDeleteOpen && (
               <DeleteModal
-                isOpen={isOpen}
-                onOpenChange={onOpenChange}
+                isOpen={isDeleteOpen}
+                onOpenChange={onDeleteOpenChange}
                 parentId={data?.data?.parentId}
                 _id={data?.data?._id}
                 accessToken={token}
