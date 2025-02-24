@@ -139,7 +139,7 @@ export default function ClientProfile({ initialData }: { initialData: any }) {
 
         {/* Blog */}
         {info?.blog && info.blog.length > 0 && (
-          <div className="w-full mt-8">
+          <div className="w-full">
             {info.blog.map((social: any, index: number) => (
               <Blog
                 number={index}
