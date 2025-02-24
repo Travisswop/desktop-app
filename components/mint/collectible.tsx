@@ -3,10 +3,12 @@ import PushToMintCollectionButton from "@/components/Button/PushToMintCollection
 import { sendCloudinaryFile } from "@/lib/SendCloudineryAnyFile";
 import { sendCloudinaryImage } from "@/lib/SendCloudineryImage";
 import { useUser } from "@/lib/UserContext";
+import { useDisclosure } from "@nextui-org/react";
 import { useSolanaWallets } from "@privy-io/react-auth";
 import Image from "next/image";
 import { DragEvent, useEffect, useState } from "react";
 import { SiSolana } from "react-icons/si";
+import MintAlertModal from "./MintAlertModal";
 
 interface ContentFile {
   url: string;
@@ -31,6 +33,13 @@ interface FormData {
 }
 
 const CreateCollectible = ({ collectionId }: { collectionId: string }) => {
+  const { isOpen, onOpenChange } = useDisclosure();
+  const [modelInfo, setModelInfo] = useState({
+    flag: null,
+    title: "",
+    description: "",
+  });
+
   const [formData, setFormData] = useState<FormData>({
     name: "",
     nftType: "collectible",
@@ -280,16 +289,39 @@ const CreateCollectible = ({ collectionId }: { collectionId: string }) => {
       if (response.ok) {
         const data = await response.json();
         if (data.state === "success") {
-          alert("NFT Template created successfully!");
+          // alert("NFT Template created successfully!");
+          onOpenChange(true);
+          setModelInfo({
+            flag: true,
+            title: "NFT Template created successfully!",
+            description: "",
+          });
         } else {
-          alert("Failed to create template");
+          // alert("Failed to create template");
+
+          onOpenChange(true);
+          setModelInfo({
+            flag: false,
+            title: "Failed to create template",
+            description: "",
+          });
         }
       } else {
-        alert("Failed to create template");
+        onOpenChange(true);
+        setModelInfo({
+          flag: false,
+          title: "Failed to create template",
+          description: "",
+        });
       }
     } catch (error) {
       console.error("Error creating template:", error);
-      alert("Failed to create template");
+      onOpenChange(true);
+      setModelInfo({
+        flag: false,
+        title: "Failed to create template",
+        description: "",
+      });
     }
   };
 
@@ -685,6 +717,15 @@ const CreateCollectible = ({ collectionId }: { collectionId: string }) => {
           </div>
         </div>
       </div>
+
+      {/* Mint Alert */}
+
+      <MintAlertModal
+        isOpen={isOpen}
+        onOpenChange={onOpenChange}
+        modelInfo={modelInfo}
+      />
+
     </div>
   );
 };

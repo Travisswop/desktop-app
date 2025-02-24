@@ -2,10 +2,12 @@
 import PushToMintCollectionButton from "@/components/Button/PushToMintCollectionButton";
 import { sendCloudinaryImage } from "@/lib/SendCloudineryImage";
 import { useUser } from "@/lib/UserContext";
+import { useDisclosure } from "@nextui-org/react";
 import { useSolanaWallets } from "@privy-io/react-auth";
 import Image from "next/image";
 import { DragEvent, useEffect, useState } from "react";
 import { SiSolana } from "react-icons/si";
+import MintAlertModal from "./MintAlertModal";
 
 interface FormData {
   name: string;
@@ -23,6 +25,13 @@ interface FormData {
 }
 
 const CreateMembership = ({ collectionId }: { collectionId: string }) => {
+  const { isOpen, onOpenChange } = useDisclosure();
+  const [modelInfo, setModelInfo] = useState({
+    flag: null,
+    title: "",
+    description: "",
+  });
+
   const [formData, setFormData] = useState<FormData>({
     name: "",
     nftType: "membership",
@@ -197,11 +206,19 @@ const CreateMembership = ({ collectionId }: { collectionId: string }) => {
       }
 
       const data = await response.json();
-      alert(
-        data.state === "success"
-          ? "Membership created successfully!"
-          : data.message
-      );
+      // alert(
+      //   data.state === "success"
+      //     ? "Membership created successfully!"
+      //     : data.message
+      // );
+      if (data) {
+        onOpenChange(true);
+        setModelInfo({
+          flag: true,
+          title: "Membership created successfully!",
+          description: "",
+        });
+      }
     } catch (error) {
       setSubmissionError(
         error instanceof Error ? error.message : "Unexpected error."
@@ -623,6 +640,14 @@ const CreateMembership = ({ collectionId }: { collectionId: string }) => {
           </div>
         </div>
       </div>
+
+      {/* Mint Alert */}
+
+      <MintAlertModal
+        isOpen={isOpen}
+        onOpenChange={onOpenChange}
+        modelInfo={modelInfo}
+      />
     </div>
   );
 };
