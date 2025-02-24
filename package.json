@@ -50,6 +50,7 @@
     "ethers": "^6.13.4",
     "framer-motion": "^11.11.13",
     "gif-picker-react": "^1.4.0",
+    "html-react-parser": "^5.2.2",
     "js-cookie": "^3.0.5",
     "json2csv": "^6.0.0-alpha.2",
     "lucide-react": "^0.453.0",
@@ -83,6 +84,7 @@
     "tailwindcss-animate": "^1.0.7",
     "tinymce": "^7.5.1",
     "use-debounce": "^10.0.4",
+    "vcards-js": "^2.10.0",
     "wasm-loader": "^1.3.0",
     "zod": "^3.23.8",
     "zustand": "^5.0.1"
@@ -96,6 +98,7 @@
     "@types/react": "^18",
     "@types/react-dom": "^18",
     "@types/react-slick": "^0.23.13",
+    "@types/vcards-js": "^2.10.5",
     "eslint": "^8",
     "eslint-config-next": "15.0.1",
     "postcss": "^8",
