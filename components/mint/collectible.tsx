@@ -725,7 +725,6 @@ const CreateCollectible = ({ collectionId }: { collectionId: string }) => {
         onOpenChange={onOpenChange}
         modelInfo={modelInfo}
       />
-
     </div>
   );
 };
