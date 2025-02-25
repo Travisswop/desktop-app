@@ -1,6 +1,6 @@
-"use client";
+// "use client";
 
-import { useState, useEffect } from "react";
+// import { useState, useEffect } from "react";
 // import { getUserData } from '../../actions/user';
 import Header from "@/components/publicProfile/header";
 import Bio from "@/components/publicProfile/bio";
@@ -17,7 +17,7 @@ import Contact from "@/components/publicProfile/contact";
 import InfoBar from "@/components/publicProfile/infoBar";
 import PaymentBar from "@/components/publicProfile/paymentBar";
 import Footer from "@/components/publicProfile/footer";
-import GatedAccess from "@/components/publicProfile/gatedAccess";
+// import GatedAccess from "@/components/publicProfile/gatedAccess";
 // import { Toaster } from '@/components/publicProfile/ui/toaster';
 import Image from "next/image";
 import styles from "@/app/styles.module.css";
@@ -25,23 +25,24 @@ import { background } from "@/lib/icons";
 import { redirect } from "next/navigation";
 import { getUserData } from "@/actions/user";
 import { Toaster } from "@/components/ui/toaster";
+import MarketPlace from "@/components/publicProfile/MarketPlace";
 
 export default function ClientProfile({ initialData }: { initialData: any }) {
-  const [data, setData] = useState(initialData);
-  if (data.redirect) {
-    redirect(`/sp/${data.data.username}`);
+  // const [data, setData] = useState(initialData);
+  if (initialData.redirect) {
+    redirect(`/sp/${initialData.data.username}`);
   }
 
-  useEffect(() => {
-    const refreshData = async () => {
-      try {
-        const freshData = await getUserData(data.username);
-        setData(freshData);
-      } catch (error) {
-        console.error("Error refreshing data:", error);
-      }
-    };
-  }, [data.username]);
+  // useEffect(() => {
+  //   const refreshData = async () => {
+  //     try {
+  //       const freshData = await getUserData(data.username);
+  //       setData(freshData);
+  //     } catch (error) {
+  //       console.error("Error refreshing data:", error);
+  //     }
+  //   };
+  // }, [data.username]);
 
   const {
     _id,
@@ -69,20 +70,27 @@ export default function ClientProfile({ initialData }: { initialData: any }) {
     gatedInfo: any;
     theme: boolean;
     ens: string;
-  } = data.data;
+  } = initialData.data;
 
-  console.log("backgroundImg", backgroundImg);
+  console.log("info", info);
 
   const ensDomain = info.ensDomain[info.ensDomain.length - 1];
 
   const bg =
     typeof backgroundImg === "string" && backgroundImg.startsWith("https")
       ? backgroundImg
-      : background[backgroundImg as keyof typeof background];
+      : `/images/smartsite-background/${backgroundImg}.png`;
+  // background[backgroundImg as keyof typeof background];
+
+  console.log("bg", bg);
+  console.log("theme", theme);
 
   return (
-    <div>
-      {theme && (
+    <div
+      style={{ backgroundImage: theme ? `url(${bg})` : "" }}
+      className="bg-cover bg-no-repeat h-screen overflow-y-auto"
+    >
+      {/* {theme && (
         <div className={styles.bgWrap}>
           <Image
             alt="Mountains"
@@ -95,8 +103,10 @@ export default function ClientProfile({ initialData }: { initialData: any }) {
             }}
           />
         </div>
-      )}
-      <main className="flex max-w-md mx-auto min-h-screen flex-col items-center px-4">
+      )} */}
+      <main
+        className={`flex max-w-md mx-auto min-h-screen flex-col items-center px-4 z-50`}
+      >
         <Header
           avatar={profilePic}
           cover={backgroundImg.toString()}
@@ -129,7 +139,7 @@ export default function ClientProfile({ initialData }: { initialData: any }) {
 
         {/* Blog */}
         {info?.blog && info.blog.length > 0 && (
-          <div className="w-full mt-8">
+          <div className="w-full">
             {info.blog.map((social: any, index: number) => (
               <Blog
                 number={index}
@@ -157,6 +167,28 @@ export default function ClientProfile({ initialData }: { initialData: any }) {
         )}
 
         <div className="mt-4"></div>
+
+        {/* market place */}
+        {info?.marketPlace && info.marketPlace.length > 0 && (
+          <div className="w-full">
+            {info.marketPlace.map((marketPlace: any) => (
+              <MarketPlace
+                key={marketPlace._id}
+                data={marketPlace}
+                socialType="redeemLink"
+                parentId={parentId}
+                number={0}
+              />
+            ))}
+            {/* <Message
+              number={0}
+              key={ensDomain._id}
+              data={ensDomain}
+              socialType="ens"
+              parentId={parentId}
+            /> */}
+          </div>
+        )}
 
         {/* Message */}
         {/* ENS */}
