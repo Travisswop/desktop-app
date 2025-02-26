@@ -11,11 +11,11 @@ const AddToCartPage = async () => {
   if (accessToken) {
     const data = await getCartData(accessToken);
 
-    console.log("data", data);
+    // console.log("data", data);
 
     return (
       <div className="flex max-w-md mx-auto min-h-screen flex-col items-center px-4">
-        <p className="text-xl font-bold mt-6 mb-4">Cart</p>
+        <p className="text-2xl font-bold mt-6 mb-4">Cart</p>
         <CartContent data={data} />
       </div>
     );

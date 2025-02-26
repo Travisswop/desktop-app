@@ -9,6 +9,7 @@ import { DragEvent, useEffect, useState } from "react";
 import "react-datepicker/dist/react-datepicker.css";
 import { SiSolana } from "react-icons/si";
 import MintAlertModal from "./MintAlertModal";
+import { useRouter } from "next/navigation";
 interface FormData {
   name: string;
   nftType: string;
@@ -27,6 +28,7 @@ interface FormData {
 }
 
 const CreateSubscription = ({ collectionId }: { collectionId: string }) => {
+  const router = useRouter();
   const { isOpen, onOpenChange } = useDisclosure();
   const [modelInfo, setModelInfo] = useState({
     flag: null,
@@ -61,6 +63,7 @@ const CreateSubscription = ({ collectionId }: { collectionId: string }) => {
   const { user, accessToken } = useUser();
   const { wallets } = useSolanaWallets();
   const [waitForToken, setWaitForToken] = useState(true);
+  const [isSubmitting, setIsSubmitting] = useState(false); // Manage submission state
 
   const solanaAddress = wallets?.[0]?.address || null;
 
@@ -201,6 +204,7 @@ const CreateSubscription = ({ collectionId }: { collectionId: string }) => {
 
   const handleSubmit = async (e: React.MouseEvent<HTMLButtonElement>) => {
     e.preventDefault();
+    setIsSubmitting(true);
 
     try {
       // Map and prepare final data
@@ -238,6 +242,9 @@ const CreateSubscription = ({ collectionId }: { collectionId: string }) => {
             title: "Subscription created successfully!",
             description: "",
           });
+          setTimeout(() => {
+            router.push(`/mint/${data?.data?.collectionId}`);
+          }, 3000);
         } else {
           // alert(data.message || "Failed to create subscription.");
           onOpenChange(true);
@@ -260,6 +267,9 @@ const CreateSubscription = ({ collectionId }: { collectionId: string }) => {
     } catch (error) {
       console.error("Unexpected error:", error);
       alert("An unexpected error occurred. Please try again.");
+    }
+    finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -625,9 +635,10 @@ const CreateSubscription = ({ collectionId }: { collectionId: string }) => {
 
               <PushToMintCollectionButton
                 className="w-max mt-4"
+                disabled={isSubmitting}
                 onClick={handleSubmit}
               >
-                Create
+                {isSubmitting ? "Creating..." : "Create Subscription"}
               </PushToMintCollectionButton>
             </div>
           </div>

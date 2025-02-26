@@ -1,53 +1,16 @@
-export const getUserLocation = async (): Promise<{
-  lat: number;
-  lng: number;
-  city?: string;
-  state?: string;
-  country?: string;
-}> => {
-  if (!navigator.geolocation) {
-    throw new Error("Geolocation is not supported by your browser.");
-  }
-
-  try {
-    const { coords } = await new Promise<GeolocationPosition>(
-      (resolve, reject) =>
-        navigator.geolocation.getCurrentPosition(resolve, (err) =>
-          reject(new Error(err.message))
-        )
-    );
-
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 5000); // 5s timeout
-
-    const response = await fetch(
-      `https://nominatim.openstreetmap.org/reverse?lat=${coords.latitude}&lon=${coords.longitude}&format=json`,
-      { signal: controller.signal }
-    );
-
-    clearTimeout(timeoutId); // Clear timeout if request succeeds
-
-    if (!response.ok) {
-      throw new Error(
-        `Failed to fetch location details: ${response.statusText}`
-      );
-    }
-
-    const data = await response.json();
-
-    return {
-      lat: coords.latitude,
-      lng: coords.longitude,
-      city: data.address?.city || data.address?.town || data.address?.village,
-      state: data.address?.state,
-      country: data.address?.country,
-    };
-  } catch (error) {
-    console.error("Error fetching user location:", error);
-  }
-};
-
 export const getDeviceInfo = () => {
+  // Ensure this code only runs in the browser
+  if (typeof window === "undefined") {
+    return {
+      os: "Unknown OS",
+      browser: "Unknown Browser",
+      deviceType: "Desktop",
+      userAgent: "",
+      platform: "",
+      language: "",
+    };
+  }
+
   const userAgent = navigator.userAgent.toLowerCase();
   const platform = navigator.platform.toLowerCase();
   const language = navigator.language;
