@@ -5,10 +5,10 @@ import { useUser } from "@/lib/UserContext";
 import { useDisclosure } from "@nextui-org/react";
 import { useSolanaWallets } from "@privy-io/react-auth";
 import Image from "next/image";
+import { useRouter } from "next/navigation";
 import { DragEvent, useEffect, useState } from "react";
 import { SiSolana } from "react-icons/si";
 import MintAlertModal from "./MintAlertModal";
-
 interface FormData {
   name: string;
   nftType: string;
@@ -25,6 +25,7 @@ interface FormData {
 }
 
 const CreateMembership = ({ collectionId }: { collectionId: string }) => {
+  const router = useRouter();
   const { isOpen, onOpenChange } = useDisclosure();
   const [modelInfo, setModelInfo] = useState({
     flag: null,
@@ -218,6 +219,9 @@ const CreateMembership = ({ collectionId }: { collectionId: string }) => {
           title: "Membership created successfully!",
           description: "",
         });
+        setTimeout(() => {
+          router.push(`/mint/${data?.data?.collectionId}`);
+        }, 3000);
       }
     } catch (error) {
       setSubmissionError(

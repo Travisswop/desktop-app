@@ -6,6 +6,7 @@ import { useUser } from "@/lib/UserContext";
 import { useDisclosure } from "@nextui-org/react";
 import { useSolanaWallets } from "@privy-io/react-auth";
 import Image from "next/image";
+import { useRouter } from "next/navigation";
 import { DragEvent, useEffect, useState } from "react";
 import { SiSolana } from "react-icons/si";
 import MintAlertModal from "./MintAlertModal";
@@ -33,6 +34,7 @@ interface FormData {
 }
 
 const CreateCollectible = ({ collectionId }: { collectionId: string }) => {
+  const router = useRouter();
   const { isOpen, onOpenChange } = useDisclosure();
   const [modelInfo, setModelInfo] = useState({
     flag: null,
@@ -66,6 +68,7 @@ const CreateCollectible = ({ collectionId }: { collectionId: string }) => {
   const [waitForToken, setWaitForToken] = useState(true);
   const { user, accessToken } = useUser();
   const { wallets } = useSolanaWallets();
+  const [isSubmitting, setIsSubmitting] = useState(false); // Manage submission state
 
   const solanaAddress = wallets?.[0]?.address || null; // Fallback to null if no wallet is connected
 
@@ -262,6 +265,7 @@ const CreateCollectible = ({ collectionId }: { collectionId: string }) => {
 
   const handleSubmit = async (e: React.MouseEvent<HTMLButtonElement>) => {
     e.preventDefault();
+    setIsSubmitting(true);
 
     try {
       // Explicitly convert supplyLimit and price to numbers before submitting
@@ -296,6 +300,9 @@ const CreateCollectible = ({ collectionId }: { collectionId: string }) => {
             title: "NFT Template created successfully!",
             description: "",
           });
+          setTimeout(() => {
+            router.push(`/mint/${data?.data?.collectionId}`);
+          }, 3000);
         } else {
           // alert("Failed to create template");
 
@@ -322,6 +329,8 @@ const CreateCollectible = ({ collectionId }: { collectionId: string }) => {
         title: "Failed to create template",
         description: "",
       });
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -656,10 +665,11 @@ const CreateCollectible = ({ collectionId }: { collectionId: string }) => {
               </div>
 
               <PushToMintCollectionButton
-                className="w-[140px] mt-4 "
+                className="w-max mt-4"
+                disabled={isSubmitting}
                 onClick={handleSubmit}
               >
-                Create
+                {isSubmitting ? "Creating..." : "Create Collectible"}
               </PushToMintCollectionButton>
             </div>
           </div>

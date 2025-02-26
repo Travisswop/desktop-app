@@ -5,6 +5,7 @@ import { useUser } from "@/lib/UserContext";
 import { useDisclosure } from "@nextui-org/react";
 import { useSolanaWallets } from "@privy-io/react-auth";
 import Image from "next/image";
+import { useRouter } from "next/navigation";
 import { DragEvent, useEffect, useState } from "react";
 import { SiSolana } from "react-icons/si";
 import MintAlertModal from "./MintAlertModal";
@@ -26,6 +27,7 @@ interface FormData {
 }
 
 const CreateCoupon = ({ collectionId }: { collectionId: string }) => {
+  const router = useRouter();
   const { isOpen, onOpenChange } = useDisclosure();
   const [modelInfo, setModelInfo] = useState({
     flag: null,
@@ -58,6 +60,7 @@ const CreateCoupon = ({ collectionId }: { collectionId: string }) => {
   const { user, accessToken } = useUser();
   const { wallets } = useSolanaWallets();
   const [waitForToken, setWaitForToken] = useState(true);
+  const [isSubmitting, setIsSubmitting] = useState(false); // Manage submission state
 
   const solanaAddress = wallets?.[0]?.address || null;
 
@@ -191,6 +194,7 @@ const CreateCoupon = ({ collectionId }: { collectionId: string }) => {
 
   const handleSubmit = async (e: React.MouseEvent<HTMLButtonElement>) => {
     e.preventDefault();
+    setIsSubmitting(true);
 
     try {
       // Map and prepare final data
@@ -225,6 +229,10 @@ const CreateCoupon = ({ collectionId }: { collectionId: string }) => {
             title: "NFT Template created successfully!",
             description: "",
           });
+
+          setTimeout(() => {
+            router.push(`/mint/${data?.data?.collectionId}`);
+          }, 3000);
         } else {
           // alert(data.message || "Failed to create subscription.");
           onOpenChange(true);
@@ -253,6 +261,9 @@ const CreateCoupon = ({ collectionId }: { collectionId: string }) => {
         title: "Failed to create template",
         description: "",
       });
+    }
+    finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -607,9 +618,10 @@ const CreateCoupon = ({ collectionId }: { collectionId: string }) => {
             {/* Submit Button */}
             <PushToMintCollectionButton
               className="w-max mt-4"
+              disabled={isSubmitting}
               onClick={handleSubmit}
             >
-              Create
+              {isSubmitting ? "Creating..." : "Create Coupon"}
             </PushToMintCollectionButton>
           </div>
         </div>
