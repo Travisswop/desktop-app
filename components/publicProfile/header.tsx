@@ -25,6 +25,7 @@ interface Props {
   parentId: string;
   micrositeId: string;
   theme: boolean;
+  accessToken: string;
 }
 
 const Header: FC<Props> = ({
@@ -34,11 +35,14 @@ const Header: FC<Props> = ({
   parentId,
   micrositeId,
   theme,
+  accessToken,
 }) => {
   const [open, setOpen] = useState(false);
   const [openDC, setOpenDC] = useState(false);
   const [cartQty, setCartQty] = useState(0);
-  const { accessToken } = useUser();
+  // const { accessToken } = useUser();
+
+  console.log("access token for header", accessToken);
 
   const router = useRouter();
   const pathname = usePathname();
@@ -54,7 +58,7 @@ const Header: FC<Props> = ({
 
         const response = await getCartData(accessToken);
 
-        console.log("respnse for data", response);
+        console.log("respnse for cart data", response);
 
         setCartQty(response.data.cartItems.length);
       } catch (error: any) {

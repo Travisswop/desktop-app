@@ -19,6 +19,8 @@ export async function addProductToCart(
       }
     );
     const data = await response.json();
+    console.log("add to cart post response", data);
+
     revalidatePath(`/sp/${userName}`);
     return data;
   } catch (error) {

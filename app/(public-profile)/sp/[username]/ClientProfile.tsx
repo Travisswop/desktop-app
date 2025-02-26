@@ -26,8 +26,9 @@ import { redirect } from "next/navigation";
 // import { getUserData } from "@/actions/user";
 import { Toaster } from "@/components/ui/toaster";
 import MarketPlace from "@/components/publicProfile/MarketPlace";
+import { cookies } from "next/headers";
 
-export default function ClientProfile({ initialData, userName }: any) {
+export default async function ClientProfile({ initialData, userName }: any) {
   // const [data, setData] = useState(initialData);
   if (initialData.redirect) {
     redirect(`/sp/${initialData.data.username}`);
@@ -43,6 +44,9 @@ export default function ClientProfile({ initialData, userName }: any) {
   //     }
   //   };
   // }, [data.username]);
+  const cookieStore = cookies();
+  const accessToken = (await cookieStore).get("access-token")?.value;
+  const userId = (await cookieStore).get("user-id")?.value;
 
   const {
     _id,
@@ -107,14 +111,17 @@ export default function ClientProfile({ initialData, userName }: any) {
       <main
         className={`flex max-w-md mx-auto min-h-screen flex-col items-center px-4 z-50`}
       >
-        <Header
-          avatar={profilePic}
-          cover={backgroundImg.toString()}
-          name={name}
-          parentId={parentId}
-          micrositeId={_id}
-          theme={theme}
-        />
+        {accessToken && (
+          <Header
+            avatar={profilePic}
+            cover={backgroundImg.toString()}
+            name={name}
+            parentId={parentId}
+            micrositeId={_id}
+            theme={theme}
+            accessToken={accessToken}
+          />
+        )}
         <div className="my-4">
           <Bio name={name} bio={bio} />
         </div>
@@ -179,6 +186,8 @@ export default function ClientProfile({ initialData, userName }: any) {
                 parentId={parentId}
                 userName={userName}
                 number={0}
+                userId={userId}
+                accessToken={accessToken}
               />
             ))}
             {/* <Message
