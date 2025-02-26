@@ -1,4 +1,16 @@
 export const getDeviceInfo = () => {
+  // Ensure this code only runs in the browser
+  if (typeof window === "undefined") {
+    return {
+      os: "Unknown OS",
+      browser: "Unknown Browser",
+      deviceType: "Desktop",
+      userAgent: "",
+      platform: "",
+      language: "",
+    };
+  }
+
   const userAgent = navigator.userAgent.toLowerCase();
   const platform = navigator.platform.toLowerCase();
   const language = navigator.language;
