@@ -19,15 +19,15 @@ import PaymentBar from "@/components/publicProfile/paymentBar";
 import Footer from "@/components/publicProfile/footer";
 // import GatedAccess from "@/components/publicProfile/gatedAccess";
 // import { Toaster } from '@/components/publicProfile/ui/toaster';
-import Image from "next/image";
-import styles from "@/app/styles.module.css";
-import { background } from "@/lib/icons";
+// import Image from "next/image";
+// import styles from "@/app/styles.module.css";
+// import { background } from "@/lib/icons";
 import { redirect } from "next/navigation";
-import { getUserData } from "@/actions/user";
+// import { getUserData } from "@/actions/user";
 import { Toaster } from "@/components/ui/toaster";
 import MarketPlace from "@/components/publicProfile/MarketPlace";
 
-export default function ClientProfile({ initialData }: { initialData: any }) {
+export default function ClientProfile({ initialData, userName }: any) {
   // const [data, setData] = useState(initialData);
   if (initialData.redirect) {
     redirect(`/sp/${initialData.data.username}`);
@@ -177,6 +177,7 @@ export default function ClientProfile({ initialData }: { initialData: any }) {
                 data={marketPlace}
                 socialType="redeemLink"
                 parentId={parentId}
+                userName={userName}
                 number={0}
               />
             ))}

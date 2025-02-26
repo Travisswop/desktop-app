@@ -1,19 +1,23 @@
 "use client";
-import { FC, useState } from "react";
+import { FC, useEffect, useState } from "react";
 import Image from "next/image";
-import { motion } from "framer-motion";
+// import { motion } from "framer-motion";
 // import Subscribe from '@/components/subscribe';
 // import Connect from '@/components/connect';
 import {
   Dialog,
   DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
+  // DialogDescription,
+  // DialogHeader,
+  // DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
 import Subscribe from "./subscribe";
 import Connect from "./connect";
+import { FaCartShopping } from "react-icons/fa6";
+import { getCartData } from "@/actions/addToCartActions";
+import { useUser } from "@/lib/UserContext";
+import { usePathname, useRouter } from "next/navigation";
 interface Props {
   avatar: string;
   cover: string;
@@ -33,10 +37,45 @@ const Header: FC<Props> = ({
 }) => {
   const [open, setOpen] = useState(false);
   const [openDC, setOpenDC] = useState(false);
+  const [cartQty, setCartQty] = useState(0);
+  const { accessToken } = useUser();
+
+  const router = useRouter();
+  const pathname = usePathname();
 
   const coverPhoto = cover.includes("https")
     ? cover
     : `/images/live-preview/coverphoto/${cover}.png`;
+
+  useEffect(() => {
+    const fetchCartData = async () => {
+      try {
+        // setCartLoading(true);
+
+        const response = await getCartData(accessToken);
+
+        console.log("respnse for data", response);
+
+        setCartQty(response.data.cartItems.length);
+      } catch (error: any) {
+        // setCartLoading(false);
+        console.log(
+          "error is" + error?.message || "Failed to add item to cart"
+        );
+        // toastify('Try again, something went wrong!');
+      }
+    };
+    if (accessToken) {
+      fetchCartData();
+    }
+  }, [accessToken]);
+
+  const handleRedirectIntoCartDetails = () => {
+    if (accessToken && cartQty > 0) {
+      const newRoute = `${pathname}/cart`;
+      router.push(newRoute);
+    }
+  };
 
   return (
     <div className={`relative w-full ${theme ? "h-28" : "h-52"} mt-4`}>
@@ -54,7 +93,7 @@ const Header: FC<Props> = ({
           </div>
         )}
 
-        <div className="absolute top-4 right-4 cursor-pointer">
+        <div className="absolute top-4 left-4 cursor-pointer">
           <Dialog open={open} onOpenChange={setOpen}>
             <DialogTrigger>
               <Image
@@ -77,6 +116,16 @@ const Header: FC<Props> = ({
             </DialogContent>
           </Dialog>
         </div>
+        <div
+          onClick={handleRedirectIntoCartDetails}
+          className="cursor-pointer absolute top-4 right-4 bg-white w-8 h-8 rounded-full flex items-center justify-center"
+        >
+          <div className="bg-red-600 w-4 h-4 rounded-full flex items-center justify-center text-white absolute -top-0.5 -right-0.5 text-[10px] font-semibold">
+            {cartQty ? cartQty : 0}
+          </div>
+          <FaCartShopping />
+        </div>
+
         <div className="absolute flex items-center justify-center transition-all w-28 h-24 bottom-0 left-0 right-0 mx-auto">
           <div className="relative border-4 rounded-full border-white shadow-lg">
             <div>

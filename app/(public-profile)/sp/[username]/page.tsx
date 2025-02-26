@@ -82,6 +82,8 @@ export default async function PublicProfile({
 }) {
   try {
     const userName = (await params)?.username;
+    console.log("userName", userName);
+
     const result = await getUserData(userName);
     addSwopPoint({
       userId: result.data.parentId,
@@ -90,7 +92,7 @@ export default async function PublicProfile({
     });
 
     // If no redirect is needed, render the ClientProfile
-    return <ClientProfile initialData={result} />;
+    return <ClientProfile initialData={result} userName={userName} />;
   } catch (error) {
     console.error("Error fetching data:", error);
     return <Custom404 />;
