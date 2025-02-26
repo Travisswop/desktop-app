@@ -1,5 +1,5 @@
 "use client";
-import { format, isSameDay, subDays } from "date-fns";
+import { addDays, format, isSameDay, startOfWeek } from "date-fns";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -16,6 +16,7 @@ import {
   Line,
   LineChart,
   ResponsiveContainer,
+  Tooltip,
   XAxis,
   YAxis,
 } from "recharts";
@@ -50,31 +51,60 @@ const viewers: Viewer[] = [
 // ];
 
 export default function ViewerAnalytics({ viewersData }: any) {
-  console.log("chekc data value", viewersData);
+  // const generateLastWeekData = (): ViewData[] => {
+  //   return Array.from({ length: 7 })
+  //     .map((_, index) => {
+  //       const date = subDays(new Date(), index);
+  //       return { day: format(date, "EEE"), views: 0 }; // EEE => "Mon", "Tue", etc.
+  //     })
+  //     .reverse();
+  // };
+
+  // // Process JSON data into last week's format
+  // const getWeeklyViewData = (data: typeof viewersData): ViewData[] => {
+  //   const lastWeekData = generateLastWeekData();
+
+  //   viewersData?.forEach((entry) => {
+  //     const createdAtDate = new Date(entry.createdAt);
+  //     lastWeekData.forEach((dayData) => {
+  //       if (
+  //         isSameDay(
+  //           createdAtDate,
+  //           subDays(new Date(), lastWeekData.indexOf(dayData))
+  //         )
+  //       ) {
+  //         dayData.views += 1; // Increment count if the date matches
+  //       }
+  //     });
+  //   });
+
+  //   return lastWeekData;
+  // };
+
+  // const viewsData: ViewData[] = getWeeklyViewData(viewersData);
 
   const generateLastWeekData = (): ViewData[] => {
-    return Array.from({ length: 7 })
-      .map((_, index) => {
-        const date = subDays(new Date(), index);
-        return { day: format(date, "EEE"), views: 0 }; // EEE => "Mon", "Tue", etc.
-      })
-      .reverse();
+    const startOfLastWeek = startOfWeek(new Date(), { weekStartsOn: 1 }); // Always start from Monday
+
+    return Array.from({ length: 7 }).map((_, index) => {
+      const date = addDays(startOfLastWeek, index);
+      return {
+        day: format(date, "EEE"),
+        date: format(date, "yyyy-MM-dd"),
+        views: 0,
+      };
+    });
   };
 
-  // Process JSON data into last week's format
-  const getWeeklyViewData = (data: typeof viewersData): ViewData[] => {
+  const getWeeklyViewData = (viewersData: typeof viewersData): ViewData[] => {
     const lastWeekData = generateLastWeekData();
 
-    viewersData?.forEach((entry) => {
-      const createdAtDate = new Date(entry.createdAt);
+    viewersData?.forEach(({ createdAt }) => {
+      const createdAtDate = new Date(createdAt);
+
       lastWeekData.forEach((dayData) => {
-        if (
-          isSameDay(
-            createdAtDate,
-            subDays(new Date(), lastWeekData.indexOf(dayData))
-          )
-        ) {
-          dayData.views += 1; // Increment count if the date matches
+        if (isSameDay(createdAtDate, new Date(dayData.date))) {
+          dayData.views += 1;
         }
       });
     });
@@ -164,6 +194,7 @@ export default function ViewerAnalytics({ viewersData }: any) {
                     return value;
                   }}
                 />
+                <Tooltip />
                 <Line
                   type="monotone"
                   dataKey="views"
