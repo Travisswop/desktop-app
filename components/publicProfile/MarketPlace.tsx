@@ -9,6 +9,7 @@ import { useRouter } from "next/navigation";
 import { Spinner } from "@nextui-org/react";
 import { addProductToCart } from "@/actions/addToCartActions";
 import toast from "react-hot-toast";
+import { Loader } from "lucide-react";
 const API_URL = process.env.NEXT_PUBLIC_API_URL;
 interface Props {
   data: {
@@ -163,16 +164,20 @@ const MarketPlace: any = ({
           <div className="pr-2">
             <button
               type="button"
+              disabled={addToCartLoading}
               onClick={handleAddToCart}
               className="text-sm font-semibold flex items-center gap-1"
             >
-              {addToCartLoading ? (
-                <Spinner size="sm" />
-              ) : (
-                <span className="flex items-center gap-1">
-                  Add To Cart <LuCirclePlus color="black" size={18} />
+              <span className="flex items-center gap-1">
+                Add To Cart{" "}
+                <span className="w-5">
+                  {addToCartLoading ? (
+                    <Loader className="animate-spin" size={20} />
+                  ) : (
+                    <LuCirclePlus color="black" size={18} />
+                  )}
                 </span>
-              )}
+              </span>
             </button>
           </div>
         </motion.div>

@@ -70,3 +70,27 @@ export async function updateCartQuantity(
     console.error("Error from add swop point:", error);
   }
 }
+
+export async function deleteCartItem(
+  id: string,
+  token: string,
+  userName: string
+) {
+  try {
+    const response = await fetch(
+      `${process.env.NEXT_PUBLIC_API_URL}/api/v1/desktop/nft/deleteCartItem/${id}`,
+      {
+        method: "DELETE",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+      }
+    );
+    const data = await response.json();
+    revalidatePath(`/sp/${userName}/cart`);
+    return data;
+  } catch (error) {
+    console.error("Error removing cart data:", error);
+  }
+}
