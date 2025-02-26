@@ -2,32 +2,35 @@
 
 // import { useState, useEffect } from "react";
 // import { getUserData } from '../../actions/user';
-import Header from "@/components/publicProfile/header";
-import Bio from "@/components/publicProfile/bio";
-import Blog from "@/components/publicProfile/blog";
-import SocialLarge from "@/components/publicProfile/socialLarge";
-import SocialSmall from "@/components/publicProfile/socialSmall";
-import Ens from "@/components/publicProfile/ens";
-import MP3 from "@/components/publicProfile/mp3";
-import Referral from "@/components/publicProfile/referral";
-import Redeem from "@/components/publicProfile/redeem";
-import EmbedVideo from "@/components/publicProfile/embedvideo";
-import Message from "@/components/publicProfile/message";
-import Contact from "@/components/publicProfile/contact";
-import InfoBar from "@/components/publicProfile/infoBar";
-import PaymentBar from "@/components/publicProfile/paymentBar";
-import Footer from "@/components/publicProfile/footer";
+import Header from '@/components/publicProfile/header';
+import Bio from '@/components/publicProfile/bio';
+import Blog from '@/components/publicProfile/blog';
+import SocialLarge from '@/components/publicProfile/socialLarge';
+import SocialSmall from '@/components/publicProfile/socialSmall';
+import Ens from '@/components/publicProfile/ens';
+import MP3 from '@/components/publicProfile/mp3';
+import Referral from '@/components/publicProfile/referral';
+import Redeem from '@/components/publicProfile/redeem';
+import EmbedVideo from '@/components/publicProfile/embedvideo';
+import Message from '@/components/publicProfile/message';
+import Contact from '@/components/publicProfile/contact';
+import InfoBar from '@/components/publicProfile/infoBar';
+import PaymentBar from '@/components/publicProfile/paymentBar';
+import Footer from '@/components/publicProfile/footer';
 // import GatedAccess from "@/components/publicProfile/gatedAccess";
 // import { Toaster } from '@/components/publicProfile/ui/toaster';
 // import Image from "next/image";
 // import styles from "@/app/styles.module.css";
 // import { background } from "@/lib/icons";
-import { redirect } from "next/navigation";
+import { redirect } from 'next/navigation';
 // import { getUserData } from "@/actions/user";
-import { Toaster } from "@/components/ui/toaster";
-import MarketPlace from "@/components/publicProfile/MarketPlace";
+import { Toaster } from '@/components/ui/toaster';
+import MarketPlace from '@/components/publicProfile/MarketPlace';
 
-export default function ClientProfile({ initialData, userName }: any) {
+export default function ClientProfile({
+  initialData,
+  userName,
+}: any) {
   // const [data, setData] = useState(initialData);
   if (initialData.redirect) {
     redirect(`/sp/${initialData.data.username}`);
@@ -72,22 +75,25 @@ export default function ClientProfile({ initialData, userName }: any) {
     ens: string;
   } = initialData.data;
 
-  console.log("info", info);
+  console.log('parentid', parentId);
+
+  console.log('info', info);
 
   const ensDomain = info.ensDomain[info.ensDomain.length - 1];
 
   const bg =
-    typeof backgroundImg === "string" && backgroundImg.startsWith("https")
+    typeof backgroundImg === 'string' &&
+    backgroundImg.startsWith('https')
       ? backgroundImg
       : `/images/smartsite-background/${backgroundImg}.png`;
   // background[backgroundImg as keyof typeof background];
 
-  console.log("bg", bg);
-  console.log("theme", theme);
+  console.log('bg', bg);
+  console.log('theme', theme);
 
   return (
     <div
-      style={{ backgroundImage: theme ? `url(${bg})` : "" }}
+      style={{ backgroundImage: theme ? `url(${bg})` : '' }}
       className="bg-cover bg-no-repeat h-screen overflow-y-auto"
     >
       {/* {theme && (
