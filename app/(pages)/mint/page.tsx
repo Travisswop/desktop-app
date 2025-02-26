@@ -89,7 +89,7 @@ const MintDashboard = () => {
                 <MintCart
                   img={collection.image}
                   title={collection.name}
-                  collectionId={collection.mint_address}
+                  collectionId={collection._id}
                   description={`A unique digital collectible that represents ownership of exclusive ${collection.name} content. Each piece is verifiably authentic on the blockchain.`}
                 />
                 <Link
