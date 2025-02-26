@@ -25,7 +25,7 @@ import {
 import { Download } from 'lucide-react';
 import Image from 'next/image';
 import Link from 'next/link';
-import { useUser } from "@/lib/UserContext";
+import { useUser } from '@/lib/UserContext';
 
 interface Order {
   id: string;
@@ -41,7 +41,9 @@ interface Order {
 
 export default function OrderDashboard() {
   const [orders, setOrders] = useState<Order[]>([]); // State to hold orders
-  const [userCollection, setUserCollection] = useState<any | null>(null); // State to hold user collection
+  const [userCollection, setUserCollection] = useState<any | null>(
+    null
+  ); // State to hold user collection
   const [loading, setLoading] = useState(true); // Loading state
   const [error, setError] = useState<string | null>(null); // Error state
   const { accessToken } = useUser();
@@ -57,33 +59,37 @@ export default function OrderDashboard() {
 
     const fetchOrders = async () => {
       try {
-        const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/v1/desktop/nft/fetchUserOrders`, {
-          method: 'GET',
-          headers: {
-            'Content-Type': 'application/json',
-            authorization: `Bearer ${accessToken}`,
-          },
-        });
+        const response = await fetch(
+          `${process.env.NEXT_PUBLIC_API_URL}/api/v1/desktop/nft/fetchUserOrders`,
+          {
+            method: 'GET',
+            headers: {
+              'Content-Type': 'application/json',
+              authorization: `Bearer ${accessToken}`,
+            },
+          }
+        );
         if (!response.ok) {
           throw new Error('Failed to fetch orders');
         }
         const data = await response.json();
+        console.log('🚀 ~ fetchOrders ~ data:', data);
 
-        // Assuming the fetched data structure, map it to the Order interface
-        const mappedOrders: Order[] = data.data.orders.map((order: any) => ({
-          id: order.orderId,
-          customer: {
-            name: order.customerName,
-            avatar: order.customerAvatar || '/assets/images/default-avatar.png', // Provide a default avatar if not available
-          },
-          product: order.productName || 'N/A', // Adjust based on actual data
-          price: order.totalPriceOfNFTs,
-          date: new Date(order.orderDate).toLocaleDateString(),
-          status: mapDeliveryStatusToStatus(order.deliveryStatus),
-        }));
+        // // Assuming the fetched data structure, map it to the Order interface
+        // const mappedOrders: Order[] = data.data.orders.map((order: any) => ({
+        //   id: order.orderId,
+        //   customer: {
+        //     name: order.customerName,
+        //     avatar: order.customerAvatar || '/assets/images/default-avatar.png', // Provide a default avatar if not available
+        //   },
+        //   product: order.productName || 'N/A', // Adjust based on actual data
+        //   price: order.totalPriceOfNFTs,
+        //   date: new Date(order.orderDate).toLocaleDateString(),
+        //   status: mapDeliveryStatusToStatus(order.deliveryStatus),
+        // }));
 
-        setOrders(mappedOrders);
-        setUserCollection(data.data.userCollection);
+        // setOrders(mappedOrders);
+        // setUserCollection(data.data.userCollection);
       } catch (err: any) {
         setError(err.message || 'Something went wrong');
       } finally {
@@ -95,7 +101,9 @@ export default function OrderDashboard() {
   }, [accessToken, waitForToken]);
 
   // Helper function to map deliveryStatus to status
-  const mapDeliveryStatusToStatus = (deliveryStatus: string): 'processing' | 'complete' | 'cancel' => {
+  const mapDeliveryStatusToStatus = (
+    deliveryStatus: string
+  ): 'processing' | 'complete' | 'cancel' => {
     switch (deliveryStatus.toLowerCase()) {
       case 'completed':
         return 'complete';
@@ -113,7 +121,11 @@ export default function OrderDashboard() {
   }
 
   if (error) {
-    return <div className="text-center py-10 text-red-500">Error: {error}</div>;
+    return (
+      <div className="text-center py-10 text-red-500">
+        Error: {error}
+      </div>
+    );
   }
 
   return (
@@ -139,35 +151,55 @@ export default function OrderDashboard() {
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                 {/* Total Mints and Total Revenue */}
                 <div className="flex flex-col">
-                  <div className="text-sm font-medium text-muted-foreground">Total Mints</div>
+                  <div className="text-sm font-medium text-muted-foreground">
+                    Total Mints
+                  </div>
                   <div className="text-3xl font-bold text-green-500">
                     {userCollection ? orders.length : 0}
                   </div>
                 </div>
                 <div className="flex flex-col">
-                  <div className="text-sm font-medium text-muted-foreground">Total Revenue</div>
+                  <div className="text-sm font-medium text-muted-foreground">
+                    Total Revenue
+                  </div>
                   <div className="text-3xl font-bold">
-                    ${orders.reduce((total, order) => total + order.price, 0).toFixed(2)}
+                    $
+                    {orders
+                      .reduce(
+                        (total, order) => total + order.price,
+                        0
+                      )
+                      .toFixed(2)}
                   </div>
                 </div>
 
                 {/* $ in Escrow and Open Orders */}
                 <div className="flex flex-col">
-                  <div className="text-sm font-medium text-muted-foreground">$ in Escrow</div>
-                  <div className="text-3xl font-bold text-blue-500">$200.34</div>
+                  <div className="text-sm font-medium text-muted-foreground">
+                    $ in Escrow
+                  </div>
+                  <div className="text-3xl font-bold text-blue-500">
+                    $200.34
+                  </div>
                 </div>
                 <div className="flex flex-col">
-                  <div className="text-sm font-medium text-muted-foreground">Open Orders</div>
+                  <div className="text-sm font-medium text-muted-foreground">
+                    Open Orders
+                  </div>
                   <div className="text-3xl font-bold">10</div>
                 </div>
 
                 {/* Closed Orders and Disputes */}
                 <div className="flex flex-col">
-                  <div className="text-sm font-medium text-muted-foreground">Closed Orders</div>
+                  <div className="text-sm font-medium text-muted-foreground">
+                    Closed Orders
+                  </div>
                   <div className="text-3xl font-bold">20</div>
                 </div>
                 <div className="flex flex-col">
-                  <div className="text-sm font-medium text-muted-foreground">Disputes</div>
+                  <div className="text-sm font-medium text-muted-foreground">
+                    Disputes
+                  </div>
                   <div className="text-3xl font-bold">0</div>
                 </div>
               </div>
@@ -191,7 +223,9 @@ export default function OrderDashboard() {
               </TabsList>
             </Tabs>
             <div className="flex items-center gap-2">
-              <span className="text-sm text-muted-foreground">Filter</span>
+              <span className="text-sm text-muted-foreground">
+                Filter
+              </span>
               <Select>
                 <SelectTrigger className="w-24">
                   <SelectValue placeholder="Date" />
@@ -226,12 +260,14 @@ export default function OrderDashboard() {
                 <TableHead>Order Date</TableHead>
                 <TableHead>Delivery Status</TableHead>
               </TableRow>
-            </TableHeader> 
+            </TableHeader>
             <TableBody>
               {orders.map((order) => (
                 <TableRow key={order.id}>
                   <TableCell className="font-medium">
-                    <Link href={`/order/${order.id}`}>{order.id}</Link>
+                    <Link href={`/order/${order.id}`}>
+                      {order.id}
+                    </Link>
                   </TableCell>
                   <TableCell>
                     <div className="flex items-center gap-2">
@@ -250,12 +286,13 @@ export default function OrderDashboard() {
                   <TableCell>{order.date}</TableCell>
                   <TableCell>
                     <span
-                      className={`px-2 py-1 rounded-full text-xs font-medium ${order.status === 'complete'
+                      className={`px-2 py-1 rounded-full text-xs font-medium ${
+                        order.status === 'complete'
                           ? 'bg-green-100 text-green-600'
                           : order.status === 'processing'
-                            ? 'bg-yellow-100 text-yellow-600'
-                            : 'bg-red-100 text-red-600'
-                        }`}
+                          ? 'bg-yellow-100 text-yellow-600'
+                          : 'bg-red-100 text-red-600'
+                      }`}
                     >
                       {order.status.charAt(0).toUpperCase() +
                         order.status.slice(1)}
