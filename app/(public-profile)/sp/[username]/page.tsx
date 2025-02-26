@@ -93,6 +93,8 @@ export default async function PublicProfile({
     const locationData = await res.json();
 
     const userName = (await params)?.username;
+    console.log("userName", userName);
+
     const result = await getUserData(userName);
 
     addSwopPoint({
@@ -114,7 +116,7 @@ export default async function PublicProfile({
     });
 
     // If no redirect is needed, render the ClientProfile
-    return <ClientProfile initialData={result} />;
+    return <ClientProfile initialData={result} userName={userName} />;
   } catch (error) {
     console.error("Error fetching data:", error);
     return <Custom404 />;

@@ -1,9 +1,14 @@
 "use client";
-import { FC } from "react";
+import { FC, useState } from "react";
 import Image from "next/image";
 import { downloadVCard } from "@/lib/vCardUtils";
 import { motion } from "framer-motion";
 import { LuCirclePlus } from "react-icons/lu";
+import { useUser } from "@/lib/UserContext";
+import { useRouter } from "next/navigation";
+import { Spinner } from "@nextui-org/react";
+import { addProductToCart } from "@/actions/addToCartActions";
+import toast from "react-hot-toast";
 const API_URL = process.env.NEXT_PUBLIC_API_URL;
 interface Props {
   data: {
@@ -56,9 +61,66 @@ const download = async (data: any, parentId: string) => {
   }
 };
 
-const MarketPlace: any = ({ data, socialType, parentId, number }: any) => {
-  const { _id, itemImageUrl, itemName, itemPrice, mintLimit } = data;
+const MarketPlace: any = ({
+  data,
+  socialType,
+  parentId,
+  number,
+  userName,
+}: any) => {
+  const [addToCartLoading, setAddToCartLoading] = useState(false);
+  const {
+    _id,
+    itemImageUrl,
+    itemName,
+    itemPrice,
+    mintLimit,
+    collectionId,
+    templateId,
+  } = data;
   const delay = number + 1 * 0.2;
+
+  const { user, accessToken } = useUser();
+
+  const router = useRouter();
+
+  console.log("user", user);
+
+  const handleAddToCart = async (event: React.MouseEvent) => {
+    event.stopPropagation();
+    setAddToCartLoading(true);
+    if (!accessToken) {
+      return router.push("/login");
+    }
+    const data = {
+      userId: user._id,
+      collectionId: collectionId,
+      templateId: templateId,
+      quantity: 1,
+    };
+
+    try {
+      await addProductToCart(data, accessToken, userName);
+
+      // const resData = await response.json();
+
+      // console.log("response", response);
+
+      // if (resData?.data?.quantity === 1) {
+      //   setCartQty(cartQty + 1);
+      // }
+
+      setAddToCartLoading(false);
+      toast.success("Items added to cart");
+
+      // console.log("data", data);
+    } catch (error) {
+      toast.error("Something went wrong!Please try again!");
+      console.log(error);
+      setAddToCartLoading(false);
+    }
+  };
+
   return (
     <motion.div
       initial="hidden"
@@ -99,8 +161,18 @@ const MarketPlace: any = ({ data, socialType, parentId, number }: any) => {
             </div>
           </div>
           <div className="pr-2">
-            <button className="text-sm font-semibold flex items-center gap-1">
-              Add To Cart <LuCirclePlus color="black" size={18} />
+            <button
+              type="button"
+              onClick={handleAddToCart}
+              className="text-sm font-semibold flex items-center gap-1"
+            >
+              {addToCartLoading ? (
+                <Spinner size="sm" />
+              ) : (
+                <span className="flex items-center gap-1">
+                  Add To Cart <LuCirclePlus color="black" size={18} />
+                </span>
+              )}
             </button>
           </div>
         </motion.div>
