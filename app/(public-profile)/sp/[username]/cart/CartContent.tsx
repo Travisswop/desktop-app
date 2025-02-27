@@ -79,8 +79,21 @@ const CartContent = ({ data }: any) => {
   const subtotal =
     data.state === "success" ? calculateSubtotal(data.data.cartItems) : 0;
 
+  // const sendWalletTransaction = async () => {
+  //   const recipientWallet = '4VoKLfzZNKQfmvitteM6ywtNNrdcikGuevkaTY1REhmN';
+  //   const totalPriceinSol =
+  //     Number(productData?.totalCost) / Number(sol_price_usd);
+  //   const txHash = await sendSol(
+  //     recipientWallet,
+  //     totalPriceinSol,
+  //     solWallet?.publicKey,
+  //     solWallet,
+  //   );
+  //   return txHash;
+  // };
+
   return (
-    <div>
+    <div className="w-full">
       <div className="flex flex-col gap-2 w-full">
         {data.state === "success" ? (
           <>

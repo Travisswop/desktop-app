@@ -75,9 +75,11 @@ const Header: FC<Props> = ({
   }, [accessToken]);
 
   const handleRedirectIntoCartDetails = () => {
-    if (accessToken && cartQty > 0) {
+    if (accessToken) {
       const newRoute = `${pathname}/cart`;
       router.push(newRoute);
+    } else {
+      router.push("/login");
     }
   };
 
