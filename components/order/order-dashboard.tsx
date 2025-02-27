@@ -74,22 +74,6 @@ export default function OrderDashboard() {
         }
         const data = await response.json();
         console.log('🚀 ~ fetchOrders ~ data:', data);
-
-        // // Assuming the fetched data structure, map it to the Order interface
-        // const mappedOrders: Order[] = data.data.orders.map((order: any) => ({
-        //   id: order.orderId,
-        //   customer: {
-        //     name: order.customerName,
-        //     avatar: order.customerAvatar || '/assets/images/default-avatar.png', // Provide a default avatar if not available
-        //   },
-        //   product: order.productName || 'N/A', // Adjust based on actual data
-        //   price: order.totalPriceOfNFTs,
-        //   date: new Date(order.orderDate).toLocaleDateString(),
-        //   status: mapDeliveryStatusToStatus(order.deliveryStatus),
-        // }));
-
-        // setOrders(mappedOrders);
-        // setUserCollection(data.data.userCollection);
       } catch (err: any) {
         setError(err.message || 'Something went wrong');
       } finally {
@@ -99,22 +83,6 @@ export default function OrderDashboard() {
 
     fetchOrders();
   }, [accessToken, waitForToken]);
-
-  // Helper function to map deliveryStatus to status
-  const mapDeliveryStatusToStatus = (
-    deliveryStatus: string
-  ): 'processing' | 'complete' | 'cancel' => {
-    switch (deliveryStatus.toLowerCase()) {
-      case 'completed':
-        return 'complete';
-      case 'not initiated':
-        return 'processing';
-      case 'canceled':
-        return 'cancel';
-      default:
-        return 'processing';
-    }
-  };
 
   if (loading) {
     return <div className="text-center py-10">Loading...</div>;

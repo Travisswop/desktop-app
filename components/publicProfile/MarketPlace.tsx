@@ -68,6 +68,8 @@ const MarketPlace: any = ({
   parentId,
   number,
   userName,
+  accessToken,
+  userId,
 }: any) => {
   const [addToCartLoading, setAddToCartLoading] = useState(false);
   const {
@@ -81,11 +83,11 @@ const MarketPlace: any = ({
   } = data;
   const delay = number + 1 * 0.2;
 
-  const { user, accessToken } = useUser();
+  // const { user, accessToken } = useUser();
 
   const router = useRouter();
 
-  console.log("user", user);
+  // console.log("user from hook", user);
 
   const handleAddToCart = async (event: React.MouseEvent) => {
     event.stopPropagation();
@@ -94,18 +96,20 @@ const MarketPlace: any = ({
       return router.push("/login");
     }
     const data = {
-      userId: user._id,
+      userId: userId,
       collectionId: collectionId,
       templateId: templateId,
       quantity: 1,
     };
 
+    console.log("data", data);
+
     try {
-      await addProductToCart(data, accessToken, userName);
+      const response = await addProductToCart(data, accessToken, userName);
 
       // const resData = await response.json();
 
-      // console.log("response", response);
+      console.log("response for creating product cart", response);
 
       // if (resData?.data?.quantity === 1) {
       //   setCartQty(cartQty + 1);
