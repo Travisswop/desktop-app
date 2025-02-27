@@ -1,7 +1,7 @@
-'use client';
+"use client";
 
-import { useState, useEffect } from 'react';
-import { useTokenTimeSeries } from '@/lib/hooks/useTokenTimeSeries';
+import { useState, useEffect } from "react";
+import { useTokenTimeSeries } from "@/lib/hooks/useTokenTimeSeries";
 import {
   Area,
   AreaChart,
@@ -9,19 +9,19 @@ import {
   XAxis,
   YAxis,
   Tooltip,
-} from 'recharts';
-import { Card, CardContent, CardHeader } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Send, Wallet, WalletMinimal } from 'lucide-react';
-import Image from 'next/image';
-import { TimeSeriesData, TokenData } from '@/types/token';
-import { TooltipProvider } from '@/components/ui/tooltip';
+} from "recharts";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Send, Wallet, WalletMinimal } from "lucide-react";
+import Image from "next/image";
+import { TimeSeriesData, TokenData } from "@/types/token";
+import { TooltipProvider } from "@/components/ui/tooltip";
 import {
   TooltipContent,
   TooltipTrigger,
   Tooltip as TooltipUI,
-} from '@/components/ui/tooltip';
+} from "@/components/ui/tooltip";
 
 const CustomTooltip = ({
   active,
@@ -33,17 +33,15 @@ any) => {
     return (
       <div className="bg-white p-2 border rounded shadow-sm">
         <p className="text-sm text-gray-600">
-          {new Date(label * 1000).toLocaleString('en-US', {
-            month: 'short',
-            day: 'numeric',
-            hour: 'numeric',
-            minute: '2-digit',
+          {new Date(label * 1000).toLocaleString("en-US", {
+            month: "short",
+            day: "numeric",
+            hour: "numeric",
+            minute: "2-digit",
             hour12: true,
           })}
         </p>
-        <p className="text-sm font-bold">
-          ${payload[0].value.toFixed(2)}
-        </p>
+        <p className="text-sm font-bold">${payload[0].value.toFixed(2)}</p>
       </div>
     );
   }
@@ -61,45 +59,40 @@ export default function TokenDetails({
   onBack,
   onSend,
 }: TokenDetailsProps) {
-  const [selectedPeriod, setSelectedPeriod] = useState('1H');
-  const [chartData, setChartData] = useState(
-    token.timeSeriesData['1H']
-  );
+  const [selectedPeriod, setSelectedPeriod] = useState("1H");
+  const [chartData, setChartData] = useState(token.timeSeriesData["1H"]);
   const [changePercentage, setChangePercentage] = useState(
     token.marketData.change
   );
 
-  const day = useTokenTimeSeries(token.marketData.uuid, '24h');
-  const week = useTokenTimeSeries(token.marketData.uuid, '7d');
-  const month = useTokenTimeSeries(token.marketData.uuid, '30d');
-  const year = useTokenTimeSeries(token.marketData.uuid, '1y');
+  const day = useTokenTimeSeries(token.marketData.uuid, "24h");
+  const week = useTokenTimeSeries(token.marketData.uuid, "7d");
+  const month = useTokenTimeSeries(token.marketData.uuid, "30d");
+  const year = useTokenTimeSeries(token.marketData.uuid, "1y");
 
   const strokeColor = token.marketData.color;
 
   // Update chart data when period changes or data is fetched
   useEffect(() => {
     const timeSeriesMap: TimeSeriesData = {
-      '1H': token.timeSeriesData['1H'],
-      '1D': day.data?.sparklineData,
-      '1W': week.data?.sparklineData,
-      '1M': month.data?.sparklineData,
-      '1Y': year.data?.sparklineData,
+      "1H": token.timeSeriesData["1H"],
+      "1D": day.data?.sparklineData,
+      "1W": week.data?.sparklineData,
+      "1M": month.data?.sparklineData,
+      "1Y": year.data?.sparklineData,
     };
 
     const changePercentageMap = {
-      '1H': token.marketData.change,
-      '1D': day.data?.change,
-      '1W': week.data?.change,
-      '1M': month.data?.change,
-      '1Y': year.data?.change,
+      "1H": token.marketData.change,
+      "1D": day.data?.change,
+      "1W": week.data?.change,
+      "1M": month.data?.change,
+      "1Y": year.data?.change,
     };
 
-    const newData =
-      timeSeriesMap[selectedPeriod as keyof typeof timeSeriesMap];
+    const newData = timeSeriesMap[selectedPeriod as keyof typeof timeSeriesMap];
     const newChange =
-      changePercentageMap[
-        selectedPeriod as keyof typeof changePercentageMap
-      ];
+      changePercentageMap[selectedPeriod as keyof typeof changePercentageMap];
 
     if (newData) {
       setChartData(newData);
@@ -126,19 +119,17 @@ export default function TokenDetails({
               <h1 className="text-2xl font-bold">
                 ${parseFloat(token.marketData.price).toFixed(4)}
               </h1>
-              <p className="text-sm text-muted-foreground">
-                {token.name}
-              </p>
+              <p className="text-sm text-muted-foreground">{token.name}</p>
             </div>
             <div
               className={`text-sm ${
                 parseFloat(changePercentage) > 0
-                  ? 'text-green-500'
-                  : 'text-red-500'
+                  ? "text-green-500"
+                  : "text-red-500"
               }`}
             >
               <span className="font-medium">
-                {parseFloat(changePercentage) > 0 ? '+' : ''}
+                {parseFloat(changePercentage) > 0 ? "+" : ""}
                 {parseFloat(changePercentage).toFixed(2)}%
               </span>
               <div className="text-xs">{selectedPeriod}</div>
@@ -184,26 +175,20 @@ export default function TokenDetails({
                       dataKey="timestamp"
                       hide={true}
                       tickFormatter={(timestamp) =>
-                        new Date(timestamp).toLocaleTimeString(
-                          'en-US',
-                          {
-                            hour: 'numeric',
-                            minute: '2-digit',
-                            hour12: true,
-                          }
-                        )
+                        new Date(timestamp).toLocaleTimeString("en-US", {
+                          hour: "numeric",
+                          minute: "2-digit",
+                          hour12: true,
+                        })
                       }
                       type="number"
                       scale="time"
-                      domain={['auto', 'auto']}
+                      domain={["auto", "auto"]}
                       tickLine={false}
                       axisLine={false}
                       minTickGap={30}
                     />
-                    <YAxis
-                      domain={['dataMin - 1', 'dataMax + 1']}
-                      hide
-                    />
+                    <YAxis domain={["dataMin - 1", "dataMax + 1"]} hide />
                     <Tooltip
                       content={<CustomTooltip />}
                       cursor={{
@@ -228,31 +213,31 @@ export default function TokenDetails({
                 <TabsList className="grid w-full grid-cols-5">
                   <TabsTrigger
                     value="1H"
-                    onClick={() => setSelectedPeriod('1H')}
+                    onClick={() => setSelectedPeriod("1H")}
                   >
                     1H
                   </TabsTrigger>
                   <TabsTrigger
                     value="1D"
-                    onClick={() => setSelectedPeriod('1D')}
+                    onClick={() => setSelectedPeriod("1D")}
                   >
                     1D
                   </TabsTrigger>
                   <TabsTrigger
                     value="1W"
-                    onClick={() => setSelectedPeriod('1W')}
+                    onClick={() => setSelectedPeriod("1W")}
                   >
                     1W
                   </TabsTrigger>
                   <TabsTrigger
                     value="1M"
-                    onClick={() => setSelectedPeriod('1M')}
+                    onClick={() => setSelectedPeriod("1M")}
                   >
                     1M
                   </TabsTrigger>
                   <TabsTrigger
                     value="1Y"
-                    onClick={() => setSelectedPeriod('1Y')}
+                    onClick={() => setSelectedPeriod("1Y")}
                   >
                     1Y
                   </TabsTrigger>
@@ -285,8 +270,7 @@ export default function TokenDetails({
             <span>
               $
               {(
-                parseFloat(token.balance) *
-                parseFloat(token.marketData.price)
+                parseFloat(token.balance) * parseFloat(token.marketData.price)
               ).toFixed(2)}
             </span>
           </div>

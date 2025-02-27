@@ -158,7 +158,7 @@ const Login: React.FC = () => {
         };
 
         setIsRedirecting(true);
-        createLoginWalletBalance(payload);
+        await createLoginWalletBalance(payload);
         router.push("/");
       } catch (error) {
         console.error("Error verifying user:", error);

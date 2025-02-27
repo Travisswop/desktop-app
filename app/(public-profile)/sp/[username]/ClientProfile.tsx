@@ -111,17 +111,15 @@ export default async function ClientProfile({ initialData, userName }: any) {
       <main
         className={`flex max-w-md mx-auto min-h-screen flex-col items-center px-4 z-50`}
       >
-        {accessToken && (
-          <Header
-            avatar={profilePic}
-            cover={backgroundImg.toString()}
-            name={name}
-            parentId={parentId}
-            micrositeId={_id}
-            theme={theme}
-            accessToken={accessToken}
-          />
-        )}
+        <Header
+          avatar={profilePic}
+          cover={backgroundImg.toString()}
+          name={name}
+          parentId={parentId}
+          micrositeId={_id}
+          theme={theme}
+          accessToken={accessToken ? accessToken : ""}
+        />
         <div className="my-4">
           <Bio name={name} bio={bio} />
         </div>
