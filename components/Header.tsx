@@ -28,6 +28,8 @@ export default function Header() {
   const router = useRouter();
   const [isLoggingOut, setIsLoggingOut] = useState(false);
 
+  // console.log("authenticated", authenticated);
+
   const handleLogout = async () => {
     // Prevent multiple logout attempts
     if (isLoggingOut) {

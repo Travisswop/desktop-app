@@ -1,13 +1,6 @@
-import { ethers } from 'ethers';
-import {
-  clusterApiUrl,
-  Connection,
-  PublicKey,
-} from '@solana/web3.js';
-import {
-  getAccount,
-  getAssociatedTokenAddress,
-} from '@solana/spl-token';
+import { ethers } from "ethers";
+import { clusterApiUrl, Connection, PublicKey } from "@solana/web3.js";
+import { getAccount, getAssociatedTokenAddress } from "@solana/spl-token";
 import {
   ChainType,
   EVMChain,
@@ -15,9 +8,9 @@ import {
   TimeSeriesDataPoint,
   TokenData,
   SolanaTokenData,
-} from '@/types/token';
-import { CHAINS } from '@/types/config';
-import { fetchPrice } from '@/components/wallet/tools/fetch_price';
+} from "@/types/token";
+import { CHAINS } from "@/types/config";
+import { fetchPrice } from "@/components/wallet/tools/fetch_price";
 
 interface TokenAccount {
   account: SolanaTokenData;
@@ -25,39 +18,39 @@ interface TokenAccount {
 }
 
 const SWOP_TOKEN: any = {
-  name: 'Swop',
-  symbol: 'SWOP',
-  address: 'GAehkgN1ZDNvavX81FmzCcwRnzekKMkSyUNq8WkMsjX1',
+  name: "Swop",
+  symbol: "SWOP",
+  address: "GAehkgN1ZDNvavX81FmzCcwRnzekKMkSyUNq8WkMsjX1",
   decimals: 9,
-  balance: '0',
-  chain: 'SOLANA',
-  logoURI: '/swop.png',
+  balance: "0",
+  chain: "SOLANA",
+  logoURI: "/swop.png",
   marketData: {
-    price: '0',
-    uuid: 'swop',
-    symbol: 'SWOP',
-    name: 'Swop',
-    color: '#000000',
-    marketCap: '0',
-    '24hVolume': '0',
-    iconUrl: '/swop.png',
+    price: "0",
+    uuid: "swop",
+    symbol: "SWOP",
+    name: "Swop",
+    color: "#000000",
+    marketCap: "0",
+    "24hVolume": "0",
+    iconUrl: "/swop.png",
     listedAt: 0,
     tier: 0,
-    change: '0',
+    change: "0",
     rank: 0,
     sparkline: [],
     lowVolume: false,
-    coinrankingUrl: '',
-    btcPrice: '0',
+    coinrankingUrl: "",
+    btcPrice: "0",
     contractAddresses: [],
   },
   sparklineData: [],
   timeSeriesData: {
-    '1H': [],
-    '1D': [],
-    '1W': [],
-    '1M': [],
-    '1Y': [],
+    "1H": [],
+    "1D": [],
+    "1W": [],
+    "1M": [],
+    "1Y": [],
   },
   nativeTokenPrice: 0,
   isNative: false,
@@ -85,25 +78,21 @@ export class TokenAPIService {
   }
 
   static async getTokenBalances(chain: EVMChain, address: string) {
-    const response = await this.fetchWithRetry(
-      CHAINS[chain].alchemyUrl!,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          jsonrpc: '2.0',
-          method: 'alchemy_getTokenBalances',
-          params: [address, 'erc20'],
-          id: 42,
-        }),
-      }
-    );
+    const response = await this.fetchWithRetry(CHAINS[chain].alchemyUrl!, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        jsonrpc: "2.0",
+        method: "alchemy_getTokenBalances",
+        params: [address, "erc20"],
+        id: 42,
+      }),
+    });
     const { result } = await response.json();
 
     return (
       result.tokenBalances?.filter(
-        (token: { tokenBalance: string }) =>
-          BigInt(token.tokenBalance) > 0
+        (token: { tokenBalance: string }) => BigInt(token.tokenBalance) > 0
       ) || []
     );
   }
@@ -120,8 +109,7 @@ export class TokenAPIService {
       `https://api.coinranking.com/v2/coins?${queryParam}`,
       {
         headers: {
-          'x-access-token':
-            process.env.NEXT_PUBLIC_COIN_RANKING_API_KEY || '',
+          "x-access-token": process.env.NEXT_PUBLIC_COIN_RANKING_API_KEY || "",
         },
       }
     );
@@ -131,13 +119,12 @@ export class TokenAPIService {
 
   static async getTokensData(address: string[]) {
     const url = `https://api.coinranking.com/v2/coins?contractAddresses[]=${address.join(
-      '&contractAddresses[]='
+      "&contractAddresses[]="
     )}`;
 
     const response = await fetch(url, {
       headers: {
-        'x-access-token':
-          process.env.NEXT_PUBLIC_COIN_RANKING_API_KEY || '',
+        "x-access-token": process.env.NEXT_PUBLIC_COIN_RANKING_API_KEY || "",
       },
     });
 
@@ -145,13 +132,12 @@ export class TokenAPIService {
     return result.data.coins;
   }
 
-  static async getTimeSeriesData(uuid: string, period = '1h') {
+  static async getTimeSeriesData(uuid: string, period = "1h") {
     const response = await this.fetchWithRetry(
       `https://api.coinranking.com/v2/coin/${uuid}/history?timePeriod=${period}`,
       {
         headers: {
-          'x-access-token':
-            process.env.NEXT_PUBLIC_COIN_RANKING_API_KEY || '',
+          "x-access-token": process.env.NEXT_PUBLIC_COIN_RANKING_API_KEY || "",
         },
       }
     );
@@ -168,10 +154,10 @@ export class TokenContractService {
     return new ethers.Contract(
       address,
       [
-        'function balanceOf(address) view returns (uint256)',
-        'function decimals() view returns (uint8)',
-        'function symbol() view returns (string)',
-        'function name() view returns (string)',
+        "function balanceOf(address) view returns (uint256)",
+        "function decimals() view returns (uint8)",
+        "function symbol() view returns (string)",
+        "function name() view returns (string)",
       ],
       provider
     );
@@ -185,9 +171,9 @@ export class TokenContractService {
     try {
       const contract = this.getContract(address, provider);
       // Check if the contract is deployed and has the expected methods
-      const isContract = (await provider.getCode(address)) !== '0x';
+      const isContract = (await provider.getCode(address)) !== "0x";
       if (!isContract) {
-        console.error('Address is not a contract:', address);
+        console.error("Address is not a contract:", address);
         return null;
       }
 
@@ -210,15 +196,12 @@ export class TokenContractService {
         symbol === null ||
         name === null
       ) {
-        console.error(
-          'One or more token details could not be fetched:',
-          {
-            balance,
-            decimals,
-            symbol,
-            name,
-          }
-        );
+        console.error("One or more token details could not be fetched:", {
+          balance,
+          decimals,
+          symbol,
+          name,
+        });
         return null;
       }
 
@@ -229,7 +212,7 @@ export class TokenContractService {
         name,
       };
     } catch (error) {
-      console.error('Error fetching token details:', error);
+      console.error("Error fetching token details:", error);
       return null;
     }
   }
@@ -241,7 +224,7 @@ export class TokenContractService {
       const nativeToken = await this.formatNativeToken(chain);
       return nativeToken;
     } catch (error) {
-      console.error('Error fetching Solana tokens:', error);
+      console.error("Error fetching Solana tokens:", error);
       return null;
     }
   }
@@ -276,16 +259,16 @@ export class SolanaService {
     if (!walletAddress) return [];
 
     try {
-      const connection = new Connection(
-        process.env.NEXT_PUBLIC_QUICKNODE_SOLANA_URL!,
-        'confirmed'
-      );
-      // const connection = new Connection(clusterApiUrl('devnet'));
+      // const connection = new Connection(
+      //   process.env.NEXT_PUBLIC_QUICKNODE_SOLANA_URL!,
+      //   'confirmed'
+      // );
+      const connection = new Connection(clusterApiUrl("devnet"));
       const publicKey = new PublicKey(walletAddress);
 
       // Validate the public key
       if (!publicKey) {
-        console.error('Invalid wallet address:', walletAddress);
+        console.error("Invalid wallet address:", walletAddress);
         return [];
       }
 
@@ -293,49 +276,40 @@ export class SolanaService {
         connection.getBalance(publicKey),
         connection.getParsedTokenAccountsByOwner(publicKey, {
           programId: new PublicKey(
-            'TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA'
+            "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
           ),
         }),
       ]);
 
       // Check if tokenAccounts is in the expected format
       if (!Array.isArray(tokenAccounts.value)) {
-        console.error(
-          'Unexpected token accounts format:',
-          tokenAccounts
-        );
+        console.error("Unexpected token accounts format:", tokenAccounts);
         return [];
       }
 
       const nativeToken = await this.getNativeSolToken();
       if (!nativeToken) {
-        console.error('Failed to fetch native SOL token data');
+        console.error("Failed to fetch native SOL token data");
         return [];
       }
 
-      const tokenData = await this.getTokenAccountsData(
-        tokenAccounts.value
-      );
+      const tokenData = await this.getTokenAccountsData(tokenAccounts.value);
 
-      const validTokenData = tokenData.filter(
-        (token) => token !== null
-      );
+      const validTokenData = tokenData.filter((token) => token !== null);
 
       const solToken = {
         ...nativeToken,
         balance: (balance / Math.pow(10, 9)).toString(),
-        address: '',
+        address: "",
       };
 
       let tokens = [...validTokenData];
 
-      const swopTokenBalance = await this.getSwopTokenBalance(
-        walletAddress
-      );
+      const swopTokenBalance = await this.getSwopTokenBalance(walletAddress);
 
       if (swopTokenBalance) {
         const swopTokenPrice = await this.fetchTokenPrice(
-          SWOP_TOKEN.address || ''
+          SWOP_TOKEN.address || ""
         );
 
         const swopTokenMarketData = {
@@ -347,10 +321,9 @@ export class SolanaService {
           {
             ...SWOP_TOKEN,
             balance: (
-              Number(swopTokenBalance) /
-              Math.pow(10, SWOP_TOKEN.decimals)
+              Number(swopTokenBalance) / Math.pow(10, SWOP_TOKEN.decimals)
             ).toString(),
-            address: SWOP_TOKEN.address || '',
+            address: SWOP_TOKEN.address || "",
             marketData: swopTokenMarketData,
           },
           solToken,
@@ -358,7 +331,7 @@ export class SolanaService {
         ];
       } else {
         tokens = [
-          { ...SWOP_TOKEN, balance: '0', address: '' },
+          { ...SWOP_TOKEN, balance: "0", address: "" },
           solToken,
           ...validTokenData,
         ];
@@ -366,7 +339,7 @@ export class SolanaService {
 
       return tokens;
     } catch (error) {
-      console.error('Error fetching Solana tokens:', error);
+      console.error("Error fetching Solana tokens:", error);
       return [];
     }
   }
@@ -379,7 +352,7 @@ export class SolanaService {
       });
 
       if (!marketData) {
-        console.error('Failed to fetch SOL market data');
+        console.error("Failed to fetch SOL market data");
         return null;
       }
 
@@ -392,33 +365,30 @@ export class SolanaService {
         name: nativeSol.name,
         decimals: nativeSol.decimals,
         address: null,
-        chain: 'SOLANA',
+        chain: "SOLANA",
         marketData,
         sparklineData: processSparklineData(timeSeriesData),
         isNative: true,
       };
     } catch (error) {
-      console.error('Error fetching native SOL token:', error);
+      console.error("Error fetching native SOL token:", error);
       return null;
     }
   }
 
-  private static async getTokenAccountsData(
-    tokenAccounts: TokenAccount[]
-  ) {
+  private static async getTokenAccountsData(tokenAccounts: TokenAccount[]) {
     try {
       const tokens = tokenAccounts
         .map((token: TokenAccount) => {
           try {
-            const { tokenAmount, mint } =
-              token.account.data.parsed.info;
+            const { tokenAmount, mint } = token.account.data.parsed.info;
             return {
               decimals: tokenAmount.decimals,
               balance: tokenAmount.uiAmountString,
               address: mint,
             };
           } catch (error) {
-            console.error('Error parsing token account:', error);
+            console.error("Error parsing token account:", error);
             return null;
           }
         })
@@ -440,12 +410,13 @@ export class SolanaService {
             return null;
           }
 
-          const timeSeriesData =
-            await TokenAPIService.getTimeSeriesData(marketData.uuid);
+          const timeSeriesData = await TokenAPIService.getTimeSeriesData(
+            marketData.uuid
+          );
 
           return {
             ...token,
-            chain: 'SOLANA',
+            chain: "SOLANA",
             name: marketData.name,
             symbol: marketData.symbol,
             marketData,
@@ -465,7 +436,7 @@ export class SolanaService {
       const results = await Promise.all(tokenDataPromises);
       return results.filter(Boolean);
     } catch (error) {
-      console.error('Error processing token accounts:', error);
+      console.error("Error processing token accounts:", error);
       return [];
     }
   }
@@ -473,10 +444,10 @@ export class SolanaService {
   private static async getSwopTokenBalance(walletAddress: string) {
     const connection = new Connection(
       process.env.NEXT_PUBLIC_QUICKNODE_SOLANA_URL!,
-      'confirmed'
+      "confirmed"
     );
     const publicKey = new PublicKey(walletAddress);
-    const swopToken = new PublicKey(SWOP_TOKEN.address || '');
+    const swopToken = new PublicKey(SWOP_TOKEN.address || "");
 
     try {
       const associatedTokenAddress = await getAssociatedTokenAddress(
@@ -486,21 +457,16 @@ export class SolanaService {
 
       // Check if the associated token address is valid
       if (!associatedTokenAddress) {
-        console.error(
-          'Associated token address not found for SWOP token'
-        );
+        console.error("Associated token address not found for SWOP token");
         return null;
       }
 
-      const tokenAccount = await getAccount(
-        connection,
-        associatedTokenAddress
-      );
+      const tokenAccount = await getAccount(connection, associatedTokenAddress);
 
       // Check if the token account is valid
       if (!tokenAccount) {
         console.error(
-          'Token account not found for associated address:',
+          "Token account not found for associated address:",
           associatedTokenAddress.toString()
         );
         return null;
@@ -508,7 +474,7 @@ export class SolanaService {
 
       return tokenAccount.amount;
     } catch (error) {
-      console.error('Error fetching SWOP token balance:', error);
+      console.error("Error fetching SWOP token balance:", error);
       return null;
     }
   }
@@ -527,8 +493,7 @@ export const processSparklineData = (timeSeriesData: {
 
   return timeSeriesData.history
     .map((data: TimeSeriesDataPoint) => {
-      const price =
-        data.price !== null ? parseFloat(data.price) : null;
+      const price = data.price !== null ? parseFloat(data.price) : null;
       return price !== null
         ? { timestamp: data.timestamp, value: price }
         : null;

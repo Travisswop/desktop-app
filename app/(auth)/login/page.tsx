@@ -17,6 +17,7 @@ import { RiMailSendLine } from "react-icons/ri";
 
 const Login: React.FC = () => {
   const { authenticated, ready, user } = usePrivy();
+
   const { logout } = useLogout();
   const router = useRouter();
   const loginInitiated = useRef(false);

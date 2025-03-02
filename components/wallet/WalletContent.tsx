@@ -140,6 +140,8 @@ const WalletContentInner = () => {
     error: tokenError,
   } = useMultiChainTokenData(currentWalletAddress, [network]);
 
+  console.log("tokens form chain", tokens);
+
   const {
     nfts,
     loading: nftLoading,

@@ -1,17 +1,21 @@
 "use client";
 import { deleteCartItem, updateCartQuantity } from "@/actions/addToCartActions";
+import NftPaymentModal from "@/components/modal/NftPayment";
 import AnimateButton from "@/components/ui/Button/AnimateButton";
-import { useUser } from "@/lib/UserContext";
+import { useDisclosure } from "@nextui-org/react";
+import { usePrivy } from "@privy-io/react-auth";
 import { CircleMinus, CirclePlus, Loader } from "lucide-react"; // Import Loader2 for a spinner
 import Image from "next/image";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import React, { useState } from "react";
 import { LiaTimesSolid } from "react-icons/lia";
 
-const CartContent = ({ data }: any) => {
-  const { accessToken } = useUser();
+const CartContent = ({ data, accessToken }: any) => {
+  // const { authenticated } = usePrivy();
   const params = useParams();
   const name: any = params.username; // This will be "testh63s"
+  const { isOpen, onOpen, onOpenChange } = useDisclosure();
+  // const router = useRouter();
 
   // State to track loading for each item (for quantity updates)
   const [loadingStates, setLoadingStates] = useState<{
@@ -22,6 +26,18 @@ const CartContent = ({ data }: any) => {
   const [deleteLoadingStates, setDeleteLoadingStates] = useState<{
     [key: string]: boolean;
   }>({});
+
+  // console.log("authendndndnd", authenticated);
+
+  // if (!authenticated) {
+  //   router.push("/login");
+  // }
+
+  // useEffect(() => {
+  //   if (!authenticated) {
+  //     router.push("/login");
+  //   }
+  // }, [authenticated, router]);
 
   // Function to calculate subtotal
   const calculateSubtotal = (cartItems: any) => {
@@ -91,6 +107,10 @@ const CartContent = ({ data }: any) => {
   //   );
   //   return txHash;
   // };
+
+  const handleOpenModal = () => {
+    onOpen();
+  };
 
   return (
     <div className="w-full">
@@ -194,6 +214,7 @@ const CartContent = ({ data }: any) => {
         </div>
         <AnimateButton
           whiteLoading={true}
+          onClick={handleOpenModal}
           isDisabled={data.state !== "success"}
           type="button"
           className={`${
@@ -215,6 +236,12 @@ const CartContent = ({ data }: any) => {
           Pay With Card
         </AnimateButton>
       </div>
+      {/* modal here */}
+      <NftPaymentModal
+        subtotal={subtotal}
+        isOpen={isOpen}
+        onOpenChange={onOpenChange}
+      />
     </div>
   );
 };
