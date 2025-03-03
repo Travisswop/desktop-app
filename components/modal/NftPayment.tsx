@@ -4,6 +4,7 @@ import { Modal, ModalContent, ModalBody } from "@nextui-org/react";
 import { usePrivy, useSolanaWallets } from "@privy-io/react-auth";
 import { useMultiChainTokenData } from "@/lib/hooks/useToken";
 import TokenSelector from "@/app/(public-profile)/sp/[username]/cart/TokenSelector";
+import PaymentShipping from "@/app/(public-profile)/sp/[username]/cart/Shipping";
 
 export default function NftPaymentModal({
   subtotal,
@@ -103,7 +104,10 @@ export default function NftPaymentModal({
               <div className="w-full">
                 <ModalBody className="text-center">
                   {selectedToken ? (
-                    <div>token selected</div>
+                    <PaymentShipping
+                      subtotal={subtotal}
+                      selectedToken={selectedToken}
+                    />
                   ) : (
                     <TokenSelector
                       assets={tokens}
