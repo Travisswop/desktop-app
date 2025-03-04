@@ -3,7 +3,7 @@
 import { useUser } from '@/lib/UserContext';
 import { useEffect, useState, useCallback } from 'react';
 import { ParsedUrlQuery } from 'querystring';
-import MintDetails from '@/components/MintDetails';
+import CollectionDetails from '@/components/mint/CollectionDetails';
 import { Skeleton } from '@/components/ui/skeleton';
 
 interface Params extends ParsedUrlQuery {
@@ -114,7 +114,7 @@ export default function TemplateDetailsPage({ params }: Props) {
   return (
     <div>
       {nftList && nftList.length > 0 ? (
-        <MintDetails templateDetails={nftList} />
+        <CollectionDetails templateDetails={nftList} />
       ) : (
         <div className="text-center py-10">
           <p className="text-gray-600 text-lg">No NFTs found</p>

@@ -14,7 +14,7 @@ interface NFTDetails {
   collectionName?: string;
 }
 
-const MintDetails = ({
+const CollectionDetails = ({
   templateDetails,
 }: {
   templateDetails: NFTDetails[];
@@ -112,4 +112,4 @@ const MintDetails = ({
   );
 };
 
-export default MintDetails;
+export default CollectionDetails;

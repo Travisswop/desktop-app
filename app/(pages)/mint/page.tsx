@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
-import MintCart from '@/components/MintCart';
+import Collection from '@/components/mint/Collection';
 import Link from 'next/link';
 import HomePageLoading from '@/components/loading/HomePageLoading';
 import getCollectionData from '@/utils/fetchingData/getCollectionData';
@@ -11,8 +11,9 @@ import { PlusCircle } from 'lucide-react';
 interface Collection {
   _id: string;
   name: string;
-  mint_address: string;
+  address: string;
   image: string;
+  description: string;
 }
 
 const capitalizeFirstLetter = (str: string) =>
@@ -80,21 +81,21 @@ const MintDashboard = () => {
             <p className="text-gray-600">No collections found.</p>
           </div>
         ) : (
-          collections.map((collection) => (
-            <div key={collection._id} className="mb-8">
+          collections.map((item) => (
+            <div key={item._id} className="mb-8">
               <h3 className="text-xl font-semibold my-2">
-                {capitalizeFirstLetter(collection.name)}
+                {capitalizeFirstLetter(item.name)}
               </h3>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 xl:gap-10">
-                <MintCart
-                  img={collection.image}
-                  title={collection.name}
-                  collectionId={collection._id}
-                  description={`A unique digital collectible that represents ownership of exclusive ${collection.name} content. Each piece is verifiably authentic on the blockchain.`}
+                <Collection
+                  img={item.image}
+                  title={capitalizeFirstLetter(item.name)}
+                  collectionId={item._id}
+                  description={item.description}
                 />
                 <Link
                   className="block h-full"
-                  href={`/mint/create/${collection.name}/${collection.mint_address}`}
+                  href={`/mint/create/${item.name}/${item.address}`}
                 >
                   <div className="shadow-medium rounded-lg px-5 py-6 flex flex-col items-center justify-center cursor-pointer hover:bg-gray-100 h-full">
                     <PlusCircle className="w-24 h-24 text-gray-400 mb-4 stroke-1" />

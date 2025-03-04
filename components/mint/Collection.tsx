@@ -2,15 +2,15 @@ import Image from 'next/image';
 import Link from 'next/link';
 import React from 'react';
 
-const MintCart = ({
+const Collection = ({
   img,
   title,
   collectionId,
   description,
 }: {
-  img: string; // Updated to specify a string type for the image URL
+  img: string;
   title: string;
-  collectionId: string; // Added to pass collection ID
+  collectionId: string;
   description: string;
 }) => {
   return (
@@ -19,12 +19,7 @@ const MintCart = ({
         href={`/mint/${collectionId}`}
         className="flex justify-center mb-3"
       >
-        <Image
-          alt="coupon mit image"
-          src={img}
-          width={220}
-          height={220}
-        />
+        <Image alt={title} src={img} width={220} height={220} />
       </Link>
       <div className="flex flex-col gap-1 items-center">
         <h4 className="text-lg font-bold text-gray-700">{title}</h4>
@@ -36,4 +31,4 @@ const MintCart = ({
   );
 };
 
-export default MintCart;
+export default Collection;
