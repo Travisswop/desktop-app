@@ -3,10 +3,10 @@ import { deleteCartItem, updateCartQuantity } from "@/actions/addToCartActions";
 import NftPaymentModal from "@/components/modal/NftPayment";
 import AnimateButton from "@/components/ui/Button/AnimateButton";
 import { useDisclosure } from "@nextui-org/react";
-import { usePrivy } from "@privy-io/react-auth";
+// import { usePrivy } from "@privy-io/react-auth";
 import { CircleMinus, CirclePlus, Loader } from "lucide-react"; // Import Loader2 for a spinner
 import Image from "next/image";
-import { useParams, useRouter } from "next/navigation";
+import { useParams } from "next/navigation";
 import React, { useState } from "react";
 import { LiaTimesSolid } from "react-icons/lia";
 
