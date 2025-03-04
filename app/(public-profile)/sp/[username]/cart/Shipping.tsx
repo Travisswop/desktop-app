@@ -8,6 +8,7 @@ import { useSolanaWallets } from "@privy-io/react-auth";
 import { clusterApiUrl, Connection } from "@solana/web3.js";
 // import { AlertCircle } from "lucide-react";
 import Image from "next/image";
+import { useParams, useRouter } from "next/navigation";
 import React, { useEffect, useState } from "react";
 // import { LiaFileMedicalSolid } from "react-icons/lia";
 // import { MdDelete } from "react-icons/md";
@@ -21,8 +22,12 @@ const PaymentShipping = ({
 }: any) => {
   const { user, accessToken } = useUser();
   const [address, setAddress] = useState("");
+  const [loading, setLoading] = useState(false);
   console.log("usersss", user);
-  const { createWallet, wallets: solanaWallets } = useSolanaWallets();
+  const { wallets: solanaWallets } = useSolanaWallets();
+  const params = useParams();
+  const router = useRouter();
+  const name: any = params.username;
 
   useEffect(() => {
     if (user && user.address) {
@@ -33,9 +38,9 @@ const PaymentShipping = ({
   console.log("user", user);
 
   const handleSendConfirm = async () => {
+    setLoading(true);
     try {
       let hash = "";
-      let newTransaction;
       const recipientWallet = {
         address: "4VoKLfzZNKQfmvitteM6ywtNNrdcikGuevkaTY1REhmN",
       };
@@ -47,12 +52,12 @@ const PaymentShipping = ({
 
       console.log("sendFlow", sendFlow);
 
-      // const connection = new Connection(
-      //   process.env.NEXT_PUBLIC_QUICKNODE_SOLANA_URL!,
-      //   "confirmed"
-      // );
+      const connection = new Connection(
+        process.env.NEXT_PUBLIC_QUICKNODE_SOLANA_URL!,
+        "confirmed"
+      );
 
-      const connection = new Connection(clusterApiUrl("devnet"));
+      // const connection = new Connection(clusterApiUrl("devnet"));
 
       console.log("connection", connection);
 
@@ -83,9 +88,14 @@ const PaymentShipping = ({
         const order = await createOrder(orderData, accessToken);
 
         console.log("order", order);
-
         console.log("hash", hash);
-        console.log("newTransaction", newTransaction);
+
+        toast({
+          variant: "default",
+          title: "success",
+          description: "Your order has been placed successfully!",
+        });
+        router.push(`/sp/${name}`);
       }
     } catch (error) {
       console.error("Error sending token/NFT:", error);
@@ -95,7 +105,8 @@ const PaymentShipping = ({
         description:
           error instanceof Error ? error.message : "Failed to send transaction",
       });
-      // resetSendFlow();
+    } finally {
+      setLoading(false);
     }
   };
 
