@@ -255,6 +255,8 @@ const WalletContentInner = () => {
       let hash = "";
       let newTransaction;
 
+      console.log("hash", hash);
+
       const connection = new Connection(
         process.env.NEXT_PUBLIC_QUICKNODE_SOLANA_URL!,
         "confirmed"

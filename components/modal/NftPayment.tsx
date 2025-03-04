@@ -12,6 +12,7 @@ export default function NftPaymentModal({
   onOpenChange,
 }: any) {
   const [walletData, setWalletData] = useState<any>(null);
+  const [amontOfToken, setAmontOfToken] = useState<any>(null);
   const [selectedToken, setSelectedToken] = useState<any>(null);
   const { createWallet, wallets: solanaWallets } = useSolanaWallets();
   const { authenticated, ready, user: PrivyUser } = usePrivy();
@@ -82,6 +83,7 @@ export default function NftPaymentModal({
   console.log("walletData from payment modal", walletData);
   console.log("tokens from payment modal", tokens);
   console.log("selectedToken", selectedToken);
+  console.log("walletData", walletData);
 
   useEffect(() => {
     const convertUSDToToken = (usdAmount: number) => {
@@ -91,7 +93,7 @@ export default function NftPaymentModal({
     };
     if (selectedToken) {
       const amontOfToken = convertUSDToToken(subtotal);
-      console.log("amount of token", amontOfToken);
+      setAmontOfToken(amontOfToken);
     }
   }, [selectedToken, subtotal]);
 
@@ -107,6 +109,9 @@ export default function NftPaymentModal({
                     <PaymentShipping
                       subtotal={subtotal}
                       selectedToken={selectedToken}
+                      setSelectedToken={setSelectedToken}
+                      amontOfToken={amontOfToken}
+                      walletData={walletData}
                     />
                   ) : (
                     <TokenSelector
