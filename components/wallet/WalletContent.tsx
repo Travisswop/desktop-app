@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useMemo } from "react";
 import {
+  useLoginWithPasskey,
   useMfaEnrollment,
   usePrivy,
   useSolanaWallets,
@@ -44,6 +45,9 @@ import { addSwopPoint } from "@/actions/addPoint";
 import { postFeed } from "@/actions/postFeed";
 import Cookies from "js-cookie";
 import WalletBalanceChartForWalletPage from "./WalletBalanceChart";
+import { IoKeyOutline, IoLockClosedOutline } from "react-icons/io5";
+import { LuPlus } from "react-icons/lu";
+import DynamicPrimaryBtn from "../ui/Button/DynamicPrimaryBtn";
 
 export default function WalletContent() {
   return <WalletContentInner />;
@@ -86,6 +90,7 @@ const WalletContentInner = () => {
   // Hooks
   const { authenticated, ready, user: PrivyUser } = usePrivy();
   const { wallets: ethWallets } = useWallets();
+  const { state, loginWithPasskey } = useLoginWithPasskey();
 
   const { createWallet, wallets: solanaWallets } = useSolanaWallets();
   const { toast } = useToast();
@@ -387,7 +392,6 @@ const WalletContentInner = () => {
   return (
     <div className="">
       <ProfileHeader />
-      <button onClick={showMfaEnrollmentModal}>Enroll in MFA</button>
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 my-6">
         {/* <BalanceChart
           walletData={walletData || []}
@@ -521,6 +525,39 @@ const WalletContentInner = () => {
       {network === "SOLANA" && <RedeemTokenList />}
       <NetworkDock network={network} setNetwork={setNetwork} />
       <Toaster />
+      <div className="flex items-start gap-4">
+        <div className="w-72 flex flex-col gap-3 bg-white rounded-xl shadow-medium p-4">
+          <div className="flex items-center gap-2 justify-between">
+            <div className="flex items-center gap-1 font-medium">
+              <IoKeyOutline />
+              <p>Passkeys</p>
+            </div>
+            {/* <p className="text-gray-500">Disabled</p> */}
+          </div>
+          <p>Link a passkey to your account</p>
+          <DynamicPrimaryBtn onClick={loginWithPasskey}>
+            <LuPlus />
+            Link a Passkey
+          </DynamicPrimaryBtn>
+        </div>
+        <div className="w-96 flex flex-col gap-3 bg-white rounded-xl shadow-medium p-4">
+          <div className="flex items-center gap-2 justify-between">
+            <div className="flex items-center gap-1 font-medium">
+              <IoLockClosedOutline />
+              <p>Transaction MFA</p>
+            </div>
+            <p className="text-gray-500">Disabled</p>
+          </div>
+          <p>
+            Add a second factor to sensitive embedded wallet actions to protect
+            your account. Verification lasts for 15 minutes.
+          </p>
+          <DynamicPrimaryBtn onClick={showMfaEnrollmentModal}>
+            <LuPlus />
+            Add MFA
+          </DynamicPrimaryBtn>
+        </div>
+      </div>
     </div>
   );
 };
