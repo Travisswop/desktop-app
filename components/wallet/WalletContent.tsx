@@ -69,8 +69,10 @@ const WalletContentInner = () => {
   const [QRCodeShareModalOpen, setQRCodeShareModalOpen] = useState(false);
   const [accessToken, setAccessToken] = useState("");
   const { user: privyUser } = usePrivy();
+  const { showMfaEnrollmentModal } = useMfaEnrollment();
+  const { state, loginWithPasskey } = useLoginWithPasskey();
 
-  // console.log("privyUser", privyUser);
+  console.log("state", state);
 
   const [payload, setPayload] = useState({
     smartsiteId: "",
@@ -94,7 +96,6 @@ const WalletContentInner = () => {
   // Hooks
   const { authenticated, ready, user: PrivyUser } = usePrivy();
   const { wallets: ethWallets } = useWallets();
-  const { state, loginWithPasskey } = useLoginWithPasskey();
 
   const { createWallet, wallets: solanaWallets } = useSolanaWallets();
   const { toast } = useToast();
@@ -391,8 +392,6 @@ const WalletContentInner = () => {
   const nativeTokenPrice = tokens.find((token) => token.isNative)?.marketData
     .price;
 
-  const { showMfaEnrollmentModal } = useMfaEnrollment();
-
   return (
     <div className="">
       <ProfileHeader />
@@ -530,7 +529,7 @@ const WalletContentInner = () => {
       <NetworkDock network={network} setNetwork={setNetwork} />
       <Toaster />
       <div className="flex items-start gap-4">
-        {/* <div className="w-72 flex flex-col gap-3 bg-white rounded-xl shadow-medium p-4">
+        <div className="w-72 flex flex-col gap-3 bg-white rounded-xl shadow-medium p-4">
           <div className="flex items-center gap-2 justify-between">
             <div className="flex items-center gap-1 font-medium">
               <IoKeyOutline />
@@ -542,7 +541,7 @@ const WalletContentInner = () => {
             <LuPlus />
             Link a Passkey
           </DynamicPrimaryBtn>
-        </div> */}
+        </div>
         <div className="w-96 flex flex-col gap-3 bg-white rounded-xl shadow-medium p-4">
           <div className="flex items-center gap-2 justify-between">
             <div className="flex items-center gap-1 font-medium">
@@ -562,14 +561,6 @@ const WalletContentInner = () => {
             Add a second factor to sensitive embedded wallet actions to protect
             your account. Verification lasts for 15 minutes.
           </p>
-          {/* <DynamicPrimaryBtn onClick={showMfaEnrollmentModal}>
-            <LuPlus />
-            {privyUser
-              ? privyUser?.mfaMethods?.length > 0
-                ? <MdOutlineEdit /> + "Manage MFA"
-                : <LuPlus /> + "Add MFA"
-              : <LuPlus /> + "Add MFA"}
-          </DynamicPrimaryBtn> */}
           <DynamicPrimaryBtn onClick={showMfaEnrollmentModal}>
             {privyUser && privyUser?.mfaMethods?.length > 0 ? (
               <span className="flex items-center gap-1">
