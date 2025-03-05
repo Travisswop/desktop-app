@@ -48,6 +48,7 @@ import WalletBalanceChartForWalletPage from "./WalletBalanceChart";
 import { IoKeyOutline, IoLockClosedOutline } from "react-icons/io5";
 import { LuPlus } from "react-icons/lu";
 import DynamicPrimaryBtn from "../ui/Button/DynamicPrimaryBtn";
+import { MdOutlineEdit } from "react-icons/md";
 
 export default function WalletContent() {
   return <WalletContentInner />;
@@ -67,6 +68,9 @@ const WalletContentInner = () => {
   const [qrcodeShareUrl, setQrcodeShareUrl] = useState("");
   const [QRCodeShareModalOpen, setQRCodeShareModalOpen] = useState(false);
   const [accessToken, setAccessToken] = useState("");
+  const { user: privyUser } = usePrivy();
+
+  // console.log("privyUser", privyUser);
 
   const [payload, setPayload] = useState({
     smartsiteId: "",
@@ -526,35 +530,58 @@ const WalletContentInner = () => {
       <NetworkDock network={network} setNetwork={setNetwork} />
       <Toaster />
       <div className="flex items-start gap-4">
-        <div className="w-72 flex flex-col gap-3 bg-white rounded-xl shadow-medium p-4">
+        {/* <div className="w-72 flex flex-col gap-3 bg-white rounded-xl shadow-medium p-4">
           <div className="flex items-center gap-2 justify-between">
             <div className="flex items-center gap-1 font-medium">
               <IoKeyOutline />
               <p>Passkeys</p>
             </div>
-            {/* <p className="text-gray-500">Disabled</p> */}
           </div>
           <p>Link a passkey to your account</p>
           <DynamicPrimaryBtn onClick={loginWithPasskey}>
             <LuPlus />
             Link a Passkey
           </DynamicPrimaryBtn>
-        </div>
+        </div> */}
         <div className="w-96 flex flex-col gap-3 bg-white rounded-xl shadow-medium p-4">
           <div className="flex items-center gap-2 justify-between">
             <div className="flex items-center gap-1 font-medium">
               <IoLockClosedOutline />
               <p>Transaction MFA</p>
             </div>
-            <p className="text-gray-500">Disabled</p>
+            <p className="text-gray-500">
+              {/* Disabled{" "} */}
+              {privyUser
+                ? privyUser?.mfaMethods?.length > 0
+                  ? "Enabled"
+                  : "Disabled"
+                : "Disabled"}
+            </p>
           </div>
           <p>
             Add a second factor to sensitive embedded wallet actions to protect
             your account. Verification lasts for 15 minutes.
           </p>
-          <DynamicPrimaryBtn onClick={showMfaEnrollmentModal}>
+          {/* <DynamicPrimaryBtn onClick={showMfaEnrollmentModal}>
             <LuPlus />
-            Add MFA
+            {privyUser
+              ? privyUser?.mfaMethods?.length > 0
+                ? <MdOutlineEdit /> + "Manage MFA"
+                : <LuPlus /> + "Add MFA"
+              : <LuPlus /> + "Add MFA"}
+          </DynamicPrimaryBtn> */}
+          <DynamicPrimaryBtn onClick={showMfaEnrollmentModal}>
+            {privyUser && privyUser?.mfaMethods?.length > 0 ? (
+              <span className="flex items-center gap-1">
+                <MdOutlineEdit />
+                <span>Manage MFA</span>
+              </span>
+            ) : (
+              <span className="flex items-center gap-1">
+                <LuPlus />
+                <span>Add MFA</span>
+              </span>
+            )}
           </DynamicPrimaryBtn>
         </div>
       </div>
