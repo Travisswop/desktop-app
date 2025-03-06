@@ -204,7 +204,7 @@ export default function SmartSiteSlider({
                         Create Microsite
                       </Button>
                     </Link> */}
-                    <Link href="/create-smartsite">
+                    <Link href="/smartsite/create-smartsite">
                       <Button
                         variant="black"
                         className="gap-2 font-bold rounded-xl"
