@@ -1,4 +1,12 @@
-import { useEffect, useState } from 'react';
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardTitle } from "@/components/ui/card";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   Table,
   TableBody,
@@ -6,26 +14,12 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from '@/components/ui/table';
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
-import { Download } from 'lucide-react';
-import Image from 'next/image';
-import Link from 'next/link';
-import { useUser } from '@/lib/UserContext';
+} from "@/components/ui/table";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useUser } from "@/lib/UserContext";
+import { Download } from "lucide-react";
+import Link from "next/link";
+import { useEffect, useState } from "react";
 
 interface Order {
   id: string;
@@ -36,14 +30,12 @@ interface Order {
   product: string;
   price: number;
   date: string;
-  status: 'processing' | 'complete' | 'cancel';
+  status: "processing" | "complete" | "cancel";
 }
 
 export default function OrderDashboard() {
   const [orders, setOrders] = useState<Order[]>([]); // State to hold orders
-  const [userCollection, setUserCollection] = useState<any | null>(
-    null
-  ); // State to hold user collection
+  const [userCollection, setUserCollection] = useState<any | null>(null); // State to hold user collection
   const [loading, setLoading] = useState(true); // Loading state
   const [error, setError] = useState<string | null>(null); // Error state
   const { accessToken } = useUser();
@@ -52,7 +44,7 @@ export default function OrderDashboard() {
   useEffect(() => {
     if (!accessToken && waitForToken) return; // Wait until accessToken is available or timeout
     if (!accessToken) {
-      setError('Access token not available');
+      setError("Access token not available");
       setLoading(false);
       return;
     }
@@ -62,20 +54,20 @@ export default function OrderDashboard() {
         const response = await fetch(
           `${process.env.NEXT_PUBLIC_API_URL}/api/v1/desktop/nft/fetchUserOrders`,
           {
-            method: 'GET',
+            method: "GET",
             headers: {
-              'Content-Type': 'application/json',
+              "Content-Type": "application/json",
               authorization: `Bearer ${accessToken}`,
             },
           }
         );
         if (!response.ok) {
-          throw new Error('Failed to fetch orders');
+          throw new Error("Failed to fetch orders");
         }
         const data = await response.json();
-        console.log('🚀 ~ fetchOrders ~ data:', data);
+        console.log("🚀 ~ fetchOrders ~ data:", data);
       } catch (err: any) {
-        setError(err.message || 'Something went wrong');
+        setError(err.message || "Something went wrong");
       } finally {
         setLoading(false);
       }
@@ -89,11 +81,7 @@ export default function OrderDashboard() {
   }
 
   if (error) {
-    return (
-      <div className="text-center py-10 text-red-500">
-        Error: {error}
-      </div>
-    );
+    return <div className="text-center py-10 text-red-500">Error: {error}</div>;
   }
 
   return (
@@ -133,10 +121,7 @@ export default function OrderDashboard() {
                   <div className="text-3xl font-bold">
                     $
                     {orders
-                      .reduce(
-                        (total, order) => total + order.price,
-                        0
-                      )
+                      .reduce((total, order) => total + order.price, 0)
                       .toFixed(2)}
                   </div>
                 </div>
@@ -191,9 +176,7 @@ export default function OrderDashboard() {
               </TabsList>
             </Tabs>
             <div className="flex items-center gap-2">
-              <span className="text-sm text-muted-foreground">
-                Filter
-              </span>
+              <span className="text-sm text-muted-foreground">Filter</span>
               <Select>
                 <SelectTrigger className="w-24">
                   <SelectValue placeholder="Date" />
@@ -233,9 +216,7 @@ export default function OrderDashboard() {
               {orders.map((order) => (
                 <TableRow key={order.id}>
                   <TableCell className="font-medium">
-                    <Link href={`/order/${order.id}`}>
-                      {order.id}
-                    </Link>
+                    <Link href={`/order/${order.id}`}>{order.id}</Link>
                   </TableCell>
                   <TableCell>
                     <div className="flex items-center gap-2">
@@ -255,11 +236,11 @@ export default function OrderDashboard() {
                   <TableCell>
                     <span
                       className={`px-2 py-1 rounded-full text-xs font-medium ${
-                        order.status === 'complete'
-                          ? 'bg-green-100 text-green-600'
-                          : order.status === 'processing'
-                          ? 'bg-yellow-100 text-yellow-600'
-                          : 'bg-red-100 text-red-600'
+                        order.status === "complete"
+                          ? "bg-green-100 text-green-600"
+                          : order.status === "processing"
+                          ? "bg-yellow-100 text-yellow-600"
+                          : "bg-red-100 text-red-600"
                       }`}
                     >
                       {order.status.charAt(0).toUpperCase() +
