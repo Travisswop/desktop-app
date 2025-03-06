@@ -64,7 +64,7 @@ export default function NFTSlider({
   return (
     <Card className="w-full border-none rounded-xl">
       <CardHeader>
-        <CardTitle>Digitals (NFTs)</CardTitle>
+        <p className="font-bold text-xl text-gray-700">Digitals (NFTs)</p>
       </CardHeader>
       <CardContent>
         {loading && <LoadingSkeleton />}

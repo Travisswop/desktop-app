@@ -1,13 +1,8 @@
-import { Button } from '@/components/ui/button';
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card';
-import { MessageCircle, Search } from 'lucide-react';
-import Image from 'next/image';
-import { Input } from '../ui/input';
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { MessageCircle, Search } from "lucide-react";
+import Image from "next/image";
+import { Input } from "../ui/input";
 interface MessageProps {
   id: string;
   name: string;
@@ -20,12 +15,12 @@ interface MessageProps {
 export default function MessageBox() {
   const messages: MessageProps[] = [
     {
-      id: '1',
-      name: 'Sadit Ahsan',
-      role: 'Graphics Designer',
+      id: "1",
+      name: "Sadit Ahsan",
+      role: "Graphics Designer",
       newMessages: 1,
       avatar: `/assets/images/sadit.png?height=32&width=32`,
-      onView: () => console.log('View message'),
+      onView: () => console.log("View message"),
     },
   ];
 
@@ -34,7 +29,7 @@ export default function MessageBox() {
       <CardHeader>
         <div className="flex items-center gap-2">
           <MessageCircle className="h-5 w-5" />
-          <CardTitle>Messages</CardTitle>
+          <h3 className="font-bold text-xl text-gray-700">Messages</h3>
         </div>
         <p className="text-sm text-muted-foreground">
           Chat with your connection.
@@ -56,9 +51,7 @@ export default function MessageBox() {
           </Button>
         </div>
         <div className="space-y-3">
-          <p className="text-center text-gray-500">
-            No messages found.
-          </p>
+          <p className="text-center text-gray-500">No messages found.</p>
         </div>
       </CardContent>
     </Card>
@@ -91,7 +84,7 @@ function MessageCard({
             {newMessages > 0 && (
               <p className="text-sm text-purple-400">
                 {newMessages} New Message
-                {newMessages !== 1 ? 's' : ''}
+                {newMessages !== 1 ? "s" : ""}
               </p>
             )}
           </div>

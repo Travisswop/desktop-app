@@ -1,19 +1,16 @@
-import React from 'react';
+import React from "react";
 
-import { Card } from '@/components/ui/card';
-import { Area, AreaChart, ResponsiveContainer } from 'recharts';
-import Image from 'next/image';
-import { TokenData } from '@/types/token';
+import { Card } from "@/components/ui/card";
+import { Area, AreaChart, ResponsiveContainer } from "recharts";
+import Image from "next/image";
+import { TokenData } from "@/types/token";
 
 interface TokenCardProps {
   token: TokenData;
   onClick: () => void;
 }
 
-export default function TokenListView({
-  token,
-  onClick,
-}: TokenCardProps) {
+export default function TokenListView({ token, onClick }: TokenCardProps) {
   const data = token.sparklineData;
 
   const TokenSparkline = () => {
@@ -65,11 +62,11 @@ export default function TokenListView({
       <div
         className={`absolute top-1 left-1 p-1 text-xs ${
           parseFloat(token.marketData.change) >= 0
-            ? ' text-green-700'
-            : ' text-red-700'
+            ? " text-green-700"
+            : " text-red-700"
         }`}
       >
-        {parseFloat(token.marketData.change) >= 0 ? '+' : ''}
+        {parseFloat(token.marketData.change) >= 0 ? "+" : ""}
         {parseFloat(token.marketData.change)}%
       </div>
       <div className="flex items-center gap-3">
@@ -87,9 +84,9 @@ export default function TokenListView({
           <p className="text-sm text-gray-500">{token.symbol}</p>
         </div>
       </div>
-      <div className="h-[60px] w-full">
+      {/* <div className="h-[60px] w-full">
         <TokenSparkline />
-      </div>
+      </div> */}
       <div className="flex items-center gap-4">
         <div className="text-right">
           <p className="font-bold">

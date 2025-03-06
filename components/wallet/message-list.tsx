@@ -1,15 +1,15 @@
-'use client';
+"use client";
 
-import { useCallback, useEffect, useState, useMemo } from 'react';
-import { usePeerData, PeerData } from '@/lib/hooks/usePeerData';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Avatar, AvatarFallback, AvatarImage } from '../ui/avatar';
-import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
-import { MessageCircle, Search } from 'lucide-react';
-import { useRouter } from 'next/navigation';
-import { useXmtpContext } from '@/lib/context/XmtpContext';
-import { useDebouncedCallback } from 'use-debounce';
+import { useCallback, useEffect, useState, useMemo } from "react";
+import { usePeerData, PeerData } from "@/lib/hooks/usePeerData";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Avatar, AvatarFallback, AvatarImage } from "../ui/avatar";
+import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
+import { MessageCircle, Search } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { useXmtpContext } from "@/lib/context/XmtpContext";
+import { useDebouncedCallback } from "use-debounce";
 
 interface MessageProps {
   bio?: string;
@@ -21,16 +21,11 @@ interface MessageProps {
 }
 
 const MessageList = () => {
-  const { client: xmtpClient, isLoading: xmtpIsLoading } =
-    useXmtpContext();
-  const [peerAddressList, setPeerAddressList] = useState<string[]>(
-    []
-  );
-  const [searchQuery, setSearchQuery] = useState('');
+  const { client: xmtpClient, isLoading: xmtpIsLoading } = useXmtpContext();
+  const [peerAddressList, setPeerAddressList] = useState<string[]>([]);
+  const [searchQuery, setSearchQuery] = useState("");
   const [isSearchLoading, setIsSearchLoading] = useState(false);
-  const [searchResult, setSearchResult] = useState<PeerData | null>(
-    null
-  );
+  const [searchResult, setSearchResult] = useState<PeerData | null>(null);
 
   const { peerData, isLoading, error } = usePeerData(peerAddressList);
 
@@ -45,7 +40,7 @@ const MessageList = () => {
       );
       setPeerAddressList([...peerList].sort().reverse());
     } catch (error) {
-      console.error('Failed to fetch messages:', error);
+      console.error("Failed to fetch messages:", error);
     }
   }, [xmtpClient]);
 
@@ -65,7 +60,7 @@ const MessageList = () => {
         );
 
         if (!response.ok) {
-          throw new Error('Failed to fetch ENS data');
+          throw new Error("Failed to fetch ENS data");
         }
 
         const data = await response.json();
@@ -84,7 +79,7 @@ const MessageList = () => {
         setSearchResult(info);
       } catch (err) {
         setSearchResult(null);
-        console.error('ENS search error:', err);
+        console.error("ENS search error:", err);
       } finally {
         setIsSearchLoading(false);
       }
@@ -103,19 +98,13 @@ const MessageList = () => {
 
     return peerData.filter(
       (peer) =>
-        peer.name
-          ?.toLowerCase()
-          .includes(searchQuery.toLowerCase()) ||
+        peer.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
         peer.bio?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        peer.ethAddress
-          ?.toLowerCase()
-          .includes(searchQuery.toLowerCase())
+        peer.ethAddress?.toLowerCase().includes(searchQuery.toLowerCase())
     );
   }, [peerData, searchQuery]);
 
-  const handleSearchInputChange = (
-    e: React.ChangeEvent<HTMLInputElement>
-  ) => {
+  const handleSearchInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value;
     setSearchQuery(value);
 
@@ -145,7 +134,7 @@ const MessageList = () => {
         <CardHeader>
           <div className="flex items-center gap-2">
             <MessageCircle className="h-5 w-5" />
-            <CardTitle>Messages</CardTitle>
+            <h3 className="font-bold text-xl text-gray-700">Messages</h3>
           </div>
           <p className="text-sm text-muted-foreground">
             Chat with your connections
@@ -169,9 +158,7 @@ const MessageList = () => {
             </Button>
           </div>
           {isSearchLoading && (
-            <p className="text-center text-sm text-gray-500">
-              Searching...
-            </p>
+            <p className="text-center text-sm text-gray-500">Searching...</p>
           )}
           <div className="max-h-[400px] overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100">
             <p className="text-center">Loading messages...</p>
@@ -185,11 +172,11 @@ const MessageList = () => {
       <CardHeader>
         <div className="flex items-center gap-2">
           <MessageCircle className="h-5 w-5" />
-          <CardTitle>Messages</CardTitle>
+          <h3 className="font-bold text-xl text-gray-700">Messages</h3>
         </div>
-        <p className="text-sm text-muted-foreground">
+        {/* <p className="text-sm text-muted-foreground">
           Chat with your connections
-        </p>
+        </p> */}
       </CardHeader>
       <CardContent>
         <div className="flex items-center mb-6">
@@ -198,7 +185,7 @@ const MessageList = () => {
             value={searchQuery}
             onChange={handleSearchInputChange}
             placeholder="Search messages..."
-            className="border rounded-e-none p-2 text-sm focus-visible:ring-0 focus-visible:ring-offset-0"
+            className="border rounded-e-none p-2 px-3 text-sm focus-visible:ring-0 focus-visible:ring-offset-0"
           />
           <Button
             variant="black"
@@ -209,14 +196,10 @@ const MessageList = () => {
           </Button>
         </div>
         {isSearchLoading && (
-          <p className="text-center text-sm text-gray-500">
-            Searching...
-          </p>
+          <p className="text-center text-sm text-gray-500">Searching...</p>
         )}
         <div className="max-h-[300px] overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100">
-          {isLoading && (
-            <p className="text-center">Loading messages...</p>
-          )}
+          {isLoading && <p className="text-center">Loading messages...</p>}
           {error && (
             <p className="text-center text-red-500">
               Error loading messages: {error.message}
@@ -226,9 +209,7 @@ const MessageList = () => {
             !error &&
             !searchResult &&
             filteredPeerData.length === 0 && (
-              <p className="text-center text-gray-500">
-                No messages found
-              </p>
+              <p className="text-center text-gray-500">No messages found</p>
             )}
           {searchResult ? (
             <MessageCard {...searchResult} />
@@ -243,12 +224,7 @@ const MessageList = () => {
   );
 };
 
-const MessageCard = ({
-  bio,
-  name,
-  profilePic,
-  ethAddress,
-}: MessageProps) => {
+const MessageCard = ({ bio, name, profilePic, ethAddress }: MessageProps) => {
   const router = useRouter();
 
   const handleWalletClick = useCallback(() => {
@@ -256,8 +232,8 @@ const MessageCard = ({
   }, [router, ethAddress]);
 
   const avatarSrc = useMemo(() => {
-    if (!profilePic) return '/default-avatar.png';
-    return profilePic.startsWith('http')
+    if (!profilePic) return "/default-avatar.png";
+    return profilePic.startsWith("http")
       ? profilePic
       : `/assets/avatar/${profilePic}.png`;
   }, [profilePic]);
@@ -269,9 +245,7 @@ const MessageCard = ({
           <div className="relative h-10 w-10">
             <Avatar>
               <AvatarImage src={avatarSrc} alt={`${name}'s avatar`} />
-              <AvatarFallback>
-                {name?.slice(0, 2) || 'AN'}
-              </AvatarFallback>
+              <AvatarFallback>{name?.slice(0, 2) || "AN"}</AvatarFallback>
             </Avatar>
           </div>
           <div>

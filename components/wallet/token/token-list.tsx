@@ -91,7 +91,7 @@ const LoadingSkeleton = ({ viewMode }: { viewMode: ViewMode }) => {
 
 const TokenContent = ({
   tokens,
-  viewMode,
+  viewMode = "list",
   onSelectToken,
 }: {
   tokens: TokenData[];
@@ -105,6 +105,8 @@ const TokenContent = ({
       </div>
     );
   }
+
+  // const viewMode = "list";
 
   const containerClass =
     viewMode === "card" ? "grid grid-cols-1 md:grid-cols-2 gap-4" : "space-y-4";
@@ -141,7 +143,7 @@ const TokenList = ({
     return (
       <TokenContent
         tokens={tokens}
-        viewMode={viewMode}
+        viewMode={"list"}
         onSelectToken={onSelectToken}
       />
     );
@@ -152,12 +154,12 @@ const TokenList = ({
       <CardHeader>
         <div className="flex items-center justify-between">
           <CardTitle className="flex items-center">
-            <span>Tokens</span>
+            <span className="font-bold text-xl text-gray-700">Tokens</span>
             {loading && (
               <Loader2 className="w-6 h-6 text-gray-600 animate-spin" />
             )}
           </CardTitle>
-          <ViewToggle viewMode={viewMode} onViewChange={setViewMode} />
+          {/* <ViewToggle viewMode={viewMode} onViewChange={setViewMode} /> */}
         </div>
       </CardHeader>
       <CardContent>
@@ -165,11 +167,11 @@ const TokenList = ({
           <ErrorAlert message="Some tokens couldn't be loaded. Please try again later." />
         )}
 
-        {tokens.length > 0 && !loading ? (
+        {/* {tokens.length > 0 && !loading ? (
           <PortfolioBalance tokens={tokens} />
         ) : loading ? (
           <PortfolioBalanceSkeleton />
-        ) : null}
+        ) : null} */}
 
         {content}
       </CardContent>

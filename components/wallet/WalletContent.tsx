@@ -68,15 +68,15 @@ const WalletContentInner = () => {
   const [qrcodeShareUrl, setQrcodeShareUrl] = useState("");
   const [QRCodeShareModalOpen, setQRCodeShareModalOpen] = useState(false);
   const [accessToken, setAccessToken] = useState("");
-  const { user: privyUser } = usePrivy();
-  const { showMfaEnrollmentModal } = useMfaEnrollment();
-  const { state, loginWithPasskey } = useLoginWithPasskey();
+  // const { user: privyUser } = usePrivy();
+  // const { showMfaEnrollmentModal } = useMfaEnrollment();
+  // const { state, loginWithPasskey } = useLoginWithPasskey();
   const [solWalletAddress, setSolWalletAddress] = useState("");
   const [evmWalletAddress, setEvmWalletAddress] = useState("");
 
   const chains: ChainType[] = ["ETHEREUM", "POLYGON", "BASE", "SOLANA"];
 
-  console.log("state", state);
+  // console.log("state", state);
 
   const [payload, setPayload] = useState({
     smartsiteId: "",
@@ -417,9 +417,7 @@ const WalletContentInner = () => {
           }
           onQRClick={() => setWalletQRModalOpen(true)}
         />
-        <MessageList />
-      </div>
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 my-6">
+
         {selectedToken ? (
           <TokenDetails
             token={selectedToken}
@@ -434,7 +432,8 @@ const WalletContentInner = () => {
             onSelectToken={handleTokenSelect}
           />
         )}
-
+      </div>
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 my-6">
         <div>
           <NFTSlider
             onSelectNft={handleSelectNFT}
@@ -461,79 +460,81 @@ const WalletContentInner = () => {
             />
           )}
         </div>
-        <AssetSelector
-          open={sendFlow.step === "assets"}
-          onOpenChange={(open) => !open && resetSendFlow()}
-          assets={tokens}
-          nfts={nfts}
-          onNext={handleSendClick}
-          onNFTNext={handleNFTNext}
-        />
-
-        <SendTokenModal
-          open={sendFlow.step === "amount"}
-          onOpenChange={(open) => !open && resetSendFlow()}
-          token={sendFlow.token!}
-          onNext={handleAmountConfirm}
-        />
-        <SendToModal
-          open={sendFlow.step === "recipient"}
-          onOpenChange={(open) => !open && resetSendFlow()}
-          onSelectReceiver={handleRecipientSelect}
-          network={network}
-          currentWalletAddress={currentWalletAddress || ""}
-          selectedToken={sendFlow.token!}
-          amount={sendFlow.amount!}
-          isUSD={sendFlow.isUSD}
-        />
-        <SendConfirmation
-          open={sendFlow.step === "confirm"}
-          onOpenChange={(open) => !open && resetSendFlow()}
-          amount={sendFlow.amount}
-          isUSD={sendFlow.isUSD}
-          token={sendFlow.token!}
-          recipient={sendFlow.recipient?.address || ""}
-          onConfirm={handleSendConfirm}
-          loading={sendLoading}
-          nft={sendFlow.nft}
-          recipientName={sendFlow.recipient?.ensName || ""}
-          networkFee={sendFlow.networkFee || ""}
-          network={sendFlow.network}
-          nativeTokenPrice={nativeTokenPrice}
-        />
-        <TransactionSuccess
-          open={sendFlow.step === "success"}
-          onOpenChange={(open) => !open && resetSendFlow()}
-          amount={sendFlow.amount}
-          nft={sendFlow.nft}
-          token={sendFlow.token}
-          network={sendFlow.network}
-          hash={sendFlow.hash}
-        />
-        <WalletQRModal
-          open={walletQRModalOpen}
-          onOpenChange={setWalletQRModalOpen}
-          walletData={walletData || []}
-          setWalletShareAddress={setWalletShareAddress}
-          setWalletQRShareModalOpen={setWalletQRShareModalOpen}
-        />
-        <WalletQRShare
-          open={walletQRShareModalOpen}
-          onOpenChange={setWalletQRShareModalOpen}
-          walletAddress={walletShareAddress || ""}
-          setQRCodeShareUrl={setQrcodeShareUrl}
-          setQRCodeShareModalOpen={setQRCodeShareModalOpen}
-        />
-        <QRCodeShareModal
-          isOpen={QRCodeShareModalOpen}
-          onOpenChange={setQRCodeShareModalOpen}
-          qrCodeUrl={qrcodeShareUrl}
-        />
+        <MessageList />
       </div>
+      <AssetSelector
+        open={sendFlow.step === "assets"}
+        onOpenChange={(open) => !open && resetSendFlow()}
+        assets={tokens}
+        nfts={nfts}
+        onNext={handleSendClick}
+        onNFTNext={handleNFTNext}
+      />
+
+      <SendTokenModal
+        open={sendFlow.step === "amount"}
+        onOpenChange={(open) => !open && resetSendFlow()}
+        token={sendFlow.token!}
+        onNext={handleAmountConfirm}
+      />
+      <SendToModal
+        open={sendFlow.step === "recipient"}
+        onOpenChange={(open) => !open && resetSendFlow()}
+        onSelectReceiver={handleRecipientSelect}
+        network={network}
+        currentWalletAddress={currentWalletAddress || ""}
+        selectedToken={sendFlow.token!}
+        amount={sendFlow.amount!}
+        isUSD={sendFlow.isUSD}
+      />
+      <SendConfirmation
+        open={sendFlow.step === "confirm"}
+        onOpenChange={(open) => !open && resetSendFlow()}
+        amount={sendFlow.amount}
+        isUSD={sendFlow.isUSD}
+        token={sendFlow.token!}
+        recipient={sendFlow.recipient?.address || ""}
+        onConfirm={handleSendConfirm}
+        loading={sendLoading}
+        nft={sendFlow.nft}
+        recipientName={sendFlow.recipient?.ensName || ""}
+        networkFee={sendFlow.networkFee || ""}
+        network={sendFlow.network}
+        nativeTokenPrice={nativeTokenPrice}
+      />
+      <TransactionSuccess
+        open={sendFlow.step === "success"}
+        onOpenChange={(open) => !open && resetSendFlow()}
+        amount={sendFlow.amount}
+        nft={sendFlow.nft}
+        token={sendFlow.token}
+        network={sendFlow.network}
+        hash={sendFlow.hash}
+      />
+      <WalletQRModal
+        open={walletQRModalOpen}
+        onOpenChange={setWalletQRModalOpen}
+        walletData={walletData || []}
+        setWalletShareAddress={setWalletShareAddress}
+        setWalletQRShareModalOpen={setWalletQRShareModalOpen}
+      />
+      <WalletQRShare
+        open={walletQRShareModalOpen}
+        onOpenChange={setWalletQRShareModalOpen}
+        walletAddress={walletShareAddress || ""}
+        setQRCodeShareUrl={setQrcodeShareUrl}
+        setQRCodeShareModalOpen={setQRCodeShareModalOpen}
+      />
+      <QRCodeShareModal
+        isOpen={QRCodeShareModalOpen}
+        onOpenChange={setQRCodeShareModalOpen}
+        qrCodeUrl={qrcodeShareUrl}
+      />
+
       {network === "SOLANA" && <RedeemTokenList />}
-      <NetworkDock network={network} setNetwork={setNetwork} />
+      {/* <NetworkDock network={network} setNetwork={setNetwork} /> */}
       <Toaster />
-      <div className="flex items-start gap-4">
+      {/* <div className="flex items-start gap-4">
         <div className="w-72 flex flex-col gap-3 bg-white rounded-xl shadow-medium p-4">
           <div className="flex items-center gap-2 justify-between">
             <div className="flex items-center gap-1 font-medium">
@@ -554,7 +555,6 @@ const WalletContentInner = () => {
               <p>Transaction MFA</p>
             </div>
             <p className="text-gray-500">
-              {/* Disabled{" "} */}
               {privyUser
                 ? privyUser?.mfaMethods?.length > 0
                   ? "Enabled"
@@ -580,7 +580,7 @@ const WalletContentInner = () => {
             )}
           </DynamicPrimaryBtn>
         </div>
-      </div>
+      </div> */}
     </div>
   );
 };
