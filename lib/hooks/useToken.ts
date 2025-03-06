@@ -12,7 +12,8 @@ import {
 
 // Main hook
 export const useMultiChainTokenData = (
-  walletAddress?: string,
+  solWalletAddress?: string,
+  evmWalletAddress?: string,
   chains: ChainType[] = ['ETHEREUM']
 ) => {
   const evmChains = chains.filter(
@@ -40,10 +41,12 @@ export const useMultiChainTokenData = (
     queries: [
       // EVM Chain Queries
       ...evmChains.map((chain) => ({
-        queryKey: ['nativeToken', chain, walletAddress],
+        queryKey: ['nativeToken', chain, evmWalletAddress],
         queryFn: async () => {
           const provider = evmProviders[chain];
-          const balance = await provider.getBalance(walletAddress!);
+          const balance = await provider.getBalance(
+            evmWalletAddress!
+          );
 
           const token = await TokenContractService.getNativeTokens(
             chain
@@ -54,15 +57,15 @@ export const useMultiChainTokenData = (
             balance: ethers.formatUnits(balance, 18),
           };
         },
-        enabled: !!walletAddress,
+        enabled: !!evmWalletAddress,
       })),
 
       ...evmChains.map((chain) => ({
-        queryKey: ['evmTokens', chain, walletAddress],
+        queryKey: ['evmTokens', chain, evmWalletAddress],
         queryFn: async () => {
           const tokens = await TokenAPIService.getTokenBalances(
             chain,
-            walletAddress!
+            evmWalletAddress!
           );
           const provider = evmProviders[chain];
 
@@ -71,7 +74,7 @@ export const useMultiChainTokenData = (
               const details =
                 await TokenContractService.getTokenDetails(
                   token.contractAddress,
-                  walletAddress!,
+                  evmWalletAddress!,
                   provider
                 );
               if (!details) return null;
@@ -95,17 +98,17 @@ export const useMultiChainTokenData = (
             })
           );
         },
-        enabled: !!walletAddress,
+        enabled: !!evmWalletAddress,
       })),
 
       // Solana Query
       ...(hasSolana
         ? [
             {
-              queryKey: ['solanaTokens', walletAddress],
+              queryKey: ['solanaTokens', solWalletAddress],
               queryFn: async () =>
-                await SolanaService.getSplTokens(walletAddress!),
-              enabled: !!walletAddress,
+                await SolanaService.getSplTokens(solWalletAddress!),
+              enabled: !!solWalletAddress,
             },
           ]
         : []),
