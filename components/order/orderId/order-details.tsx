@@ -1,17 +1,8 @@
 // app/orders/[orderId]/page.tsx
 
-'use client';
+"use client";
 
-import { useParams } from 'next/navigation';
-import { useEffect, useState } from 'react';
-import { Card } from '@/components/ui/card';
-import {
-  Tabs,
-  TabsContent,
-  TabsList,
-  TabsTrigger,
-} from '@/components/ui/tabs';
-import { Switch } from '@/components/ui/switch';
+import { Switch } from "@/components/ui/switch";
 import {
   Table,
   TableBody,
@@ -19,17 +10,19 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from '@/components/ui/table';
-import Image from 'next/image';
-import { useUser } from '@/lib/UserContext';
+} from "@/components/ui/table";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useUser } from "@/lib/UserContext";
+import { useParams } from "next/navigation";
+import { useEffect, useState } from "react";
 
 // TypeScript Interfaces
 
 interface MintResult {
   id: string;
   onChain: {
-    status: 'pending' | 'success' | 'failed';
-    chain: 'solana' | 'ethereum';
+    status: "pending" | "success" | "failed";
+    chain: "solana" | "ethereum";
   };
   actionId: string;
 }
@@ -54,7 +47,7 @@ interface OrderData {
   mintedNfts: MintedNFT[];
   totalPriceOfNFTs: number;
   orderDate: string; // ISO string
-  deliveryStatus: 'Not Initiated' | 'In Progress' | 'Completed' | 'Cancelled';
+  deliveryStatus: "Not Initiated" | "In Progress" | "Completed" | "Cancelled";
   edited: boolean;
   createdAt: string; // ISO string
   updatedAt: string; // ISO string
@@ -63,8 +56,8 @@ interface OrderData {
 export default function OrderPage() {
   const { accessToken } = useUser();
   const params = useParams();
-  console.log('Params:', params);
-  console.log('token:', accessToken);
+  // console.log("Params:", params);
+  // console.log("token:", accessToken);
   const orderId = params.id as string;
 
   const [order, setOrder] = useState<OrderData | null>(null);
@@ -72,17 +65,17 @@ export default function OrderPage() {
   const [isError, setIsError] = useState<string | null>(null);
 
   useEffect(() => {
-    console.log('Order ID:', orderId);
-    console.log('Access Token:', accessToken);
+    console.log("Order ID:", orderId);
+    console.log("Access Token:", accessToken);
 
     if (!orderId) {
-      setIsError('Order ID is missing.');
+      setIsError("Order ID is missing.");
       setIsLoading(false);
       return;
     }
 
     if (!accessToken) {
-      setIsError('Authentication token is missing.');
+      setIsError("Authentication token is missing.");
       setIsLoading(false);
       return;
     }
@@ -94,28 +87,37 @@ export default function OrderPage() {
       try {
         const API_URL = process.env.NEXT_PUBLIC_API_URL;
         if (!API_URL) {
-          throw new Error('API base URL is not defined.');
+          throw new Error("API base URL is not defined.");
         }
 
         // Fetch order details
         const orderResponse = await fetch(
-          `${API_URL}/api/v1/desktop/nft/orders/${orderId}`,
+          `${process.env.NEXT_PUBLIC_API_URL}/api/v1/desktop/nft/orders/${orderId}`,
           {
             headers: {
-              'Content-Type': 'application/json',
+              "Content-Type": "application/json",
               Authorization: `Bearer ${accessToken}`,
             },
           }
         );
 
-        if (!orderResponse.ok) {
-          const errorData = await orderResponse.json();
-          throw new Error(errorData.message || 'Failed to fetch order data.');
-        }
+        // const orderResponse = await response.json();
+
+        // console.log(
+        //   `Order Response 12: accessToken}`,
+        //   orderResponse,
+        //   accessToken
+        // );
+
+        // if (!orderResponse) {
+        //   throw new Error(
+        //     orderResponse.message || "Failed to fetch order data."
+        //   );
+        // }
 
         const orderData = await orderResponse.json();
-        if (orderData.state !== 'success') {
-          throw new Error(orderData.message || 'Failed to fetch order data.');
+        if (orderData.state !== "success") {
+          throw new Error(orderData.message || "Failed to fetch order data.");
         }
 
         const order = orderData.data;
@@ -127,20 +129,24 @@ export default function OrderPage() {
               `${API_URL}/api/v1/desktop/nft/getTemplateDetails?collectionId=${order.collectionId}&templateId=${nft.templateId}`,
               {
                 headers: {
-                  'Content-Type': 'application/json',
+                  "Content-Type": "application/json",
                   Authorization: `Bearer ${accessToken}`,
                 },
               }
             );
 
             if (!templateResponse.ok) {
-              console.warn(`Failed to fetch details for Template ID: ${nft.templateId}`);
+              console.warn(
+                `Failed to fetch details for Template ID: ${nft.templateId}`
+              );
               return { ...nft }; // Return the original NFT if fetching fails
             }
 
             const templateData = await templateResponse.json();
-            if (templateData.state !== 'success') {
-              console.warn(`Failed to fetch details for Template ID: ${nft.templateId}`);
+            if (templateData.state !== "success") {
+              console.warn(
+                `Failed to fetch details for Template ID: ${nft.templateId}`
+              );
               return { ...nft }; // Return the original NFT if fetching fails
             }
 
@@ -154,14 +160,16 @@ export default function OrderPage() {
           })
         );
 
+        console.log("Order Data:", templates);
+
         // Replace minted NFTs with enriched data
         setOrder({
           ...order,
           mintedNfts: templates,
         });
       } catch (error: any) {
-        console.error('Fetch Error:', error);
-        setIsError(error.message || 'An unexpected error occurred.');
+        console.error("Fetch Error:", error);
+        setIsError(error.message || "An unexpected error occurred.");
       } finally {
         setIsLoading(false);
       }
@@ -194,9 +202,11 @@ export default function OrderPage() {
     );
   }
 
+  console.log("Order:", order);
+
   return (
-    <div className="container mx-auto p-4">
-      <Card className="p-6">
+    <div className="mx-auto">
+      <div className="p-8 bg-white shadow-md rounded-lg">
         {/* Header Section */}
         <div className="flex items-start justify-between mb-6">
           <div className="flex flex-col items-start gap-4">
@@ -210,15 +220,13 @@ export default function OrderPage() {
               />
             </div> */}
             <div>
-              <h1 className="text-xl font-semibold">
-                Order #{order.orderId}
-              </h1>
+              <h1 className="text-xl font-semibold">Order #{order.orderId}</h1>
             </div>
           </div>
           <div className="flex items-center gap-2">
-            <span className="text-sm">Shipped:</span>
+            <span className="text-base">Shipped:</span>
             <Switch
-              checked={order.deliveryStatus === 'Completed'}
+              checked={order.deliveryStatus === "Completed"}
               disabled
               className="cursor-not-allowed"
               aria-label="Shipped Status"
@@ -227,12 +235,11 @@ export default function OrderPage() {
         </div>
 
         {/* Order Items Table */}
-        <div className="mb-6 overflow-x-auto">
+        <div className="mb-12 overflow-x-auto">
           <Table className="min-w-full border">
             <TableHeader>
               <TableRow>
                 <TableHead>Product Name</TableHead>
-                <TableHead>Image</TableHead>
                 <TableHead className="text-center">Quantity</TableHead>
                 <TableHead className="text-right">Price</TableHead>
               </TableRow>
@@ -240,19 +247,11 @@ export default function OrderPage() {
             <TableBody>
               {order.mintedNfts.map((item) => (
                 <TableRow key={item._id} className="border-t">
-                  <TableCell>{item.name || 'Unknown Product'}</TableCell>
-                  <TableCell>
-                    <Image
-                      src={item.image || '/placeholder.svg'}
-                      alt={item.name || 'Product Image'}
-                      width={50}
-                      height={50}
-                      className="rounded-lg"
-                    />
-                  </TableCell>
+                  <TableCell>{item.name || "Unknown Product"}</TableCell>
+
                   <TableCell className="text-center">1</TableCell>
                   <TableCell className="text-right">
-                    ${item.price?.toFixed(2) || '0.00'}
+                    ${item.price?.toFixed(2) || "0.00"}
                   </TableCell>
                 </TableRow>
               ))}
@@ -272,9 +271,7 @@ export default function OrderPage() {
           <TabsContent value="history" className="space-y-4">
             <div className="space-y-4">
               <div className="flex items-center justify-between py-2">
-                <span className="text-muted-foreground">
-                  Delivery Status
-                </span>
+                <span className="text-muted-foreground">Delivery Status</span>
                 <span>{order.deliveryStatus}</span>
               </div>
 
@@ -288,15 +285,13 @@ export default function OrderPage() {
               </div>
 
               <div className="flex items-center justify-between py-2">
-                <span className="text-muted-foreground">
-                  Order Placed
-                </span>
+                <span className="text-muted-foreground">Order Placed</span>
                 <span>{new Date(order.orderDate).toLocaleString()}</span>
               </div>
 
               <div className="flex items-center justify-between py-2">
                 <span className="text-muted-foreground">Total Price</span>
-                <span>${order.totalPriceOfNFTs.toFixed(2)}</span>
+                <span>${order?.financial?.totalCost?.toFixed(2)}</span>
               </div>
             </div>
           </TabsContent>
@@ -304,24 +299,22 @@ export default function OrderPage() {
           {/* Customer Details Tab */}
           <TabsContent value="customer">
             <div className="text-muted-foreground">
-              <h2 className="text-lg font-semibold mb-4">
-                Customer Details
-              </h2>
+              <h2 className="text-lg font-semibold mb-4">Customer Details</h2>
               <div className="bg-white shadow-md rounded-lg p-4 space-y-2">
                 <p className="font-normal">
-                  Name:{' '}
+                  Name:{" "}
                   <span className="font-semibold">{order.customerName}</span>
                 </p>
                 <p className="font-normal">
-                  Email:{' '}
+                  Email:{" "}
                   <span className="font-semibold">{order.customerEmail}</span>
                 </p>
                 <p className="font-normal">
-                  Phone:{' '}
+                  Phone:{" "}
                   <span className="font-semibold">{order.customerPhone}</span>
                 </p>
                 <p className="font-normal">
-                  Address:{' '}
+                  Address:{" "}
                   <span className="font-semibold">
                     {order.customerShippingAddress}
                   </span>
@@ -342,7 +335,7 @@ export default function OrderPage() {
             </div>
           </TabsContent>
         </Tabs>
-      </Card>
+      </div>
     </div>
   );
 }

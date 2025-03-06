@@ -1,5 +1,5 @@
-'use client';
-import React, { useState, useEffect } from 'react';
+"use client";
+import { Card, CardContent, CardTitle } from "@/components/ui/card";
 import {
   Table,
   TableBody,
@@ -7,11 +7,12 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from '@/components/ui/table';
-import { Card, CardContent, CardTitle } from '@/components/ui/card';
-import { format } from 'date-fns';
-import { useUser } from '@/lib/UserContext';
-import Link from 'next/link';
+} from "@/components/ui/table";
+import { useUser } from "@/lib/UserContext";
+import { format } from "date-fns";
+import Link from "next/link";
+import { useEffect, useState } from "react";
+import { HiOutlineDownload } from "react-icons/hi";
 
 const OrderManagement = () => {
   const [orders, setOrders] = useState([]);
@@ -19,7 +20,7 @@ const OrderManagement = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const { accessToken } = useUser();
-  const [activeTab, setActiveTab] = useState('sales'); // 'all', 'purchases', 'sales'
+  const [activeTab, setActiveTab] = useState("sales"); // 'all', 'purchases', 'sales'
   const [pagination, setPagination] = useState({
     currentPage: 1,
     totalPages: 1,
@@ -28,15 +29,15 @@ const OrderManagement = () => {
 
   // Filter states
   const [filters, setFilters] = useState({
-    role: 'all',
-    status: '',
+    role: "all",
+    status: "",
     page: 1,
     limit: 10,
-    sortBy: 'orderDate',
-    sortOrder: 'desc',
-    startDate: '',
-    endDate: '',
-    deadOrders: 'exclude',
+    sortBy: "orderDate",
+    sortOrder: "desc",
+    startDate: "",
+    endDate: "",
+    deadOrders: "exclude",
   });
 
   // Fetch orders based on current filters
@@ -57,18 +58,18 @@ const OrderManagement = () => {
           process.env.NEXT_PUBLIC_API_URL
         }/api/v1/desktop/nft/fetchUserOrders?${queryParams.toString()}`,
         {
-          method: 'GET',
+          method: "GET",
           headers: {
-            'Content-Type': 'application/json',
+            "Content-Type": "application/json",
             authorization: `Bearer ${accessToken}`,
           },
         }
       );
 
       const data = await response.json();
-      console.log('🚀 ~ fetchOrders ~ data:', data);
+      console.log("🚀 ~ fetchOrders ~ data:", data);
 
-      if (data.state === 'success') {
+      if (data.state === "success") {
         // Process orders received from backend
         const { orders, purchases } = data.data;
 
@@ -76,13 +77,13 @@ const OrderManagement = () => {
         setOrders(orders);
         setPagination(data.data.pagination);
       } else {
-        setError(data.message || 'Failed to fetch orders');
+        setError(data.message || "Failed to fetch orders");
       }
     } catch (err: any) {
       setError(
         err.response?.data?.message ||
           err.message ||
-          'An error occurred while fetching orders'
+          "An error occurred while fetching orders"
       );
     } finally {
       setLoading(false);
@@ -98,17 +99,17 @@ const OrderManagement = () => {
       ...prev,
       [name]: value,
       // Reset to page 1 when changing filters
-      ...(name !== 'page' && { page: 1 }),
+      ...(name !== "page" && { page: 1 }),
     }));
   };
 
   const handlePageChange = (newPage: number) => {
-    handleFilterChange('page', newPage.toString());
+    handleFilterChange("page", newPage.toString());
   };
 
   const formatDate = (dateString: string | number | Date): string => {
     try {
-      return format(new Date(dateString), 'MMM dd, yyyy');
+      return format(new Date(dateString), "MMM dd, yyyy");
     } catch (e) {
       return String(dateString); // Ensure it returns a string
     }
@@ -118,9 +119,9 @@ const OrderManagement = () => {
   const renderOrders = () => {
     let displayOrders: any[] = [];
 
-    if (activeTab === 'purchases') {
+    if (activeTab === "purchases") {
       displayOrders = [...purchases];
-    } else if (activeTab === 'sales') {
+    } else if (activeTab === "sales") {
       displayOrders = [...orders];
     }
 
@@ -134,7 +135,7 @@ const OrderManagement = () => {
 
     return (
       <div className="space-y-4 bg-white p-6 rounded-xl shadow">
-        <div className="border rounded-lg">
+        <div className="rounded-lg">
           <Table>
             <TableHeader>
               <TableRow>
@@ -160,17 +161,15 @@ const OrderManagement = () => {
                     </div>
                   </TableCell>
                   <TableCell>${order.totalCost.toFixed(2)}</TableCell>
-                  <TableCell>
-                    {formatDate(order.orderDate) as string}
-                  </TableCell>
+                  <TableCell>{formatDate(order.orderDate) as string}</TableCell>
                   <TableCell>
                     <span
-                      className={`px-2 py-1 rounded-full text-xs font-medium ${
-                        order.status === 'complete'
-                          ? 'bg-green-100 text-green-600'
-                          : order.status === 'processing'
-                          ? 'bg-yellow-100 text-yellow-600'
-                          : 'bg-red-100 text-red-600'
+                      className={`px-2 py-1 rounded text-xs font-medium ${
+                        order.status === "complete"
+                          ? "bg-green-100 text-green-600"
+                          : order.status === "processing"
+                          ? "bg-yellow-100 text-yellow-600"
+                          : "bg-red-100 text-red-600"
                       }`}
                     >
                       {order.status.charAt(0).toUpperCase() +
@@ -187,7 +186,7 @@ const OrderManagement = () => {
   };
 
   return (
-    <div className="container mx-auto px-4 py-8">
+    <div className="mx-auto">
       <div className="grid grid-cols-5 gap-6">
         {/* Total Order Card */}
         <Card className="flex items-center justify-center col-span-1 border-none rounded-xl shadow">
@@ -210,9 +209,7 @@ const OrderManagement = () => {
                   <div className="text-sm font-medium text-muted-foreground">
                     Total Mints
                   </div>
-                  <div className="text-3xl font-bold text-green-500">
-                    0
-                  </div>
+                  <div className="text-3xl font-bold text-green-500">0</div>
                 </div>
                 <div className="flex flex-col">
                   <div className="text-sm font-medium text-muted-foreground">
@@ -254,32 +251,62 @@ const OrderManagement = () => {
         </Card>
       </div>
 
-      {/* Tabs */}
-      <div className="flex border-b border-gray-200 mb-6">
+      <div className="flex items-center justify-between">
+        {/* Download */}
         <button
-          className={`py-2 px-4 font-medium ${
-            activeTab === 'sales'
-              ? 'text-blue-600 border-b-2 border-blue-600'
-              : 'text-gray-500'
-          }`}
-          onClick={() => setActiveTab('sales')}
+          className={`flex items-center justify-between py-2 px-4 font-medium bg-black rounded`}
         >
-          My Sales
+          <p className="text-white">Download Spreadheet</p>
+          <div className="bg-white rounded-full p-1 ml-2 w-7 h-7 flex items-center justify-center">
+            <HiOutlineDownload className="size-4" />
+          </div>
         </button>
-        <button
-          className={`py-2 px-4 font-medium ${
-            activeTab === 'purchases'
-              ? 'text-blue-600 border-b-2 border-blue-600'
-              : 'text-gray-500'
-          }`}
-          onClick={() => setActiveTab('purchases')}
-        >
-          My Purchases
-        </button>
+
+        {/* Tabs */}
+        <div className="flex justify-center border-gray-200 mb-6 mt-8">
+          <button
+            className={`py-2 px-4 font-medium bg-gray-200 rounded-s-full ${
+              activeTab === "sales" ? "text-black" : "text-gray-500"
+            }`}
+            onClick={() => setActiveTab("sales")}
+          >
+            Orders
+          </button>
+          <button
+            className={`py-2 px-4 font-medium bg-gray-200 rounded-e-full ${
+              activeTab === "purchases" ? "text-black" : "text-gray-500"
+            }`}
+            onClick={() => setActiveTab("purchases")}
+          >
+            My Purchases
+          </button>
+        </div>
+
+        {/* Filters */}
+        <div className="flex items-center space-x-4">
+          <h2 className="font-medium">Filters</h2>
+          <div>
+            {/* <label className="block text-sm font-medium text-gray-700 mb-1">
+              Status
+            </label> */}
+            <select
+              className="w-full border border-gray-300 rounded-md py-2 px-3 my-2"
+              value={filters.status}
+              onChange={(e) => handleFilterChange("status", e.target.value)}
+            >
+              <option value="">All Statuses</option>
+              <option value="Not Initiated">Not Initiated</option>
+              <option value="Processing">Processing</option>
+              <option value="In Transit">In Transit</option>
+              <option value="Completed">Completed</option>
+              <option value="Cancelled">Cancelled</option>
+            </select>
+          </div>
+        </div>
       </div>
 
       {/* Filters */}
-      <div className="bg-white rounded-lg shadow mb-6 p-4">
+      <div className="bg-white rounded-lg shadow mb-6 p-4 hidden">
         <h2 className="font-medium mb-3">Filters</h2>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div>
@@ -289,9 +316,7 @@ const OrderManagement = () => {
             <select
               className="w-full border border-gray-300 rounded-md py-2 px-3"
               value={filters.status}
-              onChange={(e) =>
-                handleFilterChange('status', e.target.value)
-              }
+              onChange={(e) => handleFilterChange("status", e.target.value)}
             >
               <option value="">All Statuses</option>
               <option value="Not Initiated">Not Initiated</option>
@@ -310,9 +335,7 @@ const OrderManagement = () => {
               type="date"
               className="w-full border border-gray-300 rounded-md py-2 px-3"
               value={filters.startDate}
-              onChange={(e) =>
-                handleFilterChange('startDate', e.target.value)
-              }
+              onChange={(e) => handleFilterChange("startDate", e.target.value)}
             />
           </div>
 
@@ -324,9 +347,7 @@ const OrderManagement = () => {
               type="date"
               className="w-full border border-gray-300 rounded-md py-2 px-3"
               value={filters.endDate}
-              onChange={(e) =>
-                handleFilterChange('endDate', e.target.value)
-              }
+              onChange={(e) => handleFilterChange("endDate", e.target.value)}
             />
           </div>
         </div>
@@ -336,15 +357,15 @@ const OrderManagement = () => {
             className="bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 transition-colors"
             onClick={() =>
               setFilters({
-                role: 'all',
-                status: '',
+                role: "all",
+                status: "",
                 page: 1,
                 limit: 10,
-                sortBy: 'orderDate',
-                sortOrder: 'desc',
-                startDate: '',
-                endDate: '',
-                deadOrders: 'exclude',
+                sortBy: "orderDate",
+                sortOrder: "desc",
+                startDate: "",
+                endDate: "",
+                deadOrders: "exclude",
               })
             }
           >
@@ -371,14 +392,12 @@ const OrderManagement = () => {
             <div className="flex justify-center mt-6">
               <div className="flex space-x-1">
                 <button
-                  onClick={() =>
-                    handlePageChange(pagination.currentPage - 1)
-                  }
+                  onClick={() => handlePageChange(pagination.currentPage - 1)}
                   disabled={pagination.currentPage === 1}
                   className={`px-3 py-1 rounded-md ${
                     pagination.currentPage > 1
-                      ? 'bg-gray-200 hover:bg-gray-300'
-                      : 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                      ? "bg-gray-200 hover:bg-gray-300"
+                      : "bg-gray-100 text-gray-400 cursor-not-allowed"
                   }`}
                 >
                   Previous
@@ -389,16 +408,12 @@ const OrderManagement = () => {
                 </span>
 
                 <button
-                  onClick={() =>
-                    handlePageChange(pagination.currentPage + 1)
-                  }
-                  disabled={
-                    pagination.currentPage >= pagination.totalPages
-                  }
+                  onClick={() => handlePageChange(pagination.currentPage + 1)}
+                  disabled={pagination.currentPage >= pagination.totalPages}
                   className={`px-3 py-1 rounded-md ${
                     pagination.currentPage < pagination.totalPages
-                      ? 'bg-gray-200 hover:bg-gray-300'
-                      : 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                      ? "bg-gray-200 hover:bg-gray-300"
+                      : "bg-gray-100 text-gray-400 cursor-not-allowed"
                   }`}
                 >
                   Next
@@ -408,12 +423,11 @@ const OrderManagement = () => {
           )}
 
           <div className="text-center text-sm text-gray-500 mt-4">
-            Showing {(pagination.currentPage - 1) * filters.limit + 1}{' '}
-            to{' '}
+            Showing {(pagination.currentPage - 1) * filters.limit + 1} to{" "}
             {Math.min(
               pagination.currentPage * filters.limit,
               pagination.totalCount
-            )}{' '}
+            )}{" "}
             of {pagination.totalCount} orders
           </div>
         </>
