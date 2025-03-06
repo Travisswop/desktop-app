@@ -1,28 +1,23 @@
-'use client';
+"use client";
 
-import * as React from 'react';
-import Image from 'next/image';
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card';
+import * as React from "react";
+import Image from "next/image";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Carousel,
   CarouselContent,
   CarouselItem,
   CarouselNext,
-} from '@/components/ui/carousel';
-import { AlertCircle, ChevronRight } from 'lucide-react';
-import { NFT } from '@/types/nft';
+} from "@/components/ui/carousel";
+import { AlertCircle, ChevronRight } from "lucide-react";
+import { NFT } from "@/types/nft";
 
-type Network = 'ETHEREUM' | 'POLYGON' | 'BASE' | 'SOLANA';
+// type Network = 'ETHEREUM' | 'POLYGON' | 'BASE' | 'SOLANA';
 
 interface NftListProps {
   onSelectNft: (nft: NFT) => void;
   address: string | undefined;
-  network: Network;
+  // network: Network;
   nfts: NFT[];
   loading: boolean;
   error: Error | null;
@@ -77,9 +72,7 @@ export default function NFTSlider({
           <ErrorAlert message="NFTs couldn't be loaded. Please try again later." />
         )}
         {!loading && !error && filteredNfts.length === 0 && (
-          <p className="text-center text-gray-500">
-            No NFTs available.
-          </p>
+          <p className="text-center text-gray-500">No NFTs available.</p>
         )}
         {!loading &&
           !error &&
@@ -99,9 +92,7 @@ export default function NFTSlider({
                       height={200}
                     />
                   </div>
-                  <h3 className="font-medium">
-                    {filteredNfts[0].name}
-                  </h3>
+                  <h3 className="font-medium">{filteredNfts[0].name}</h3>
                   <p className="text-sm text-muted-foreground mt-1 truncate-2-lines">
                     {filteredNfts[0].description}
                   </p>
@@ -112,7 +103,7 @@ export default function NFTSlider({
         {!loading && !error && filteredNfts.length >= 2 && (
           <Carousel
             opts={{
-              align: 'start',
+              align: "start",
               loop: true,
             }}
             className="w-full"
@@ -139,9 +130,7 @@ export default function NFTSlider({
                       </div>
                       <div className="p-4">
                         <div className="flex items-center space-x-2">
-                          <h3 className="font-medium truncate">
-                            {nft.name}
-                          </h3>
+                          <h3 className="font-medium truncate">{nft.name}</h3>
                         </div>
                         <p className="text-sm text-muted-foreground mt-1 truncate-2-lines">
                           {nft.description}
