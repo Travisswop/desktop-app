@@ -136,8 +136,8 @@ const BalanceChart = ({
             <Wallet size={16} /> Receive
           </WalletChartButton>
           <WalletChartButton
-            onClick={() => setShowPopup(!showPopup)}
-            disabled={totalBalance === 0}
+          // onClick={() => setShowPopup(!showPopup)}
+          // disabled={totalBalance === 0}
           >
             <ArrowLeftRight size={16} /> Swap
           </WalletChartButton>
