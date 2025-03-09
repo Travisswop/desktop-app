@@ -32,7 +32,7 @@ export default function TransactionSuccess({
   hash,
 }: TransactionSuccessProps) {
   const getExplorerUrl = () => {
-    switch (network) {
+    switch (token?.chain) {
       case 'ETHEREUM':
         return `https://etherscan.io/tx/${hash}`;
       case 'SOLANA':
