@@ -58,13 +58,13 @@ export default function SendConfirmation({
   nativeTokenPrice,
 }: SendConfirmationProps) {
   const [gasFeeUSD, setGasFeeUSD] = useState(0);
-  if (network === 'SOLANA') {
+  if (token.chain === 'SOLANA') {
     networkFee = '0.000005';
   }
 
   useEffect(() => {
     const fetchGasFee = async () => {
-      if (network === 'SOLANA') {
+      if (token.chain === 'SOLANA') {
         const networkFeeUSD = (
           Number(networkFee) * nativeTokenPrice
         ).toFixed(5);
@@ -194,11 +194,11 @@ export default function SendConfirmation({
                 <div className="text-right">
                   <div className="font-medium">
                     {networkFee}{' '}
-                    {network === 'SOLANA'
+                    {token.chain === 'SOLANA'
                       ? 'SOL'
-                      : network === 'ETHEREUM'
+                      : token.chain === 'ETHEREUM'
                       ? 'ETH'
-                      : network === 'POLYGON'
+                      : token.chain === 'POLYGON'
                       ? 'MATIC'
                       : 'BASE'}
                   </div>

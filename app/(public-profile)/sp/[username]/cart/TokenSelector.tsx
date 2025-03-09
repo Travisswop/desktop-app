@@ -1,6 +1,6 @@
-"use client";
+'use client';
 
-import { useState } from "react";
+import { useState } from 'react';
 // import {
 //   Dialog,
 //   DialogContent,
@@ -8,16 +8,19 @@ import { useState } from "react";
 //   DialogTitle,
 // } from "@/components/ui/dialog";
 // import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Input } from "@/components/ui/input";
-import { Search } from "lucide-react";
-import Image from "next/image";
-import { TokenData } from "@/types/token";
+import { Input } from '@/components/ui/input';
+import { Search } from 'lucide-react';
+import Image from 'next/image';
+import { TokenData } from '@/types/token';
 
-export default function TokenSelector({ assets, setSelectedToken }: any) {
-  const [search, setSearch] = useState("");
+export default function TokenSelector({
+  assets,
+  setSelectedToken,
+}: any) {
+  const [search, setSearch] = useState('');
   //   const [tab, setTab] = useState("crypto");
 
-  console.log("assets form token selector", assets);
+  console.log('assets form token selector', assets);
 
   // Memoize filtered results to avoid unnecessary re-renders
   const filteredAssets =
@@ -39,7 +42,7 @@ export default function TokenSelector({ assets, setSelectedToken }: any) {
           {asset.logoURI && (
             <Image
               src={asset.logoURI}
-              alt={asset.symbol || ""}
+              alt={asset.symbol || ''}
               width={40}
               height={40}
               className="rounded-full"
@@ -95,7 +98,6 @@ export default function TokenSelector({ assets, setSelectedToken }: any) {
           />
         </div>
       </div>
-
       <div className="flex flex-col gap-2 mt-3">
         {filteredAssets.map(renderAssetItem)}
       </div>

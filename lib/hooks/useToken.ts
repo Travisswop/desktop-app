@@ -47,15 +47,20 @@ export const useMultiChainTokenData = (
           const balance = await provider.getBalance(
             evmWalletAddress!
           );
+          console.log('balances', balance.toString());
 
-          const token = await TokenContractService.getNativeTokens(
-            chain
-          );
+          if (balance.toString() !== '0') {
+            const token = await TokenContractService.getNativeTokens(
+              chain
+            );
 
-          return {
-            ...token,
-            balance: ethers.formatUnits(balance, 18),
-          };
+            return {
+              ...token,
+              balance: ethers.formatUnits(balance, 18),
+            };
+          }
+
+          return null;
         },
         enabled: !!evmWalletAddress,
       })),
@@ -69,34 +74,48 @@ export const useMultiChainTokenData = (
           );
           const provider = evmProviders[chain];
 
-          return Promise.all(
-            tokens.map(async (token: { contractAddress: string }) => {
-              const details =
-                await TokenContractService.getTokenDetails(
-                  token.contractAddress,
-                  evmWalletAddress!,
-                  provider
-                );
-              if (!details) return null;
-              const marketData = await TokenAPIService.getMarketData({
-                address: token.contractAddress,
-              });
-              if (!marketData) return null;
+          const results = await Promise.all(
+            tokens.map(async (token: any) => {
+              try {
+                const details =
+                  await TokenContractService.getTokenDetails(
+                    token.contractAddress,
+                    evmWalletAddress!,
+                    provider
+                  );
 
-              const timeSeriesData =
-                await TokenAPIService.getTimeSeriesData(
-                  marketData.uuid
-                );
+                if (!details) return null;
 
-              return {
-                ...details,
-                chain,
-                address: token.contractAddress,
-                marketData,
-                sparklineData: processSparklineData(timeSeriesData),
-              };
+                const marketData =
+                  await TokenAPIService.getMarketData({
+                    address: token.contractAddress,
+                  });
+
+                if (!marketData) return null;
+
+                const timeSeriesData =
+                  await TokenAPIService.getTimeSeriesData(
+                    marketData.uuid
+                  );
+
+                return {
+                  ...details,
+                  chain,
+                  address: token.contractAddress,
+                  marketData,
+                  sparklineData: processSparklineData(timeSeriesData),
+                };
+              } catch (error) {
+                console.error(
+                  `Error fetching token ${token.contractAddress}:`,
+                  error
+                );
+                return null;
+              }
             })
           );
+
+          return results.filter(Boolean);
         },
         enabled: !!evmWalletAddress,
       })),
@@ -106,8 +125,20 @@ export const useMultiChainTokenData = (
         ? [
             {
               queryKey: ['solanaTokens', solWalletAddress],
-              queryFn: async () =>
-                await SolanaService.getSplTokens(solWalletAddress!),
+              queryFn: async () => {
+                try {
+                  // Fixed: Added error handling
+                  return await SolanaService.getSplTokens(
+                    solWalletAddress!
+                  );
+                } catch (error) {
+                  console.error(
+                    'Error fetching Solana tokens:',
+                    error
+                  );
+                  return [];
+                }
+              },
               enabled: !!solWalletAddress,
             },
           ]

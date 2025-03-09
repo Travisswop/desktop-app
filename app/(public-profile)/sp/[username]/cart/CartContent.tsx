@@ -1,16 +1,20 @@
-"use client";
-import { deleteCartItem, updateCartQuantity } from "@/actions/addToCartActions";
-import NftPaymentModal from "@/components/modal/NftPayment";
-import AnimateButton from "@/components/ui/Button/AnimateButton";
-import { useDisclosure } from "@nextui-org/react";
+'use client';
+import {
+  deleteCartItem,
+  updateCartQuantity,
+} from '@/actions/addToCartActions';
+import NftPaymentModal from '@/components/modal/NftPayment';
+import AnimateButton from '@/components/ui/Button/AnimateButton';
+import { useDisclosure } from '@nextui-org/react';
 // import { usePrivy } from "@privy-io/react-auth";
-import { CircleMinus, CirclePlus, Loader } from "lucide-react"; // Import Loader2 for a spinner
-import Image from "next/image";
-import { useParams } from "next/navigation";
-import React, { useState } from "react";
-import { LiaTimesSolid } from "react-icons/lia";
+import { CircleMinus, CirclePlus, Loader } from 'lucide-react'; // Import Loader2 for a spinner
+import Image from 'next/image';
+import { useParams } from 'next/navigation';
+import React, { useState } from 'react';
+import { LiaTimesSolid } from 'react-icons/lia';
 
 const CartContent = ({ data, accessToken }: any) => {
+  console.log('data', data);
   // const { authenticated } = usePrivy();
   const params = useParams();
   const name: any = params.username; // This will be "testh63s"
@@ -41,6 +45,7 @@ const CartContent = ({ data, accessToken }: any) => {
 
   // Function to calculate subtotal
   const calculateSubtotal = (cartItems: any) => {
+    console.log('cartitem', cartItems);
     return cartItems.reduce((total: number, item: any) => {
       return total + item.nftTemplate.price * item.quantity;
     }, 0);
@@ -52,20 +57,24 @@ const CartContent = ({ data, accessToken }: any) => {
       setLoadingStates((prev) => ({ ...prev, [data._id]: true }));
 
       const newQuantity =
-        type === "inc" ? data.quantity + 1 : data.quantity - 1;
+        type === 'inc' ? data.quantity + 1 : data.quantity - 1;
       const payload = {
         cartId: data._id,
         quantity: newQuantity,
       };
 
       if (name) {
-        const response = await updateCartQuantity(payload, accessToken, name);
-        console.log("response for update", response);
+        const response = await updateCartQuantity(
+          payload,
+          accessToken,
+          name
+        );
+        console.log('response for update', response);
 
         // Handle success (e.g., update the UI or state)
       }
     } catch (error) {
-      console.log(error, "error is");
+      console.log(error, 'error is');
     } finally {
       // Reset loading state for this item
       setTimeout(() => {
@@ -93,7 +102,9 @@ const CartContent = ({ data, accessToken }: any) => {
 
   // Calculate subtotal
   const subtotal =
-    data.state === "success" ? calculateSubtotal(data.data.cartItems) : 0;
+    data.state === 'success'
+      ? calculateSubtotal(data.data.cartItems)
+      : 0;
 
   // const sendWalletTransaction = async () => {
   //   const recipientWallet = '4VoKLfzZNKQfmvitteM6ywtNNrdcikGuevkaTY1REhmN';
@@ -112,10 +123,12 @@ const CartContent = ({ data, accessToken }: any) => {
     onOpen();
   };
 
+  console.log('data', data);
+
   return (
     <div className="w-full">
       <div className="flex flex-col gap-2 w-full">
-        {data.state === "success" ? (
+        {data.state === 'success' ? (
           <>
             {data.data.cartItems.map((data: any, index: string) => {
               const isUpdating = loadingStates[data._id]; // Loading state for quantity updates
@@ -144,7 +157,9 @@ const CartContent = ({ data, accessToken }: any) => {
                   <div className="flex items-center gap-1 text-black">
                     {/* Minus Button */}
                     <button
-                      onClick={() => handleUpdateQuantity(data, "dec")}
+                      onClick={() =>
+                        handleUpdateQuantity(data, 'dec')
+                      }
                       disabled={isUpdating || data.quantity == 1} // Disable button when updating or quantity is 1
                     >
                       <CircleMinus size={20} />
@@ -163,7 +178,9 @@ const CartContent = ({ data, accessToken }: any) => {
 
                     {/* Plus Button */}
                     <button
-                      onClick={() => handleUpdateQuantity(data, "inc")}
+                      onClick={() =>
+                        handleUpdateQuantity(data, 'inc')
+                      }
                       disabled={isUpdating} // Disable button when updating
                     >
                       <CirclePlus size={20} />
@@ -199,7 +216,9 @@ const CartContent = ({ data, accessToken }: any) => {
         <div className="flex items-center gap-6 justify-between">
           <p>
             Subtotal (
-            {data?.data?.cartItems?.length ? data?.data?.cartItems?.length : 0}{" "}
+            {data?.data?.cartItems?.length
+              ? data?.data?.cartItems?.length
+              : 0}{' '}
             items)
           </p>
           <p>{subtotal} USDC</p>
@@ -215,22 +234,22 @@ const CartContent = ({ data, accessToken }: any) => {
         <AnimateButton
           whiteLoading={true}
           onClick={handleOpenModal}
-          isDisabled={data.state !== "success"}
+          isDisabled={data.state !== 'success'}
           type="button"
           className={`${
-            data.state === "success"
-              ? "bg-black"
-              : "bg-gray-400 hover:!bg-gray-400 cursor-not-allowed"
+            data.state === 'success'
+              ? 'bg-black'
+              : 'bg-gray-400 hover:!bg-gray-400 cursor-not-allowed'
           } text-white py-2 !border-0 w-full mt-6`}
         >
           Pay With Wallet
         </AnimateButton>
         <AnimateButton
           whiteLoading={true}
-          isDisabled={data.state !== "success"}
+          isDisabled={data.state !== 'success'}
           type="button"
           className={`${
-            data.state !== "success" && "cursor-not-allowed"
+            data.state !== 'success' && 'cursor-not-allowed'
           } w-full mt-2`}
         >
           Pay With Card
