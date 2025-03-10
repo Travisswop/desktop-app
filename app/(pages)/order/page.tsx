@@ -195,7 +195,7 @@ const OrderManagement = () => {
               Total Order
             </CardTitle>
             <div className="text-5xl font-bold text-green-500 text-center">
-              {orders.length}
+              {orders?.summary?.totalOrders || 0}
             </div>
           </CardContent>
         </Card>
@@ -209,13 +209,20 @@ const OrderManagement = () => {
                   <div className="text-sm font-medium text-muted-foreground">
                     Total Mints
                   </div>
-                  <div className="text-3xl font-bold text-green-500">0</div>
+                  <div className="text-3xl font-bold text-green-500">
+                    {orders.length || 0}
+                  </div>
                 </div>
                 <div className="flex flex-col">
                   <div className="text-sm font-medium text-muted-foreground">
                     Total Revenue
                   </div>
-                  <div className="text-3xl font-bold">$0</div>
+                  <div className="text-3xl font-bold">
+                    $
+                    {orders
+                      .reduce((total, order) => total + order.price, 0)
+                      .toFixed(2)}
+                  </div>
                 </div>
 
                 <div className="flex flex-col">
@@ -223,27 +230,33 @@ const OrderManagement = () => {
                     $ in Escrow
                   </div>
                   <div className="text-3xl font-bold text-blue-500">
-                    $200.34
+                    $ {orders?.summary?.totalInEscrow || 0}
                   </div>
                 </div>
                 <div className="flex flex-col">
                   <div className="text-sm font-medium text-muted-foreground">
                     Open Orders
                   </div>
-                  <div className="text-3xl font-bold">10</div>
+                  <div className="text-3xl font-bold">
+                    {orders?.summary?.totalDispute || 0}
+                  </div>
                 </div>
 
                 <div className="flex flex-col">
                   <div className="text-sm font-medium text-muted-foreground">
                     Closed Orders
                   </div>
-                  <div className="text-3xl font-bold">20</div>
+                  <div className="text-3xl font-bold">
+                    {orders?.summary?.totalDispute || 0}
+                  </div>
                 </div>
                 <div className="flex flex-col">
                   <div className="text-sm font-medium text-muted-foreground">
                     Disputes
                   </div>
-                  <div className="text-3xl font-bold">0</div>
+                  <div className="text-3xl font-bold">
+                    {orders?.summary?.totalDispute || 0}
+                  </div>
                 </div>
               </div>
             </div>

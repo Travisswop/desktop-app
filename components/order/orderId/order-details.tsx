@@ -2,19 +2,14 @@
 
 "use client";
 
-import { Switch } from "@/components/ui/switch";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+// import { Tabs } from "@/components/ui/tabs";
+
+import { Switch, Tab, Tabs } from "@nextui-org/react";
+
 import { useUser } from "@/lib/UserContext";
+import Image from "next/image";
 import { useParams } from "next/navigation";
-import { useEffect, useState } from "react";
+import React, { useEffect, useState } from "react";
 
 // TypeScript Interfaces
 
@@ -63,6 +58,7 @@ export default function OrderPage() {
   const [order, setOrder] = useState<OrderData | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [isError, setIsError] = useState<string | null>(null);
+  const [selected, setSelected] = React.useState("orderHistory");
 
   useEffect(() => {
     console.log("Order ID:", orderId);
@@ -120,7 +116,9 @@ export default function OrderPage() {
           throw new Error(orderData.message || "Failed to fetch order data.");
         }
 
-        const order = orderData.data;
+        const order = orderData.data.order;
+
+        const templateData = orderData.data.collections;
 
         // Fetch template details for minted NFTs
         const templates = await Promise.all(
@@ -160,12 +158,10 @@ export default function OrderPage() {
           })
         );
 
-        console.log("Order Data:", templates);
-
         // Replace minted NFTs with enriched data
         setOrder({
           ...order,
-          mintedNfts: templates,
+          mintedNfts: templateData,
         });
       } catch (error: any) {
         console.error("Fetch Error:", error);
@@ -202,7 +198,16 @@ export default function OrderPage() {
     );
   }
 
-  console.log("Order:", order);
+  const DetailItem = ({ label, value }) => {
+    return (
+      <div className="border-l-2 border-gray-300 pl-4">
+        <p className="text-sm text-gray-500">{label}:</p>
+        <p className="text-lg font-semibold text-gray-900">{value}</p>
+      </div>
+    );
+  };
+
+  console.log("Order Data:", order?.processingStages);
 
   return (
     <div className="mx-auto">
@@ -235,106 +240,129 @@ export default function OrderPage() {
         </div>
 
         {/* Order Items Table */}
-        <div className="mb-12 overflow-x-auto">
-          <Table className="min-w-full border">
-            <TableHeader>
-              <TableRow>
-                <TableHead>Product Name</TableHead>
-                <TableHead className="text-center">Quantity</TableHead>
-                <TableHead className="text-right">Price</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {order.mintedNfts.map((item) => (
-                <TableRow key={item._id} className="border-t">
-                  <TableCell>{item.name || "Unknown Product"}</TableCell>
-
-                  <TableCell className="text-center">1</TableCell>
-                  <TableCell className="text-right">
-                    ${item.price?.toFixed(2) || "0.00"}
-                  </TableCell>
-                </TableRow>
+        <div className="mb-12 overflow-x-auto max-w-4xl">
+          <table className="w-full text-left rtl:text-right text-gray-500 border border-gray-400">
+            <thead className="text-[16px] font-medium text-gray-500 text-center bg-[#ffffff] border-b border-gray-400">
+              <tr>
+                {["Product Name", "Product Image", "Quantity", "Price"].map(
+                  (header, idx) => (
+                    <th
+                      key={idx}
+                      className="px-6 py-3 text-center border-r border-gray-400"
+                    >
+                      {header}
+                    </th>
+                  )
+                )}
+              </tr>
+            </thead>
+            <tbody>
+              {order?.mintedNfts?.map((el) => (
+                <tr
+                  key={el}
+                  className="odd:bg-white odd:dark:bg-gray-900 even:bg-gray-50 even:dark:bg-gray-800 border-b border-gray-400 text-[16px] font-medium text-gray-800 text-center "
+                >
+                  <td className="border-r border-gray-400">
+                    {el.name || "Unknown Product"}
+                  </td>
+                  <td className="border-r flex items-center justify-center border-gray-400">
+                    <Image
+                      src={el?.image || "/placeholder.svg"}
+                      alt="Product Image"
+                      width={30}
+                      height={30}
+                    />
+                  </td>
+                  <td className="border-r border-gray-400">1</td>
+                  <td className="">${el.price?.toFixed(2) || "0.00"}</td>
+                </tr>
               ))}
-            </TableBody>
-          </Table>
+            </tbody>
+          </table>
         </div>
 
         {/* Tabs Section */}
-        <Tabs defaultValue="history" className="w-full">
-          <TabsList className="grid w-full grid-cols-3 mb-6">
-            <TabsTrigger value="history">Order History</TabsTrigger>
-            <TabsTrigger value="customer">Customer Details</TabsTrigger>
-            <TabsTrigger value="description">Order Description</TabsTrigger>
-          </TabsList>
 
-          {/* Order History Tab */}
-          <TabsContent value="history" className="space-y-4">
-            <div className="space-y-4">
-              <div className="flex items-center justify-between py-2">
-                <span className="text-muted-foreground">Delivery Status</span>
-                <span>{order.deliveryStatus}</span>
-              </div>
-
-              <div className="flex items-center justify-between py-2 rounded-lg">
-                <span className="text-muted-foreground">
-                  Order Tracking Info
-                </span>
-                <div className="flex gap-2">
-                  <span className="text-sm font-mono">{order.orderId}</span>
+        <div className="flex w-full flex-col">
+          <Tabs
+            aria-label="Options"
+            selectedKey={selected}
+            onSelectionChange={setSelected}
+            variant="underlined"
+            size="large"
+          >
+            <Tab key="orderHistory" title="Order History" className="w-2/6">
+              <div className="max-w-md  bg-white rounded p-3">
+                <div className="space-y-4">
+                  {order?.processingStages?.map((item: any, idx: number) => (
+                    <DetailItem
+                      key={idx}
+                      label="Processing Stages"
+                      value={item?.stage}
+                    />
+                  ))}
                 </div>
               </div>
-
-              <div className="flex items-center justify-between py-2">
-                <span className="text-muted-foreground">Order Placed</span>
-                <span>{new Date(order.orderDate).toLocaleString()}</span>
+            </Tab>
+            <Tab
+              key="customerDetails"
+              title="Customer Details"
+              className="w-2/6"
+            >
+              <div className="max-w-md  bg-white rounded p-3">
+                <div className="space-y-4">
+                  <DetailItem label="Swop.ID" value="Travis.swop.id" />
+                  <DetailItem
+                    label="Customer Name"
+                    value={order?.customer?.name || "Unknown Customer"}
+                  />
+                  <DetailItem label="Customer Number" value="+8801318470354" />
+                  <DetailItem
+                    label="Customer Email"
+                    value={order?.customer?.name || "Unknown Customer"}
+                  />
+                  <DetailItem
+                    label="Customer Address"
+                    value={
+                      order?.customer?.shippingAddress || "Unknown Customer"
+                    }
+                  />
+                  <DetailItem
+                    label="Shipping Address"
+                    value={
+                      order?.customer?.shippingAddress || "Unknown Customer"
+                    }
+                  />
+                </div>
               </div>
-
-              <div className="flex items-center justify-between py-2">
-                <span className="text-muted-foreground">Total Price</span>
-                <span>${order?.financial?.totalCost?.toFixed(2)}</span>
+            </Tab>
+            <Tab
+              key="orderDescription"
+              title="Order Description"
+              className="w-3/6"
+            >
+              <div className="max-w-2xl  bg-white rounded p-3">
+                <div className="space-y-4">
+                  <div className="border-l-2 border-gray-300 pl-4">
+                    <p className=" text-lg font-semibold text-gray-500">
+                      Order Description:
+                    </p>
+                    <p className="text-sm text-gray-900"></p>
+                    {` Swop’s Flat Rectangle NFC’s are designed to be durable and
+                      simple to use. The Flat is great to put under any phone
+                      case(non-metal) Users can download our app. Swop’s Flat
+                      Rectangle NFC’s are designed to be durable and simple to
+                      use. The Flat is great to put under any phone
+                      case(non-metal) Users can download our app. Swop’s Flat
+                      Rectangle NFC’s are designed to be durable and simple to
+                      use. The Flat is great to put under any phone
+                      case(non-metal) Users can download our app. `}
+                  </div>
+                </div>
               </div>
-            </div>
-          </TabsContent>
-
-          {/* Customer Details Tab */}
-          <TabsContent value="customer">
-            <div className="text-muted-foreground">
-              <h2 className="text-lg font-semibold mb-4">Customer Details</h2>
-              <div className="bg-white shadow-md rounded-lg p-4 space-y-2">
-                <p className="font-normal">
-                  Name:{" "}
-                  <span className="font-semibold">{order.customerName}</span>
-                </p>
-                <p className="font-normal">
-                  Email:{" "}
-                  <span className="font-semibold">{order.customerEmail}</span>
-                </p>
-                <p className="font-normal">
-                  Phone:{" "}
-                  <span className="font-semibold">{order.customerPhone}</span>
-                </p>
-                <p className="font-normal">
-                  Address:{" "}
-                  <span className="font-semibold">
-                    {order.customerShippingAddress}
-                  </span>
-                </p>
-              </div>
-            </div>
-          </TabsContent>
-
-          {/* Order Description Tab */}
-          <TabsContent value="description">
-            <div className="text-muted-foreground">
-              <h2 className="text-lg font-semibold mb-4">Order Description</h2>
-              <p className="font-normal">
-                This order includes a variety of NFTs minted from your selected
-                collection. Each NFT has been carefully generated and is being
-                prepared for delivery.
-              </p>
-            </div>
-          </TabsContent>
-        </Tabs>
+            </Tab>
+          </Tabs>
+        </div>
       </div>
     </div>
   );

@@ -94,7 +94,7 @@ export default function OrderDashboard() {
               Total Order
             </CardTitle>
             <div className="text-5xl font-bold text-green-500 text-center">
-              {orders.length}
+              {data?.summary?.totalOrders}
             </div>
           </CardContent>
         </Card>
@@ -111,7 +111,7 @@ export default function OrderDashboard() {
                     Total Mints
                   </div>
                   <div className="text-3xl font-bold text-green-500">
-                    {userCollection ? orders.length : 0}
+                    {orders.length || 0}
                   </div>
                 </div>
                 <div className="flex flex-col">
@@ -132,14 +132,20 @@ export default function OrderDashboard() {
                     $ in Escrow
                   </div>
                   <div className="text-3xl font-bold text-blue-500">
-                    $200.34
+                    $ {data?.summary?.totalInEscrow}
                   </div>
                 </div>
                 <div className="flex flex-col">
                   <div className="text-sm font-medium text-muted-foreground">
                     Open Orders
                   </div>
-                  <div className="text-3xl font-bold">10</div>
+                  <div className="text-3xl font-bold">
+                    {
+                      data?.orders?.filter(
+                        (order: any) => order?.delivery === "In Progress"
+                      )?.length
+                    }
+                  </div>
                 </div>
 
                 {/* Closed Orders and Disputes */}
