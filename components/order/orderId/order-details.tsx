@@ -207,7 +207,7 @@ export default function OrderPage() {
     );
   };
 
-  console.log("Order Data:", order);
+  console.log("Order Data:", order?.mintedNfts);
 
   return (
     <div className="mx-auto">
@@ -361,18 +361,139 @@ export default function OrderPage() {
               title="Order Description"
               className="w-3/6"
             >
-              <div className="max-w-2xl  bg-white rounded p-3">
+              <div className="w-full bg-white rounded p-3">
                 <div className="space-y-4">
-                  <div className="border-l-2 border-gray-300 pl-4">
-                    <p className=" text-lg font-semibold text-gray-500">
-                      Order Description:
-                    </p>
-                  </div>
+                  <div className="border-l-2 border-gray-300 pl-4"></div>
                   {order?.mintedNfts?.map((item: any, idx: number) => (
-                    <div className="border-l-2 border-gray-300 pl-4" key={idx}>
-                      <p className="text-sm text-gray-900">
-                        {item?.description || "No Description"}
-                      </p>
+                    <div
+                      className="border-l-2 border-gray-300 pl-4 flex flex-col space-y-2"
+                      key={idx}
+                    >
+                      <div className="">
+                        <p className=" text-base font-semibold text-gray-500">
+                          Title
+                        </p>
+                        <p className="text-sm text-gray-900">
+                          {item?.name || "No name"}
+                        </p>
+                      </div>
+
+                      <div className="">
+                        <p className=" text-base font-semibold text-gray-500">
+                          Description
+                        </p>
+                        <p className="text-sm text-gray-900">
+                          {item?.description || "No Description"}
+                        </p>
+                      </div>
+
+                      {item?.benefits.length !== 0 && (
+                        <div className="">
+                          <p className=" text-base font-semibold text-gray-500">
+                            Benefits
+                          </p>
+                          {item?.benefits?.length > 0 && (
+                            <ul className="list-disc list-inside text-gray-900 space-y-1 w-44">
+                              {item.benefits.map(
+                                (benefit: any, idx: number) => (
+                                  <li
+                                    key={idx}
+                                    className="text-sm tracking-tight ml-0.5"
+                                  >
+                                    {benefit}
+                                  </li>
+                                )
+                              )}
+                            </ul>
+                          )}
+                        </div>
+                      )}
+
+                      {item?.requirements?.length !== 0 && (
+                        <div className="">
+                          <p className=" text-base font-semibold text-gray-500">
+                            Requirements
+                          </p>
+                          {item?.requirements?.length > 0 && (
+                            <ul className="list-disc list-inside text-gray-900 space-y-1 w-44">
+                              {item.requirements.map(
+                                (requirements: any, idx: number) => (
+                                  <li
+                                    key={idx}
+                                    className="text-sm tracking-tight ml-0.5"
+                                  >
+                                    {requirements}
+                                  </li>
+                                )
+                              )}
+                            </ul>
+                          )}
+                        </div>
+                      )}
+
+                      {item?.content?.length !== 0 && (
+                        <div className="">
+                          <p className=" text-base font-semibold text-gray-500">
+                            Content
+                          </p>
+                          {item?.content?.length > 0 && (
+                            <ul className="list-disc list-inside text-gray-900 space-y-1 w-44">
+                              {item.content.map((content: any, idx: number) => (
+                                <li
+                                  key={idx}
+                                  className="text-sm tracking-tight ml-0.5"
+                                >
+                                  {content}
+                                </li>
+                              ))}
+                            </ul>
+                          )}
+                        </div>
+                      )}
+
+                      {item?.addons?.length !== 0 && (
+                        <div className="">
+                          <p className=" text-base font-semibold text-gray-500">
+                            Addons
+                          </p>
+                          {item?.addons?.length > 0 && (
+                            <ul className="list-disc list-inside text-gray-900 space-y-1 w-44">
+                              {item.addons.map((addons: any, idx: number) => (
+                                <li
+                                  key={idx}
+                                  className="text-sm tracking-tight ml-0.5"
+                                >
+                                  {addons}
+                                </li>
+                              ))}
+                            </ul>
+                          )}
+                        </div>
+                      )}
+
+                      {item?.royaltyPercentage && (
+                        <div className="">
+                          <p className=" text-base font-semibold text-gray-500">
+                            R. Percentage
+                          </p>
+
+                          <p className="text-sm tracking-tight">
+                            {item?.royaltyPercentage}
+                          </p>
+                        </div>
+                      )}
+
+                      {item?.mintLimit && (
+                        <div className="">
+                          <p className=" text-base font-semibold text-gray-500">
+                            Mint Limit
+                          </p>
+
+                          <p className="text-sm tracking-tight">
+                            {item?.mintLimit}
+                          </p>
+                        </div>
+                      )}
                     </div>
                   ))}
                 </div>
