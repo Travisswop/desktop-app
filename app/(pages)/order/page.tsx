@@ -156,25 +156,37 @@ const OrderManagement = () => {
                     </Link>
                   </TableCell>
                   <TableCell>
-                    <div className="flex items-center gap-2">
-                      {order.customer.name}
-                    </div>
+                    <Link href={`/order/${order.orderId}`}>
+                      <div className="flex items-center gap-2">
+                        {order.customer.name}
+                      </div>
+                    </Link>
                   </TableCell>
-                  <TableCell>${order.totalCost.toFixed(2)}</TableCell>
-                  <TableCell>{formatDate(order.orderDate) as string}</TableCell>
                   <TableCell>
-                    <span
-                      className={`px-2 py-1 rounded text-xs font-medium ${
-                        order.status === "complete"
-                          ? "bg-green-100 text-green-600"
-                          : order.status === "processing"
-                          ? "bg-yellow-100 text-yellow-600"
-                          : "bg-red-100 text-red-600"
-                      }`}
-                    >
-                      {order.status.charAt(0).toUpperCase() +
-                        order.status.slice(1)}
-                    </span>
+                    <Link href={`/order/${order.orderId}`}>
+                      ${order.totalCost.toFixed(2)}
+                    </Link>
+                  </TableCell>
+                  <TableCell>
+                    <Link href={`/order/${order.orderId}`}>
+                      {formatDate(order.orderDate) as string}{" "}
+                    </Link>
+                  </TableCell>
+                  <TableCell>
+                    <Link href={`/order/${order.orderId}`}>
+                      <span
+                        className={`px-2 py-1 rounded text-xs font-medium ${
+                          order.status === "complete"
+                            ? "bg-green-100 text-green-600"
+                            : order.status === "processing"
+                            ? "bg-yellow-100 text-yellow-600"
+                            : "bg-red-100 text-red-600"
+                        }`}
+                      >
+                        {order.status.charAt(0).toUpperCase() +
+                          order.status.slice(1)}
+                      </span>
+                    </Link>
                   </TableCell>
                 </TableRow>
               ))}

@@ -207,7 +207,7 @@ export default function OrderPage() {
     );
   };
 
-  console.log("Order Data:", order?.processingStages);
+  console.log("Order Data:", order);
 
   return (
     <div className="mx-auto">
@@ -228,15 +228,17 @@ export default function OrderPage() {
               <h1 className="text-xl font-semibold">Order #{order.orderId}</h1>
             </div>
           </div>
-          <div className="flex items-center gap-2">
-            <span className="text-base">Shipped:</span>
-            <Switch
-              checked={order.deliveryStatus === "Completed"}
-              disabled
-              className="cursor-not-allowed"
-              aria-label="Shipped Status"
-            />
-          </div>
+          {order?.orderType !== "non-phygitals" && (
+            <div className="flex items-center gap-2">
+              <span className="text-base">Shipped:</span>
+              <Switch
+                checked={order.deliveryStatus === "Completed"}
+                disabled
+                className="cursor-not-allowed"
+                aria-label="Shipped Status"
+              />
+            </div>
+          )}
         </div>
 
         {/* Order Items Table */}
@@ -274,11 +276,29 @@ export default function OrderPage() {
                     />
                   </td>
                   <td className="border-r border-gray-400">1</td>
-                  <td className="">${el.price?.toFixed(2) || "0.00"}</td>
+                  <td className="">
+                    <div className="">${el.price?.toFixed(2) || "0.00"}</div>
+                  </td>
                 </tr>
               ))}
             </tbody>
           </table>
+          <div className="flex flex-col justify-end items-end mt-4 mx-1 text-left space-y-2">
+            <div className="text-sm flex items-center justify-between w-36">
+              <p>Subtotal</p> <p>$ {order?.financial?.subtotal}</p>
+            </div>
+            <div className="text-sm flex items-center justify-between w-36">
+              <p> Discount Rate</p> <p>$ {order?.financial?.discountRate}</p>
+            </div>
+            <div className="text-sm flex items-center justify-between w-36">
+              <p> Shipping Cost </p> <p>$ {order?.financial?.shippingCost}</p>
+            </div>
+
+            <div className="border-b border-gray-400 w-52" />
+            <div className="text-sm flex items-center justify-between w-36">
+              <p> Total Cost </p> <p>$ {order?.financial?.totalCost}</p>
+            </div>
+          </div>
         </div>
 
         {/* Tabs Section */}
@@ -347,17 +367,14 @@ export default function OrderPage() {
                     <p className=" text-lg font-semibold text-gray-500">
                       Order Description:
                     </p>
-                    <p className="text-sm text-gray-900"></p>
-                    {` Swop’s Flat Rectangle NFC’s are designed to be durable and
-                      simple to use. The Flat is great to put under any phone
-                      case(non-metal) Users can download our app. Swop’s Flat
-                      Rectangle NFC’s are designed to be durable and simple to
-                      use. The Flat is great to put under any phone
-                      case(non-metal) Users can download our app. Swop’s Flat
-                      Rectangle NFC’s are designed to be durable and simple to
-                      use. The Flat is great to put under any phone
-                      case(non-metal) Users can download our app. `}
                   </div>
+                  {order?.mintedNfts?.map((item: any, idx: number) => (
+                    <div className="border-l-2 border-gray-300 pl-4" key={idx}>
+                      <p className="text-sm text-gray-900">
+                        {item?.description || "No Description"}
+                      </p>
+                    </div>
+                  ))}
                 </div>
               </div>
             </Tab>
