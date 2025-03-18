@@ -161,6 +161,10 @@ class TransactionAPI {
       const transactions = await Promise.all(
         response.data.map(async (item) => {
           const txDetails = await this.getSolTxDetails(item.tx_hash);
+          console.log(
+            '🚀 ~ TransactionAPI ~ response.data.map ~ txDetails:',
+            txDetails
+          );
           return this.formatSolanaTransaction(
             {
               blockTime: item.block_time,
@@ -191,7 +195,6 @@ class TransactionAPI {
   ): Transaction | null {
     const { blockTime, txHash, fee, status } = item;
     const networkFee = fee / 10 ** 9;
-
     // Handle token transfers
     if (txDetails.data?.token_bal_change?.length) {
       const tokenChange = txDetails.data.token_bal_change[0];
@@ -312,23 +315,37 @@ interface TransactionResult {
 }
 
 export const useMultiChainTransactionData = (
-  walletAddress?: string,
+  solWalletAddress: string,
+  evmWalletAddress: string,
   chains: (keyof typeof CHAINS)[] = ['ETHEREUM'],
   options: TransactionOptions = { limit: 100, offset: 0 }
 ): TransactionResult => {
   const transactionQueries = useQueries({
     queries: chains.map((chain) => ({
-      queryKey: ['transactions', chain, walletAddress],
+      queryKey: [
+        'transactions',
+        chain,
+        solWalletAddress,
+        evmWalletAddress,
+      ],
       queryFn: async () => {
-        if (!walletAddress) return [];
+        if (!evmWalletAddress || !solWalletAddress) return [];
 
         if (chain === 'SOLANA') {
-          return TransactionAPI.getSolanaTransactions(walletAddress);
+          return TransactionAPI.getSolanaTransactions(
+            solWalletAddress
+          );
         }
 
         const [nativeTxs, erc20Txs] = await Promise.all([
-          TransactionAPI.getNativeTransactions(chain, walletAddress),
-          TransactionAPI.getERC20Transactions(chain, walletAddress),
+          TransactionAPI.getNativeTransactions(
+            chain,
+            evmWalletAddress
+          ),
+          TransactionAPI.getERC20Transactions(
+            chain,
+            evmWalletAddress
+          ),
         ]);
 
         return [...nativeTxs, ...erc20Txs]
@@ -337,7 +354,7 @@ export const useMultiChainTransactionData = (
           )
           .map((tx) => formatEvmTransaction(tx, chain));
       },
-      enabled: !!walletAddress,
+      enabled: !!evmWalletAddress,
     })),
   });
 

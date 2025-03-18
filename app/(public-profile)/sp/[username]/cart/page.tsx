@@ -1,16 +1,15 @@
-import { getCartData } from "@/actions/addToCartActions";
-import { cookies } from "next/headers";
-import React from "react";
-import CartContent from "./CartContent";
+import { getCartData } from '@/actions/addToCartActions';
+import { cookies } from 'next/headers';
+import React from 'react';
+import CartContent from './CartContent';
 // import { redirect } from "next/navigation";
 
 const AddToCartPage = async () => {
   const cookieStore = cookies();
-  const accessToken = (await cookieStore).get("access-token")?.value;
-  console.log("access token from card", accessToken);
+  const accessToken = (await cookieStore).get('access-token')?.value;
 
   // if (accessToken) {
-  const data = await getCartData(accessToken ? accessToken : "");
+  const data = await getCartData(accessToken ? accessToken : '');
 
   // console.log("data", data);
 

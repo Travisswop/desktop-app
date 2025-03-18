@@ -134,6 +134,8 @@ const ChatPageContent = () => {
     async (recipientAddress: string) => {
       if (!recipientAddress || !xmtpClient) return;
 
+      console.log('receipentaddress', recipientAddress);
+
       try {
         setChangeConversationLoading(true);
 
@@ -147,7 +149,7 @@ const ChatPageContent = () => {
           );
 
         const messages = await conversation.messages();
-
+        console.log('messages', messages);
         setConversation(conversation);
         setMessageHistory(messages);
 

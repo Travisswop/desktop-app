@@ -129,8 +129,6 @@ const WalletContentInner = () => {
     resetSendFlow,
   } = useSendFlow(network);
 
-  console.log('sendflow', sendFlow);
-
   useEffect(() => {
     if (user) {
       const primaryMicrositeData = user?.microsites?.find(
@@ -180,9 +178,6 @@ const WalletContentInner = () => {
     evmWalletAddress,
     chains
   );
-  console.log('error', tokenError);
-
-  console.log('tokens form chain', tokens);
 
   const {
     nfts,
@@ -190,8 +185,6 @@ const WalletContentInner = () => {
     error: nftError,
     refetch: refetchNFTs,
   } = useNFT(solWalletAddress, evmWalletAddress, chains);
-
-  console.log('nfts', nfts);
 
   const totalBalance = useMemo(() => {
     return tokens.reduce((total, token) => {
@@ -267,7 +260,6 @@ const WalletContentInner = () => {
 
     setSendLoading(true);
 
-    console.log('sendflow', sendFlow);
     const amount =
       sendFlow.isUSD && sendFlow.token?.marketData.price
         ? Number(sendFlow.amount) *
@@ -302,8 +294,6 @@ const WalletContentInner = () => {
     try {
       let hash = '';
       let newTransaction;
-
-      console.log('hash', hash);
 
       const connection = new Connection(
         process.env.NEXT_PUBLIC_QUICKNODE_SOLANA_URL!,
@@ -470,13 +460,22 @@ const WalletContentInner = () => {
             loading={nftLoading}
             error={nftError}
           />
-          {currentWalletAddress && (
+          {/* {currentWalletAddress && (
             <TransactionList
               address={currentWalletAddress}
               network={network}
               newTransactions={newTransactions}
             />
-          )}
+          )} */}
+
+          <TransactionList
+            address={currentWalletAddress}
+            solWalletAddress={solWalletAddress}
+            evmWalletAddress={evmWalletAddress}
+            chains={chains}
+            network={network}
+            newTransactions={newTransactions}
+          />
 
           {selectedNFT && (
             <NFTDetailView
@@ -560,7 +559,7 @@ const WalletContentInner = () => {
         qrCodeUrl={qrcodeShareUrl}
       />
 
-      {network === 'SOLANA' && <RedeemTokenList />}
+      <RedeemTokenList />
       {/* <NetworkDock network={network} setNetwork={setNetwork} /> */}
       <Toaster />
       {/* <div className="flex items-start gap-4">

@@ -93,6 +93,8 @@ export default function ChatBox({
     );
   };
 
+  console.log('messgage history', messageHistory);
+
   return (
     <div className="pt-4 w-full overflow-x-hidden h-full">
       <MessageList messages={messageHistory} />

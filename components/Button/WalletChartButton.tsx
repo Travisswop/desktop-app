@@ -1,4 +1,4 @@
-import React from "react";
+import React from 'react';
 
 interface WalletChartButtonProps {
   children: React.ReactNode;
@@ -11,14 +11,12 @@ const WalletChartButton = ({
   disabled = false,
   onClick = () => {},
 }: WalletChartButtonProps) => {
-  console.log("disabled", disabled);
-
   return (
     <button
       disabled={disabled}
       onClick={onClick}
       className={`rounded-lg font-medium drop-shadow-[0_6px_6px_#452A7C40] bg-[#F2F2F2] flex items-center gap-1 px-4 py-2 ${
-        disabled && "text-gray-600 cursor-not-allowed"
+        disabled && 'text-gray-600 cursor-not-allowed'
       }`}
     >
       {children}

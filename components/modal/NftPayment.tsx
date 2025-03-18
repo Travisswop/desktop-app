@@ -1,41 +1,46 @@
-"use client";
-import React, { useEffect, useMemo, useState } from "react";
-import { Modal, ModalContent, ModalBody } from "@nextui-org/react";
-import { usePrivy, useSolanaWallets } from "@privy-io/react-auth";
-import { useMultiChainTokenData } from "@/lib/hooks/useToken";
-import TokenSelector from "@/app/(public-profile)/sp/[username]/cart/TokenSelector";
-import PaymentShipping from "@/app/(public-profile)/sp/[username]/cart/Shipping";
+'use client';
+import React, { useEffect, useMemo, useState } from 'react';
+import { Modal, ModalContent, ModalBody } from '@nextui-org/react';
+import { usePrivy, useSolanaWallets } from '@privy-io/react-auth';
+import { useMultiChainTokenData } from '@/lib/hooks/useToken';
+import TokenSelector from '@/app/(public-profile)/sp/[username]/cart/TokenSelector';
+import PaymentShipping from '@/app/(public-profile)/sp/[username]/cart/Shipping';
+
+const chains: ChainType[] = ['ETHEREUM', 'POLYGON', 'BASE', 'SOLANA'];
 
 export default function NftPaymentModal({
   subtotal,
   isOpen,
   onOpenChange,
+  sellerAddress,
 }: any) {
   const [walletData, setWalletData] = useState<any>(null);
   const [amontOfToken, setAmontOfToken] = useState<any>(null);
   const [selectedToken, setSelectedToken] = useState<any>(null);
   const { createWallet, wallets: solanaWallets } = useSolanaWallets();
   const { authenticated, ready, user: PrivyUser } = usePrivy();
+  const [solWalletAddress, setSolWalletAddress] = useState('');
+  const [evmWalletAddress, setEvmWalletAddress] = useState('');
   // Effects
   useEffect(() => {
     if (authenticated && ready && PrivyUser) {
       const linkWallet = PrivyUser?.linkedAccounts
         .map((item: any) => {
-          if (item.chainType === "ethereum") {
+          if (item.chainType === 'ethereum') {
             return {
               address: item.address,
               isActive:
-                item.walletClientType === "privy" ||
-                item.connectorType === "embedded",
+                item.walletClientType === 'privy' ||
+                item.connectorType === 'embedded',
               isEVM: true,
               walletClientType: item.walletClientType,
             };
-          } else if (item.chainType === "solana") {
+          } else if (item.chainType === 'solana') {
             return {
               address: item.address,
               isActive:
-                item.walletClientType === "privy" ||
-                item.connectorType === "embedded",
+                item.walletClientType === 'privy' ||
+                item.connectorType === 'embedded',
               isEVM: false,
               walletClientType: item.walletClientType,
             };
@@ -52,9 +57,9 @@ export default function NftPaymentModal({
     if (authenticated && ready && PrivyUser) {
       const hasExistingSolanaWallet = PrivyUser.linkedAccounts.some(
         (account: any) =>
-          account.type === "wallet" &&
-          account.walletClientType === "privy" &&
-          account.chainType === "solana"
+          account.type === 'wallet' &&
+          account.walletClientType === 'privy' &&
+          account.chainType === 'solana'
       );
 
       if (!hasExistingSolanaWallet) {
@@ -63,31 +68,33 @@ export default function NftPaymentModal({
     }
   }, [authenticated, ready, PrivyUser, createWallet]);
 
-  const network = "SOLANA";
+  const network = 'SOLANA';
 
   // Memoized values
   const currentWalletAddress = useMemo(() => {
     if (!walletData) return undefined;
-    return network === "SOLANA"
-      ? walletData.find((w: any) => !w.isEVM)?.address
-      : walletData.find((w: any) => w.isEVM)?.address;
-  }, [network, walletData]);
+    setSolWalletAddress(
+      walletData.find((w: any) => !w.isEVM)?.address || ''
+    );
+    setEvmWalletAddress(
+      walletData.find((w: any) => w.isEVM)?.address || ''
+    );
+  }, [walletData]);
 
   // Data fetching hooks
   const {
     tokens,
     loading: tokenLoading,
     error: tokenError,
-  } = useMultiChainTokenData(currentWalletAddress, [network]);
-
-  console.log("walletData from payment modal", walletData);
-  console.log("tokens from payment modal", tokens);
-  console.log("selectedToken", selectedToken);
-  console.log("walletData", walletData);
+  } = useMultiChainTokenData(
+    solWalletAddress,
+    evmWalletAddress,
+    chains
+  );
 
   useEffect(() => {
     const convertUSDToToken = (usdAmount: number) => {
-      if (!selectedToken?.marketData.price) return "0";
+      if (!selectedToken?.marketData.price) return '0';
       const price = parseFloat(selectedToken.marketData.price);
       return (usdAmount / price).toFixed(4);
     };
@@ -112,6 +119,7 @@ export default function NftPaymentModal({
                       setSelectedToken={setSelectedToken}
                       amontOfToken={amontOfToken}
                       walletData={walletData}
+                      sellerAddress={sellerAddress}
                     />
                   ) : (
                     <TokenSelector

@@ -1,17 +1,22 @@
-"use client";
+'use client';
 
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { useMultiChainTransactionData } from "@/lib/hooks/useTransaction";
-import { Transaction } from "@/types/transaction";
-import { AlertCircle, Loader2 } from "lucide-react";
-import { useState, useMemo, useEffect } from "react";
-import TransactionDetails from "./transaction-details";
-import Image from "next/image";
-import { useMultiChainTokenData } from "@/lib/hooks/useToken";
-import TransactionItem from "./transaction-item";
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { useMultiChainTransactionData } from '@/lib/hooks/useTransaction';
+import { Transaction } from '@/types/transaction';
+import { AlertCircle, Loader2 } from 'lucide-react';
+import { useState, useMemo, useEffect } from 'react';
+import TransactionDetails from './transaction-details';
+import Image from 'next/image';
+import { useMultiChainTokenData } from '@/lib/hooks/useToken';
+import TransactionItem from './transaction-item';
 
-type Network = "ETHEREUM" | "POLYGON" | "BASE" | "SOLANA";
+type Network = 'ETHEREUM' | 'POLYGON' | 'BASE' | 'SOLANA';
 
 // Constants
 const ITEMS_PER_PAGE = 20;
@@ -70,6 +75,9 @@ const ErrorMessage = ({
 
 export default function TransactionList({
   address,
+  solWalletAddress,
+  evmWalletAddress,
+  chains,
   network,
   newTransactions,
 }: {
@@ -82,19 +90,19 @@ export default function TransactionList({
 
   const [offset, setOffset] = useState(0);
 
-  // Fetch token data to get current prices including native token
-  const { tokens } = useMultiChainTokenData(address, [network]);
-
-  console.log("hola tokens", tokens);
-
+  const { tokens } = useMultiChainTokenData(
+    solWalletAddress,
+    evmWalletAddress,
+    chains
+  );
   // Get native token price
   const nativeToken = useMemo(() => {
     return tokens.find(
       (token) =>
-        (token === "ETHEREUM" && token.symbol === "ETH") ||
-        (network === "POLYGON" && token.symbol === "POL") ||
-        (network === "BASE" && token.symbol === "ETH") ||
-        (network === "SOLANA" && token.symbol === "SOL")
+        (token === 'ETHEREUM' && token.symbol === 'ETH') ||
+        (network === 'POLYGON' && token.symbol === 'POL') ||
+        (network === 'BASE' && token.symbol === 'ETH') ||
+        (network === 'SOLANA' && token.symbol === 'SOL')
     );
   }, [tokens, network]);
   // const nativeToken = useMemo(() => {
@@ -108,20 +116,31 @@ export default function TransactionList({
   // }, [tokens, network]);
 
   // Fetch transactions
-  const { transactions, loading, error, hasMore, totalCount, refetch } =
-    useMultiChainTransactionData(address, [network], {
+  const {
+    transactions,
+    loading,
+    error,
+    hasMore,
+    totalCount,
+    refetch,
+  } = useMultiChainTransactionData(
+    solWalletAddress,
+    evmWalletAddress,
+    chains,
+    {
       limit: ITEMS_PER_PAGE,
       offset,
-    });
+    }
+  );
 
   // Filter transactions and add prices
   const processedTransactions = useMemo(() => {
-    if (!tokens.length || !nativeToken) return [];
+    if (!tokens.length) return [];
 
     return [...newTransactions, ...transactions].filter((tx) => {
       // Add native token price for network fee calculation
-      tx.nativeTokenPrice = parseFloat(nativeToken.marketData.price);
-
+      // tx.nativeTokenPrice = parseFloat(nativeToken.marketData.price);
+      tx.nativeTokenPrice = 1;
       // Find matching token for transaction value
       const token = tokens.find(
         (t) =>
@@ -137,12 +156,16 @@ export default function TransactionList({
         const fromToken = tokens.find(
           (t) => t.symbol === tx.swapped?.from.symbol
         );
-        const toToken = tokens.find((t) => t.symbol === tx.swapped?.to.symbol);
+        const toToken = tokens.find(
+          (t) => t.symbol === tx.swapped?.to.symbol
+        );
 
         if (!fromToken || !toToken) return false;
 
         if (tx.swapped) {
-          tx.swapped.from.price = parseFloat(fromToken.marketData.price);
+          tx.swapped.from.price = parseFloat(
+            fromToken.marketData.price
+          );
           tx.swapped.to.price = parseFloat(toToken.marketData.price);
         }
       } else {
@@ -170,7 +193,8 @@ export default function TransactionList({
             </CardTitle>
             {totalCount > 0 && (
               <span className="text-sm text-muted-foreground">
-                Showing {Math.min(offset + ITEMS_PER_PAGE, totalCount)} of{" "}
+                Showing{' '}
+                {Math.min(offset + ITEMS_PER_PAGE, totalCount)} of{' '}
                 {totalCount}
               </span>
             )}
@@ -194,7 +218,7 @@ export default function TransactionList({
                   <TransactionItem
                     key={index}
                     transaction={transaction}
-                    userAddress={address || ""}
+                    userAddress={address || ''}
                     onSelect={setSelectedTransaction}
                   />
                 ))}
@@ -206,11 +230,13 @@ export default function TransactionList({
                 )}
               </div>
 
-              {!loading && !error && processedTransactions.length === 0 && (
-                <div className="text-center py-8 text-muted-foreground">
-                  No transactions found
-                </div>
-              )}
+              {!loading &&
+                !error &&
+                processedTransactions.length === 0 && (
+                  <div className="text-center py-8 text-muted-foreground">
+                    No transactions found
+                  </div>
+                )}
 
               {hasMore && (
                 <div className="mt-4 flex justify-center sticky bottom-0 bg-white py-4">
@@ -226,7 +252,7 @@ export default function TransactionList({
                         Loading...
                       </>
                     ) : (
-                      "Load More"
+                      'Load More'
                     )}
                   </Button>
                 </div>
@@ -237,7 +263,7 @@ export default function TransactionList({
       </Card>
       <TransactionDetails
         transaction={selectedTransaction}
-        userAddress={address || ""}
+        userAddress={address || ''}
         network={network}
         isOpen={!!selectedTransaction}
         onClose={() => setSelectedTransaction(null)}
