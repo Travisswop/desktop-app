@@ -14,7 +14,6 @@ import React, { useState } from 'react';
 import { LiaTimesSolid } from 'react-icons/lia';
 
 const CartContent = ({ data, accessToken }: any) => {
-  console.log('data', data);
   // const { authenticated } = usePrivy();
   const params = useParams();
   const name: any = params.username; // This will be "testh63s"
@@ -45,7 +44,6 @@ const CartContent = ({ data, accessToken }: any) => {
 
   // Function to calculate subtotal
   const calculateSubtotal = (cartItems: any) => {
-    console.log('cartitem', cartItems);
     return cartItems.reduce((total: number, item: any) => {
       return total + item.nftTemplate.price * item.quantity;
     }, 0);
@@ -69,7 +67,6 @@ const CartContent = ({ data, accessToken }: any) => {
           accessToken,
           name
         );
-        console.log('response for update', response);
 
         // Handle success (e.g., update the UI or state)
       }
@@ -119,11 +116,12 @@ const CartContent = ({ data, accessToken }: any) => {
   //   return txHash;
   // };
 
+  const sellerAddress =
+    data.data.cartItems[0].nftTemplate.ownerAddress;
+
   const handleOpenModal = () => {
     onOpen();
   };
-
-  console.log('data', data);
 
   return (
     <div className="w-full">
@@ -260,6 +258,7 @@ const CartContent = ({ data, accessToken }: any) => {
         subtotal={subtotal}
         isOpen={isOpen}
         onOpenChange={onOpenChange}
+        sellerAddress={sellerAddress}
       />
     </div>
   );

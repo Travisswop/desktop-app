@@ -20,8 +20,6 @@ export default function TokenSelector({
   const [search, setSearch] = useState('');
   //   const [tab, setTab] = useState("crypto");
 
-  console.log('assets form token selector', assets);
-
   // Memoize filtered results to avoid unnecessary re-renders
   const filteredAssets =
     assets?.filter(

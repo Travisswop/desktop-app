@@ -31,8 +31,6 @@ const SkeletonBalanceChart = () => (
 const BalanceChart = ({ balanceHistory, totalTokensValue }: any) => {
   const [timeRange, setTimeRange] = useState('7days');
 
-  console.log('balanceHistory', balanceHistory);
-
   // Generate data with 0-filled missing dates
   // const filteredData = useMemo(() => {
   //   const now = new Date();
@@ -333,19 +331,14 @@ const BalanceChart = ({ balanceHistory, totalTokensValue }: any) => {
 
 // Example usage with the provided data
 const WalletBalanceChart = ({ isFromWallet = false }) => {
-  console.log('isFromWallet', isFromWallet);
-
   const { user } = useUser();
   const [balanceData, setBalanceData] = useState([]);
   const [totalTokensValue, setTotalTokensValue] = useState(0);
   const [walletList, setWalletList] = useState({});
 
-  console.log('balance data', balanceData);
-
   useEffect(() => {
     const fetchData = async () => {
       try {
-        // console.log("hiitttttttttttttttttttttttttttt");
         const response = await fetch(
           `${process.env.NEXT_PUBLIC_API_URL}/api/v5/wallet/getBalance/${user._id}`
         );
@@ -353,12 +346,10 @@ const WalletBalanceChart = ({ isFromWallet = false }) => {
           throw new Error('Network response was not ok');
         }
         const result = await response.json();
-        console.log('resultgggggggggggggggggggggggg', result);
 
         setWalletList(result.balanceData.wallet);
         setBalanceData(result.balanceData.balanceHistory);
         setTotalTokensValue(result.totalTokensValue);
-        console.log('result', result);
       } catch (error) {
         // setError(error);
         console.log('error', error);

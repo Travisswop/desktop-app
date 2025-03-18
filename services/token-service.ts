@@ -298,8 +298,6 @@ export class SolanaService {
         }),
       ]);
 
-      console.log('native token balance', balance);
-
       // Check if tokenAccounts is in the expected format
       if (!Array.isArray(tokenAccounts.value)) {
         console.error(

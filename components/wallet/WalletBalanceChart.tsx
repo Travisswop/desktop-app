@@ -1,4 +1,3 @@
-// import { getWalletCurrentBalance } from "@/actions/createWallet";
 import { useUser } from "@/lib/UserContext";
 import {
   ArrowLeftRight,
@@ -17,14 +16,13 @@ import {
   Tooltip,
   ResponsiveContainer,
 } from "recharts";
-// import { Button } from "../ui/button";
+import AddBankModal from "./bank/AddBankModal";
 import WalletAddressPopup from "./wallet-address-popup";
 import { Skeleton } from "../ui/skeleton";
 import WalletChartButton from "../Button/WalletChartButton";
 import { IoIosSend } from "react-icons/io";
 import { BsBank2, BsQrCodeScan } from "react-icons/bs";
 import { FaRegListAlt } from "react-icons/fa";
-import AddBankModal from "./bank/AddBankModal";
 
 const BalanceChart = ({
   balanceHistory,
@@ -33,7 +31,6 @@ const BalanceChart = ({
   onSelectAsset,
   // onQRClick,
   walletData,
-  totalTokensValue,
 }: any) => {
   const [timeRange, setTimeRange] = useState("7days");
   const [showPopup, setShowPopup] = useState(false);
@@ -114,7 +111,7 @@ const BalanceChart = ({
           <h2 className="font-bold text-xl text-gray-700">Balance</h2>
           <p className="font-bold text-xl text-gray-700 ">
             $
-            {totalTokensValue.toLocaleString(undefined, {
+            {totalBalance.toLocaleString(undefined, {
               minimumFractionDigits: 2,
               maximumFractionDigits: 2,
             })}
@@ -279,9 +276,6 @@ const WalletBalanceChartForWalletPage = ({
   const [balanceData, setBalanceData] = useState([]);
   const [totalTokensValue, setTotalTokensValue] = useState(0);
   const [walletList, setWalletList] = useState({});
-
-  console.log("users", user);
-  console.log("balanceData", balanceData);
 
   useEffect(() => {
     const fetchData = async () => {

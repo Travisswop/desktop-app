@@ -47,7 +47,6 @@ export const useMultiChainTokenData = (
           const balance = await provider.getBalance(
             evmWalletAddress!
           );
-          console.log('balances', balance.toString());
 
           if (balance.toString() !== '0') {
             const token = await TokenContractService.getNativeTokens(

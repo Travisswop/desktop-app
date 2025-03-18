@@ -1,11 +1,11 @@
-import { createMicrositeViewer } from "@/actions/micrositeViewer";
-import Custom404 from "./404";
-import ClientProfile from "./ClientProfile";
+import { createMicrositeViewer } from '@/actions/micrositeViewer';
+import Custom404 from './404';
+import ClientProfile from './ClientProfile';
 // import { Metadata, ResolvingMetadata } from "next";
-import { addSwopPoint } from "@/actions/addPoint";
-import { getUserData } from "@/actions/user";
-import { getDeviceInfo } from "@/components/collectiVistUserInfo";
-import { cookies } from "next/headers";
+import { addSwopPoint } from '@/actions/addPoint';
+import { getUserData } from '@/actions/user';
+import { getDeviceInfo } from '@/components/collectiVistUserInfo';
+import { cookies } from 'next/headers';
 
 // const APP_URL = process.env.NEXT_PUBLIC_APP_URL;
 
@@ -87,25 +87,24 @@ export default async function PublicProfile({
 }) {
   try {
     const cookieStore = cookies();
-    const viewerId = (await cookieStore).get("user-id")?.value;
+    const viewerId = (await cookieStore).get('user-id')?.value;
 
-    const res = await fetch("https://ipinfo.io/json");
+    const res = await fetch('https://ipinfo.io/json');
     const locationData = await res.json();
 
     const userName = (await params)?.username;
-    console.log("userName", userName);
 
     const result = await getUserData(userName);
 
     addSwopPoint({
       userId: result.data.parentId,
-      pointType: "Generating Traffic to Your SmartSite",
-      actionKey: "launch-swop",
+      pointType: 'Generating Traffic to Your SmartSite',
+      actionKey: 'launch-swop',
     });
 
     createMicrositeViewer({
       userId: result.data.parentId,
-      viewerId: viewerId ? viewerId : "anonymous",
+      viewerId: viewerId ? viewerId : 'anonymous',
       micrositeName: userName,
       city: locationData?.city,
       region: locationData?.region,
@@ -118,7 +117,7 @@ export default async function PublicProfile({
     // If no redirect is needed, render the ClientProfile
     return <ClientProfile initialData={result} userName={userName} />;
   } catch (error) {
-    console.error("Error fetching data:", error);
+    console.error('Error fetching data:', error);
     return <Custom404 />;
   }
 }
