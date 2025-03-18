@@ -468,14 +468,14 @@ const WalletContentInner = () => {
             />
           )} */}
 
-          <TransactionList
+          {/* <TransactionList
             address={currentWalletAddress}
             solWalletAddress={solWalletAddress}
             evmWalletAddress={evmWalletAddress}
             chains={chains}
             network={network}
             newTransactions={newTransactions}
-          />
+          /> */}
 
           {selectedNFT && (
             <NFTDetailView

@@ -65,7 +65,7 @@ const PaymentShipping = ({
     let redirectTimer;
     if (transactionStage === TRANSACTION_STAGES.COMPLETED) {
       redirectTimer = setTimeout(() => {
-        router.push(`/sp/${name}`);
+        router.push(`/order`);
       }, 3000); // Give user time to see success message
     }
     return () => clearTimeout(redirectTimer);
@@ -151,7 +151,7 @@ const PaymentShipping = ({
       };
 
       if (hash && accessToken) {
-        await createOrder(orderData, accessToken);
+        createOrder(orderData, accessToken);
         setTransactionStage(TRANSACTION_STAGES.COMPLETED);
 
         toast({
