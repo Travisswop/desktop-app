@@ -1,10 +1,10 @@
-import { getWalletCurrentBalance } from "@/actions/createWallet";
+// import { getWalletCurrentBalance } from "@/actions/createWallet";
 import { useUser } from "@/lib/UserContext";
 import {
   ArrowLeftRight,
-  BadgeDollarSign,
-  QrCode,
-  Rocket,
+  // BadgeDollarSign,
+  // QrCode,
+  // Rocket,
   Wallet,
 } from "lucide-react";
 import React, { useState, useMemo, useEffect } from "react";
@@ -17,25 +17,27 @@ import {
   Tooltip,
   ResponsiveContainer,
 } from "recharts";
-import { Button } from "../ui/button";
+// import { Button } from "../ui/button";
 import WalletAddressPopup from "./wallet-address-popup";
 import { Skeleton } from "../ui/skeleton";
 import WalletChartButton from "../Button/WalletChartButton";
 import { IoIosSend } from "react-icons/io";
 import { BsBank2, BsQrCodeScan } from "react-icons/bs";
 import { FaRegListAlt } from "react-icons/fa";
+import AddBankModal from "./bank/AddBankModal";
 
 const BalanceChart = ({
   balanceHistory,
-  walletList,
+  // walletList,
   totalBalance,
   onSelectAsset,
-  onQRClick,
+  // onQRClick,
   walletData,
   totalTokensValue,
 }: any) => {
   const [timeRange, setTimeRange] = useState("7days");
   const [showPopup, setShowPopup] = useState(false);
+  const [bankShow, setBankShow] = useState(false);
 
   // Generate data with 0-filled missing dates
   const filteredData = useMemo(() => {
@@ -226,7 +228,7 @@ const BalanceChart = ({
           <button>
             <BsQrCodeScan size={19} />
           </button>
-          <button>
+          <button onClick={() => setBankShow(true)}>
             <BsBank2 size={19} />
           </button>
           <button>
@@ -235,6 +237,9 @@ const BalanceChart = ({
         </div>
       </div>
       <WalletAddressPopup walletData={walletData} show={showPopup} />
+      {bankShow && (
+        <AddBankModal bankShow={bankShow} setBankShow={setBankShow} />
+      )}
     </div>
   );
 };
