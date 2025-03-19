@@ -79,10 +79,6 @@ export default async function ClientProfile({
     ens: string;
   } = initialData.data;
 
-  console.log('parentid', parentId);
-
-  console.log('info', info);
-
   const ensDomain = info.ensDomain[info.ensDomain.length - 1];
 
   const bg =
@@ -91,9 +87,6 @@ export default async function ClientProfile({
       ? backgroundImg
       : `/images/smartsite-background/${backgroundImg}.png`;
   // background[backgroundImg as keyof typeof background];
-
-  console.log('bg', bg);
-  console.log('theme', theme);
 
   return (
     <div
@@ -124,7 +117,7 @@ export default async function ClientProfile({
           parentId={parentId}
           micrositeId={_id}
           theme={theme}
-          accessToken={accessToken ? accessToken : ""}
+          accessToken={accessToken ? accessToken : ''}
         />
         <div className="my-4">
           <Bio name={name} bio={bio} />
