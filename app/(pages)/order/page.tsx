@@ -1,5 +1,5 @@
-"use client";
-import { Card, CardContent, CardTitle } from "@/components/ui/card";
+'use client';
+import { Card, CardContent, CardTitle } from '@/components/ui/card';
 import {
   Table,
   TableBody,
@@ -7,20 +7,43 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from "@/components/ui/table";
-import { useUser } from "@/lib/UserContext";
-import { format } from "date-fns";
-import Link from "next/link";
-import { useEffect, useState } from "react";
-import { HiOutlineDownload } from "react-icons/hi";
+} from '@/components/ui/table';
+import { useUser } from '@/lib/UserContext';
+import { format } from 'date-fns';
+import { useRouter } from 'next/navigation';
+import { useEffect, useState } from 'react';
+import { HiOutlineDownload } from 'react-icons/hi';
+interface Summary {
+  total: number;
+  asBuyer: number;
+  asSeller: number;
+  pendingDelivery: number;
+  completed: number;
+  totalSpent: number | null;
+  totalEarned: number;
+  totalInEscrow: number;
+  totalDispute: number;
+}
 
 const OrderManagement = () => {
+  const router = useRouter();
   const [orders, setOrders] = useState([]);
   const [purchases, setPurchases] = useState([]);
+  const [summary, setSummary] = useState<Summary>({
+    total: 0,
+    asBuyer: 0,
+    asSeller: 0,
+    pendingDelivery: 0,
+    completed: 0,
+    totalSpent: null,
+    totalEarned: 0,
+    totalInEscrow: 0,
+    totalDispute: 0,
+  });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const { accessToken } = useUser();
-  const [activeTab, setActiveTab] = useState("sales"); // 'all', 'purchases', 'sales'
+  const [activeTab, setActiveTab] = useState('sales'); // 'all', 'purchases', 'sales'
   const [pagination, setPagination] = useState({
     currentPage: 1,
     totalPages: 1,
@@ -29,15 +52,15 @@ const OrderManagement = () => {
 
   // Filter states
   const [filters, setFilters] = useState({
-    role: "all",
-    status: "",
+    role: 'all',
+    status: '',
     page: 1,
     limit: 10,
-    sortBy: "orderDate",
-    sortOrder: "desc",
-    startDate: "",
-    endDate: "",
-    deadOrders: "exclude",
+    sortBy: 'orderDate',
+    sortOrder: 'desc',
+    startDate: '',
+    endDate: '',
+    deadOrders: 'exclude',
   });
 
   // Fetch orders based on current filters
@@ -58,32 +81,33 @@ const OrderManagement = () => {
           process.env.NEXT_PUBLIC_API_URL
         }/api/v1/desktop/nft/fetchUserOrders?${queryParams.toString()}`,
         {
-          method: "GET",
+          method: 'GET',
           headers: {
-            "Content-Type": "application/json",
+            'Content-Type': 'application/json',
             authorization: `Bearer ${accessToken}`,
           },
         }
       );
 
       const data = await response.json();
-      console.log("🚀 ~ fetchOrders ~ data:", data);
+      console.log('🚀 ~ fetchOrders ~ data:', data);
 
-      if (data.state === "success") {
+      if (data.state === 'success') {
         // Process orders received from backend
-        const { orders, purchases } = data.data;
+        const { orders, purchases, summary } = data.data;
 
         setPurchases(purchases);
         setOrders(orders);
         setPagination(data.data.pagination);
+        setSummary(summary);
       } else {
-        setError(data.message || "Failed to fetch orders");
+        setError(data.message || 'Failed to fetch orders');
       }
     } catch (err: any) {
       setError(
         err.response?.data?.message ||
           err.message ||
-          "An error occurred while fetching orders"
+          'An error occurred while fetching orders'
       );
     } finally {
       setLoading(false);
@@ -99,17 +123,17 @@ const OrderManagement = () => {
       ...prev,
       [name]: value,
       // Reset to page 1 when changing filters
-      ...(name !== "page" && { page: 1 }),
+      ...(name !== 'page' && { page: 1 }),
     }));
   };
 
   const handlePageChange = (newPage: number) => {
-    handleFilterChange("page", newPage.toString());
+    handleFilterChange('page', newPage.toString());
   };
 
   const formatDate = (dateString: string | number | Date): string => {
     try {
-      return format(new Date(dateString), "MMM dd, yyyy");
+      return format(new Date(dateString), 'MMM dd, yyyy');
     } catch (e) {
       return String(dateString); // Ensure it returns a string
     }
@@ -119,9 +143,9 @@ const OrderManagement = () => {
   const renderOrders = () => {
     let displayOrders: any[] = [];
 
-    if (activeTab === "purchases") {
+    if (activeTab === 'purchases') {
       displayOrders = [...purchases];
-    } else if (activeTab === "sales") {
+    } else if (activeTab === 'sales') {
       displayOrders = [...orders];
     }
 
@@ -149,44 +173,38 @@ const OrderManagement = () => {
             </TableHeader>
             <TableBody>
               {displayOrders.map((order) => (
-                <TableRow key={order.id}>
+                <TableRow
+                  key={order.id}
+                  className="cursor-pointer"
+                  onClick={() =>
+                    router.push(`/order/${order.orderId}`)
+                  }
+                >
                   <TableCell className="font-medium">
-                    <Link href={`/order/${order.orderId}`}>
-                      {order.orderId}
-                    </Link>
+                    {order.orderId}
                   </TableCell>
                   <TableCell>
-                    <Link href={`/order/${order.orderId}`}>
-                      <div className="flex items-center gap-2">
-                        {order.customer.name}
-                      </div>
-                    </Link>
+                    <div className="flex items-center gap-2">
+                      {order.customer.name}
+                    </div>
+                  </TableCell>
+                  <TableCell>${order.totalCost.toFixed(2)}</TableCell>
+                  <TableCell>
+                    {formatDate(order.orderDate) as string}{' '}
                   </TableCell>
                   <TableCell>
-                    <Link href={`/order/${order.orderId}`}>
-                      ${order.totalCost.toFixed(2)}
-                    </Link>
-                  </TableCell>
-                  <TableCell>
-                    <Link href={`/order/${order.orderId}`}>
-                      {formatDate(order.orderDate) as string}{" "}
-                    </Link>
-                  </TableCell>
-                  <TableCell>
-                    <Link href={`/order/${order.orderId}`}>
-                      <span
-                        className={`px-2 py-1 rounded text-xs font-medium ${
-                          order.status === "complete"
-                            ? "bg-green-100 text-green-600"
-                            : order.status === "processing"
-                            ? "bg-yellow-100 text-yellow-600"
-                            : "bg-red-100 text-red-600"
-                        }`}
-                      >
-                        {order.status.charAt(0).toUpperCase() +
-                          order.status.slice(1)}
-                      </span>
-                    </Link>
+                    <span
+                      className={`px-2 py-1 rounded text-xs font-medium ${
+                        order.status === 'complete'
+                          ? 'bg-green-100 text-green-600'
+                          : order.status === 'processing'
+                          ? 'bg-yellow-100 text-yellow-600'
+                          : 'bg-red-100 text-red-600'
+                      }`}
+                    >
+                      {order.status.charAt(0).toUpperCase() +
+                        order.status.slice(1)}
+                    </span>
                   </TableCell>
                 </TableRow>
               ))}
@@ -207,7 +225,7 @@ const OrderManagement = () => {
               Total Order
             </CardTitle>
             <div className="text-5xl font-bold text-green-500 text-center">
-              {orders?.summary?.totalOrders || 0}
+              {summary.total}
             </div>
           </CardContent>
         </Card>
@@ -232,7 +250,10 @@ const OrderManagement = () => {
                   <div className="text-3xl font-bold">
                     $
                     {orders
-                      .reduce((total, order) => total + order.price, 0)
+                      .reduce(
+                        (total, order) => total + order.price,
+                        0
+                      )
                       .toFixed(2)}
                   </div>
                 </div>
@@ -242,7 +263,7 @@ const OrderManagement = () => {
                     $ in Escrow
                   </div>
                   <div className="text-3xl font-bold text-blue-500">
-                    $ {orders?.summary?.totalInEscrow || 0}
+                    $ {summary.totalInEscrow}
                   </div>
                 </div>
                 <div className="flex flex-col">
@@ -250,7 +271,7 @@ const OrderManagement = () => {
                     Open Orders
                   </div>
                   <div className="text-3xl font-bold">
-                    {orders?.summary?.totalDispute || 0}
+                    {summary.total - summary.completed}
                   </div>
                 </div>
 
@@ -259,7 +280,7 @@ const OrderManagement = () => {
                     Closed Orders
                   </div>
                   <div className="text-3xl font-bold">
-                    {orders?.summary?.totalDispute || 0}
+                    {summary.completed}
                   </div>
                 </div>
                 <div className="flex flex-col">
@@ -267,7 +288,7 @@ const OrderManagement = () => {
                     Disputes
                   </div>
                   <div className="text-3xl font-bold">
-                    {orders?.summary?.totalDispute || 0}
+                    {summary.totalDispute}
                   </div>
                 </div>
               </div>
@@ -291,17 +312,19 @@ const OrderManagement = () => {
         <div className="flex justify-center border-gray-200 mb-6 mt-8">
           <button
             className={`py-2 px-4 font-medium bg-gray-200 rounded-s-full ${
-              activeTab === "sales" ? "text-black" : "text-gray-500"
+              activeTab === 'sales' ? 'text-black' : 'text-gray-500'
             }`}
-            onClick={() => setActiveTab("sales")}
+            onClick={() => setActiveTab('sales')}
           >
             Orders
           </button>
           <button
             className={`py-2 px-4 font-medium bg-gray-200 rounded-e-full ${
-              activeTab === "purchases" ? "text-black" : "text-gray-500"
+              activeTab === 'purchases'
+                ? 'text-black'
+                : 'text-gray-500'
             }`}
-            onClick={() => setActiveTab("purchases")}
+            onClick={() => setActiveTab('purchases')}
           >
             My Purchases
           </button>
@@ -317,7 +340,9 @@ const OrderManagement = () => {
             <select
               className="w-full border border-gray-300 rounded-md py-2 px-3 my-2"
               value={filters.status}
-              onChange={(e) => handleFilterChange("status", e.target.value)}
+              onChange={(e) =>
+                handleFilterChange('status', e.target.value)
+              }
             >
               <option value="">All Statuses</option>
               <option value="Not Initiated">Not Initiated</option>
@@ -341,7 +366,9 @@ const OrderManagement = () => {
             <select
               className="w-full border border-gray-300 rounded-md py-2 px-3"
               value={filters.status}
-              onChange={(e) => handleFilterChange("status", e.target.value)}
+              onChange={(e) =>
+                handleFilterChange('status', e.target.value)
+              }
             >
               <option value="">All Statuses</option>
               <option value="Not Initiated">Not Initiated</option>
@@ -360,7 +387,9 @@ const OrderManagement = () => {
               type="date"
               className="w-full border border-gray-300 rounded-md py-2 px-3"
               value={filters.startDate}
-              onChange={(e) => handleFilterChange("startDate", e.target.value)}
+              onChange={(e) =>
+                handleFilterChange('startDate', e.target.value)
+              }
             />
           </div>
 
@@ -372,7 +401,9 @@ const OrderManagement = () => {
               type="date"
               className="w-full border border-gray-300 rounded-md py-2 px-3"
               value={filters.endDate}
-              onChange={(e) => handleFilterChange("endDate", e.target.value)}
+              onChange={(e) =>
+                handleFilterChange('endDate', e.target.value)
+              }
             />
           </div>
         </div>
@@ -382,15 +413,15 @@ const OrderManagement = () => {
             className="bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 transition-colors"
             onClick={() =>
               setFilters({
-                role: "all",
-                status: "",
+                role: 'all',
+                status: '',
                 page: 1,
                 limit: 10,
-                sortBy: "orderDate",
-                sortOrder: "desc",
-                startDate: "",
-                endDate: "",
-                deadOrders: "exclude",
+                sortBy: 'orderDate',
+                sortOrder: 'desc',
+                startDate: '',
+                endDate: '',
+                deadOrders: 'exclude',
               })
             }
           >
@@ -417,12 +448,14 @@ const OrderManagement = () => {
             <div className="flex justify-center mt-6">
               <div className="flex space-x-1">
                 <button
-                  onClick={() => handlePageChange(pagination.currentPage - 1)}
+                  onClick={() =>
+                    handlePageChange(pagination.currentPage - 1)
+                  }
                   disabled={pagination.currentPage === 1}
                   className={`px-3 py-1 rounded-md ${
                     pagination.currentPage > 1
-                      ? "bg-gray-200 hover:bg-gray-300"
-                      : "bg-gray-100 text-gray-400 cursor-not-allowed"
+                      ? 'bg-gray-200 hover:bg-gray-300'
+                      : 'bg-gray-100 text-gray-400 cursor-not-allowed'
                   }`}
                 >
                   Previous
@@ -433,12 +466,16 @@ const OrderManagement = () => {
                 </span>
 
                 <button
-                  onClick={() => handlePageChange(pagination.currentPage + 1)}
-                  disabled={pagination.currentPage >= pagination.totalPages}
+                  onClick={() =>
+                    handlePageChange(pagination.currentPage + 1)
+                  }
+                  disabled={
+                    pagination.currentPage >= pagination.totalPages
+                  }
                   className={`px-3 py-1 rounded-md ${
                     pagination.currentPage < pagination.totalPages
-                      ? "bg-gray-200 hover:bg-gray-300"
-                      : "bg-gray-100 text-gray-400 cursor-not-allowed"
+                      ? 'bg-gray-200 hover:bg-gray-300'
+                      : 'bg-gray-100 text-gray-400 cursor-not-allowed'
                   }`}
                 >
                   Next
@@ -448,11 +485,12 @@ const OrderManagement = () => {
           )}
 
           <div className="text-center text-sm text-gray-500 mt-4">
-            Showing {(pagination.currentPage - 1) * filters.limit + 1} to{" "}
+            Showing {(pagination.currentPage - 1) * filters.limit + 1}{' '}
+            to{' '}
             {Math.min(
               pagination.currentPage * filters.limit,
               pagination.totalCount
-            )}{" "}
+            )}{' '}
             of {pagination.totalCount} orders
           </div>
         </>
