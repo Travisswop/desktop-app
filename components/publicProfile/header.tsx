@@ -1,23 +1,16 @@
-"use client";
-import { FC, useEffect, useState } from "react";
-import Image from "next/image";
-// import { motion } from "framer-motion";
-// import Subscribe from '@/components/subscribe';
-// import Connect from '@/components/connect';
+'use client';
+import { FC, useEffect, useState } from 'react';
+import Image from 'next/image';
 import {
   Dialog,
   DialogContent,
-  // DialogDescription,
-  // DialogHeader,
-  // DialogTitle,
   DialogTrigger,
-} from "@/components/ui/dialog";
-import Subscribe from "./subscribe";
-import Connect from "./connect";
-import { FaCartShopping } from "react-icons/fa6";
-import { getCartData } from "@/actions/addToCartActions";
-import { useUser } from "@/lib/UserContext";
-import { usePathname, useRouter } from "next/navigation";
+} from '@/components/ui/dialog';
+import Subscribe from './subscribe';
+import Connect from './connect';
+import { FaCartShopping } from 'react-icons/fa6';
+import { getCartData } from '@/actions/addToCartActions';
+import { usePathname, useRouter } from 'next/navigation';
 interface Props {
   avatar: string;
   cover: string;
@@ -42,12 +35,10 @@ const Header: FC<Props> = ({
   const [cartQty, setCartQty] = useState(0);
   // const { accessToken } = useUser();
 
-  console.log("access token for header", accessToken);
-
   const router = useRouter();
   const pathname = usePathname();
 
-  const coverPhoto = cover.includes("https")
+  const coverPhoto = cover.includes('https')
     ? cover
     : `/images/live-preview/coverphoto/${cover}.png`;
 
@@ -57,14 +48,13 @@ const Header: FC<Props> = ({
         // setCartLoading(true);
 
         const response = await getCartData(accessToken);
-
-        console.log("respnse for cart data", response);
-
-        setCartQty(response.data.cartItems.length);
+        if (response.state === 'success') {
+          setCartQty(response.data.cartItems.length);
+        }
       } catch (error: any) {
         // setCartLoading(false);
-        console.log(
-          "error is" + error?.message || "Failed to add item to cart"
+        console.error(
+          'error is' + error?.message || 'Failed to add item to cart'
         );
         // toastify('Try again, something went wrong!');
       }
@@ -79,12 +69,14 @@ const Header: FC<Props> = ({
       const newRoute = `${pathname}/cart`;
       router.push(newRoute);
     } else {
-      router.push("/login");
+      router.push('/login');
     }
   };
 
   return (
-    <div className={`relative w-full ${theme ? "h-28" : "h-52"} mt-4`}>
+    <div
+      className={`relative w-full ${theme ? 'h-28' : 'h-52'} mt-4`}
+    >
       <div>
         {!theme && (
           <div className="overflow-hidden h-44 rounded-md border-[6px] border-white shadow-lg">
@@ -138,7 +130,7 @@ const Header: FC<Props> = ({
               <Image
                 className="object-fill w-full h-full rounded-full"
                 src={
-                  avatar.includes("https")
+                  avatar.includes('https')
                     ? avatar
                     : `/images/user_avator/${avatar}@3x.png`
                 }

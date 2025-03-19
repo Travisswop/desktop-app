@@ -1,7 +1,6 @@
 'use client';
 import { createOrder } from '@/actions/order';
 import AnimateButton from '@/components/ui/Button/AnimateButton';
-import { toast } from '@/components/ui/use-toast';
 import { truncateWalletAddress } from '@/lib/tranacateWalletAddress';
 import { useUser } from '@/lib/UserContext';
 import { TransactionService } from '@/services/transaction-service';
@@ -27,8 +26,14 @@ const TRANSACTION_STAGES = {
   COMPLETED: 'completed',
   FAILED: 'failed',
 };
-
-const PaymentShipping = ({
+const PaymentShipping: React.FC<{
+  selectedToken: any;
+  setSelectedToken: (token: any) => void;
+  subtotal: number;
+  amontOfToken: number;
+  walletData: any;
+  sellerAddress: string;
+}> = ({
   selectedToken,
   setSelectedToken,
   subtotal,
@@ -41,6 +46,7 @@ const PaymentShipping = ({
   const [transactionStage, setTransactionStage] = useState(
     TRANSACTION_STAGES.IDLE
   );
+  const [orderId, setOrderId] = useState('');
   const [error, setError] = useState(null);
   const [transactionHash, setTransactionHash] = useState('');
   const { wallets: solanaWallets } = useSolanaWallets();
@@ -62,7 +68,7 @@ const PaymentShipping = ({
 
   // Auto-redirect after successful transaction
   useEffect(() => {
-    let redirectTimer;
+    let redirectTimer: string | number | NodeJS.Timeout | undefined;
     if (transactionStage === TRANSACTION_STAGES.COMPLETED) {
       redirectTimer = setTimeout(() => {
         router.push(`/order`);
@@ -141,6 +147,7 @@ const PaymentShipping = ({
 
       // Create order record
       setTransactionStage(TRANSACTION_STAGES.CREATING_ORDER);
+
       const orderData = {
         customerName: user?.name,
         customerEmail: user?.email,
@@ -151,14 +158,9 @@ const PaymentShipping = ({
       };
 
       if (hash && accessToken) {
-        createOrder(orderData, accessToken);
+        const { data } = await createOrder(orderData, accessToken);
+        setOrderId(data.orderId);
         setTransactionStage(TRANSACTION_STAGES.COMPLETED);
-
-        toast({
-          variant: 'default',
-          title: 'Success',
-          description: 'Your order has been placed successfully!',
-        });
       }
     } catch (error) {
       console.error('Error processing transaction:', error);
@@ -168,15 +170,6 @@ const PaymentShipping = ({
           ? error.message
           : 'Failed to process transaction'
       );
-
-      toast({
-        variant: 'destructive',
-        title: 'Error',
-        description:
-          error instanceof Error
-            ? error.message
-            : 'Failed to process transaction',
-      });
     }
   };
 
