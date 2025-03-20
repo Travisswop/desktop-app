@@ -14,6 +14,21 @@ export async function postKycInBridge(options: any) {
     console.error("Error from action:", error);
   }
 }
+export async function postExternalAccountInBridge(
+  customerId: string,
+  options: any
+) {
+  try {
+    const response = await fetch(
+      `https://api.bridge.xyz/v0/customers/${customerId}/external_accounts`,
+      options
+    );
+    const data = await response.json();
+    return data;
+  } catch (error) {
+    console.error("Error from action:", error);
+  }
+}
 
 export async function saveQycInfoToSwopDB(data: any) {
   const cookieStore = cookies();

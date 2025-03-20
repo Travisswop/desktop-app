@@ -1,6 +1,7 @@
 import {
   getKycInfo,
   getKycInfoFromBridge,
+  postExternalAccountInBridge,
   postKycInBridge,
   saveQycInfoToSwopDB,
 } from "@/actions/bank";
@@ -15,7 +16,7 @@ import { FaArrowRightLong } from "react-icons/fa6";
 import { v4 as uuidv4 } from "uuid";
 
 const AddBankModal = ({ bankShow, setBankShow }: any) => {
-  const [stepper, setStepper] = useState("bank-account");
+  const [stepper, setStepper] = useState("external-account-details");
   const [kycLoading, setKycLoading] = useState(false);
   const [externalKycLoading, setExternalKycLoading] = useState(false);
   const [kycUrl, setKycUrl] = useState<string | null>(null);
@@ -24,10 +25,10 @@ const AddBankModal = ({ bankShow, setBankShow }: any) => {
   const [kycDataFetchLoading, setKycDataFetchLoading] =
     useState<boolean>(false);
 
-  console.log(
-    "kyc url with agreement122222:",
-    agreementUrl + "&redirect-uri=" + kycUrl
-  );
+  // console.log(
+  //   "kyc url with agreement122222:",
+  //   agreementUrl + "&redirect-uri=" + kycUrl
+  // );
 
   const handleAddBank = () => {
     setStepper("bank-account-details");
@@ -36,6 +37,8 @@ const AddBankModal = ({ bankShow, setBankShow }: any) => {
   // const handleRedirectKyc = () => {
 
   // };
+
+  console.log("kycData", kycData);
 
   useEffect(() => {
     const getKycData = async () => {
@@ -68,6 +71,19 @@ const AddBankModal = ({ bankShow, setBankShow }: any) => {
               await saveQycInfoToSwopDB(bridgeInfo);
               setKycData(bridgeInfo);
             }
+          } else if (info.data.kyc_status === "approved") {
+            const options = {
+              method: "GET",
+              headers: {
+                accept: "application/json",
+                "Api-Key": process.env.NEXT_PUBLIC_BRIDGE_SECRET,
+              },
+            };
+            const response = await postExternalAccountInBridge(
+              info.data.customer_id,
+              options
+            );
+            console.log("response for external account", response);
           }
         }
       } catch (error) {
@@ -160,8 +176,76 @@ const AddBankModal = ({ bankShow, setBankShow }: any) => {
     }
   };
 
-  const handleExternalKycLink = () => {
-    console.log("external kyc link");
+  const handleAddExternalAccount = async (
+    e: React.FormEvent<HTMLFormElement>
+  ) => {
+    e.preventDefault();
+    setExternalKycLoading(true);
+    const formData = new FormData(e.currentTarget);
+    const firstName = formData.get("firstName") as string;
+    const lastName = formData.get("lastName") as string;
+    const bankName = formData.get("bankName") as string;
+    const accountNumber = formData.get("accountNumber") as string;
+    const routingNumber = formData.get("routingNumber") as string;
+    const checkingOrSavings = formData.get("checkingOrSavings") as string;
+    const streetLine1 = formData.get("streetLine1") as string;
+    const streetLine2 = formData.get("streetLine2") as string;
+    const city = formData.get("city") as string;
+    const state = formData.get("state") as string;
+    const postalCode = formData.get("postalCode") as string;
+    const countryCode = formData.get("countryCode") as string;
+    if (!firstName) {
+      return toast.error("First Name is Required!");
+    }
+    if (!lastName) {
+      return toast.error("Last Name is Required!");
+    }
+    if (kycData && kycData.customer_id) {
+      const options = {
+        method: "POST",
+        headers: {
+          accept: "application/json",
+          "Idempotency-Key": uuidv4(),
+          "content-type": "application/json",
+          "Api-Key": process.env.NEXT_PUBLIC_BRIDGE_SECRET || "",
+        },
+        body: JSON.stringify({
+          account: {
+            account_number: accountNumber,
+            routing_number: routingNumber,
+            checking_or_savings: checkingOrSavings,
+          },
+          address: {
+            street_line_1: streetLine1,
+            street_line_2: streetLine2,
+            city: city,
+            state: state,
+            postal_code: postalCode,
+            country: countryCode,
+          },
+          currency: "usd",
+          bank_name: bankName,
+          account_owner_name: firstName + " " + lastName,
+          account_type: "us",
+          account_owner_type: "individual",
+          first_name: firstName,
+          last_name: lastName,
+        }),
+      };
+      console.log("options", options);
+
+      try {
+        const respnse = await postExternalAccountInBridge(
+          kycData.customer_id,
+          options
+        );
+        console.log("respnse", respnse);
+      } catch (error) {
+        console.log(error);
+      } finally {
+        setExternalKycLoading(false);
+      }
+    }
   };
 
   return (
@@ -357,7 +441,7 @@ const AddBankModal = ({ bankShow, setBankShow }: any) => {
                     Enter Your Bank Account Details
                   </h2>
 
-                  <form onSubmit={handleExternalKycLink} className="w-full">
+                  <form onSubmit={handleAddExternalAccount} className="w-full">
                     <div className="flex items-start gap-5">
                       <div className="w-full flex flex-col gap-2">
                         <div className="flex flex-col items-start gap-1">
