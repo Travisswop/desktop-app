@@ -103,6 +103,7 @@ const MarketPlace: any = ({
     };
 
     console.log("data", data);
+    console.log("accessToken", accessToken);
 
     try {
       const response = await addProductToCart(data, accessToken, userName);
