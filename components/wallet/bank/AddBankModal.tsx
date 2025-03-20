@@ -1,98 +1,99 @@
+import {
+  getKycInfo,
+  getKycInfoFromBridge,
+  postExternalAccountInBridge,
+  postKycInBridge,
+  saveQycInfoToSwopDB,
+} from "@/actions/bank";
 import DynamicPrimaryBtn from "@/components/ui/Button/DynamicPrimaryBtn";
-import { Modal, ModalBody, ModalContent } from "@nextui-org/react";
-import React, { useState } from "react";
+import { Modal, ModalBody, ModalContent, Spinner } from "@nextui-org/react";
+import { Loader } from "lucide-react";
+import React, { useEffect, useState } from "react";
 import toast from "react-hot-toast";
 import { AiOutlineBank } from "react-icons/ai";
 import { FaPlus } from "react-icons/fa";
+import { FaArrowRightLong } from "react-icons/fa6";
 import { v4 as uuidv4 } from "uuid";
 
 const AddBankModal = ({ bankShow, setBankShow }: any) => {
-  const [stepper, setStepper] = useState("bank-account");
+  const [stepper, setStepper] = useState("external-account-details");
   const [kycLoading, setKycLoading] = useState(false);
+  const [externalKycLoading, setExternalKycLoading] = useState(false);
   const [kycUrl, setKycUrl] = useState<string | null>(null);
   const [agreementUrl, setAgreementUrl] = useState<string | null>(null);
+  const [kycData, setKycData] = useState<any>(null);
+  const [kycDataFetchLoading, setKycDataFetchLoading] =
+    useState<boolean>(false);
 
-  console.log("kyc url", kycUrl);
-  console.log("agreementUrl url", agreementUrl);
+  // console.log(
+  //   "kyc url with agreement122222:",
+  //   agreementUrl + "&redirect-uri=" + kycUrl
+  // );
 
   const handleAddBank = () => {
     setStepper("bank-account-details");
   };
 
-  //   const handleKycLink = (e: any) => {
-  //     e.preventDefault();
-  //     const formData = new FormData(e.currentTarget);
+  // const handleRedirectKyc = () => {
 
-  //     const firstName = formData.get("firstName");
-  //     const lastName = formData.get("lastName");
-  //     const email = formData.get("email");
-  //     const accountType = formData.get("accountType");
+  // };
 
-  //     console.log("env", process.env.NEXT_PUBLIC_BRIDGE_SECRET);
+  console.log("kycData", kycData);
 
-  //     if (!firstName) {
-  //       return toast.error("First Name is Required!");
-  //     }
-  //     if (!lastName) {
-  //       return toast.error("Last Name is Required!");
-  //     }
-  //     if (!email) {
-  //       return toast.error("Email is Required!");
-  //     }
-  //     if (!accountType) {
-  //       return toast.error("Please select account type");
-  //     } else {
-  //       const options = {
-  //         method: "POST",
-  //         headers: {
-  //           accept: "application/json",
-  //           "Idempotency-Key": uuidv4(),
-  //           "content-type": "application/json",
-  //           "Api-Key": process.env.BRIDGE_SECRET,
-  //         },
-  //         body: JSON.stringify({
-  //           type: accountType,
-  //           full_name: firstName + " " + lastName,
-  //           email: email,
-  //           redirect_uri: "https://swopme.app",
-  //         }),
-  //       };
+  useEffect(() => {
+    const getKycData = async () => {
+      try {
+        setKycDataFetchLoading(true);
+        const info = await getKycInfo();
+        console.log("info ", info);
+        if (info.success && info.message === "KYC information available") {
+          setKycData(info.data);
+          if (info.data.kyc_status !== "approved") {
+            const options = {
+              method: "GET",
+              headers: {
+                accept: "application/json",
+                "content-type": "application/json",
+                "Api-Key": process.env.NEXT_PUBLIC_BRIDGE_SECRET,
+              },
+            };
 
-  //       console.log("options", options);
+            const bridgeInfo = await getKycInfoFromBridge(
+              options,
+              info.data.id
+            );
 
-  //       setKycLoading(true);
-  //         await fetch("https://api.bridge.xyz/v0/kyc_links", options)
-  //           .then((res) => res.json())
-  //           .then(async (res) => {
-  //             if (res.code && res.code === "invalid_parameters") {
-  //               toastify("Invalid data, Please submit valid information!");
-  //             }
-  //             if ((await res?.kyc_link) && (await res?.tos_link)) {
-  //               await saveQycInfoToSwopDB(res);
-  //               setKycUrl(res.kyc_link);
-  //               setAgreementUrl(res.tos_link);
-  //               setScreen(1);
-  //             } else if (
-  //               (await res?.existing_kyc_link) &&
-  //               (await res?.existing_kyc_link?.kyc_link)
-  //             ) {
-  //               await saveQycInfoToSwopDB(res?.existing_kyc_link);
-  //               await dispatch({
-  //                 type: SEND_PARENT_PROFILE_INFO,
-  //                 payload: { data: { ...user_Data.data, kyc: res } },
-  //               });
-  //               setKycUrl(await res?.existing_kyc_link?.kyc_link);
-  //               setAgreementUrl(await res?.existing_kyc_link?.tos_link);
-  //               setScreen(1);
-  //             }
-  //             return setKycLoading(false);
-  //           })
-  //           .catch((err) => {
-  //             console.error("error iiiiii", err);
-  //             setKycLoading(false);
-  //           });
-  //     }
-  //   };
+            console.log("bridgeInfo123", bridgeInfo);
+
+            if (info.data.kyc_status !== bridgeInfo.kyc_status) {
+              console.log("hiittt");
+
+              await saveQycInfoToSwopDB(bridgeInfo);
+              setKycData(bridgeInfo);
+            }
+          } else if (info.data.kyc_status === "approved") {
+            const options = {
+              method: "GET",
+              headers: {
+                accept: "application/json",
+                "Api-Key": process.env.NEXT_PUBLIC_BRIDGE_SECRET,
+              },
+            };
+            const response = await postExternalAccountInBridge(
+              info.data.customer_id,
+              options
+            );
+            console.log("response for external account", response);
+          }
+        }
+      } catch (error) {
+        console.log("kyc db data fetching error", error);
+      } finally {
+        setKycDataFetchLoading(false);
+      }
+    };
+    getKycData();
+  }, []);
 
   const handleKycLink = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -135,11 +136,8 @@ const AddBankModal = ({ bankShow, setBankShow }: any) => {
     setKycLoading(true);
 
     try {
-      const response = await fetch(
-        "https://api.bridge.xyz/v0/kyc_links",
-        options
-      );
-      const data = await response.json();
+      const data = await postKycInBridge(options);
+      console.log("data for kyc", data);
 
       if (data.code && data.code === "invalid_parameters") {
         toast.error("Invalid data, Please submit valid information!");
@@ -147,12 +145,15 @@ const AddBankModal = ({ bankShow, setBankShow }: any) => {
       }
 
       if (data?.kyc_link && data?.tos_link) {
-        //await saveQycInfoToSwopDB(data); // Ensure this function is defined
+        await saveQycInfoToSwopDB(data); // Ensure this function is defined
         setKycUrl(data.kyc_link);
         setAgreementUrl(data.tos_link);
         setStepper("kyc-success"); // Add a new step for KYC success
+        window.open(data.tos_link + "&redirect_uri=" + data.kyc_link, "_blank");
+
+        // router.push(data.kyc_link + "&redirect-uri=" + data.tos_link);
       } else if (data?.existing_kyc_link?.kyc_link) {
-        //await saveQycInfoToSwopDB(data.existing_kyc_link); // Ensure this function is defined
+        await saveQycInfoToSwopDB(data.existing_kyc_link); // Ensure this function is defined
         // await dispatch({
         //   type: SEND_PARENT_PROFILE_INFO,
         //   payload: { data: { ...user_Data.data, kyc: data } },
@@ -160,6 +161,12 @@ const AddBankModal = ({ bankShow, setBankShow }: any) => {
         setKycUrl(data.existing_kyc_link.kyc_link);
         setAgreementUrl(data.existing_kyc_link.tos_link);
         setStepper("kyc-success"); // Add a new step for KYC success
+        window.open(
+          data.existing_kyc_link.tos_link +
+            "&redirect_uri=" +
+            data.existing_kyc_link.kyc_link,
+          "_blank"
+        );
       }
     } catch (err) {
       console.error("Error fetching KYC link:", err);
@@ -169,10 +176,87 @@ const AddBankModal = ({ bankShow, setBankShow }: any) => {
     }
   };
 
+  const handleAddExternalAccount = async (
+    e: React.FormEvent<HTMLFormElement>
+  ) => {
+    e.preventDefault();
+    setExternalKycLoading(true);
+    const formData = new FormData(e.currentTarget);
+    const firstName = formData.get("firstName") as string;
+    const lastName = formData.get("lastName") as string;
+    const bankName = formData.get("bankName") as string;
+    const accountNumber = formData.get("accountNumber") as string;
+    const routingNumber = formData.get("routingNumber") as string;
+    const checkingOrSavings = formData.get("checkingOrSavings") as string;
+    const streetLine1 = formData.get("streetLine1") as string;
+    const streetLine2 = formData.get("streetLine2") as string;
+    const city = formData.get("city") as string;
+    const state = formData.get("state") as string;
+    const postalCode = formData.get("postalCode") as string;
+    const countryCode = formData.get("countryCode") as string;
+    if (!firstName) {
+      return toast.error("First Name is Required!");
+    }
+    if (!lastName) {
+      return toast.error("Last Name is Required!");
+    }
+    if (kycData && kycData.customer_id) {
+      const options = {
+        method: "POST",
+        headers: {
+          accept: "application/json",
+          "Idempotency-Key": uuidv4(),
+          "content-type": "application/json",
+          "Api-Key": process.env.NEXT_PUBLIC_BRIDGE_SECRET || "",
+        },
+        body: JSON.stringify({
+          account: {
+            account_number: accountNumber,
+            routing_number: routingNumber,
+            checking_or_savings: checkingOrSavings,
+          },
+          address: {
+            street_line_1: streetLine1,
+            street_line_2: streetLine2,
+            city: city,
+            state: state,
+            postal_code: postalCode,
+            country: countryCode,
+          },
+          currency: "usd",
+          bank_name: bankName,
+          account_owner_name: firstName + " " + lastName,
+          account_type: "us",
+          account_owner_type: "individual",
+          first_name: firstName,
+          last_name: lastName,
+        }),
+      };
+      console.log("options", options);
+
+      try {
+        const respnse = await postExternalAccountInBridge(
+          kycData.customer_id,
+          options
+        );
+        console.log("respnse", respnse);
+      } catch (error) {
+        console.log(error);
+      } finally {
+        setExternalKycLoading(false);
+      }
+    }
+  };
+
   return (
     <div>
       <Modal
-        size={stepper === "bank-account-details" ? "2xl" : "md"}
+        size={
+          stepper === "bank-account-details" ||
+          stepper === "external-account-details"
+            ? "2xl"
+            : "md"
+        }
         isOpen={bankShow}
         onOpenChange={setBankShow}
       >
@@ -180,28 +264,89 @@ const AddBankModal = ({ bankShow, setBankShow }: any) => {
           <div className="w-full">
             <ModalBody className="text-center text-gray-700 py-6">
               {stepper === "bank-account" && (
-                <div className="text-center">
-                  <h2 className="text-start text-lg font-semibold mb-2">
-                    Bank Account
-                  </h2>
-                  <div className="border-2 border-dashed border-gray-200 rounded-xl p-5 flex flex-col items-center gap-3">
-                    <div className="w-11 h-10 bg-gray-200 rounded-lg flex items-center justify-center">
-                      <AiOutlineBank size={20} />
+                <div>
+                  {kycDataFetchLoading ? (
+                    <div className="h-[14.5rem] flex items-center justify-center">
+                      <Spinner />
                     </div>
-                    <div className="flex flex-col items-center gap-1">
-                      <p className="font-semibold">Add bank account</p>
-                      <p className="text-gray-400">
-                        You have no added bank account yet
-                      </p>
+                  ) : (
+                    <div>
+                      {kycData ? (
+                        <div className="text-center">
+                          <h2 className="text-start text-lg font-semibold mb-2">
+                            Bank Account
+                          </h2>
+                          <div className="border-2 border-dashed border-gray-200 rounded-xl p-5 flex flex-col items-center gap-3">
+                            <div className="w-11 h-10 bg-gray-200 rounded-lg flex items-center justify-center">
+                              <AiOutlineBank size={20} />
+                            </div>
+                            <div className="flex flex-col items-center gap-1">
+                              <p className="font-semibold">
+                                Status:{" "}
+                                <span
+                                  className={`capitalize ${
+                                    kycData?.kyc_status === "not_started" ||
+                                    kycData?.kyc_status === "rejected"
+                                      ? "text-red-600"
+                                      : kycData?.kyc_status === "approved"
+                                      ? "text-green-600"
+                                      : "text-yellow-600"
+                                  }`}
+                                >
+                                  {kycData?.kyc_status}
+                                </span>
+                              </p>
+
+                              <p className="text-gray-400">
+                                {kycData.kyc_status === "rejected"
+                                  ? kycData?.rejection_reasons[0]?.reason
+                                  : "KYC verification is required to proceed."}
+                              </p>
+                            </div>
+                          </div>
+                          <a
+                            href={`${kycData?.tos_link}&redirect_uri=${kycData?.kyc_link}`}
+                            target="_blank"
+                          >
+                            <DynamicPrimaryBtn
+                              // onClick={handleRedirectKyc}
+                              className="mx-auto mt-3"
+                            >
+                              {kycData.kyc_status === "rejected"
+                                ? "Resubmit"
+                                : "Complete KYC"}
+                              {/* <Loader className="animate-spin" /> */}
+                              <FaArrowRightLong className="ml-1" />
+                            </DynamicPrimaryBtn>
+                          </a>
+                        </div>
+                      ) : (
+                        <div className="text-center">
+                          <h2 className="text-start text-lg font-semibold mb-2">
+                            Bank Account
+                          </h2>
+                          <div className="border-2 border-dashed border-gray-200 rounded-xl p-5 flex flex-col items-center gap-3">
+                            <div className="w-11 h-10 bg-gray-200 rounded-lg flex items-center justify-center">
+                              <AiOutlineBank size={20} />
+                            </div>
+                            <div className="flex flex-col items-center gap-1">
+                              <p className="font-semibold">Add bank account</p>
+                              <p className="text-gray-400">
+                                You have no added bank account yet
+                              </p>
+                            </div>
+                          </div>
+                          <DynamicPrimaryBtn
+                            onClick={handleAddBank}
+                            className="mx-auto mt-3"
+                          >
+                            <FaPlus className="mr-1" />
+                            Add Bank Account
+                          </DynamicPrimaryBtn>
+                        </div>
+                      )}
                     </div>
-                  </div>
-                  <DynamicPrimaryBtn
-                    onClick={handleAddBank}
-                    className="mx-auto mt-3"
-                  >
-                    <FaPlus className="mr-1" />
-                    Add Bank Account
-                  </DynamicPrimaryBtn>
+                  )}
                 </div>
               )}
               {stepper === "bank-account-details" && (
@@ -281,6 +426,176 @@ const AddBankModal = ({ bankShow, setBankShow }: any) => {
                       className="mx-auto px-9 mt-6"
                     >
                       Next Step
+                      {kycLoading ? (
+                        <Loader className="animate-spin" />
+                      ) : (
+                        <FaArrowRightLong className="ml-1" />
+                      )}
+                    </DynamicPrimaryBtn>
+                  </form>
+                </div>
+              )}
+              {stepper === "external-account-details" && (
+                <div className="flex flex-col items-center gap-6">
+                  <h2 className="text-center text-lg font-semibold">
+                    Enter Your Bank Account Details
+                  </h2>
+
+                  <form onSubmit={handleAddExternalAccount} className="w-full">
+                    <div className="flex items-start gap-5">
+                      <div className="w-full flex flex-col gap-2">
+                        <div className="flex flex-col items-start gap-1">
+                          <label htmlFor="bankName">Bank Name</label>
+                          <input
+                            type="text"
+                            required
+                            id="bankName"
+                            name="bankName"
+                            placeholder="Enter Bank Name"
+                            className="w-full border appearance-none pr-2 border-[#ede8e8] focus:border-[#e5e0e0] rounded-xl focus:outline-none pl-4 py-2 text-gray-700 bg-gray-100"
+                          />
+                        </div>
+                        <div className="flex flex-col items-start gap-1">
+                          <label htmlFor="firstName">First Name</label>
+                          <input
+                            type="text"
+                            required
+                            id="firstName"
+                            name="firstName"
+                            placeholder="Enter Last Name"
+                            className="w-full border appearance-none pr-2 border-[#ede8e8] focus:border-[#e5e0e0] rounded-xl focus:outline-none pl-4 py-2 text-gray-700 bg-gray-100"
+                          />
+                        </div>
+                        <div className="flex flex-col items-start gap-1">
+                          <label htmlFor="lastName">Last Name</label>
+                          <input
+                            type="text"
+                            required
+                            id="lastName"
+                            name="lastName"
+                            placeholder="Enter Last Name"
+                            className="w-full border appearance-none pr-2 border-[#ede8e8] focus:border-[#e5e0e0] rounded-xl focus:outline-none pl-4 py-2 text-gray-700 bg-gray-100"
+                          />
+                        </div>
+                        <div className="flex flex-col items-start gap-1">
+                          <label htmlFor="accountNumber">Account Number</label>
+                          <input
+                            type="text"
+                            required
+                            id="accountNumber"
+                            name="accountNumber"
+                            placeholder="Enter Account Number"
+                            className="w-full border appearance-none pr-2 border-[#ede8e8] focus:border-[#e5e0e0] rounded-xl focus:outline-none pl-4 py-2 text-gray-700 bg-gray-100"
+                          />
+                        </div>
+                        <div className="flex flex-col items-start gap-1">
+                          <label htmlFor="routingNumber">Routing Number</label>
+                          <input
+                            type="text"
+                            required
+                            id="routingNumber"
+                            name="routingNumber"
+                            placeholder="Enter Routing Number"
+                            className="w-full border appearance-none pr-2 border-[#ede8e8] focus:border-[#e5e0e0] rounded-xl focus:outline-none pl-4 py-2 text-gray-700 bg-gray-100"
+                          />
+                        </div>
+                        <div className="flex flex-col items-start gap-1">
+                          <label htmlFor="checkingOrSavings">
+                            Checking or Savings
+                          </label>
+                          <select
+                            required
+                            id="checkingOrSavings"
+                            name="checkingOrSavings"
+                            className="w-full border border-[#ede8e8] focus:border-[#e5e0e0] rounded-xl py-2.5 px-3 bg-gray-100"
+                          >
+                            <option value="" disabled>
+                              Select Checking or Savings
+                            </option>
+                            <option value="checking">Checking</option>
+                            <option value="savings">Savings</option>
+                          </select>
+                        </div>
+                      </div>
+                      <div className="w-full flex flex-col gap-2">
+                        <div className="flex flex-col items-start gap-1">
+                          <label htmlFor="streetLine1">Street Line 1</label>
+                          <input
+                            type="text"
+                            required
+                            id="streetLine1"
+                            name="streetLine1"
+                            placeholder="Enter Street Line 1"
+                            className="w-full border appearance-none pr-2 border-[#ede8e8] focus:border-[#e5e0e0] rounded-xl focus:outline-none pl-4 py-2 text-gray-700 bg-gray-100"
+                          />
+                        </div>
+                        <div className="flex flex-col items-start gap-1">
+                          <label htmlFor="streetLine2">Street Line 2</label>
+                          <input
+                            type="text"
+                            required
+                            id="streetLine2"
+                            name="streetLine2"
+                            placeholder="Enter Street Line 2"
+                            className="w-full border appearance-none pr-2 border-[#ede8e8] focus:border-[#e5e0e0] rounded-xl focus:outline-none pl-4 py-2 text-gray-700 bg-gray-100"
+                          />
+                        </div>
+                        <div className="flex flex-col items-start gap-1">
+                          <label htmlFor="city">City</label>
+                          <input
+                            type="text"
+                            required
+                            id="city"
+                            name="city"
+                            placeholder="Enter City"
+                            className="w-full border appearance-none pr-2 border-[#ede8e8] focus:border-[#e5e0e0] rounded-xl focus:outline-none pl-4 py-2 text-gray-700 bg-gray-100"
+                          />
+                        </div>
+                        <div className="flex flex-col items-start gap-1">
+                          <label htmlFor="state">State</label>
+                          <input
+                            type="text"
+                            required
+                            id="state"
+                            name="state"
+                            placeholder="Enter State"
+                            className="w-full border appearance-none pr-2 border-[#ede8e8] focus:border-[#e5e0e0] rounded-xl focus:outline-none pl-4 py-2 text-gray-700 bg-gray-100"
+                          />
+                        </div>
+                        <div className="flex flex-col items-start gap-1">
+                          <label htmlFor="postalCode">Postal Code</label>
+                          <input
+                            type="text"
+                            required
+                            id="postalCode"
+                            name="postalCode"
+                            placeholder="Enter Postal Code"
+                            className="w-full border appearance-none pr-2 border-[#ede8e8] focus:border-[#e5e0e0] rounded-xl focus:outline-none pl-4 py-2 text-gray-700 bg-gray-100"
+                          />
+                        </div>
+                        <div className="flex flex-col items-start gap-1">
+                          <label htmlFor="countryCode">Country Code</label>
+                          <input
+                            type="text"
+                            required
+                            id="countryCode"
+                            name="countryCode"
+                            placeholder="Enter Country Code"
+                            className="w-full border appearance-none pr-2 border-[#ede8e8] focus:border-[#e5e0e0] rounded-xl focus:outline-none pl-4 py-2 text-gray-700 bg-gray-100"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                    <DynamicPrimaryBtn
+                      type={"submit"}
+                      className="mx-auto px-5 mt-6"
+                    >
+                      Submit
+                      {externalKycLoading ? (
+                        <Loader className="animate-spin" />
+                      ) : (
+                        <FaArrowRightLong className="ml-1" />
+                      )}
                     </DynamicPrimaryBtn>
                   </form>
                 </div>
