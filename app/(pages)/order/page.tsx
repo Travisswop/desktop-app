@@ -65,52 +65,55 @@ const OrderManagement = () => {
 
   // Fetch orders based on current filters
   const fetchOrders = async () => {
-    try {
-      setLoading(true);
+    if (accessToken) {
+      try {
+        setLoading(true);
 
-      // Convert filters to query string
-      const queryParams = new URLSearchParams();
-      Object.entries(filters).forEach(([key, value]) => {
-        if (value !== undefined && value !== null) {
-          queryParams.append(key, String(value));
+        // Convert filters to query string
+        const queryParams = new URLSearchParams();
+        Object.entries(filters).forEach(([key, value]) => {
+          if (value !== undefined && value !== null) {
+            queryParams.append(key, String(value));
+          }
+        });
+
+        const response = await fetch(
+          `${
+            process.env.NEXT_PUBLIC_API_URL
+          }/api/v1/desktop/nft/fetchUserOrders?${queryParams.toString()}`,
+          {
+            method: 'GET',
+            headers: {
+              'Content-Type': 'application/json',
+              authorization: `Bearer ${accessToken}`,
+            },
+          }
+        );
+
+        const data = await response.json();
+        console.log('🚀 ~ fetchOrders ~ data:', data);
+
+        if (data.state === 'success') {
+          // Process orders received from backend
+          const { orders, purchases, summary } = data.data;
+
+          setPurchases(purchases);
+          setOrders(orders);
+          setPagination(data.data.pagination);
+          setSummary(summary);
+          setError(null);
+        } else {
+          setError(data.message || 'Failed to fetch orders');
         }
-      });
-
-      const response = await fetch(
-        `${
-          process.env.NEXT_PUBLIC_API_URL
-        }/api/v1/desktop/nft/fetchUserOrders?${queryParams.toString()}`,
-        {
-          method: 'GET',
-          headers: {
-            'Content-Type': 'application/json',
-            authorization: `Bearer ${accessToken}`,
-          },
-        }
-      );
-
-      const data = await response.json();
-      console.log('🚀 ~ fetchOrders ~ data:', data);
-
-      if (data.state === 'success') {
-        // Process orders received from backend
-        const { orders, purchases, summary } = data.data;
-
-        setPurchases(purchases);
-        setOrders(orders);
-        setPagination(data.data.pagination);
-        setSummary(summary);
-      } else {
-        setError(data.message || 'Failed to fetch orders');
+      } catch (err: any) {
+        setError(
+          err.response?.data?.message ||
+            err.message ||
+            'An error occurred while fetching orders'
+        );
+      } finally {
+        setLoading(false);
       }
-    } catch (err: any) {
-      setError(
-        err.response?.data?.message ||
-          err.message ||
-          'An error occurred while fetching orders'
-      );
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -248,13 +251,7 @@ const OrderManagement = () => {
                     Total Revenue
                   </div>
                   <div className="text-3xl font-bold">
-                    $
-                    {orders
-                      .reduce(
-                        (total, order) => total + order.price,
-                        0
-                      )
-                      .toFixed(2)}
+                    ${summary.totalEarned.toFixed(2)}
                   </div>
                 </div>
 
