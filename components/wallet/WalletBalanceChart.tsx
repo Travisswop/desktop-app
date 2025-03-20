@@ -1,12 +1,12 @@
-import { useUser } from "@/lib/UserContext";
+import { useUser } from '@/lib/UserContext';
 import {
   ArrowLeftRight,
   // BadgeDollarSign,
   // QrCode,
   // Rocket,
   Wallet,
-} from "lucide-react";
-import React, { useState, useMemo, useEffect } from "react";
+} from 'lucide-react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   AreaChart,
   Area,
@@ -15,24 +15,24 @@ import {
   CartesianGrid,
   Tooltip,
   ResponsiveContainer,
-} from "recharts";
-import AddBankModal from "./bank/AddBankModal";
-import WalletAddressPopup from "./wallet-address-popup";
-import { Skeleton } from "../ui/skeleton";
-import WalletChartButton from "../Button/WalletChartButton";
-import { IoIosSend } from "react-icons/io";
-import { BsBank2, BsQrCodeScan } from "react-icons/bs";
-import { FaRegListAlt } from "react-icons/fa";
+} from 'recharts';
+import AddBankModal from './bank/AddBankModal';
+import WalletAddressPopup from './wallet-address-popup';
+import { Skeleton } from '../ui/skeleton';
+import WalletChartButton from '../Button/WalletChartButton';
+import { IoIosSend } from 'react-icons/io';
+import { BsBank2, BsQrCodeScan } from 'react-icons/bs';
+import { FaRegListAlt } from 'react-icons/fa';
 
 const BalanceChart = ({
   balanceHistory,
   // walletList,
-  totalBalance,
   onSelectAsset,
   // onQRClick,
   walletData,
+  totalTokensValue,
 }: any) => {
-  const [timeRange, setTimeRange] = useState("7days");
+  const [timeRange, setTimeRange] = useState('7days');
   const [showPopup, setShowPopup] = useState(false);
   const [bankShow, setBankShow] = useState(false);
 
@@ -43,17 +43,23 @@ const BalanceChart = ({
 
     // Calculate start date based on time range
     switch (timeRange) {
-      case "7days":
+      case '7days':
         startDate.setDate(now.getDate() - 7);
         break;
-      case "1month":
-        startDate = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+      case '1month':
+        startDate = new Date(
+          now.getTime() - 30 * 24 * 60 * 60 * 1000
+        );
         break;
-      case "6months":
-        startDate = new Date(now.getTime() - 180 * 24 * 60 * 60 * 1000);
+      case '6months':
+        startDate = new Date(
+          now.getTime() - 180 * 24 * 60 * 60 * 1000
+        );
         break;
-      case "1year":
-        startDate = new Date(now.getTime() - 365 * 24 * 60 * 60 * 1000);
+      case '1year':
+        startDate = new Date(
+          now.getTime() - 365 * 24 * 60 * 60 * 1000
+        );
         break;
       default:
         startDate = new Date(0);
@@ -72,16 +78,21 @@ const BalanceChart = ({
     }
 
     // Create date-to-amount map
-    const dateAmountMap = balanceHistory.reduce((acc: any, entry: any) => {
-      const entryDate = new Date(entry.createdAt).toISOString().split("T")[0];
-      acc[entryDate] = entry.amount;
-      return acc;
-    }, {});
+    const dateAmountMap = balanceHistory.reduce(
+      (acc: any, entry: any) => {
+        const entryDate = new Date(entry.createdAt)
+          .toISOString()
+          .split('T')[0];
+        acc[entryDate] = entry.amount;
+        return acc;
+      },
+      {}
+    );
 
     // Fill missing dates with previous value or 0
     let lastKnownAmount = 0;
     return datesInRange.map((date) => {
-      const dateStr = date.toISOString().split("T")[0];
+      const dateStr = date.toISOString().split('T')[0];
       if (dateAmountMap[dateStr]) {
         lastKnownAmount = dateAmountMap[dateStr];
       }
@@ -111,7 +122,7 @@ const BalanceChart = ({
           <h2 className="font-bold text-xl text-gray-700">Balance</h2>
           <p className="font-bold text-xl text-gray-700 ">
             $
-            {totalBalance.toLocaleString(undefined, {
+            {totalTokensValue.toLocaleString(undefined, {
               minimumFractionDigits: 2,
               maximumFractionDigits: 2,
             })}
@@ -123,14 +134,14 @@ const BalanceChart = ({
             // variant="black"
             // size="icon"
             // className={totalBalance === 0 ? "cursor-not-allowed" : ""}
-            disabled={totalBalance === 0}
+            disabled={totalTokensValue === 0}
             onClick={onSelectAsset}
           >
             <IoIosSend color="black" size={18} /> Send
           </WalletChartButton>
           <WalletChartButton
             onClick={() => setShowPopup(!showPopup)}
-            disabled={totalBalance === 0}
+            disabled={totalTokensValue === 0}
           >
             <Wallet size={16} /> Receive
           </WalletChartButton>
@@ -158,11 +169,27 @@ const BalanceChart = ({
       <ResponsiveContainer width="100%" maxHeight={320}>
         <AreaChart data={filteredData}>
           <defs>
-            <linearGradient id="colorValue" x1="0" y1="0" x2="0" y2="1">
+            <linearGradient
+              id="colorValue"
+              x1="0"
+              y1="0"
+              x2="0"
+              y2="1"
+            >
               <stop offset="0%" stopColor="#CFFAD6" stopOpacity={1} />
-              <stop offset="100%" stopColor="#EFFDF1" stopOpacity={1} />
+              <stop
+                offset="100%"
+                stopColor="#EFFDF1"
+                stopOpacity={1}
+              />
             </linearGradient>
-            <linearGradient id="strokeGradient" x1="0" y1="0" x2="1" y2="0">
+            <linearGradient
+              id="strokeGradient"
+              x1="0"
+              y1="0"
+              x2="1"
+              y2="0"
+            >
               <stop offset="0%" stopColor="#A2EFB9" />
               <stop offset="100%" stopColor="#A1C7E9" />
             </linearGradient>
@@ -173,19 +200,23 @@ const BalanceChart = ({
             tickLine={false}
             tick={false}
             axisLine={false}
-            tickFormatter={(str) => new Date(str).toLocaleDateString()}
+            tickFormatter={(str) =>
+              new Date(str).toLocaleDateString()
+            }
           />
           <YAxis
             axisLine={false}
             tick={false}
             tickLine={false}
-            domain={["auto", "auto"]}
+            domain={['auto', 'auto']}
           />
           <Tooltip
-            labelFormatter={(str) => new Date(str).toLocaleDateString()}
+            labelFormatter={(str) =>
+              new Date(str).toLocaleDateString()
+            }
             formatter={(value: number) => [
               `$${value.toLocaleString()}`,
-              "Balance",
+              'Balance',
             ]}
           />
           <Area
@@ -198,15 +229,18 @@ const BalanceChart = ({
         </AreaChart>
       </ResponsiveContainer>
       <div className="flex items-center gap-6 justify-between">
-        <div className="flex items-center" style={{ marginBottom: "20px" }}>
+        <div
+          className="flex items-center"
+          style={{ marginBottom: '20px' }}
+        >
           <p
             className={`font-semibold p-2 rounded-lg mr-2 ${
               Number(growthPercentage) >= 0
-                ? "text-[#00E725] bg-[#7AE38B33]"
-                : "text-red-500 bg-red-100"
+                ? 'text-[#00E725] bg-[#7AE38B33]'
+                : 'text-red-500 bg-red-100'
             }`}
           >
-            {growthPercentage > 0 ? "+" : ""}
+            {growthPercentage > 0 ? '+' : ''}
             {growthPercentage}%
           </p>
           <label>In the last</label>
@@ -284,7 +318,7 @@ const WalletBalanceChartForWalletPage = ({
           `${process.env.NEXT_PUBLIC_API_URL}/api/v5/wallet/getBalance/${user._id}`
         );
         if (!response.ok) {
-          throw new Error("Network response was not ok");
+          throw new Error('Network response was not ok');
         }
         const result = await response.json();
         setWalletList(result.balanceData.wallet);
@@ -292,7 +326,7 @@ const WalletBalanceChartForWalletPage = ({
         setTotalTokensValue(result.totalTokensValue);
       } catch (error) {
         // setError(error);
-        console.log("error", error);
+        console.log('error', error);
       }
     };
     if (user?._id) {
@@ -306,7 +340,6 @@ const WalletBalanceChartForWalletPage = ({
         <BalanceChart
           balanceHistory={balanceData}
           walletList={walletList}
-          totalBalance={totalBalance}
           onSelectAsset={onSelectAsset}
           onQRClick={onQRClick}
           walletData={walletData}

@@ -5,6 +5,7 @@ import { usePrivy, useSolanaWallets } from '@privy-io/react-auth';
 import { useMultiChainTokenData } from '@/lib/hooks/useToken';
 import TokenSelector from '@/app/(public-profile)/sp/[username]/cart/TokenSelector';
 import PaymentShipping from '@/app/(public-profile)/sp/[username]/cart/Shipping';
+import { ChainType } from '@/types/nft';
 
 const chains: ChainType[] = ['ETHEREUM', 'POLYGON', 'BASE', 'SOLANA'];
 
