@@ -7,7 +7,6 @@ import {
 import DynamicPrimaryBtn from "@/components/ui/Button/DynamicPrimaryBtn";
 import { Modal, ModalBody, ModalContent, Spinner } from "@nextui-org/react";
 import { Loader } from "lucide-react";
-import { useRouter } from "next/navigation";
 import React, { useEffect, useState } from "react";
 import toast from "react-hot-toast";
 import { AiOutlineBank } from "react-icons/ai";
@@ -18,13 +17,12 @@ import { v4 as uuidv4 } from "uuid";
 const AddBankModal = ({ bankShow, setBankShow }: any) => {
   const [stepper, setStepper] = useState("bank-account");
   const [kycLoading, setKycLoading] = useState(false);
+  const [externalKycLoading, setExternalKycLoading] = useState(false);
   const [kycUrl, setKycUrl] = useState<string | null>(null);
   const [agreementUrl, setAgreementUrl] = useState<string | null>(null);
   const [kycData, setKycData] = useState<any>(null);
   const [kycDataFetchLoading, setKycDataFetchLoading] =
     useState<boolean>(false);
-
-  // const router = useRouter();
 
   console.log(
     "kyc url with agreement122222:",
@@ -162,10 +160,19 @@ const AddBankModal = ({ bankShow, setBankShow }: any) => {
     }
   };
 
+  const handleExternalKycLink = () => {
+    console.log("external kyc link");
+  };
+
   return (
     <div>
       <Modal
-        size={stepper === "bank-account-details" ? "2xl" : "md"}
+        size={
+          stepper === "bank-account-details" ||
+          stepper === "external-account-details"
+            ? "2xl"
+            : "md"
+        }
         isOpen={bankShow}
         onOpenChange={setBankShow}
       >
@@ -336,6 +343,171 @@ const AddBankModal = ({ bankShow, setBankShow }: any) => {
                     >
                       Next Step
                       {kycLoading ? (
+                        <Loader className="animate-spin" />
+                      ) : (
+                        <FaArrowRightLong className="ml-1" />
+                      )}
+                    </DynamicPrimaryBtn>
+                  </form>
+                </div>
+              )}
+              {stepper === "external-account-details" && (
+                <div className="flex flex-col items-center gap-6">
+                  <h2 className="text-center text-lg font-semibold">
+                    Enter Your Bank Account Details
+                  </h2>
+
+                  <form onSubmit={handleExternalKycLink} className="w-full">
+                    <div className="flex items-start gap-5">
+                      <div className="w-full flex flex-col gap-2">
+                        <div className="flex flex-col items-start gap-1">
+                          <label htmlFor="bankName">Bank Name</label>
+                          <input
+                            type="text"
+                            required
+                            id="bankName"
+                            name="bankName"
+                            placeholder="Enter Bank Name"
+                            className="w-full border appearance-none pr-2 border-[#ede8e8] focus:border-[#e5e0e0] rounded-xl focus:outline-none pl-4 py-2 text-gray-700 bg-gray-100"
+                          />
+                        </div>
+                        <div className="flex flex-col items-start gap-1">
+                          <label htmlFor="firstName">First Name</label>
+                          <input
+                            type="text"
+                            required
+                            id="firstName"
+                            name="firstName"
+                            placeholder="Enter Last Name"
+                            className="w-full border appearance-none pr-2 border-[#ede8e8] focus:border-[#e5e0e0] rounded-xl focus:outline-none pl-4 py-2 text-gray-700 bg-gray-100"
+                          />
+                        </div>
+                        <div className="flex flex-col items-start gap-1">
+                          <label htmlFor="lastName">Last Name</label>
+                          <input
+                            type="text"
+                            required
+                            id="lastName"
+                            name="lastName"
+                            placeholder="Enter Last Name"
+                            className="w-full border appearance-none pr-2 border-[#ede8e8] focus:border-[#e5e0e0] rounded-xl focus:outline-none pl-4 py-2 text-gray-700 bg-gray-100"
+                          />
+                        </div>
+                        <div className="flex flex-col items-start gap-1">
+                          <label htmlFor="accountNumber">Account Number</label>
+                          <input
+                            type="text"
+                            required
+                            id="accountNumber"
+                            name="accountNumber"
+                            placeholder="Enter Account Number"
+                            className="w-full border appearance-none pr-2 border-[#ede8e8] focus:border-[#e5e0e0] rounded-xl focus:outline-none pl-4 py-2 text-gray-700 bg-gray-100"
+                          />
+                        </div>
+                        <div className="flex flex-col items-start gap-1">
+                          <label htmlFor="routingNumber">Routing Number</label>
+                          <input
+                            type="text"
+                            required
+                            id="routingNumber"
+                            name="routingNumber"
+                            placeholder="Enter Routing Number"
+                            className="w-full border appearance-none pr-2 border-[#ede8e8] focus:border-[#e5e0e0] rounded-xl focus:outline-none pl-4 py-2 text-gray-700 bg-gray-100"
+                          />
+                        </div>
+                        <div className="flex flex-col items-start gap-1">
+                          <label htmlFor="checkingOrSavings">
+                            Checking or Savings
+                          </label>
+                          <select
+                            required
+                            id="checkingOrSavings"
+                            name="checkingOrSavings"
+                            className="w-full border border-[#ede8e8] focus:border-[#e5e0e0] rounded-xl py-2.5 px-3 bg-gray-100"
+                          >
+                            <option value="" disabled>
+                              Select Checking or Savings
+                            </option>
+                            <option value="checking">Checking</option>
+                            <option value="savings">Savings</option>
+                          </select>
+                        </div>
+                      </div>
+                      <div className="w-full flex flex-col gap-2">
+                        <div className="flex flex-col items-start gap-1">
+                          <label htmlFor="streetLine1">Street Line 1</label>
+                          <input
+                            type="text"
+                            required
+                            id="streetLine1"
+                            name="streetLine1"
+                            placeholder="Enter Street Line 1"
+                            className="w-full border appearance-none pr-2 border-[#ede8e8] focus:border-[#e5e0e0] rounded-xl focus:outline-none pl-4 py-2 text-gray-700 bg-gray-100"
+                          />
+                        </div>
+                        <div className="flex flex-col items-start gap-1">
+                          <label htmlFor="streetLine2">Street Line 2</label>
+                          <input
+                            type="text"
+                            required
+                            id="streetLine2"
+                            name="streetLine2"
+                            placeholder="Enter Street Line 2"
+                            className="w-full border appearance-none pr-2 border-[#ede8e8] focus:border-[#e5e0e0] rounded-xl focus:outline-none pl-4 py-2 text-gray-700 bg-gray-100"
+                          />
+                        </div>
+                        <div className="flex flex-col items-start gap-1">
+                          <label htmlFor="city">City</label>
+                          <input
+                            type="text"
+                            required
+                            id="city"
+                            name="city"
+                            placeholder="Enter City"
+                            className="w-full border appearance-none pr-2 border-[#ede8e8] focus:border-[#e5e0e0] rounded-xl focus:outline-none pl-4 py-2 text-gray-700 bg-gray-100"
+                          />
+                        </div>
+                        <div className="flex flex-col items-start gap-1">
+                          <label htmlFor="state">State</label>
+                          <input
+                            type="text"
+                            required
+                            id="state"
+                            name="state"
+                            placeholder="Enter State"
+                            className="w-full border appearance-none pr-2 border-[#ede8e8] focus:border-[#e5e0e0] rounded-xl focus:outline-none pl-4 py-2 text-gray-700 bg-gray-100"
+                          />
+                        </div>
+                        <div className="flex flex-col items-start gap-1">
+                          <label htmlFor="postalCode">Postal Code</label>
+                          <input
+                            type="text"
+                            required
+                            id="postalCode"
+                            name="postalCode"
+                            placeholder="Enter Postal Code"
+                            className="w-full border appearance-none pr-2 border-[#ede8e8] focus:border-[#e5e0e0] rounded-xl focus:outline-none pl-4 py-2 text-gray-700 bg-gray-100"
+                          />
+                        </div>
+                        <div className="flex flex-col items-start gap-1">
+                          <label htmlFor="countryCode">Country Code</label>
+                          <input
+                            type="text"
+                            required
+                            id="countryCode"
+                            name="countryCode"
+                            placeholder="Enter Country Code"
+                            className="w-full border appearance-none pr-2 border-[#ede8e8] focus:border-[#e5e0e0] rounded-xl focus:outline-none pl-4 py-2 text-gray-700 bg-gray-100"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                    <DynamicPrimaryBtn
+                      type={"submit"}
+                      className="mx-auto px-5 mt-6"
+                    >
+                      Submit
+                      {externalKycLoading ? (
                         <Loader className="animate-spin" />
                       ) : (
                         <FaArrowRightLong className="ml-1" />
