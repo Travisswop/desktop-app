@@ -1,15 +1,15 @@
-"use client";
-import { FC, useState } from "react";
-import Image from "next/image";
-import { downloadVCard } from "@/lib/vCardUtils";
-import { motion } from "framer-motion";
-import { LuCirclePlus } from "react-icons/lu";
-import { useUser } from "@/lib/UserContext";
-import { useRouter } from "next/navigation";
-import { Spinner } from "@nextui-org/react";
-import { addProductToCart } from "@/actions/addToCartActions";
-import toast from "react-hot-toast";
-import { Loader } from "lucide-react";
+'use client';
+import { FC, useState } from 'react';
+import Image from 'next/image';
+import { downloadVCard } from '@/lib/vCardUtils';
+import { motion } from 'framer-motion';
+import { LuCirclePlus } from 'react-icons/lu';
+import { useUser } from '@/lib/UserContext';
+import { useRouter } from 'next/navigation';
+import { Spinner } from '@nextui-org/react';
+import { addProductToCart } from '@/actions/addToCartActions';
+import toast from 'react-hot-toast';
+import { Loader } from 'lucide-react';
 const API_URL = process.env.NEXT_PUBLIC_API_URL;
 interface Props {
   data: {
@@ -34,25 +34,25 @@ const variants = {
 
 const download = async (data: any, parentId: string) => {
   const vCard = await downloadVCard(data);
-  const blob = new Blob([vCard], { type: "text/vcard" });
+  const blob = new Blob([vCard], { type: 'text/vcard' });
   const url = window.URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.setAttribute("hidden", "");
-  a.setAttribute("href", url);
-  a.setAttribute("download", `${data.name}.vcf`);
+  const a = document.createElement('a');
+  a.setAttribute('hidden', '');
+  a.setAttribute('href', url);
+  a.setAttribute('download', `${data.name}.vcf`);
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
 
   try {
     fetch(`${API_URL}/api/v1/web/updateCount`, {
-      method: "POST",
+      method: 'POST',
       headers: {
-        Accept: "application/json",
-        "Content-Type": "application/json",
+        Accept: 'application/json',
+        'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        socialType: "contact",
+        socialType: 'contact',
         socialId: data._id,
         parentId,
       }),
@@ -83,6 +83,8 @@ const MarketPlace: any = ({
   } = data;
   const delay = number + 1 * 0.2;
 
+  console.log('accesstoken', accessToken);
+
   // const { user, accessToken } = useUser();
 
   const router = useRouter();
@@ -93,7 +95,7 @@ const MarketPlace: any = ({
     event.stopPropagation();
     setAddToCartLoading(true);
     if (!accessToken) {
-      return router.push("/login");
+      return router.push('/login');
     }
     const data = {
       userId: userId,
@@ -102,25 +104,29 @@ const MarketPlace: any = ({
       quantity: 1,
     };
 
-    console.log("data", data);
+    console.log('data', data);
 
     try {
-      const response = await addProductToCart(data, accessToken, userName);
+      const response = await addProductToCart(
+        data,
+        accessToken,
+        userName
+      );
 
       // const resData = await response.json();
 
-      console.log("response for creating product cart", response);
+      console.log('response for creating product cart', response);
 
       // if (resData?.data?.quantity === 1) {
       //   setCartQty(cartQty + 1);
       // }
 
       setAddToCartLoading(false);
-      toast.success("Items added to cart");
+      toast.success('Items added to cart');
 
       // console.log("data", data);
     } catch (error) {
-      toast.error("Something went wrong!Please try again!");
+      toast.error('Something went wrong!Please try again!');
       console.log(error);
       setAddToCartLoading(false);
     }
@@ -135,13 +141,13 @@ const MarketPlace: any = ({
       transition={{
         duration: 0.4,
         delay,
-        type: "easeInOut",
+        type: 'easeInOut',
       }}
     >
       <div>
         <motion.div
           transition={{
-            type: "spring",
+            type: 'spring',
             stiffness: 400,
             damping: 10,
           }}
@@ -153,7 +159,7 @@ const MarketPlace: any = ({
               <Image
                 className="w-full h-auto"
                 src={itemImageUrl}
-                alt={"mint image"}
+                alt={'mint image'}
                 width={240}
                 height={240}
               />
@@ -173,7 +179,7 @@ const MarketPlace: any = ({
               className="text-sm font-semibold flex items-center gap-1"
             >
               <span className="flex items-center gap-1">
-                Add To Cart{" "}
+                Add To Cart{' '}
                 <span className="w-5">
                   {addToCartLoading ? (
                     <Loader className="animate-spin" size={20} />
