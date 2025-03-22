@@ -10,6 +10,7 @@ import DynamicPrimaryBtn from "@/components/ui/Button/DynamicPrimaryBtn";
 import { Modal, ModalBody, ModalContent, Spinner } from "@nextui-org/react";
 import { Loader } from "lucide-react";
 import Image from "next/image";
+import { useRouter } from "next/navigation";
 import React, { useEffect, useState } from "react";
 import toast from "react-hot-toast";
 import { AiOutlineBank } from "react-icons/ai";
@@ -30,10 +31,7 @@ const AddBankModal = ({ bankShow, setBankShow }: any) => {
     useState<boolean>(false);
   const [copiedItem, setCopiedItem] = useState(""); // Track which item was copied
 
-  // console.log(
-  //   "kyc url with agreement122222:",
-  //   agreementUrl + "&redirect-uri=" + kycUrl
-  // );
+  const router = useRouter();
 
   const handleAddBank = () => {
     setStepper("bank-account-details");
@@ -149,7 +147,7 @@ const AddBankModal = ({ bankShow, setBankShow }: any) => {
         type: accountType,
         full_name: `${firstName} ${lastName}`,
         email: email,
-        redirect_uri: "https://swopme.app",
+        redirect_uri: "https://www.desktop-app-psi.vercel.app/wallet",
       }),
     };
 
@@ -169,7 +167,14 @@ const AddBankModal = ({ bankShow, setBankShow }: any) => {
         setKycUrl(data.kyc_link);
         setAgreementUrl(data.tos_link);
         setStepper("kyc-success"); // Add a new step for KYC success
-        window.open(data.tos_link + "&redirect_uri=" + data.kyc_link, "_blank");
+
+        router.push(
+          data.tos_link + "&redirect_uri=" + encodeURIComponent(data.kyc_link)
+        );
+
+        // window.open(
+        //   data.tos_link + "&redirect_uri=" + encodeURIComponent(data.kyc_link)
+        // );
 
         // router.push(data.kyc_link + "&redirect-uri=" + data.tos_link);
       } else if (data?.existing_kyc_link?.kyc_link) {
@@ -181,12 +186,16 @@ const AddBankModal = ({ bankShow, setBankShow }: any) => {
         setKycUrl(data.existing_kyc_link.kyc_link);
         setAgreementUrl(data.existing_kyc_link.tos_link);
         setStepper("kyc-success"); // Add a new step for KYC success
-        window.open(
+        router.push(
           data.existing_kyc_link.tos_link +
             "&redirect_uri=" +
-            data.existing_kyc_link.kyc_link,
-          "_blank"
+            encodeURIComponent(data.existing_kyc_link.kyc_link)
         );
+        // window.open(
+        //   data.existing_kyc_link.tos_link +
+        //     "&redirect_uri=" +
+        //     encodeURIComponent(data.existing_kyc_link.kyc_link)
+        // );
       }
     } catch (err) {
       console.error("Error fetching KYC link:", err);
@@ -342,7 +351,11 @@ const AddBankModal = ({ bankShow, setBankShow }: any) => {
                             </div>
                           </div>
                           <a
-                            href={`${kycData?.tos_link}&redirect_uri=${kycData?.kyc_link}`}
+                            href={`${
+                              kycData?.tos_link
+                            }&redirect_uri=${encodeURIComponent(
+                              kycData?.kyc_link
+                            )}`}
                             target="_blank"
                           >
                             <DynamicPrimaryBtn
