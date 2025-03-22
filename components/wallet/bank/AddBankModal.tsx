@@ -1,4 +1,5 @@
 import {
+  getDBExternalAccountInfo,
   getKycInfo,
   getKycInfoFromBridge,
   postExternalAccountInBridge,
@@ -8,22 +9,26 @@ import {
 import DynamicPrimaryBtn from "@/components/ui/Button/DynamicPrimaryBtn";
 import { Modal, ModalBody, ModalContent, Spinner } from "@nextui-org/react";
 import { Loader } from "lucide-react";
+import Image from "next/image";
 import React, { useEffect, useState } from "react";
 import toast from "react-hot-toast";
 import { AiOutlineBank } from "react-icons/ai";
-import { FaPlus } from "react-icons/fa";
+import { FaPlus, FaRegCopy } from "react-icons/fa";
 import { FaArrowRightLong } from "react-icons/fa6";
+import { MdDone } from "react-icons/md";
 import { v4 as uuidv4 } from "uuid";
 
 const AddBankModal = ({ bankShow, setBankShow }: any) => {
-  const [stepper, setStepper] = useState("external-account-details");
+  const [stepper, setStepper] = useState("bank-account");
   const [kycLoading, setKycLoading] = useState(false);
   const [externalKycLoading, setExternalKycLoading] = useState(false);
+  const [externalAccountInfo, setExternalAccountInfo] = useState<any>(null);
   const [kycUrl, setKycUrl] = useState<string | null>(null);
   const [agreementUrl, setAgreementUrl] = useState<string | null>(null);
   const [kycData, setKycData] = useState<any>(null);
   const [kycDataFetchLoading, setKycDataFetchLoading] =
     useState<boolean>(false);
+  const [copiedItem, setCopiedItem] = useState(""); // Track which item was copied
 
   // console.log(
   //   "kyc url with agreement122222:",
@@ -72,18 +77,33 @@ const AddBankModal = ({ bankShow, setBankShow }: any) => {
               setKycData(bridgeInfo);
             }
           } else if (info.data.kyc_status === "approved") {
-            const options = {
-              method: "GET",
-              headers: {
-                accept: "application/json",
-                "Api-Key": process.env.NEXT_PUBLIC_BRIDGE_SECRET,
-              },
-            };
-            const response = await postExternalAccountInBridge(
-              info.data.customer_id,
-              options
-            );
-            console.log("response for external account", response);
+            const externalDBInfo = await getDBExternalAccountInfo();
+            console.log("externalDBInfo", externalDBInfo);
+
+            if (
+              externalDBInfo.success &&
+              externalAccountInfo.message ===
+                "Existing account information available"
+            ) {
+              setExternalAccountInfo(externalDBInfo.data);
+              setStepper("virtual-bank-account");
+            } else {
+              const options = {
+                method: "GET",
+                headers: {
+                  accept: "application/json",
+                  "Api-Key": process.env.NEXT_PUBLIC_BRIDGE_SECRET,
+                },
+              };
+              const response = await postExternalAccountInBridge(
+                info.data.customer_id,
+                options
+              );
+              setExternalAccountInfo(response);
+              setStepper("virtual-bank-account");
+              // if any external account exist
+              console.log("response for external account", response);
+            }
           }
         }
       } catch (error) {
@@ -246,6 +266,23 @@ const AddBankModal = ({ bankShow, setBankShow }: any) => {
         setExternalKycLoading(false);
       }
     }
+  };
+
+  // Utility function to handle copying and state updates
+  const handleCopy = async (text: string, itemId: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopiedItem(itemId); // Set the copied item ID
+      setTimeout(() => setCopiedItem(""), 2000); // Reset after 2 seconds
+    } catch (err) {
+      console.error("Failed to copy text: ", err);
+    }
+  };
+
+  // Function to copy all details at once
+  const handleCopyAllDetails = async () => {
+    const allDetails = `Bank Routing Number: ${externalAccountInfo?.data[0]?.account?.routing_number}\nBank Account Number: ${externalAccountInfo?.data[0]?.account?.last_4}\nBank Name: ${externalAccountInfo?.data[0]?.bank_name}\nBank Beneficiary Name: ${externalAccountInfo?.data[0]?.account_owner_name}`;
+    await handleCopy(allDetails, "all");
   };
 
   return (
@@ -600,6 +637,173 @@ const AddBankModal = ({ bankShow, setBankShow }: any) => {
                   </form>
                 </div>
               )}
+              {externalAccountInfo &&
+                externalAccountInfo.count > 0 &&
+                stepper === "virtual-bank-account" && (
+                  <div className="flex flex-col items-center gap-3">
+                    <div className="w-11 h-11 bg-gray-200 rounded-full flex items-center justify-center relative">
+                      <AiOutlineBank size={20} />
+                      <Image
+                        src={"/images/us-flag-logo.png"}
+                        alt="us flag"
+                        width={20}
+                        height={20}
+                        className="absolute -top-0.5 -right-0.5"
+                      />
+                    </div>
+                    <div className="pb-5 border-b-2 border-dashed w-full">
+                      <h2 className="text-center text-xl font-semibold">
+                        Virtual US Bank Account
+                      </h2>
+                      <p className="text-gray-400 text-xs">
+                        Accept ACH Push & Wire Payments
+                      </p>
+                      <div className="mt-2 flex items-center gap-1 justify-center">
+                        <span className="border border-gray-300 px-4 py-1 text-xs rounded-full">
+                          <span className="text-gray-400">Fees</span> 0.5%
+                        </span>
+                        <span className="border border-gray-300 px-4 py-1 text-xs rounded-full">
+                          <span className="text-gray-400">Min.transfer</span> $2
+                        </span>
+                      </div>
+                    </div>
+                    <div className="w-full text-start flex flex-col gap-3">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="text-gray-400">Bank Routing Number</p>
+                          <p>
+                            {
+                              externalAccountInfo?.data[0]?.account
+                                ?.routing_number
+                            }
+                          </p>
+                        </div>
+                        <button
+                          onClick={() =>
+                            handleCopy(
+                              externalAccountInfo?.data[0]?.account
+                                ?.routing_number,
+                              "routing"
+                            )
+                          }
+                        >
+                          {copiedItem === "routing" ? (
+                            <MdDone color="green" />
+                          ) : (
+                            <FaRegCopy color="gray" />
+                          )}
+                        </button>
+                      </div>
+
+                      {/* Bank Account Number */}
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="text-gray-400">Bank Account Number</p>
+                          <p>
+                            ...{externalAccountInfo?.data[0]?.account?.last_4}
+                          </p>
+                        </div>
+                        <button
+                          onClick={() =>
+                            handleCopy(
+                              externalAccountInfo?.data[0]?.account?.last_4,
+                              "account"
+                            )
+                          }
+                        >
+                          {copiedItem === "account" ? (
+                            <MdDone color="green" />
+                          ) : (
+                            <FaRegCopy color="gray" />
+                          )}
+                        </button>
+                      </div>
+
+                      {/* Bank Name */}
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="text-gray-400">Bank Name</p>
+                          <p>{externalAccountInfo?.data[0]?.bank_name}</p>
+                        </div>
+                        <button
+                          onClick={() =>
+                            handleCopy(
+                              externalAccountInfo?.data[0]?.bank_name,
+                              "bank-name"
+                            )
+                          }
+                        >
+                          {copiedItem === "bank-name" ? (
+                            <MdDone color="green" />
+                          ) : (
+                            <FaRegCopy color="gray" />
+                          )}
+                        </button>
+                      </div>
+
+                      {/* Bank beneficiary name */}
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="text-gray-400">Bank Beneficiary Name</p>
+                          <p>
+                            {externalAccountInfo?.data[0]?.account_owner_name}
+                          </p>
+                        </div>
+                        <button
+                          onClick={() =>
+                            handleCopy(
+                              externalAccountInfo?.data[0]?.account_owner_name,
+                              "bank-beneficiary-name"
+                            )
+                          }
+                        >
+                          {copiedItem === "bank-beneficiary-name" ? (
+                            <MdDone color="green" />
+                          ) : (
+                            <FaRegCopy color="gray" />
+                          )}
+                        </button>
+                      </div>
+
+                      {/* Bank address */}
+                      {/* <div className="flex items-center justify-between">
+                        <div>
+                          <p className="text-gray-400">Bank Address</p>
+                          <p>1801 Main St., Kansas City, MO 64108</p>
+                        </div>
+                        <button
+                          onClick={() =>
+                            handleCopy(
+                              "1801 Main St., Kansas City, MO 64108",
+                              "address"
+                            )
+                          }
+                        >
+                          {copiedItem === "address" ? (
+                            <MdDone color="green" />
+                          ) : (
+                            <FaRegCopy color="gray" />
+                          )}
+                        </button>
+                      </div> */}
+                    </div>
+                    <p className="text-xs text-gray-400 px-10 mt-3">
+                      For assistance regarding issues with transfers and
+                      deposits, reach out to support@bridge.xyz.
+                    </p>
+                    <DynamicPrimaryBtn
+                      onClick={handleCopyAllDetails}
+                      className="text-sm"
+                    >
+                      {copiedItem === "all" ? (
+                        <MdDone size={18} />
+                      ) : (
+                        <FaRegCopy className="mr-1" />
+                      )}{" "}
+                      Copy All Details
+                    </DynamicPrimaryBtn>
+                  </div>
+                )}
             </ModalBody>
           </div>
         </ModalContent>

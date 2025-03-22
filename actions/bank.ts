@@ -52,6 +52,27 @@ export async function saveQycInfoToSwopDB(data: any) {
   }
 }
 
+export async function getDBExternalAccountInfo() {
+  const cookieStore = cookies();
+  const userId = (await cookieStore).get("user-id")?.value;
+
+  try {
+    const response = await fetch(
+      `${process.env.NEXT_PUBLIC_API_URL}/api/v4/user/getBridgeAccount/${userId}`,
+      {
+        method: "GET",
+        headers: {
+          "Content-Type": "application/json", // Make sure to set the correct content type
+        },
+      }
+    );
+    const result = await response.json();
+    return result;
+  } catch (error) {
+    console.error("Error from action:", error);
+  }
+}
+
 export async function getKycInfo() {
   const cookieStore = cookies();
   const userId = (await cookieStore).get("user-id")?.value;
