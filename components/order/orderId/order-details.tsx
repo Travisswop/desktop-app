@@ -1,17 +1,17 @@
-'use client';
+"use client";
 
-import { Switch, Tab, Tabs } from '@nextui-org/react';
-import { CheckCircle, Clock } from 'lucide-react';
-import { useUser } from '@/lib/UserContext';
-import Image from 'next/image';
-import { useParams } from 'next/navigation';
-import React, { useEffect, useState, useMemo } from 'react';
+import { useUser } from "@/lib/UserContext";
+import { Switch, Tab, Tabs } from "@nextui-org/react";
+import { CheckCircle, Clock } from "lucide-react";
+import Image from "next/image";
+import { useParams } from "next/navigation";
+import React, { useEffect, useMemo, useState } from "react";
 
 interface MintResult {
   id: string;
   onChain: {
-    status: 'pending' | 'success' | 'failed';
-    chain: 'solana' | 'ethereum';
+    status: "pending" | "success" | "failed";
+    chain: "solana" | "ethereum";
   };
   actionId: string;
 }
@@ -57,11 +57,7 @@ interface OrderData {
   mintedNfts: MintedNFT[];
   totalPriceOfNFTs: number;
   orderDate: string;
-  deliveryStatus:
-    | 'Not Initiated'
-    | 'In Progress'
-    | 'Completed'
-    | 'Cancelled';
+  deliveryStatus: "Not Initiated" | "In Progress" | "Completed" | "Cancelled";
   edited: boolean;
   createdAt: string;
   updatedAt: string;
@@ -82,19 +78,15 @@ interface ProcessingStage {
   timestamp: string;
 }
 
-const OrderProcessingTimeline = ({
-  stages,
-}: {
-  stages: ProcessingStage[];
-}) => {
+const OrderProcessingTimeline = ({ stages }: { stages: ProcessingStage[] }) => {
   // Memoize date formatter to prevent unnecessary recreation
   const dateFormatter = useMemo(() => {
-    return new Intl.DateTimeFormat('en-US', {
-      month: 'short',
-      day: 'numeric',
-      year: 'numeric',
-      hour: 'numeric',
-      minute: 'numeric',
+    return new Intl.DateTimeFormat("en-US", {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+      hour: "numeric",
+      minute: "numeric",
       hour12: true,
     });
   }, []);
@@ -106,17 +98,17 @@ const OrderProcessingTimeline = ({
 
   // Stage display names mapping
   const stageDisplayNames = {
-    order_created: 'Order Created',
-    payment_verified: 'Payment Verified',
-    nft_minted: 'NFT Minted',
-    completed: 'Order Completed',
+    order_created: "Order Created",
+    payment_verified: "Payment Verified",
+    nft_minted: "NFT Minted",
+    completed: "Order Completed",
   };
 
   return (
     <div className="w-full max-w-3xl bg-white rounded-lg shadow-sm p-4">
       <div className="space-y-0">
         {stages.map((stage, index) => {
-          const isCompleted = stage.status === 'completed';
+          const isCompleted = stage.status === "completed";
           const isLast = index === stages.length - 1;
 
           return (
@@ -133,7 +125,7 @@ const OrderProcessingTimeline = ({
                   {!isLast && (
                     <div
                       className="h-full w-0.5 bg-gray-300 mt-1"
-                      style={{ height: '40px' }}
+                      style={{ height: "40px" }}
                     />
                   )}
                 </div>
@@ -160,13 +152,7 @@ const OrderProcessingTimeline = ({
   );
 };
 
-const DetailItem = ({
-  label,
-  value,
-}: {
-  label: string;
-  value: string;
-}) => (
+const DetailItem = ({ label, value }: { label: string; value: string }) => (
   <div className="border-l-2 border-gray-300 pl-4">
     <p className="text-sm text-gray-500">{label}:</p>
     <p className="text-md font-semibold text-gray-700">{value}</p>
@@ -180,27 +166,23 @@ const ListItem = ({ item }: { item: string }) => (
 const NFTDetailSection = ({ nft }: { nft: NFT }) => {
   // Arrays to render with their labels
   const sections = [
-    { label: 'Benefits', items: nft.benefits || [] },
-    { label: 'Requirements', items: nft.requirements || [] },
-    { label: 'Content', items: nft.content || [] },
-    { label: 'Addons', items: nft.addons || [] },
+    { label: "Benefits", items: nft.benefits || [] },
+    { label: "Requirements", items: nft.requirements || [] },
+    { label: "Content", items: nft.content || [] },
+    { label: "Addons", items: nft.addons || [] },
   ];
 
   return (
     <div className="border-l-2 border-gray-300 pl-4 flex flex-col space-y-2">
       <div>
         <p className="text-base font-semibold text-gray-500">Title</p>
-        <p className="text-sm text-gray-900">
-          {nft?.name || 'No name'}
-        </p>
+        <p className="text-sm text-gray-900">{nft?.name || "No name"}</p>
       </div>
 
       <div>
-        <p className="text-base font-semibold text-gray-500">
-          Description
-        </p>
+        <p className="text-base font-semibold text-gray-500">Description</p>
         <p className="text-sm text-gray-900">
-          {nft?.description || 'No Description'}
+          {nft?.description || "No Description"}
         </p>
       </div>
 
@@ -229,10 +211,10 @@ export default function OrderPage() {
 
   const [order, setOrder] = useState<OrderData | null>(null);
   const [nfts, setNfts] = useState<NFT[] | null>(null);
-  const [userRole, setUserRole] = useState('');
+  const [userRole, setUserRole] = useState("");
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [isError, setIsError] = useState<string | null>(null);
-  const [selected, setSelected] = React.useState('orderHistory');
+  const [selected, setSelected] = React.useState("orderHistory");
 
   useEffect(() => {
     const fetchOrderDetails = async () => {
@@ -244,14 +226,14 @@ export default function OrderPage() {
       try {
         const API_URL = process.env.NEXT_PUBLIC_API_URL;
         if (!API_URL) {
-          throw new Error('API base URL is not defined.');
+          throw new Error("API base URL is not defined.");
         }
 
         const response = await fetch(
           `${API_URL}/api/v1/desktop/nft/orders/${orderId}`,
           {
             headers: {
-              'Content-Type': 'application/json',
+              "Content-Type": "application/json",
               Authorization: `Bearer ${accessToken}`,
             },
           }
@@ -274,8 +256,8 @@ export default function OrderPage() {
         setNfts(nfts);
         setUserRole(data.userRole);
       } catch (error: any) {
-        console.error('Fetch Error:', error);
-        setIsError(error.message || 'An unexpected error occurred.');
+        console.error("Fetch Error:", error);
+        setIsError(error.message || "An unexpected error occurred.");
       } finally {
         setIsLoading(false);
       }
@@ -301,9 +283,7 @@ export default function OrderPage() {
     return (
       <div className="flex justify-center items-center h-screen">
         <div className="bg-red-50 border border-red-200 rounded-lg p-6 max-w-lg">
-          <h2 className="text-xl font-semibold text-red-600 mb-2">
-            Error
-          </h2>
+          <h2 className="text-xl font-semibold text-red-600 mb-2">Error</h2>
           <p className="text-red-500">{isError}</p>
           <button
             onClick={() => window.location.reload()}
@@ -343,21 +323,18 @@ export default function OrderPage() {
         <div className="flex items-start justify-between mb-6 border-b pb-4">
           <div className="flex flex-col items-start gap-2">
             <h1 className="text-xl font-bold">
-              My {userRole === 'buyer' ? 'Purchase' : 'Order'}
+              My {userRole === "buyer" ? "Purchase" : "Order"}
             </h1>
-            <h4 className="text-muted-foreground">
-              Order #{order.orderId}
-            </h4>
+            <h4 className="text-muted-foreground">Order #{order.orderId}</h4>
             <p className="text-gray-500">
-              Placed on{' '}
-              {new Date(order.orderDate).toLocaleDateString()}
+              Placed on {new Date(order.orderDate).toLocaleDateString()}
             </p>
           </div>
-          {order?.orderType !== 'non-phygitals' && (
+          {order?.orderType !== "non-phygitals" && (
             <div className="flex items-center gap-2 bg-gray-50 p-2 rounded">
               <span className="text-base">Shipped:</span>
               <Switch
-                checked={order.deliveryStatus === 'Completed'}
+                checked={order.deliveryStatus === "Completed"}
                 disabled
                 className="cursor-not-allowed"
                 aria-label="Shipped Status"
@@ -371,19 +348,16 @@ export default function OrderPage() {
           <table className="w-full text-left border border-gray-200 rounded-lg overflow-hidden">
             <thead className="text-base font-medium text-gray-700 bg-gray-50">
               <tr>
-                {[
-                  'Product Name',
-                  'Product Image',
-                  'Quantity',
-                  'Price',
-                ].map((header, idx) => (
-                  <th
-                    key={idx}
-                    className="px-6 py-3 text-center border-r border-gray-200"
-                  >
-                    {header}
-                  </th>
-                ))}
+                {["Product Name", "Product Image", "Quantity", "Price"].map(
+                  (header, idx) => (
+                    <th
+                      key={idx}
+                      className="px-6 py-3 text-center border-r border-gray-200"
+                    >
+                      {header}
+                    </th>
+                  )
+                )}
               </tr>
             </thead>
             <tbody>
@@ -394,21 +368,20 @@ export default function OrderPage() {
                     className="odd:bg-white even:bg-gray-50 border-b border-gray-200 text-base text-gray-800 text-center hover:bg-gray-100 transition-colors"
                   >
                     <td className="border-r border-gray-200 py-4">
-                      {el.name || 'Unknown Product'}
+                      {el.name || "Unknown Product"}
                     </td>
                     <td className="border-r border-gray-200 py-4">
                       <div className="flex items-center justify-center">
                         {el?.image ? (
                           <Image
                             src={el.image}
-                            alt={el.name || 'Product'}
+                            alt={el.name || "Product"}
                             width={50}
                             height={50}
                             className="rounded object-cover"
                             onError={(e) => {
-                              const target =
-                                e.target as HTMLImageElement;
-                              target.src = '/placeholder.svg';
+                              const target = e.target as HTMLImageElement;
+                              target.src = "/placeholder.svg";
                             }}
                           />
                         ) : (
@@ -425,17 +398,14 @@ export default function OrderPage() {
                     </td>
                     <td className="py-4">
                       <div className="font-medium">
-                        ${el.price?.toFixed(2) || '0.00'}
+                        ${el.price?.toFixed(2) || "0.00"}
                       </div>
                     </td>
                   </tr>
                 ))
               ) : (
                 <tr>
-                  <td
-                    colSpan={4}
-                    className="py-4 text-center text-gray-500"
-                  >
+                  <td colSpan={4} className="py-4 text-center text-gray-500">
                     No products found in this order
                   </td>
                 </tr>
@@ -457,9 +427,7 @@ export default function OrderPage() {
             </div>
             <div className="flex justify-between w-full text-sm">
               <p>Shipping</p>
-              <p className="font-medium">
-                ${shippingCost?.toFixed(2)}
-              </p>
+              <p className="font-medium">${shippingCost?.toFixed(2)}</p>
             </div>
             <div className="border-b border-gray-300 w-full my-2"></div>
             <div className="flex justify-between w-full font-bold">
@@ -479,16 +447,14 @@ export default function OrderPage() {
             variant="underlined"
             size="large"
             classNames={{
-              base: 'w-full',
-              tabList: 'gap-6',
-              tab: 'py-2 px-0',
-              tabContent: 'text-base font-medium',
+              base: "w-full",
+              tabList: "gap-6",
+              tab: "py-2 px-0",
+              tabContent: "text-base font-medium",
             }}
           >
             <Tab key="orderHistory" title="Order History">
-              <OrderProcessingTimeline
-                stages={order.processingStages}
-              />
+              <OrderProcessingTimeline stages={order.processingStages} />
             </Tab>
 
             <Tab key="customerDetails" title="Customer Details">
@@ -496,28 +462,25 @@ export default function OrderPage() {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <DetailItem
                     label="Customer Name"
-                    value={
-                      order?.customer?.name || 'Unknown Customer'
-                    }
+                    value={order?.customer?.name || "Unknown Customer"}
                   />
                   <DetailItem
                     label="Swop.ID"
-                    value={order?.customer?.ens || ''}
+                    value={order?.customer?.ens || ""}
                   />
                   <DetailItem
                     label="Customer Email"
-                    value={order?.customer?.email || 'Unknown Email'}
+                    value={order?.customer?.email || "Unknown Email"}
                   />
                   <DetailItem
                     label="Customer Number"
-                    value={order?.customer?.phone || '+8801318470354'}
+                    value={order?.customer?.phone || "+8801318470354"}
                   />
 
                   <DetailItem
                     label="Shipping Address"
                     value={
-                      order?.customer?.shippingAddress ||
-                      'Unknown Address'
+                      order?.customer?.shippingAddress || "Unknown Address"
                     }
                   />
                 </div>

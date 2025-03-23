@@ -40,15 +40,17 @@ interface UserContextType {
   error: Error | null;
   refreshUser: () => Promise<void>;
   clearCache: () => void;
+  handleLogout: () => Promise<void>;
 }
 
-const UserContext = createContext<any>({
+const UserContext = createContext<UserContextType>({
   user: null,
   accessToken: null,
   loading: true,
   error: null,
   refreshUser: async () => {},
   clearCache: () => {},
+  handleLogout: async () => {},
 });
 
 const clearAllCookies = () => {
@@ -56,6 +58,7 @@ const clearAllCookies = () => {
     'privy-token',
     'privy-id-token',
     'privy-refresh-token',
+    'privy-session',
     'access-token',
     'user-id',
   ];
@@ -65,6 +68,13 @@ const clearAllCookies = () => {
   });
 };
 
+const getCookie = (name: string): string | null => {
+  const match = document.cookie.match(
+    new RegExp(`(^| )${name}=([^;]+)`)
+  );
+  return match ? match[2] : null;
+};
+
 export function UserProvider({
   children,
 }: {
@@ -72,11 +82,13 @@ export function UserProvider({
 }) {
   const pathname = usePathname();
   const router = useRouter();
-  const { user: privyUser, ready, logout } = usePrivy(); // Added logout
+  const { user: privyUser, ready, logout } = usePrivy();
   const [user, setUser] = useState<UserData | null>(null);
   const [accessToken, setAccessToken] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
+  const [lastFetchTime, setLastFetchTime] = useState<number>(0);
+  const FETCH_COOLDOWN = 10000; // 10 seconds minimum between fetches
 
   const email = useMemo(() => {
     if (!privyUser) return null;
@@ -92,9 +104,37 @@ export function UserProvider({
     );
   }, [privyUser]);
 
+  const handleLogout = useCallback(async () => {
+    try {
+      clearAllCookies();
+      setUser(null);
+      setAccessToken(null);
+      await logout();
+      router.push('/login');
+    } catch (error) {
+      console.error('Logout failed:', error);
+      // Force redirect to login even if logout fails
+      window.location.href = '/login';
+    }
+  }, [logout, router]);
+
   const fetchUserData = useCallback(
-    async (userEmail: string) => {
+    async (userEmail: string, force = false) => {
       if (!userEmail) return;
+
+      // Respect the cooldown period unless forced
+      const now = Date.now();
+      if (!force && now - lastFetchTime < FETCH_COOLDOWN) {
+        return;
+      }
+
+      setLastFetchTime(now);
+
+      // See if we already have a token in cookies
+      const existingToken = getCookie('access-token');
+      if (existingToken && !force) {
+        setAccessToken(existingToken);
+      }
 
       // More comprehensive list of excluded routes
       const excludedRoutes = [
@@ -102,16 +142,22 @@ export function UserProvider({
         '/login',
         '/signup',
         '/welcome',
-        // Add any other signup/onboarding routes
       ];
 
+      // Skip fetch for excluded routes
+      if (
+        excludedRoutes.some((route) => pathname.startsWith(route))
+      ) {
+        setLoading(false);
+        return;
+      }
+
       try {
+        setLoading(true);
+
         // Add timeout to prevent hanging requests
         const controller = new AbortController();
-        const timeoutId = setTimeout(
-          () => controller.abort(),
-          120000
-        ); // 120 seconds timeout
+        const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 seconds timeout (reduced from 120)
 
         const response = await fetch(
           `${process.env.NEXT_PUBLIC_API_URL}/api/v2/desktop/user/${userEmail}`,
@@ -119,6 +165,10 @@ export function UserProvider({
             signal: controller.signal,
             headers: {
               'Content-Type': 'application/json',
+              // Include existing token if available
+              ...(existingToken
+                ? { Authorization: `Bearer ${existingToken}` }
+                : {}),
             },
           }
         );
@@ -126,7 +176,6 @@ export function UserProvider({
         clearTimeout(timeoutId);
 
         if (!response.ok) {
-          // More detailed logging
           console.error('Fetch user data response:', {
             status: response.status,
             statusText: response.statusText,
@@ -134,64 +183,61 @@ export function UserProvider({
           });
 
           if (response.status === 404) {
-            router.push('/onboard');
+            // User not found, redirect to login
+            router.push('/login');
             return;
           }
 
-          // Only handle redirection for specific error codes
-          // if (response.status === 401 || response.status === 403) {
-          //   // Clear user session and redirect to login
-          //   clearAllCookies();
-          //   await logout(); // Add logout from Privy
-          //   router.push('/login');
-          //   return;
-          // }
-
-          // For other non-excluded routes, throw an error
-          if (
-            !excludedRoutes.some((route) =>
-              pathname.startsWith(route)
-            )
-          ) {
-            throw new Error(
-              `Failed to fetch user data: ${response.statusText}`
-            );
+          if (response.status === 401 || response.status === 403) {
+            // Authentication error, go to login
+            await handleLogout();
+            return;
           }
+
+          throw new Error(
+            `Failed to fetch user data: ${response.statusText}`
+          );
         }
 
         const data = await response.json();
 
-        const { user: userData, token } = data;
-
-        if (!userData || !token) {
+        if (!data || !data.user || !data.token) {
           throw new Error('Invalid response data');
         }
+
+        const { user: userData, token } = data;
 
         setUser(userData);
         setAccessToken(token);
 
-        // More secure cookie setting
-        document.cookie = `access-token=${token}; path=/; secure; samesite=strict; max-age=86400`;
-        document.cookie = `user-id=${userData._id}; path=/; secure; samesite=strict; max-age=86400`;
+        // Set cookies with explicit expiration and security flags
+        const expires = new Date();
+        expires.setDate(expires.getDate() + 7); // 7 days
+
+        document.cookie = `access-token=${token}; path=/; expires=${expires.toUTCString()}; secure; samesite=strict`;
+        document.cookie = `user-id=${
+          userData._id
+        }; path=/; expires=${expires.toUTCString()}; secure; samesite=strict`;
 
         setError(null);
       } catch (err) {
         console.error('Error fetching user data:', err);
 
-        // More granular error handling
         if (err instanceof Error) {
           if (err.name === 'AbortError') {
             console.error('Request timed out');
           }
+
+          setError(err);
+        } else {
+          setError(new Error('Unknown error occurred'));
         }
 
-        // Only set error state if not on an excluded route
+        // Only clear user data if this is a forced refresh or serious error
         if (
-          !excludedRoutes.some((route) => pathname.startsWith(route))
+          force ||
+          (err instanceof Error && err.name !== 'AbortError')
         ) {
-          setError(
-            err instanceof Error ? err : new Error('Unknown error')
-          );
           setUser(null);
           setAccessToken(null);
         }
@@ -199,34 +245,89 @@ export function UserProvider({
         setLoading(false);
       }
     },
-    [router, pathname, logout] // Add logout to dependencies
+    [router, pathname, lastFetchTime, handleLogout]
   );
 
   useEffect(() => {
-    if (ready) {
-      if (email) {
-        fetchUserData(email);
-      } else {
-        setLoading(false);
-      }
+    // Wait until Privy is ready
+    if (!ready) return;
+
+    // Check for existing token first
+    const existingToken = getCookie('access-token');
+    const userId = getCookie('user-id');
+
+    if (existingToken && userId) {
+      // We have existing auth, set it immediately to prevent flicker
+      setAccessToken(existingToken);
+      setLoading(false);
+    }
+
+    // Then try to get updated data
+    if (email) {
+      fetchUserData(email);
+    } else {
+      setLoading(false);
     }
   }, [ready, email, fetchUserData]);
+
+  // Handle pathway changes - check auth state
+  useEffect(() => {
+    // If we have an email but no user, and we're on a route that requires auth
+    const authRequiredRoutes = [
+      '/',
+      '/feed',
+      '/smartsite',
+      '/qrcode',
+      '/wallet',
+      '/analytics',
+      '/mint',
+      '/order',
+      '/content',
+    ];
+    const isProtectedRoute = authRequiredRoutes.some(
+      (route) =>
+        pathname === route || pathname.startsWith(`${route}/`)
+    );
+
+    const isAuthRoute = ['/login', '/onboard'].includes(pathname);
+
+    if (
+      ready &&
+      email &&
+      !user &&
+      !loading &&
+      isProtectedRoute &&
+      !isAuthRoute
+    ) {
+      // Force refresh user data
+      fetchUserData(email, true);
+    }
+  }, [pathname, user, email, ready, loading, fetchUserData]);
 
   const contextValue = useMemo(
     () => ({
       user,
+      primaryMicrosite: user?.primaryMicrosite,
       loading,
       error,
-      refreshUser: () => fetchUserData(email || ''),
+      refreshUser: () => fetchUserData(email || '', true),
       clearCache: () => {
         setUser(null);
         setAccessToken(null);
         clearAllCookies();
-        logout(); // Add logout when clearing cache
       },
+      handleLogout,
       accessToken,
     }),
-    [user, loading, error, fetchUserData, email, accessToken, logout]
+    [
+      user,
+      loading,
+      error,
+      fetchUserData,
+      email,
+      accessToken,
+      handleLogout,
+    ]
   );
 
   return (
