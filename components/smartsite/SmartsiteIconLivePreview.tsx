@@ -195,6 +195,74 @@ const SmartsiteIconLivePreview = ({
     }
   };
 
+  const distributeIcons = (icons: any[]) => {
+    const length = icons.length;
+    let rows: any[][] = [];
+    if (length <= 6) {
+      rows = [icons]; // Single row
+    } else if (length <= 11) {
+      const firstRow = Math.ceil(length / 2) - 1;
+      // const secondRow = Math.ceil(length / 2) + 1;
+      rows = [icons.slice(0, firstRow), icons.slice(firstRow)];
+    } else if (length <= 14) {
+      const firstRow = Math.ceil(length / 3) - 2;
+      const secondRow = Math.ceil(length / 3);
+      // const thirdRow = Math.ceil(length / 3) + 2;
+      rows = [
+        icons.slice(0, firstRow),
+        icons.slice(firstRow, firstRow + secondRow),
+        icons.slice(firstRow + secondRow),
+      ];
+    } else if (length === 15) {
+      const firstRow = 4;
+      const secondRow = 5;
+      // const thirdRow = Math.ceil(length / 3) + 2;
+      rows = [
+        icons.slice(0, firstRow),
+        icons.slice(firstRow, firstRow + secondRow),
+        icons.slice(firstRow + secondRow),
+      ];
+    } else if (length === 16) {
+      const firstRow = 4;
+      const secondRow = 6;
+      // const thirdRow = Math.ceil(length / 3) + 2;
+      rows = [
+        icons.slice(0, firstRow),
+        icons.slice(firstRow, firstRow + secondRow),
+        icons.slice(firstRow + secondRow),
+      ];
+    } else if (length === 17) {
+      const firstRow = 5;
+      const secondRow = 6;
+      // const thirdRow = Math.ceil(length / 3) + 2;
+      rows = [
+        icons.slice(0, firstRow),
+        icons.slice(firstRow, firstRow + secondRow),
+        icons.slice(firstRow + secondRow),
+      ];
+    } else if (length === 18) {
+      const firstRow = 6;
+      const secondRow = 6;
+      // const thirdRow = Math.ceil(length / 3) + 2;
+      rows = [
+        icons.slice(0, firstRow),
+        icons.slice(firstRow, firstRow + secondRow),
+        icons.slice(firstRow + secondRow),
+      ];
+    } else {
+      // For lengths greater than 18, distribute icons into rows with a maximum of 6 icons per row
+      let start = 0;
+      while (start < length) {
+        rows.push(icons.slice(start, start + 6));
+        start += 6;
+      }
+    }
+
+    return rows;
+  };
+
+  const socialRows = distributeIcons(data.info.socialTop);
+
   return (
     <main className="w-[38%] h-full overflow-y-auto overflow-x-hidden">
       <div className="bg-[url('/images/mobile-mockup.png')] bg-cover bg-center h-[37rem] w-72 mx-auto relative rounded-3xl mt-6 ">
@@ -330,11 +398,19 @@ const SmartsiteIconLivePreview = ({
                 )} */}
 
                 {/* small icon display here start */}
-                {data.info.socialTop.length > 0 && (
+                {/* {data.info.socialTop.length > 0 && (
                   <div className="flex flex-col gap-y-2 justify-center items-center">
                     {(() => {
                       const totalIcons = data.info.socialTop.length;
-                      const rows = Math.ceil(Math.sqrt(totalIcons)); // Adjust the number of rows as needed
+                      // const rows = Math.ceil(Math.sqrt(totalIcons)); // Adjust the number of rows as needed
+                      const rows =
+                        totalIcons > 7
+                          ? 2
+                          : totalIcons > 12
+                          ? 3
+                          : totalIcons > 15
+                          ? 4
+                          : 1;
                       const iconsPerRow = Array.from({ length: rows }, (_, i) =>
                         Math.min(i + 1, totalIcons - (i * (i + 1)) / 2)
                       );
@@ -380,7 +456,37 @@ const SmartsiteIconLivePreview = ({
                       });
                     })()}
                   </div>
-                )}
+                )} */}
+
+                {/* small icon display here start */}
+                {/* small icon display here start */}
+                {socialRows.map((row, rowIndex) => (
+                  <div
+                    key={rowIndex}
+                    className="flex justify-center gap-x-4 gap-y-2 flex-wrap"
+                  >
+                    {row.map((item: any, index: number) => (
+                      <button
+                        key={index}
+                        onClick={() =>
+                          handleTriggerUpdate({
+                            data: item,
+                            categoryForTrigger: "socialTop",
+                          })
+                        }
+                      >
+                        <Image
+                          src={getSmallIconImage(item.name, item.group) as any}
+                          alt="icon"
+                          style={tintStyle}
+                          className="w-4 h-auto"
+                          quality={100}
+                        />
+                      </button>
+                    ))}
+                  </div>
+                ))}
+
                 {/* small icon display here end */}
                 {/* blog display here start */}
                 {data.info.blog.length > 0 && (
