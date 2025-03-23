@@ -7,7 +7,6 @@ import { useSolanaWallets } from "@privy-io/react-auth";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { DragEvent, useEffect, useState } from "react";
-import { SiSolana } from "react-icons/si";
 import MintAlertModal from "./MintAlertModal";
 interface FormData {
   name: string;
@@ -388,9 +387,15 @@ const CreateMenu = ({ collectionId }: { collectionId: string }) => {
                     required
                   />
                   <div className="w-full border border-gray-300 rounded-lg px-4 py-2 flex items-center space-x-2">
-                    <SiSolana className="text-gray-900 size-5" />
+                    <Image
+                      src={"/assets/crypto-icons/USDC.png"}
+                      width={100}
+                      height={100}
+                      alt="Preview"
+                      className="w-[22px] h-auto"
+                    />
                     <label htmlFor="price" className="font-medium">
-                      Solana
+                      USDC
                     </label>
                   </div>
                 </div>

@@ -657,6 +657,7 @@ const CreateSmartSite = ({ token }: { token: string }) => {
 
             <DynamicPrimaryBtn
               className="py-3 text-base !gap-1"
+              type={"submit"}
               disabled={isFormSubmitLoading}
             >
               {isFormSubmitLoading ? (

@@ -305,7 +305,7 @@ const SmartsiteIconLivePreview = ({
                   </p>
                 </div>
                 {/* small icon display here start */}
-                {data.info.socialTop.length > 0 && (
+                {/* {data.info.socialTop.length > 0 && (
                   <div className="flex gap-x-4 gap-y-2 justify-center items-center flex-wrap px-10">
                     {data.info.socialTop.map((data: any, index: number) => (
                       <button
@@ -326,6 +326,59 @@ const SmartsiteIconLivePreview = ({
                         />
                       </button>
                     ))}
+                  </div>
+                )} */}
+
+                {/* small icon display here start */}
+                {data.info.socialTop.length > 0 && (
+                  <div className="flex flex-col gap-y-2 justify-center items-center">
+                    {(() => {
+                      const totalIcons = data.info.socialTop.length;
+                      const rows = Math.ceil(Math.sqrt(totalIcons)); // Adjust the number of rows as needed
+                      const iconsPerRow = Array.from({ length: rows }, (_, i) =>
+                        Math.min(i + 1, totalIcons - (i * (i + 1)) / 2)
+                      );
+
+                      let startIndex = 0;
+                      return iconsPerRow.map((count, rowIndex) => {
+                        const rowIcons = data.info.socialTop.slice(
+                          startIndex,
+                          startIndex + count
+                        );
+                        startIndex += count;
+                        return (
+                          <div
+                            key={rowIndex}
+                            className="flex gap-x-4 justify-center items-center"
+                          >
+                            {rowIcons.map((data: any, index: number) => (
+                              <button
+                                key={index}
+                                onClick={() =>
+                                  handleTriggerUpdate({
+                                    data,
+                                    categoryForTrigger: "socialTop",
+                                  })
+                                }
+                              >
+                                <Image
+                                  src={
+                                    getSmallIconImage(
+                                      data.name,
+                                      data.group
+                                    ) as any
+                                  }
+                                  alt="icon"
+                                  style={tintStyle}
+                                  className="w-4 h-auto"
+                                  quality={100}
+                                />
+                              </button>
+                            ))}
+                          </div>
+                        );
+                      });
+                    })()}
                   </div>
                 )}
                 {/* small icon display here end */}
