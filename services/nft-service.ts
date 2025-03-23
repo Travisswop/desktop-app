@@ -74,6 +74,8 @@ export class SolanaService {
       )) as AssociatedToken[];
       if (!tokens.length) return [];
 
+      console.log('tokens', tokens);
+
       const metadata = await this.fetchNFTMetadata(tokens);
       const nftData = await this.fetchNFTData(
         metadata as NFTMintData[]
@@ -137,7 +139,9 @@ export class SolanaService {
   }
 }
 
-export const processNFTCollections = (nfts: NFT[]): {
+export const processNFTCollections = (
+  nfts: NFT[]
+): {
   collections: NFTCollectionGroup[];
   standaloneNFTs: NFT[];
 } => {

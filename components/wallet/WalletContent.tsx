@@ -175,7 +175,6 @@ const WalletContentInner = () => {
     error: nftError,
     refetch: refetchNFTs,
   } = useNFT(solWalletAddress, evmWalletAddress, chains);
-
   const totalBalance = useMemo(() => {
     return tokens.reduce((total, token) => {
       const value =

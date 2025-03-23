@@ -1,11 +1,15 @@
-"use client";
+'use client';
 
-import { useEffect, useState } from "react";
-import Image from "next/image";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { useEffect, useState } from 'react';
+import Image from 'next/image';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import {
+  CardContent,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card';
 import {
   Upload,
   User,
@@ -15,66 +19,70 @@ import {
   Calendar,
   Building,
   MapPin,
-} from "lucide-react";
-import { PrivyUser, OnboardingData } from "@/lib/types";
-import { uploadImageToCloudinary } from "@/lib/cloudinary";
-import { useToast } from "@/hooks/use-toast";
-import astronot from "@/public/onboard/astronot.svg";
-import bluePlanet from "@/public/onboard/blue-planet.svg";
-import yellowPlanet from "@/public/onboard/yellow-planet.svg";
-import editIcon from "@/public/images/websites/edit-icon.svg";
-import { useDisclosure } from "@nextui-org/react";
-import userProfileImages from "../util/data/userProfileImage";
-import SelectAvatorModal from "../modal/SelectAvatorModal";
-import { usePrivy } from "@privy-io/react-auth";
-import { WalletItem } from "@/types/wallet";
-import { createWalletBalance } from "@/actions/createWallet";
+} from 'lucide-react';
+import { PrivyUser, OnboardingData } from '@/lib/types';
+import { uploadImageToCloudinary } from '@/lib/cloudinary';
+import { useToast } from '@/hooks/use-toast';
+import astronot from '@/public/onboard/astronot.svg';
+import blackPlanet from '@/public/onboard/black-planet.svg';
+import yellowPlanet from '@/public/onboard/yellow-planet.svg';
+import editIcon from '@/public/images/websites/edit-icon.svg';
+import { useDisclosure } from '@nextui-org/react';
+import userProfileImages from '../util/data/userProfileImage';
+import SelectAvatorModal from '../modal/SelectAvatorModal';
+import { usePrivy } from '@privy-io/react-auth';
+import { WalletItem } from '@/types/wallet';
+import { createWalletBalance } from '@/actions/createWallet';
 interface RegistrationProps {
   user: PrivyUser;
   onComplete: (data: Partial<OnboardingData>) => void;
 }
 
-export default function Registration({ user, onComplete }: RegistrationProps) {
+export default function Registration({
+  user,
+  onComplete,
+}: RegistrationProps) {
   const { toast } = useToast();
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [name, setName] = useState(user?.name || "");
-  const [bio, setBio] = useState("");
-  const [phone, setPhone] = useState("");
+  const [name, setName] = useState(user?.name || '');
+  const [bio, setBio] = useState('');
+  const [phone, setPhone] = useState('');
   const [birthdate, setBirthdate] = useState(0);
-  const [apartment, setApartment] = useState("");
-  const [address, setAddress] = useState("");
-  const [profileImage, setProfileImage] = useState("0");
+  const [apartment, setApartment] = useState('');
+  const [address, setAddress] = useState('');
+  const [profileImage, setProfileImage] = useState('0');
   const [profileImageUrl, setProfileImageUrl] = useState(
-    "/images/user_avator/0.png?height=32&width=32"
+    '/images/user_avator/0.png?height=32&width=32'
   );
   const [walletData, setWalletData] = useState<WalletItem[]>([]);
 
-  const [isUserProfileModalOpen, setIsUserProfileModalOpen] = useState(false);
+  const [isUserProfileModalOpen, setIsUserProfileModalOpen] =
+    useState(false);
 
   const { isOpen, onOpen, onOpenChange } = useDisclosure();
   const { authenticated, ready, user: PrivyUser } = usePrivy();
-  console.log("privyuser", PrivyUser);
-  console.log("walletData", walletData);
+  console.log('privyuser', PrivyUser);
+  console.log('walletData', walletData);
 
   useEffect(() => {
     if (authenticated && ready && PrivyUser) {
       const linkWallet = PrivyUser?.linkedAccounts
         .map((item: any) => {
-          if (item.chainType === "ethereum") {
+          if (item.chainType === 'ethereum') {
             return {
               address: item.address,
               isActive:
-                item.walletClientType === "privy" ||
-                item.connectorType === "embedded",
+                item.walletClientType === 'privy' ||
+                item.connectorType === 'embedded',
               isEVM: true,
               walletClientType: item.walletClientType,
             };
-          } else if (item.chainType === "solana") {
+          } else if (item.chainType === 'solana') {
             return {
               address: item.address,
               isActive:
-                item.walletClientType === "privy" ||
-                item.connectorType === "embedded",
+                item.walletClientType === 'privy' ||
+                item.connectorType === 'embedded',
               isEVM: false,
               walletClientType: item.walletClientType,
             };
@@ -105,10 +113,14 @@ export default function Registration({ user, onComplete }: RegistrationProps) {
   // image upload for user profile
   const handleSelectImage = (image: any) => {
     setProfileImage(image);
-    setProfileImageUrl(`/images/user_avator/${image}.png?height=32&width=32`);
+    setProfileImageUrl(
+      `/images/user_avator/${image}.png?height=32&width=32`
+    );
   };
 
-  const handleImageUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImageUpload = (
+    event: React.ChangeEvent<HTMLInputElement>
+  ) => {
     const file = event.target.files?.[0];
     if (file) {
       const reader = new FileReader();
@@ -123,7 +135,7 @@ export default function Registration({ user, onComplete }: RegistrationProps) {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim()) {
-      alert("Name is required.");
+      alert('Name is required.');
       return; // Prevent form submission
     }
     setIsSubmitting(true);
@@ -131,30 +143,34 @@ export default function Registration({ user, onComplete }: RegistrationProps) {
     try {
       let avatarUrl = profileImage;
 
-      if (profileImage && profileImage.startsWith("data:image")) {
+      if (profileImage && profileImage.startsWith('data:image')) {
         try {
           avatarUrl = await uploadImageToCloudinary(profileImage);
         } catch (error) {
-          avatarUrl = "0";
+          avatarUrl = '0';
         }
       }
 
-      const ethereumWallet = walletData.find((wallet) => wallet?.isEVM);
-      const solanaWallet = walletData.find((wallet) => !wallet?.isEVM);
+      const ethereumWallet = walletData.find(
+        (wallet) => wallet?.isEVM
+      );
+      const solanaWallet = walletData.find(
+        (wallet) => !wallet?.isEVM
+      );
       // console.log("ethereumWallet", ethereumWallet);
       // console.log("solanaWallet", solanaWallet);
 
       const formatData = {
         name,
         email: user.email,
-        mobileNo: phone || "",
-        address: address || "",
-        bio: bio || "",
+        mobileNo: phone || '',
+        address: address || '',
+        bio: bio || '',
         dob: birthdate.toString(),
         profilePic: avatarUrl,
-        apt: apartment || "",
-        countryFlag: "US",
-        countryCode: "US",
+        apt: apartment || '',
+        countryFlag: 'US',
+        countryCode: 'US',
         // privyId: PrivyUser?.id,
         // ethereumWallet: ethereumWallet && ethereumWallet.address, // Ethereum Wallet Address
         // solanaWallet: solanaWallet && solanaWallet.address, // Solana Wallet Address
@@ -164,23 +180,23 @@ export default function Registration({ user, onComplete }: RegistrationProps) {
       const response = await fetch(
         `${process.env.NEXT_PUBLIC_API_URL}/api/v2/desktop/user/create`,
         {
-          method: "POST",
+          method: 'POST',
           headers: {
-            "Content-Type": "application/json",
+            'Content-Type': 'application/json',
           },
           body: JSON.stringify({ ...formatData }),
         }
       );
 
       if (!response.ok) {
-        throw new Error("Failed to create user and smartsite");
+        throw new Error('Failed to create user and smartsite');
       }
 
       const result = await response.json();
 
       toast({
-        title: "Success",
-        description: "Account has been created successfully!",
+        title: 'Success',
+        description: 'Account has been created successfully!',
       });
 
       // Pass the data to parent component
@@ -193,41 +209,43 @@ export default function Registration({ user, onComplete }: RegistrationProps) {
         userId: result.data._id,
       };
 
-      console.log("payload for wallet", payload);
+      console.log('payload for wallet', payload);
 
       const walletResponse = await createWalletBalance(payload);
-      console.log("respnse for wallet", walletResponse);
+      console.log('respnse for wallet', walletResponse);
     } catch (error) {
       setIsSubmitting(false);
-      console.error("Error creating account:", error);
+      console.error('Error creating account:', error);
       toast({
-        variant: "destructive",
-        title: "Error",
-        description: "Failed to create Account. Please try again.",
+        variant: 'destructive',
+        title: 'Error',
+        description: 'Failed to create Account. Please try again.',
       });
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  console.log("walletdata", walletData);
+  console.log('walletdata', walletData);
 
   return (
     <div className="relative w-full max-w-3xl mx-auto border-0 my-20">
       {/* <div className="bg-gradient-to-br from-purple-200 to-blue-300 w-52 h-52 rounded-full absolute -bottom-32 -left-16 -z-10 opacity-80"></div> */}
       <div className="absolute -top-28 left-0">
-        <Image src={astronot} alt="astronot image" className="w-40 h-auto" />
+        <Image
+          src={astronot}
+          alt="astronot image"
+          className="w-40 h-auto"
+        />
       </div>
       <div className="absolute -bottom-28 -left-10">
         <Image
-          src={yellowPlanet}
+          src={blackPlanet}
           alt="astronot image"
           className="w-48 h-auto"
         />
       </div>
-      <div className="absolute -top-14 -right-24">
-        <Image src={bluePlanet} alt="astronot image" className="w-56 h-auto" />
-      </div>
+
       <div className="bg-gradient-to-br from-purple-200 to-blue-300 w-52 h-52 rounded-full absolute bottom-32 left-16 z-0 opacity-80"></div>
       <div className="backdrop-blur-[50px] bg-white bg-opacity-25 shadow-uniform rounded-xl">
         <CardHeader className="text-center">
@@ -257,7 +275,11 @@ export default function Registration({ user, onComplete }: RegistrationProps) {
                     onClick={handleUserProfileModal}
                     type="button"
                   >
-                    <Image alt="edit icon" src={editIcon} width={40} />
+                    <Image
+                      alt="edit icon"
+                      src={editIcon}
+                      width={40}
+                    />
                   </button>
                 </div>
                 <Label htmlFor="picture" className="cursor-pointer">
@@ -277,9 +299,12 @@ export default function Registration({ user, onComplete }: RegistrationProps) {
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="space-y-2">
-                  <Label htmlFor="name" className="flex items-center space-x-2">
+                  <Label
+                    htmlFor="name"
+                    className="flex items-center space-x-2"
+                  >
                     <p>
-                      Name<span style={{ color: "red" }}>*</span>
+                      Name<span style={{ color: 'red' }}>*</span>
                     </p>
                   </Label>
                   <div className="relative w-full">
@@ -297,7 +322,10 @@ export default function Registration({ user, onComplete }: RegistrationProps) {
                   </div>
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="bio" className="flex items-center space-x-2">
+                  <Label
+                    htmlFor="bio"
+                    className="flex items-center space-x-2"
+                  >
                     <p>Bio</p>
                   </Label>
                   <div className="relative w-full">
@@ -320,7 +348,7 @@ export default function Registration({ user, onComplete }: RegistrationProps) {
                   >
                     <p>
                       Phone Number
-                      <span style={{ color: "red" }}>*</span>
+                      <span style={{ color: 'red' }}>*</span>
                     </p>
                   </Label>
                   <div className="relative w-full">
@@ -344,7 +372,7 @@ export default function Registration({ user, onComplete }: RegistrationProps) {
                     className="flex items-center space-x-2"
                   >
                     <p>
-                      Email<span style={{ color: "red" }}>*</span>
+                      Email<span style={{ color: 'red' }}>*</span>
                     </p>
                   </Label>
                   <div className="relative w-full">
@@ -375,7 +403,7 @@ export default function Registration({ user, onComplete }: RegistrationProps) {
                       onClick={() =>
                         (
                           document.getElementById(
-                            "birthdate"
+                            'birthdate'
                           ) as HTMLInputElement
                         )?.showPicker()
                       }
@@ -387,11 +415,15 @@ export default function Registration({ user, onComplete }: RegistrationProps) {
                       type="date"
                       value={
                         birthdate
-                          ? new Date(birthdate).toISOString().split("T")[0]
-                          : ""
+                          ? new Date(birthdate)
+                              .toISOString()
+                              .split('T')[0]
+                          : ''
                       }
                       onChange={(e) =>
-                        setBirthdate(new Date(e.target.value).getTime())
+                        setBirthdate(
+                          new Date(e.target.value).getTime()
+                        )
                       }
                       className="pl-8 appearance-none focus:ring-1 ring-gray-300 custom-date-input"
                     />
@@ -448,7 +480,7 @@ export default function Registration({ user, onComplete }: RegistrationProps) {
                   type="submit"
                   disabled={isSubmitting}
                 >
-                  {isSubmitting ? "Creating..." : "Next"}
+                  {isSubmitting ? 'Creating...' : 'Next'}
                 </Button>
               </div>
             </form>

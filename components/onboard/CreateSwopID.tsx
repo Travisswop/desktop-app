@@ -37,6 +37,7 @@ export default function CreateSwopID({
   userData,
 }: CreateSwopIDProps) {
   const { wallets } = useWallets();
+  console.log('🚀 ~ wallets:', wallets);
   const { createWallet, wallets: solanaWallets } = useSolanaWallets();
   const { toast } = useToast();
   const router = useRouter();
@@ -63,6 +64,8 @@ export default function CreateSwopID({
       createSolanaWallet();
     }
   }, [solanaWallets, createWallet]);
+
+  console.log('solanawallet', solanaWallets);
 
   const validateSwopID = useCallback((id: string): boolean => {
     return SWOP_ID_REGEX.test(id);
