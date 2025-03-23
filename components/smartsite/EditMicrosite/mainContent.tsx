@@ -857,6 +857,7 @@ const EditSmartSite = ({ data, token }: any) => {
             <DynamicPrimaryBtn
               className="py-3 text-base !gap-1"
               disabled={isFormSubmitLoading}
+              type={"submit"}
             >
               {isFormSubmitLoading ? (
                 <Spinner size="sm" color="white" className="py-0.5" />

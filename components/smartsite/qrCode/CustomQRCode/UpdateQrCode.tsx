@@ -860,7 +860,11 @@ const UpdateQRCode = ({ session, data }: any) => {
             </div>
 
             <div>
-              <DynamicPrimaryBtn disabled={isLoading} className="mt-3 w-40">
+              <DynamicPrimaryBtn
+                type={"submit"}
+                disabled={isLoading}
+                className="mt-3 w-40"
+              >
                 {isLoading ? (
                   <Spinner className="py-0.5" size="sm" color="white" />
                 ) : (
