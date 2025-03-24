@@ -1,6 +1,6 @@
 "use server";
 
-import { cookies } from "next/headers";
+// import { cookies } from "next/headers";
 
 export async function postKycInBridge(options: any) {
   try {
@@ -30,10 +30,7 @@ export async function postExternalAccountInBridge(
   }
 }
 
-export async function saveQycInfoToSwopDB(data: any) {
-  const cookieStore = cookies();
-  const userId = (await cookieStore).get("user-id")?.value;
-
+export async function saveQycInfoToSwopDB(data: any, userId: string) {
   try {
     const response = await fetch(
       `${process.env.NEXT_PUBLIC_API_URL}/api/v4/user/saveKyc`,
@@ -52,9 +49,9 @@ export async function saveQycInfoToSwopDB(data: any) {
   }
 }
 
-export async function getDBExternalAccountInfo() {
-  const cookieStore = cookies();
-  const userId = (await cookieStore).get("user-id")?.value;
+export async function getDBExternalAccountInfo(userId: string) {
+  // const cookieStore = cookies();
+  // const userId = (await cookieStore).get("user-id")?.value;
 
   try {
     const response = await fetch(
@@ -73,10 +70,7 @@ export async function getDBExternalAccountInfo() {
   }
 }
 
-export async function getKycInfo() {
-  const cookieStore = cookies();
-  const userId = (await cookieStore).get("user-id")?.value;
-
+export async function getKycInfo(userId: string) {
   try {
     const response = await fetch(
       `${process.env.NEXT_PUBLIC_API_URL}/api/v4/user/getUserKyc/${userId}`,
