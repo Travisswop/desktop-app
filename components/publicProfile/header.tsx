@@ -1,16 +1,13 @@
-'use client';
-import { FC, useEffect, useState } from 'react';
-import Image from 'next/image';
-import {
-  Dialog,
-  DialogContent,
-  DialogTrigger,
-} from '@/components/ui/dialog';
-import Subscribe from './subscribe';
-import Connect from './connect';
-import { FaCartShopping } from 'react-icons/fa6';
-import { getCartData } from '@/actions/addToCartActions';
-import { usePathname, useRouter } from 'next/navigation';
+"use client";
+import { FC, useEffect, useState } from "react";
+import Image from "next/image";
+import { Dialog, DialogContent, DialogTrigger } from "@/components/ui/dialog";
+import Subscribe from "./subscribe";
+import Connect from "./connect";
+import { FaCartShopping } from "react-icons/fa6";
+import { getCartData } from "@/actions/addToCartActions";
+import { usePathname, useRouter } from "next/navigation";
+import useAddToCardToggleStore from "@/zustandStore/addToCartToggle";
 interface Props {
   avatar: string;
   cover: string;
@@ -33,50 +30,72 @@ const Header: FC<Props> = ({
   const [open, setOpen] = useState(false);
   const [openDC, setOpenDC] = useState(false);
   const [cartQty, setCartQty] = useState(0);
+
+  const { toggle, setToggle } = useAddToCardToggleStore();
   // const { accessToken } = useUser();
 
   const router = useRouter();
   const pathname = usePathname();
 
-  const coverPhoto = cover.includes('https')
+  const coverPhoto = cover.includes("https")
     ? cover
     : `/images/live-preview/coverphoto/${cover}.png`;
 
   useEffect(() => {
     const fetchCartData = async () => {
       try {
-        // setCartLoading(true);
-
         const response = await getCartData(accessToken);
-        if (response.state === 'success') {
+        if (response.state === "success") {
           setCartQty(response.data.cartItems.length);
         }
       } catch (error: any) {
-        // setCartLoading(false);
         console.error(
-          'error is' + error?.message || 'Failed to add item to cart'
+          "error is" + error?.message || "Failed to add item to cart"
         );
-        // toastify('Try again, something went wrong!');
+      } finally {
+        setToggle(); // Reset the toggle state after fetching data
       }
     };
+
+    // Always fetch cart data when the component mounts
     if (accessToken) {
       fetchCartData();
     }
-  }, [accessToken]);
+  }, [accessToken, setToggle]); // Add `accessToken` and `setToggle` as dependencies
+
+  useEffect(() => {
+    const fetchCartData = async () => {
+      try {
+        const response = await getCartData(accessToken);
+        if (response.state === "success") {
+          setCartQty(response.data.cartItems.length);
+        }
+      } catch (error: any) {
+        console.error(
+          "error is" + error?.message || "Failed to add item to cart"
+        );
+      } finally {
+        setToggle(); // Reset the toggle state after fetching data
+      }
+    };
+
+    // Fetch cart data when `toggle` changes
+    if (accessToken && toggle) {
+      fetchCartData();
+    }
+  }, [toggle, accessToken, setToggle]);
 
   const handleRedirectIntoCartDetails = () => {
     if (accessToken) {
       const newRoute = `${pathname}/cart`;
       router.push(newRoute);
     } else {
-      router.push('/login');
+      router.push("/login");
     }
   };
 
   return (
-    <div
-      className={`relative w-full ${theme ? 'h-28' : 'h-52'} mt-4`}
-    >
+    <div className={`relative w-full ${theme ? "h-28" : "h-52"} mt-4`}>
       <div>
         {!theme && (
           <div className="overflow-hidden h-44 rounded-md border-[6px] border-white shadow-lg">
@@ -130,7 +149,7 @@ const Header: FC<Props> = ({
               <Image
                 className="object-fill w-full h-full rounded-full"
                 src={
-                  avatar.includes('https')
+                  avatar.includes("https")
                     ? avatar
                     : `/images/user_avator/${avatar}@3x.png`
                 }

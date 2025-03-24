@@ -9,6 +9,9 @@ import UpdateProfile from "./mainContent";
 import { useSearchParams } from "next/navigation";
 
 export default function UserAccountTabSwitcher({ data, token }: any) {
+  // console.log("data", data);
+  // console.log("token", token);
+
   const searchParams = useSearchParams();
   // State to control the active tab
   const [activeTab, setActiveTab] = useState("profile");

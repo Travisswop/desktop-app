@@ -1,41 +1,43 @@
-// "use client";
+"use client";
 
 // import { useState, useEffect } from "react";
 // import { getUserData } from '../../actions/user';
-import Header from '@/components/publicProfile/header';
-import Bio from '@/components/publicProfile/bio';
-import Blog from '@/components/publicProfile/blog';
-import SocialLarge from '@/components/publicProfile/socialLarge';
-import SocialSmall from '@/components/publicProfile/socialSmall';
-import Ens from '@/components/publicProfile/ens';
-import MP3 from '@/components/publicProfile/mp3';
-import Referral from '@/components/publicProfile/referral';
-import Redeem from '@/components/publicProfile/redeem';
-import EmbedVideo from '@/components/publicProfile/embedvideo';
-import Message from '@/components/publicProfile/message';
-import Contact from '@/components/publicProfile/contact';
-import InfoBar from '@/components/publicProfile/infoBar';
-import PaymentBar from '@/components/publicProfile/paymentBar';
-import Footer from '@/components/publicProfile/footer';
+import Header from "@/components/publicProfile/header";
+import Bio from "@/components/publicProfile/bio";
+import Blog from "@/components/publicProfile/blog";
+import SocialLarge from "@/components/publicProfile/socialLarge";
+import SocialSmall from "@/components/publicProfile/socialSmall";
+import Ens from "@/components/publicProfile/ens";
+import MP3 from "@/components/publicProfile/mp3";
+import Referral from "@/components/publicProfile/referral";
+import Redeem from "@/components/publicProfile/redeem";
+import EmbedVideo from "@/components/publicProfile/embedvideo";
+import Message from "@/components/publicProfile/message";
+import Contact from "@/components/publicProfile/contact";
+import InfoBar from "@/components/publicProfile/infoBar";
+import PaymentBar from "@/components/publicProfile/paymentBar";
+import Footer from "@/components/publicProfile/footer";
 // import GatedAccess from "@/components/publicProfile/gatedAccess";
 // import { Toaster } from '@/components/publicProfile/ui/toaster';
 // import Image from "next/image";
 // import styles from "@/app/styles.module.css";
 // import { background } from "@/lib/icons";
-import { redirect } from 'next/navigation';
+import { redirect } from "next/navigation";
 // import { getUserData } from "@/actions/user";
-import { Toaster } from '@/components/ui/toaster';
-import MarketPlace from '@/components/publicProfile/MarketPlace';
-import { cookies } from 'next/headers';
+import { Toaster } from "@/components/ui/toaster";
+import MarketPlace from "@/components/publicProfile/MarketPlace";
+// import { cookies } from "next/headers";
+import { useEffect, useState } from "react";
+import Cookies from "js-cookie";
 
-export default async function ClientProfile({
-  initialData,
-  userName,
-}: any) {
+export default function ClientProfile({ initialData, userName }: any) {
   // const [data, setData] = useState(initialData);
   if (initialData.redirect) {
     redirect(`/sp/${initialData.data.username}`);
   }
+
+  const [userId, setUserId] = useState("");
+  const [accessToken, setAccessToken] = useState("");
 
   // useEffect(() => {
   //   const refreshData = async () => {
@@ -47,9 +49,21 @@ export default async function ClientProfile({
   //     }
   //   };
   // }, [data.username]);
-  const cookieStore = cookies();
-  const accessToken = (await cookieStore).get('access-token')?.value;
-  const userId = (await cookieStore).get('user-id')?.value;
+  // const cookieStore = cookies();
+  // const accessToken = (await cookieStore).get("access-token")?.value;
+  // const userId = (await cookieStore).get("user-id")?.value;
+
+  useEffect(() => {
+    const getAccessToken = async () => {
+      const token = Cookies.get("access-token");
+      const id = Cookies.get("user-id");
+      if (token && id) {
+        setAccessToken(token);
+        setUserId(id);
+      }
+    };
+    getAccessToken();
+  }, []);
 
   const {
     _id,
@@ -82,15 +96,14 @@ export default async function ClientProfile({
   const ensDomain = info.ensDomain[info.ensDomain.length - 1];
 
   const bg =
-    typeof backgroundImg === 'string' &&
-    backgroundImg.startsWith('https')
+    typeof backgroundImg === "string" && backgroundImg.startsWith("https")
       ? backgroundImg
       : `/images/smartsite-background/${backgroundImg}.png`;
   // background[backgroundImg as keyof typeof background];
 
   return (
     <div
-      style={{ backgroundImage: theme ? `url(${bg})` : '' }}
+      style={{ backgroundImage: theme ? `url(${bg})` : "" }}
       className="bg-cover bg-no-repeat h-screen overflow-y-auto"
     >
       {/* {theme && (
@@ -117,7 +130,7 @@ export default async function ClientProfile({
           parentId={parentId}
           micrositeId={_id}
           theme={theme}
-          accessToken={accessToken ? accessToken : ''}
+          accessToken={accessToken ? accessToken : ""}
         />
         <div className="my-4">
           <Bio name={name} bio={bio} />
