@@ -224,7 +224,7 @@ const CreateMenu = ({ collectionId }: { collectionId: string }) => {
           onOpenChange(true);
           setModelInfo({
             flag: true,
-            title: "Subscription created successfully!",
+            title: "NFT Template created successfully!",
             description: "",
           });
           setTimeout(() => {
@@ -235,7 +235,7 @@ const CreateMenu = ({ collectionId }: { collectionId: string }) => {
           onOpenChange(true);
           setModelInfo({
             flag: false,
-            title: "Failed to create subscription.",
+            title: "Failed to create template",
             description: "",
           });
         }
