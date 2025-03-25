@@ -215,7 +215,7 @@ const CreateMembership = ({ collectionId }: { collectionId: string }) => {
         onOpenChange(true);
         setModelInfo({
           flag: true,
-          title: "Membership created successfully!",
+          title: "NFT Template created successfully!",
           description: "",
         });
         setTimeout(() => {

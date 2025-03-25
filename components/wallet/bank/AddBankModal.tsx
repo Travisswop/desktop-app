@@ -18,18 +18,20 @@ import { FaPlus, FaRegCopy } from "react-icons/fa";
 import { FaArrowRightLong } from "react-icons/fa6";
 import { MdDone } from "react-icons/md";
 import { v4 as uuidv4 } from "uuid";
+import Cookies from "js-cookie";
 
 const AddBankModal = ({ bankShow, setBankShow }: any) => {
   const [stepper, setStepper] = useState("bank-account");
   const [kycLoading, setKycLoading] = useState(false);
   const [externalKycLoading, setExternalKycLoading] = useState(false);
   const [externalAccountInfo, setExternalAccountInfo] = useState<any>(null);
-  const [kycUrl, setKycUrl] = useState<string | null>(null);
-  const [agreementUrl, setAgreementUrl] = useState<string | null>(null);
+  // const [kycUrl, setKycUrl] = useState<string | null>(null);
+  // const [agreementUrl, setAgreementUrl] = useState<string | null>(null);
   const [kycData, setKycData] = useState<any>(null);
   const [kycDataFetchLoading, setKycDataFetchLoading] =
     useState<boolean>(false);
   const [copiedItem, setCopiedItem] = useState(""); // Track which item was copied
+  const [userId, setUserId] = useState("");
 
   const router = useRouter();
 
@@ -37,70 +39,79 @@ const AddBankModal = ({ bankShow, setBankShow }: any) => {
     setStepper("bank-account-details");
   };
 
-  // const handleRedirectKyc = () => {
+  useEffect(() => {
+    const getUserId = async () => {
+      const userId = Cookies.get("user-id");
+      if (userId) {
+        setUserId(userId);
+      }
+    };
+    getUserId();
+  }, []);
 
-  // };
-
-  console.log("kycData", kycData);
+  console.log("user id from useEffect", userId);
 
   useEffect(() => {
     const getKycData = async () => {
       try {
         setKycDataFetchLoading(true);
-        const info = await getKycInfo();
-        console.log("info ", info);
-        if (info.success && info.message === "KYC information available") {
-          setKycData(info.data);
-          if (info.data.kyc_status !== "approved") {
-            const options = {
-              method: "GET",
-              headers: {
-                accept: "application/json",
-                "content-type": "application/json",
-                "Api-Key": process.env.NEXT_PUBLIC_BRIDGE_SECRET,
-              },
-            };
+        // const userId = Cookies.get("user-id");
 
-            const bridgeInfo = await getKycInfoFromBridge(
-              options,
-              info.data.id
-            );
-
-            console.log("bridgeInfo123", bridgeInfo);
-
-            if (info.data.kyc_status !== bridgeInfo.kyc_status) {
-              console.log("hiittt");
-
-              await saveQycInfoToSwopDB(bridgeInfo);
-              setKycData(bridgeInfo);
-            }
-          } else if (info.data.kyc_status === "approved") {
-            const externalDBInfo = await getDBExternalAccountInfo();
-            console.log("externalDBInfo", externalDBInfo);
-
-            if (
-              externalDBInfo.success &&
-              externalAccountInfo.message ===
-                "Existing account information available"
-            ) {
-              setExternalAccountInfo(externalDBInfo.data);
-              setStepper("virtual-bank-account");
-            } else {
+        if (userId) {
+          const info = await getKycInfo(userId);
+          console.log("info ", info);
+          if (info.success && info.message === "KYC information available") {
+            setKycData(info.data);
+            if (info.data.kyc_status !== "approved") {
               const options = {
                 method: "GET",
                 headers: {
                   accept: "application/json",
+                  "content-type": "application/json",
                   "Api-Key": process.env.NEXT_PUBLIC_BRIDGE_SECRET,
                 },
               };
-              const response = await postExternalAccountInBridge(
-                info.data.customer_id,
-                options
+
+              const bridgeInfo = await getKycInfoFromBridge(
+                options,
+                info.data.id
               );
-              setExternalAccountInfo(response);
-              setStepper("virtual-bank-account");
-              // if any external account exist
-              console.log("response for external account", response);
+
+              console.log("bridgeInfo123", bridgeInfo);
+
+              if (info.data.kyc_status !== bridgeInfo.kyc_status) {
+                console.log("hiittt");
+
+                await saveQycInfoToSwopDB(bridgeInfo, userId);
+                setKycData(bridgeInfo);
+              }
+            } else if (info.data.kyc_status === "approved") {
+              const externalDBInfo = await getDBExternalAccountInfo(userId);
+
+              if (
+                externalDBInfo.success &&
+                externalAccountInfo.message ===
+                  "Existing account information available"
+              ) {
+                setExternalAccountInfo(externalDBInfo.data);
+                setStepper("virtual-bank-account");
+              } else {
+                const options = {
+                  method: "GET",
+                  headers: {
+                    accept: "application/json",
+                    "Api-Key": process.env.NEXT_PUBLIC_BRIDGE_SECRET,
+                  },
+                };
+                const response = await postExternalAccountInBridge(
+                  info.data.customer_id,
+                  options
+                );
+                setExternalAccountInfo(response);
+                setStepper("virtual-bank-account");
+                // if any external account exist
+                console.log("response for external account", response);
+              }
             }
           }
         }
@@ -111,7 +122,7 @@ const AddBankModal = ({ bankShow, setBankShow }: any) => {
       }
     };
     getKycData();
-  }, []);
+  }, [externalAccountInfo?.message, userId]);
 
   const handleKycLink = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -163,9 +174,9 @@ const AddBankModal = ({ bankShow, setBankShow }: any) => {
       }
 
       if (data?.kyc_link && data?.tos_link) {
-        await saveQycInfoToSwopDB(data); // Ensure this function is defined
-        setKycUrl(data.kyc_link);
-        setAgreementUrl(data.tos_link);
+        await saveQycInfoToSwopDB(data, userId); // Ensure this function is defined
+        // setKycUrl(data.kyc_link);
+        // setAgreementUrl(data.tos_link);
         setStepper("kyc-success"); // Add a new step for KYC success
 
         router.push(
@@ -178,13 +189,13 @@ const AddBankModal = ({ bankShow, setBankShow }: any) => {
 
         // router.push(data.kyc_link + "&redirect-uri=" + data.tos_link);
       } else if (data?.existing_kyc_link?.kyc_link) {
-        await saveQycInfoToSwopDB(data.existing_kyc_link); // Ensure this function is defined
+        await saveQycInfoToSwopDB(data.existing_kyc_link, userId); // Ensure this function is defined
         // await dispatch({
         //   type: SEND_PARENT_PROFILE_INFO,
         //   payload: { data: { ...user_Data.data, kyc: data } },
         // });
-        setKycUrl(data.existing_kyc_link.kyc_link);
-        setAgreementUrl(data.existing_kyc_link.tos_link);
+        // setKycUrl(data.existing_kyc_link.kyc_link);
+        // setAgreementUrl(data.existing_kyc_link.tos_link);
         setStepper("kyc-success"); // Add a new step for KYC success
         router.push(
           data.existing_kyc_link.tos_link +
