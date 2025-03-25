@@ -15,20 +15,11 @@ import {
   ModalBody,
   ModalFooter,
 } from '@nextui-org/react';
-import { CheckCircle, Clock, Upload } from 'lucide-react';
+import { CheckCircle, Clock } from 'lucide-react';
 
 import Image from 'next/image';
 import { useParams } from 'next/navigation';
 import React, { useEffect, useMemo, useState } from 'react';
-
-interface MintResult {
-  id: string;
-  onChain: {
-    status: 'pending' | 'success' | 'failed';
-    chain: 'solana' | 'ethereum';
-  };
-  actionId: string;
-}
 
 interface NFT {
   _id: string;
@@ -48,15 +39,6 @@ interface NFT {
   quantity: number;
 }
 
-interface MintedNFT {
-  _id: string;
-  templateId: string;
-  mintResult: MintResult;
-  name?: string;
-  price?: number;
-  image?: string;
-}
-
 interface OrderData {
   _id: string;
   orderId: string;
@@ -68,7 +50,6 @@ interface OrderData {
     ens?: string;
   };
   collectionId: string;
-  mintedNfts: MintedNFT[];
   totalPriceOfNFTs: number;
   orderDate: string;
   status: {
@@ -110,6 +91,32 @@ interface ShippingUpdateData {
   additionalNotes: string;
 }
 
+// Define a type for the possible stage keys
+type StageKey =
+  | 'order_created'
+  | 'payment_verified'
+  | 'nft_minted'
+  | 'shipping_prepared'
+  | 'completed';
+
+type StatusKey = 'pending' | 'in_progress' | 'completed' | 'failed';
+
+// Stage display names mapping with explicit typing
+const stageDisplayNames: Record<StageKey, string> = {
+  order_created: 'Order Created',
+  payment_verified: 'Payment Verified',
+  nft_minted: 'NFT Minted',
+  shipping_prepared: 'Shipping',
+  completed: 'Order Completed',
+};
+
+const statusDisplayNames = {
+  completed: 'Completed',
+  in_progress: 'In Progress',
+  pending: 'Pending',
+  failed: 'Failed',
+};
+
 const OrderProcessingTimeline = ({
   stages,
 }: {
@@ -130,15 +137,6 @@ const OrderProcessingTimeline = ({
   // Format date function
   const formatDate = (dateString: string) => {
     return dateFormatter.format(new Date(dateString));
-  };
-
-  // Stage display names mapping
-  const stageDisplayNames = {
-    order_created: 'Order Created',
-    payment_verified: 'Payment Verified',
-    nft_minted: 'NFT Minted',
-    shipping_prepared: 'Shipping',
-    completed: 'Order Completed',
   };
 
   return (
@@ -169,7 +167,8 @@ const OrderProcessingTimeline = ({
 
                 <div className="pb-8">
                   <p className="font-medium text-gray-900">
-                    {stageDisplayNames[stage.stage] || stage.stage}
+                    {stageDisplayNames[stage.stage as StageKey] ||
+                      stage.stage}
                   </p>
                   <div className="flex items-center">
                     <span className="text-sm text-gray-500">
@@ -188,7 +187,9 @@ const OrderProcessingTimeline = ({
                           : 'bg-gray-100 text-gray-800'
                       }`}
                     >
-                      {stage.status}
+                      {statusDisplayNames[
+                        stage.status as StatusKey
+                      ] || stage.status}
                     </span>
                   </div>
                 </div>
@@ -273,7 +274,11 @@ export default function OrderPage() {
   const [userRole, setUserRole] = useState('');
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [isError, setIsError] = useState<string | null>(null);
-  const [selected, setSelected] = React.useState('orderHistory');
+  const [selected, setSelected] = useState('orderHistory');
+  const [isCompleted, setIsCompleted] = useState(false);
+  const [processingStages, setProcessingStages] = useState<
+    ProcessingStage[]
+  >([]);
 
   const [isUpdateModalOpen, setIsUpdateModalOpen] = useState(false);
   const [isUpdating, setIsUpdating] = useState(false);
@@ -329,6 +334,22 @@ export default function OrderPage() {
         });
         setNfts(nfts);
         setUserRole(data.userRole);
+
+        const fileterProcessing = data.order.processingStages.filter(
+          (item: any) =>
+            item.stage !== 'escrow_transferred' &&
+            item.stage !== 'token_swapped'
+        );
+        setProcessingStages(fileterProcessing);
+
+        const findCompleteStatus = data.order.processingStages.find(
+          (item: any) => item.stage === 'completed'
+        );
+
+        if (findCompleteStatus.status === 'completed') {
+          setIsCompleted(true);
+        }
+        console.log('find complete status', findCompleteStatus);
       } catch (error: any) {
         console.error('Fetch Error:', error);
         setIsError(error.message || 'An unexpected error occurred.');
@@ -397,6 +418,54 @@ export default function OrderPage() {
     }
   };
 
+  const handleOrderUpdate = async () => {
+    setIsUpdating(true);
+    try {
+      const API_URL = process.env.NEXT_PUBLIC_API_URL;
+      if (!API_URL) {
+        throw new Error('API base URL is not defined.');
+      }
+
+      const response = await fetch(
+        `${API_URL}/api/v5/orders/${orderId}/confirm-receipt`,
+        {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ rating: 5, feedback: '' }),
+        }
+      );
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(`${result.message}`);
+      }
+
+      const updatedProcessingStages = processingStages.map(
+        (stage) => {
+          if (stage.stage === 'completed') {
+            return { ...stage, status: 'completed' };
+          }
+          return stage;
+        }
+      );
+      setTimeout(() => {
+        setProcessingStages(updatedProcessingStages);
+        setIsCompleted(true);
+      }, 2000);
+    } catch (error: any) {
+      console.error('Update Error:', error);
+      setUpdateError(
+        error.message || 'An unexpected error occurred.'
+      );
+    } finally {
+      setIsUpdating(false);
+    }
+  };
+
   if (isLoading) {
     return (
       <div className="flex justify-center items-center h-screen">
@@ -449,12 +518,6 @@ export default function OrderPage() {
       totalCost: 0,
     };
 
-  const fileterProcessing = order.processingStages.filter(
-    (item) =>
-      item.stage !== 'escrow_transferred' &&
-      item.stage !== 'token_swapped'
-  );
-
   return (
     <div className="mx-auto">
       <div className="p-8 bg-white shadow-md rounded-lg">
@@ -472,6 +535,27 @@ export default function OrderPage() {
               {new Date(order.orderDate).toLocaleDateString()}
             </p>
           </div>
+          {order?.orderType !== 'non-phygitals' &&
+            userRole === 'buyer' && (
+              <div className="">
+                {isCompleted ? (
+                  <div className="bg-green-100 text-green-800 px-4 py-1 rounded-md">
+                    Completed
+                  </div>
+                ) : (
+                  <NextUIButton
+                    color="primary"
+                    size="sm"
+                    className="ml-2"
+                    onPress={handleOrderUpdate}
+                    isLoading={isUpdating}
+                    disabled={order.status.delivery !== 'Completed'}
+                  >
+                    Mark Order as Complete
+                  </NextUIButton>
+                )}
+              </div>
+            )}
           {order?.orderType !== 'non-phygitals' &&
             userRole === 'seller' && (
               <div className="">
@@ -613,7 +697,7 @@ export default function OrderPage() {
             }}
           >
             <Tab key="orderHistory" title="Order History">
-              <OrderProcessingTimeline stages={fileterProcessing} />
+              <OrderProcessingTimeline stages={processingStages} />
             </Tab>
 
             <Tab key="customerDetails" title="Customer Details">

@@ -198,9 +198,9 @@ const OrderManagement = () => {
                   <TableCell>
                     <span
                       className={`px-2 py-1 rounded text-xs font-medium ${
-                        order.status === 'complete'
+                        order.status === 'Completed'
                           ? 'bg-green-100 text-green-600'
-                          : order.status === 'processing'
+                          : order.status === 'In Progress'
                           ? 'bg-yellow-100 text-yellow-600'
                           : 'bg-red-100 text-red-600'
                       }`}
