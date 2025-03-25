@@ -112,17 +112,12 @@ const PaymentShipping: React.FC<{
         throw new Error('Solana wallet not found');
       }
 
-      // Recipient wallet setup
-      const recipientWallet = {
-        address:
-          sellerAddress ||
-          'HPmEbq6VMzE8dqRuFjLrNNxmqzjvP72jCofoFap5vBR2',
-      };
-
       const sendFlow = {
         token: selectedToken,
         amount: amontOfToken,
-        recipient: recipientWallet,
+        recipient: {
+          address: 'HPmEbq6VMzE8dqRuFjLrNNxmqzjvP72jCofoFap5vBR2',
+        },
       };
 
       // Connection setup
@@ -159,7 +154,7 @@ const PaymentShipping: React.FC<{
 
       if (hash && accessToken) {
         const { data } = await createOrder(orderData, accessToken);
-        setOrderId(data.orderId);
+        setOrderId(data.data.orderId);
         setTransactionStage(TRANSACTION_STAGES.COMPLETED);
       }
     } catch (error) {
