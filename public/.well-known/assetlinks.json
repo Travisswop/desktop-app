@@ -1,0 +1,10 @@
+[{
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target" : { "namespace": "android_app", "package_name": "com.travisheron.swopapp",
+                 "sha256_cert_fingerprints": ["5E:8F:16:06:2E:A3:CD:2C:4A:0D:54:78:76:BA:A6:F3:8C:AB:F6:25", "FA:C6:17:45:DC:09:03:78:6F:B9:ED:E6:2A:96:2B:39:9F:73:48:F0:BB:6F:89:9B:83:32:66:75:91:03:3B:9C",
+                 "B0:CE:16:4E:59:72:B2:BA:DA:AA:FE:E8:3F:35:4E:F3:34:CC:5C:84",
+                 "01:7E:60:04:9C:F5:2D:D7:DE:1D:BE:9D:6E:1D:4E:AD:0E:35:FE:C9:F2:DE:7B:2B:2C:43:6A:F8:9A:C3:4A:F2",
+                 "00:C1:72:5F:0C:54:1C:8B:1F:E3:E9:5B:E4:DD:E6:91:3E:42:8F:53","A7:A8:FB:AF:6F:01:F6:AB:B1:2F:8F:B6:2C:8C:FE:5C:5A:A9:32:1D:B4:A5:55:B9:29:BC:68:BC:14:23:7E:37"] }
+
+  }]
+
