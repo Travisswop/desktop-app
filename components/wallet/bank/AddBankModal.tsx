@@ -39,6 +39,8 @@ const AddBankModal = ({ bankShow, setBankShow }: any) => {
     setStepper("bank-account-details");
   };
 
+  console.log("stepper", stepper);
+
   useEffect(() => {
     const getUserId = async () => {
       const userId = Cookies.get("user-id");
@@ -88,6 +90,8 @@ const AddBankModal = ({ bankShow, setBankShow }: any) => {
             } else if (info.data.kyc_status === "approved") {
               const externalDBInfo = await getDBExternalAccountInfo(userId);
 
+              console.log("externalDBInfo", externalDBInfo);
+
               if (
                 externalDBInfo.success &&
                 externalAccountInfo.message ===
@@ -95,6 +99,7 @@ const AddBankModal = ({ bankShow, setBankShow }: any) => {
               ) {
                 setExternalAccountInfo(externalDBInfo.data);
                 setStepper("virtual-bank-account");
+                console.log("hit");
               } else {
                 const options = {
                   method: "GET",
