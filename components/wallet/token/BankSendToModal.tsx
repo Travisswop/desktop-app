@@ -22,6 +22,7 @@ import { TokenData } from "@/types/token";
 
 import { TransactionService } from "@/services/transaction-service";
 import { usePrivy, useSolanaWallets } from "@privy-io/react-auth";
+import { useTokenSendStore } from "@/zustandStore/TokenSendInfo";
 type ProcessingStep = {
   status: "pending" | "processing" | "completed" | "error";
   message: string;
@@ -106,6 +107,10 @@ export default function BankSendToModal({
   const [addressError, setAddressError] = useState(false);
   const [isRedeemModalOpen, setIsRedeemModalOpen] = useState(false);
   const { wallets: solanaWallets } = useSolanaWallets();
+
+  const { tokenContent, setTokenContent } = useTokenSendStore();
+
+  console.log("token content tt", tokenContent);
 
   const network = selectedToken?.chain || "ETHEREUM";
 

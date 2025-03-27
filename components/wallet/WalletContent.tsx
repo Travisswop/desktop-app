@@ -429,34 +429,41 @@ const WalletContentInner = () => {
       />
 
       {/*for bank start */}
-      <BankAssetSelector
-        open={sendFlow.step === "bank-assets"}
-        setSendFlow={setSendFlow}
-        onOpenChange={(open) => !open && resetSendFlow()}
-        assets={tokens}
-        nfts={nfts}
-        onNext={handleSendClick}
-        onNFTNext={handleNFTNext}
-      />
+      {sendFlow.step === "bank-assets" && (
+        <BankAssetSelector
+          open={sendFlow.step === "bank-assets"}
+          setSendFlow={setSendFlow}
+          onOpenChange={(open) => !open && resetSendFlow()}
+          assets={tokens}
+          nfts={nfts}
+          onNext={handleSendClick}
+          onNFTNext={handleNFTNext}
+        />
+      )}
       {sendFlow.step === "bank-amount" && (
         <SendBankToken
           open={sendFlow.step === "bank-amount"}
           onOpenChange={(open) => !open && resetSendFlow()}
           token={sendFlow.token!}
           onNext={handleAmountConfirm}
+          setSendFlow={setSendFlow}
+          networkFee={sendFlow.networkFee || ""}
         />
       )}
-      <BankSendToModal
-        open={sendFlow.step === "bank-recipient"}
-        onOpenChange={(open) => !open && resetSendFlow()}
-        onSelectReceiver={handleRecipientSelect}
-        network={network}
-        currentWalletAddress={currentWalletAddress || ""}
-        selectedToken={sendFlow.token!}
-        amount={sendFlow.amount!}
-        isUSD={sendFlow.isUSD}
-      />
+      {sendFlow.step === "bank-recipient" && (
+        <BankSendToModal
+          open={sendFlow.step === "bank-recipient"}
+          onOpenChange={(open) => !open && resetSendFlow()}
+          onSelectReceiver={handleRecipientSelect}
+          network={network}
+          currentWalletAddress={currentWalletAddress || ""}
+          selectedToken={sendFlow.token!}
+          amount={sendFlow.amount!}
+          isUSD={sendFlow.isUSD}
+        />
+      )}
       {/* for bank end  */}
+
       <SendToModal
         open={sendFlow.step === "recipient"}
         onOpenChange={(open) => !open && resetSendFlow()}

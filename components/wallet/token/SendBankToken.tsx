@@ -8,18 +8,25 @@ import { DialogTitle } from "@radix-ui/react-dialog";
 import { TokenData } from "@/types/token";
 import { ArrowUpDown } from "lucide-react";
 import toast from "react-hot-toast";
-import { getDBExternalAccountInfo } from "@/actions/bank";
+import {
+  createBridgePayment,
+  getDBExternalAccountInfo,
+  getKycInfo,
+} from "@/actions/bank";
 import Cookies from "js-cookie";
 import { BsBank2 } from "react-icons/bs";
 import { PiWalletBold } from "react-icons/pi";
 import { useUser } from "@/lib/UserContext";
 import { useTokenSendStore } from "@/zustandStore/TokenSendInfo";
+import { useSolanaWallets } from "@privy-io/react-auth";
 
 interface SendTokenModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   token: TokenData;
   onNext: (amount: string, isUSD: boolean) => void;
+  setSendFlow: any;
+  networkFee: any;
 }
 
 export default function SendBankToken({
@@ -27,6 +34,8 @@ export default function SendBankToken({
   onOpenChange,
   token,
   onNext,
+  setSendFlow,
+  networkFee,
 }: SendTokenModalProps) {
   // When price is 0, force token input mode
   const hasPrice = parseFloat(token?.marketData?.price || "0") > 0;
@@ -36,9 +45,14 @@ export default function SendBankToken({
   const [externalBanks, setExternalBanks] = useState([]);
   const [selectedBank, setSelectedBank] = useState<any>(null);
   const [reviewDetails, setReviewDetails] = useState<any>(false);
-  const [networkFee, setNetworkFee] = useState<any>(0);
-  //   const [transferFee, setTransferFee] = useState<any>(0);
-  //   const [bankReceived, setBankReceived] = useState<any>(0);
+
+  if (token.chain === "SOLANA") {
+    networkFee = "0.000005";
+  }
+
+  const { wallets } = useSolanaWallets();
+
+  console.log("wallets solanan", wallets);
 
   const { tokenContent, setTokenContent } = useTokenSendStore();
 
@@ -46,7 +60,7 @@ export default function SendBankToken({
 
   console.log("externalBanks", externalBanks);
   console.log("selectedBank", selectedBank);
-  console.log("tokenContent", tokenContent);
+  console.log("token", token);
 
   console.log("user", user);
 
@@ -70,6 +84,24 @@ export default function SendBankToken({
     }
   }, [userId]);
 
+  // useEffect(() => {
+  //     const fetchGasFee = async () => {
+  //       // const nativeTokenPrice = tokens.find((token) => token.isNative)?.marketData
+  //       // .price;
+  //       if (token.chain === 'SOLANA') {
+  //         const networkFeeUSD = (
+  //           Number(networkFee) * nativeTokenPrice
+  //         ).toFixed(5);
+  //         setGasFeeUSD(Number(networkFeeUSD));
+  //       } else {
+  //         const gasFee = await calculateEVMGasFee(network);
+  //         const gasFeeUSD = Number(gasFee) * nativeTokenPrice;
+  //         setGasFeeUSD(Number(gasFeeUSD.toFixed(5)));
+  //       }
+  //     };
+  //     fetchGasFee();
+  //   }, [network, nativeTokenPrice, networkFee]);
+
   const handleNext = (amount: any, isUSD: any) => {
     if (amount < 1) {
       toast.error("Minimum 2 USDC needed to continue");
@@ -79,13 +111,37 @@ export default function SendBankToken({
       onNext(amount, isUSD);
     }
   };
-  const handleSend = (amount: any, isUSD: any) => {
+  const handleSend = async (amount: any, isUSD: any) => {
+    // const kycData = await getKycInfo(user?._id);
+    const externalData = await getDBExternalAccountInfo(user?._id);
+    console.log("externalData", externalData);
+
+    console.log("options for bank", {
+      network: token?.chain?.toLowerCase(),
+      walletAddress: wallets[0]?.address,
+      id: externalData.data.accounts[0].id,
+      customerId: externalData.data.accounts[0].customer_id,
+      amount: amount,
+      networkFee: networkFee,
+    });
+
+    const response = await createBridgePayment(
+      token?.chain?.toLowerCase(),
+      wallets[0]?.address,
+      externalData.data.accounts[0].id,
+      externalData.data.accounts[0].customer_id,
+      amount
+    );
+    console.log("send bank response", response);
+
     setTokenContent({
       networkFee: 0,
       transferFee: Number(token.balance),
       bankReceived: Number(token.balance) - Number(token.balance) * 0.05,
+      walletAddress: response,
     });
     onNext(amount, isUSD);
+    setSendFlow((prev: any) => ({ ...prev, step: "bank-recipient" }));
   };
 
   const maxUSDAmount =
@@ -400,11 +456,11 @@ export default function SendBankToken({
                 </div>
                 <div className="flex items-center justify-between w-full">
                   <p className="text-gray-500">Transfer Fee</p>
-                  <p>{Number(token.balance) * 0.05}</p>
+                  <p>{(Number(amount) * 0.005).toFixed(2)}</p>
                 </div>
                 <div className="flex items-center justify-between w-full">
                   <p className="text-gray-500">Bank Received</p>
-                  <p>{Number(token.balance) - Number(token.balance) * 0.05}</p>
+                  <p>{parseFloat(amount) - parseFloat(amount) * 0.005}</p>
                 </div>
               </div>
             </div>

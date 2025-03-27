@@ -5,6 +5,7 @@ type PostContentItem = {
   networkFee: number;
   transferFee: number;
   bankReceived: number;
+  walletAddress: string;
 };
 
 type PostStore = {
@@ -17,6 +18,8 @@ export const useTokenSendStore = create<PostStore>((set) => ({
     networkFee: 0,
     transferFee: 0,
     bankReceived: 0,
+    walletAddress: "",
+    // createBridgePaymentResponse: {},
   }, // Initial state (empty array)
   setTokenContent: (content) => set({ tokenContent: content }), // Action to update state
 }));
