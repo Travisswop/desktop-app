@@ -144,7 +144,9 @@ export default function SendBankToken({
     setSendFlow((prev: any) => ({
       ...prev,
       step: "bank-confirm",
-      recipient: response,
+      recipient: {
+        address: response
+      },
     }));
   };
 
