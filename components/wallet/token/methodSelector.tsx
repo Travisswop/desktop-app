@@ -1,6 +1,10 @@
 "use client";
 
+import { getDBExternalAccountInfo } from "@/actions/bank";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
+import { useUser } from "@/lib/UserContext";
+import { useEffect, useState } from "react";
+import toast from "react-hot-toast";
 import { PiWalletBold } from "react-icons/pi";
 
 interface AssetSelectorProps {
@@ -14,6 +18,31 @@ export default function MethodSelector({
   onOpenChange,
   setSendFlow,
 }: AssetSelectorProps) {
+  const { user } = useUser();
+  const [isBankCanProceed, setIsBankCanProceed] = useState(false);
+  const [loading, setLoading] = useState(false);
+  useEffect(() => {
+    const fetchExternalWallet = async () => {
+      setLoading(true);
+      const res = await getDBExternalAccountInfo(user._id);
+      console.log("resss", res);
+      if (res.success) {
+        setIsBankCanProceed(true);
+        setLoading(false);
+      }
+    };
+    if (user?._id) {
+      fetchExternalWallet();
+    }
+  }, [user?._id]);
+
+  const handleSelectBank = () => {
+    if (isBankCanProceed && !loading) {
+      setSendFlow((prev: any) => ({ ...prev, step: "bank-assets" }));
+    } else {
+      toast.error("Please add bank account to continue.");
+    }
+  };
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-sm p-6 rounded-3xl">
@@ -37,9 +66,10 @@ export default function MethodSelector({
               </div>
             </button>
             <button
-              onClick={() =>
-                setSendFlow((prev: any) => ({ ...prev, step: "bank-assets" }))
-              }
+              onClick={handleSelectBank}
+              // onClick={() =>
+              //   setSendFlow((prev: any) => ({ ...prev, step: "bank-assets" }))
+              // }
               className="p-2 rounded-xl shadow-medium flex items-center gap-3 text-start"
             >
               <span className="p-3 bg-gray-200 rounded-lg">

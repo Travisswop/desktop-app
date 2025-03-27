@@ -416,7 +416,7 @@ const WalletContentInner = () => {
         onOpenChange={(open) => !open && resetSendFlow()}
         setSendFlow={setSendFlow}
       />
-      {/*for  both  */}
+      {/*for  both wallet and bank */}
       <AssetSelector
         open={sendFlow.step === "assets"}
         onOpenChange={(open) => !open && resetSendFlow()}
