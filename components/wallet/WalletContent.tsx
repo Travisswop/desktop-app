@@ -42,6 +42,7 @@ import MethodSelector from "./token/methodSelector";
 import BankAssetSelector from "./token/BankAssetSelector";
 import SendBankToken from "./token/SendBankToken";
 import BankSendToModal from "./token/BankSendToModal";
+import SendBankConfirmation from "./token/SendBankConfirmation";
 
 export default function WalletContent() {
   return <WalletContentInner />;
@@ -213,12 +214,16 @@ const WalletContentInner = () => {
 
   // Transaction handling
   const handleSendConfirm = async () => {
+    console.log("send foowddd", sendFlow);
+
     if (
       (!sendFlow.token && !sendFlow.nft) ||
       !sendFlow.recipient ||
       !sendFlow.amount
     )
       return;
+
+    console.log("hiittt");
 
     setSendLoading(true);
 
@@ -450,7 +455,7 @@ const WalletContentInner = () => {
           networkFee={sendFlow.networkFee || ""}
         />
       )}
-      {sendFlow.step === "bank-recipient" && (
+      {/* {sendFlow.step === "bank-recipient" && (
         <BankSendToModal
           open={sendFlow.step === "bank-recipient"}
           onOpenChange={(open) => !open && resetSendFlow()}
@@ -460,6 +465,23 @@ const WalletContentInner = () => {
           selectedToken={sendFlow.token!}
           amount={sendFlow.amount!}
           isUSD={sendFlow.isUSD}
+        />
+      )} */}
+      {sendFlow.token && sendFlow.step === "bank-confirm" && (
+        <SendBankConfirmation
+          open={sendFlow.step === "bank-confirm"}
+          onOpenChange={(open) => !open && resetSendFlow()}
+          amount={sendFlow.amount}
+          isUSD={sendFlow.isUSD}
+          token={sendFlow.token!}
+          recipient={sendFlow.recipient?.address || ""}
+          onConfirm={handleSendConfirm}
+          loading={sendLoading}
+          nft={sendFlow.nft}
+          recipientName={sendFlow.recipient?.ensName || ""}
+          networkFee={sendFlow.networkFee || ""}
+          network={sendFlow.network}
+          nativeTokenPrice={nativeTokenPrice}
         />
       )}
       {/* for bank end  */}

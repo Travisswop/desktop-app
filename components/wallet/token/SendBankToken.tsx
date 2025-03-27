@@ -141,7 +141,11 @@ export default function SendBankToken({
       walletAddress: response,
     });
     onNext(amount, isUSD);
-    setSendFlow((prev: any) => ({ ...prev, step: "bank-recipient" }));
+    setSendFlow((prev: any) => ({
+      ...prev,
+      step: "bank-confirm",
+      recipient: response,
+    }));
   };
 
   const maxUSDAmount =

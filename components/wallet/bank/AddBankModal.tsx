@@ -94,7 +94,7 @@ const AddBankModal = ({ bankShow, setBankShow }: any) => {
 
               if (
                 externalDBInfo.success &&
-                externalAccountInfo.message ===
+                externalDBInfo.message ===
                   "Existing account information available"
               ) {
                 setExternalAccountInfo(externalDBInfo.data);

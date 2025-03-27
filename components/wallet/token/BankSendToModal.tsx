@@ -108,9 +108,9 @@ export default function BankSendToModal({
   const [isRedeemModalOpen, setIsRedeemModalOpen] = useState(false);
   const { wallets: solanaWallets } = useSolanaWallets();
 
-  const { tokenContent, setTokenContent } = useTokenSendStore();
+  // const { tokenContent, setTokenContent } = useTokenSendStore();
 
-  console.log("token content tt", tokenContent);
+  // console.log("token content tt", tokenContent);
 
   const network = selectedToken?.chain || "ETHEREUM";
 

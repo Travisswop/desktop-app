@@ -22,6 +22,7 @@ export interface SendFlowState {
     | "bank-assets"
     | "bank-amount"
     | "bank-recipient"
+    | "bank-confirm"
     | null;
   token: TokenData | null;
   amount: string;
