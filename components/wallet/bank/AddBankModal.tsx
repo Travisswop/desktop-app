@@ -40,6 +40,7 @@ const AddBankModal = ({ bankShow, setBankShow }: any) => {
   };
 
   console.log("stepper", stepper);
+  console.log("externalAccountInfo", externalAccountInfo);
 
   useEffect(() => {
     const getUserId = async () => {
@@ -306,7 +307,7 @@ const AddBankModal = ({ bankShow, setBankShow }: any) => {
 
   // Function to copy all details at once
   const handleCopyAllDetails = async () => {
-    const allDetails = `Bank Routing Number: ${externalAccountInfo?.data[0]?.account?.routing_number}\nBank Account Number: ${externalAccountInfo?.data[0]?.account?.last_4}\nBank Name: ${externalAccountInfo?.data[0]?.bank_name}\nBank Beneficiary Name: ${externalAccountInfo?.data[0]?.account_owner_name}`;
+    const allDetails = `Bank Routing Number: ${externalAccountInfo?.accounts[0]?.account?.routing_number}\nBank Account Number: ${externalAccountInfo?.accounts[0]?.account.last_4}\nBank Name: ${externalAccountInfo?.accounts[0]?.bank_name}\nBank Beneficiary Name: ${externalAccountInfo?.accounts[0]?.account_owner_name}`;
     await handleCopy(allDetails, "all");
   };
 
@@ -666,136 +667,135 @@ const AddBankModal = ({ bankShow, setBankShow }: any) => {
                   </form>
                 </div>
               )}
-              {externalAccountInfo &&
-                externalAccountInfo.count > 0 &&
-                stepper === "virtual-bank-account" && (
-                  <div className="flex flex-col items-center gap-3">
-                    <div className="w-11 h-11 bg-gray-200 rounded-full flex items-center justify-center relative">
-                      <AiOutlineBank size={20} />
-                      <Image
-                        src={"/images/us-flag-logo.png"}
-                        alt="us flag"
-                        width={20}
-                        height={20}
-                        className="absolute -top-0.5 -right-0.5"
-                      />
+              {stepper === "virtual-bank-account" && (
+                <div className="flex flex-col items-center gap-3">
+                  <div className="w-11 h-11 bg-gray-200 rounded-full flex items-center justify-center relative">
+                    <AiOutlineBank size={20} />
+                    <Image
+                      src={"/images/us-flag-logo.png"}
+                      alt="us flag"
+                      width={20}
+                      height={20}
+                      className="absolute -top-0.5 -right-0.5"
+                    />
+                  </div>
+                  <div className="pb-5 border-b-2 border-dashed w-full">
+                    <h2 className="text-center text-xl font-semibold">
+                      Virtual US Bank Account
+                    </h2>
+                    <p className="text-gray-400 text-xs">
+                      Accept ACH Push & Wire Payments
+                    </p>
+                    <div className="mt-2 flex items-center gap-1 justify-center">
+                      <span className="border border-gray-300 px-4 py-1 text-xs rounded-full">
+                        <span className="text-gray-400">Fees</span> 0.5%
+                      </span>
+                      <span className="border border-gray-300 px-4 py-1 text-xs rounded-full">
+                        <span className="text-gray-400">Min.transfer</span> $2
+                      </span>
                     </div>
-                    <div className="pb-5 border-b-2 border-dashed w-full">
-                      <h2 className="text-center text-xl font-semibold">
-                        Virtual US Bank Account
-                      </h2>
-                      <p className="text-gray-400 text-xs">
-                        Accept ACH Push & Wire Payments
-                      </p>
-                      <div className="mt-2 flex items-center gap-1 justify-center">
-                        <span className="border border-gray-300 px-4 py-1 text-xs rounded-full">
-                          <span className="text-gray-400">Fees</span> 0.5%
-                        </span>
-                        <span className="border border-gray-300 px-4 py-1 text-xs rounded-full">
-                          <span className="text-gray-400">Min.transfer</span> $2
-                        </span>
+                  </div>
+                  <div className="w-full text-start flex flex-col gap-3">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-gray-400">Bank Routing Number</p>
+                        <p>
+                          {
+                            externalAccountInfo?.accounts[0]?.account
+                              ?.routing_number
+                          }
+                        </p>
                       </div>
+                      <button
+                        onClick={() =>
+                          handleCopy(
+                            externalAccountInfo?.accounts[0]?.account
+                              ?.routing_number,
+                            "routing"
+                          )
+                        }
+                      >
+                        {copiedItem === "routing" ? (
+                          <MdDone color="green" />
+                        ) : (
+                          <FaRegCopy color="gray" />
+                        )}
+                      </button>
                     </div>
-                    <div className="w-full text-start flex flex-col gap-3">
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <p className="text-gray-400">Bank Routing Number</p>
-                          <p>
-                            {
-                              externalAccountInfo?.data[0]?.account
-                                ?.routing_number
-                            }
-                          </p>
-                        </div>
-                        <button
-                          onClick={() =>
-                            handleCopy(
-                              externalAccountInfo?.data[0]?.account
-                                ?.routing_number,
-                              "routing"
-                            )
-                          }
-                        >
-                          {copiedItem === "routing" ? (
-                            <MdDone color="green" />
-                          ) : (
-                            <FaRegCopy color="gray" />
-                          )}
-                        </button>
-                      </div>
 
-                      {/* Bank Account Number */}
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <p className="text-gray-400">Bank Account Number</p>
-                          <p>
-                            ...{externalAccountInfo?.data[0]?.account?.last_4}
-                          </p>
-                        </div>
-                        <button
-                          onClick={() =>
-                            handleCopy(
-                              externalAccountInfo?.data[0]?.account?.last_4,
-                              "account"
-                            )
-                          }
-                        >
-                          {copiedItem === "account" ? (
-                            <MdDone color="green" />
-                          ) : (
-                            <FaRegCopy color="gray" />
-                          )}
-                        </button>
+                    {/* Bank Account Number */}
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-gray-400">Bank Account Number</p>
+                        <p>
+                          ...{externalAccountInfo?.accounts[0]?.account?.last_4}
+                        </p>
                       </div>
+                      <button
+                        onClick={() =>
+                          handleCopy(
+                            externalAccountInfo?.accounts[0]?.account?.last_4,
+                            "account"
+                          )
+                        }
+                      >
+                        {copiedItem === "account" ? (
+                          <MdDone color="green" />
+                        ) : (
+                          <FaRegCopy color="gray" />
+                        )}
+                      </button>
+                    </div>
 
-                      {/* Bank Name */}
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <p className="text-gray-400">Bank Name</p>
-                          <p>{externalAccountInfo?.data[0]?.bank_name}</p>
-                        </div>
-                        <button
-                          onClick={() =>
-                            handleCopy(
-                              externalAccountInfo?.data[0]?.bank_name,
-                              "bank-name"
-                            )
-                          }
-                        >
-                          {copiedItem === "bank-name" ? (
-                            <MdDone color="green" />
-                          ) : (
-                            <FaRegCopy color="gray" />
-                          )}
-                        </button>
+                    {/* Bank Name */}
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-gray-400">Bank Name</p>
+                        <p>{externalAccountInfo?.accounts[0]?.bank_name}</p>
                       </div>
+                      <button
+                        onClick={() =>
+                          handleCopy(
+                            externalAccountInfo?.accounts[0]?.bank_name,
+                            "bank-name"
+                          )
+                        }
+                      >
+                        {copiedItem === "bank-name" ? (
+                          <MdDone color="green" />
+                        ) : (
+                          <FaRegCopy color="gray" />
+                        )}
+                      </button>
+                    </div>
 
-                      {/* Bank beneficiary name */}
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <p className="text-gray-400">Bank Beneficiary Name</p>
-                          <p>
-                            {externalAccountInfo?.data[0]?.account_owner_name}
-                          </p>
-                        </div>
-                        <button
-                          onClick={() =>
-                            handleCopy(
-                              externalAccountInfo?.data[0]?.account_owner_name,
-                              "bank-beneficiary-name"
-                            )
-                          }
-                        >
-                          {copiedItem === "bank-beneficiary-name" ? (
-                            <MdDone color="green" />
-                          ) : (
-                            <FaRegCopy color="gray" />
-                          )}
-                        </button>
+                    {/* Bank beneficiary name */}
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-gray-400">Bank Beneficiary Name</p>
+                        <p>
+                          {externalAccountInfo?.accounts[0]?.account_owner_name}
+                        </p>
                       </div>
+                      <button
+                        onClick={() =>
+                          handleCopy(
+                            externalAccountInfo?.accounts[0]
+                              ?.account_owner_name,
+                            "bank-beneficiary-name"
+                          )
+                        }
+                      >
+                        {copiedItem === "bank-beneficiary-name" ? (
+                          <MdDone color="green" />
+                        ) : (
+                          <FaRegCopy color="gray" />
+                        )}
+                      </button>
+                    </div>
 
-                      {/* Bank address */}
-                      {/* <div className="flex items-center justify-between">
+                    {/* Bank address */}
+                    {/* <div className="flex items-center justify-between">
                         <div>
                           <p className="text-gray-400">Bank Address</p>
                           <p>1801 Main St., Kansas City, MO 64108</p>
@@ -815,24 +815,24 @@ const AddBankModal = ({ bankShow, setBankShow }: any) => {
                           )}
                         </button>
                       </div> */}
-                    </div>
-                    <p className="text-xs text-gray-400 px-10 mt-3">
-                      For assistance regarding issues with transfers and
-                      deposits, reach out to support@bridge.xyz.
-                    </p>
-                    <DynamicPrimaryBtn
-                      onClick={handleCopyAllDetails}
-                      className="text-sm"
-                    >
-                      {copiedItem === "all" ? (
-                        <MdDone size={18} />
-                      ) : (
-                        <FaRegCopy className="mr-1" />
-                      )}{" "}
-                      Copy All Details
-                    </DynamicPrimaryBtn>
                   </div>
-                )}
+                  <p className="text-xs text-gray-400 px-10 mt-3">
+                    For assistance regarding issues with transfers and deposits,
+                    reach out to support@bridge.xyz.
+                  </p>
+                  <DynamicPrimaryBtn
+                    onClick={handleCopyAllDetails}
+                    className="text-sm"
+                  >
+                    {copiedItem === "all" ? (
+                      <MdDone size={18} />
+                    ) : (
+                      <FaRegCopy className="mr-1" />
+                    )}{" "}
+                    Copy All Details
+                  </DynamicPrimaryBtn>
+                </div>
+              )}
             </ModalBody>
           </div>
         </ModalContent>
