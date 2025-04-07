@@ -5,7 +5,7 @@ import { useMemo } from 'react';
 import { CHAIN_CONFIG } from '@/types/config';
 import {
   AlchemyService,
-  SolanaService,
+  SolanaNFTService,
   processNFTCollections,
 } from '@/services/nft-service';
 
@@ -33,7 +33,7 @@ export const useNFT = (
       })),
       {
         queryKey: ['solanaNFTs', solWalletAddress],
-        queryFn: () => SolanaService.getNFTs(solWalletAddress!),
+        queryFn: () => SolanaNFTService.getNFTs(solWalletAddress!),
         enabled: Boolean(solWalletAddress),
       },
     ],
@@ -44,7 +44,6 @@ export const useNFT = (
       .flatMap((query) => query.data || [])
       .filter((nft) => Boolean(nft?.name && !nft?.isSpam));
 
-    console.log('all nfts', allNFTs);
     const { collections, standaloneNFTs } =
       processNFTCollections(allNFTs);
 

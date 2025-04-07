@@ -335,12 +335,14 @@ export default function OrderPage() {
         setNfts(nfts);
         setUserRole(data.userRole);
 
-        const fileterProcessing = data.order.processingStages.filter(
-          (item: any) =>
-            item.stage !== 'escrow_transferred' &&
-            item.stage !== 'token_swapped'
+        const filterProcessing = data.order.processingStages.filter(
+          (item: any) => {
+            return Object.keys(stageDisplayNames).includes(
+              item.stage
+            );
+          }
         );
-        setProcessingStages(fileterProcessing);
+        setProcessingStages(filterProcessing);
 
         const findCompleteStatus = data.order.processingStages.find(
           (item: any) => item.stage === 'completed'

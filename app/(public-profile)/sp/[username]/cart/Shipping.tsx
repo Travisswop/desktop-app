@@ -150,6 +150,7 @@ const PaymentShipping: React.FC<{
         customerShippingAddress: address,
         txHash: hash,
         customerWalletAddress: solanaWallet?.address,
+        ens: user?.ensName,
       };
 
       if (hash && accessToken) {
@@ -167,6 +168,8 @@ const PaymentShipping: React.FC<{
       );
     }
   };
+
+  console.log('user', user);
 
   const renderTransactionStatus = () => {
     if (transactionStage === TRANSACTION_STAGES.IDLE) return null;

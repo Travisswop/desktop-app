@@ -126,15 +126,26 @@ export const XmtpProvider: React.FC<{
         }
 
         // Create new client if no valid stored keys
-        const provider =
-          await linkedEthereumWallet.getEthereumProvider();
+        const wallet =
+          wallets.find(
+            (wallet) =>
+              wallet.walletClientType === 'privy' &&
+              wallet.connectorType === 'embedded'
+          ) || wallets[0];
+
+        if (!wallet) {
+          throw new Error('No Privy embedded wallet found');
+        }
+
+        const provider = await wallet.getEthereumProvider();
         const signer = {
-          getAddress: () => Promise.resolve(walletAddress),
+          getAddress: () => Promise.resolve(wallet.address),
           signMessage: async (message: string) => {
             try {
+              // Use the embedded wallet's provider for signing
               return await provider.request({
                 method: 'personal_sign',
-                params: [message, walletAddress],
+                params: [message, wallet.address],
               });
             } catch (err) {
               console.error('Failed to sign message:', err);
@@ -169,9 +180,7 @@ export const XmtpProvider: React.FC<{
       } catch (error) {
         console.error('XMTP client initialization failed:', error);
         setError(
-          error instanceof Error
-            ? error
-            : new Error('Failed to initialize XMTP')
+          error instanceof Error ? error : new Error(String(error))
         );
         setXmtpClient(null);
         xmtpClientRef.current = null;
@@ -182,7 +191,7 @@ export const XmtpProvider: React.FC<{
     };
 
     initXmtp();
-  }, [linkedEthereumWallet, pathname, user]);
+  }, [linkedEthereumWallet, pathname, user, wallets]);
 
   return (
     <XmtpContext.Provider

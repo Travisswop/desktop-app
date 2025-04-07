@@ -138,98 +138,79 @@ export default function RedeemTokenList() {
           <RefreshCw className="h-4 w-4" />
         </Button>
       </h2>
-      <Tabs defaultValue="tokens" className="mb-8">
-        <TabsList>
-          <TabsTrigger value="tokens">Tokens</TabsTrigger>
-          {/* <TabsTrigger value="nft">NFT</TabsTrigger> */}
-        </TabsList>
-        <TabsContent value="tokens">
-          <Card>
-            <CardContent className="p-0">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Token Mint</TableHead>
-                    <TableHead>Total Amount</TableHead>
-                    <TableHead>Remaining</TableHead>
-                    <TableHead>Tokens Per Wallet</TableHead>
-                    <TableHead>Redemptions</TableHead>
-                    <TableHead>Created At</TableHead>
-                    <TableHead>Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {loading
-                    ? [...Array(5)].map((_, index) => (
-                        <TableSkeleton key={index} />
-                      ))
-                    : pools.map((pool) => (
-                        <TableRow key={pool.pool_id}>
-                          <TableCell>
-                            <div className="flex items-center gap-2">
-                              <Image
-                                src={pool.token_logo}
-                                alt={pool.token_symbol}
-                                width={24}
-                                height={24}
-                                className="rounded-full"
-                              />
-                              <div>
-                                <div className="text-sm text-gray-500">
-                                  {pool.token_symbol}
-                                </div>
-                              </div>
+      <Card>
+        <CardContent className="p-0">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Token Mint</TableHead>
+                <TableHead>Total Amount</TableHead>
+                <TableHead>Remaining</TableHead>
+                <TableHead>Tokens Per Wallet</TableHead>
+                <TableHead>Redemptions</TableHead>
+                <TableHead>Created At</TableHead>
+                <TableHead>Actions</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {loading
+                ? [...Array(5)].map((_, index) => (
+                    <TableSkeleton key={index} />
+                  ))
+                : pools.map((pool) => (
+                    <TableRow key={pool.pool_id}>
+                      <TableCell>
+                        <div className="flex items-center gap-2">
+                          <Image
+                            src={pool.token_logo}
+                            alt={pool.token_symbol}
+                            width={24}
+                            height={24}
+                            className="rounded-full"
+                          />
+                          <div>
+                            <div className="text-sm text-gray-500">
+                              {pool.token_symbol}
                             </div>
-                          </TableCell>
-                          <TableCell>
-                            {pool.total_amount} {pool.token_symbol}
-                          </TableCell>
-                          <TableCell>
-                            {pool.remaining_amount}{' '}
-                            {pool.token_symbol}
-                          </TableCell>
-                          <TableCell>
-                            {pool.tokens_per_wallet}{' '}
-                            {pool.token_symbol}
-                          </TableCell>
-                          <TableCell>
-                            {pool.total_redemptions} (
-                            {pool.total_redeemed_amount}{' '}
-                            {pool.token_symbol})
-                          </TableCell>
-                          <TableCell>
-                            {new Date(
-                              pool.created_at
-                            ).toLocaleDateString()}
-                          </TableCell>
-                          <TableCell>
-                            <Button
-                              onClick={() =>
-                                copyToClipboard(pool.redeemLink)
-                              }
-                              variant="ghost"
-                              size="sm"
-                            >
-                              Copy Link
-                            </Button>
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                </TableBody>
-              </Table>
-            </CardContent>
-          </Card>
-        </TabsContent>
-        <TabsContent value="nft">
-          <Card>
-            <CardContent className="py-8">
-              <div className="text-center text-gray-500">
-                NFT redemption coming soon...
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-      </Tabs>
+                          </div>
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        {pool.total_amount} {pool.token_symbol}
+                      </TableCell>
+                      <TableCell>
+                        {pool.remaining_amount} {pool.token_symbol}
+                      </TableCell>
+                      <TableCell>
+                        {pool.tokens_per_wallet} {pool.token_symbol}
+                      </TableCell>
+                      <TableCell>
+                        {pool.total_redemptions} (
+                        {pool.total_redeemed_amount}{' '}
+                        {pool.token_symbol})
+                      </TableCell>
+                      <TableCell>
+                        {new Date(
+                          pool.created_at
+                        ).toLocaleDateString()}
+                      </TableCell>
+                      <TableCell>
+                        <Button
+                          onClick={() =>
+                            copyToClipboard(pool.redeemLink)
+                          }
+                          variant="ghost"
+                          size="sm"
+                        >
+                          Copy Link
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
     </>
   );
 }

@@ -8,6 +8,35 @@ import {
 } from '@/types/nft';
 import { APIUtils } from '@/utils/api';
 
+interface MetaplexAsset {
+  id: string; // Use the asset ID as the 'contract' or identifier
+  content?: {
+    metadata?: {
+      name?: string;
+      description?: string;
+      symbol?: string; // Potentially useful
+    };
+    files?: {
+      uri?: string; // Assuming the first file URI is the image
+    }[];
+    links?: {
+      // Check if image might be in links
+      image?: string;
+    };
+  };
+}
+interface MetaplexResponse {
+  result?: {
+    items?: MetaplexAsset[];
+    total?: number;
+    limit?: number;
+    page?: number;
+  };
+  error?: any;
+  jsonrpc: string;
+  id: number | string;
+}
+
 export class AlchemyService {
   static async getNFTs(
     network: string,
@@ -26,7 +55,7 @@ export class AlchemyService {
       )) as { ownedNfts: AlchemyNftData[] };
 
       return result.ownedNfts.map((nft) =>
-        this.transformNFT(nft, network)
+        this.transformAlchemyNFT(nft, network)
       );
     } catch (error) {
       console.error('Error fetching NFTs:', error);
@@ -34,7 +63,7 @@ export class AlchemyService {
     }
   }
 
-  static transformNFT(
+  static transformAlchemyNFT(
     originalNFT: AlchemyNftData,
     network: string
   ): NFT {
@@ -63,79 +92,82 @@ export class AlchemyService {
   }
 }
 
-export class SolanaService {
-  private static readonly API_KEY =
-    process.env.NEXT_PUBLIC_MORALIS_API_KEY || '';
+export class SolanaNFTService {
+  private static readonly API_ENDPOINT =
+    process.env.NEXT_PUBLIC_DAS_API_URL ||
+    process.env.NEXT_PUBLIC_HELIUS_API_URL!;
 
-  static async getNFTs(address: string): Promise<NFT[]> {
+  static async getNFTs(ownerAddress: string): Promise<NFT[]> {
     try {
-      const tokens = (await this.fetchAssociatedTokens(
-        address
-      )) as AssociatedToken[];
-      if (!tokens.length) return [];
+      const requestBody = {
+        jsonrpc: '2.0',
+        id: 'swop-get-assets-by-owner',
+        method: 'getAssetsByOwner',
+        params: {
+          ownerAddress,
+          page: 1,
+          limit: 1000,
+        },
+      };
 
-      console.log('tokens', tokens);
+      const options = {
+        method: 'POST',
+        headers: {
+          'Content-type': 'application/json',
+        },
+        body: JSON.stringify(requestBody),
+      };
 
-      const metadata = await this.fetchNFTMetadata(tokens);
-      const nftData = await this.fetchNFTData(
-        metadata as NFTMintData[]
-      );
+      const response = (await APIUtils.fetchWithRetry(
+        this.API_ENDPOINT,
+        options
+      )) as MetaplexResponse;
 
-      return this.transformNFTs(
-        nftData as NFTMetadata[],
-        metadata as NFTMintData[]
-      );
+      if (response.error) {
+        console.error(
+          'Error fetching Solana NFTs from DAS API:',
+          response.error
+        );
+        return [];
+      }
+
+      const assets = response.result?.items || [];
+
+      // Transform the assets into the NFT format
+      return this.transformMetaplexNFTs(assets);
     } catch (error) {
       console.error('Error fetching Solana NFTs:', error);
       return [];
     }
   }
 
-  private static async fetchAssociatedTokens(address: string) {
-    const url = `https://solana-gateway.moralis.io/account/mainnet/${address}/nft`;
-    return APIUtils.fetchWithRetry(url, {
-      headers: {
-        'Content-Type': 'application/json',
-        'X-API-Key': this.API_KEY,
-      },
-    });
-  }
-
-  private static async fetchNFTMetadata(tokens: AssociatedToken[]) {
-    const metadataPromises = tokens.map((token) =>
-      APIUtils.fetchWithRetry(
-        `https://solana-gateway.moralis.io/nft/mainnet/${token.mint}/metadata`,
-        {
-          headers: {
-            'Content-Type': 'application/json',
-            'X-API-Key': this.API_KEY,
-          },
-        }
-      )
-    );
-
-    return Promise.all(metadataPromises);
-  }
-
-  private static async fetchNFTData(metadata: NFTMintData[]) {
-    const dataPromises = metadata.map((nft) =>
-      APIUtils.fetchWithRetry(nft.metaplex.metadataUri, {})
-    );
-
-    return Promise.all(dataPromises);
-  }
-
-  private static transformNFTs(
-    nftData: NFTMetadata[],
-    metadata: NFTMintData[]
+  private static transformMetaplexNFTs(
+    assets: MetaplexAsset[]
   ): NFT[] {
-    return nftData.map((nft, index) => ({
-      contract: metadata[index].mint,
-      description: nft.description,
-      name: nft.name,
-      image: nft.image,
-      network: 'solana',
-    }));
+    return assets
+      .map((asset) => {
+        // Try to extract the image URL from different possible locations
+        const imageUrl =
+          asset.content?.files?.[0]?.uri ||
+          asset.content?.links?.image;
+
+        return {
+          contract: asset.id, // Using asset ID as the primary identifier
+          description: asset.content?.metadata?.description || '',
+          name: asset.content?.metadata?.name || 'Unnamed NFT',
+          image: imageUrl || '', // Provide a fallback if no image found
+          network: 'solana',
+          // Optional: Extract collection info if available in the asset data
+          // collection: { ... }
+          // Set other NFT fields (tokenId, tokenType, balance, isSpam) if applicable
+          // from the Metaplex data, otherwise set defaults or null.
+          tokenId: asset.id, // Metaplex DAS uses a single ID for the asset
+          tokenType: 'Metaplex NFT', // Set a suitable type
+          balance: '1', // Assuming non-fungible means balance is 1
+          isSpam: false, // Add logic to determine spam if possible from API data
+        };
+      })
+      .filter((nft) => !!nft.image); // Optional: Filter out NFTs without images
   }
 }
 
@@ -150,6 +182,7 @@ export const processNFTCollections = (
     standaloneNFTs: NFT[];
   }>(
     (acc, nft) => {
+      // Use optional chaining for potentially undefined collection
       if (!nft.collection?.collectionName) {
         acc.standaloneNFTs.push(nft);
         return acc;
@@ -164,15 +197,21 @@ export const processNFTCollections = (
       if (existingCollection) {
         existingCollection.nfts.push(nft);
       } else {
-        acc.collections.push({
-          collection: {
-            collectionName: nft.collection.collectionName,
-            floorPrice: nft.collection.floorPrice,
-            openSeaVerificationStatus:
-              nft.collection.openSeaVerificationStatus,
-          },
-          nfts: [nft],
-        });
+        // Ensure collection exists before accessing properties
+        if (nft.collection) {
+          acc.collections.push({
+            collection: {
+              collectionName: nft.collection.collectionName,
+              floorPrice: nft.collection.floorPrice,
+              openSeaVerificationStatus:
+                nft.collection.openSeaVerificationStatus,
+            },
+            nfts: [nft],
+          });
+        } else {
+          // Handle case where collection might be unexpectedly undefined
+          acc.standaloneNFTs.push(nft);
+        }
       }
 
       return acc;
