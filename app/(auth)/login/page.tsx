@@ -141,7 +141,7 @@ const Login: React.FC = () => {
       console.log("Created wallet ", wallet);
     },
     onError: (error) => {
-      console.error("Failed to create wallet with error ", e);
+      console.error("Failed to create wallet with error ", error);
     },
   });
 

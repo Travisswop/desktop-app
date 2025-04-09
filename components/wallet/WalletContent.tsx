@@ -411,6 +411,7 @@ const WalletContentInner = () => {
       <MethodSelector
         open={sendFlow.step === "select-method"}
         onOpenChange={(open) => !open && resetSendFlow()}
+        sendFlow={sendFlow}
         setSendFlow={setSendFlow}
       />
       {/*for  both wallet and bank */}
