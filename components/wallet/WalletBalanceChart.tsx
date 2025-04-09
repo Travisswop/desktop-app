@@ -88,6 +88,8 @@ const BalanceChart = ({
       return acc;
     }, {});
 
+    console.log('dateamountmap', dateAmountMap);
+
     const result: { createdAt: string; amount: number }[] = [];
     const currentDate = new Date(startDate);
     currentDate.setUTCHours(0, 0, 0, 0);
@@ -338,7 +340,6 @@ const WalletBalanceChartForWalletPage = ({
           throw new Error('Network response was not ok');
         }
         const result = await response.json();
-        console.log('🚀 ~ fetchData ~ result:', result);
         setWalletList(result.balanceData.wallet);
         setBalanceData(result.balanceData.balanceHistory);
         setTotalTokensValue(result.totalTokensValue);

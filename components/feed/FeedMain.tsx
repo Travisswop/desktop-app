@@ -1,106 +1,103 @@
-"use client";
-import React, { Suspense, useEffect, useState } from "react";
-import Feed from "./Feed";
-import Timeline from "./Timeline";
-import Transaction from "./Transaction";
-import PostFeed from "./PostFeed";
-// import Connections from "./Connections";
-import { useUser } from "@/lib/UserContext";
-import { useSearchParams } from "next/navigation";
-import Connections from "./Connections";
-// import { cookies } from "next/headers";
-import Cookies from "js-cookie";
+'use client';
 
-// interface IProps {
-//   isFromHome?: boolean;
-// }
-const FeedMain = ({ isFromHome = false }: any) => {
+import React, { Suspense, useEffect, useMemo, useState } from 'react';
+import Feed from './Feed';
+import Timeline from './Timeline';
+import Transaction from './Transaction';
+import PostFeed from './PostFeed';
+import { useUser } from '@/lib/UserContext';
+import { useSearchParams } from 'next/navigation';
+import Connections from './Connections';
+import Cookies from 'js-cookie';
+
+const FeedMain = ({
+  isFromHome = false,
+}: {
+  isFromHome?: boolean;
+}) => {
   const [isPosting, setIsPosting] = useState(false);
   const [isPostLoading, setIsPostLoading] = useState(false);
-  const [accessToken, setAccessToken] = useState("");
-  const [primaryMicrositeImg, setPrimaryMicrositeImg] = useState<any>("");
+  const [accessToken, setAccessToken] = useState('');
+  const [primaryMicrositeImg, setPrimaryMicrositeImg] = useState('');
 
+  // Get the access token from cookies once on mount.
   useEffect(() => {
-    const getAccessToken = async () => {
-      const token = Cookies.get("access-token");
-      if (token) {
-        setAccessToken(token);
-      }
-    };
-    getAccessToken();
+    const token = Cookies.get('access-token');
+    if (token) {
+      setAccessToken(token);
+    }
   }, []);
 
   const { user, loading } = useUser();
 
+  // Set the primary microsite image from the user's microsites.
   useEffect(() => {
-    if (user && user?.microsites && user?.microsites?.length > 0) {
+    if (
+      user &&
+      Array.isArray(user.microsites) &&
+      user.microsites.length > 0
+    ) {
       const smartsite = user.microsites.find(
         (microsite: any) => microsite.primary
       );
-      setPrimaryMicrositeImg(smartsite.profilePic);
-      // console.log("smartsite detials", smartsite);
+      if (smartsite) {
+        setPrimaryMicrositeImg(smartsite.profilePic);
+      }
     }
   }, [user]);
 
-  // console.log("primaryMicrositeImg", primaryMicrositeImg);
-
   const searchParams = useSearchParams();
+  const tab = searchParams.get('tab');
 
-  const tab = searchParams.get("tab");
-
-  let ComponentToRender: any;
-
-  if (!loading) {
+  const ComponentToRender = useMemo(() => {
+    if (loading) return null;
     switch (tab) {
-      case "feed":
-        ComponentToRender = (
+      case 'feed':
+        return (
           <Feed
-            accessToken={accessToken as string}
-            userId={user?._id as any}
+            accessToken={accessToken}
+            userId={user?._id}
             setIsPosting={setIsPosting}
             isPosting={isPosting}
             setIsPostLoading={setIsPostLoading}
             isPostLoading={isPostLoading}
           />
         );
-        break;
-      case "timeline":
-        ComponentToRender = (
+      case 'timeline':
+        return (
           <Timeline
-            accessToken={accessToken as string}
-            userId={user?._id as any}
+            accessToken={accessToken}
+            userId={user?._id}
             setIsPosting={setIsPosting}
             isPosting={isPosting}
             setIsPostLoading={setIsPostLoading}
             isPostLoading={isPostLoading}
           />
         );
-        break;
-      case "transaction":
-        ComponentToRender = (
+      case 'transaction':
+        return (
           <Transaction
-            accessToken={accessToken as string}
-            userId={user?._id as any}
+            accessToken={accessToken}
+            userId={user?._id}
+            setIsPosting={setIsPosting}
+            isPosting={isPosting}
+            setIsPostLoading={setIsPostLoading}
+          />
+        );
+      default:
+        return (
+          <Feed
+            accessToken={accessToken}
+            userId={user?._id}
             setIsPosting={setIsPosting}
             isPosting={isPosting}
             setIsPostLoading={setIsPostLoading}
             isPostLoading={isPostLoading}
           />
         );
-        break;
-      default:
-        ComponentToRender = (
-          <Feed
-            accessToken={accessToken as string}
-            userId={user?._id as any}
-            setIsPosting={setIsPosting}
-            isPosting={isPosting}
-            setIsPostLoading={setIsPostLoading}
-            isPostLoading={isPostLoading}
-          />
-        ); // Default to Feed
     }
-  }
+  }, [tab, loading, accessToken, user, isPosting, isPostLoading]);
+
   return (
     <div>
       {loading ? (
@@ -108,33 +105,33 @@ const FeedMain = ({ isFromHome = false }: any) => {
       ) : (
         <div className="w-full flex relative">
           <div
-            style={{ height: "calc(100vh - 108px)" }}
+            style={{ height: 'calc(100vh - 108px)' }}
             className={`${
               isFromHome
-                ? "w-3/5 xl:w-2/3 2xl:w-[54%]"
-                : "w-3/5 xl:w-2/3 2xl:w-[54%]"
-            }  overflow-y-auto`}
+                ? 'w-3/5 xl:w-2/3 2xl:w-[54%]'
+                : 'w-3/5 xl:w-2/3 2xl:w-[54%]'
+            } overflow-y-auto`}
           >
             <PostFeed
               primaryMicrositeImg={primaryMicrositeImg}
-              userId={user?._id as any}
-              token={accessToken as string}
+              userId={user?._id}
+              token={accessToken}
               setIsPosting={setIsPosting}
               setIsPostLoading={setIsPostLoading}
             />
             <hr />
-            {/* component to render based on tab */}
-            <Suspense fallback={"loading..."}>
+            {/* Render the selected component based on the 'tab' query parameter */}
+            <Suspense fallback={'loading...'}>
               <section className="p-6">{ComponentToRender}</section>
             </Suspense>
           </div>
           <div
-            style={{ height: "calc(100vh - 108px)" }}
+            style={{ height: 'calc(100vh - 108px)' }}
             className="flex-1 overflow-y-auto"
           >
-            <Suspense fallback={"loading..."}>
+            <Suspense fallback={'loading...'}>
               <Connections
-                userId={user?._id as any}
+                userId={user?._id}
                 accessToken={accessToken}
               />
             </Suspense>

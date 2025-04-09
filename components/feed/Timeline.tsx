@@ -1,22 +1,33 @@
-"use client";
+'use client';
 
-import { getSmartsiteFeed } from "@/actions/postFeed";
-import Image from "next/image";
-import React, { useState, useEffect, useRef, useCallback } from "react";
-import { FaUser } from "react-icons/fa";
-import { GoDotFill } from "react-icons/go";
-import dayjs from "dayjs";
-import PostTypeMedia from "./view/PostTypeMedia";
-import { HiDotsHorizontal } from "react-icons/hi";
-import { Popover, PopoverContent, PopoverTrigger } from "@nextui-org/react";
-import relativeTime from "dayjs/plugin/relativeTime";
-import Reaction from "./view/Reaction";
-import Link from "next/link";
-import { FiPlusCircle } from "react-icons/fi";
-import FeedLoading from "../loading/FeedLoading";
-import DeleteFeedModal from "./DeleteFeedModal";
-import isUrl from "@/lib/isUrl";
-import { useUser } from "@/lib/UserContext";
+import { getSmartsiteFeed } from '@/actions/postFeed';
+import Image from 'next/image';
+import React, {
+  useState,
+  useEffect,
+  useRef,
+  useCallback,
+} from 'react';
+import { FaUser } from 'react-icons/fa';
+import { GoDotFill } from 'react-icons/go';
+import dayjs from 'dayjs';
+import PostTypeMedia from './view/PostTypeMedia';
+import { HiDotsHorizontal } from 'react-icons/hi';
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@nextui-org/react';
+import relativeTime from 'dayjs/plugin/relativeTime';
+import Reaction from './view/Reaction';
+import Link from 'next/link';
+import { FiPlusCircle } from 'react-icons/fi';
+import FeedLoading from '../loading/FeedLoading';
+import DeleteFeedModal from './DeleteFeedModal';
+import isUrl from '@/lib/isUrl';
+import { useUser } from '@/lib/UserContext';
+
+dayjs.extend(relativeTime);
 
 const Timeline = ({
   accessToken,
@@ -24,175 +35,247 @@ const Timeline = ({
   setIsPosting,
   isPosting,
   setIsPostLoading,
-}: // isPostLoading,
-{
+  isPostLoading,
+}: {
   accessToken: string;
   userId: string;
-  setIsPosting: any;
+  setIsPosting: (value: boolean) => void;
   isPosting: boolean;
-  setIsPostLoading: any;
-  isPostLoading: any;
+  setIsPostLoading: (value: boolean) => void;
+  isPostLoading: boolean;
 }) => {
   const [feedData, setFeedData] = useState<any[]>([]);
-  const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
   const observerRef = useRef<HTMLDivElement>(null);
   const isFetching = useRef(false);
-  const [smartsiteId, setSmartsiteId] = useState("");
+  const pageRef = useRef(1);
+  const [smartsiteId, setSmartsiteId] = useState('');
 
-  const { user, loading, error: userError }: any = useUser();
+  const { user } = useUser();
 
-  // console.log("feedData", feedData);
-
-  // useEffect(() => {
-  //   if (typeof window !== "undefined") {
-  //     const id = localStorage.getItem("userPrimaryMicrosite");
-  //     if (id && /^[a-fA-F0-9]{24}$/.test(id)) {
-  //       setSmartsiteId(id);
-  //     } else {
-  //       console.error("Invalid smartsiteId format:", id);
-  //     }
-  //   }
-  // }, []);
   useEffect(() => {
     if (user) {
       setSmartsiteId(user.primaryMicrosite);
     }
   }, [user]);
 
-  // console.log("smartsiteId", typeof smartsiteId);
+  /**
+   * Helper function to render a transaction post
+   */
+  const renderTransactionContent = (feed: any) => {
+    const {
+      transaction_type,
+      receiver_ens,
+      receiver_wallet_address,
+      amount,
+      token,
+      chain,
+      tokenPrice,
+      image,
+      name,
+      currency,
+    } = feed.content;
 
-  dayjs.extend(relativeTime);
+    // Use receiver ENS if available; otherwise, show a truncated wallet address.
+    const recipientDisplay = receiver_ens
+      ? receiver_ens
+      : `${receiver_wallet_address.slice(
+          0,
+          5
+        )}...${receiver_wallet_address.slice(-5)}`;
+
+    if (transaction_type === 'nft') {
+      return (
+        <div>
+          <p className="text-gray-600 text-sm">
+            Sent NFT{' '}
+            <span className="font-medium text-base">
+              {name || 'item'}
+            </span>{' '}
+            to{' '}
+            <span className="font-medium text-base">
+              {recipientDisplay}
+            </span>
+            .
+          </p>
+          {image && (
+            <div className="w-52">
+              <Image
+                src={image}
+                alt="NFT"
+                width={300}
+                height={300}
+                className="w-full h-auto"
+              />
+              <p className="text-sm text-gray-600 font-medium mt-0.5 text-center">
+                {amount} {currency || 'NFT'}
+              </p>
+            </div>
+          )}
+        </div>
+      );
+    } else if (transaction_type === 'token') {
+      return (
+        <div className="flex items-center">
+          <p className="text-gray-600 text-sm">
+            Transferred{' '}
+            <span className="font-medium">
+              {amount} {token}
+            </span>
+          </p>
+          <Image
+            src={`/assets/crypto-icons/${token}.png`}
+            alt={token}
+            width={16}
+            height={16}
+            className="rounded-full mx-1"
+          />
+          <p className="text-gray-600 text-sm">
+            {tokenPrice && (
+              <span className="text-sm text-gray-600 font-medium mt-0.5">
+                (${Number(tokenPrice).toFixed(8)})
+              </span>
+            )}{' '}
+            tokens to{' '}
+            <span className="font-medium">{recipientDisplay}</span> on
+            the {chain}.
+          </p>
+        </div>
+      );
+    } else {
+      return (
+        <p className="text-gray-600 text-sm">
+          Executed a {transaction_type} transaction involving {amount}{' '}
+          {currency}.
+        </p>
+      );
+    }
+  };
 
   const fetchFeedData = useCallback(
     async (reset = false) => {
-      if (isFetching.current) return; // Prevent duplicate fetch
+      if (isFetching.current || !smartsiteId) return;
       isFetching.current = true;
 
-      const url = `${
-        process.env.NEXT_PUBLIC_API_URL
-      }/api/v1/feed/smartsite/${smartsiteId}?page=${reset ? 1 : page}&limit=5`;
+      const currentPage = reset ? 1 : pageRef.current;
+      const url = `${process.env.NEXT_PUBLIC_API_URL}/api/v1/feed/smartsite/${smartsiteId}?page=${currentPage}&limit=5`;
       const newFeedData = await getSmartsiteFeed(url, accessToken);
 
-      // console.log("reset", reset);
-
-      // console.log("has more", hasMore);
-
-      // console.log("new feed datsss", newFeedData);
+      if (!newFeedData?.data) {
+        setHasMore(false);
+        setIsPostLoading(false);
+        isFetching.current = false;
+        return;
+      }
 
       if (newFeedData.data.length < 5) {
         setHasMore(false);
       }
 
       if (reset) {
-        // console.log("trigger reset");
-
-        setFeedData(newFeedData.data); // Reset data when refetching
-        setPage(2); // Set page to 2 after initial load for pagination
-        setHasMore(newFeedData.data.length > 0); // Update hasMore based on response
+        setFeedData(newFeedData.data);
+        pageRef.current = 2; // Reset pagination: next page is 2
+        setHasMore(newFeedData.data.length > 0);
         setIsPostLoading(false);
       } else {
         if (newFeedData.data.length === 0) {
-          setHasMore(false); // Stop pagination if no more data
+          setHasMore(false);
           setIsPostLoading(false);
         } else {
           setFeedData((prev) => [...prev, ...newFeedData.data]);
           setIsPostLoading(false);
+          pageRef.current += 1;
         }
       }
-
       isFetching.current = false;
     },
-    [page, accessToken, setIsPostLoading, smartsiteId]
+    [accessToken, smartsiteId, setIsPostLoading]
   );
 
-  // Initial fetch and fetch on page increment
-
+  // Initial fetch once smartsiteId is available.
   useEffect(() => {
     if (smartsiteId) {
       fetchFeedData();
     }
-  }, [page, fetchFeedData, smartsiteId]);
+  }, [smartsiteId, fetchFeedData]);
 
-  // Refetch data when isPosting becomes true
+  // Refetch data when isPosting becomes true.
   useEffect(() => {
     if (isPosting) {
-      setPage(1); // Reset page to 1 when a new post is created
-      //setFeedData([]); // Clear feed data to avoid duplication
-      setHasMore(true); // Reset hasMore to enable pagination
-      fetchFeedData(true); // Fetch the first page of new feed data
-      setIsPosting(false); // Reset isPosting after fetch
       setIsPostLoading(true);
+      pageRef.current = 1;
+      setHasMore(true);
+      fetchFeedData(true);
+      setIsPosting(false);
     }
-  }, [isPosting, fetchFeedData, setIsPosting, setIsPostLoading]);
+  }, [isPosting, fetchFeedData, setIsPostLoading, setIsPosting]);
 
-  // Infinite scroll observer
+  // Infinite scroll observer to load additional data.
   useEffect(() => {
     if (!hasMore) return;
 
-    const observer = new IntersectionObserver((entries) => {
+    const observerCallback = (
+      entries: IntersectionObserverEntry[]
+    ) => {
       if (entries[0].isIntersecting && !isFetching.current) {
-        setPage((prevPage) => prevPage + 1);
+        fetchFeedData();
       }
+    };
+
+    const observer = new IntersectionObserver(observerCallback, {
+      root: null,
+      rootMargin: '0px',
+      threshold: 1.0,
     });
 
     if (observerRef.current) {
       observer.observe(observerRef.current);
     }
-
     return () => observer.disconnect();
-  }, [hasMore]);
+  }, [hasMore, fetchFeedData]);
 
   return (
     <div className="w-full flex gap-10">
       <div className="w-full flex flex-col gap-4">
         {feedData.map((feed, index) => (
-          <div key={index} className="flex gap-2 border-b border-gray-200 pb-4">
+          <div
+            key={index}
+            className="flex gap-2 border-b border-gray-200 pb-4"
+          >
             <div className="w-10 xl:w-12 h-10 xl:h-12 bg-gray-400 border border-gray-300 rounded-full overflow-hidden flex items-center justify-center">
               {(() => {
                 const profilePic =
-                  feed?.smartsiteId?.profilePic || feed?.smartsiteProfilePic;
-
-                if (profilePic) {
-                  return isUrl(profilePic) ? (
-                    <Image
-                      alt="user image"
-                      src={profilePic}
-                      width={300}
-                      height={300}
-                      quality={100}
-                      className="rounded-full w-full h-full"
-                    />
-                  ) : (
-                    <Image
-                      alt="user image"
-                      src={`/images/user_avator/${profilePic}.png`}
-                      width={300}
-                      height={300}
-                      quality={100}
-                      className="rounded-full w-full h-full"
-                    />
-                  );
-                } else {
-                  return <FaUser size={28} color="white" />;
-                }
+                  feed?.smartsiteId?.profilePic ||
+                  feed?.smartsiteProfilePic;
+                return profilePic && isUrl(profilePic) ? (
+                  <Image
+                    alt="user image"
+                    src={profilePic}
+                    width={300}
+                    height={300}
+                    quality={100}
+                    className="rounded-full w-full h-full"
+                  />
+                ) : (
+                  <FaUser size={28} color="white" />
+                );
               })()}
             </div>
             <div className="flex-1">
-              {/* User and Feed Info */}
+              {/* User and Feed Information */}
               <div className="flex items-start justify-between">
                 <div>
                   <div className="flex items-center gap-1">
                     <p className="text-gray-700 font-semibold">
                       {feed?.smartsiteId?.name ||
                         feed?.smartsiteUserName ||
-                        "Anonymous"}
+                        'Anonymous'}
                     </p>
                     <GoDotFill size={10} />
                     <p className="text-gray-500 font-normal">
                       {feed?.smartsiteId?.ens ||
                         feed?.smartsiteEnsName ||
-                        "n/a"}
+                        'n/a'}
                     </p>
                     <GoDotFill size={10} />
                     <p className="text-gray-500 font-normal">
@@ -200,12 +283,12 @@ const Timeline = ({
                     </p>
                   </div>
                   {/* Redeem Content */}
-                  {feed.postType === "redeem" && (
+                  {feed.postType === 'redeem' && (
                     <div className="flex flex-col gap-2 text-gray-600 text-sm">
                       <div>
                         <p>
-                          Created a new {feed.content.redeemName} Redeemable
-                          Link -{" "}
+                          Created a new {feed.content.redeemName}{' '}
+                          Redeemable Link -{' '}
                           <a
                             href={feed.content.link}
                             target="_blank"
@@ -227,18 +310,18 @@ const Timeline = ({
                         <div className="font-semibold text-sm">
                           <p>{feed.content.network}</p>
                           <p>
-                            {feed.content.amount} {feed.content.symbol}
+                            {feed.content.amount}{' '}
+                            {feed.content.symbol}
                           </p>
-                          {/* <p>Limit: {feed.content.mintLimit}</p> */}
                         </div>
                       </div>
                     </div>
                   )}
                   {/* Post Content */}
-                  {feed.postType === "post" && feed.content.title && (
+                  {feed.postType === 'post' && feed.content.title && (
                     <div>
                       {feed.content.title
-                        .split("\n")
+                        .split('\n')
                         .map((line: any, index: number) => (
                           <p className="break-text" key={index}>
                             {line}
@@ -247,68 +330,31 @@ const Timeline = ({
                     </div>
                   )}
                   {/* Additional Post Types */}
-                  {feed.postType === "connection" && (
+                  {feed.postType === 'connection' && (
                     <p className="text-gray-600 text-sm">
-                      Connected with{" "}
+                      Connected with{' '}
                       <span className="text-gray-700 font-medium text-base">
                         {feed.content.connectedSmartsiteName}
                       </span>
                     </p>
                   )}
-                  {feed.postType === "ensClaim" && (
+                  {feed.postType === 'ensClaim' && (
                     <p className="text-gray-600 text-sm">
-                      Claim a new ENS{" "}
+                      Claim a new ENS{' '}
                       <span className="text-gray-700 font-medium text-base">
                         {feed.content.claimEnsName}
                       </span>
                     </p>
                   )}
-                  {feed.postType === "transaction" && (
-                    <div>
-                      <p className="text-gray-600 text-sm">
-                        {feed.content.transaction_type == "nft"
-                          ? `Send ${feed.content.name} nft to `
-                          : `Created a new ${feed.content.transaction_type} transaction to `}
-                        {feed.content.transaction_type == "nft" &&
-                        !feed.content.receiver_ens ? (
-                          <span className="text-gray-700 font-medium text-base">{`${feed.content.receiver_wallet_address.slice(
-                            0,
-                            5
-                          )}....${feed.content.receiver_wallet_address.slice(
-                            -5
-                          )}`}</span>
-                        ) : (
-                          feed.content.receiver_ens
-                        )}
-                      </p>
-                      {feed.content.transaction_type == "nft" && (
-                        <div className="w-52">
-                          <Image
-                            src={feed.content.image}
-                            alt="nft image"
-                            width={300}
-                            height={300}
-                            className="w-full h-auto"
-                          />
-                          <p className="text-sm text-gray-600 font-medium mt-[1px] text-center">
-                            {feed.content.amount} {feed.content.currency}
-                          </p>
-                        </div>
-                      )}
-                      {feed.content.transaction_type != "nft" && (
-                        <p className="text-xs text-gray-600 font-medium mt-0.5">
-                          {feed.content.amount} {feed.content.currency}
-                        </p>
-                      )}
-                    </div>
-                  )}
+                  {feed.postType === 'transaction' &&
+                    renderTransactionContent(feed)}
                 </div>
                 {userId === feed.userId && (
                   <div>
                     <Popover
                       backdrop="opaque"
                       placement="bottom-end"
-                      showArrow={true}
+                      showArrow
                       style={{ zIndex: 10 }}
                     >
                       <PopoverTrigger>
@@ -318,9 +364,6 @@ const Timeline = ({
                       </PopoverTrigger>
                       <PopoverContent>
                         <div className="px-1 py-2 flex flex-col">
-                          {/* <button className="text-gray-700 flex items-center gap-1 font-medium border-b p-1 text-sm">
-                            <RiEdit2Fill color="black" size={18} /> Edit
-                          </button> */}
                           <DeleteFeedModal
                             postId={feed._id}
                             token={accessToken}
@@ -334,15 +377,20 @@ const Timeline = ({
               </div>
               <div>
                 {/* Post Media */}
-                {feed.postType === "post" &&
+                {feed.postType === 'post' &&
                   feed.content.post_content.length > 0 && (
-                    <PostTypeMedia mediaFiles={feed.content.post_content} />
+                    <PostTypeMedia
+                      mediaFiles={feed.content.post_content}
+                    />
                   )}
-                {feed.postType === "minting" && (
+                {feed.postType === 'minting' && (
                   <div className="w-max">
                     <p>{feed.content.title}</p>
                     <div className="shadow-medium bg-white rounded-lg mt-2 p-2 relative">
-                      <Link href={feed.content.link} className="w-max">
+                      <Link
+                        href={feed.content.link}
+                        className="w-max"
+                      >
                         <Image
                           src={feed.content.image}
                           alt="nft image"

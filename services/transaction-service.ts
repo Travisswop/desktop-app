@@ -1,19 +1,26 @@
-import { ethers } from "ethers";
+import { ethers } from 'ethers';
 import {
   PublicKey,
   Transaction as SolanaTransaction,
   Connection,
   SystemProgram,
-} from "@solana/web3.js";
+  TransactionMessage,
+  VersionedTransaction,
+} from '@solana/web3.js';
 import {
   getAssociatedTokenAddress,
   createTransferInstruction,
   createAssociatedTokenAccountInstruction,
-} from "@solana/spl-token";
-import { SendFlowState, Network } from "@/types/wallet-types";
-import { Transaction } from "@/types/transaction";
-import erc721Abi from "@/utils/erc721abi";
-import erc1155Abi from "@/utils/erc1155abi";
+} from '@solana/spl-token';
+import { SendFlowState, Network } from '@/types/wallet-types';
+import { Transaction } from '@/types/transaction';
+import erc721Abi from '@/utils/erc721abi';
+import erc1155Abi from '@/utils/erc1155abi';
+
+export const USDC_ADDRESS =
+  'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v';
+export const SWOP_ADDRESS =
+  'GAehkgN1ZDNvavX81FmzCcwRnzekKMkSyUNq8WkMsjX1';
 
 export class TransactionService {
   /**
@@ -24,17 +31,20 @@ export class TransactionService {
     sendFlow: SendFlowState,
     connection: Connection
   ) {
-    if (!solanaWallet) throw new Error("No Solana wallet found");
+    if (!solanaWallet) throw new Error('No Solana wallet found');
 
-    const toWallet = new PublicKey(sendFlow.recipient?.address || "");
-    const mint = new PublicKey(sendFlow.nft?.contract || "");
+    const toWallet = new PublicKey(sendFlow.recipient?.address || '');
+    const mint = new PublicKey(sendFlow.nft?.contract || '');
 
     const sourceAccount = await getAssociatedTokenAddress(
       mint,
       new PublicKey(solanaWallet.address)
     );
 
-    const destinationAccount = await getAssociatedTokenAddress(mint, toWallet);
+    const destinationAccount = await getAssociatedTokenAddress(
+      mint,
+      toWallet
+    );
 
     const tx = new SolanaTransaction();
 
@@ -76,16 +86,16 @@ export class TransactionService {
     sendFlow: SendFlowState,
     connection: Connection
   ) {
-    if (!solanaWallet) throw new Error("No Solana wallet found");
+    if (!solanaWallet) throw new Error('No Solana wallet found');
 
-    console.log("solana wallet", solanaWallet);
-    console.log("send flow", sendFlow);
+    console.log('solana wallet', solanaWallet);
+    console.log('send flow', sendFlow);
 
     if (!sendFlow.token) {
-      throw new Error("No token found");
+      throw new Error('No token found');
     }
 
-    console.log("send flow", sendFlow);
+    console.log('send flow', sendFlow);
 
     if (!sendFlow.token?.address) {
       // Native SOL transfer
@@ -94,7 +104,7 @@ export class TransactionService {
       const tx = new SolanaTransaction().add(
         SystemProgram.transfer({
           fromPubkey: new PublicKey(solanaWallet.address),
-          toPubkey: new PublicKey(sendFlow.recipient?.address || ""),
+          toPubkey: new PublicKey(sendFlow.recipient?.address || ''),
           lamports,
         })
       );
@@ -104,7 +114,9 @@ export class TransactionService {
       tx.feePayer = new PublicKey(solanaWallet.address);
 
       const signedTx = await solanaWallet.signTransaction(tx);
-      return await connection.sendRawTransaction(signedTx.serialize());
+      return await connection.sendRawTransaction(
+        signedTx.serialize()
+      );
     } else {
       // SPL Token transfer
       const fromTokenAccount = await getAssociatedTokenAddress(
@@ -114,7 +126,7 @@ export class TransactionService {
 
       const toTokenAccount = await getAssociatedTokenAddress(
         new PublicKey(sendFlow.token.address),
-        new PublicKey(sendFlow.recipient?.address || "")
+        new PublicKey(sendFlow.recipient?.address || '')
       );
 
       const tx = new SolanaTransaction();
@@ -125,14 +137,15 @@ export class TransactionService {
           createAssociatedTokenAccountInstruction(
             new PublicKey(solanaWallet.address),
             toTokenAccount,
-            new PublicKey(sendFlow.recipient?.address || ""),
+            new PublicKey(sendFlow.recipient?.address || ''),
             new PublicKey(sendFlow.token.address)
           )
         );
       }
 
       const tokenAmount = Math.floor(
-        parseFloat(sendFlow.amount) * Math.pow(10, sendFlow.token.decimals)
+        parseFloat(sendFlow.amount) *
+          Math.pow(10, sendFlow.token.decimals)
       );
 
       tx.add(
@@ -144,51 +157,73 @@ export class TransactionService {
         )
       );
 
-      const { blockhash } = await connection.getLatestBlockhash();
-      tx.recentBlockhash = blockhash;
-      tx.feePayer = new PublicKey(solanaWallet.address);
+      if (
+        sendFlow.token?.address === USDC_ADDRESS ||
+        sendFlow.token?.address === SWOP_ADDRESS
+      ) {
+        const serializedTransaction =
+          await this.prepareSponsoredTransaction(
+            tx.instructions,
+            solanaWallet,
+            connection
+          );
 
-      const signedTx = await solanaWallet.signTransaction(tx);
-      return await connection.sendRawTransaction(signedTx.serialize());
+        return serializedTransaction;
+      } else {
+        const { blockhash } = await connection.getLatestBlockhash();
+        tx.recentBlockhash = blockhash;
+        tx.feePayer = new PublicKey(solanaWallet.address);
+
+        const signedTx = await solanaWallet.signTransaction(tx);
+        return await connection.sendRawTransaction(
+          signedTx.serialize()
+        );
+      }
     }
   }
 
   /**
    * Handles NFT transfer on EVM networks
    */
-  static async handleNFTTransfer(evmWallet: any, sendFlow: SendFlowState) {
+  static async handleNFTTransfer(
+    evmWallet: any,
+    sendFlow: SendFlowState
+  ) {
     const provider = await evmWallet.getEthereumProvider();
     const web3Provider = new ethers.BrowserProvider(provider);
     const signer = await web3Provider.getSigner();
 
-    const abi = sendFlow.nft?.tokenType === "ERC721" ? erc721Abi : erc1155Abi;
+    const abi =
+      sendFlow.nft?.tokenType === 'ERC721' ? erc721Abi : erc1155Abi;
 
     try {
       const senderAddress = await signer.getAddress();
 
-      if (sendFlow.nft?.tokenType === "ERC721") {
+      if (sendFlow.nft?.tokenType === 'ERC721') {
         const erc721Contract = new ethers.Contract(
-          sendFlow.nft.contract || "",
+          sendFlow.nft.contract || '',
           abi,
           signer
         );
 
         // Check if sender is owner
-        const owner = await erc721Contract.ownerOf(sendFlow.nft.tokenId || 0);
+        const owner = await erc721Contract.ownerOf(
+          sendFlow.nft.tokenId || 0
+        );
         if (owner.toLowerCase() !== senderAddress.toLowerCase()) {
-          throw new Error("You do not own this NFT");
+          throw new Error('You do not own this NFT');
         }
 
         const tx = await erc721Contract.transferFrom(
           senderAddress,
-          sendFlow.recipient?.address || "",
+          sendFlow.recipient?.address || '',
           sendFlow.nft.tokenId || 0
         );
         const receipt = await tx.wait();
         return receipt.hash;
-      } else if (sendFlow.nft?.tokenType === "ERC1155") {
+      } else if (sendFlow.nft?.tokenType === 'ERC1155') {
         const erc1155Contract = new ethers.Contract(
-          sendFlow.nft.contract || "",
+          sendFlow.nft.contract || '',
           abi,
           signer
         );
@@ -198,26 +233,26 @@ export class TransactionService {
           sendFlow.nft.tokenId || 0
         );
 
-        if (balance.toString() === "0") {
-          throw new Error("Insufficient NFT balance");
+        if (balance.toString() === '0') {
+          throw new Error('Insufficient NFT balance');
         }
 
         const tx = await erc1155Contract.safeTransferFrom(
           senderAddress,
-          sendFlow.recipient?.address || "",
+          sendFlow.recipient?.address || '',
           sendFlow.nft.tokenId || 0,
           1,
-          "0x"
+          '0x'
         );
 
         const receipt = await tx.wait();
         return receipt.hash;
       } else {
-        throw new Error("Unsupported NFT type");
+        throw new Error('Unsupported NFT type');
       }
     } catch (error) {
-      console.error("NFT Transfer Failed:", error);
-      throw new Error("NFT Transfer Failed: Please try again.");
+      console.error('NFT Transfer Failed:', error);
+      throw new Error('NFT Transfer Failed: Please try again.');
     }
   }
 
@@ -242,26 +277,30 @@ export class TransactionService {
       };
 
       const txHash = await provider.request({
-        method: "eth_sendTransaction",
+        method: 'eth_sendTransaction',
         params: [tx],
       });
 
       const transaction = {
         hash: txHash,
         from: evmWallet.address,
-        to: sendFlow.recipient?.address || "",
+        to: sendFlow.recipient?.address || '',
         value: sendFlow.amount,
         timeStamp: Math.floor(Date.now() / 1000).toString(),
-        gas: "0",
-        gasPrice: "0",
-        networkFee: "0",
-        status: "pending",
-        tokenName: sendFlow.token?.name || "",
-        tokenSymbol: sendFlow.token?.symbol || "",
+        gas: '0',
+        gasPrice: '0',
+        networkFee: '0',
+        status: 'pending',
+        tokenName: sendFlow.token?.name || '',
+        tokenSymbol: sendFlow.token?.symbol || '',
         tokenDecimal: 18,
         network: network,
-        currentPrice: parseFloat(sendFlow.token?.marketData?.price || "0"),
-        nativeTokenPrice: parseFloat(sendFlow.token?.marketData?.price || "0"),
+        currentPrice: parseFloat(
+          sendFlow.token?.marketData?.price || '0'
+        ),
+        nativeTokenPrice: parseFloat(
+          sendFlow.token?.marketData?.price || '0'
+        ),
         isSwapped: false,
         isNew: true,
       };
@@ -270,9 +309,9 @@ export class TransactionService {
     } else {
       // ERC20 token transfer
       const erc20Abi = [
-        "function transfer(address to, uint256 amount) returns (bool)",
-        "function decimals() view returns (uint8)",
-        "function balanceOf(address account) view returns (uint256)",
+        'function transfer(address to, uint256 amount) returns (bool)',
+        'function decimals() view returns (uint8)',
+        'function balanceOf(address account) view returns (uint256)',
       ];
 
       const web3Provider = new ethers.BrowserProvider(provider);
@@ -283,13 +322,19 @@ export class TransactionService {
         signer
       );
 
-      const decimals = sendFlow.token.decimals || (await contract.decimals());
-      const amountInWei = ethers.parseUnits(sendFlow.amount, decimals);
+      const decimals =
+        sendFlow.token.decimals || (await contract.decimals());
+      const amountInWei = ethers.parseUnits(
+        sendFlow.amount,
+        decimals
+      );
 
-      const balance = await contract.balanceOf(await signer.getAddress());
+      const balance = await contract.balanceOf(
+        await signer.getAddress()
+      );
 
       if (BigInt(balance) < amountInWei) {
-        throw new Error("Insufficient balance");
+        throw new Error('Insufficient balance');
       }
 
       const tx = await contract.transfer(
@@ -302,13 +347,13 @@ export class TransactionService {
       const transaction = {
         hash: tx.hash,
         from: evmWallet.address,
-        to: sendFlow.recipient?.address || "",
+        to: sendFlow.recipient?.address || '',
         value: sendFlow.amount,
         status: tx.status,
         timeStamp: Date.now().toString(),
-        gas: tx.gasUsed?.toString() || "0",
-        gasPrice: tx.gasPrice?.toString() || "0",
-        networkFee: "0",
+        gas: tx.gasUsed?.toString() || '0',
+        gasPrice: tx.gasPrice?.toString() || '0',
+        networkFee: '0',
         tokenName: sendFlow.token.name,
         tokenSymbol: sendFlow.token.symbol,
         tokenDecimal: decimals,
@@ -336,7 +381,7 @@ export class TransactionService {
       tempAddress: string;
     }
   ) {
-    if (!solanaWallet) throw new Error("No Solana wallet found");
+    if (!solanaWallet) throw new Error('No Solana wallet found');
 
     if (!config.tokenAddress) {
       // Native SOL transfer
@@ -353,7 +398,9 @@ export class TransactionService {
       tx.feePayer = new PublicKey(solanaWallet.address);
 
       const signedTx = await solanaWallet.signTransaction(tx);
-      return await connection.sendRawTransaction(signedTx.serialize());
+      return await connection.sendRawTransaction(
+        signedTx.serialize()
+      );
     } else {
       // SPL Token transfer
       const fromTokenAccount = await getAssociatedTokenAddress(
@@ -398,7 +445,64 @@ export class TransactionService {
       tx.feePayer = new PublicKey(solanaWallet.address);
 
       const signedTx = await solanaWallet.signTransaction(tx);
-      return await connection.sendRawTransaction(signedTx.serialize());
+      return await connection.sendRawTransaction(
+        signedTx.serialize()
+      );
     }
+  }
+
+  /**
+   * This function prepares and signs a sponsored transaction
+   */
+  static async prepareSponsoredTransaction(
+    instructions: any,
+    solanaWallet: any,
+    connection: Connection
+  ) {
+    console.log('instar', instructions);
+    const { blockhash } = await connection.getLatestBlockhash();
+
+    // create the transaction message with fee payer set to the backend wallet
+    const message = new TransactionMessage({
+      payerKey: new PublicKey(
+        process.env.NEXT_PUBLIC_FEE_PAYER_ADDRESS!
+      ),
+      recentBlockhash: blockhash,
+      instructions,
+    }).compileToV0Message();
+
+    const transaction = new VersionedTransaction(message);
+
+    const serializedMessage = Buffer.from(
+      transaction.message.serialize()
+    ).toString('base64');
+
+    console.log('serializemessage', serializedMessage);
+
+    const serializedUserSignature = await solanaWallet.signMessage(
+      new TextEncoder().encode(serializedMessage)
+    );
+
+    console.log('serialized', serializedUserSignature);
+
+    // Add user signature to transaction
+    const userSignature = Buffer.from(
+      serializedUserSignature,
+      'base64'
+    );
+
+    transaction.addSignature(
+      new PublicKey(solanaWallet.address),
+      userSignature
+    );
+
+    await solanaWallet.signTransaction(transaction);
+
+    // Serialize the transaction to send to backend
+    const serializedTransaction = Buffer.from(
+      transaction.serialize()
+    ).toString('base64');
+
+    return serializedTransaction;
   }
 }

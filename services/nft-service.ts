@@ -152,22 +152,21 @@ export class SolanaNFTService {
           asset.content?.links?.image;
 
         return {
-          contract: asset.id, // Using asset ID as the primary identifier
+          contract: asset.id,
           description: asset.content?.metadata?.description || '',
           name: asset.content?.metadata?.name || 'Unnamed NFT',
-          image: imageUrl || '', // Provide a fallback if no image found
+          image: imageUrl || '',
           network: 'solana',
-          // Optional: Extract collection info if available in the asset data
+
           // collection: { ... }
-          // Set other NFT fields (tokenId, tokenType, balance, isSpam) if applicable
-          // from the Metaplex data, otherwise set defaults or null.
+
           tokenId: asset.id, // Metaplex DAS uses a single ID for the asset
-          tokenType: 'Metaplex NFT', // Set a suitable type
+          tokenType: 'Metaplex NFT',
           balance: '1', // Assuming non-fungible means balance is 1
-          isSpam: false, // Add logic to determine spam if possible from API data
+          isSpam: false,
         };
       })
-      .filter((nft) => !!nft.image); // Optional: Filter out NFTs without images
+      .filter((nft) => !!nft.image);
   }
 }
 

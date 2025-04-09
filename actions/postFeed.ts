@@ -1,64 +1,65 @@
-"use server";
+'use server';
 // export const maxDuration = 60;
-import { revalidatePath } from "next/cache";
+import { revalidatePath } from 'next/cache';
 
 export async function getUserFeed(url: string, token: string) {
   try {
     const response = await fetch(`${url}`, {
-      method: "GET",
+      method: 'GET',
       headers: {
-        "Content-Type": "application/json",
+        'Content-Type': 'application/json',
         authorization: `Bearer ${token}`,
       },
-      cache: "no-store",
+      cache: 'no-store',
     });
     const data = await response.json();
     return data;
   } catch (error) {
-    console.error("Error from getting feed:", error);
+    console.error('Error from getting feed:', error);
   }
 }
 export async function getSmartsiteFeed(url: string, token: string) {
   try {
     const response = await fetch(`${url}`, {
-      method: "GET",
+      method: 'GET',
       headers: {
-        "Content-Type": "application/json",
+        'Content-Type': 'application/json',
         authorization: `Bearer ${token}`,
       },
-      cache: "no-store",
+      cache: 'no-store',
     });
     const data = await response.json();
     return data;
   } catch (error) {
-    console.error("Error from getting feed:", error);
+    console.error('Error from getting feed:', error);
   }
 }
 export async function getFeedComments(url: string, token: string) {
   try {
     const response = await fetch(`${url}`, {
-      method: "GET",
+      method: 'GET',
       headers: {
-        "Content-Type": "application/json",
+        'Content-Type': 'application/json',
         authorization: `Bearer ${token}`,
       },
-      cache: "no-store",
+      cache: 'no-store',
     });
     const data = await response.json();
     return data;
   } catch (error) {
-    console.error("Error from getting feed:", error);
+    console.error('Error from getting feed:', error);
   }
 }
 
 export async function postFeed(payload: any, token: string) {
+  console.log('🚀 ~ postFeed ~ payload:', payload);
   try {
     const response = await fetch(
       `${process.env.NEXT_PUBLIC_API_URL}/api/v1/feed`,
       {
-        method: "POST",
+        method: 'POST',
         headers: {
-          "Content-Type": "application/json",
+          'Content-Type': 'application/json',
           authorization: `Bearer ${token}`,
         },
         body: JSON.stringify(payload),
@@ -68,7 +69,7 @@ export async function postFeed(payload: any, token: string) {
     const data = await response.json();
     return data;
   } catch (error) {
-    console.error("Error from posting feed:", error);
+    console.error('Error from posting feed:', error);
   }
 }
 export async function postComment(payload: any, token: string) {
@@ -76,9 +77,9 @@ export async function postComment(payload: any, token: string) {
     const response = await fetch(
       `${process.env.NEXT_PUBLIC_API_URL}/api/v1/feed/comment`,
       {
-        method: "POST",
+        method: 'POST',
         headers: {
-          "Content-Type": "application/json",
+          'Content-Type': 'application/json',
           authorization: `Bearer ${token}`,
         },
         body: JSON.stringify(payload),
@@ -90,18 +91,21 @@ export async function postComment(payload: any, token: string) {
 
     return data;
   } catch (error) {
-    console.error("Error from posting feed:", error);
+    console.error('Error from posting feed:', error);
   }
 }
 
-export async function deleteFeedComment(commentId: string, token: string) {
+export async function deleteFeedComment(
+  commentId: string,
+  token: string
+) {
   try {
     const response = await fetch(
       `${process.env.NEXT_PUBLIC_API_URL}/api/v1/feed/comment/${commentId}`,
       {
-        method: "DELETE",
+        method: 'DELETE',
         headers: {
-          "Content-Type": "application/json",
+          'Content-Type': 'application/json',
           authorization: `Bearer ${token}`,
         },
       }
@@ -110,7 +114,7 @@ export async function deleteFeedComment(commentId: string, token: string) {
     const data = await response.json();
     return data;
   } catch (error) {
-    console.error("Error from posting feed:", error);
+    console.error('Error from posting feed:', error);
   }
 }
 
@@ -119,9 +123,9 @@ export async function deleteFeed(postId: string, token: string) {
     const response = await fetch(
       `${process.env.NEXT_PUBLIC_API_URL}/api/v1/feed/${postId}`,
       {
-        method: "DELETE",
+        method: 'DELETE',
         headers: {
-          "Content-Type": "application/json",
+          'Content-Type': 'application/json',
           authorization: `Bearer ${token}`,
         },
       }
@@ -130,7 +134,7 @@ export async function deleteFeed(postId: string, token: string) {
     const data = await response.json();
     return data;
   } catch (error) {
-    console.error("Error from posting feed:", error);
+    console.error('Error from posting feed:', error);
   }
 }
 
@@ -140,9 +144,9 @@ export async function postFeedLike(payload: any, token: string) {
     const response = await fetch(
       `${process.env.NEXT_PUBLIC_API_URL}/api/v1/feed/reaction`,
       {
-        method: "POST",
+        method: 'POST',
         headers: {
-          "Content-Type": "application/json",
+          'Content-Type': 'application/json',
           authorization: `Bearer ${token}`,
         },
         body: JSON.stringify(payload),
@@ -152,7 +156,7 @@ export async function postFeedLike(payload: any, token: string) {
     const data = await response.json();
     return data;
   } catch (error) {
-    console.error("Error from posting feed:", error);
+    console.error('Error from posting feed:', error);
   }
 }
 
@@ -162,9 +166,9 @@ export async function addFeedLikePoints(payload: any, token: string) {
     const response = await fetch(
       `${process.env.NEXT_PUBLIC_API_URL}/api/v1/points`,
       {
-        method: "POST",
+        method: 'POST',
         headers: {
-          "Content-Type": "application/json",
+          'Content-Type': 'application/json',
           authorization: `Bearer ${token}`,
         },
         body: JSON.stringify(payload),
@@ -173,7 +177,7 @@ export async function addFeedLikePoints(payload: any, token: string) {
     const data = await response.json();
     return data;
   } catch (error) {
-    console.error("Error from posting feed:", error);
+    console.error('Error from posting feed:', error);
   }
 }
 
@@ -182,9 +186,9 @@ export async function removeFeedLike(payload: any, token: string) {
     const response = await fetch(
       `${process.env.NEXT_PUBLIC_API_URL}/api/v1/feed/remove-reaction`,
       {
-        method: "POST",
+        method: 'POST',
         headers: {
-          "Content-Type": "application/json",
+          'Content-Type': 'application/json',
           authorization: `Bearer ${token}`,
         },
         body: JSON.stringify(payload),
@@ -194,7 +198,7 @@ export async function removeFeedLike(payload: any, token: string) {
     const data = await response.json();
     return data;
   } catch (error) {
-    console.error("Error from posting feed:", error);
+    console.error('Error from posting feed:', error);
   }
 }
 
@@ -204,9 +208,9 @@ export async function isPostLiked(payload: any, token: string) {
     const response = await fetch(
       `${process.env.NEXT_PUBLIC_API_URL}/api/v1/feed/${postId}/like-status?smartsiteId=${smartsiteId}`,
       {
-        method: "GET",
+        method: 'GET',
         headers: {
-          "Content-Type": "application/json",
+          'Content-Type': 'application/json',
           authorization: `Bearer ${token}`,
         },
       }
@@ -214,7 +218,7 @@ export async function isPostLiked(payload: any, token: string) {
     const data = await response.json();
     return data;
   } catch (error) {
-    console.error("Error from posting feed:", error);
+    console.error('Error from posting feed:', error);
   }
 }
 
