@@ -30,6 +30,25 @@ export async function postExternalAccountInBridge(
   }
 }
 
+export async function postExternalAccountInSwopDB(userId: string, data: any) {
+  try {
+    const response = await fetch(
+      `${process.env.NEXT_PUBLIC_API_URL}/api/v4/user/saveBrigeAccount`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json", // Make sure to set the correct content type
+        },
+        body: JSON.stringify({ user_id: userId, data }), // Convert data to JSON before sending
+      }
+    );
+    const res = await response.json();
+    return res;
+  } catch (error) {
+    console.error("Error from action:", error);
+  }
+}
+
 export async function saveQycInfoToSwopDB(data: any, userId: string) {
   try {
     const response = await fetch(
@@ -49,7 +68,10 @@ export async function saveQycInfoToSwopDB(data: any, userId: string) {
   }
 }
 
-export async function getDBExternalAccountInfo(userId: string) {
+export async function getDBExternalAccountInfo(
+  userId: string,
+  accessToken: string
+) {
   try {
     const response = await fetch(
       `${process.env.NEXT_PUBLIC_API_URL}/api/v4/user/getBridgeAccount/${userId}`,
@@ -57,6 +79,7 @@ export async function getDBExternalAccountInfo(userId: string) {
         method: "GET",
         headers: {
           "Content-Type": "application/json", // Make sure to set the correct content type
+          authorization: `Bearer ${accessToken}`,
         },
       }
     );
@@ -67,7 +90,7 @@ export async function getDBExternalAccountInfo(userId: string) {
   }
 }
 
-export async function getKycInfo(userId: string) {
+export async function getKycInfo(userId: string, accessToken: string) {
   try {
     const response = await fetch(
       `${process.env.NEXT_PUBLIC_API_URL}/api/v4/user/getUserKyc/${userId}`,
@@ -75,6 +98,7 @@ export async function getKycInfo(userId: string) {
         method: "GET",
         headers: {
           "Content-Type": "application/json", // Make sure to set the correct content type
+          authorization: `Bearer ${accessToken}`,
         },
       }
     );

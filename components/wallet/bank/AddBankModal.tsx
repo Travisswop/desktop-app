@@ -52,17 +52,28 @@ const AddBankModal = ({ bankShow, setBankShow }: any) => {
     getUserId();
   }, []);
 
+  const [accessToken, setAccessToken] = useState("");
+
+  useEffect(() => {
+    const getAccessToken = async () => {
+      const token = Cookies.get("access-token");
+      if (token) {
+        setAccessToken(token);
+      }
+    };
+    getAccessToken();
+  }, []);
+
   console.log("user id from useEffect", userId);
+  console.log("accessToken", accessToken);
 
   useEffect(() => {
     const getKycData = async () => {
       try {
         setKycDataFetchLoading(true);
-        // const userId = Cookies.get("user-id");
-
         if (userId) {
-          const info = await getKycInfo(userId);
-          console.log("info ", info);
+          const info = await getKycInfo(userId, accessToken);
+          console.log("info kyc", info);
           if (info.success && info.message === "KYC information available") {
             setKycData(info.data);
             if (info.data.kyc_status !== "approved") {
@@ -89,7 +100,10 @@ const AddBankModal = ({ bankShow, setBankShow }: any) => {
                 setKycData(bridgeInfo);
               }
             } else if (info.data.kyc_status === "approved") {
-              const externalDBInfo = await getDBExternalAccountInfo(userId);
+              const externalDBInfo = await getDBExternalAccountInfo(
+                userId,
+                accessToken
+              );
 
               console.log("externalDBInfo", externalDBInfo);
 
@@ -128,7 +142,7 @@ const AddBankModal = ({ bankShow, setBankShow }: any) => {
       }
     };
     getKycData();
-  }, [externalAccountInfo?.message, userId]);
+  }, [accessToken, externalAccountInfo?.message, userId]);
 
   const handleKycLink = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
