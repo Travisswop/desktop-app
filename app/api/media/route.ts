@@ -2,13 +2,7 @@ import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 
 export async function POST(request: NextRequest) {
-  const userId = request.cookies.get('user-id')?.value;
-  console.log('🚀 ~ POST ~ userId:', userId);
   const { audioList, videoList } = await request.json();
-
-  // Process the audio and video URLs as needed
-  console.log('Received audio:', audioList);
-  console.log('Received video:', videoList);
 
   try {
     const response = await fetch(

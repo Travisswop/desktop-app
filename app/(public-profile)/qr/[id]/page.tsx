@@ -9,7 +9,6 @@ export default async function QR({
     { next: { revalidate: 1 } }
   );
   const data = await fetchData.json();
-  console.log('🚀 ~ data:', data);
 
   if (data?.data?.micrositeUrl) {
     return redirect(data.data.micrositeUrl);

@@ -161,10 +161,7 @@ class TransactionAPI {
       const transactions = await Promise.all(
         response.data.map(async (item) => {
           const txDetails = await this.getSolTxDetails(item.tx_hash);
-          console.log(
-            '🚀 ~ TransactionAPI ~ response.data.map ~ txDetails:',
-            txDetails
-          );
+
           return this.formatSolanaTransaction(
             {
               blockTime: item.block_time,

@@ -169,8 +169,6 @@ const PaymentShipping: React.FC<{
     }
   };
 
-  console.log('user', user);
-
   const renderTransactionStatus = () => {
     if (transactionStage === TRANSACTION_STAGES.IDLE) return null;
 

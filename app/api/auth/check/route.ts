@@ -4,9 +4,7 @@ import { PrivyClient } from '@privy-io/server-auth';
 
 export async function POST(request: NextRequest) {
   const privyToken = request.cookies.get('privy-token')?.value;
-  console.log('🚀 ~ POST ~ privyToken:', privyToken);
   const privyIdToken = request.cookies.get('privy-id-token')?.value;
-  console.log('🚀 ~ POST ~ privyIdToken:', privyIdToken);
 
   if (!privyToken || !privyIdToken) {
     return NextResponse.json(
@@ -36,7 +34,6 @@ export async function POST(request: NextRequest) {
       user,
     });
   } catch (error) {
-    console.log('🚀 ~ CheckAuth ~ error:', error);
     return NextResponse.json(
       {
         error: 'Authentication failed',

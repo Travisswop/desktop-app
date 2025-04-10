@@ -9,7 +9,6 @@ import { usePrivy } from '@privy-io/react-auth';
 
 const Onboard: React.FC = () => {
   const { user } = usePrivy();
-  console.log('🚀 ~ user:', user);
   const [step, setStep] = useState(0);
   const [userData, setUserData] = useState({});
 

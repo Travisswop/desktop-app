@@ -99,7 +99,6 @@ export async function POST(request: NextRequest) {
     }
 
     const data = await request.json();
-    console.log('🚀 ~ POST ~ data:', data);
     const smartSiteInfo: SocialInfo = data.social;
 
     const socialTopInfo: SocialTopInfo = {
@@ -216,7 +215,6 @@ export async function POST(request: NextRequest) {
     }
 
     const result = await response.json();
-    console.log('🚀 ~ POST ~ result:', result);
     return NextResponse.json(result);
   } catch (error) {
     console.error('Error creating user:', error);

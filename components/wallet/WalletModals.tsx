@@ -1,5 +1,5 @@
 import React from 'react';
-import { Network } from '@/types/wallet-types';
+import { Network, SendFlowState } from '@/types/wallet-types';
 import { TokenData } from '@/types/token';
 import { NFT } from '@/types/nft';
 import { WalletItem } from '@/types/wallet';
@@ -32,7 +32,7 @@ interface SendFlowType {
 }
 
 interface WalletModalsProps {
-  sendFlow: SendFlowType;
+  sendFlow: SendFlowState;
   resetSendFlow: () => void;
   tokens: TokenData[];
   nfts: NFT[];
@@ -44,7 +44,7 @@ interface WalletModalsProps {
   network: Network;
   currentWalletAddress: string;
   sendLoading: boolean;
-  nativeTokenPrice: string;
+  nativeTokenPrice: number;
   walletQRModalOpen: boolean;
   setWalletQRModalOpen: (open: boolean) => void;
   walletData: WalletItem[];
@@ -56,7 +56,7 @@ interface WalletModalsProps {
   setQRCodeShareModalOpen: (open: boolean) => void;
   QRCodeShareModalOpen: boolean;
   qrcodeShareUrl: string;
-  setSendFlow: React.Dispatch<React.SetStateAction<SendFlowType>>;
+  setSendFlow: React.Dispatch<React.SetStateAction<SendFlowState>>;
 }
 
 const WalletModals: React.FC<WalletModalsProps> = ({
@@ -208,7 +208,7 @@ const WalletModals: React.FC<WalletModalsProps> = ({
         amount={sendFlow.amount}
         nft={sendFlow.nft}
         token={sendFlow.token}
-        network={sendFlow.network}
+        isUSD={sendFlow.isUSD}
         hash={sendFlow.hash}
       />
 

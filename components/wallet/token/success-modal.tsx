@@ -18,7 +18,7 @@ interface TransactionSuccessProps {
   amount: string;
   nft: NFT | null;
   token: TokenData | null;
-  network: string;
+  isUSD: boolean;
   hash: string;
 }
 
@@ -28,7 +28,7 @@ export default function TransactionSuccess({
   amount,
   nft,
   token,
-  network,
+  isUSD,
   hash,
 }: TransactionSuccessProps) {
   const getExplorerUrl = () => {
@@ -79,15 +79,23 @@ export default function TransactionSuccess({
               token && (
                 <div className="space-y-2">
                   <p className="text-3xl font-bold text-green-600">
-                    {amount} {token.symbol}
+                    {isUSD
+                      ? (
+                          parseFloat(amount) /
+                          parseFloat(token.marketData.price)
+                        ).toFixed(2)
+                      : parseFloat(amount).toFixed(2)}{' '}
+                    {token.symbol}
                   </p>
                   {token.marketData.price && (
                     <p className="text-gray-500">
                       ≈ $
-                      {(
-                        parseFloat(amount) *
-                        parseFloat(token.marketData.price)
-                      ).toFixed(2)}{' '}
+                      {isUSD
+                        ? parseFloat(amount).toFixed(2)
+                        : (
+                            parseFloat(amount) *
+                            parseFloat(token.marketData.price)
+                          ).toFixed(2)}
                       USD
                     </p>
                   )}

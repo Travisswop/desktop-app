@@ -279,8 +279,8 @@ const WalletContentInner = () => {
       const transactionPayload = createTransactionPayload({
         basePayload: payload,
         sendFlow,
-        hash: '',
-        amount,
+        hash: hash || '',
+        amount: Number(amount),
         walletAddress: evmWalletAddress || solWalletAddress,
       });
 
@@ -289,7 +289,7 @@ const WalletContentInner = () => {
       // Update UI state
       setSendFlow((prev) => ({
         ...prev,
-        hash: '',
+        hash: hash || '',
         step: 'success',
       }));
 

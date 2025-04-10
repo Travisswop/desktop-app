@@ -184,7 +184,7 @@ const Transaction = ({
           <p className="text-gray-600 text-sm">
             Transferred{' '}
             <span className="font-medium">
-              {amount} {token}
+              {amount.toFixed(2)} {token}
             </span>
           </p>
           <Image
@@ -197,7 +197,7 @@ const Transaction = ({
           <p className="text-gray-600 text-sm">
             {tokenPrice && (
               <span className="text-sm text-gray-600 font-medium mt-0.5">
-                (${Number(tokenPrice).toFixed(8)})
+                (${Number(tokenPrice).toFixed(2)})
               </span>
             )}{' '}
             tokens to{' '}

@@ -91,8 +91,6 @@ const OrderManagement = () => {
         );
 
         const data = await response.json();
-        console.log('🚀 ~ fetchOrders ~ data:', data);
-
         if (data.state === 'success') {
           // Process orders received from backend
           const { orders, purchases, summary } = data.data;

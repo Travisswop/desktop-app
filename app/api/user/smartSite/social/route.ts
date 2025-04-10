@@ -30,7 +30,6 @@ export async function POST(request: NextRequest) {
     }
 
     const result = await response.json();
-    console.log('🚀 ~ POST ~ result:', result);
     return NextResponse.json(result);
   } catch (error) {
     console.error('Error creating user:', error);

@@ -88,18 +88,20 @@ export class TransactionService {
   ) {
     if (!solanaWallet) throw new Error('No Solana wallet found');
 
-    console.log('solana wallet', solanaWallet);
-    console.log('send flow', sendFlow);
-
     if (!sendFlow.token) {
       throw new Error('No token found');
     }
 
-    console.log('send flow', sendFlow);
+    let amount = parseFloat(sendFlow.amount);
+
+    if (sendFlow.isUSD) {
+      amount = amount / parseFloat(sendFlow.token.marketData.price);
+    }
 
     if (!sendFlow.token?.address) {
       // Native SOL transfer
-      const lamports = Math.floor(parseFloat(sendFlow.amount) * 1e9);
+
+      const lamports = Math.floor(amount * 1e9);
 
       const tx = new SolanaTransaction().add(
         SystemProgram.transfer({
@@ -144,8 +146,7 @@ export class TransactionService {
       }
 
       const tokenAmount = Math.floor(
-        parseFloat(sendFlow.amount) *
-          Math.pow(10, sendFlow.token.decimals)
+        amount * Math.pow(10, sendFlow.token.decimals)
       );
 
       tx.add(
@@ -459,7 +460,6 @@ export class TransactionService {
     solanaWallet: any,
     connection: Connection
   ) {
-    console.log('instar', instructions);
     const { blockhash } = await connection.getLatestBlockhash();
 
     // create the transaction message with fee payer set to the backend wallet
@@ -477,13 +477,9 @@ export class TransactionService {
       transaction.message.serialize()
     ).toString('base64');
 
-    console.log('serializemessage', serializedMessage);
-
     const serializedUserSignature = await solanaWallet.signMessage(
       new TextEncoder().encode(serializedMessage)
     );
-
-    console.log('serialized', serializedUserSignature);
 
     // Add user signature to transaction
     const userSignature = Buffer.from(

@@ -183,9 +183,11 @@ export default function SendConfirmation({
                       </TooltipTrigger>
                       <TooltipContent className="max-w-xs">
                         <p>
-                          Network fees are required to process your
-                          transaction on the blockchain. These fees
-                          vary based on network congestion.
+                          {token.chain === 'SOLANA' &&
+                          (token.symbol === 'SWOP' ||
+                            token.symbol === 'USDC')
+                            ? 'Network fees are subsidized by SWOP for SWOP and USDC transactions on Solana.'
+                            : 'Network fees are required to process your transaction on the blockchain. These fees vary based on network congestion.'}
                         </p>
                       </TooltipContent>
                     </Tooltip>
@@ -193,7 +195,11 @@ export default function SendConfirmation({
                 </div>
                 <div className="text-right">
                   <div className="font-medium">
-                    {networkFee}{' '}
+                    {token.chain === 'SOLANA' &&
+                    (token.symbol === 'SWOP' ||
+                      token.symbol === 'USDC')
+                      ? '0.000000'
+                      : networkFee}{' '}
                     {token.chain === 'SOLANA'
                       ? 'SOL'
                       : token.chain === 'ETHEREUM'
@@ -203,7 +209,11 @@ export default function SendConfirmation({
                       : 'BASE'}
                   </div>
                   <div className="text-sm text-gray-500">
-                    $ {gasFeeUSD}
+                    {token.chain === 'SOLANA' &&
+                    (token.symbol === 'SWOP' ||
+                      token.symbol === 'USDC')
+                      ? '$ 0.00'
+                      : `$ ${gasFeeUSD}`}
                   </div>
                 </div>
               </div>

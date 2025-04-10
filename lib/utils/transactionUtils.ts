@@ -4,6 +4,12 @@ export function createTransactionPayload({
   hash,
   amount,
   walletAddress,
+}: {
+  basePayload: any;
+  sendFlow: any;
+  hash: string;
+  amount: number;
+  walletAddress: string | undefined;
 }) {
   return {
     ...basePayload,
