@@ -175,11 +175,13 @@ class AuthMiddleware {
   }
 
   public async authenticate(req: NextRequest): Promise<NextResponse> {
+    const response = NextResponse.next();
+
     try {
       if (!this.validateEnvironment()) {
         // If environment validation fails, allow the request to continue
         // This will let the application handle the error properly
-        return NextResponse.next();
+        return response;
       }
 
       const { pathname } = req.nextUrl;
@@ -187,7 +189,7 @@ class AuthMiddleware {
 
       // Skip middleware for public routes
       if (this.isPublicRoute(pathname)) {
-        return NextResponse.next();
+        return response;
       }
 
       // Handle mobile redirects (only if enabled and not on auth routes)
@@ -244,7 +246,7 @@ class AuthMiddleware {
 
           if (isValidToken) {
             // Set userId cookie for client-side access
-            const response = NextResponse.next();
+
             if (userId) {
               response.cookies.set('user-id', userId, {
                 secure: true,
@@ -267,7 +269,6 @@ class AuthMiddleware {
                 return this.createRedirect(req, '/');
               }
             }
-
             return response;
           }
         } catch (error) {
@@ -281,7 +282,34 @@ class AuthMiddleware {
         return this.createRedirect(req, '/login');
       }
 
-      return NextResponse.next();
+      const nonce = Buffer.from(crypto.randomUUID()).toString(
+        'base64'
+      );
+      const cspHeader = `
+    default-src 'self';
+    script-src 'self' 'unsafe-eval' 'unsafe-inline' 'nonce-${nonce}' https://challenges.cloudflare.com https://swopme.app;
+    style-src 'self' 'unsafe-inline';
+    img-src 'self' data: blob: https: http:;
+    font-src 'self';
+    object-src 'none';
+    base-uri 'self';
+    form-action 'self';
+    frame-ancestors 'none';
+    child-src https://auth.privy.io https://verify.walletconnect.com https://verify.walletconnect.org;
+    frame-src https://auth.privy.io https://verify.walletconnect.com https://verify.walletconnect.org https://challenges.cloudflare.com;
+    connect-src 'self' https://swopme.app https://auth.privy.io wss://relay.walletconnect.com wss://relay.walletconnect.org wss://www.walletlink.org https://*.rpc.privy.systems;
+    worker-src 'self';
+    manifest-src 'self';
+  `
+        .replace(/\s{2,}/g, ' ')
+        .trim();
+
+      if (process.env.NODE_ENV === 'production') {
+        response.headers.set('Content-Security-Policy', cspHeader);
+      }
+
+      console.log('redirecting....');
+      return response;
     } catch (error) {
       console.error('Authentication middleware error:', {
         error:
