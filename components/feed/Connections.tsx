@@ -22,7 +22,7 @@ const Connections = ({ userId, accessToken }: any) => {
         userId,
         accessToken
       );
-      setConnectionData(connections);
+      setConnectionData(connections.data);
       setLoading(false);
     };
     fetchConnectionData();
@@ -32,12 +32,10 @@ const Connections = ({ userId, accessToken }: any) => {
     const handleSearch = () => {
       // setLoading(true);
       if (!searchQuery) {
-        setFilteredConnections(
-          connectionData?.data?.childConnection || []
-        );
+        setFilteredConnections(connectionData?.following || []);
         // setLoading(false);
       } else {
-        const filtered = connectionData?.data?.childConnection.filter(
+        const filtered = connectionData?.following.filter(
           (connection: any) =>
             connection.account.name
               .toLowerCase()
@@ -53,9 +51,9 @@ const Connections = ({ userId, accessToken }: any) => {
     return () => {
       clearTimeout(debounceSearch);
     };
-  }, [connectionData?.data?.childConnection, searchQuery]);
+  }, [connectionData?.following, searchQuery]);
 
-  console.log('connection', filteredConnections);
+  console.log('connection', connectionData);
 
   return (
     <div className="py-5 px-6 bg-white rounded-lg">

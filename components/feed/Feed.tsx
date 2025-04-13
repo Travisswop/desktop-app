@@ -108,31 +108,20 @@ const Feed = ({
       );
     } else if (transaction_type === 'token') {
       return (
-        <div className="flex items-center">
-          <p className="text-gray-600 text-sm">
-            Transferred{' '}
-            <span className="font-medium">
-              {amount.toFixed(2)} {token}
+        <p className="text-gray-600 text-sm">
+          Transferred{' '}
+          <span className="font-medium">
+            {amount.toFixed(2)} {token}
+          </span>{' '}
+          {tokenPrice && (
+            <span className="text-sm text-gray-600 font-medium mt-0.5">
+              (${Number(tokenPrice).toFixed(2)})
             </span>
-          </p>
-          <Image
-            src={`/assets/crypto-icons/${token}.png`}
-            alt={token}
-            width={16}
-            height={16}
-            className="rounded-full mx-1"
-          />
-          <p className="text-gray-600 text-sm">
-            {tokenPrice && (
-              <span className="text-sm text-gray-600 font-medium mt-0.5">
-                (${Number(tokenPrice).toFixed(2)})
-              </span>
-            )}{' '}
-            tokens to{' '}
-            <span className="font-medium">{recipientDisplay}</span> on
-            the {chain}.
-          </p>
-        </div>
+          )}{' '}
+          tokens to{' '}
+          <span className="font-medium">{recipientDisplay}</span> on
+          the {chain}.
+        </p>
       );
     } else {
       return (
