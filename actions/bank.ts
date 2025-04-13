@@ -68,6 +68,30 @@ export async function saveQycInfoToSwopDB(data: any, userId: string) {
   }
 }
 
+export async function saveVirtualInfoToSwopDB(
+  data: any,
+  userId: string,
+  token: string
+) {
+  try {
+    const response = await fetch(
+      `${process.env.NEXT_PUBLIC_API_URL}/api/v4/user/saveVirtualAccount`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json", // Make sure to set the correct content type
+          authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ user_id: userId, data }), // !need to be sure
+      }
+    );
+    const result = await response.json();
+    return result;
+  } catch (error) {
+    console.error("Error from action:", error);
+  }
+}
+
 export async function getDBExternalAccountInfo(
   userId: string,
   accessToken: string
@@ -82,6 +106,60 @@ export async function getDBExternalAccountInfo(
           authorization: `Bearer ${accessToken}`,
         },
       }
+    );
+    const result = await response.json();
+    return result;
+  } catch (error) {
+    console.error("Error from action:", error);
+  }
+}
+
+export async function getVirtualAccountInfo(
+  userId: string,
+  accessToken: string
+) {
+  try {
+    const response = await fetch(
+      `${process.env.NEXT_PUBLIC_API_URL}/api/v4/user/getVirtualAccount/${userId}`,
+      {
+        method: "GET",
+        headers: {
+          "Content-Type": "application/json", // Make sure to set the correct content type
+          authorization: `Bearer ${accessToken}`,
+        },
+      }
+    );
+    const result = await response.json();
+    return result;
+  } catch (error) {
+    console.error("Error from action:", error);
+  }
+}
+
+export async function getVirtualAccountInfoFromBridge(
+  customerId: string,
+  options: any
+) {
+  try {
+    const response = await fetch(
+      `https://api.bridge.xyz/v0/customers/${customerId}/virtual_accounts`,
+      options
+    );
+    const result = await response.json();
+    return result;
+  } catch (error) {
+    console.error("Error from action:", error);
+  }
+}
+
+export async function postVirtualAccountInfoIntoBridge(
+  customerId: string,
+  options: any
+) {
+  try {
+    const response = await fetch(
+      `https://api.bridge.xyz/v0/customers/${customerId}/virtual_accounts`,
+      options
     );
     const result = await response.json();
     return result;
