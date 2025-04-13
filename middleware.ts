@@ -246,7 +246,6 @@ class AuthMiddleware {
 
           if (isValidToken) {
             // Set userId cookie for client-side access
-
             if (userId) {
               response.cookies.set('user-id', userId, {
                 secure: true,
@@ -285,9 +284,11 @@ class AuthMiddleware {
       const nonce = Buffer.from(crypto.randomUUID()).toString(
         'base64'
       );
+
+      // FIXED CSP - Removed 'unsafe-inline' since it's ignored when nonce is present
       const cspHeader = `
     default-src 'self';
-    script-src 'self' 'unsafe-eval' 'unsafe-inline' 'nonce-${nonce}' https://challenges.cloudflare.com https://swopme.app;
+    script-src 'self' 'unsafe-eval' 'nonce-${nonce}' https://challenges.cloudflare.com https://swopme.app;
     style-src 'self' 'unsafe-inline';
     img-src 'self' data: blob: https: http:;
     font-src 'self';
@@ -307,6 +308,9 @@ class AuthMiddleware {
       if (process.env.NODE_ENV === 'production') {
         response.headers.set('Content-Security-Policy', cspHeader);
       }
+
+      // Add nonce value to response headers so it can be used in server-side rendering
+      response.headers.set('X-Nonce', nonce);
 
       console.log('redirecting....');
       return response;
