@@ -288,7 +288,7 @@ class AuthMiddleware {
       // FIXED CSP - Removed 'unsafe-inline' since it's ignored when nonce is present
       const cspHeader = `
     default-src 'self';
-    script-src 'self' 'unsafe-eval' 'nonce-${nonce}' https://challenges.cloudflare.com https://swopme.app;
+    script-src 'self' https://challenges.cloudflare.com https://swopme.app;
     style-src 'self' 'unsafe-inline';
     img-src 'self' data: blob: https: http:;
     font-src 'self';
