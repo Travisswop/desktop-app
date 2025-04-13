@@ -287,7 +287,7 @@ class AuthMiddleware {
 
       const cspHeader = `
     default-src 'self';
-    script-src 'self' 'unsafe-inline' https://challenges.cloudflare.com https://swopme.app https://privy.swopme.app;
+    script-src 'self' 'unsafe-inline' https://app.apiswop.co https://challenges.cloudflare.com https://swopme.app https://privy.swopme.app;
     style-src 'self' 'unsafe-inline';
     img-src 'self' data: blob: https: http:;
     font-src 'self';
@@ -297,7 +297,7 @@ class AuthMiddleware {
     frame-ancestors 'none';
     child-src https://auth.privy.io https://verify.walletconnect.com https://verify.walletconnect.org;
     frame-src https://auth.privy.io https://verify.walletconnect.com https://verify.walletconnect.org https://challenges.cloudflare.com;
-    connect-src 'self' https://swopme.app https://privy.swopme.app https://auth.privy.io wss://relay.walletconnect.com wss://relay.walletconnect.org wss://www.walletlink.org https://*.rpc.privy.systems;
+    connect-src 'self' https://app.apiswop.co https://swopme.app https://privy.swopme.app https://auth.privy.io wss://relay.walletconnect.com wss://relay.walletconnect.org wss://www.walletlink.org https://*.rpc.privy.systems;
     worker-src 'self';
     manifest-src 'self';
   `
