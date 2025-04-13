@@ -285,10 +285,9 @@ class AuthMiddleware {
         'base64'
       );
 
-      // FIXED CSP - Removed 'unsafe-inline' since it's ignored when nonce is present
       const cspHeader = `
     default-src 'self';
-    script-src 'self' https://challenges.cloudflare.com https://swopme.app;
+    script-src 'self' 'unsafe-inline' https://challenges.cloudflare.com https://swopme.app;
     style-src 'self' 'unsafe-inline';
     img-src 'self' data: blob: https: http:;
     font-src 'self';
@@ -310,7 +309,7 @@ class AuthMiddleware {
       }
 
       // Add nonce value to response headers so it can be used in server-side rendering
-      response.headers.set('X-Nonce', nonce);
+      // response.headers.set('X-Nonce', nonce);
 
       console.log('redirecting....');
       return response;
