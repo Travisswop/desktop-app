@@ -2,9 +2,13 @@ import {
   getDBExternalAccountInfo,
   getKycInfo,
   getKycInfoFromBridge,
+  getVirtualAccountInfo,
+  getVirtualAccountInfoFromBridge,
   postExternalAccountInBridge,
   postKycInBridge,
+  postVirtualAccountInfoIntoBridge,
   saveQycInfoToSwopDB,
+  saveVirtualInfoToSwopDB,
 } from "@/actions/bank";
 import DynamicPrimaryBtn from "@/components/ui/Button/DynamicPrimaryBtn";
 import { Modal, ModalBody, ModalContent, Spinner } from "@nextui-org/react";
@@ -19,6 +23,7 @@ import { FaArrowRightLong } from "react-icons/fa6";
 import { MdDone } from "react-icons/md";
 import { v4 as uuidv4 } from "uuid";
 import Cookies from "js-cookie";
+import { useSolanaWallets } from "@privy-io/react-auth";
 
 const AddBankModal = ({ bankShow, setBankShow }: any) => {
   const [stepper, setStepper] = useState("bank-account");
@@ -31,9 +36,14 @@ const AddBankModal = ({ bankShow, setBankShow }: any) => {
   const [kycDataFetchLoading, setKycDataFetchLoading] =
     useState<boolean>(false);
   const [copiedItem, setCopiedItem] = useState(""); // Track which item was copied
-  const [userId, setUserId] = useState("");
+  const [userId, setUserId] = useState("67c428364fe6a38a65a0420b");
+  const [virtualResponse, setVirtualResponse] = useState<any>(null);
 
   const router = useRouter();
+
+  const { wallets: solanaWallets } = useSolanaWallets();
+
+  console.log("solanaWallets", solanaWallets);
 
   const handleAddBank = () => {
     setStepper("bank-account-details");
@@ -42,15 +52,15 @@ const AddBankModal = ({ bankShow, setBankShow }: any) => {
   console.log("stepper", stepper);
   console.log("externalAccountInfo", externalAccountInfo);
 
-  useEffect(() => {
-    const getUserId = async () => {
-      const userId = Cookies.get("user-id");
-      if (userId) {
-        setUserId(userId);
-      }
-    };
-    getUserId();
-  }, []);
+  // useEffect(() => {
+  //   const getUserId = async () => {
+  //     const userId = Cookies.get("user-id");
+  //     if (userId) {
+  //       setUserId(userId);
+  //     }
+  //   };
+  //   getUserId();
+  // }, []);
 
   const [accessToken, setAccessToken] = useState("");
 
@@ -74,7 +84,11 @@ const AddBankModal = ({ bankShow, setBankShow }: any) => {
         if (userId) {
           const info = await getKycInfo(userId, accessToken);
           console.log("info kyc", info);
-          if (info.success && info.message === "KYC information available") {
+          if (
+            info &&
+            info.success &&
+            info.message === "KYC information available"
+          ) {
             setKycData(info.data);
             if (info.data.kyc_status !== "approved") {
               const options = {
@@ -100,38 +114,74 @@ const AddBankModal = ({ bankShow, setBankShow }: any) => {
                 setKycData(bridgeInfo);
               }
             } else if (info.data.kyc_status === "approved") {
-              const externalDBInfo = await getDBExternalAccountInfo(
+              const virtualData = await getVirtualAccountInfo(
                 userId,
                 accessToken
               );
-
-              console.log("externalDBInfo", externalDBInfo);
-
-              if (
-                externalDBInfo.success &&
-                externalDBInfo.message ===
-                  "Existing account information available"
-              ) {
-                setExternalAccountInfo(externalDBInfo.data);
-                setStepper("virtual-bank-account");
-                console.log("hit");
-              } else {
-                const options = {
-                  method: "GET",
-                  headers: {
-                    accept: "application/json",
-                    "Api-Key": process.env.NEXT_PUBLIC_BRIDGE_SECRET,
-                  },
-                };
-                const response = await postExternalAccountInBridge(
-                  info.data.customer_id,
-                  options
-                );
-                setExternalAccountInfo(response);
-                setStepper("virtual-bank-account");
-                // if any external account exist
-                console.log("response for external account", response);
+              if (!virtualData || !virtualData?.success) {
+                try {
+                  const options = {
+                    method: "GET",
+                    headers: {
+                      accept: "application/json",
+                      "Api-Key": process.env.NEXT_PUBLIC_BRIDGE_SECRET,
+                    },
+                  };
+                  const virtualResponse = await getVirtualAccountInfoFromBridge(
+                    info.data.customer_id,
+                    options
+                  );
+                  console.log("virtualResponse", virtualResponse);
+                  if (virtualResponse) {
+                    await saveVirtualInfoToSwopDB(
+                      virtualResponse,
+                      userId,
+                      accessToken
+                    );
+                    setVirtualResponse(virtualResponse);
+                  } else {
+                    const createVirtualOptions = {
+                      method: "POST",
+                      headers: {
+                        accept: "application/json",
+                        "Idempotency-Key": uuidv4(),
+                        "content-type": "application/json",
+                        "Api-Key": process.env.NEXT_PUBLIC_BRIDGE_SECRET,
+                      },
+                      body: JSON.stringify({
+                        source: { currency: "usd" },
+                        destination: {
+                          currency: "usdc",
+                          payment_rail: "solana",
+                          address: solanaWallets?.publicKey, //solana wallet
+                        },
+                        developer_fee_percent: "0.5",
+                      }),
+                    };
+                    const res = await postVirtualAccountInfoIntoBridge(
+                      info.data.customer_id,
+                      createVirtualOptions
+                    );
+                    if (res) {
+                      const getVitualAccount =
+                        await getVirtualAccountInfoFromBridge(
+                          info.data.customer_id,
+                          options
+                        );
+                      await saveVirtualInfoToSwopDB(
+                        getVitualAccount,
+                        userId,
+                        accessToken
+                      );
+                    }
+                    console.log("res for post into bridge", res);
+                    setVirtualResponse(res);
+                  }
+                } catch (error) {
+                  console.error(error);
+                }
               }
+              console.log("virtualData", virtualData);
             }
           }
         }
