@@ -26,6 +26,7 @@ export interface Transaction {
   currentPrice: number;
   nativeTokenPrice: number;
   isNew?: boolean;
+  flow?: string;
 }
 
 interface TokenSwapInfo {

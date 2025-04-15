@@ -20,6 +20,7 @@ class TransactionAPI {
   ): Promise<SolTxDetails> {
     try {
       const url = `https://pro-api.solscan.io/v2.0/transaction/detail?tx=${signature}`;
+
       const options = {
         method: 'GET',
         headers: {
@@ -127,7 +128,9 @@ class TransactionAPI {
     address: string
   ): Promise<Transaction[]> {
     try {
-      const url = `https://pro-api.solscan.io/v2.0/account/transactions?address=${address}&limit=40`;
+      // const url = `https://pro-api.solscan.io/v2.0/account/transactions?address=${address}&limit=40`;
+
+      const url = `https://pro-api.solscan.io/v2.0/account/transfer?address=${address}&page=1&page_size=40&sort_by=block_time&sort_order=desc`;
 
       const options = {
         method: 'GET',
@@ -140,41 +143,63 @@ class TransactionAPI {
       const response = await APIUtils.fetchWithRetry<{
         success: boolean;
         data: Array<{
-          slot: number;
-          fee: number;
-          status: string;
-          signer: string[];
+          block_id: number;
+          trans_id: string;
           block_time: number;
-          tx_hash: string;
-          parsed_instructions: Array<{
-            type: string;
-            program: string;
-            program_id: string;
-          }>;
+          activity_type: string;
+          from_address: string;
+          from_token_account: string;
+          to_address: string;
+          to_token_account: string;
+          token_address: string;
+          token_decimals: number;
+          amount: number;
+          flow: string;
+          value: number;
+          time: string;
         }>;
+        metadata: {
+          tokens: {
+            [key: string]: {
+              token_address: string;
+              token_name: string;
+              token_symbol: string;
+              token_icon: string;
+            };
+          };
+        };
       }>(url, options);
 
       if (!response.success || !response.data) {
         return [];
       }
 
-      const transactions = await Promise.all(
-        response.data.map(async (item) => {
-          const txDetails = await this.getSolTxDetails(item.tx_hash);
+      return response.data.map((item) => {
+        const tokenInfo =
+          response.metadata?.tokens?.[item.token_address];
 
-          return this.formatSolanaTransaction(
-            {
-              blockTime: item.block_time,
-              txHash: item.tx_hash,
-              fee: item.fee,
-              status: item.status,
-            },
-            txDetails
-          );
-        })
-      );
+        // Determine if this is an incoming or outgoing transaction
+        const isOutgoing = item.flow === 'out';
 
-      return transactions.filter(isTransaction);
+        return {
+          hash: item.trans_id,
+          from: isOutgoing ? address : item.from_address,
+          to: isOutgoing ? item.to_address : address,
+          value: String(item.amount / 10 ** item.token_decimals),
+          timeStamp: String(item.block_time),
+          gas: '0', // Gas information is not directly available in this API
+          gasPrice: '0',
+          networkFee: '0', // We could fetch this separately if needed
+          status: '1', // Assuming all transactions in this list are successful
+          tokenName: tokenInfo?.token_name || 'Unknown Token',
+          tokenSymbol: tokenInfo?.token_symbol || 'UNKNOWN',
+          tokenDecimal: item.token_decimals,
+          network: 'Solana',
+          currentPrice: 0,
+          nativeTokenPrice: 0,
+          flow: item.flow,
+        };
+      });
     } catch (error) {
       console.error('Error fetching Solana transactions:', error);
       return [];

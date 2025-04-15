@@ -46,6 +46,7 @@ import WalletBalanceChartForWalletPage from './WalletBalanceChart';
 // Utilities
 import Cookies from 'js-cookie';
 import { createTransactionPayload } from '@/lib/utils/transactionUtils';
+import TransactionList from './transaction/transaction-list';
 
 // Default chains supported by the wallet
 const SUPPORTED_CHAINS: ChainType[] = [
@@ -563,6 +564,13 @@ const WalletContentInner = () => {
         setSendFlow={setSendFlow}
       />
 
+      {/* <TransactionList
+        solWalletAddress={solWalletAddress}
+        evmWalletAddress={evmWalletAddress}
+        chains={SUPPORTED_CHAINS}
+        tokens={tokens}
+        newTransactions={newTransactions}
+      /> */}
       <RedeemTokenList />
       <Toaster />
     </div>

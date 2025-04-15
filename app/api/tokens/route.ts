@@ -60,7 +60,9 @@ async function fetchPrice(tokenAddress: PublicKey): Promise<string> {
 export async function GET(request: NextRequest) {
   try {
     // Connect to Solana network
-    const connection = new Connection(process.env.RPC_URL!);
+    const connection = new Connection(
+      process.env.NEXT_PUBLIC_QUICKNODE_SOLANA_URL!
+    );
 
     // Get wallet address from URL params
     const { searchParams } = new URL(request.url);
