@@ -10,21 +10,15 @@ import { Button } from '@/components/ui/button';
 import { useMultiChainTransactionData } from '@/lib/hooks/useTransaction';
 import { Transaction } from '@/types/transaction';
 import { AlertCircle, Loader2 } from 'lucide-react';
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo } from 'react';
 import TransactionDetails from './transaction-details';
-import Image from 'next/image';
-import { useMultiChainTokenData } from '@/lib/hooks/useToken';
 import TransactionItem from './transaction-item';
+import { ChainType, TokenData } from '@/types/token';
 
 type Network = 'ETHEREUM' | 'POLYGON' | 'BASE' | 'SOLANA';
 
 // Constants
 const ITEMS_PER_PAGE = 20;
-
-// Function to truncate address
-const truncateAddress = (address: string) => {
-  return `${address.slice(0, 8)}.....${address.slice(-8)}`;
-};
 
 // Loading skeleton component
 const TransactionSkeleton = () => (
@@ -74,46 +68,22 @@ const ErrorMessage = ({
 );
 
 export default function TransactionList({
-  address,
   solWalletAddress,
   evmWalletAddress,
   chains,
-  network,
+  tokens,
   newTransactions,
 }: {
-  address: string | undefined;
-  network: Network;
-  newTransactions: Transaction[];
+  solWalletAddress: string;
+  evmWalletAddress: string;
+  chains: ChainType[];
+  tokens: TokenData[];
+  newTransactions: any;
 }) {
   const [selectedTransaction, setSelectedTransaction] =
     useState<Transaction | null>(null);
 
   const [offset, setOffset] = useState(0);
-
-  const { tokens } = useMultiChainTokenData(
-    solWalletAddress,
-    evmWalletAddress,
-    chains
-  );
-  // Get native token price
-  const nativeToken = useMemo(() => {
-    return tokens.find(
-      (token) =>
-        (token === 'ETHEREUM' && token.symbol === 'ETH') ||
-        (network === 'POLYGON' && token.symbol === 'POL') ||
-        (network === 'BASE' && token.symbol === 'ETH') ||
-        (network === 'SOLANA' && token.symbol === 'SOL')
-    );
-  }, [tokens, network]);
-  // const nativeToken = useMemo(() => {
-  //   return tokens.find(
-  //     (token) =>
-  //       (network === 'ETHEREUM' && token.symbol === 'ETH') ||
-  //       (network === 'POLYGON' && token.symbol === 'POL') ||
-  //       (network === 'BASE' && token.symbol === 'ETH') ||
-  //       (network === 'SOLANA' && token.symbol === 'SOL')
-  //   );
-  // }, [tokens, network]);
 
   // Fetch transactions
   const {
@@ -137,13 +107,15 @@ export default function TransactionList({
   const processedTransactions = useMemo(() => {
     if (!tokens.length) return [];
 
-    return [...newTransactions, ...transactions].filter((tx) => {
+    const allTransactions = [...transactions, ...newTransactions];
+
+    return allTransactions.filter((tx) => {
       // Add native token price for network fee calculation
       // tx.nativeTokenPrice = parseFloat(nativeToken.marketData.price);
       tx.nativeTokenPrice = 1;
       // Find matching token for transaction value
       const token = tokens.find(
-        (t) =>
+        (t: TokenData) =>
           t.symbol === tx.tokenSymbol ||
           (tx.isSwapped &&
             (t.symbol === tx.swapped?.from.symbol ||
@@ -154,10 +126,10 @@ export default function TransactionList({
 
       if (tx.isSwapped) {
         const fromToken = tokens.find(
-          (t) => t.symbol === tx.swapped?.from.symbol
+          (t: TokenData) => t.symbol === tx.swapped?.from.symbol
         );
         const toToken = tokens.find(
-          (t) => t.symbol === tx.swapped?.to.symbol
+          (t: TokenData) => t.symbol === tx.swapped?.to.symbol
         );
 
         if (!fromToken || !toToken) return false;
@@ -174,7 +146,7 @@ export default function TransactionList({
 
       return true;
     });
-  }, [transactions, tokens, nativeToken]);
+  }, [transactions, newTransactions, tokens]);
 
   const loadMore = () => {
     setOffset((prev) => prev + ITEMS_PER_PAGE);
@@ -218,7 +190,6 @@ export default function TransactionList({
                   <TransactionItem
                     key={index}
                     transaction={transaction}
-                    userAddress={address || ''}
                     onSelect={setSelectedTransaction}
                   />
                 ))}
@@ -263,8 +234,14 @@ export default function TransactionList({
       </Card>
       <TransactionDetails
         transaction={selectedTransaction}
-        userAddress={address || ''}
-        network={network}
+        userAddress={
+          selectedTransaction?.network === 'SOLANA'
+            ? solWalletAddress
+            : evmWalletAddress
+        }
+        network={
+          (selectedTransaction?.network || 'SOLANA') as Network
+        }
         isOpen={!!selectedTransaction}
         onClose={() => setSelectedTransaction(null)}
       />

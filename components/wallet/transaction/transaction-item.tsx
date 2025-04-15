@@ -5,7 +5,6 @@ import { Card } from '@/components/ui/card';
 
 interface TransactionItemProps {
   transaction: Transaction;
-  userAddress: string;
   onSelect: (transaction: Transaction) => void;
 }
 
@@ -15,11 +14,9 @@ const truncateAddress = (address: string) => {
 
 const TransactionItem = ({
   transaction,
-  userAddress,
   onSelect,
 }: TransactionItemProps) => {
-  const isOutgoing =
-    transaction.from.toLowerCase() === userAddress.toLowerCase();
+  const isOutgoing = transaction.flow === 'out';
 
   const calculateValue = (value: string, price: number) => {
     const numericValue = parseFloat(value);
