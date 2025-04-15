@@ -1,5 +1,5 @@
 import {
-  getDBExternalAccountInfo,
+  // getDBExternalAccountInfo,
   getKycInfo,
   getKycInfoFromBridge,
   getVirtualAccountInfo,
@@ -29,7 +29,7 @@ const AddBankModal = ({ bankShow, setBankShow }: any) => {
   const [stepper, setStepper] = useState("bank-account");
   const [kycLoading, setKycLoading] = useState(false);
   const [externalKycLoading, setExternalKycLoading] = useState(false);
-  const [externalAccountInfo, setExternalAccountInfo] = useState<any>(null);
+  // const [externalAccountInfo, setExternalAccountInfo] = useState<any>(null);
   // const [kycUrl, setKycUrl] = useState<string | null>(null);
   // const [agreementUrl, setAgreementUrl] = useState<string | null>(null);
   const [kycData, setKycData] = useState<any>(null);
@@ -43,24 +43,26 @@ const AddBankModal = ({ bankShow, setBankShow }: any) => {
 
   const { wallets: solanaWallets } = useSolanaWallets();
 
-  console.log("solanaWallets", solanaWallets);
+  // console.log("solanaWallets", solanaWallets);
 
   const handleAddBank = () => {
     setStepper("bank-account-details");
   };
 
-  console.log("stepper", stepper);
-  console.log("externalAccountInfo", externalAccountInfo);
+  // console.log("stepper", stepper);
+  // console.log("externalAccountInfo", externalAccountInfo);
 
-  // useEffect(() => {
-  //   const getUserId = async () => {
-  //     const userId = Cookies.get("user-id");
-  //     if (userId) {
-  //       setUserId(userId);
-  //     }
-  //   };
-  //   getUserId();
-  // }, []);
+  useEffect(() => {
+    const getUserId = async () => {
+      const userId = Cookies.get("user-id");
+      if (userId) {
+        setUserId(userId);
+      }
+    };
+    if (window !== undefined) {
+      getUserId();
+    }
+  }, []);
 
   const [accessToken, setAccessToken] = useState("");
 
@@ -71,11 +73,13 @@ const AddBankModal = ({ bankShow, setBankShow }: any) => {
         setAccessToken(token);
       }
     };
-    getAccessToken();
+    if (window !== undefined) {
+      getAccessToken();
+    }
   }, []);
 
-  console.log("user id from useEffect", userId);
-  console.log("accessToken", accessToken);
+  // console.log("user id from useEffect", userId);
+  // console.log("accessToken", accessToken);
 
   useEffect(() => {
     const getKycData = async () => {
@@ -118,6 +122,8 @@ const AddBankModal = ({ bankShow, setBankShow }: any) => {
                 userId,
                 accessToken
               );
+              console.log("virtualData", virtualData);
+
               if (!virtualData || !virtualData?.success) {
                 try {
                   const options = {
@@ -153,7 +159,7 @@ const AddBankModal = ({ bankShow, setBankShow }: any) => {
                         destination: {
                           currency: "usdc",
                           payment_rail: "solana",
-                          address: solanaWallets?.publicKey, //solana wallet
+                          address: solanaWallets[0]?.address, //solana wallet
                         },
                         developer_fee_percent: "0.5",
                       }),
@@ -180,8 +186,11 @@ const AddBankModal = ({ bankShow, setBankShow }: any) => {
                 } catch (error) {
                   console.error(error);
                 }
+              } else {
+                setStepper("virtual-bank-account");
+                setVirtualResponse(virtualData);
               }
-              console.log("virtualData", virtualData);
+              // console.log("virtualData", virtualData);
             }
           }
         }
@@ -192,7 +201,7 @@ const AddBankModal = ({ bankShow, setBankShow }: any) => {
       }
     };
     getKycData();
-  }, [accessToken, externalAccountInfo?.message, userId]);
+  }, [accessToken, userId]);
 
   const handleKycLink = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -371,7 +380,7 @@ const AddBankModal = ({ bankShow, setBankShow }: any) => {
 
   // Function to copy all details at once
   const handleCopyAllDetails = async () => {
-    const allDetails = `Bank Routing Number: ${externalAccountInfo?.accounts[0]?.account?.routing_number}\nBank Account Number: ${externalAccountInfo?.accounts[0]?.account.last_4}\nBank Name: ${externalAccountInfo?.accounts[0]?.bank_name}\nBank Beneficiary Name: ${externalAccountInfo?.accounts[0]?.account_owner_name}`;
+    const allDetails = `Bank Routing Number: ${virtualResponse.data.accounts[0].source_deposit_instructions.bank_routing_number}\nBank Account Number: ${virtualResponse.data.accounts[0].source_deposit_instructions.bank_account_number}\nBank Name: ${virtualResponse.data.accounts[0].source_deposit_instructions.bank_name}\nBank Beneficiary Name: ${virtualResponse.data.accounts[0].source_deposit_instructions.bank_beneficiary_name}`;
     await handleCopy(allDetails, "all");
   };
 
@@ -764,17 +773,22 @@ const AddBankModal = ({ bankShow, setBankShow }: any) => {
                       <div>
                         <p className="text-gray-400">Bank Routing Number</p>
                         <p>
-                          {
+                          {/* {
                             externalAccountInfo?.accounts[0]?.account
                               ?.routing_number
+                          } */}
+                          {
+                            virtualResponse.data.accounts[0]
+                              ?.source_deposit_instructions?.bank_routing_number
                           }
                         </p>
                       </div>
                       <button
                         onClick={() =>
                           handleCopy(
-                            externalAccountInfo?.accounts[0]?.account
-                              ?.routing_number,
+                            virtualResponse.data.accounts[0]
+                              ?.source_deposit_instructions
+                              ?.bank_routing_number,
                             "routing"
                           )
                         }
@@ -792,13 +806,18 @@ const AddBankModal = ({ bankShow, setBankShow }: any) => {
                       <div>
                         <p className="text-gray-400">Bank Account Number</p>
                         <p>
-                          ...{externalAccountInfo?.accounts[0]?.account?.last_4}
+                          {
+                            virtualResponse.data.accounts[0]
+                              ?.source_deposit_instructions?.bank_account_number
+                          }
                         </p>
                       </div>
                       <button
                         onClick={() =>
                           handleCopy(
-                            externalAccountInfo?.accounts[0]?.account?.last_4,
+                            virtualResponse.data.accounts[0]
+                              ?.source_deposit_instructions
+                              ?.bank_account_number,
                             "account"
                           )
                         }
@@ -815,12 +834,18 @@ const AddBankModal = ({ bankShow, setBankShow }: any) => {
                     <div className="flex items-center justify-between">
                       <div>
                         <p className="text-gray-400">Bank Name</p>
-                        <p>{externalAccountInfo?.accounts[0]?.bank_name}</p>
+                        <p>
+                          {
+                            virtualResponse.data.accounts[0]
+                              ?.source_deposit_instructions?.bank_name
+                          }
+                        </p>
                       </div>
                       <button
                         onClick={() =>
                           handleCopy(
-                            externalAccountInfo?.accounts[0]?.bank_name,
+                            virtualResponse.data.accounts[0]
+                              ?.source_deposit_instructions?.bank_name,
                             "bank-name"
                           )
                         }
@@ -838,14 +863,19 @@ const AddBankModal = ({ bankShow, setBankShow }: any) => {
                       <div>
                         <p className="text-gray-400">Bank Beneficiary Name</p>
                         <p>
-                          {externalAccountInfo?.accounts[0]?.account_owner_name}
+                          {
+                            virtualResponse.data.accounts[0]
+                              ?.source_deposit_instructions
+                              ?.bank_beneficiary_name
+                          }
                         </p>
                       </div>
                       <button
                         onClick={() =>
                           handleCopy(
-                            externalAccountInfo?.accounts[0]
-                              ?.account_owner_name,
+                            virtualResponse.data.accounts[0]
+                              ?.source_deposit_instructions
+                              ?.bank_beneficiary_name,
                             "bank-beneficiary-name"
                           )
                         }
