@@ -86,8 +86,6 @@ const MarketPlace: any = ({
 
   const { toggle, setToggle } = useAddToCardToggleStore();
 
-  console.log('accesstoken', accessToken);
-
   // const { user, accessToken } = useUser();
 
   const router = useRouter();

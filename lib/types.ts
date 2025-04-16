@@ -44,3 +44,11 @@ export interface PrivyUser {
 
   wallet?: WalletInfo;
 }
+
+export interface CartItem {
+  id: string;
+  name: string;
+  description: string;
+  price: number;
+  image: string;
+}

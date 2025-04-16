@@ -69,19 +69,6 @@ export default function NftPaymentModal({
     }
   }, [authenticated, ready, PrivyUser, createWallet]);
 
-  const network = 'SOLANA';
-
-  // Memoized values
-  const currentWalletAddress = useMemo(() => {
-    if (!walletData) return undefined;
-    setSolWalletAddress(
-      walletData.find((w: any) => !w.isEVM)?.address || ''
-    );
-    setEvmWalletAddress(
-      walletData.find((w: any) => w.isEVM)?.address || ''
-    );
-  }, [walletData]);
-
   // Data fetching hooks
   const {
     tokens,

@@ -293,7 +293,7 @@ class AuthMiddleware {
     frame-ancestors 'none';
     child-src https://auth.privy.io https://verify.walletconnect.com https://verify.walletconnect.org;
     frame-src https://auth.privy.io https://verify.walletconnect.com https://verify.walletconnect.org https://challenges.cloudflare.com;
-    connect-src 'self' https://app.apiswop.co https://swopme.app https://privy.swopme.app https://auth.privy.io wss://relay.walletconnect.com wss://relay.walletconnect.org wss://www.walletlink.org https://*.rpc.privy.systems https://*.g.alchemy.com https://*.quiknode.pro https://mainnet.helius-rpc.com https://aura-mainnet.metaplex.com;
+    connect-src 'self' https://app.apiswop.co https://swopme.app https://privy.swopme.app https://auth.privy.io wss://relay.walletconnect.com wss://relay.walletconnect.org wss://www.walletlink.org https://*.rpc.privy.systems https://*.g.alchemy.com https://*.quiknode.pro https://mainnet.helius-rpc.com https://aura-mainnet.metaplex.com https://*.coinranking.com;
     worker-src 'self';
     manifest-src 'self';
   `
