@@ -17,6 +17,7 @@ export default function CheckoutPage() {
     null
   );
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   // Sample cart items
   const cartItems: CartItem[] = [
@@ -46,12 +47,16 @@ export default function CheckoutPage() {
     const initializePayment = async () => {
       try {
         setLoading(true);
+        setError(null);
         const { clientSecret } = await createPaymentIntent(
           totalAmount
         );
         setClientSecret(clientSecret);
-      } catch (error) {
-        console.error('Error initializing payment:', error);
+      } catch (err) {
+        console.error('Error initializing payment:', err);
+        setError(
+          'Could not initialize payment. Please try again later.'
+        );
       } finally {
         setLoading(false);
       }
@@ -60,10 +65,51 @@ export default function CheckoutPage() {
     initializePayment();
   }, [totalAmount]);
 
-  if (loading || !clientSecret) {
+  if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-gray-900"></div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="min-h-screen flex items-center justify-center p-4 bg-gray-100">
+        <div className="bg-white p-6 rounded-lg shadow-md max-w-md w-full">
+          <h2 className="text-red-500 text-xl font-semibold mb-4">
+            Payment Error
+          </h2>
+          <p className="text-gray-700">{error}</p>
+          <button
+            onClick={() => window.location.reload()}
+            className="mt-4 w-full bg-blue-600 hover:bg-blue-700 text-white py-2 px-4 rounded"
+          >
+            Try Again
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (!clientSecret) {
+    return (
+      <div className="min-h-screen flex items-center justify-center p-4 bg-gray-100">
+        <div className="bg-white p-6 rounded-lg shadow-md max-w-md w-full">
+          <h2 className="text-red-500 text-xl font-semibold mb-4">
+            Payment Not Available
+          </h2>
+          <p className="text-gray-700">
+            Unable to initialize payment system. Please try again
+            later.
+          </p>
+          <button
+            onClick={() => window.location.reload()}
+            className="mt-4 w-full bg-blue-600 hover:bg-blue-700 text-white py-2 px-4 rounded"
+          >
+            Try Again
+          </button>
+        </div>
       </div>
     );
   }
