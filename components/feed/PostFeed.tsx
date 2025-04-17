@@ -114,7 +114,11 @@ const PostFeed = ({
           post_content: updatedMediaFiles,
         },
       };
+      console.log("feed post payload", payload);
+
       const data = await postFeed(payload, token);
+      console.log("feed post response", data);
+
       if (data?.state === "success") {
         // toast({
         //   title: "Success",
