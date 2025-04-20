@@ -109,7 +109,7 @@ const openLink = async (
   parentId: string | undefined,
   socialType: string | undefined
 ) => {
-  let { _id, group, name, value, url, link, title, iconName } =
+  const { _id, group, name, value, url, link, title, iconName } =
     social;
   url = url || link;
   value = value || title;
