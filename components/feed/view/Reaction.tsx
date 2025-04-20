@@ -20,7 +20,8 @@ import CommentContent from "../CommentContent";
 import { useUser } from "@/lib/UserContext";
 import { formatCountReaction } from "@/lib/formatFeedReactionCount";
 import { TbCopy, TbCopyCheckFilled } from "react-icons/tb";
-import toast, { Toaster } from "react-hot-toast";
+import toast from "react-hot-toast";
+import Cookies from "js-cookie";
 
 const Reaction = ({
   postId,
@@ -28,7 +29,6 @@ const Reaction = ({
   commentCount,
   repostCount,
   viewsCount,
-  accessToken,
   commentId = null,
   replyId = null,
   isLiked = false,
@@ -39,7 +39,6 @@ const Reaction = ({
   commentCount: number;
   repostCount: number;
   viewsCount: number;
-  accessToken: string;
   commentId?: string | null;
   replyId?: string | null;
   isLiked?: boolean;
@@ -55,6 +54,17 @@ const Reaction = ({
   const [latestCommentCount, setLatestCommentCount] = useState(commentCount);
   const [isPopOpen, setIsPopOpen] = useState(false);
   const [isCopied, setIsCopied] = useState(false);
+  const [accessToken, setAccessToken] = useState("");
+
+  // Get the access token from cookies once on mount.
+  useEffect(() => {
+    if (window !== undefined) {
+      const token = Cookies.get("access-token");
+      if (token) {
+        setAccessToken(token);
+      }
+    }
+  }, []);
 
   const handleCopyLink = () => {
     const link = `${window.location.origin}/feed/${postId}`;
@@ -144,7 +154,7 @@ const Reaction = ({
   // console.log("commentPostContent", commentPostContent);
 
   return (
-    <div>
+    <div className="relative">
       <div className="flex items-center justify-between gap-2 mt-2 text-gray-700 font-normal">
         {/* comment */}
         <CommentMain

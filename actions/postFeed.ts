@@ -19,13 +19,12 @@ export async function getUserFeed(url: string, token: string) {
   }
 }
 
-export async function getFeedDetails(url: string, token: string) {
+export async function getFeedDetails(url: string) {
   try {
     const response = await fetch(`${url}`, {
       method: "GET",
       headers: {
         "Content-Type": "application/json",
-        authorization: `Bearer ${token}`,
       },
       cache: "no-store",
     });

@@ -34,6 +34,7 @@ import { useCommentContentStore } from "@/zustandStore/CommentImgContent";
 import { Loader } from "lucide-react";
 import CommentImagePicker from "./comment/SelectImage";
 import { sendCloudinaryImage } from "@/lib/SendCloudineryImage";
+import toast from "react-hot-toast";
 
 const CommentContent = ({
   postId,
@@ -166,6 +167,14 @@ const CommentContent = ({
 
   const handleCommentPost = async () => {
     setIsLoading(true);
+    if (
+      commentPostContent.length > MAX_LENGTH ||
+      (commentPostContent.length === 0 && postContent.length === 0) ||
+      isLoading ||
+      !accessToken
+    ) {
+      toast.error("something went wrong!");
+    }
     const contentPayload = {
       postContent: [
         {
@@ -248,7 +257,8 @@ const CommentContent = ({
             disabled={
               commentPostContent.length > MAX_LENGTH ||
               (commentPostContent.length === 0 && postContent.length === 0) ||
-              isLoading
+              isLoading ||
+              !accessToken
             }
           >
             {isLoading ? (
@@ -258,7 +268,9 @@ const CommentContent = ({
                 size={22}
                 className={`${
                   commentPostContent.length > MAX_LENGTH ||
-                  (commentPostContent.length === 0 && postContent.length === 0)
+                  (commentPostContent.length === 0 &&
+                    postContent.length === 0) ||
+                  !accessToken
                     ? "text-gray-400"
                     : "text-gray-700"
                 }`}

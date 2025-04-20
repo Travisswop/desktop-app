@@ -13,7 +13,7 @@ import Reaction from "./view/Reaction";
 
 dayjs.extend(relativeTime);
 
-const FeedDetails = ({ feedData, accessToken }: any) => {
+const FeedDetails = ({ feedData }: any) => {
   // console.log("feed data from details", feedData);
 
   const renderTransactionContent = (feed: any) => {
@@ -234,6 +234,7 @@ const FeedDetails = ({ feedData, accessToken }: any) => {
                 feedData.content.post_content.length > 0 && (
                   <PostTypeMedia mediaFiles={feedData.content.post_content} />
                 )}
+
               {feedData.postType === "minting" && (
                 <div className="w-max">
                   <p>{feedData.content.title}</p>
@@ -265,7 +266,6 @@ const FeedDetails = ({ feedData, accessToken }: any) => {
               commentCount={feedData.commentCount}
               repostCount={feedData.repostCount}
               viewsCount={feedData.viewsCount}
-              accessToken={accessToken}
             />
           </div>
         </div>
