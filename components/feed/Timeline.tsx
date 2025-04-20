@@ -1,31 +1,23 @@
-'use client';
+"use client";
 
-import { getSmartsiteFeed } from '@/actions/postFeed';
-import Image from 'next/image';
-import React, {
-  useState,
-  useEffect,
-  useRef,
-  useCallback,
-} from 'react';
-import { FaUser } from 'react-icons/fa';
-import { GoDotFill } from 'react-icons/go';
-import dayjs from 'dayjs';
-import PostTypeMedia from './view/PostTypeMedia';
-import { HiDotsHorizontal } from 'react-icons/hi';
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from '@nextui-org/react';
-import relativeTime from 'dayjs/plugin/relativeTime';
-import Reaction from './view/Reaction';
-import Link from 'next/link';
-import { FiPlusCircle } from 'react-icons/fi';
-import FeedLoading from '../loading/FeedLoading';
-import DeleteFeedModal from './DeleteFeedModal';
-import isUrl from '@/lib/isUrl';
-import { useUser } from '@/lib/UserContext';
+import { getSmartsiteFeed } from "@/actions/postFeed";
+import Image from "next/image";
+import React, { useState, useEffect, useRef, useCallback } from "react";
+import { FaUser } from "react-icons/fa";
+import { GoDotFill } from "react-icons/go";
+import dayjs from "dayjs";
+import PostTypeMedia from "./view/PostTypeMedia";
+import { HiDotsHorizontal } from "react-icons/hi";
+import { Popover, PopoverContent, PopoverTrigger } from "@nextui-org/react";
+import relativeTime from "dayjs/plugin/relativeTime";
+import Reaction from "./view/Reaction";
+import Link from "next/link";
+import { FiPlusCircle } from "react-icons/fi";
+import FeedLoading from "../loading/FeedLoading";
+import DeleteFeedModal from "./DeleteFeedModal";
+import isUrl from "@/lib/isUrl";
+import { useUser } from "@/lib/UserContext";
+import { useRouter } from "next/navigation";
 
 dayjs.extend(relativeTime);
 
@@ -49,7 +41,7 @@ const Timeline = ({
   const observerRef = useRef<HTMLDivElement>(null);
   const isFetching = useRef(false);
   const pageRef = useRef(1);
-  const [smartsiteId, setSmartsiteId] = useState('');
+  const [smartsiteId, setSmartsiteId] = useState("");
 
   const { user } = useUser();
 
@@ -84,19 +76,13 @@ const Timeline = ({
           5
         )}...${receiver_wallet_address.slice(-5)}`;
 
-    if (transaction_type === 'nft') {
+    if (transaction_type === "nft") {
       return (
         <div>
           <p className="text-gray-600 text-sm">
-            Sent NFT{' '}
-            <span className="font-medium text-base">
-              {name || 'item'}
-            </span>{' '}
-            to{' '}
-            <span className="font-medium text-base">
-              {recipientDisplay}
-            </span>
-            .
+            Sent NFT{" "}
+            <span className="font-medium text-base">{name || "item"}</span> to{" "}
+            <span className="font-medium text-base">{recipientDisplay}</span>.
           </p>
           {image && (
             <div className="w-52">
@@ -108,33 +94,32 @@ const Timeline = ({
                 className="w-full h-auto"
               />
               <p className="text-sm text-gray-600 font-medium mt-0.5 text-center">
-                {amount} {currency || 'NFT'}
+                {amount} {currency || "NFT"}
               </p>
             </div>
           )}
         </div>
       );
-    } else if (transaction_type === 'token') {
+    } else if (transaction_type === "token") {
       return (
         <p className="text-gray-600 text-sm">
-          Transferred{' '}
+          Transferred{" "}
           <span className="font-medium">
             {amount.toFixed(2)} {token}
-          </span>{' '}
+          </span>{" "}
           {tokenPrice && (
             <span className="text-sm text-gray-600 font-medium mt-0.5">
               (${Number(tokenPrice).toFixed(2)})
             </span>
-          )}{' '}
-          tokens to{' '}
-          <span className="font-medium">{recipientDisplay}</span> on
+          )}{" "}
+          tokens to <span className="font-medium">{recipientDisplay}</span> on
           the {chain}.
         </p>
       );
     } else {
       return (
         <p className="text-gray-600 text-sm">
-          Executed a {transaction_type} transaction involving {amount}{' '}
+          Executed a {transaction_type} transaction involving {amount}{" "}
           {currency}.
         </p>
       );
@@ -203,9 +188,7 @@ const Timeline = ({
   useEffect(() => {
     if (!hasMore) return;
 
-    const observerCallback = (
-      entries: IntersectionObserverEntry[]
-    ) => {
+    const observerCallback = (entries: IntersectionObserverEntry[]) => {
       if (entries[0].isIntersecting && !isFetching.current) {
         fetchFeedData();
       }
@@ -213,7 +196,7 @@ const Timeline = ({
 
     const observer = new IntersectionObserver(observerCallback, {
       root: null,
-      rootMargin: '0px',
+      rootMargin: "0px",
       threshold: 1.0,
     });
 
@@ -223,19 +206,17 @@ const Timeline = ({
     return () => observer.disconnect();
   }, [hasMore, fetchFeedData]);
 
+  const router = useRouter();
+
   return (
     <div className="w-full flex gap-10">
       <div className="w-full flex flex-col gap-4">
         {feedData.map((feed, index) => (
-          <div
-            key={index}
-            className="flex gap-2 border-b border-gray-200 pb-4"
-          >
+          <div key={index} className="flex gap-2 border-b border-gray-200 pb-4">
             <div className="w-10 xl:w-12 h-10 xl:h-12 bg-gray-400 border border-gray-300 rounded-full overflow-hidden flex items-center justify-center">
               {(() => {
                 const profilePic =
-                  feed?.smartsiteId?.profilePic ||
-                  feed?.smartsiteProfilePic;
+                  feed?.smartsiteId?.profilePic || feed?.smartsiteProfilePic;
                 return profilePic && isUrl(profilePic) ? (
                   <Image
                     alt="user image"
@@ -254,30 +235,36 @@ const Timeline = ({
               {/* User and Feed Information */}
               <div className="flex items-start justify-between">
                 <div>
-                  <div className="flex items-center gap-1">
+                  <button
+                    onClick={() => router.push(`/feed/${feed._id}`)}
+                    className="flex items-center gap-1"
+                  >
                     <p className="text-gray-700 font-semibold">
                       {feed?.smartsiteId?.name ||
                         feed?.smartsiteUserName ||
-                        'Anonymous'}
+                        "Anonymous"}
                     </p>
                     <GoDotFill size={10} />
                     <p className="text-gray-500 font-normal">
                       {feed?.smartsiteId?.ens ||
                         feed?.smartsiteEnsName ||
-                        'n/a'}
+                        "n/a"}
                     </p>
                     <GoDotFill size={10} />
                     <p className="text-gray-500 font-normal">
                       {dayjs(feed.createdAt).fromNow()}
                     </p>
-                  </div>
+                  </button>
                   {/* Redeem Content */}
-                  {feed.postType === 'redeem' && (
-                    <div className="flex flex-col gap-2 text-gray-600 text-sm">
+                  {feed.postType === "redeem" && (
+                    <button
+                      onClick={() => router.push(`/feed/${feed._id}`)}
+                      className="flex flex-col gap-2 text-gray-600 text-sm"
+                    >
                       <div>
                         <p>
-                          Created a new {feed.content.redeemName}{' '}
-                          Redeemable Link -{' '}
+                          Created a new {feed.content.redeemName} Redeemable
+                          Link -{" "}
                           <a
                             href={feed.content.link}
                             target="_blank"
@@ -299,43 +286,48 @@ const Timeline = ({
                         <div className="font-semibold text-sm">
                           <p>{feed.content.network}</p>
                           <p>
-                            {feed.content.amount}{' '}
-                            {feed.content.symbol}
+                            {feed.content.amount} {feed.content.symbol}
                           </p>
                         </div>
                       </div>
-                    </div>
+                    </button>
                   )}
                   {/* Post Content */}
-                  {feed.postType === 'post' && feed.content.title && (
-                    <div>
+                  {feed.postType === "post" && feed.content.title && (
+                    <button onClick={() => router.push(`/feed/${feed._id}`)}>
                       {feed.content.title
-                        .split('\n')
+                        .split("\n")
                         .map((line: any, index: number) => (
                           <p className="break-text" key={index}>
                             {line}
                           </p>
                         ))}
-                    </div>
+                    </button>
                   )}
                   {/* Additional Post Types */}
-                  {feed.postType === 'connection' && (
-                    <p className="text-gray-600 text-sm">
-                      Connected with{' '}
+                  {feed.postType === "connection" && (
+                    <button
+                      onClick={() => router.push(`/feed/${feed._id}`)}
+                      className="text-gray-600 text-sm"
+                    >
+                      Connected with{" "}
                       <span className="text-gray-700 font-medium text-base">
                         {feed.content.connectedSmartsiteName}
                       </span>
-                    </p>
+                    </button>
                   )}
-                  {feed.postType === 'ensClaim' && (
-                    <p className="text-gray-600 text-sm">
-                      Claim a new ENS{' '}
+                  {feed.postType === "ensClaim" && (
+                    <button
+                      onClick={() => router.push(`/feed/${feed._id}`)}
+                      className="text-gray-600 text-sm"
+                    >
+                      Claim a new ENS{" "}
                       <span className="text-gray-700 font-medium text-base">
                         {feed.content.claimEnsName}
                       </span>
-                    </p>
+                    </button>
                   )}
-                  {feed.postType === 'transaction' &&
+                  {feed.postType === "transaction" &&
                     renderTransactionContent(feed)}
                 </div>
                 {userId === feed.userId && (
@@ -366,20 +358,15 @@ const Timeline = ({
               </div>
               <div>
                 {/* Post Media */}
-                {feed.postType === 'post' &&
+                {feed.postType === "post" &&
                   feed.content.post_content.length > 0 && (
-                    <PostTypeMedia
-                      mediaFiles={feed.content.post_content}
-                    />
+                    <PostTypeMedia mediaFiles={feed.content.post_content} />
                   )}
-                {feed.postType === 'minting' && (
+                {feed.postType === "minting" && (
                   <div className="w-max">
                     <p>{feed.content.title}</p>
                     <div className="shadow-medium bg-white rounded-lg mt-2 p-2 relative">
-                      <Link
-                        href={feed.content.link}
-                        className="w-max"
-                      >
+                      <Link href={feed.content.link} className="w-max">
                         <Image
                           src={feed.content.image}
                           alt="nft image"

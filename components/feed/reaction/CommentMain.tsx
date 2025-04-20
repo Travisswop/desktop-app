@@ -7,9 +7,14 @@ const CommentMain = ({
   latestCommentCount,
   isCommentInputOpen,
   setIsCommentInputOpen,
+  isFromFeedDetails,
 }: any) => {
   const handleCommentOpen = () => {
-    setIsCommentInputOpen(!isCommentInputOpen);
+    if (isFromFeedDetails) {
+      setIsCommentInputOpen(true);
+    } else {
+      setIsCommentInputOpen(!isCommentInputOpen);
+    }
   };
 
   return (

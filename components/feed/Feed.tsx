@@ -1,31 +1,27 @@
-'use client';
+"use client";
 
-import { getUserFeed } from '@/actions/postFeed';
-import Image from 'next/image';
-import React, {
-  useState,
-  useEffect,
-  useRef,
-  useCallback,
-} from 'react';
-import { GoDotFill } from 'react-icons/go';
-import dayjs from 'dayjs';
-import PostTypeMedia from './view/PostTypeMedia';
-import { HiDotsHorizontal } from 'react-icons/hi';
+import { getUserFeed } from "@/actions/postFeed";
+import Image from "next/image";
+import React, { useState, useEffect, useRef, useCallback } from "react";
+import { GoDotFill } from "react-icons/go";
+import dayjs from "dayjs";
+import PostTypeMedia from "./view/PostTypeMedia";
+import { HiDotsHorizontal } from "react-icons/hi";
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
   useDisclosure,
-} from '@nextui-org/react';
-import relativeTime from 'dayjs/plugin/relativeTime';
-import Reaction from './view/Reaction';
-import Link from 'next/link';
-import { FiPlusCircle } from 'react-icons/fi';
-import FeedLoading from '../loading/FeedLoading';
-import DeleteFeedModal from './DeleteFeedModal';
-import isUrl from '@/lib/isUrl';
-import RedeemClaimModal from '../modal/RedeemClaim';
+} from "@nextui-org/react";
+import relativeTime from "dayjs/plugin/relativeTime";
+import Reaction from "./view/Reaction";
+import Link from "next/link";
+import { FiPlusCircle } from "react-icons/fi";
+import FeedLoading from "../loading/FeedLoading";
+import DeleteFeedModal from "./DeleteFeedModal";
+import isUrl from "@/lib/isUrl";
+import RedeemClaimModal from "../modal/RedeemClaim";
+import { useRouter } from "next/navigation";
 
 dayjs.extend(relativeTime);
 
@@ -76,19 +72,13 @@ const Feed = ({
           5
         )}...${receiver_wallet_address.slice(-5)}`;
 
-    if (transaction_type === 'nft') {
+    if (transaction_type === "nft") {
       return (
         <div>
           <p className="text-gray-600 text-sm">
-            Sent NFT{' '}
-            <span className="font-medium text-base">
-              {name || 'item'}
-            </span>{' '}
-            to{' '}
-            <span className="font-medium text-base">
-              {recipientDisplay}
-            </span>
-            .
+            Sent NFT{" "}
+            <span className="font-medium text-base">{name || "item"}</span> to{" "}
+            <span className="font-medium text-base">{recipientDisplay}</span>.
           </p>
           {image && (
             <div className="w-52">
@@ -100,33 +90,32 @@ const Feed = ({
                 className="w-full h-auto"
               />
               <p className="text-sm text-gray-600 font-medium mt-0.5 text-center">
-                {amount} {currency || 'NFT'}
+                {amount} {currency || "NFT"}
               </p>
             </div>
           )}
         </div>
       );
-    } else if (transaction_type === 'token') {
+    } else if (transaction_type === "token") {
       return (
         <p className="text-gray-600 text-sm">
-          Transferred{' '}
+          Transferred{" "}
           <span className="font-medium">
             {amount.toFixed(2)} {token}
-          </span>{' '}
+          </span>{" "}
           {tokenPrice && (
             <span className="text-sm text-gray-600 font-medium mt-0.5">
               (${Number(tokenPrice).toFixed(2)})
             </span>
-          )}{' '}
-          tokens to{' '}
-          <span className="font-medium">{recipientDisplay}</span> on
+          )}{" "}
+          tokens to <span className="font-medium">{recipientDisplay}</span> on
           the {chain}.
         </p>
       );
     } else {
       return (
         <p className="text-gray-600 text-sm">
-          Executed a {transaction_type} transaction involving {amount}{' '}
+          Executed a {transaction_type} transaction involving {amount}{" "}
           {currency}.
         </p>
       );
@@ -194,9 +183,7 @@ const Feed = ({
   useEffect(() => {
     if (!hasMore) return;
 
-    const observerCallback = (
-      entries: IntersectionObserverEntry[]
-    ) => {
+    const observerCallback = (entries: IntersectionObserverEntry[]) => {
       if (entries[0].isIntersecting && !isFetching.current) {
         fetchFeedData();
       }
@@ -204,7 +191,7 @@ const Feed = ({
 
     const observer = new IntersectionObserver(observerCallback, {
       root: null,
-      rootMargin: '0px',
+      rootMargin: "0px",
       threshold: 1.0,
     });
 
@@ -221,6 +208,8 @@ const Feed = ({
     setRedeemFeedData(data);
   };
 
+  const router = useRouter();
+
   return (
     <div className="w-full flex gap-10">
       <div className="w-full flex flex-col gap-4">
@@ -232,8 +221,7 @@ const Feed = ({
             <div className="w-10 xl:w-12 h-10 xl:h-12 bg-gray-400 border border-gray-300 rounded-full overflow-hidden flex items-center justify-center">
               {(() => {
                 const profilePic =
-                  feed?.smartsiteId?.profilePic ||
-                  feed?.smartsiteProfilePic;
+                  feed?.smartsiteId?.profilePic || feed?.smartsiteProfilePic;
                 return profilePic && isUrl(profilePic) ? (
                   <Image
                     alt="user image"
@@ -257,48 +245,55 @@ const Feed = ({
             </div>
             <div className="flex-1">
               {/* User and Feed Info */}
-              <div className="flex items-start justify-between">
+              <div className="w-full flex items-start justify-between">
                 <div>
-                  <div className="flex items-center gap-1">
+                  <button
+                    onClick={() => router.push(`/feed/${feed._id}`)}
+                    className="flex items-center gap-1"
+                  >
                     <p className="text-gray-700 font-semibold">
                       {feed?.smartsiteId?.name ||
                         feed?.smartsiteUserName ||
-                        'Anonymous'}
+                        "Anonymous"}
                     </p>
                     <GoDotFill size={10} />
                     <p className="text-gray-500 font-normal">
                       {feed?.smartsiteId?.ens ||
                         feed?.smartsiteEnsName ||
-                        'n/a'}
+                        "n/a"}
                     </p>
                     <GoDotFill size={10} />
                     <p className="text-gray-500 font-normal">
                       {dayjs(feed.createdAt).fromNow()}
                     </p>
-                  </div>
+                  </button>
                   {/* Render Post Content */}
-                  {feed.postType === 'post' && feed.content.title && (
-                    <div>
+                  {feed.postType === "post" && feed.content.title && (
+                    <button
+                      onClick={() => router.push(`/feed/${feed._id}`)}
+                      className="w-full text-start"
+                    >
                       {feed.content.title
-                        .split('\n')
+                        .split("\n")
                         .map((line: string, index: number) => (
                           <p className="break-text" key={index}>
                             {line}
                           </p>
                         ))}
-                    </div>
+                    </button>
                   )}
                   {/* Render Redeem Content */}
-                  {feed.postType === 'redeem' && (
+                  {feed.postType === "redeem" && (
                     <div className="flex flex-col gap-2 text-gray-600 text-sm">
                       <div>
                         <p>
-                          Created a new {feed.content.redeemName}{' '}
-                          Redeemable Link -{' '}
+                          Created a new {feed.content.redeemName} Redeemable
+                          Link -{" "}
                           <button
-                            onClick={() =>
-                              openRedeemModal(feed.content)
-                            }
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              openRedeemModal(feed.content);
+                            }}
                             className="text-blue-500 underline"
                           >
                             Claim
@@ -317,30 +312,29 @@ const Feed = ({
                         <div className="font-semibold text-sm">
                           <p>{feed.content.network}</p>
                           <p>
-                            {feed.content.amount}{' '}
-                            {feed.content.symbol}
+                            {feed.content.amount} {feed.content.symbol}
                           </p>
                         </div>
                       </div>
                     </div>
                   )}
-                  {feed.postType === 'connection' && (
+                  {feed.postType === "connection" && (
                     <p className="text-gray-600 text-sm">
-                      Connected with{' '}
+                      Connected with{" "}
                       <span className="text-gray-700 font-medium text-base">
                         {feed.content.connectedSmartsiteName}
                       </span>
                     </p>
                   )}
-                  {feed.postType === 'ensClaim' && (
+                  {feed.postType === "ensClaim" && (
                     <p className="text-gray-600 text-sm">
-                      Claim a new ENS{' '}
+                      Claim a new ENS{" "}
                       <span className="text-gray-700 font-medium text-base">
                         {feed.content.claimEnsName}
                       </span>
                     </p>
                   )}
-                  {feed.postType === 'transaction' &&
+                  {feed.postType === "transaction" &&
                     renderTransactionContent(feed)}
                 </div>
                 {userId === feed.userId && (
@@ -352,7 +346,10 @@ const Feed = ({
                       style={{ zIndex: 10 }}
                     >
                       <PopoverTrigger>
-                        <button type="button">
+                        <button
+                          onClick={(e) => e.stopPropagation()}
+                          type="button"
+                        >
                           <HiDotsHorizontal size={20} />
                         </button>
                       </PopoverTrigger>
@@ -370,17 +367,16 @@ const Feed = ({
                 )}
               </div>
               <div>
-                {feed.postType === 'post' &&
+                {feed.postType === "post" &&
                   feed.content.post_content.length > 0 && (
-                    <PostTypeMedia
-                      mediaFiles={feed.content.post_content}
-                    />
+                    <PostTypeMedia mediaFiles={feed.content.post_content} />
                   )}
-                {feed.postType === 'minting' && (
+                {feed.postType === "minting" && (
                   <div className="w-max">
                     <p>{feed.content.title}</p>
                     <div className="shadow-medium bg-white rounded-lg mt-2 p-2 relative">
                       <Link
+                        onClick={(e) => e.stopPropagation()}
                         href={feed.content.link}
                         className="w-max"
                       >

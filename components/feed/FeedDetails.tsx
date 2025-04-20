@@ -14,7 +14,7 @@ import Reaction from "./view/Reaction";
 dayjs.extend(relativeTime);
 
 const FeedDetails = ({ feedData, accessToken }: any) => {
-  console.log("feed data from details", feedData);
+  // console.log("feed data from details", feedData);
 
   const renderTransactionContent = (feed: any) => {
     const {
@@ -259,6 +259,7 @@ const FeedDetails = ({ feedData, accessToken }: any) => {
             </div>
             <Reaction
               postId={feedData._id}
+              isFromFeedDetails={true}
               isLiked={feedData.isLiked}
               likeCount={feedData.likeCount}
               commentCount={feedData.commentCount}
