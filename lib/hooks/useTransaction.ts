@@ -8,12 +8,6 @@ import {
 import { CHAINS } from '@/types/config';
 import { APIUtils } from '@/utils/api';
 
-function isTransaction(
-  value: Transaction | null
-): value is Transaction {
-  return value !== null;
-}
-
 class TransactionAPI {
   static async getSolTxDetails(
     signature: string

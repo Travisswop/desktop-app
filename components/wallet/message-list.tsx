@@ -5,7 +5,7 @@ import { usePeerData, PeerData } from '@/lib/hooks/usePeerData';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Avatar, AvatarFallback, AvatarImage } from '../ui/avatar';
-import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
+import { Card, CardContent, CardHeader } from '../ui/card';
 import { MessageCircle, Search } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useXmtpContext } from '@/lib/context/XmtpContext';

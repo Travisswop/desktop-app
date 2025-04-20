@@ -13,7 +13,7 @@ import { ArrowRight, Loader2, Upload, Wallet } from 'lucide-react';
 import Image from 'next/image';
 import { useDebounce } from 'use-debounce';
 import { useQuery } from '@tanstack/react-query';
-import { clusterApiUrl, Transaction } from '@solana/web3.js';
+import { Transaction } from '@solana/web3.js';
 import { Connection } from '@solana/web3.js';
 import { ReceiverData } from '@/types/wallet';
 import { truncateAddress } from '@/lib/utils';
@@ -22,7 +22,7 @@ import { TokenData } from '@/types/token';
 
 import { TransactionService } from '@/services/transaction-service';
 import { usePrivy, useSolanaWallets } from '@privy-io/react-auth';
-import { useTokenSendStore } from '@/zustandStore/TokenSendInfo';
+
 type ProcessingStep = {
   status: 'pending' | 'processing' | 'completed' | 'error';
   message: string;
@@ -109,7 +109,7 @@ export default function SendToModal({
   const [isRedeemModalOpen, setIsRedeemModalOpen] = useState(false);
   const { wallets: solanaWallets } = useSolanaWallets();
 
-  const { tokenContent } = useTokenSendStore();
+  // const { tokenContent } = useTokenSendStore();
 
   const network = selectedToken?.chain || 'ETHEREUM';
 
@@ -291,6 +291,7 @@ export default function SendToModal({
       await new Promise((resolve) => setTimeout(resolve, 2000));
     } catch (error) {
       await deleteRedeemLink(user?.id || '', data.poolId);
+      console.error('error', error);
       throw new Error('Failed to set up temporary account');
     }
 
@@ -321,6 +322,7 @@ export default function SendToModal({
       // Set the redeem link
       setRedeemLink(redeemLink);
     } catch (error: any) {
+      console.error('error', error);
       await deleteRedeemLink(user?.id || '', data.poolId); // Call to delete redeem link
       throw new Error('Failed to transfer tokens');
     }

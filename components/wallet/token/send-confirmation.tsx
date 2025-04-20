@@ -76,7 +76,7 @@ export default function SendConfirmation({
       }
     };
     fetchGasFee();
-  }, [network, nativeTokenPrice, networkFee]);
+  }, [network, nativeTokenPrice, networkFee, token.chain]);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>

@@ -9,8 +9,6 @@ import {
   ComposedChart,
   ResponsiveContainer,
   Tooltip,
-  XAxis,
-  YAxis,
 } from 'recharts';
 import {
   Card,
@@ -28,7 +26,6 @@ import {
   QrCode,
   Rocket,
   Wallet,
-  AlertCircle,
 } from 'lucide-react';
 import WalletManager from './wallet-manager';
 import { WalletItem } from '@/types/wallet';

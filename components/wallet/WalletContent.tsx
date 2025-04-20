@@ -12,12 +12,7 @@ import { useToast } from '@/hooks/use-toast';
 import { WalletItem } from '@/types/wallet';
 import { ChainType, TokenData } from '@/types/token';
 import { NFT } from '@/types/nft';
-import {
-  Network,
-  CHAIN_ID,
-  SendFlowState,
-} from '@/types/wallet-types';
-import { Transaction } from '@/types/transaction';
+import { CHAIN_ID, SendFlowState } from '@/types/wallet-types';
 
 import {
   SWOP_ADDRESS,
@@ -46,7 +41,6 @@ import WalletBalanceChartForWalletPage from './WalletBalanceChart';
 // Utilities
 import Cookies from 'js-cookie';
 import { createTransactionPayload } from '@/lib/utils/transactionUtils';
-import TransactionList from './transaction/transaction-list';
 
 // Default chains supported by the wallet
 const SUPPORTED_CHAINS: ChainType[] = [
@@ -65,14 +59,12 @@ const WalletContentInner = () => {
   const [walletData, setWalletData] = useState<WalletItem[] | null>(
     null
   );
-  const [network, setNetwork] = useState<Network>('ETHEREUM');
+
   const [selectedToken, setSelectedToken] =
     useState<TokenData | null>(null);
   const [selectedNFT, setSelectedNFT] = useState<NFT | null>(null);
   const [isNFTModalOpen, setIsNFTModalOpen] = useState(false);
-  const [newTransactions, setNewTransactions] = useState<
-    Transaction[]
-  >([]);
+
   const [accessToken, setAccessToken] = useState('');
 
   // Wallet addresses
@@ -125,7 +117,7 @@ const WalletContentInner = () => {
     handleSendClick,
     handleNFTNext,
     resetSendFlow,
-  } = useSendFlow(network);
+  } = useSendFlow();
 
   // Update user profile data for transaction payload
   useEffect(() => {
@@ -293,10 +285,6 @@ const WalletContentInner = () => {
         hash: hash || '',
         step: 'success',
       }));
-
-      if (result.transaction) {
-        setNewTransactions([result.transaction]);
-      }
     } catch (error) {
       console.error('Error sending token/NFT:', error);
       toast({
@@ -364,14 +352,14 @@ const WalletContentInner = () => {
 
       if (sendFlow.nft) {
         // Handle NFT transfer
-        if (network === 'SOLANA') {
+        if (sendFlow.network === 'SOLANA') {
           hash = await TransactionService.handleSolanaNFTTransfer(
             solanaWallet,
             sendFlow,
             connection
           );
         } else {
-          await evmWallet?.switchChain(CHAIN_ID[network]);
+          await evmWallet?.switchChain(CHAIN_ID[sendFlow.network]);
           hash = await TransactionService.handleNFTTransfer(
             evmWallet,
             sendFlow
@@ -426,7 +414,7 @@ const WalletContentInner = () => {
           const result = await TransactionService.handleEVMSend(
             evmWallet,
             sendFlow,
-            network
+            sendFlow.network
           );
           hash = result.hash;
           transaction = result.transaction;
@@ -442,14 +430,7 @@ const WalletContentInner = () => {
           error instanceof Error ? error.message : 'Unknown error',
       };
     }
-  }, [
-    network,
-    sendFlow,
-    ethWallets,
-    solanaWallets,
-    PrivyUser,
-    refetchNFTs,
-  ]);
+  }, [sendFlow, ethWallets, solanaWallets, PrivyUser, refetchNFTs]);
 
   // UI Event handlers
   const handleTokenSelect = useCallback(
@@ -546,7 +527,7 @@ const WalletContentInner = () => {
         handleAmountConfirm={handleAmountConfirm}
         handleRecipientSelect={handleRecipientSelect}
         handleSendConfirm={handleSendConfirm}
-        network={network}
+        network={sendFlow.network}
         currentWalletAddress={evmWalletAddress || solWalletAddress}
         sendLoading={sendLoading}
         nativeTokenPrice={nativeTokenPrice}

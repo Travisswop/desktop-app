@@ -9,24 +9,29 @@ import {
   postVirtualAccountInfoIntoBridge,
   saveQycInfoToSwopDB,
   saveVirtualInfoToSwopDB,
-} from "@/actions/bank";
-import DynamicPrimaryBtn from "@/components/ui/Button/DynamicPrimaryBtn";
-import { Modal, ModalBody, ModalContent, Spinner } from "@nextui-org/react";
-import { Loader } from "lucide-react";
-import Image from "next/image";
-import { useRouter } from "next/navigation";
-import React, { useEffect, useState } from "react";
-import toast from "react-hot-toast";
-import { AiOutlineBank } from "react-icons/ai";
-import { FaPlus, FaRegCopy } from "react-icons/fa";
-import { FaArrowRightLong } from "react-icons/fa6";
-import { MdDone } from "react-icons/md";
-import { v4 as uuidv4 } from "uuid";
-import Cookies from "js-cookie";
-import { useSolanaWallets } from "@privy-io/react-auth";
+} from '@/actions/bank';
+import DynamicPrimaryBtn from '@/components/ui/Button/DynamicPrimaryBtn';
+import {
+  Modal,
+  ModalBody,
+  ModalContent,
+  Spinner,
+} from '@nextui-org/react';
+import { Loader } from 'lucide-react';
+import Image from 'next/image';
+import { useRouter } from 'next/navigation';
+import React, { useEffect, useState } from 'react';
+import toast from 'react-hot-toast';
+import { AiOutlineBank } from 'react-icons/ai';
+import { FaPlus, FaRegCopy } from 'react-icons/fa';
+import { FaArrowRightLong } from 'react-icons/fa6';
+import { MdDone } from 'react-icons/md';
+import { v4 as uuidv4 } from 'uuid';
+import Cookies from 'js-cookie';
+import { useSolanaWallets } from '@privy-io/react-auth';
 
 const AddBankModal = ({ bankShow, setBankShow }: any) => {
-  const [stepper, setStepper] = useState("bank-account");
+  const [stepper, setStepper] = useState('bank-account');
   const [kycLoading, setKycLoading] = useState(false);
   const [externalKycLoading, setExternalKycLoading] = useState(false);
   // const [externalAccountInfo, setExternalAccountInfo] = useState<any>(null);
@@ -35,8 +40,8 @@ const AddBankModal = ({ bankShow, setBankShow }: any) => {
   const [kycData, setKycData] = useState<any>(null);
   const [kycDataFetchLoading, setKycDataFetchLoading] =
     useState<boolean>(false);
-  const [copiedItem, setCopiedItem] = useState(""); // Track which item was copied
-  const [userId, setUserId] = useState("67c428364fe6a38a65a0420b");
+  const [copiedItem, setCopiedItem] = useState(''); // Track which item was copied
+  const [userId, setUserId] = useState('67c428364fe6a38a65a0420b');
   const [virtualResponse, setVirtualResponse] = useState<any>(null);
 
   const router = useRouter();
@@ -46,7 +51,7 @@ const AddBankModal = ({ bankShow, setBankShow }: any) => {
   // console.log("solanaWallets", solanaWallets);
 
   const handleAddBank = () => {
-    setStepper("bank-account-details");
+    setStepper('bank-account-details');
   };
 
   // console.log("stepper", stepper);
@@ -54,7 +59,7 @@ const AddBankModal = ({ bankShow, setBankShow }: any) => {
 
   useEffect(() => {
     const getUserId = async () => {
-      const userId = Cookies.get("user-id");
+      const userId = Cookies.get('user-id');
       if (userId) {
         setUserId(userId);
       }
@@ -64,11 +69,11 @@ const AddBankModal = ({ bankShow, setBankShow }: any) => {
     }
   }, []);
 
-  const [accessToken, setAccessToken] = useState("");
+  const [accessToken, setAccessToken] = useState('');
 
   useEffect(() => {
     const getAccessToken = async () => {
-      const token = Cookies.get("access-token");
+      const token = Cookies.get('access-token');
       if (token) {
         setAccessToken(token);
       }
@@ -87,20 +92,20 @@ const AddBankModal = ({ bankShow, setBankShow }: any) => {
         setKycDataFetchLoading(true);
         if (userId) {
           const info = await getKycInfo(userId, accessToken);
-          console.log("info kyc", info);
+          console.log('info kyc', info);
           if (
             info &&
             info.success &&
-            info.message === "KYC information available"
+            info.message === 'KYC information available'
           ) {
             setKycData(info.data);
-            if (info.data.kyc_status !== "approved") {
+            if (info.data.kyc_status !== 'approved') {
               const options = {
-                method: "GET",
+                method: 'GET',
                 headers: {
-                  accept: "application/json",
-                  "content-type": "application/json",
-                  "Api-Key": process.env.NEXT_PUBLIC_BRIDGE_SECRET,
+                  accept: 'application/json',
+                  'content-type': 'application/json',
+                  'Api-Key': process.env.NEXT_PUBLIC_BRIDGE_SECRET,
                 },
               };
 
@@ -109,35 +114,37 @@ const AddBankModal = ({ bankShow, setBankShow }: any) => {
                 info.data.id
               );
 
-              console.log("bridgeInfo123", bridgeInfo);
+              console.log('bridgeInfo123', bridgeInfo);
 
               if (info.data.kyc_status !== bridgeInfo.kyc_status) {
-                console.log("hiittt");
+                console.log('hiittt');
 
                 await saveQycInfoToSwopDB(bridgeInfo, userId);
                 setKycData(bridgeInfo);
               }
-            } else if (info.data.kyc_status === "approved") {
+            } else if (info.data.kyc_status === 'approved') {
               const virtualData = await getVirtualAccountInfo(
                 userId,
                 accessToken
               );
-              console.log("virtualData", virtualData);
+              console.log('virtualData', virtualData);
 
               if (!virtualData || !virtualData?.success) {
                 try {
                   const options = {
-                    method: "GET",
+                    method: 'GET',
                     headers: {
-                      accept: "application/json",
-                      "Api-Key": process.env.NEXT_PUBLIC_BRIDGE_SECRET,
+                      accept: 'application/json',
+                      'Api-Key':
+                        process.env.NEXT_PUBLIC_BRIDGE_SECRET,
                     },
                   };
-                  const virtualResponse = await getVirtualAccountInfoFromBridge(
-                    info.data.customer_id,
-                    options
-                  );
-                  console.log("virtualResponse", virtualResponse);
+                  const virtualResponse =
+                    await getVirtualAccountInfoFromBridge(
+                      info.data.customer_id,
+                      options
+                    );
+                  console.log('virtualResponse', virtualResponse);
                   if (virtualResponse) {
                     await saveVirtualInfoToSwopDB(
                       virtualResponse,
@@ -147,27 +154,29 @@ const AddBankModal = ({ bankShow, setBankShow }: any) => {
                     setVirtualResponse(virtualResponse);
                   } else {
                     const createVirtualOptions = {
-                      method: "POST",
+                      method: 'POST',
                       headers: {
-                        accept: "application/json",
-                        "Idempotency-Key": uuidv4(),
-                        "content-type": "application/json",
-                        "Api-Key": process.env.NEXT_PUBLIC_BRIDGE_SECRET,
+                        accept: 'application/json',
+                        'Idempotency-Key': uuidv4(),
+                        'content-type': 'application/json',
+                        'Api-Key':
+                          process.env.NEXT_PUBLIC_BRIDGE_SECRET,
                       },
                       body: JSON.stringify({
-                        source: { currency: "usd" },
+                        source: { currency: 'usd' },
                         destination: {
-                          currency: "usdc",
-                          payment_rail: "solana",
+                          currency: 'usdc',
+                          payment_rail: 'solana',
                           address: solanaWallets[0]?.address, //solana wallet
                         },
-                        developer_fee_percent: "0.5",
+                        developer_fee_percent: '0.5',
                       }),
                     };
-                    const res = await postVirtualAccountInfoIntoBridge(
-                      info.data.customer_id,
-                      createVirtualOptions
-                    );
+                    const res =
+                      await postVirtualAccountInfoIntoBridge(
+                        info.data.customer_id,
+                        createVirtualOptions
+                      );
                     if (res) {
                       const getVitualAccount =
                         await getVirtualAccountInfoFromBridge(
@@ -180,14 +189,14 @@ const AddBankModal = ({ bankShow, setBankShow }: any) => {
                         accessToken
                       );
                     }
-                    console.log("res for post into bridge", res);
+                    console.log('res for post into bridge', res);
                     setVirtualResponse(res);
                   }
                 } catch (error) {
                   console.error(error);
                 }
               } else {
-                setStepper("virtual-bank-account");
+                setStepper('virtual-bank-account');
                 setVirtualResponse(virtualData);
               }
               // console.log("virtualData", virtualData);
@@ -195,49 +204,51 @@ const AddBankModal = ({ bankShow, setBankShow }: any) => {
           }
         }
       } catch (error) {
-        console.log("kyc db data fetching error", error);
+        console.log('kyc db data fetching error', error);
       } finally {
         setKycDataFetchLoading(false);
       }
     };
     getKycData();
-  }, [accessToken, userId]);
+  }, [accessToken, solanaWallets, userId]);
 
-  const handleKycLink = async (e: React.FormEvent<HTMLFormElement>) => {
+  const handleKycLink = async (
+    e: React.FormEvent<HTMLFormElement>
+  ) => {
     e.preventDefault();
     const formData = new FormData(e.currentTarget);
 
-    const firstName = formData.get("firstName") as string;
-    const lastName = formData.get("lastName") as string;
-    const email = formData.get("email") as string;
-    const accountType = formData.get("accountType") as string;
+    const firstName = formData.get('firstName') as string;
+    const lastName = formData.get('lastName') as string;
+    const email = formData.get('email') as string;
+    const accountType = formData.get('accountType') as string;
 
     if (!firstName) {
-      return toast.error("First Name is Required!");
+      return toast.error('First Name is Required!');
     }
     if (!lastName) {
-      return toast.error("Last Name is Required!");
+      return toast.error('Last Name is Required!');
     }
     if (!email) {
-      return toast.error("Email is Required!");
+      return toast.error('Email is Required!');
     }
     if (!accountType) {
-      return toast.error("Please select account type");
+      return toast.error('Please select account type');
     }
 
     const options = {
-      method: "POST",
+      method: 'POST',
       headers: {
-        accept: "application/json",
-        "Idempotency-Key": uuidv4(),
-        "Content-Type": "application/json",
-        "Api-Key": process.env.NEXT_PUBLIC_BRIDGE_SECRET || "", // Ensure the environment variable is correctly named
+        accept: 'application/json',
+        'Idempotency-Key': uuidv4(),
+        'Content-Type': 'application/json',
+        'Api-Key': process.env.NEXT_PUBLIC_BRIDGE_SECRET || '', // Ensure the environment variable is correctly named
       },
       body: JSON.stringify({
         type: accountType,
         full_name: `${firstName} ${lastName}`,
         email: email,
-        redirect_uri: "https://www.desktop-app-psi.vercel.app/wallet",
+        redirect_uri: 'https://www.desktop-app-psi.vercel.app/wallet',
       }),
     };
 
@@ -245,10 +256,10 @@ const AddBankModal = ({ bankShow, setBankShow }: any) => {
 
     try {
       const data = await postKycInBridge(options);
-      console.log("data for kyc", data);
+      console.log('data for kyc', data);
 
-      if (data.code && data.code === "invalid_parameters") {
-        toast.error("Invalid data, Please submit valid information!");
+      if (data.code && data.code === 'invalid_parameters') {
+        toast.error('Invalid data, Please submit valid information!');
         return;
       }
 
@@ -256,10 +267,12 @@ const AddBankModal = ({ bankShow, setBankShow }: any) => {
         await saveQycInfoToSwopDB(data, userId); // Ensure this function is defined
         // setKycUrl(data.kyc_link);
         // setAgreementUrl(data.tos_link);
-        setStepper("kyc-success"); // Add a new step for KYC success
+        setStepper('kyc-success'); // Add a new step for KYC success
 
         router.push(
-          data.tos_link + "&redirect_uri=" + encodeURIComponent(data.kyc_link)
+          data.tos_link +
+            '&redirect_uri=' +
+            encodeURIComponent(data.kyc_link)
         );
 
         // window.open(
@@ -275,10 +288,10 @@ const AddBankModal = ({ bankShow, setBankShow }: any) => {
         // });
         // setKycUrl(data.existing_kyc_link.kyc_link);
         // setAgreementUrl(data.existing_kyc_link.tos_link);
-        setStepper("kyc-success"); // Add a new step for KYC success
+        setStepper('kyc-success'); // Add a new step for KYC success
         router.push(
           data.existing_kyc_link.tos_link +
-            "&redirect_uri=" +
+            '&redirect_uri=' +
             encodeURIComponent(data.existing_kyc_link.kyc_link)
         );
         // window.open(
@@ -288,8 +301,8 @@ const AddBankModal = ({ bankShow, setBankShow }: any) => {
         // );
       }
     } catch (err) {
-      console.error("Error fetching KYC link:", err);
-      toast.error("An error occurred while processing your request.");
+      console.error('Error fetching KYC link:', err);
+      toast.error('An error occurred while processing your request.');
     } finally {
       setKycLoading(false);
     }
@@ -301,32 +314,34 @@ const AddBankModal = ({ bankShow, setBankShow }: any) => {
     e.preventDefault();
     setExternalKycLoading(true);
     const formData = new FormData(e.currentTarget);
-    const firstName = formData.get("firstName") as string;
-    const lastName = formData.get("lastName") as string;
-    const bankName = formData.get("bankName") as string;
-    const accountNumber = formData.get("accountNumber") as string;
-    const routingNumber = formData.get("routingNumber") as string;
-    const checkingOrSavings = formData.get("checkingOrSavings") as string;
-    const streetLine1 = formData.get("streetLine1") as string;
-    const streetLine2 = formData.get("streetLine2") as string;
-    const city = formData.get("city") as string;
-    const state = formData.get("state") as string;
-    const postalCode = formData.get("postalCode") as string;
-    const countryCode = formData.get("countryCode") as string;
+    const firstName = formData.get('firstName') as string;
+    const lastName = formData.get('lastName') as string;
+    const bankName = formData.get('bankName') as string;
+    const accountNumber = formData.get('accountNumber') as string;
+    const routingNumber = formData.get('routingNumber') as string;
+    const checkingOrSavings = formData.get(
+      'checkingOrSavings'
+    ) as string;
+    const streetLine1 = formData.get('streetLine1') as string;
+    const streetLine2 = formData.get('streetLine2') as string;
+    const city = formData.get('city') as string;
+    const state = formData.get('state') as string;
+    const postalCode = formData.get('postalCode') as string;
+    const countryCode = formData.get('countryCode') as string;
     if (!firstName) {
-      return toast.error("First Name is Required!");
+      return toast.error('First Name is Required!');
     }
     if (!lastName) {
-      return toast.error("Last Name is Required!");
+      return toast.error('Last Name is Required!');
     }
     if (kycData && kycData.customer_id) {
       const options = {
-        method: "POST",
+        method: 'POST',
         headers: {
-          accept: "application/json",
-          "Idempotency-Key": uuidv4(),
-          "content-type": "application/json",
-          "Api-Key": process.env.NEXT_PUBLIC_BRIDGE_SECRET || "",
+          accept: 'application/json',
+          'Idempotency-Key': uuidv4(),
+          'content-type': 'application/json',
+          'Api-Key': process.env.NEXT_PUBLIC_BRIDGE_SECRET || '',
         },
         body: JSON.stringify({
           account: {
@@ -342,23 +357,23 @@ const AddBankModal = ({ bankShow, setBankShow }: any) => {
             postal_code: postalCode,
             country: countryCode,
           },
-          currency: "usd",
+          currency: 'usd',
           bank_name: bankName,
-          account_owner_name: firstName + " " + lastName,
-          account_type: "us",
-          account_owner_type: "individual",
+          account_owner_name: firstName + ' ' + lastName,
+          account_type: 'us',
+          account_owner_type: 'individual',
           first_name: firstName,
           last_name: lastName,
         }),
       };
-      console.log("options", options);
+      console.log('options', options);
 
       try {
         const respnse = await postExternalAccountInBridge(
           kycData.customer_id,
           options
         );
-        console.log("respnse", respnse);
+        console.log('respnse', respnse);
       } catch (error) {
         console.log(error);
       } finally {
@@ -372,26 +387,26 @@ const AddBankModal = ({ bankShow, setBankShow }: any) => {
     try {
       await navigator.clipboard.writeText(text);
       setCopiedItem(itemId); // Set the copied item ID
-      setTimeout(() => setCopiedItem(""), 2000); // Reset after 2 seconds
+      setTimeout(() => setCopiedItem(''), 2000); // Reset after 2 seconds
     } catch (err) {
-      console.error("Failed to copy text: ", err);
+      console.error('Failed to copy text: ', err);
     }
   };
 
   // Function to copy all details at once
   const handleCopyAllDetails = async () => {
     const allDetails = `Bank Routing Number: ${virtualResponse.data.accounts[0].source_deposit_instructions.bank_routing_number}\nBank Account Number: ${virtualResponse.data.accounts[0].source_deposit_instructions.bank_account_number}\nBank Name: ${virtualResponse.data.accounts[0].source_deposit_instructions.bank_name}\nBank Beneficiary Name: ${virtualResponse.data.accounts[0].source_deposit_instructions.bank_beneficiary_name}`;
-    await handleCopy(allDetails, "all");
+    await handleCopy(allDetails, 'all');
   };
 
   return (
     <div>
       <Modal
         size={
-          stepper === "bank-account-details" ||
-          stepper === "external-account-details"
-            ? "2xl"
-            : "md"
+          stepper === 'bank-account-details' ||
+          stepper === 'external-account-details'
+            ? '2xl'
+            : 'md'
         }
         isOpen={bankShow}
         onOpenChange={setBankShow}
@@ -399,7 +414,7 @@ const AddBankModal = ({ bankShow, setBankShow }: any) => {
         <ModalContent>
           <div className="w-full">
             <ModalBody className="text-center text-gray-700 py-6">
-              {stepper === "bank-account" && (
+              {stepper === 'bank-account' && (
                 <div>
                   {kycDataFetchLoading ? (
                     <div className="h-[14.5rem] flex items-center justify-center">
@@ -418,15 +433,17 @@ const AddBankModal = ({ bankShow, setBankShow }: any) => {
                             </div>
                             <div className="flex flex-col items-center gap-1">
                               <p className="font-semibold">
-                                Status:{" "}
+                                Status:{' '}
                                 <span
                                   className={`capitalize ${
-                                    kycData?.kyc_status === "not_started" ||
-                                    kycData?.kyc_status === "rejected"
-                                      ? "text-red-600"
-                                      : kycData?.kyc_status === "approved"
-                                      ? "text-green-600"
-                                      : "text-yellow-600"
+                                    kycData?.kyc_status ===
+                                      'not_started' ||
+                                    kycData?.kyc_status === 'rejected'
+                                      ? 'text-red-600'
+                                      : kycData?.kyc_status ===
+                                        'approved'
+                                      ? 'text-green-600'
+                                      : 'text-yellow-600'
                                   }`}
                                 >
                                   {kycData?.kyc_status}
@@ -434,9 +451,10 @@ const AddBankModal = ({ bankShow, setBankShow }: any) => {
                               </p>
 
                               <p className="text-gray-400">
-                                {kycData.kyc_status === "rejected"
-                                  ? kycData?.rejection_reasons[0]?.reason
-                                  : "KYC verification is required to proceed."}
+                                {kycData.kyc_status === 'rejected'
+                                  ? kycData?.rejection_reasons[0]
+                                      ?.reason
+                                  : 'KYC verification is required to proceed.'}
                               </p>
                             </div>
                           </div>
@@ -452,9 +470,9 @@ const AddBankModal = ({ bankShow, setBankShow }: any) => {
                               // onClick={handleRedirectKyc}
                               className="mx-auto mt-3"
                             >
-                              {kycData.kyc_status === "rejected"
-                                ? "Resubmit"
-                                : "Complete KYC"}
+                              {kycData.kyc_status === 'rejected'
+                                ? 'Resubmit'
+                                : 'Complete KYC'}
                               {/* <Loader className="animate-spin" /> */}
                               <FaArrowRightLong className="ml-1" />
                             </DynamicPrimaryBtn>
@@ -470,7 +488,9 @@ const AddBankModal = ({ bankShow, setBankShow }: any) => {
                               <AiOutlineBank size={20} />
                             </div>
                             <div className="flex flex-col items-center gap-1">
-                              <p className="font-semibold">Add bank account</p>
+                              <p className="font-semibold">
+                                Add bank account
+                              </p>
                               <p className="text-gray-400">
                                 You have no added bank account yet
                               </p>
@@ -489,7 +509,7 @@ const AddBankModal = ({ bankShow, setBankShow }: any) => {
                   )}
                 </div>
               )}
-              {stepper === "bank-account-details" && (
+              {stepper === 'bank-account-details' && (
                 <div className="flex flex-col items-center gap-6">
                   <h2 className="text-center text-lg font-semibold">
                     Enter Your Bank Account Details
@@ -500,7 +520,8 @@ const AddBankModal = ({ bankShow, setBankShow }: any) => {
                       <div className="w-full flex flex-col gap-2">
                         <div className="flex flex-col items-start gap-1">
                           <label htmlFor="firstName">
-                            First Name<span className="text-red-600">*</span>
+                            First Name
+                            <span className="text-red-600">*</span>
                           </label>
                           <input
                             type="text"
@@ -513,7 +534,8 @@ const AddBankModal = ({ bankShow, setBankShow }: any) => {
                         </div>
                         <div className="flex flex-col items-start gap-1">
                           <label htmlFor="email">
-                            Email<span className="text-red-600">*</span>
+                            Email
+                            <span className="text-red-600">*</span>
                           </label>
                           <input
                             type="email"
@@ -528,7 +550,8 @@ const AddBankModal = ({ bankShow, setBankShow }: any) => {
                       <div className="w-full flex flex-col gap-2">
                         <div className="flex flex-col items-start gap-1">
                           <label htmlFor="lastName">
-                            Last Name<span className="text-red-600">*</span>
+                            Last Name
+                            <span className="text-red-600">*</span>
                           </label>
                           <input
                             type="text"
@@ -556,13 +579,15 @@ const AddBankModal = ({ bankShow, setBankShow }: any) => {
                             <option value="individual">
                               Individual Account
                             </option>
-                            <option value="business">Business Account</option>
+                            <option value="business">
+                              Business Account
+                            </option>
                           </select>
                         </div>
                       </div>
                     </div>
                     <DynamicPrimaryBtn
-                      type={"submit"}
+                      type={'submit'}
                       className="mx-auto px-9 mt-6"
                     >
                       Next Step
@@ -575,13 +600,16 @@ const AddBankModal = ({ bankShow, setBankShow }: any) => {
                   </form>
                 </div>
               )}
-              {stepper === "external-account-details" && (
+              {stepper === 'external-account-details' && (
                 <div className="flex flex-col items-center gap-6">
                   <h2 className="text-center text-lg font-semibold">
                     Enter Your Bank Account Details
                   </h2>
 
-                  <form onSubmit={handleAddExternalAccount} className="w-full">
+                  <form
+                    onSubmit={handleAddExternalAccount}
+                    className="w-full"
+                  >
                     <div className="flex items-start gap-5">
                       <div className="w-full flex flex-col gap-2">
                         <div className="flex flex-col items-start gap-1">
@@ -596,7 +624,9 @@ const AddBankModal = ({ bankShow, setBankShow }: any) => {
                           />
                         </div>
                         <div className="flex flex-col items-start gap-1">
-                          <label htmlFor="firstName">First Name</label>
+                          <label htmlFor="firstName">
+                            First Name
+                          </label>
                           <input
                             type="text"
                             required
@@ -618,7 +648,9 @@ const AddBankModal = ({ bankShow, setBankShow }: any) => {
                           />
                         </div>
                         <div className="flex flex-col items-start gap-1">
-                          <label htmlFor="accountNumber">Account Number</label>
+                          <label htmlFor="accountNumber">
+                            Account Number
+                          </label>
                           <input
                             type="text"
                             required
@@ -629,7 +661,9 @@ const AddBankModal = ({ bankShow, setBankShow }: any) => {
                           />
                         </div>
                         <div className="flex flex-col items-start gap-1">
-                          <label htmlFor="routingNumber">Routing Number</label>
+                          <label htmlFor="routingNumber">
+                            Routing Number
+                          </label>
                           <input
                             type="text"
                             required
@@ -659,7 +693,9 @@ const AddBankModal = ({ bankShow, setBankShow }: any) => {
                       </div>
                       <div className="w-full flex flex-col gap-2">
                         <div className="flex flex-col items-start gap-1">
-                          <label htmlFor="streetLine1">Street Line 1</label>
+                          <label htmlFor="streetLine1">
+                            Street Line 1
+                          </label>
                           <input
                             type="text"
                             required
@@ -670,7 +706,9 @@ const AddBankModal = ({ bankShow, setBankShow }: any) => {
                           />
                         </div>
                         <div className="flex flex-col items-start gap-1">
-                          <label htmlFor="streetLine2">Street Line 2</label>
+                          <label htmlFor="streetLine2">
+                            Street Line 2
+                          </label>
                           <input
                             type="text"
                             required
@@ -703,7 +741,9 @@ const AddBankModal = ({ bankShow, setBankShow }: any) => {
                           />
                         </div>
                         <div className="flex flex-col items-start gap-1">
-                          <label htmlFor="postalCode">Postal Code</label>
+                          <label htmlFor="postalCode">
+                            Postal Code
+                          </label>
                           <input
                             type="text"
                             required
@@ -714,7 +754,9 @@ const AddBankModal = ({ bankShow, setBankShow }: any) => {
                           />
                         </div>
                         <div className="flex flex-col items-start gap-1">
-                          <label htmlFor="countryCode">Country Code</label>
+                          <label htmlFor="countryCode">
+                            Country Code
+                          </label>
                           <input
                             type="text"
                             required
@@ -727,7 +769,7 @@ const AddBankModal = ({ bankShow, setBankShow }: any) => {
                       </div>
                     </div>
                     <DynamicPrimaryBtn
-                      type={"submit"}
+                      type={'submit'}
                       className="mx-auto px-5 mt-6"
                     >
                       Submit
@@ -740,12 +782,12 @@ const AddBankModal = ({ bankShow, setBankShow }: any) => {
                   </form>
                 </div>
               )}
-              {stepper === "virtual-bank-account" && (
+              {stepper === 'virtual-bank-account' && (
                 <div className="flex flex-col items-center gap-3">
                   <div className="w-11 h-11 bg-gray-200 rounded-full flex items-center justify-center relative">
                     <AiOutlineBank size={20} />
                     <Image
-                      src={"/images/us-flag-logo.png"}
+                      src={'/images/us-flag-logo.png'}
                       alt="us flag"
                       width={20}
                       height={20}
@@ -761,17 +803,23 @@ const AddBankModal = ({ bankShow, setBankShow }: any) => {
                     </p>
                     <div className="mt-2 flex items-center gap-1 justify-center">
                       <span className="border border-gray-300 px-4 py-1 text-xs rounded-full">
-                        <span className="text-gray-400">Fees</span> 0.5%
+                        <span className="text-gray-400">Fees</span>{' '}
+                        0.5%
                       </span>
                       <span className="border border-gray-300 px-4 py-1 text-xs rounded-full">
-                        <span className="text-gray-400">Min.transfer</span> $2
+                        <span className="text-gray-400">
+                          Min.transfer
+                        </span>{' '}
+                        $2
                       </span>
                     </div>
                   </div>
                   <div className="w-full text-start flex flex-col gap-3">
                     <div className="flex items-center justify-between">
                       <div>
-                        <p className="text-gray-400">Bank Routing Number</p>
+                        <p className="text-gray-400">
+                          Bank Routing Number
+                        </p>
                         <p>
                           {/* {
                             externalAccountInfo?.accounts[0]?.account
@@ -779,7 +827,8 @@ const AddBankModal = ({ bankShow, setBankShow }: any) => {
                           } */}
                           {
                             virtualResponse.data.accounts[0]
-                              ?.source_deposit_instructions?.bank_routing_number
+                              ?.source_deposit_instructions
+                              ?.bank_routing_number
                           }
                         </p>
                       </div>
@@ -789,11 +838,11 @@ const AddBankModal = ({ bankShow, setBankShow }: any) => {
                             virtualResponse.data.accounts[0]
                               ?.source_deposit_instructions
                               ?.bank_routing_number,
-                            "routing"
+                            'routing'
                           )
                         }
                       >
-                        {copiedItem === "routing" ? (
+                        {copiedItem === 'routing' ? (
                           <MdDone color="green" />
                         ) : (
                           <FaRegCopy color="gray" />
@@ -804,11 +853,14 @@ const AddBankModal = ({ bankShow, setBankShow }: any) => {
                     {/* Bank Account Number */}
                     <div className="flex items-center justify-between">
                       <div>
-                        <p className="text-gray-400">Bank Account Number</p>
+                        <p className="text-gray-400">
+                          Bank Account Number
+                        </p>
                         <p>
                           {
                             virtualResponse.data.accounts[0]
-                              ?.source_deposit_instructions?.bank_account_number
+                              ?.source_deposit_instructions
+                              ?.bank_account_number
                           }
                         </p>
                       </div>
@@ -818,11 +870,11 @@ const AddBankModal = ({ bankShow, setBankShow }: any) => {
                             virtualResponse.data.accounts[0]
                               ?.source_deposit_instructions
                               ?.bank_account_number,
-                            "account"
+                            'account'
                           )
                         }
                       >
-                        {copiedItem === "account" ? (
+                        {copiedItem === 'account' ? (
                           <MdDone color="green" />
                         ) : (
                           <FaRegCopy color="gray" />
@@ -845,12 +897,13 @@ const AddBankModal = ({ bankShow, setBankShow }: any) => {
                         onClick={() =>
                           handleCopy(
                             virtualResponse.data.accounts[0]
-                              ?.source_deposit_instructions?.bank_name,
-                            "bank-name"
+                              ?.source_deposit_instructions
+                              ?.bank_name,
+                            'bank-name'
                           )
                         }
                       >
-                        {copiedItem === "bank-name" ? (
+                        {copiedItem === 'bank-name' ? (
                           <MdDone color="green" />
                         ) : (
                           <FaRegCopy color="gray" />
@@ -861,7 +914,9 @@ const AddBankModal = ({ bankShow, setBankShow }: any) => {
                     {/* Bank beneficiary name */}
                     <div className="flex items-center justify-between">
                       <div>
-                        <p className="text-gray-400">Bank Beneficiary Name</p>
+                        <p className="text-gray-400">
+                          Bank Beneficiary Name
+                        </p>
                         <p>
                           {
                             virtualResponse.data.accounts[0]
@@ -876,11 +931,11 @@ const AddBankModal = ({ bankShow, setBankShow }: any) => {
                             virtualResponse.data.accounts[0]
                               ?.source_deposit_instructions
                               ?.bank_beneficiary_name,
-                            "bank-beneficiary-name"
+                            'bank-beneficiary-name'
                           )
                         }
                       >
-                        {copiedItem === "bank-beneficiary-name" ? (
+                        {copiedItem === 'bank-beneficiary-name' ? (
                           <MdDone color="green" />
                         ) : (
                           <FaRegCopy color="gray" />
@@ -911,18 +966,18 @@ const AddBankModal = ({ bankShow, setBankShow }: any) => {
                       </div> */}
                   </div>
                   <p className="text-xs text-gray-400 px-10 mt-3">
-                    For assistance regarding issues with transfers and deposits,
-                    reach out to support@bridge.xyz.
+                    For assistance regarding issues with transfers and
+                    deposits, reach out to support@bridge.xyz.
                   </p>
                   <DynamicPrimaryBtn
                     onClick={handleCopyAllDetails}
                     className="text-sm"
                   >
-                    {copiedItem === "all" ? (
+                    {copiedItem === 'all' ? (
                       <MdDone size={18} />
                     ) : (
                       <FaRegCopy className="mr-1" />
-                    )}{" "}
+                    )}{' '}
                     Copy All Details
                   </DynamicPrimaryBtn>
                 </div>

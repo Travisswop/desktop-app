@@ -1,5 +1,5 @@
 import { Transaction } from '@/types/transaction';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import Image from 'next/image';
 import { Card } from '@/components/ui/card';
 
@@ -38,17 +38,20 @@ const TransactionItem = ({
     }
   };
 
-  let transactionBorderClass = transaction?.isNew
-    ? `border-2 ${getBorderColorByNetwork(
-        transaction.network
-      )} animate-pulse`
-    : 'border border-gradient-to-r from-gray-200 to-gray-300';
+  const [borderClass, setBorderClass] = useState(
+    transaction?.isNew
+      ? `border-2 ${getBorderColorByNetwork(
+          transaction.network
+        )} animate-pulse`
+      : 'border border-gradient-to-r from-gray-200 to-gray-300'
+  );
 
   useEffect(() => {
     if (transaction?.isNew) {
       const timer = setTimeout(() => {
-        transactionBorderClass =
-          'border border-gradient-to-r from-gray-200 to-gray-300';
+        setBorderClass(
+          'border border-gradient-to-r from-gray-200 to-gray-300'
+        );
       }, 10000);
 
       return () => clearTimeout(timer);
@@ -57,7 +60,7 @@ const TransactionItem = ({
 
   return (
     <Card
-      className={`p-4 flex items-center justify-between hover:bg-gray-50 transition-colors cursor-pointer ${transactionBorderClass}`}
+      className={`p-4 flex items-center justify-between hover:bg-gray-50 transition-colors cursor-pointer ${borderClass}`}
       onClick={() => onSelect(transaction)}
     >
       <div className="flex items-center gap-3">

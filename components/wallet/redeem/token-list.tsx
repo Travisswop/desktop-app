@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import {
   Table,
   TableBody,
@@ -16,12 +16,6 @@ import { RefreshCw } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import Image from 'next/image';
 import { usePrivy } from '@privy-io/react-auth';
-import {
-  Tabs,
-  TabsContent,
-  TabsList,
-  TabsTrigger,
-} from '@/components/ui/tabs';
 
 export interface RedemptionPool {
   pool_id: string;
@@ -62,12 +56,10 @@ export default function RedeemTokenList() {
   const [pools, setPools] = useState<RedemptionPool[]>([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    fetchPools();
-  }, []);
-
-  const fetchPools = async () => {
+  const fetchPools = useCallback(async () => {
     try {
+      if (!user?.id) return;
+
       const response = await fetch(
         `${process.env.NEXT_PUBLIC_API_URL}/api/v2/desktop/wallet/getRedeemPoolList/${user?.id}`
       );
@@ -104,19 +96,22 @@ export default function RedeemTokenList() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [user?.id]);
+
+  useEffect(() => {
+    if (user?.id) {
+      fetchPools();
+    }
+  }, [user?.id, fetchPools]);
 
   const copyToClipboard = async (link: string) => {
     try {
       await navigator.clipboard.writeText(link);
       toast.success('Link copied to clipboard!');
     } catch (error) {
+      console.log('error', error);
       toast.error('Failed to copy link');
     }
-  };
-
-  const formatAmount = (amount: number, decimals: number) => {
-    return (amount / Math.pow(10, decimals)).toFixed(4);
   };
 
   const handleRefresh = async () => {
