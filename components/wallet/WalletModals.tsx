@@ -16,10 +16,9 @@ import WalletQRShare from './wallet-qr-share-modal';
 import QRCodeShareModal from '../smartsite/socialShare/QRCodeShareModal';
 import BankAssetSelector from './token/BankAssetSelector';
 import SendBankToken from './token/SendBankToken';
-import BankSendToModal from './token/BankSendToModal';
 import SendBankConfirmation from './token/SendBankConfirmation';
 
-interface SendFlowType {
+export interface SendFlowType {
   step: string;
   token?: TokenData | null;
   nft?: NFT | null;

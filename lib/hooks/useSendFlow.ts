@@ -16,7 +16,7 @@ const initialState: SendFlowState = {
   hash: '',
 };
 
-export function useSendFlow(network: Network) {
+export function useSendFlow() {
   const [sendFlow, setSendFlow] =
     useState<SendFlowState>(initialState);
   const [sendLoading, setSendLoading] = useState(false);
@@ -43,17 +43,19 @@ export function useSendFlow(network: Network) {
       ...initialState,
       step: 'amount',
       token,
-      network,
+      network: token.chain,
     });
   };
 
   const handleNFTNext = (nft: NFT) => {
-    const networkFeeMap = {
+    const networkFeeMap: Record<Network, string> = {
       ETHEREUM: '0.0001',
       SOLANA: '0.000000001',
       POLYGON: '0.0001',
       BASE: '0.0001',
     };
+
+    const network = (nft.network || 'ETHEREUM') as Network;
 
     setSendFlow((prev) => ({
       ...prev,
@@ -61,7 +63,7 @@ export function useSendFlow(network: Network) {
       amount: '1',
       nft,
       networkFee: networkFeeMap[network],
-      network,
+      network: network,
     }));
   };
 

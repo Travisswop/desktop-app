@@ -8,9 +8,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { Check, Copy, QrCode, X } from 'lucide-react';
-import { QRCodeSVG } from 'qrcode.react';
-import { useToast } from '@/hooks/use-toast';
+import { Check, Copy, QrCode } from 'lucide-react';
 import { WalletItem } from '@/types/wallet';
 import Image from 'next/image';
 
@@ -56,8 +54,6 @@ export default function WalletQRModal({
   setWalletShareAddress,
   setWalletQRShareModalOpen,
 }: WalletQRProps) {
-  const { toast } = useToast();
-
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-md p-6 rounded-3xl ">

@@ -1,58 +1,60 @@
-import React from "react";
+import React from 'react';
 
-import { Card } from "@/components/ui/card";
-import { Area, AreaChart, ResponsiveContainer } from "recharts";
-import Image from "next/image";
-import { TokenData } from "@/types/token";
+import { Card } from '@/components/ui/card';
+import Image from 'next/image';
+import { TokenData } from '@/types/token';
 
 interface TokenCardProps {
   token: TokenData;
   onClick: () => void;
 }
 
-export default function TokenListView({ token, onClick }: TokenCardProps) {
-  const data = token.sparklineData;
+export default function TokenListView({
+  token,
+  onClick,
+}: TokenCardProps) {
+  // const data = token.sparklineData;
 
-  const TokenSparkline = () => {
-    if (!data || data.length === 0) {
-      return <div className="text-gray-500">No data available</div>;
-    }
-    return (
-      <ResponsiveContainer width="100%" height="100%">
-        <AreaChart data={data}>
-          <defs>
-            <linearGradient
-              id={`gradient-${token.symbol}`}
-              x1="0"
-              y1="0"
-              x2="0"
-              y2="1"
-            >
-              <stop
-                offset="0%"
-                stopColor={token.marketData.color}
-                stopOpacity={0.2}
-              />
-              <stop
-                offset="100%"
-                stopColor={token.marketData.color}
-                stopOpacity={0}
-              />
-            </linearGradient>
-          </defs>
-          <Area
-            type="basis"
-            dataKey="value"
-            stroke={token.marketData.color}
-            strokeWidth={2}
-            fill={`url(#gradient-${token.symbol})`}
-            dot={false}
-            isAnimationActive={false}
-          />
-        </AreaChart>
-      </ResponsiveContainer>
-    );
-  };
+  // const TokenSparkline = () => {
+  //   if (!data || data.length === 0) {
+  //     return <div className="text-gray-500">No data available</div>;
+  //   }
+  //   return (
+  //     <ResponsiveContainer width="100%" height="100%">
+  //       <AreaChart data={data}>
+  //         <defs>
+  //           <linearGradient
+  //             id={`gradient-${token.symbol}`}
+  //             x1="0"
+  //             y1="0"
+  //             x2="0"
+  //             y2="1"
+  //           >
+  //             <stop
+  //               offset="0%"
+  //               stopColor={token.marketData.color}
+  //               stopOpacity={0.2}
+  //             />
+  //             <stop
+  //               offset="100%"
+  //               stopColor={token.marketData.color}
+  //               stopOpacity={0}
+  //             />
+  //           </linearGradient>
+  //         </defs>
+  //         <Area
+  //           type="basis"
+  //           dataKey="value"
+  //           stroke={token.marketData.color}
+  //           strokeWidth={2}
+  //           fill={`url(#gradient-${token.symbol})`}
+  //           dot={false}
+  //           isAnimationActive={false}
+  //         />
+  //       </AreaChart>
+  //     </ResponsiveContainer>
+  //   );
+  // };
 
   return (
     <Card
@@ -62,11 +64,11 @@ export default function TokenListView({ token, onClick }: TokenCardProps) {
       <div
         className={`absolute top-1 left-1 p-1 text-xs ${
           parseFloat(token.marketData.change) >= 0
-            ? " text-green-700"
-            : " text-red-700"
+            ? ' text-green-700'
+            : ' text-red-700'
         }`}
       >
-        {parseFloat(token.marketData.change) >= 0 ? "+" : ""}
+        {parseFloat(token.marketData.change) >= 0 ? '+' : ''}
         {parseFloat(token.marketData.change)}%
       </div>
       <div className="flex items-center gap-3">

@@ -54,8 +54,6 @@ export default function RedeemModal({
   onClose,
   onConfirm,
   tokenSymbol,
-  tokenDecimals,
-  tokenBalance,
   tokenLogo,
   tokenAmount,
   isUSD,
@@ -81,7 +79,6 @@ export default function RedeemModal({
       message: 'Transferring tokens to secure storage',
     },
   ]);
-  const [isSuccess, setIsSuccess] = useState(false);
 
   useEffect(() => {
     if (isUSD) {
@@ -159,7 +156,6 @@ export default function RedeemModal({
     setErrorMessage('');
     setIsProcessing(false);
     setRedeemLink('');
-    setIsSuccess(false);
     setSteps([
       {
         status: 'pending',

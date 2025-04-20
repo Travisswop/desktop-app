@@ -8,12 +8,9 @@ import {
 } from '@/components/ui/card';
 
 import { TokenData } from '@/types/token';
-import { AlertCircle, LayoutGrid, List, Loader2 } from 'lucide-react';
+import { AlertCircle, Loader2 } from 'lucide-react';
 import TokenCardView from './token-card-view';
 import React, { useMemo, useState } from 'react';
-import PortfolioBalance from '../portfolio-balance';
-import PortfolioBalanceSkeleton from '../portfolio-balance-skelton';
-import { Button } from '@/components/ui/button';
 import TokenListView from './token-list-view';
 
 type ViewMode = 'card' | 'list';
@@ -31,50 +28,50 @@ const ErrorAlert = ({ message }: { message: string }) => (
   </div>
 );
 
-const ViewToggle = ({
-  viewMode,
-  onViewChange,
-}: {
-  viewMode: ViewMode;
-  onViewChange: (mode: ViewMode) => void;
-}) => (
-  <div className="flex bg-gray-100 rounded-md">
-    <ViewToggleButton
-      mode="card"
-      currentMode={viewMode}
-      onClick={() => onViewChange('card')}
-      icon={<LayoutGrid className="h-4 w-4" />}
-    />
-    <ViewToggleButton
-      mode="list"
-      currentMode={viewMode}
-      onClick={() => onViewChange('list')}
-      icon={<List className="h-4 w-4" />}
-    />
-  </div>
-);
+// const ViewToggle = ({
+//   viewMode,
+//   onViewChange,
+// }: {
+//   viewMode: ViewMode;
+//   onViewChange: (mode: ViewMode) => void;
+// }) => (
+//   <div className="flex bg-gray-100 rounded-md">
+//     <ViewToggleButton
+//       mode="card"
+//       currentMode={viewMode}
+//       onClick={() => onViewChange('card')}
+//       icon={<LayoutGrid className="h-4 w-4" />}
+//     />
+//     <ViewToggleButton
+//       mode="list"
+//       currentMode={viewMode}
+//       onClick={() => onViewChange('list')}
+//       icon={<List className="h-4 w-4" />}
+//     />
+//   </div>
+// );
 
-const ViewToggleButton = ({
-  mode,
-  currentMode,
-  onClick,
-  icon,
-}: {
-  mode: ViewMode;
-  currentMode: ViewMode;
-  onClick: () => void;
-  icon: React.ReactNode;
-}) => (
-  <Button
-    size="icon"
-    onClick={onClick}
-    className={`rounded-md w-8 h-8 hover:bg-transparent bg-transparent ${
-      currentMode === mode ? 'text-black' : 'text-gray-300'
-    }`}
-  >
-    {icon}
-  </Button>
-);
+// const ViewToggleButton = ({
+//   mode,
+//   currentMode,
+//   onClick,
+//   icon,
+// }: {
+//   mode: ViewMode;
+//   currentMode: ViewMode;
+//   onClick: () => void;
+//   icon: React.ReactNode;
+// }) => (
+//   <Button
+//     size="icon"
+//     onClick={onClick}
+//     className={`rounded-md w-8 h-8 hover:bg-transparent bg-transparent ${
+//       currentMode === mode ? 'text-black' : 'text-gray-300'
+//     }`}
+//   >
+//     {icon}
+//   </Button>
+// );
 
 const LoadingSkeleton = ({ viewMode }: { viewMode: ViewMode }) => {
   const skeletonItems = Array(4).fill(0);
@@ -143,7 +140,7 @@ const TokenList = ({
   error,
   onSelectToken,
 }: TokenListProps) => {
-  const [viewMode, setViewMode] = useState<ViewMode>('card');
+  const [viewMode] = useState<ViewMode>('card');
 
   const content = useMemo(() => {
     if (loading) {

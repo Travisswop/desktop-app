@@ -32,7 +32,7 @@ export interface UserData {
   primaryMicrosite?: string;
 }
 
-interface UserContextType {
+export interface UserContextType {
   user: UserData | null;
   primaryMicrosite?: string;
   accessToken: string | null;
@@ -199,7 +199,7 @@ export function UserProvider({
         setLoading(false);
       }
     },
-    [router, pathname, logout] // Add logout to dependencies
+    [router, pathname] // Add logout to dependencies
   );
 
   useEffect(() => {
