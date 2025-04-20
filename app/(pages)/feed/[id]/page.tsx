@@ -1,5 +1,6 @@
 import { getFeedDetails } from "@/actions/postFeed";
 import FeedDetails from "@/components/feed/FeedDetails";
+import TabSwitcher from "@/components/feed/TabSwitcher";
 import FeedLoading from "@/components/loading/FeedLoading";
 import { cookies } from "next/headers";
 import React, { Suspense } from "react";
@@ -21,7 +22,10 @@ const FeedDetailsPage = async ({
 
   return (
     <div className="">
-      <div className="bg-white rounded-xl w-2/3 2xl:w-1/2 p-4">
+      <div className="bg-white rounded-xl w-2/3 2xl:w-[54%] py-4 px-6">
+        <div className="pb-6 border-b border-gray-200 pt-2">
+          <TabSwitcher />
+        </div>
         <Suspense fallback={<FeedLoading />}>
           {feedData && (
             <FeedDetails feedData={feedData.data} accessToken={accessToken} />

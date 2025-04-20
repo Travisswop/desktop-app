@@ -89,7 +89,7 @@ const FeedDetails = ({ feedData, accessToken }: any) => {
   };
 
   return (
-    <div className="w-full flex gap-10">
+    <div className="w-full flex gap-10 pt-6">
       <div className="w-full flex flex-col gap-4">
         <div className="flex gap-2 border-b border-gray-200 pb-4">
           <div className="w-10 xl:w-12 h-10 xl:h-12 bg-gray-400 border border-gray-300 rounded-full overflow-hidden flex items-center justify-center">
