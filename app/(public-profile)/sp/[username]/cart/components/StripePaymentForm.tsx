@@ -1,25 +1,16 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import {
   PaymentElement,
   useElements,
   useStripe,
-  AddressElement,
 } from '@stripe/react-stripe-js';
-import { Button } from '@/components/ui/button';
 import { useRouter, useParams } from 'next/navigation';
-import {
-  createOrder,
-  updateOrderPayment,
-} from '@/actions/orderActions';
+import { updateOrderPayment } from '@/actions/orderActions';
 
-import {
-  StripePaymentFormProps,
-  CartItem,
-  PaymentMethod,
-  Status,
-} from './types';
+import { StripePaymentFormProps } from './types';
+
 const StripePaymentForm: React.FC<StripePaymentFormProps> = ({
   email,
   subtotal,
@@ -39,11 +30,8 @@ const StripePaymentForm: React.FC<StripePaymentFormProps> = ({
   const [message, setMessage] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!stripe) {
-      return;
-    }
+    if (!stripe || !clientSecret) return;
 
-    // If returning from a redirect, handle payment result
     stripe
       .retrievePaymentIntent(clientSecret)
       .then(({ paymentIntent }) => {
@@ -52,23 +40,82 @@ const StripePaymentForm: React.FC<StripePaymentFormProps> = ({
         switch (paymentIntent.status) {
           case 'succeeded':
             setMessage('Payment succeeded!');
-            // Here you would save payment details, but this runs after redirect
             break;
           case 'processing':
             setMessage('Your payment is processing.');
+            break;
+          case 'requires_payment_method':
+            // Don't show any message in this case - it's the initial state
             break;
           default:
             setMessage('Something went wrong.');
             break;
         }
+      })
+      .catch((error) => {
+        console.error('Error retrieving payment intent:', error);
       });
   }, [clientSecret, stripe]);
+
+  // Handle updating payment status in the database
+  const updatePaymentStatus = useCallback(
+    async (
+      paymentIntentId: string,
+      status: 'completed' | 'failed'
+    ) => {
+      if (!orderId)
+        return { success: false, error: 'No order ID provided' };
+
+      try {
+        const paymentInfo = { paymentIntentId, status };
+        return await updateOrderPayment(
+          orderId,
+          paymentInfo,
+          accessToken
+        );
+      } catch (error) {
+        console.error(`Error updating ${status} payment:`, error);
+        return {
+          success: false,
+          error: `Failed to update payment status: ${error}`,
+        };
+      }
+    },
+    [orderId, accessToken]
+  );
+
+  // Handle redirect to success or failure page
+  const redirectToResultPage = useCallback(
+    (
+      success: boolean,
+      paymentIntentId?: string,
+      errorMessage?: string
+    ) => {
+      const baseUrl = success
+        ? '/payment-success'
+        : '/payment-failed';
+      const params = new URLSearchParams();
+
+      params.append('orderId', orderId || '');
+      params.append('username', username);
+
+      if (success && paymentIntentId) {
+        params.append('payment_intent', paymentIntentId);
+      }
+
+      if (!success && errorMessage) {
+        params.append('message', errorMessage);
+      }
+
+      router.push(`${baseUrl}?${params.toString()}`);
+    },
+    [orderId, username, router]
+  );
 
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
 
     if (!stripe || !elements || !orderId) {
-      // Stripe.js hasn't loaded yet or orderId is missing
       setErrorMessage(
         'Payment system is initializing. Please try again.'
       );
@@ -78,102 +125,77 @@ const StripePaymentForm: React.FC<StripePaymentFormProps> = ({
     setProcessing(true);
     setMessage(null);
 
-    const { error, paymentIntent } = await stripe.confirmPayment({
-      elements,
-      confirmParams: {
-        return_url: `${window.location.origin}/payment-success?orderId=${orderId}&username=${username}`,
-        payment_method_data: {
-          billing_details: {
-            name: customerInfo.name,
-            email: customerInfo.email,
-            phone: customerInfo.phone,
-            address: {
-              line1: customerInfo.address.line1,
-              line2: customerInfo.address.line2 || undefined,
-              city: customerInfo.address.city,
-              state: customerInfo.address.state,
-              postal_code: customerInfo.address.postalCode,
-              country: customerInfo.address.country,
+    try {
+      // Confirm the payment with Stripe
+      const { error, paymentIntent } = await stripe.confirmPayment({
+        elements,
+        confirmParams: {
+          return_url: `${window.location.origin}/payment-success?orderId=${orderId}&username=${username}`,
+          payment_method_data: {
+            billing_details: {
+              name: customerInfo.name,
+              email: customerInfo.email,
+              phone: customerInfo.phone,
+              address: {
+                line1: customerInfo.address.line1,
+                line2: customerInfo.address.line2 || undefined,
+                city: customerInfo.address.city,
+                state: customerInfo.address.state,
+                postal_code: customerInfo.address.postalCode,
+                country: customerInfo.address.country,
+              },
             },
           },
         },
-      },
-      redirect: 'if_required',
-    });
+        redirect: 'if_required',
+      });
 
-    if (error) {
-      try {
-        const paymentInfo = {
-          paymentIntentId: paymentIntent?.id,
-          status: 'failed' as const,
-        };
-        await updateOrderPayment(orderId, paymentInfo, accessToken);
-        
-        // Redirect to payment failed page with error details
-        const errorMessage = error.message || 'Payment failed. Please try again.';
-        router.push(`/payment-failed?orderId=${orderId}&message=${encodeURIComponent(errorMessage)}&username=${username}`);
-      } catch (updateError) {
-        console.error('Error updating failed payment:', updateError);
+      if (error) {
+        // Update payment status as failed
+        if (paymentIntent?.id) {
+          await updatePaymentStatus(paymentIntent.id, 'failed');
+        }
+
+        const errorMessage =
+          error.message || 'Payment failed. Please try again.';
+        setErrorMessage(errorMessage);
+        redirectToResultPage(false, undefined, errorMessage);
+        return;
       }
-      
-      console.error('Payment error:', error);
-      setErrorMessage(
-        error.message || 'Payment failed. Please try again.'
-      );
-      setProcessing(false);
-      return;
-    }
 
-    if (paymentIntent && paymentIntent.status === 'succeeded') {
-      // This is where you save the payment details
-      try {
-        const paymentInfo = {
-          paymentIntentId: paymentIntent.id,
-          status: 'completed' as const, // Type assertion to match the expected type
-        };
-
-        // Call the updateOrderPayment function to save payment details
-        const result = await updateOrderPayment(
-          orderId,
-          paymentInfo,
-          accessToken
+      if (paymentIntent && paymentIntent.status === 'succeeded') {
+        const result = await updatePaymentStatus(
+          paymentIntent.id,
+          'completed'
         );
 
         if (result.success) {
-          // Payment details saved successfully
           setIsPaymentSheetOpen(false);
           setMessage('Payment successful!');
-
-          // Redirect to success page or show success message
-          if (result.redirectUrl) {
-            window.location.href = result.redirectUrl;
-          } else {
-            router.push(`/payment-success?orderId=${orderId}&username=${username}&payment_intent=${paymentIntent.id}`);
-          }
+          redirectToResultPage(true, paymentIntent.id);
         } else {
-          // Handle error saving payment details
           setErrorMessage(
             result.error || 'Failed to update payment information'
           );
         }
-      } catch (error) {
-        console.error('Error saving payment details:', error);
+      } else if (paymentIntent) {
+        // Handle other payment intent statuses
+        setMessage(
+          `Payment status: ${paymentIntent.status}. Please wait or try again.`
+        );
+      } else {
         setErrorMessage(
-          'Payment processed but failed to save details. Please contact support.'
+          'Payment processing incomplete. Please try again.'
         );
       }
-    } else if (paymentIntent) {
-      // Handle other payment intent statuses
-      setMessage(
-        `Payment status: ${paymentIntent.status}. Please wait or try again.`
-      );
-    } else {
+    } catch (unexpectedError) {
+      console.error('Unexpected payment error:', unexpectedError);
       setErrorMessage(
-        'Payment processing incomplete. Please try again.'
+        'An unexpected error occurred. Please try again.'
       );
+    } finally {
+      setProcessing(false);
     }
-
-    setProcessing(false);
   };
 
   return (
@@ -254,36 +276,6 @@ const StripePaymentForm: React.FC<StripePaymentFormProps> = ({
       </form>
     </div>
   );
-
-  // return (
-  //   <div className="mt-6">
-  //     <div className="flex-1 overflow-y-auto p-4">
-  //       <PaymentElement
-  //         options={{
-  //           layout: {
-  //             type: 'tabs',
-  //             defaultCollapsed: false,
-  //           },
-  //           paymentMethodOrder: ['card'],
-  //           defaultValues: {
-  //             billingDetails: {
-  //               email: email,
-  //             },
-  //           },
-  //         }}
-  //       />
-  //     </div>
-  //     <div className="p-4">
-  //       <Button
-  //         onClick={handleSubmit}
-  //         disabled={!stripe || payLoading}
-  //         className="w-full bg-blue-600 hover:bg-blue-700 text-white"
-  //       >
-  //         {payLoading ? 'Processing...' : `Pay $${subtotal}`}
-  //       </Button>
-  //     </div>
-  //   </div>
-  // );
 };
 
 export default StripePaymentForm;

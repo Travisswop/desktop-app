@@ -38,11 +38,11 @@ export default function PaymentSuccessContent() {
     const paymentIntent = searchParams.get('payment_intent');
     const orderIdParam = searchParams.get('orderId');
     const usernameParam = searchParams.get('username');
-    
+
     if (orderIdParam) {
       setOrderId(orderIdParam);
     }
-    
+
     if (usernameParam) {
       setUsername(usernameParam);
     }
@@ -69,7 +69,9 @@ export default function PaymentSuccessContent() {
             case 'requires_payment_method':
               setStatus('error');
               if (orderIdParam && usernameParam) {
-                router.push(`/payment-failed?orderId=${orderIdParam}&message=Payment%20method%20failed&username=${usernameParam}`);
+                router.push(
+                  `/payment-failed?orderId=${orderIdParam}&message=Payment%20method%20failed&username=${usernameParam}`
+                );
               }
               break;
             default:
@@ -101,10 +103,13 @@ export default function PaymentSuccessContent() {
             : 'Failed'}
         </CardTitle>
         <CardDescription className="text-center">
-          {status === 'success' ? 'Your order has been confirmed' : 
-           status === 'processing' ? 'Your payment is being processed' : 
-           status === 'loading' ? 'Checking payment status...' : 
-           'There was an issue with your payment'}
+          {status === 'success'
+            ? 'Your order has been confirmed'
+            : status === 'processing'
+            ? 'Your payment is being processed'
+            : status === 'loading'
+            ? 'Checking payment status...'
+            : 'There was an issue with your payment'}
         </CardDescription>
       </CardHeader>
 
@@ -157,13 +162,16 @@ export default function PaymentSuccessContent() {
       </CardContent>
 
       <CardFooter className="flex flex-col gap-2">
-        <Button asChild className="w-full bg-blue-600 hover:bg-blue-700">
-          <Link href={username ? `/sp/${username}/cart` : "/"}>
+        <Button
+          asChild
+          className="w-full bg-blue-600 hover:bg-blue-700"
+        >
+          <Link href={username ? `/sp/${username}` : '/'}>
             <ShoppingCart className="h-4 w-4 mr-2" />
             Continue Shopping
           </Link>
         </Button>
-        
+
         {orderId && (
           <Button asChild variant="outline" className="w-full">
             <Link href={`/order/${orderId}`}>View Order Details</Link>

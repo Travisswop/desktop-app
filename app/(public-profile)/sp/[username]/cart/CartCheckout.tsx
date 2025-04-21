@@ -40,14 +40,11 @@ import {
 } from './components/types';
 import { createOrder } from '@/actions/orderActions';
 
-// Make sure environment variable exists before using it
+// Environment variable constants
 const STRIPE_KEY =
-  typeof process !== 'undefined' &&
-  process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY
-    ? process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY
-    : '';
+  process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY || '';
 
-// Load Stripe only once in client environment
+// Initialize Stripe only once
 let stripePromise: ReturnType<typeof loadStripe> | null = null;
 const getStripePromise = () => {
   if (!stripePromise && STRIPE_KEY) {
@@ -79,8 +76,8 @@ const CartCheckout: React.FC<CartCheckoutProps> = ({
     null
   );
 
-  // Customer information state with proper default values
-  const [customerInfo, setCustomerInfo] = useState<CustomerInfo>({
+  // Default customer information
+  const defaultCustomerInfo: CustomerInfo = {
     email: user?.email || '',
     name: user?.name || '',
     phone: user?.mobileNo || '',
@@ -97,36 +94,40 @@ const CartCheckout: React.FC<CartCheckoutProps> = ({
       postalCode: '',
       country: user?.countryCode || 'US',
     },
-  });
-
-  console.log('customer info', customerInfo);
+  };
+  const [customerInfo, setCustomerInfo] = useState<CustomerInfo>(
+    defaultCustomerInfo
+  );
 
   // NFT wallet payment modal state
   const { isOpen, onOpen, onOpenChange } = useDisclosure();
 
   // Parse cart items with proper error handling
   const cartItems: CartItem[] = useMemo(() => {
-    return data?.state === 'success' &&
-      Array.isArray(data?.data?.cartItems)
-      ? data.data.cartItems
-      : [];
+    if (
+      data?.state !== 'success' ||
+      !Array.isArray(data?.data?.cartItems)
+    ) {
+      return [];
+    }
+    return data.data.cartItems;
   }, [data]);
 
+  // Check if any product requires physical shipping
   const hasPhygitalProducts = useMemo(() => {
     return cartItems.some(
       (item) => item.nftTemplate.nftType === 'phygital'
     );
   }, [cartItems]);
 
-  // Use memoized values to prevent unnecessary recalculations
+  // Calculate total price
   const subtotal = useMemo(() => {
     if (!cartItems.length) return 0;
 
     return cartItems.reduce((total, item) => {
-      return (
-        total +
-        (item?.nftTemplate?.price || 0) * (item?.quantity || 0)
-      );
+      const price = item?.nftTemplate?.price || 0;
+      const quantity = item?.quantity || 0;
+      return total + price * quantity;
     }, 0);
   }, [cartItems]);
 
@@ -136,7 +137,7 @@ const CartCheckout: React.FC<CartCheckoutProps> = ({
       : '';
   }, [cartItems]);
 
-  // Initialize payment only when necessary
+  // Initialize payment
   useEffect(() => {
     const initializePayment = async () => {
       if (subtotal <= 0 || clientSecret) return;
@@ -145,13 +146,7 @@ const CartCheckout: React.FC<CartCheckoutProps> = ({
         setLoading(true);
         setError(null);
         const { clientSecret: secret } = await createPaymentIntent(
-          Math.round(subtotal * 1000),
-          {
-            email: customerInfo.email,
-            name: customerInfo.name,
-            orderId: orderIdRef.current || '',
-            accessToken: accessToken,
-          }
+          Math.round(subtotal * 1000) // Convert to smallest currency unit (cents)
         );
         setClientSecret(secret);
       } catch (err) {
@@ -192,11 +187,13 @@ const CartCheckout: React.FC<CartCheckoutProps> = ({
   // Handlers for cart operations - memoized to prevent re-creation on renders
   const handleUpdateQuantity = useCallback(
     async (item: CartItem, type: 'inc' | 'dec') => {
+      const itemId = item._id;
+
       try {
-        // Update local state first for immediate feedback
+        // Update loading state
         setLoadingOperations((prev) => ({
           ...prev,
-          [item._id]: { ...prev[item._id], updating: true },
+          [itemId]: { ...prev[itemId], updating: true },
         }));
 
         const newQuantity =
@@ -204,7 +201,7 @@ const CartCheckout: React.FC<CartCheckoutProps> = ({
         if (newQuantity < 1) return;
 
         const payload = {
-          cartId: item._id,
+          cartId: itemId,
           quantity: newQuantity,
         };
 
@@ -215,18 +212,19 @@ const CartCheckout: React.FC<CartCheckoutProps> = ({
         console.error('Error updating quantity:', error);
         setErrorMessage('Failed to update quantity');
       } finally {
-        // Use a shorter timeout or remove for production
+        // Reset loading state with slight delay for UI feedback
         setTimeout(() => {
           setLoadingOperations((prev) => ({
             ...prev,
-            [item._id]: { ...prev[item._id], updating: false },
+            [itemId]: { ...prev[itemId], updating: false },
           }));
-        }, 500);
+        }, 300);
       }
     },
     [name, accessToken]
   );
 
+  // Cart item removal handler
   const handleRemoveItem = useCallback(
     async (id: string) => {
       try {
@@ -245,7 +243,7 @@ const CartCheckout: React.FC<CartCheckoutProps> = ({
             ...prev,
             [id]: { ...prev[id], deleting: false },
           }));
-        }, 500);
+        }, 300);
       }
     },
     [name, accessToken]
@@ -265,9 +263,10 @@ const CartCheckout: React.FC<CartCheckoutProps> = ({
     (e: React.ChangeEvent<HTMLInputElement>) => {
       const { name, value } = e.target;
 
-      if (name.includes('.')) {
-        const [parent, child] = name.split('.');
-        setCustomerInfo((prev) => {
+      setCustomerInfo((prev) => {
+        // Handle nested properties (address.line1, etc.)
+        if (name.includes('.')) {
+          const [parent, child] = name.split('.');
           if (parent === 'address') {
             return {
               ...prev,
@@ -278,13 +277,14 @@ const CartCheckout: React.FC<CartCheckoutProps> = ({
             };
           }
           return prev;
-        });
-      } else {
-        setCustomerInfo((prev) => ({
+        }
+
+        // Handle top-level properties
+        return {
           ...prev,
           [name]: value,
-        }));
-      }
+        };
+      });
     },
     []
   );
@@ -377,7 +377,7 @@ const CartCheckout: React.FC<CartCheckoutProps> = ({
     if (validateFormFields()) {
       try {
         setErrorMessage(null);
-        
+
         const orderInfo = {
           customerInfo,
           items: cartItems.map((item: CartItem) => ({
@@ -393,32 +393,29 @@ const CartCheckout: React.FC<CartCheckoutProps> = ({
         };
 
         const { orderId } = await createOrder(orderInfo, accessToken);
-        console.log('Order created successfully:', orderId);
         orderIdRef.current = orderId;
-        
-        // Initialize payment intent with order metadata
+
+        // Initialize payment intent
         if (!clientSecret) {
           try {
             setLoading(true);
-            const { clientSecret: secret } = await createPaymentIntent(
-              Math.round(subtotal * 1000),
-              {
-                email: customerInfo.email,
-                name: customerInfo.name,
-                orderId: orderId,
-                accessToken: accessToken,
-              }
-            );
+            const { clientSecret: secret } =
+              await createPaymentIntent(Math.round(subtotal * 1000));
             setClientSecret(secret);
           } catch (paymentError) {
-            console.error('Error initializing payment:', paymentError);
-            setErrorMessage('Could not initialize payment. Please try again.');
+            console.error(
+              'Error initializing payment:',
+              paymentError
+            );
+            setErrorMessage(
+              'Could not initialize payment. Please try again.'
+            );
             return;
           } finally {
             setLoading(false);
           }
         }
-        
+
         setIsPaymentSheetOpen(true);
       } catch (error) {
         console.error('Error creating order:', error);

@@ -5,8 +5,7 @@ import { Stripe } from 'stripe';
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
 
 export async function createPaymentIntent(
-  amount: number,
-  metadata?: Record<string, string>
+  amount: number
 ): Promise<{ clientSecret: string }> {
   try {
     const paymentIntent = await stripe.paymentIntents.create({
@@ -15,9 +14,6 @@ export async function createPaymentIntent(
       automatic_payment_methods: {
         enabled: true,
       },
-      metadata: metadata || {},
-      receipt_email: metadata?.email,
-      statement_descriptor: 'SWOP PURCHASE',
     });
 
     if (!paymentIntent.client_secret) {
