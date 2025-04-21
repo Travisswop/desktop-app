@@ -145,7 +145,13 @@ const CartCheckout: React.FC<CartCheckoutProps> = ({
         setLoading(true);
         setError(null);
         const { clientSecret: secret } = await createPaymentIntent(
-          Math.round(subtotal * 1000)
+          Math.round(subtotal * 1000),
+          {
+            email: customerInfo.email,
+            name: customerInfo.name,
+            orderId: orderIdRef.current || '',
+            accessToken: accessToken,
+          }
         );
         setClientSecret(secret);
       } catch (err) {
@@ -370,6 +376,8 @@ const CartCheckout: React.FC<CartCheckoutProps> = ({
   const handleOpenPaymentSheet = useCallback(async () => {
     if (validateFormFields()) {
       try {
+        setErrorMessage(null);
+        
         const orderInfo = {
           customerInfo,
           items: cartItems.map((item: CartItem) => ({
@@ -385,11 +393,32 @@ const CartCheckout: React.FC<CartCheckoutProps> = ({
         };
 
         const { orderId } = await createOrder(orderInfo, accessToken);
-        console.log(
-          '🚀 ~ handleOpenPaymentSheet ~ orderId:',
-          orderId
-        );
+        console.log('Order created successfully:', orderId);
         orderIdRef.current = orderId;
+        
+        // Initialize payment intent with order metadata
+        if (!clientSecret) {
+          try {
+            setLoading(true);
+            const { clientSecret: secret } = await createPaymentIntent(
+              Math.round(subtotal * 1000),
+              {
+                email: customerInfo.email,
+                name: customerInfo.name,
+                orderId: orderId,
+                accessToken: accessToken,
+              }
+            );
+            setClientSecret(secret);
+          } catch (paymentError) {
+            console.error('Error initializing payment:', paymentError);
+            setErrorMessage('Could not initialize payment. Please try again.');
+            return;
+          } finally {
+            setLoading(false);
+          }
+        }
+        
         setIsPaymentSheetOpen(true);
       } catch (error) {
         console.error('Error creating order:', error);
@@ -403,6 +432,8 @@ const CartCheckout: React.FC<CartCheckoutProps> = ({
     subtotal,
     accessToken,
     setErrorMessage,
+    clientSecret,
+    setLoading,
   ]);
 
   // Main conditional rendering

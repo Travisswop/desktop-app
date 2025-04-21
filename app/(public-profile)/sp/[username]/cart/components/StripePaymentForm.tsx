@@ -5,9 +5,10 @@ import {
   PaymentElement,
   useElements,
   useStripe,
+  AddressElement,
 } from '@stripe/react-stripe-js';
 import { Button } from '@/components/ui/button';
-import { useRouter } from 'next/navigation';
+import { useRouter, useParams } from 'next/navigation';
 import {
   createOrder,
   updateOrderPayment,
@@ -31,6 +32,9 @@ const StripePaymentForm: React.FC<StripePaymentFormProps> = ({
 }) => {
   const stripe = useStripe();
   const elements = useElements();
+  const router = useRouter();
+  const params = useParams();
+  const username = params.username as string;
   const [processing, setProcessing] = useState<boolean>(false);
   const [message, setMessage] = useState<string | null>(null);
 
@@ -77,7 +81,7 @@ const StripePaymentForm: React.FC<StripePaymentFormProps> = ({
     const { error, paymentIntent } = await stripe.confirmPayment({
       elements,
       confirmParams: {
-        return_url: `${window.location.origin}/payment-success?orderId=${orderId}`,
+        return_url: `${window.location.origin}/payment-success?orderId=${orderId}&username=${username}`,
         payment_method_data: {
           billing_details: {
             name: customerInfo.name,
@@ -98,14 +102,20 @@ const StripePaymentForm: React.FC<StripePaymentFormProps> = ({
     });
 
     if (error) {
-      if (paymentIntent) {
+      try {
         const paymentInfo = {
-          paymentIntentId: paymentIntent.id,
-          status: 'completed' as const, // Type assertion to match the expected type
+          paymentIntentId: paymentIntent?.id,
+          status: 'failed' as const,
         };
         await updateOrderPayment(orderId, paymentInfo, accessToken);
+        
+        // Redirect to payment failed page with error details
+        const errorMessage = error.message || 'Payment failed. Please try again.';
+        router.push(`/payment-failed?orderId=${orderId}&message=${encodeURIComponent(errorMessage)}&username=${username}`);
+      } catch (updateError) {
+        console.error('Error updating failed payment:', updateError);
       }
-
+      
       console.error('Payment error:', error);
       setErrorMessage(
         error.message || 'Payment failed. Please try again.'
@@ -183,6 +193,8 @@ const StripePaymentForm: React.FC<StripePaymentFormProps> = ({
             defaultValues: {
               billingDetails: {
                 email: email,
+                name: customerInfo.name,
+                phone: customerInfo.phone,
               },
             },
           }}
