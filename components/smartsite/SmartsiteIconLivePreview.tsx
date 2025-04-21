@@ -69,6 +69,10 @@ const SmartsiteIconLivePreview = ({
   // console.log("data form live", data.info.socialLarge);
   const { formData, setFormData } = useSmartsiteFormStore();
 
+  console.log("formData1", formData);
+  console.log("data", data);
+  
+
   // console.log("form data from live preview data", data.info.socialLarge);
 
   const { setOn }: any = useSmallIconToggleStore();
@@ -115,6 +119,7 @@ const SmartsiteIconLivePreview = ({
       setFormData("theme", data.theme);
       setFormData("fontType", data.fontFamily);
       setFormData("fontColor", data.fontColor);
+      setFormData("secondaryFontColor", data.secondaryFontColor);
       setFormData("templateColor", data.themeColor);
       setFormData("backgroundColor", data.backgroundColor);
       setFormData("backgroundImg", data.backgroundImg);
@@ -478,7 +483,7 @@ const SmartsiteIconLivePreview = ({
                         <Image
                           src={getSmallIconImage(item.name, item.group) as any}
                           alt="icon"
-                          style={tintStyle}
+                          style={formData.templateColor === "#ffffff" ? { filter: "brightness(0) invert(1)"} : (formData.templateColor === "#D3D3D3" || formData.templateColor === "#808080") ? { filter: "brightness(0) saturate(0%) opacity(0.5)" } : tintStyle}
                           className="w-4 h-auto"
                           quality={100}
                         />
@@ -520,8 +525,8 @@ const SmartsiteIconLivePreview = ({
                             </div>
                             <div
                               style={{
-                                color: formData.fontColor
-                                  ? formData.fontColor
+                                color: formData.secondaryFontColor
+                                  ? formData.secondaryFontColor
                                   : "black",
                               }}
                             >
@@ -563,11 +568,9 @@ const SmartsiteIconLivePreview = ({
                             onClick={(e) => showReadMoreForBlog(e, item)}
                             style={{
                               backgroundColor:
-                                formData.templateColor && formData.fontColor,
-
-                              color: formData.templateColor,
+                                formData.secondaryFontColor ? formData.secondaryFontColor : 'black',
                             }}
-                            className="rounded-full bg-white flex items-center gap-1 px-3 py-0.5 text-[12px] font-medium"
+                            className="rounded-full text-white flex items-center gap-1 px-3 py-0.5 text-[12px] font-medium"
                           >
                             Read More
                           </button>
@@ -621,7 +624,11 @@ const SmartsiteIconLivePreview = ({
                             />
                           )}
                         </button>
-                        <p className="text-xs text-center min-w-max">
+                        <p style={{
+                          color: formData.templateColor
+                            ? formData.templateColor
+                            : "black",
+                        }} className="text-xs text-center min-w-max">
                           {data.name}
                         </p>
                       </div>
@@ -654,12 +661,12 @@ const SmartsiteIconLivePreview = ({
                           alt="icon"
                           quality={100}
                           className="w-8 h-8 rounded-lg"
-                          // style={tintStyle}
+                          style={formData.secondaryFontColor === "#ffffff" ? { filter: "brightness(0) invert(1)"} : (formData.secondaryFontColor === "#D3D3D3" || formData.secondaryFontColor === "#808080") ? { filter: "brightness(0) saturate(0%) opacity(0.5)" } : tintStyle}
                         />
                         <div
                           style={{
-                            color: formData.fontColor
-                              ? formData.fontColor
+                            color: formData.secondaryFontColor
+                              ? formData.secondaryFontColor
                               : "black",
                           }}
                           className="flex flex-col items-start gap-0.5 text-start"
@@ -667,7 +674,7 @@ const SmartsiteIconLivePreview = ({
                           <p className="text-sm">{data.buttonName}</p>
                           <p
                             className={`text-xs ${
-                              !formData.fontColor && "text-gray-400"
+                              !formData.secondaryFontColor && "text-gray-400"
                             }`}
                           >
                             {data.description}
@@ -704,19 +711,15 @@ const SmartsiteIconLivePreview = ({
                       >
                         <Image
                           src={message}
-                          style={{
-                            filter:
-                              formData.templateColor === "#000000" &&
-                              ("brightness(1) invert(1)" as any),
-                          }}
+                          style={formData.secondaryFontColor === "#ffffff" ? { filter: "brightness(0) invert(1)"} : (formData.secondaryFontColor === "#D3D3D3" || formData.secondaryFontColor === "#808080") ? { filter: "brightness(0) saturate(0%) opacity(0.5)" } : tintStyle}
                           alt="icon"
                           quality={100}
                           className="w-8 h-8"
                         />
                         <div
                           style={{
-                            color: formData.fontColor
-                              ? formData.fontColor
+                            color: formData.secondaryFontColor
+                              ? formData.secondaryFontColor
                               : "black",
                           }}
                           className="flex flex-col items-start gap-0.5 text-start"
@@ -724,7 +727,7 @@ const SmartsiteIconLivePreview = ({
                           <p className="text-sm">Message Me</p>
                           <p
                             className={`text-xs ${
-                              !formData.fontColor && "text-gray-400"
+                              !formData.secondaryFontColor && "text-gray-400"
                             }`}
                           >
                             Message me using the Swop wallet
@@ -760,16 +763,12 @@ const SmartsiteIconLivePreview = ({
                             height={200}
                             quality={100}
                             className="w-8 h-8"
-                            style={{
-                              filter:
-                                formData.templateColor === "#000000" &&
-                                ("brightness(1) invert(1)" as any),
-                            }}
+                            style={formData.secondaryFontColor === "#ffffff" ? { filter: "brightness(0) invert(1)"} : (formData.secondaryFontColor === "#D3D3D3" || formData.secondaryFontColor === "#808080") ? { filter: "brightness(0) saturate(0%) opacity(0.5)" } : tintStyle}
                           />
                           <div
                             style={{
-                              color: formData.fontColor
-                                ? formData.fontColor
+                              color: formData.secondaryFontColor
+                                ? formData.secondaryFontColor
                                 : "black",
                             }}
                             className="flex flex-col items-start gap-0.5 text-start"
@@ -777,7 +776,7 @@ const SmartsiteIconLivePreview = ({
                             <p className="text-sm">{data.mintName}</p>
                             <p
                               className={`text-xs ${
-                                !formData.fontColor && "text-gray-400"
+                                !formData.secondaryFontColor && "text-gray-400"
                               }`}
                             >
                               {data.description}
@@ -812,16 +811,12 @@ const SmartsiteIconLivePreview = ({
                             alt="icon"
                             quality={100}
                             className="w-8 h-8"
-                            style={{
-                              filter:
-                                formData.templateColor === "#000000" &&
-                                ("brightness(1) invert(1)" as any),
-                            }}
+                            style={formData.secondaryFontColor === "#ffffff" ? { filter: "brightness(0) invert(1)"} : (formData.secondaryFontColor === "#D3D3D3" || formData.secondaryFontColor === "#808080") ? { filter: "brightness(0) saturate(0%) opacity(0.5)" } : tintStyle}
                           />
                           <div
                             style={{
-                              color: formData.fontColor
-                                ? formData.fontColor
+                              color: formData.secondaryFontColor
+                                ? formData.secondaryFontColor
                                 : "black",
                             }}
                             className="flex flex-col items-start gap-0.5 text-start"
@@ -829,7 +824,7 @@ const SmartsiteIconLivePreview = ({
                             <p className="text-sm">{data.name}</p>
                             <p
                               className={`text-xs ${
-                                !formData.fontColor && "text-gray-400"
+                                !formData.secondaryFontColor && "text-gray-400"
                               }`}
                             >
                               {data.mobileNo}
@@ -893,19 +888,15 @@ const SmartsiteIconLivePreview = ({
                       >
                         <Image
                           src={ethereum}
-                          style={{
-                            filter:
-                              formData.templateColor === "#000000" &&
-                              ("brightness(1) invert(1)" as any),
-                          }}
+                          style={formData.secondaryFontColor === "#ffffff" ? { filter: "brightness(0) invert(1)"} : (formData.secondaryFontColor === "#D3D3D3" || formData.secondaryFontColor === "#808080") ? { filter: "brightness(0) saturate(0%) opacity(0.5)" } : tintStyle}
                           alt="icon"
                           quality={100}
                           className="w-8 h-8"
                         />
                         <div
                           style={{
-                            color: formData.fontColor
-                              ? formData.fontColor
+                            color: formData.secondaryFontColor
+                              ? formData.secondaryFontColor
                               : "black",
                           }}
                           className="flex flex-col items-start gap-0.5 text-start"
@@ -919,7 +910,7 @@ const SmartsiteIconLivePreview = ({
                           </p>
                           <p
                             className={`text-xs ${
-                              !formData.fontColor && "text-gray-400"
+                              !formData.secondaryFontColor && "text-gray-400"
                             }`}
                           >
                             Pay me using my Swop.ID
@@ -973,8 +964,8 @@ const SmartsiteIconLivePreview = ({
 
                           <div
                             style={{
-                              color: formData.fontColor
-                                ? formData.fontColor
+                              color: formData.secondaryFontColor
+                                ? formData.secondaryFontColor
                                 : "black",
                             }}
                             className="flex flex-col items-start gap-0.5 text-start"
@@ -986,7 +977,7 @@ const SmartsiteIconLivePreview = ({
                             </p>
                             <p
                               className={`text-xs ${
-                                !formData.fontColor && "text-gray-400"
+                                !formData.secondaryFontColor && "text-gray-400"
                               }`}
                             >
                               {data.description}
@@ -1008,8 +999,8 @@ const SmartsiteIconLivePreview = ({
                         >
                           <div
                             style={{
-                              color: formData.fontColor
-                                ? formData.fontColor
+                              color: formData.secondaryFontColor
+                                ? formData.secondaryFontColor
                                 : "black",
 
                               backgroundColor: formData.templateColor
@@ -1086,8 +1077,8 @@ const SmartsiteIconLivePreview = ({
                             <div className="flex items-center justify-between overflow-hidden">
                               <button
                                 style={{
-                                  color: formData.fontColor
-                                    ? formData.fontColor
+                                  color: formData.secondaryFontColor
+                                    ? formData.secondaryFontColor
                                     : "black",
                                 }}
                                 onClick={() =>
@@ -1133,7 +1124,7 @@ const SmartsiteIconLivePreview = ({
                                     play: (
                                       <FaPlay
                                         style={{
-                                          color: formData.fontColor,
+                                          color: formData.secondaryFontColor,
                                         }}
                                         className="text-xl"
                                       />
@@ -1141,7 +1132,7 @@ const SmartsiteIconLivePreview = ({
                                     pause: (
                                       <FaPause
                                         style={{
-                                          color: formData.fontColor,
+                                          color: formData.secondaryFontColor,
                                         }}
                                         className="text-xl"
                                       />
@@ -1180,8 +1171,8 @@ const SmartsiteIconLivePreview = ({
                           <div className="flex items-center gap-2 w-full">
                             <div
                               style={{
-                                color: formData.fontColor
-                                  ? formData.fontColor
+                                color: formData.secondaryFontColor
+                                  ? formData.secondaryFontColor
                                   : "black",
 
                                 backgroundColor: formData.templateColor
