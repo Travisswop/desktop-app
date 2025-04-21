@@ -26,6 +26,7 @@ import { InfoBarIconMap, InfoBarSelectedIconType } from "@/types/smallIcon";
 import contactCardImg from "@/public/images/IconShop/appIconContactCard.png";
 import productImg from "@/public/images/product.png";
 import toast from "react-hot-toast";
+import Cookies from "js-cookie"
 
 const UpdateInfoBar = ({ iconDataObj, isOn, setOff }: any) => {
   const state: any = useSmartSiteApiDataStore((state) => state); //get small icon store value
@@ -55,8 +56,15 @@ const UpdateInfoBar = ({ iconDataObj, isOn, setOff }: any) => {
   const iconData: any = newIcons[1];
   // console.log("iconData", iconData);
 
-  const demoToken =
-    "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJfaWQiOiI2NjM4NjMyMDIzMDQxMDMyODAyOTk4MmIiLCJpYXQiOjE3MjcxNTI4MzB9.CsHnZAgUzsfkc_g_CZZyQMXc02Ko_LhnQcCVpeCwroY";
+  const [token, setToken] = useState("");
+
+  useEffect(() => {
+    const getAccessToken = async () => {
+      const token = Cookies.get('access-token');
+      setToken(token || "")
+    };
+    getAccessToken();
+  }, []);
 
   // Function to close the modal
   const closeModal = () => {
@@ -130,7 +138,7 @@ const UpdateInfoBar = ({ iconDataObj, isOn, setOff }: any) => {
     };
     // console.log("smallIconInfo", infobarInfo);
     try {
-      const data = await updateInfoBar(infobarInfo, demoToken);
+      const data = await updateInfoBar(infobarInfo, token);
       // console.log("data", data);
 
       if ((data.state = "success")) {
@@ -169,7 +177,7 @@ const UpdateInfoBar = ({ iconDataObj, isOn, setOff }: any) => {
     // console.log("submit data", submitData);
 
     try {
-      const data: any = await deleteInfoBar(submitData, demoToken);
+      const data: any = await deleteInfoBar(submitData, token);
       // console.log("data,", data);
 
       if (data && data?.state === "success") {

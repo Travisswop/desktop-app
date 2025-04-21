@@ -1,4 +1,4 @@
-import React, { useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { LiaFileMedicalSolid } from "react-icons/lia";
 // import useLoggedInUserStore from "@/zustandStore/SetLogedInUserSession";
 // import { toast } from "react-toastify";
@@ -12,6 +12,7 @@ import {
 } from "@/actions/message";
 import { useToast } from "@/hooks/use-toast";
 import AnimateButton from "@/components/ui/Button/AnimateButton";
+import Cookies from "js-cookie"
 
 const UpdateENS = ({ iconDataObj, isOn, setOff }: any) => {
   const modalRef = useRef<HTMLDivElement>(null);
@@ -20,8 +21,15 @@ const UpdateENS = ({ iconDataObj, isOn, setOff }: any) => {
   const [isDeleteLoading, setIsDeleteLoading] = useState<boolean>(false);
   //const sesstionState = useLoggedInUserStore((state) => state.state.user); //get session value
 
-  const demoToken =
-    "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJfaWQiOiI2NjM4NjMyMDIzMDQxMDMyODAyOTk4MmIiLCJpYXQiOjE3MjcxNTI4MzB9.CsHnZAgUzsfkc_g_CZZyQMXc02Ko_LhnQcCVpeCwroY";
+  const [token, setToken] = useState("");
+
+  useEffect(() => {
+    const getAccessToken = async () => {
+      const token = Cookies.get('access-token');
+      setToken(token || "")
+    };
+    getAccessToken();
+  }, []);
 
   const { toast } = useToast();
 
@@ -61,7 +69,7 @@ const UpdateENS = ({ iconDataObj, isOn, setOff }: any) => {
     } else {
       setError("");
       try {
-        const isAvailable = await isENSAvailable(submitInfo.domain, demoToken);
+        const isAvailable = await isENSAvailable(submitInfo.domain, token);
         // console.log("isAvailable", isAvailable);
 
         if (isAvailable?.message === "Name not found") {
@@ -71,7 +79,7 @@ const UpdateENS = ({ iconDataObj, isOn, setOff }: any) => {
           });
         }
 
-        const data = await updateMessage(submitInfo, demoToken);
+        const data = await updateMessage(submitInfo, token);
         if ((data.state = "success")) {
           setOff();
           toast({
@@ -99,7 +107,7 @@ const UpdateENS = ({ iconDataObj, isOn, setOff }: any) => {
       micrositeId: iconDataObj.data.micrositeId,
     };
     try {
-      const data: any = await deleteMessage(submitData, demoToken);
+      const data: any = await deleteMessage(submitData, token);
       // console.log("data,", data);
 
       if (data && data?.state === "success") {

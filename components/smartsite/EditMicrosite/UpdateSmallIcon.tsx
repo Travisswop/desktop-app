@@ -44,9 +44,6 @@ const UpdateSmallIcon = ({ iconDataObj, isOn, setOff }: any) => {
     getAccessToken();
   }, []);
 
-  // const demoToken =
-  //   "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJfaWQiOiI2NjM4NjMyMDIzMDQxMDMyODAyOTk4MmIiLCJpYXQiOjE3MjcxNTI4MzB9.CsHnZAgUzsfkc_g_CZZyQMXc02Ko_LhnQcCVpeCwroY";
-
   const [selectedIconType, setSelectedIconType] =
     useState<SelectedIconType>("Social Media");
   const [selectedIcon, setSelectedIcon] = useState({

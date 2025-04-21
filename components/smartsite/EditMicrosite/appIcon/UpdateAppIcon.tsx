@@ -25,13 +25,19 @@ import { icon, newIcons } from "@/components/util/data/smartsiteIconData";
 import { isEmptyObject } from "@/components/util/checkIsEmptyObject";
 import AnimateButton from "@/components/ui/Button/AnimateButton";
 import toast from "react-hot-toast";
-import { AppIconMap } from "@/types/smallIcon";
-// import AnimateButton from "../Button/AnimateButton";
+import Cookies from "js-cookie";
 
 const UpdateAppIcon = ({ iconDataObj, isOn, setOff }: any) => {
   //const sesstionState = useLoggedInUserStore((state) => state.state.user); //get session value
-  const demoToken =
-    "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJfaWQiOiI2NjM4NjMyMDIzMDQxMDMyODAyOTk4MmIiLCJpYXQiOjE3MjcxNTI4MzB9.CsHnZAgUzsfkc_g_CZZyQMXc02Ko_LhnQcCVpeCwroY";
+  const [token, setToken] = useState("");
+
+  useEffect(() => {
+    const getAccessToken = async () => {
+      const token = Cookies.get('access-token');
+      setToken(token || "")
+    };
+    getAccessToken();
+  }, []);
 
   const [selectedIconType, setSelectedIconType] = useState("Link");
   const [selectedIcon, setSelectedIcon] = useState({
@@ -150,7 +156,7 @@ const UpdateAppIcon = ({ iconDataObj, isOn, setOff }: any) => {
       group: selectedIconData.category,
     };
     try {
-      const data: any = await handleUpdateAppIcon(appIconInfo, demoToken);
+      const data: any = await handleUpdateAppIcon(appIconInfo, token);
       // console.log("data,", data);
 
       if (data && data?.state === "success") {
@@ -191,7 +197,7 @@ const UpdateAppIcon = ({ iconDataObj, isOn, setOff }: any) => {
       micrositeId: iconDataObj.data.micrositeId,
     };
     try {
-      const data: any = await handleDeleteAppIcon(submitData, demoToken);
+      const data: any = await handleDeleteAppIcon(submitData, token);
       // console.log("data,", data);
 
       if (data && data?.state === "success") {

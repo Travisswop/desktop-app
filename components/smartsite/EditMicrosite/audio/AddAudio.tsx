@@ -1,5 +1,5 @@
 import Image from "next/image";
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { LiaFileMedicalSolid } from "react-icons/lia";
 import useSmartSiteApiDataStore from "@/zustandStore/UpdateSmartsiteInfo";
 // import useLoggedInUserStore from "@/zustandStore/SetLogedInUserSession";
@@ -22,12 +22,19 @@ import { Tooltip } from "@nextui-org/react";
 import filePlaceholder from "@/public/images/placeholder-photo.png";
 import { AiFillAudio } from "react-icons/ai";
 import toast from "react-hot-toast";
+import Cookies from "js-cookie"
 
 const AddAudio = ({ handleRemoveIcon }: any) => {
   const state: any = useSmartSiteApiDataStore((state) => state);
-  //const sesstionState = useLoggedInUserStore((state) => state.state.user); //get session value
-  const demoToken =
-    "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJfaWQiOiI2NjM4NjMyMDIzMDQxMDMyODAyOTk4MmIiLCJpYXQiOjE3MjcxNTI4MzB9.CsHnZAgUzsfkc_g_CZZyQMXc02Ko_LhnQcCVpeCwroY";
+  const [token, setToken] = useState("");
+
+  useEffect(() => {
+    const getAccessToken = async () => {
+      const token = Cookies.get('access-token');
+      setToken(token || "")
+    };
+    getAccessToken();
+  }, []);
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [inputError, setInputError] = useState<any>({});
   const [audioFile, setAudioFile] = useState<any>(null);
@@ -126,7 +133,7 @@ const AddAudio = ({ handleRemoveIcon }: any) => {
         if (imageUrl) {
           // console.log("post hocche");
 
-          const data = await postAudio(info, demoToken);
+          const data = await postAudio(info, token);
           // console.log("data", data);
 
           if ((data.state = "success")) {

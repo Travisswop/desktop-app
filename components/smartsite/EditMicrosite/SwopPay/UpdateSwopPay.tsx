@@ -28,11 +28,19 @@ import { sendCloudinaryImage } from "@/lib/SendCloudineryImage";
 import CustomFileInput from "@/components/CustomFileInput";
 import AnimateButton from "@/components/ui/Button/AnimateButton";
 import toast from "react-hot-toast";
+import Cookies from 'js-cookie'
 
 const UpdateSwopPay = ({ iconDataObj, isOn, setOff }: any) => {
-  //const sesstionState = useLoggedInUserStore((state) => state.state.user); //get session value
-  const demoToken =
-    "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJfaWQiOiI2NjM4NjMyMDIzMDQxMDMyODAyOTk4MmIiLCJpYXQiOjE3MjcxNTI4MzB9.CsHnZAgUzsfkc_g_CZZyQMXc02Ko_LhnQcCVpeCwroY";
+  const [token, setToken] = useState("");
+
+  useEffect(() => {
+    const getAccessToken = async () => {
+      const token = Cookies.get('access-token');
+      setToken(token || "")
+    };
+    getAccessToken();
+  }, []);
+  
   const [isDeleteLoading, setIsDeleteLoading] = useState<boolean>(false);
   const modalRef = useRef<HTMLDivElement>(null);
   const [isLoading, setIsLoading] = useState<boolean>(false);
@@ -141,7 +149,7 @@ const UpdateSwopPay = ({ iconDataObj, isOn, setOff }: any) => {
           }
           info.imageUrl = imageUrl;
         }
-        const data = await updateSwopPay(info, demoToken);
+        const data = await updateSwopPay(info, token);
         // console.log("data", data);
 
         if ((data.state = "success")) {
@@ -181,7 +189,7 @@ const UpdateSwopPay = ({ iconDataObj, isOn, setOff }: any) => {
       micrositeId: iconDataObj.data.micrositeId,
     };
     try {
-      const data: any = await deleteSwopPay(submitData, demoToken);
+      const data: any = await deleteSwopPay(submitData, token);
       // console.log("data,", data);
 
       if (data && data?.state === "success") {

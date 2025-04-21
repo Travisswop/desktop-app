@@ -22,10 +22,18 @@ import AnimateButton from "@/components/ui/Button/AnimateButton";
 import { TikTokEmbed, XEmbed, YouTubeEmbed } from "react-social-media-embed";
 import placeholder from "@/public/images/video_player_placeholder.gif";
 import toast from "react-hot-toast";
+import Cookies from "js-cookie"
 
 const UpdateEmbed = ({ iconDataObj, isOn, setOff }: any) => {
-  const demoToken =
-    "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJfaWQiOiI2NjM4NjMyMDIzMDQxMDMyODAyOTk4MmIiLCJpYXQiOjE3MjcxNTI4MzB9.CsHnZAgUzsfkc_g_CZZyQMXc02Ko_LhnQcCVpeCwroY";
+  const [token, setToken] = useState("");
+
+  useEffect(() => {
+    const getAccessToken = async () => {
+      const token = Cookies.get('access-token');
+      setToken(token || "")
+    };
+    getAccessToken();
+  }, []);
 
   const [selectedIcon, setSelectedIcon] = useState({
     category: "X",
@@ -65,7 +73,7 @@ const UpdateEmbed = ({ iconDataObj, isOn, setOff }: any) => {
           : selectedIcon.category.toLowerCase(),
     };
     try {
-      const data: any = await updateEmbedLink(embedInfo, demoToken);
+      const data: any = await updateEmbedLink(embedInfo, token);
       // console.log("data,", data);
 
       if (data && data?.state === "success") {
@@ -103,7 +111,7 @@ const UpdateEmbed = ({ iconDataObj, isOn, setOff }: any) => {
       micrositeId: iconDataObj.data.micrositeId,
     };
     try {
-      const data: any = await deleteEmbedLink(submitData, demoToken);
+      const data: any = await deleteEmbedLink(submitData, token);
       // console.log("data,", data);
 
       if (data && data?.state === "success") {

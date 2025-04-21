@@ -27,12 +27,21 @@ import AnimateButton from "@/components/ui/Button/AnimateButton";
 import CustomFileInput from "@/components/CustomFileInput";
 import { MdInfoOutline } from "react-icons/md";
 import toast from "react-hot-toast";
+import Cookies from 'js-cookie'
 
 const AddSwopPay = ({ handleRemoveIcon }: any) => {
   const state: any = useSmartSiteApiDataStore((state) => state);
-  //const sesstionState = useLoggedInUserStore((state) => state.state.user); //get session value
-  const demoToken =
-    "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJfaWQiOiI2NjM4NjMyMDIzMDQxMDMyODAyOTk4MmIiLCJpYXQiOjE3MjcxNTI4MzB9.CsHnZAgUzsfkc_g_CZZyQMXc02Ko_LhnQcCVpeCwroY";
+  
+  const [token, setToken] = useState("");
+
+  useEffect(() => {
+    const getAccessToken = async () => {
+      const token = Cookies.get('access-token');
+      setToken(token || "")
+    };
+    getAccessToken();
+  }, []);
+
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [inputError, setInputError] = useState<any>({});
 
@@ -127,7 +136,7 @@ const AddSwopPay = ({ handleRemoveIcon }: any) => {
           toast.error("Something went wrong");
         }
         info.imageUrl = imageUrl;
-        const data = await postSwopPay(info, demoToken);
+        const data = await postSwopPay(info, token);
         // console.log("data", data);
 
         if ((data.state = "success")) {

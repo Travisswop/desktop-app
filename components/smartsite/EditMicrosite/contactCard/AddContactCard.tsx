@@ -13,12 +13,19 @@ import { Tooltip } from "@nextui-org/react";
 import contactCardImg from "@/public/images/IconShop/appIconContactCard.png";
 import Image from "next/image";
 import toast from "react-hot-toast";
+import Cookies from "js-cookie";
 
 const AddContactCard = ({ handleRemoveIcon }: any) => {
   const state: any = useSmartSiteApiDataStore((state) => state); //get small icon store value
-  //const sesstionState = useLoggedInUserStore((state) => state.state.user); //get session value
-  const demoToken =
-    "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJfaWQiOiI2NjM4NjMyMDIzMDQxMDMyODAyOTk4MmIiLCJpYXQiOjE3MjcxNTI4MzB9.CsHnZAgUzsfkc_g_CZZyQMXc02Ko_LhnQcCVpeCwroY";
+  const [token, setToken] = useState("");
+
+  useEffect(() => {
+    const getAccessToken = async () => {
+      const token = Cookies.get('access-token');
+      setToken(token || "")
+    };
+    getAccessToken();
+  }, []);
 
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [error, setError] = useState<any>({});
@@ -56,7 +63,7 @@ const AddContactCard = ({ handleRemoveIcon }: any) => {
       // console.log("contactCardInfo", contactCardInfo);
 
       try {
-        const data = await postContactCard(contactCardInfo, demoToken);
+        const data = await postContactCard(contactCardInfo, token);
         if ((data.state = "success")) {
           toast.success("Contact card created successfully");
           handleRemoveIcon("Contact Card");
