@@ -147,6 +147,8 @@ const StripePaymentForm: React.FC<StripePaymentFormProps> = ({
           // Redirect to success page or show success message
           if (result.redirectUrl) {
             window.location.href = result.redirectUrl;
+          } else {
+            router.push(`/payment-success?orderId=${orderId}&username=${username}&payment_intent=${paymentIntent.id}`);
           }
         } else {
           // Handle error saving payment details
