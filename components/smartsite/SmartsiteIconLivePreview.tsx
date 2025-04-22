@@ -586,7 +586,7 @@ const SmartsiteIconLivePreview = ({
                   <div className="flex flex-wrap gap-x-1 gap-y-3 justify-center items-center px-3">
                     {data.info.socialLarge.map((data: any, index: number) => (
                       <div
-                        className={`w-[32%] flex flex-col items-center gap-1 ${
+                        className={`w-[32%] flex flex-col items-center justify-between gap-1 ${
                           isUrl(data.iconName) && "cursor-not-allowed"
                         }`}
                         key={index}
@@ -615,13 +615,15 @@ const SmartsiteIconLivePreview = ({
                               />
                             </div>
                           ) : (
-                            <Image
-                              src={getAllSmartsitesIcon(data.iconName) as any}
-                              alt="icon"
-                              // style={tintStyle}
-                              className="w-14 h-auto"
-                              quality={100}
-                            />
+                            <div className="relative w-[4.2rem] h-[4.2rem] rounded-lg">
+                              <Image
+                                src={getAllSmartsitesIcon(data.iconName) as any}
+                                alt="icon"
+                                // style={tintStyle}
+                                className="rounded-lg object-cover"
+                                quality={100}
+                              />
+                            </div>
                           )}
                         </button>
                         <p style={{
