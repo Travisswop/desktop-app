@@ -70,7 +70,7 @@ const SmartsiteIconLivePreview = ({
   const { formData, setFormData } = useSmartsiteFormStore();
 
   console.log("formData1", formData);
-  console.log("data", data);
+  console.log("datae", data);
   
 
   // console.log("form data from live preview data", data.info.socialLarge);
