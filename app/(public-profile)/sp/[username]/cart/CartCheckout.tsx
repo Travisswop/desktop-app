@@ -78,21 +78,21 @@ const CartCheckout: React.FC<CartCheckoutProps> = ({
 
   // Default customer information
   const defaultCustomerInfo: CustomerInfo = {
-    email: user?.email || '',
-    name: user?.name || '',
-    phone: user?.mobileNo || '',
+    email: '',
+    name: '',
+    phone: '',
     wallet: {
-      ens: user?.ensName || '',
-      address: user?.solanaAddress || '',
+      ens: '',
+      address: '',
     },
     useSwopId: false,
     address: {
-      line1: user?.address || '',
-      line2: user?.apt || '',
+      line1: '',
+      line2: '',
       city: '',
       state: '',
       postalCode: '',
-      country: user?.countryCode || 'US',
+      country: 'US',
     },
   };
   const [customerInfo, setCustomerInfo] = useState<CustomerInfo>(
@@ -146,7 +146,7 @@ const CartCheckout: React.FC<CartCheckoutProps> = ({
         setLoading(true);
         setError(null);
         const { clientSecret: secret } = await createPaymentIntent(
-          Math.round(subtotal * 1000) // Convert to smallest currency unit (cents)
+          Math.round(subtotal * 100) // Convert to smallest currency unit (cents)
         );
         setClientSecret(secret);
       } catch (err) {

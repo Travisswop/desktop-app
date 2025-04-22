@@ -78,15 +78,6 @@ export async function handleSuccessfulPayment(
       paymentIntentId
     );
 
-    // Here you would typically:
-    // 1. Update your database with order information
-    // 2. Send confirmation emails
-    // 3. Update inventory
-    // 4. etc.
-
-    console.log(`Processing successful payment: ${paymentIntentId}`);
-
-    // For now, we'll just return the payment status
     return {
       success: true,
       paymentId: paymentIntentId,

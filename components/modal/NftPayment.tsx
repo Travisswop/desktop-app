@@ -80,6 +80,8 @@ export default function NftPaymentModal({
     chains
   );
 
+  console.log('tokens', tokens);
+
   useEffect(() => {
     const convertUSDToToken = (usdAmount: number) => {
       if (!selectedToken?.marketData.price) return '0';
