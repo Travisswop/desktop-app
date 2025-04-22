@@ -8,9 +8,11 @@ const UpdateProfilePage = async () => {
   // Retrieve data from specific cookie
   const accessToken = (await cookieStore).get("access-token")?.value;
 
-  // console.log("access tokenff ", accessToken);
+  console.log("access tokenff ", accessToken);
 
   const userId = (await cookieStore).get("user-id")?.value;
+
+  console.log("userId", userId);
 
   const response = await fetch(
     `${process.env.NEXT_PUBLIC_API_URL}/api/v1/desktop/user/${userId}`,

@@ -50,9 +50,9 @@ export default function Registration({
   const [birthdate, setBirthdate] = useState(0);
   const [apartment, setApartment] = useState('');
   const [address, setAddress] = useState('');
-  const [profileImage, setProfileImage] = useState('0');
+  const [profileImage, setProfileImage] = useState('1');
   const [profileImageUrl, setProfileImageUrl] = useState(
-    '/images/user_avator/0.png?height=32&width=32'
+    '/images/user_avator/1.png?height=32&width=32'
   );
   const [walletData, setWalletData] = useState<WalletItem[]>([]);
 
