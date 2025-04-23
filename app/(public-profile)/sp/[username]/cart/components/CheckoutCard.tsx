@@ -268,14 +268,14 @@ const CheckoutCard: React.FC<CheckoutCardProps> = ({
       <Button
         onClick={handleOpenWalletPayment}
         type="button"
-        className="bg-slate-600 hover:bg-slate-700 text-white py-2 w-full font-medium"
+        className="bg-blue-600 hover:bg-blue-700 text-white py-2 w-full font-medium"
       >
         Pay With Wallet
       </Button>
       <Button
         onClick={handleOpenPaymentSheet}
         disabled={!customerInfo.email}
-        className="w-full bg-zinc-600 hover:bg-zinc-700 text-white font-medium"
+        className="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium"
       >
         Pay With Card
       </Button>

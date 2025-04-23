@@ -199,11 +199,11 @@ const StripePaymentForm: React.FC<StripePaymentFormProps> = ({
   };
 
   return (
-    <div className="flex-1 p-6 overflow-y-auto">
+    <div className="flex-1 p-4 overflow-y-auto">
       <form
         id="payment-form"
         onSubmit={handleSubmit}
-        className="space-y-4"
+        className="space-y-6"
       >
         {/* Payment element will collect card details */}
         <PaymentElement
@@ -228,6 +228,17 @@ const StripePaymentForm: React.FC<StripePaymentFormProps> = ({
         {message && (
           <div className="text-sm text-green-600">{message}</div>
         )}
+
+        {/* Order Confirmation */}
+        <div className="bg-gray-50 p-3 rounded-md">
+          <p className="text-sm font-medium mb-2">Order Confirmation</p>
+          <p className="text-xs text-gray-600 mb-1">
+            You are about to complete your purchase of {cartItems?.length || 0} item(s) for a total of ${subtotal.toFixed(2)}.
+          </p>
+          <p className="text-xs text-gray-600">
+            This charge will appear on your statement as SWOP.
+          </p>
+        </div>
 
         {/* Submit button */}
         <button

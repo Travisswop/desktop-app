@@ -78,6 +78,14 @@ export default function TokenSelector({
               <span className="sr-only">Close</span>
             </button> */}
         </div>
+        
+        {/* Order Confirmation */}
+        <div className="bg-gray-50 p-3 rounded-md mb-4">
+          <p className="text-sm font-medium mb-2">Order Confirmation</p>
+          <p className="text-xs text-gray-600">
+            Your order has been created. Please select a token to complete your payment.
+          </p>
+        </div>
 
         {/* <Tabs value={tab} onValueChange={setTab} className="w-full">
             <TabsList className="grid w-full grid-cols-2">

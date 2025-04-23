@@ -514,7 +514,7 @@ const CartCheckout: React.FC<CartCheckoutProps> = ({
           >
             <SheetContent
               side="bottom"
-              className="h-[90vh] sm:max-w-full p-0 overflow-hidden flex flex-col"
+              className="h-[90vh] mx-auto max-w-md p-0 overflow-hidden flex flex-col"
             >
               <SheetTitle className="sr-only">
                 Payment Sheet
