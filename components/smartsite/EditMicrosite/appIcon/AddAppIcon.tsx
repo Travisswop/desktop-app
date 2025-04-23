@@ -177,7 +177,7 @@ const AddAppIcon = ({ handleRemoveIcon }: any) => {
       >
         <FaTimes size={18} />
       </button>
-      <div className={`flex justify-center bg-[#F2F2F2] rounded-xl ${selectedIconType !== 'Custom Image' ? 'py-5 px-20' : 'px-[60px]'}  w-max mx-auto`}>
+      <div className={`flex justify-center bg-[#F2F2F2] rounded-xl ${selectedIconType !== 'Custom Image' && !imageFile ? 'py-5 px-20' : 'px-[60px] py-4'}  w-max mx-auto`}>
         {selectedIcon && selectedIcon?.icon && selectedIconType !== "Custom Image" ? (
           <Image
             alt="app-icon"
@@ -218,7 +218,7 @@ const AddAppIcon = ({ handleRemoveIcon }: any) => {
                   src={imageFile}
                   width={220}
                   height={180}
-                  className="w-24 h-auto"
+                  className="w-14 h-auto"
                   quality={100}
                 />}
           </>
@@ -302,14 +302,6 @@ const AddAppIcon = ({ handleRemoveIcon }: any) => {
                   isEmptyObject(selectedIconData) && "relative group"
                 }`}
               >
-                {/* <button
-                  disabled={isEmptyObject(selectedIconData)}
-                  className={`${
-                    isEmptyObject(selectedIconData) && "cursor-not-allowed"
-                  } `}
-                >
-                  <AiOutlineDownCircle size={20} color="gray" />
-                </button> */}
                 <button
                   type="button"
                   disabled={isEmptyObject(selectedIconData)}
@@ -348,26 +340,6 @@ const AddAppIcon = ({ handleRemoveIcon }: any) => {
                 >
                   <p>Choose Icon</p>
                 </DropdownItem>
-                {/* <DropdownItem closeOnSelect={false} aria-label="Static Actions">
-                  <div className="relative w-full mb-4">
-                    <CiSearch
-                      className="absolute left-4 top-1/2 -translate-y-[50%] font-bold text-gray-600"
-                      size={18}
-                    />
-                    <input
-                      type="text"
-                      placeholder="Search by name"
-                      value={searchQuery}
-                      tabIndex={0}
-                      onClick={(e) => e.stopPropagation()}
-                      onChange={(e) => {
-                        e.stopPropagation();
-                        setSearchQuery(e.target.value);
-                      }}
-                      className="w-full border border-[#ede8e8] focus:border-[#e5e0e0] rounded-xl focus:outline-none pl-10 py-2 text-gray-700 bg-gray-100"
-                    />
-                  </div>
-                </DropdownItem> */}
 
                 {selectedIconData?.icons?.map((data: any, index: number) => (
                   <DropdownItem

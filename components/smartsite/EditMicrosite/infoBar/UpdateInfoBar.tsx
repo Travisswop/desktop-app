@@ -26,13 +26,16 @@ import { InfoBarIconMap, InfoBarSelectedIconType } from "@/types/smallIcon";
 import contactCardImg from "@/public/images/IconShop/appIconContactCard.png";
 import productImg from "@/public/images/product.png";
 import toast from "react-hot-toast";
-import Cookies from "js-cookie"
+import Cookies from "js-cookie";
+import customImg from "@/public/images/IconShop/Upload@3x.png";
+
+import CustomFileInput from "@/components/CustomFileInput";
+import { sendCloudinaryImage } from "@/lib/SendCloudineryImage";
 
 const UpdateInfoBar = ({ iconDataObj, isOn, setOff }: any) => {
   const state: any = useSmartSiteApiDataStore((state) => state); //get small icon store value
   //const sesstionState = useLoggedInUserStore((state) => state.state.user); //get session value
-  const [selectedIconType, setSelectedIconType] =
-    useState<InfoBarSelectedIconType>("Link");
+  const [selectedIconType, setSelectedIconType] = useState<string>("Link");
   const [selectedIcon, setSelectedIcon] = useState({
     name: "Amazon Music",
     icon: icon.appIconAmazonMusic,
@@ -45,23 +48,41 @@ const UpdateInfoBar = ({ iconDataObj, isOn, setOff }: any) => {
   const [buttonName, setButtonName] = useState(iconDataObj.data.buttonName);
   const [isDeleteLoading, setIsDeleteLoading] = useState<boolean>(false);
   const [description, setDescription] = useState("");
+  const [imageFile, setImageFile] = useState<any>(null);
+  const [fileError, setFileError] = useState<string>("");
 
   const modalRef = useRef<HTMLDivElement>(null);
-
-  // console.log("selected icon type", selectedIconType);
-  // console.log("selected icon name", selectedIcon);
-  // console.log("selected icon data", selectedIconData);
-  // console.log("iconDataObj", iconDataObj);
 
   const iconData: any = newIcons[1];
   // console.log("iconData", iconData);
 
+  console.log("iconDataObj", iconDataObj);
+  console.log("selectedIconType", selectedIconType);
+
   const [token, setToken] = useState("");
+
+  const handleFileChange = (event: any) => {
+    const file = event.target.files[0];
+    if (file) {
+      if (file.size > 10 * 1024 * 1024) {
+        // Check if file size is greater than 10 MB
+        setFileError("File size should be less than 10 MB");
+        setImageFile(null);
+      } else {
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          setImageFile(reader.result as any);
+          setFileError("");
+        };
+        reader.readAsDataURL(file);
+      }
+    }
+  };
 
   useEffect(() => {
     const getAccessToken = async () => {
-      const token = Cookies.get('access-token');
-      setToken(token || "")
+      const token = Cookies.get("access-token");
+      setToken(token || "");
     };
     getAccessToken();
   }, []);
@@ -193,11 +214,12 @@ const UpdateInfoBar = ({ iconDataObj, isOn, setOff }: any) => {
     }
   };
 
-  const iconMap: InfoBarIconMap = {
+  const iconMap: any = {
     Link: icon.Custom_link1,
     "Call To Action": icon.ChatlinkType,
     "Product Link": productImg,
     "Contact Card": contactCardImg,
+    "Upload Custom Image": customImg,
   };
 
   useEffect(() => {
@@ -249,12 +271,39 @@ const UpdateInfoBar = ({ iconDataObj, isOn, setOff }: any) => {
               <div className="flex flex-col gap-2 mt-4 px-10 2xl:px-[10%]">
                 <div className="w-full rounded-xl bg-gray-200 p-3">
                   <div className="bg-white rounded-xl w-full flex items-center gap-2 py-1 px-3">
-                    <Image
-                      className="w-12 rounded-full"
-                      src={selectedIcon.icon}
-                      alt="icon"
-                    />
+                    {selectedIcon &&
+                    selectedIcon?.icon &&
+                    selectedIconType !== "custom" ? (
+                      <Image
+                        className="w-12 rounded-full"
+                        src={selectedIcon.icon}
+                        width={120}
+                        height={90}
+                        alt="icon"
+                      />
+                    ) : selectedIcon &&
+                      selectedIcon?.icon &&
+                      selectedIconType == "custom" &&
+                      !imageFile ? (
+                      <Image
+                        className="w-12 rounded-full"
+                        src={iconDataObj.data.iconName}
+                        width={120}
+                        height={90}
+                        alt="icon"
+                      />
+                    ) : (
+                      <Image
+                        className="w-12 rounded-full"
+                        src={imageFile}
+                        width={120}
+                        height={90}
+                        alt="icon"
+                      />
+                    )}
+
                     <div>
+                      {/* it should be button name  */}
                       <p className="text-gray-700 font-medium">
                         {selectedIcon.name}
                       </p>
@@ -283,6 +332,8 @@ const UpdateInfoBar = ({ iconDataObj, isOn, setOff }: any) => {
                               <Image
                                 alt="app-icon"
                                 src={iconMap[selectedIconType]}
+                                width={120}
+                                height={90}
                                 className="w-5 h-auto"
                               />
                             )}

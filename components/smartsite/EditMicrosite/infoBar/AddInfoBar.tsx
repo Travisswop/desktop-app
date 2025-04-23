@@ -28,6 +28,9 @@ import contactCardImg from "@/public/images/IconShop/appIconContactCard.png";
 import productImg from "@/public/images/product.png";
 import toast from "react-hot-toast";
 import Cookies from "js-cookie";
+import customImg from "@/public/images/IconShop/Upload@3x.png";
+import CustomFileInput from "@/components/CustomFileInput";
+import { sendCloudinaryImage } from "@/lib/SendCloudineryImage";
 
 const AddInfoBar = ({ handleRemoveIcon, handleToggleIcon }: any) => {
   const [accessToken, setAccessToken] = useState("");
@@ -56,12 +59,32 @@ const AddInfoBar = ({ handleRemoveIcon, handleToggleIcon }: any) => {
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [buttonName, setButtonName] = useState(selectedIcon.name);
   const [description, setDescription] = useState("");
+  const [imageFile, setImageFile] = useState<any>(null);
+  const [fileError, setFileError] = useState<string>("");
   // console.log("selected icon name", selectedIcon);
   // console.log("selected icon data", selectedIconData);
   // console.log("selected icon", selectedIcon);
 
   const iconData: any = newIcons[1];
   // console.log("iconData", iconData);
+
+  const handleFileChange = (event: any) => {
+    const file = event.target.files[0];
+    if (file) {
+      if (file.size > 10 * 1024 * 1024) {
+        // Check if file size is greater than 10 MB
+        setFileError("File size should be less than 10 MB");
+        setImageFile(null);
+      } else {
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          setImageFile(reader.result as any);
+          setFileError("");
+        };
+        reader.readAsDataURL(file);
+      }
+    }
+  };
 
   useEffect(() => {
     if (selectedIconType) {
@@ -109,12 +132,35 @@ const AddInfoBar = ({ handleRemoveIcon, handleToggleIcon }: any) => {
       description: formData.get("description"),
       iconName: selectedIcon.name,
       iconPath: "",
-      group: selectedIconData.category,
+      group: selectedIconData?.category,
     };
-    // console.log("smallIconInfo", infobarInfo);
+    const customInfobarInfo = {
+      micrositeId: state.data._id,
+      title: formData.get("url"),
+      link: "custom",
+      buttonName: buttonName,
+      description: formData.get("description"),
+      iconName: "",
+      iconPath: "",
+      group: "custom",
+    };
+    console.log("customInfobarInfo", customInfobarInfo);
+
+    if (selectedIconType === "Upload Custom Image" && imageFile) {
+      const imgUrl = await sendCloudinaryImage(imageFile);
+      customInfobarInfo.iconName = imgUrl;
+    } else if (selectedIconType === "Upload Custom Image" && !imageFile) {
+      return toast.error("Select custom image");
+    }
+    console.log("customInfobarInfo", customInfobarInfo);
     try {
-      const data = await postInfoBar(infobarInfo, accessToken);
-      // console.log("data", data);
+      const data = await postInfoBar(
+        selectedIconType === "Upload Custom Image"
+          ? customInfobarInfo
+          : infobarInfo,
+        accessToken
+      );
+      console.log("data", data);
 
       if ((data.state = "success")) {
         toast.success("Info bar crated successfully");
@@ -148,6 +194,7 @@ const AddInfoBar = ({ handleRemoveIcon, handleToggleIcon }: any) => {
     "Call To Action": icon.ChatlinkType,
     "Product Link": productImg,
     "Contact Card": contactCardImg,
+    "Upload Custom Image": customImg,
   };
 
   return (
@@ -185,14 +232,43 @@ const AddInfoBar = ({ handleRemoveIcon, handleToggleIcon }: any) => {
       <div className="flex flex-col gap-2 mt-4 px-10 2xl:px-[10%]">
         <div className="w-full rounded-xl bg-gray-200 p-3">
           <div className="bg-white rounded-xl w-full flex items-center gap-2 py-1 px-3">
-            <Image
-              className="w-12 rounded-full"
-              src={selectedIcon.icon}
-              alt="icon"
-            />
+            {selectedIconType === "Upload Custom Image" && !imageFile ? (
+              <Image
+                className="w-12 rounded-full"
+                src="/images/smartsite_icon/photo.png"
+                width={120}
+                height={90}
+                alt="icon"
+              />
+            ) : selectedIconType === "Upload Custom Image" && imageFile ? (
+              <Image
+                className="w-12 rounded-full"
+                width={120}
+                height={90}
+                src={imageFile}
+                alt="icon"
+              />
+            ) : (
+              <Image
+                className="w-12 rounded-full"
+                src={selectedIcon.icon}
+                width={120}
+                height={90}
+                alt="icon"
+              />
+            )}
+
             <div>
-              <p className="text-gray-700 font-medium">{selectedIcon.name}</p>
-              <p className="text-gray-500 text-sm font-medium">{description}</p>
+              <p className="text-gray-700 font-medium">
+                {selectedIconType === "Upload Custom Image"
+                  ? "Custom Name"
+                  : selectedIcon.name}
+              </p>
+              <p className="text-gray-500 text-sm font-medium">
+                {selectedIconType === "Upload Custom Image"
+                  ? "Custom description"
+                  : description}
+              </p>
             </div>
           </div>
         </div>
@@ -248,6 +324,21 @@ const AddInfoBar = ({ handleRemoveIcon, handleToggleIcon }: any) => {
                   </DropdownItem>
                 ))}
                 <DropdownItem
+                  onClick={() => handleSelectIconType("Upload Custom Image")}
+                  className="border-b rounded-none hover:rounded-md"
+                >
+                  <div className="flex items-center gap-2 font-semibold text-sm">
+                    <Image
+                      src={"/images/IconShop/Upload@3x.png"}
+                      alt={"custom image"}
+                      width={120}
+                      height={90}
+                      className="w-5 h-auto"
+                    />{" "}
+                    Upload Custom Image
+                  </div>
+                </DropdownItem>
+                <DropdownItem
                   onClick={() => handleSelectIconType("Product Link")}
                   className="border-b rounded-none hover:rounded-md"
                 >
@@ -280,14 +371,17 @@ const AddInfoBar = ({ handleRemoveIcon, handleToggleIcon }: any) => {
         <div className="flex items-center gap-2">
           <h3 className="font-semibold text-gray-700 w-28">Select Icon</h3>
 
-          <Dropdown className="w-max rounded-lg" placement="bottom-start">
-            <DropdownTrigger>
-              <div
-                className={`flex items-center ${
-                  isEmptyObject(selectedIconData) && "relative group"
-                }`}
-              >
-                {/* <button
+          {selectedIconType === "Upload Custom Image" ? (
+            <CustomFileInput handleFileChange={handleFileChange} />
+          ) : (
+            <Dropdown className="w-max rounded-lg" placement="bottom-start">
+              <DropdownTrigger>
+                <div
+                  className={`flex items-center ${
+                    isEmptyObject(selectedIconData) && "relative group"
+                  }`}
+                >
+                  {/* <button
                   disabled={isEmptyObject(selectedIconData)}
                   className={`${
                     isEmptyObject(selectedIconData) && "cursor-not-allowed"
@@ -295,65 +389,66 @@ const AddInfoBar = ({ handleRemoveIcon, handleToggleIcon }: any) => {
                 >
                   <AiOutlineDownCircle size={20} color="gray" />
                 </button> */}
-                <button
-                  type="button"
-                  disabled={isEmptyObject(selectedIconData)}
-                  className={`bg-white w-48 2xl:w-64 flex justify-between items-center rounded px-2 py-2 text-sm font-medium shadow-small ${
-                    isEmptyObject(selectedIconData) && "cursor-not-allowed"
-                  } `}
-                >
-                  <span className="flex items-center gap-2">
-                    <Image
-                      src={selectedIcon.icon}
-                      alt={selectedIcon.inputText}
-                      className="w-4 h-auto"
-                      quality={100}
-                      // style={tintStyle}
-                    />
-                    {selectedIcon.name}
-                  </span>{" "}
-                  <FaAngleDown />
-                </button>
-                {isEmptyObject(selectedIconData) && (
-                  <div className="hidden text-xs text-gray-600 px-2 w-28 py-1.5 bg-slate-200 shadow-medium z-50 absolute left-6 top-0 group-hover:flex justify-center">
-                    <p>select icon type</p>
-                  </div>
-                )}
-              </div>
-            </DropdownTrigger>
-            {selectedIconData && selectedIconData?.icons?.length > 0 && (
-              <DropdownMenu
-                disabledKeys={["title"]}
-                aria-label="Static Actions"
-                className="p-2 overflow-y-auto max-h-[30rem]"
-              >
-                <DropdownItem
-                  key={"title"}
-                  className=" hover:!bg-white opacity-100 cursor-text disabled dropDownTitle"
-                >
-                  <p>Choose Icon</p>
-                </DropdownItem>
-                {selectedIconData.icons.map((data: any) => (
-                  <DropdownItem
-                    key={data._id}
-                    onClick={() => addSelectedIcon(data)}
-                    className="border-b rounded-none hover:rounded-md"
+                  <button
+                    type="button"
+                    disabled={isEmptyObject(selectedIconData)}
+                    className={`bg-white w-48 2xl:w-64 flex justify-between items-center rounded px-2 py-2 text-sm font-medium shadow-small ${
+                      isEmptyObject(selectedIconData) && "cursor-not-allowed"
+                    } `}
                   >
-                    <div className="flex items-center gap-2 font-semibold text-sm">
+                    <span className="flex items-center gap-2">
                       <Image
-                        src={data.icon}
-                        alt={data.inputText}
+                        src={selectedIcon.icon}
+                        alt={selectedIcon.inputText}
                         className="w-4 h-auto"
                         quality={100}
-                        //   style={tintStyle}
+                        // style={tintStyle}
                       />
-                      {data.name}
+                      {selectedIcon.name}
+                    </span>{" "}
+                    <FaAngleDown />
+                  </button>
+                  {isEmptyObject(selectedIconData) && (
+                    <div className="hidden text-xs text-gray-600 px-2 w-28 py-1.5 bg-slate-200 shadow-medium z-50 absolute left-6 top-0 group-hover:flex justify-center">
+                      <p>select icon type</p>
                     </div>
+                  )}
+                </div>
+              </DropdownTrigger>
+              {selectedIconData && selectedIconData?.icons?.length > 0 && (
+                <DropdownMenu
+                  disabledKeys={["title"]}
+                  aria-label="Static Actions"
+                  className="p-2 overflow-y-auto max-h-[30rem]"
+                >
+                  <DropdownItem
+                    key={"title"}
+                    className=" hover:!bg-white opacity-100 cursor-text disabled dropDownTitle"
+                  >
+                    <p>Choose Icon</p>
                   </DropdownItem>
-                ))}
-              </DropdownMenu>
-            )}
-          </Dropdown>
+                  {selectedIconData.icons.map((data: any) => (
+                    <DropdownItem
+                      key={data._id}
+                      onClick={() => addSelectedIcon(data)}
+                      className="border-b rounded-none hover:rounded-md"
+                    >
+                      <div className="flex items-center gap-2 font-semibold text-sm">
+                        <Image
+                          src={data.icon}
+                          alt={data.inputText}
+                          className="w-4 h-auto"
+                          quality={100}
+                          //   style={tintStyle}
+                        />
+                        {data.name}
+                      </div>
+                    </DropdownItem>
+                  ))}
+                </DropdownMenu>
+              )}
+            </Dropdown>
+          )}
         </div>
         <div>
           <form
@@ -376,7 +471,9 @@ const AddInfoBar = ({ handleRemoveIcon, handleToggleIcon }: any) => {
             </div>
             <div>
               <p className="font-semibold text-gray-700 mb-1">
-                {selectedIcon.inputText}
+                {selectedIconType === "Upload Custom Image"
+                  ? "Link"
+                  : selectedIcon.inputText}
               </p>
               <div className="relative">
                 <IoLinkOutline

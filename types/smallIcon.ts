@@ -18,9 +18,11 @@ export interface InfoBarIconMap {
   "Call To Action": string | StaticImageData;
   "Product Link": string | StaticImageData;
   "Contact Card": string | StaticImageData;
+  "Upload Custom Image": string | StaticImageData;
 }
 export type InfoBarSelectedIconType =
   | "Link"
   | "Call To Action"
   | "Product Link"
+  | "Upload Custom Image"
   | "Contact Card";
