@@ -15,6 +15,7 @@ import {
 import Image from 'next/image';
 import { useParams, useRouter } from 'next/navigation';
 import React, { useEffect, useState } from 'react';
+import { CartItem, PaymentMethod, Status } from './components/types';
 
 // Transaction stages for better UX
 const TRANSACTION_STAGES = {
@@ -32,17 +33,18 @@ const PaymentShipping: React.FC<{
   subtotal: number;
   amontOfToken: number;
   walletData: any;
-  sellerAddress: string;
+  customerInfo: any;
+  cartItems: any;
 }> = ({
   selectedToken,
   setSelectedToken,
   subtotal,
   amontOfToken,
   walletData,
-  sellerAddress,
+  customerInfo,
+  cartItems,
 }) => {
   const { user, accessToken } = useUser();
-  const [address, setAddress] = useState('');
   const [transactionStage, setTransactionStage] = useState(
     TRANSACTION_STAGES.IDLE
   );
@@ -59,12 +61,6 @@ const PaymentShipping: React.FC<{
     transactionStage !== TRANSACTION_STAGES.IDLE &&
     transactionStage !== TRANSACTION_STAGES.COMPLETED &&
     transactionStage !== TRANSACTION_STAGES.FAILED;
-
-  useEffect(() => {
-    if (user?.address) {
-      setAddress(user.address);
-    }
-  }, [user]);
 
   // Auto-redirect after successful transaction
   useEffect(() => {
@@ -143,18 +139,23 @@ const PaymentShipping: React.FC<{
       // Create order record
       setTransactionStage(TRANSACTION_STAGES.CREATING_ORDER);
 
-      const orderData = {
-        customerName: user?.name,
-        customerEmail: user?.email,
-        customerPhone: user?.phone || '+01402348575',
-        customerShippingAddress: address,
+      const orderInfo = {
+        customerInfo,
         txHash: hash,
-        customerWalletAddress: solanaWallet?.address,
-        ens: user?.ensName,
+        items: cartItems.map((item: CartItem) => ({
+          itemId: item._id,
+          quantity: item.quantity,
+          price: item.nftTemplate.price,
+          name: item.nftTemplate.name,
+          nftType: item.nftTemplate.nftType || 'collectible',
+        })),
+        subtotal,
+        paymentMethod: 'wallet' as PaymentMethod,
+        status: 'pending' as Status,
       };
 
       if (hash && accessToken) {
-        const { data } = await createOrder(orderData, accessToken);
+        const { data } = await createOrder(orderInfo, accessToken);
         setOrderId(data.data.orderId);
         setTransactionStage(TRANSACTION_STAGES.COMPLETED);
       }
@@ -260,17 +261,6 @@ const PaymentShipping: React.FC<{
           - <span className="text-red-500">{amontOfToken} </span>
           {selectedToken.symbol ? selectedToken.symbol : 'SOL'}
         </p>
-      </div>
-
-      <div className="flex items-center gap-2 justify-between">
-        <p className="font-medium">Shipping Address</p>
-        <input
-          className="text-gray-500 font-medium border border-gray-300 rounded px-1 py-0.5 focus:outline-gray-200 text-end w-3/5"
-          value={address}
-          onChange={(e) => setAddress(e.target.value)}
-          disabled={isLoading}
-          placeholder="Enter shipping address"
-        />
       </div>
 
       <div className="flex items-center gap-2 justify-between">

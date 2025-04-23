@@ -471,7 +471,8 @@ const CartCheckout: React.FC<CartCheckoutProps> = ({
         subtotal={subtotal}
         isOpen={isOpen}
         onOpenChange={onOpenChange}
-        sellerAddress={sellerAddress}
+        customerInfo={customerInfo}
+        cartItems={cartItems}
       />
 
       {/* Payment Sheet - Only rendered when clientSecret exists */}
