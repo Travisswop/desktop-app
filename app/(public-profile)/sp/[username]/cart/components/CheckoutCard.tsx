@@ -30,7 +30,7 @@ const CheckoutCard: React.FC<CheckoutCardProps> = ({
   errorMessage,
   cartItems,
   subtotal,
-  onOpen,
+  handleOpenWalletPayment,
   hasPhygitalProducts,
 }) => (
   <Card className="w-full shadow-lg bg-white mb-6">
@@ -266,7 +266,7 @@ const CheckoutCard: React.FC<CheckoutCardProps> = ({
         </div>
       )}
       <Button
-        onClick={onOpen}
+        onClick={handleOpenWalletPayment}
         type="button"
         className="bg-slate-600 hover:bg-slate-700 text-white py-2 w-full font-medium"
       >

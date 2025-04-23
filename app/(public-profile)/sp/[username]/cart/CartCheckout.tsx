@@ -101,6 +101,7 @@ const CartCheckout: React.FC<CartCheckoutProps> = ({
 
   // NFT wallet payment modal state
   const { isOpen, onOpen, onOpenChange } = useDisclosure();
+  const [walletOrderId, setWalletOrderId] = useState<string | null>(null);
 
   // Parse cart items with proper error handling
   const cartItems: CartItem[] = useMemo(() => {
@@ -373,8 +374,12 @@ const CartCheckout: React.FC<CartCheckoutProps> = ({
     return true;
   }, [customerInfo, hasPhygitalProducts, setErrorMessage]);
 
-  const handleOpenPaymentSheet = useCallback(async () => {
-    if (validateFormFields()) {
+  const createOrderForPayment = useCallback(
+    async (paymentMethod: PaymentMethod) => {
+      if (!validateFormFields()) {
+        return null;
+      }
+
       try {
         setErrorMessage(null);
 
@@ -388,48 +393,64 @@ const CartCheckout: React.FC<CartCheckoutProps> = ({
             nftType: item.nftTemplate.nftType || 'collectible',
           })),
           subtotal,
-          paymentMethod: 'stripe' as PaymentMethod,
+          paymentMethod,
           status: 'pending' as Status,
         };
 
         const { orderId } = await createOrder(orderInfo, accessToken);
-        orderIdRef.current = orderId;
-
-        // Initialize payment intent
-        if (!clientSecret) {
-          try {
-            setLoading(true);
-            const { clientSecret: secret } =
-              await createPaymentIntent(Math.round(subtotal * 1000));
-            setClientSecret(secret);
-          } catch (paymentError) {
-            console.error(
-              'Error initializing payment:',
-              paymentError
-            );
-            setErrorMessage(
-              'Could not initialize payment. Please try again.'
-            );
-            return;
-          } finally {
-            setLoading(false);
-          }
-        }
-
-        setIsPaymentSheetOpen(true);
+        return orderId;
       } catch (error) {
         console.error('Error creating order:', error);
         setErrorMessage('Failed to create order. Please try again.');
+        return null;
       }
+    },
+    [validateFormFields, customerInfo, cartItems, subtotal, accessToken, setErrorMessage]
+  );
+
+  // Handle wallet payment
+  const handleOpenWalletPayment = useCallback(async () => {
+    const orderId = await createOrderForPayment('wallet');
+    if (orderId) {
+      setWalletOrderId(orderId);
+      onOpen();
+    }
+  }, [createOrderForPayment, onOpen]);
+
+  // Handle Stripe payment
+  const handleOpenPaymentSheet = useCallback(async () => {
+    const orderId = await createOrderForPayment('stripe');
+    if (orderId) {
+      orderIdRef.current = orderId;
+
+      // Initialize payment intent
+      if (!clientSecret) {
+        try {
+          setLoading(true);
+          const { clientSecret: secret } =
+            await createPaymentIntent(Math.round(subtotal * 1000));
+          setClientSecret(secret);
+        } catch (paymentError) {
+          console.error(
+            'Error initializing payment:',
+            paymentError
+          );
+          setErrorMessage(
+            'Could not initialize payment. Please try again.'
+          );
+          return;
+        } finally {
+          setLoading(false);
+        }
+      }
+
+      setIsPaymentSheetOpen(true);
     }
   }, [
-    validateFormFields,
-    customerInfo,
-    cartItems,
-    subtotal,
-    accessToken,
-    setErrorMessage,
+    createOrderForPayment,
     clientSecret,
+    subtotal,
+    setErrorMessage,
     setLoading,
   ]);
 
@@ -473,6 +494,7 @@ const CartCheckout: React.FC<CartCheckoutProps> = ({
         onOpenChange={onOpenChange}
         customerInfo={customerInfo}
         cartItems={cartItems}
+        orderId={walletOrderId}
       />
 
       {/* Payment Sheet - Only rendered when clientSecret exists */}

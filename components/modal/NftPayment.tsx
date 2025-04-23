@@ -15,7 +15,15 @@ export default function NftPaymentModal({
   onOpenChange,
   customerInfo,
   cartItems,
-}: any) {
+  orderId,
+}: {
+  subtotal: number;
+  isOpen: boolean;
+  onOpenChange: (isOpen: boolean) => void;
+  customerInfo: any;
+  cartItems: any[];
+  orderId: string | null;
+}) {
   const [walletData, setWalletData] = useState<any>(null);
   const [amontOfToken, setAmontOfToken] = useState<any>(null);
   const [selectedToken, setSelectedToken] = useState<any>(null);
@@ -58,8 +66,8 @@ export default function NftPaymentModal({
   useEffect(() => {
     if (!walletData) return;
 
-    const solWallet = walletData.find((w) => !w.isEVM);
-    const evmWallet = walletData.find((w) => w.isEVM);
+    const solWallet = walletData.find((w: any) => !w.isEVM);
+    const evmWallet = walletData.find((w: any) => w.isEVM);
 
     setSolWalletAddress(solWallet?.address || '');
     setEvmWalletAddress(evmWallet?.address || '');
@@ -122,6 +130,7 @@ export default function NftPaymentModal({
                       walletData={walletData}
                       customerInfo={customerInfo}
                       cartItems={cartItems}
+                      orderId={orderId}
                     />
                   ) : (
                     <TokenSelector

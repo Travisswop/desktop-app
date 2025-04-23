@@ -54,10 +54,10 @@ export interface CheckoutCardProps {
   handleInputChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
   handleCountryChange: (value: string) => void;
   handleOpenPaymentSheet: () => void;
+  handleOpenWalletPayment: () => void;
   errorMessage: string | null;
   cartItems: CartItem[];
   subtotal: number;
-  onOpen: () => void;
   hasPhygitalProducts: boolean;
 }
 
