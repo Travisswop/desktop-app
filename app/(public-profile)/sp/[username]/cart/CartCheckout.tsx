@@ -101,7 +101,9 @@ const CartCheckout: React.FC<CartCheckoutProps> = ({
 
   // NFT wallet payment modal state
   const { isOpen, onOpen, onOpenChange } = useDisclosure();
-  const [walletOrderId, setWalletOrderId] = useState<string | null>(null);
+  const [walletOrderId, setWalletOrderId] = useState<string | null>(
+    null
+  );
 
   // Parse cart items with proper error handling
   const cartItems: CartItem[] = useMemo(() => {
@@ -130,12 +132,6 @@ const CartCheckout: React.FC<CartCheckoutProps> = ({
       const quantity = item?.quantity || 0;
       return total + price * quantity;
     }, 0);
-  }, [cartItems]);
-
-  const sellerAddress = useMemo(() => {
-    return cartItems.length > 0
-      ? cartItems[0]?.nftTemplate?.ownerAddress
-      : '';
   }, [cartItems]);
 
   // Initialize payment
@@ -397,6 +393,8 @@ const CartCheckout: React.FC<CartCheckoutProps> = ({
           status: 'pending' as Status,
         };
 
+        console.log('paymentMethod', paymentMethod);
+
         const { orderId } = await createOrder(orderInfo, accessToken);
         return orderId;
       } catch (error) {
@@ -405,11 +403,19 @@ const CartCheckout: React.FC<CartCheckoutProps> = ({
         return null;
       }
     },
-    [validateFormFields, customerInfo, cartItems, subtotal, accessToken, setErrorMessage]
+    [
+      validateFormFields,
+      customerInfo,
+      cartItems,
+      subtotal,
+      accessToken,
+      setErrorMessage,
+    ]
   );
 
   // Handle wallet payment
   const handleOpenWalletPayment = useCallback(async () => {
+    console.log('hit');
     const orderId = await createOrderForPayment('wallet');
     if (orderId) {
       setWalletOrderId(orderId);
@@ -427,14 +433,12 @@ const CartCheckout: React.FC<CartCheckoutProps> = ({
       if (!clientSecret) {
         try {
           setLoading(true);
-          const { clientSecret: secret } =
-            await createPaymentIntent(Math.round(subtotal * 1000));
+          const { clientSecret: secret } = await createPaymentIntent(
+            Math.round(subtotal * 1000)
+          );
           setClientSecret(secret);
         } catch (paymentError) {
-          console.error(
-            'Error initializing payment:',
-            paymentError
-          );
+          console.error('Error initializing payment:', paymentError);
           setErrorMessage(
             'Could not initialize payment. Please try again.'
           );
@@ -477,6 +481,7 @@ const CartCheckout: React.FC<CartCheckoutProps> = ({
           handleInputChange={handleInputChange}
           handleCountryChange={handleCountryChange}
           handleOpenPaymentSheet={handleOpenPaymentSheet}
+          handleOpenWalletPayment={handleOpenWalletPayment}
           errorMessage={errorMessage}
           cartItems={cartItems}
           subtotal={subtotal}
