@@ -16,8 +16,8 @@ import Image from 'next/image';
 import { useParams, useRouter } from 'next/navigation';
 import React, { useEffect, useState } from 'react';
 import { CartItem, PaymentMethod, Status } from './components/types';
+import { Network } from '@/types/wallet-types';
 
-// Transaction stages for better UX
 const TRANSACTION_STAGES = {
   IDLE: 'idle',
   INITIATING: 'initiating',
@@ -31,7 +31,7 @@ const PaymentShipping: React.FC<{
   selectedToken: any;
   setSelectedToken: (token: any) => void;
   subtotal: number;
-  amontOfToken: number;
+  amontOfToken: string;
   walletData: any;
   customerInfo: any;
   cartItems: any;
@@ -46,12 +46,12 @@ const PaymentShipping: React.FC<{
   cartItems,
   orderId: existingOrderId,
 }) => {
-  const { user, accessToken } = useUser();
+  const { accessToken } = useUser();
   const [transactionStage, setTransactionStage] = useState(
     TRANSACTION_STAGES.IDLE
   );
   const [orderId, setOrderId] = useState('');
-  const [error, setError] = useState(null);
+  const [error, setError] = useState<string | null>(null);
   const [transactionHash, setTransactionHash] = useState('');
   const { wallets: solanaWallets } = useSolanaWallets();
   const params = useParams();
@@ -75,7 +75,9 @@ const PaymentShipping: React.FC<{
     let redirectTimer: string | number | NodeJS.Timeout | undefined;
     if (transactionStage === TRANSACTION_STAGES.COMPLETED) {
       redirectTimer = setTimeout(() => {
-        router.push(`/payment-success?orderId=${orderId}&username=${name}`);
+        router.push(
+          `/payment-success?orderId=${orderId}&username=${name}`
+        );
       }, 3000); // Give user time to see success message
     }
     return () => clearTimeout(redirectTimer);
@@ -122,6 +124,10 @@ const PaymentShipping: React.FC<{
         recipient: {
           address: 'HPmEbq6VMzE8dqRuFjLrNNxmqzjvP72jCofoFap5vBR2',
         },
+        isUSD: false,
+        nft: null,
+        network: 'SOLANA' as Network,
+        step: null,
       };
 
       // Connection setup
@@ -148,21 +154,25 @@ const PaymentShipping: React.FC<{
 
       if (orderId && hash && accessToken) {
         try {
-          const { updateOrderPayment } = await import('@/actions/orderActions');
-          
+          const { updateOrderPayment } = await import(
+            '@/actions/orderActions'
+          );
+
           await updateOrderPayment(
             orderId,
             {
-              paymentIntentId: hash,
+              transactionHash: hash,
               status: 'completed',
             },
             accessToken
           );
-          
+
           setTransactionStage(TRANSACTION_STAGES.COMPLETED);
         } catch (updateError) {
           console.error('Error updating order payment:', updateError);
-          throw new Error('Failed to update order with payment details');
+          throw new Error(
+            'Failed to update order with payment details'
+          );
         }
       } else if (hash && accessToken) {
         // Create a new order if we don't have an existing one (fallback)

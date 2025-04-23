@@ -485,7 +485,6 @@ const CartCheckout: React.FC<CartCheckoutProps> = ({
           errorMessage={errorMessage}
           cartItems={cartItems}
           subtotal={subtotal}
-          onOpen={onOpen}
           hasPhygitalProducts={hasPhygitalProducts}
         />
       ) : error ? (

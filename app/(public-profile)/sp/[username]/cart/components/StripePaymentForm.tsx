@@ -20,6 +20,7 @@ const StripePaymentForm: React.FC<StripePaymentFormProps> = ({
   clientSecret,
   accessToken,
   orderId,
+  cartItems,
 }) => {
   const stripe = useStripe();
   const elements = useElements();
@@ -127,7 +128,7 @@ const StripePaymentForm: React.FC<StripePaymentFormProps> = ({
 
     try {
       // Confirm the payment with Stripe
-      const { error, paymentIntent } = await stripe.confirmPayment({
+      const { error, paymentIntent } = (await stripe.confirmPayment({
         elements,
         confirmParams: {
           return_url: `${window.location.origin}/payment-success?orderId=${orderId}&username=${username}`,
@@ -148,7 +149,10 @@ const StripePaymentForm: React.FC<StripePaymentFormProps> = ({
           },
         },
         redirect: 'if_required',
-      });
+      })) as {
+        error: any;
+        paymentIntent: { id: string; status: string };
+      };
 
       if (error) {
         // Update payment status as failed
@@ -231,9 +235,13 @@ const StripePaymentForm: React.FC<StripePaymentFormProps> = ({
 
         {/* Order Confirmation */}
         <div className="bg-gray-50 p-3 rounded-md">
-          <p className="text-sm font-medium mb-2">Order Confirmation</p>
+          <p className="text-sm font-medium mb-2">
+            Order Confirmation
+          </p>
           <p className="text-xs text-gray-600 mb-1">
-            You are about to complete your purchase of {cartItems?.length || 0} item(s) for a total of ${subtotal.toFixed(2)}.
+            You are about to complete your purchase of{' '}
+            {cartItems?.length || 0} item(s) for a total of $
+            {subtotal.toFixed(2)}.
           </p>
           <p className="text-xs text-gray-600">
             This charge will appear on your statement as SWOP.

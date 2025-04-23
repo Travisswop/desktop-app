@@ -6,7 +6,7 @@ export interface WalletItem {
 
 export interface ReceiverData {
   address: string;
-  isEns: boolean;
+  isEns?: boolean;
   ensName?: string;
   avatar?: string;
 }
