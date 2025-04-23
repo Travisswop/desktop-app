@@ -35,6 +35,7 @@ const PaymentShipping: React.FC<{
   walletData: any;
   customerInfo: any;
   cartItems: any;
+  orderId?: string | null;
 }> = ({
   selectedToken,
   setSelectedToken,
@@ -43,6 +44,7 @@ const PaymentShipping: React.FC<{
   walletData,
   customerInfo,
   cartItems,
+  orderId: existingOrderId,
 }) => {
   const { user, accessToken } = useUser();
   const [transactionStage, setTransactionStage] = useState(
@@ -64,14 +66,20 @@ const PaymentShipping: React.FC<{
 
   // Auto-redirect after successful transaction
   useEffect(() => {
+    if (existingOrderId) {
+      setOrderId(existingOrderId);
+    }
+  }, [existingOrderId]);
+
+  useEffect(() => {
     let redirectTimer: string | number | NodeJS.Timeout | undefined;
     if (transactionStage === TRANSACTION_STAGES.COMPLETED) {
       redirectTimer = setTimeout(() => {
-        router.push(`/order`);
+        router.push(`/payment-success?orderId=${orderId}&username=${name}`);
       }, 3000); // Give user time to see success message
     }
     return () => clearTimeout(redirectTimer);
-  }, [transactionStage, router, name]);
+  }, [transactionStage, router, name, orderId]);
 
   const getStageMessage = () => {
     switch (transactionStage) {
@@ -136,25 +144,43 @@ const PaymentShipping: React.FC<{
       // Wait for confirmation
       await connection.confirmTransaction(hash);
 
-      // Create order record
       setTransactionStage(TRANSACTION_STAGES.CREATING_ORDER);
 
-      const orderInfo = {
-        customerInfo,
-        txHash: hash,
-        items: cartItems.map((item: CartItem) => ({
-          itemId: item._id,
-          quantity: item.quantity,
-          price: item.nftTemplate.price,
-          name: item.nftTemplate.name,
-          nftType: item.nftTemplate.nftType || 'collectible',
-        })),
-        subtotal,
-        paymentMethod: 'wallet' as PaymentMethod,
-        status: 'pending' as Status,
-      };
+      if (orderId && hash && accessToken) {
+        try {
+          const { updateOrderPayment } = await import('@/actions/orderActions');
+          
+          await updateOrderPayment(
+            orderId,
+            {
+              paymentIntentId: hash,
+              status: 'completed',
+            },
+            accessToken
+          );
+          
+          setTransactionStage(TRANSACTION_STAGES.COMPLETED);
+        } catch (updateError) {
+          console.error('Error updating order payment:', updateError);
+          throw new Error('Failed to update order with payment details');
+        }
+      } else if (hash && accessToken) {
+        // Create a new order if we don't have an existing one (fallback)
+        const orderInfo = {
+          customerInfo,
+          txHash: hash,
+          items: cartItems.map((item: CartItem) => ({
+            itemId: item._id,
+            quantity: item.quantity,
+            price: item.nftTemplate.price,
+            name: item.nftTemplate.name,
+            nftType: item.nftTemplate.nftType || 'collectible',
+          })),
+          subtotal,
+          paymentMethod: 'wallet' as PaymentMethod,
+          status: 'completed' as Status,
+        };
 
-      if (hash && accessToken) {
         const { data } = await createOrder(orderInfo, accessToken);
         setOrderId(data.data.orderId);
         setTransactionStage(TRANSACTION_STAGES.COMPLETED);
