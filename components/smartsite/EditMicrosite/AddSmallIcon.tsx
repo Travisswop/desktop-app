@@ -32,14 +32,14 @@ const AddSmallIcon = ({ handleRemoveIcon }: any) => {
 
   useEffect(() => {
     const getAccessToken = async () => {
-      const token = Cookies.get('access-token');
-      setToken(token || "")
+      const token = Cookies.get("access-token");
+      setToken(token || "");
     };
     getAccessToken();
   }, []);
 
   console.log("add small token", token);
-  
+
   const [selectedIconType, setSelectedIconType] =
     useState<SelectedIconType>("Social Media");
   const [selectedIcon, setSelectedIcon] = useState({
@@ -137,9 +137,9 @@ const AddSmallIcon = ({ handleRemoveIcon }: any) => {
   // console.log("sesstionState", sesstionState);
 
   const iconMap: IconMap = {
-    "Social Media": icon.appIconX,
-    "Chat Links": icon.ChatlinkType,
-    Commands: icon.CommandType,
+    "Social Media": icon.customLink,
+    "Chat Links": icon.CommandType,
+    Commands: icon.ChatlinkType,
   };
 
   return (
@@ -225,13 +225,19 @@ const AddSmallIcon = ({ handleRemoveIcon }: any) => {
               >
                 <span className="flex items-center gap-2">
                   {selectedIconType && (
-                    <Image
-                      alt="app-icon"
-                      src={iconMap[selectedIconType]}
-                      // style={tintStyle}
-                      className="w-5 h-auto"
-                      quality={100}
-                    />
+                    <div className="w-5 h-5 rounded-full">
+                      <Image
+                        alt="app-icon"
+                        src={iconMap[selectedIconType]}
+                        className={`w-full h-full ${
+                          selectedIconType === "Social Media" && "rounded-full"
+                        } `}
+                        width={260}
+                        height={260}
+                        priority
+                        quality={100}
+                      />
+                    </div>
                   )}
                   {selectedIconType}
                 </span>{" "}
@@ -260,7 +266,9 @@ const AddSmallIcon = ({ handleRemoveIcon }: any) => {
                     <Image
                       src={data.categoryIcon}
                       alt={data.category}
-                      className="w-5 h-auto"
+                      className={`w-5 h-5 ${
+                        data.category === "Social Media" && "rounded-full"
+                      }`}
                     />{" "}
                     {data.category}
                   </div>

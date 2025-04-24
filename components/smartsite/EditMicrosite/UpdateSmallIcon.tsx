@@ -213,9 +213,9 @@ const UpdateSmallIcon = ({ iconDataObj, isOn, setOff }: any) => {
   };
 
   const iconMap: IconMap = {
-    "Social Media": icon.appIconX,
-    "Chat Links": icon.ChatlinkType,
-    Commands: icon.CommandType,
+    "Social Media": icon.customLink,
+    "Chat Links": icon.CommandType,
+    Commands: icon.ChatlinkType,
   };
 
   return (
@@ -314,7 +314,10 @@ const UpdateSmallIcon = ({ iconDataObj, isOn, setOff }: any) => {
                               <Image
                                 alt="app-icon"
                                 src={iconMap[selectedIconType]}
-                                className="w-5 h-auto"
+                                className={`w-5 h-5 ${
+                                  selectedIconType === "Social Media" &&
+                                  "rounded-full"
+                                }`}
                               />
                             )}
                             {selectedIconType}
@@ -346,7 +349,10 @@ const UpdateSmallIcon = ({ iconDataObj, isOn, setOff }: any) => {
                                 <Image
                                   src={data.categoryIcon}
                                   alt={data.category}
-                                  className="w-5 h-auto"
+                                  className={`w-5 h-5 ${
+                                    data.category === "Social Media" &&
+                                    "rounded-full"
+                                  } `}
                                 />{" "}
                                 {data.category}
                               </div>

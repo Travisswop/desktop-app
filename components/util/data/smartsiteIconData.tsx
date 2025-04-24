@@ -28,6 +28,7 @@ import smallIconWeb from "@/public/images/NewIconShop/smallIconWeb@3x.png";
 import smallIconChat from "@/public/images/NewIconShop/smallIconChat@3x.png";
 import appIconTwitter from "@/public/images/IconShop/x@3x.png";
 import appIconX from "@/public/images/IconShop/x@3x.png";
+import customLink from "@/public/images/IconShop/Custom_link1.png";
 import appIconLinkedIn from "@/public/images/IconShop/LinkedIn@3x.png";
 import appIconYoutube from "@/public/images/IconShop/Youtube@3x.png";
 import appIconDomus from "@/public/images/IconShop/Damus@3x.png";
@@ -168,6 +169,7 @@ export const icon = {
   //import all app icon from previous iconshop folder
   appIconTwitter,
   appIconX,
+  customLink,
   appIconLinkedIn,
   appIconYoutube,
   appIconDomus,
@@ -307,7 +309,7 @@ export const newIcons = [
     icons: [
       {
         category: "Social Media",
-        categoryIcon: icon.appIconX,
+        categoryIcon: icon.customLink,
         icons: [
           {
             id: 1000,
@@ -401,7 +403,7 @@ export const newIcons = [
       },
       {
         category: "Chat Links",
-        categoryIcon: icon.ChatlinkType,
+        categoryIcon: icon.CommandType,
         icons: [
           {
             id: 1100,
@@ -439,7 +441,7 @@ export const newIcons = [
       },
       {
         category: "Commands",
-        categoryIcon: icon.CommandType,
+        categoryIcon: icon.ChatlinkType,
         icons: [
           {
             id: 1200,
@@ -1073,7 +1075,7 @@ export const newIcons = [
       },
       {
         category: "Call To Action",
-        categoryIcon: icon.CommandType,
+        categoryIcon: icon.ChatlinkType,
         icons: [
           {
             id: 1900,

@@ -13,7 +13,7 @@ import { LiaFileMedicalSolid } from "react-icons/lia";
 // import { embedItems, icon } from "@/util/data/smartsiteIconData";
 // import useLoggedInUserStore from "@/zustandStore/SetLogedInUserSession";
 // import { toast } from "react-toastify";
-import { FaTimes } from "react-icons/fa";
+import { FaAngleDown, FaTimes } from "react-icons/fa";
 import { MdDelete, MdInfoOutline } from "react-icons/md";
 // import AnimateButton from "@/components/Button/AnimateButton";
 import { deleteEmbedLink, updateEmbedLink } from "@/actions/embedLink";
@@ -22,15 +22,15 @@ import AnimateButton from "@/components/ui/Button/AnimateButton";
 import { TikTokEmbed, XEmbed, YouTubeEmbed } from "react-social-media-embed";
 import placeholder from "@/public/images/video_player_placeholder.gif";
 import toast from "react-hot-toast";
-import Cookies from "js-cookie"
+import Cookies from "js-cookie";
 
 const UpdateEmbed = ({ iconDataObj, isOn, setOff }: any) => {
   const [token, setToken] = useState("");
 
   useEffect(() => {
     const getAccessToken = async () => {
-      const token = Cookies.get('access-token');
-      setToken(token || "")
+      const token = Cookies.get("access-token");
+      setToken(token || "");
     };
     getAccessToken();
   }, []);
@@ -234,29 +234,33 @@ const UpdateEmbed = ({ iconDataObj, isOn, setOff }: any) => {
                     Select Embed Type
                   </h3>
 
-                  {selectedIcon && (
-                    <Image
-                      alt="app-icon"
-                      src={selectedIcon?.categoryIcon}
-                      className="w-4 h-auto"
-                      quality={100}
-                    />
-                  )}
-
                   <Dropdown
                     className="w-max rounded-lg"
                     placement="bottom-start"
                   >
                     <DropdownTrigger>
-                      <div className={`flex items-center`}>
-                        <button>
-                          <AiOutlineDownCircle size={20} color="gray" />
-                        </button>
-                        {/* {isEmptyObject(selectedIconData) && ( */}
-                        <div className="hidden text-xs text-gray-600 px-2 w-28 py-1.5 bg-slate-200 shadow-medium z-50 absolute left-6 top-0 group-hover:flex justify-center">
-                          <p>Embed Type</p>
-                        </div>
-                      </div>
+                      <button
+                        type="button"
+                        className="bg-white w-48 2xl:w-64 flex justify-between items-center rounded px-2 py-2 text-sm font-medium shadow-small"
+                      >
+                        <span className="flex items-center gap-2">
+                          {selectedIcon && (
+                            <div className="w-5 h-5 rounded-full">
+                              <Image
+                                alt="app-icon"
+                                src={selectedIcon?.categoryIcon}
+                                className={`w-full h-full`}
+                                width={260}
+                                height={260}
+                                priority
+                                quality={100}
+                              />
+                            </div>
+                          )}
+                          {selectedIcon?.category}
+                        </span>{" "}
+                        <FaAngleDown />
+                      </button>
                     </DropdownTrigger>
                     <DropdownMenu
                       disabledKeys={["title"]}
@@ -267,11 +271,12 @@ const UpdateEmbed = ({ iconDataObj, isOn, setOff }: any) => {
                         key={"title"}
                         className=" hover:!bg-white opacity-100 cursor-text disabled dropDownTitle"
                       >
-                        <p>Choose Embed Type</p>
+                        <p>Choose Icon Type</p>
                       </DropdownItem>
-                      {getEmbedItems.map((data: any) => (
+                      {getEmbedItems.map((data: any, index: number) => (
                         <DropdownItem
-                          key={data.category}
+                          // onFocus={false}
+                          key={index}
                           onClick={() =>
                             setSelectedIcon({
                               category: data.category,
@@ -287,9 +292,11 @@ const UpdateEmbed = ({ iconDataObj, isOn, setOff }: any) => {
                             <Image
                               src={data.categoryIcon}
                               alt={data.category}
-                              className="w-4 h-auto"
-                              quality={100}
-                            />
+                              className={`w-5 h-5 ${
+                                data.category === "Social Media" &&
+                                "rounded-full"
+                              }`}
+                            />{" "}
                             {data.category}
                           </div>
                         </DropdownItem>

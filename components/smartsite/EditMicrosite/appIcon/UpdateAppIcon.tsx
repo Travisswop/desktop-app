@@ -286,8 +286,8 @@ const UpdateAppIcon = ({ iconDataObj, isOn, setOff }: any) => {
                     size="sm"
                     content={
                       <span className="font-medium">
-                        Select the icon ype and icon you want to use then upload
-                        the account information.
+                        Select the icon type and icon you want to use then
+                        upload the account information.
                       </span>
                     }
                     className={`max-w-40 h-auto`}
@@ -387,7 +387,9 @@ const UpdateAppIcon = ({ iconDataObj, isOn, setOff }: any) => {
                               <Image
                                 alt="app-icon"
                                 src={iconMap[selectedIconType]}
-                                className="w-5 h-auto"
+                                className={`w-5 h-5 ${
+                                  selectedIconType === "Link" && "rounded-full"
+                                }`}
                               />
                             )}
                             {selectedIconType}
@@ -416,7 +418,9 @@ const UpdateAppIcon = ({ iconDataObj, isOn, setOff }: any) => {
                               <Image
                                 src={data.categoryIcon}
                                 alt={data.category}
-                                className="w-5 h-auto"
+                                className={`w-5 h-5 ${
+                                  data.category === "Link" && "rounded-full"
+                                }`}
                               />{" "}
                               {data.category}
                             </div>

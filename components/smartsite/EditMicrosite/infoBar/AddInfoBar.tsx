@@ -25,7 +25,7 @@ import AnimateButton from "@/components/ui/Button/AnimateButton";
 import { MdInfoOutline } from "react-icons/md";
 import { InfoBarIconMap, InfoBarSelectedIconType } from "@/types/smallIcon";
 import contactCardImg from "@/public/images/IconShop/appIconContactCard.png";
-import productImg from "@/public/images/product.png";
+import productImg from "@/public/images/smartsite_icon/embeed.png";
 import toast from "react-hot-toast";
 import Cookies from "js-cookie";
 import customImg from "@/public/images/IconShop/Upload@3x.png";
@@ -61,6 +61,7 @@ const AddInfoBar = ({ handleRemoveIcon, handleToggleIcon }: any) => {
   const [description, setDescription] = useState("");
   const [imageFile, setImageFile] = useState<any>(null);
   const [fileError, setFileError] = useState<string>("");
+  const [customImgSelectError, setCustomImgSelectError] = useState<string>("");
   // console.log("selected icon name", selectedIcon);
   // console.log("selected icon data", selectedIconData);
   // console.log("selected icon", selectedIcon);
@@ -150,7 +151,9 @@ const AddInfoBar = ({ handleRemoveIcon, handleToggleIcon }: any) => {
       const imgUrl = await sendCloudinaryImage(imageFile);
       customInfobarInfo.iconName = imgUrl;
     } else if (selectedIconType === "Upload Custom Image" && !imageFile) {
-      return toast.error("Select custom image");
+      setIsLoading(false);
+      return setCustomImgSelectError("Choose custom image");
+      //  toast.error("Choose custom image");
     }
     console.log("customInfobarInfo", customInfobarInfo);
     try {
@@ -233,42 +236,41 @@ const AddInfoBar = ({ handleRemoveIcon, handleToggleIcon }: any) => {
         <div className="w-full rounded-xl bg-gray-200 p-3">
           <div className="bg-white rounded-xl w-full flex items-center gap-2 py-1 px-3">
             {selectedIconType === "Upload Custom Image" && !imageFile ? (
-              <Image
-                className="w-12 rounded-full"
-                src="/images/smartsite_icon/photo.png"
-                width={120}
-                height={90}
-                alt="icon"
-              />
+              <div className="relative w-12 h-12">
+                <Image
+                  className="rounded-full"
+                  src="/images/smartsite_icon/photo.png"
+                  fill
+                  alt="icon"
+                />
+              </div>
             ) : selectedIconType === "Upload Custom Image" && imageFile ? (
-              <Image
-                className="w-12 rounded-full"
-                width={120}
-                height={90}
-                src={imageFile}
-                alt="icon"
-              />
+              <div className="relative w-12 h-12">
+                <Image
+                  className="rounded-full"
+                  src={imageFile}
+                  fill
+                  alt="icon"
+                />
+              </div>
             ) : (
-              <Image
-                className="w-12 rounded-full"
-                src={selectedIcon.icon}
-                width={120}
-                height={90}
-                alt="icon"
-              />
+              <div className="relative w-12 h-12">
+                <Image
+                  className="rounded-full"
+                  src={selectedIcon.icon}
+                  fill
+                  alt="icon"
+                />
+              </div>
             )}
 
             <div>
               <p className="text-gray-700 font-medium">
                 {selectedIconType === "Upload Custom Image"
-                  ? "Custom Name"
+                  ? buttonName
                   : selectedIcon.name}
               </p>
-              <p className="text-gray-500 text-sm font-medium">
-                {selectedIconType === "Upload Custom Image"
-                  ? "Custom description"
-                  : description}
-              </p>
+              <p className="text-gray-500 text-sm font-medium">{description}</p>
             </div>
           </div>
         </div>
@@ -288,7 +290,9 @@ const AddInfoBar = ({ handleRemoveIcon, handleToggleIcon }: any) => {
                       <Image
                         alt="app-icon"
                         src={iconMap[selectedIconType]}
-                        className="w-5 h-auto"
+                        className={`w-5 h-5 ${
+                          selectedIconType === "Link" && "rounded-full"
+                        }`}
                       />
                     )}
                     {selectedIconType}
@@ -317,7 +321,9 @@ const AddInfoBar = ({ handleRemoveIcon, handleToggleIcon }: any) => {
                       <Image
                         src={data.categoryIcon}
                         alt={data.category}
-                        className="w-5 h-auto"
+                        className={`w-5 h-5 ${
+                          data.category === "Link" && "rounded-full"
+                        }`}
                       />{" "}
                       {data.category}
                     </div>
@@ -372,7 +378,12 @@ const AddInfoBar = ({ handleRemoveIcon, handleToggleIcon }: any) => {
           <h3 className="font-semibold text-gray-700 w-28">Select Icon</h3>
 
           {selectedIconType === "Upload Custom Image" ? (
-            <CustomFileInput handleFileChange={handleFileChange} />
+            <div className="flex items-center gap-1">
+              <CustomFileInput handleFileChange={handleFileChange} />{" "}
+              {customImgSelectError && !imageFile && (
+                <p className="text-xs text-red-600">*{customImgSelectError}</p>
+              )}
+            </div>
           ) : (
             <Dropdown className="w-max rounded-lg" placement="bottom-start">
               <DropdownTrigger>

@@ -19,7 +19,7 @@ import { MdInfoOutline } from "react-icons/md";
 import { AppIconMap, AppSelectedIconType } from "@/types/smallIcon";
 import toast from "react-hot-toast";
 import { useUser } from "@/lib/UserContext";
-import customImg from "@/public/images/IconShop/Upload@3x.png"
+import customImg from "@/public/images/IconShop/Upload@3x.png";
 import CustomFileInput from "@/components/CustomFileInput";
 import { sendCloudinaryImage } from "@/lib/SendCloudineryImage";
 
@@ -38,7 +38,7 @@ const AddAppIcon = ({ handleRemoveIcon }: any) => {
   const [selectedIconData, setSelectedIconData] = useState<any>({});
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [imageFile, setImageFile] = useState<any>(null);
-    const [fileError, setFileError] = useState<string>("");
+  const [fileError, setFileError] = useState<string>("");
   // console.log("selected icon data", selectedIconData);
   console.log("selected icon", selectedIcon);
   console.log("selected icon selectedIconType", selectedIconType);
@@ -49,7 +49,7 @@ const AddAppIcon = ({ handleRemoveIcon }: any) => {
   useEffect(() => {
     if (selectedIconType) {
       const data = iconData.icons.find(
-        (item: any) => item.category === selectedIconType,
+        (item: any) => item.category === selectedIconType
       );
       setSelectedIconData(data);
     }
@@ -88,7 +88,7 @@ const AddAppIcon = ({ handleRemoveIcon }: any) => {
       iconName: selectedIcon.name,
       iconPath: "",
       group: selectedIconData?.category,
-    }; 
+    };
     const customIconInfo = {
       micrositeId: state.data._id,
       name: formData.get("customName") || "Custom name",
@@ -97,19 +97,22 @@ const AddAppIcon = ({ handleRemoveIcon }: any) => {
       iconName: selectedIcon.name,
       iconPath: "",
       group: "custom",
-    }
-    if (selectedIconType === 'Custom Image' && imageFile) {
+    };
+    if (selectedIconType === "Custom Image" && imageFile) {
       const imgUrl = await sendCloudinaryImage(imageFile);
       customIconInfo.iconName = imgUrl;
-    } else if (selectedIconType === 'Custom Image' && !imageFile) {
-      return toast.error("Select custom image")
+    } else if (selectedIconType === "Custom Image" && !imageFile) {
+      return toast.error("Select custom image");
     }
-   
+
     console.log("appIconInfo", customIconInfo);
     try {
-      const data = await postAppIcon(selectedIconType === "Custom Image" ? customIconInfo : appIconInfo, accessToken);
+      const data = await postAppIcon(
+        selectedIconType === "Custom Image" ? customIconInfo : appIconInfo,
+        accessToken
+      );
       console.log("data", data);
-      
+
       if ((data.state = "success")) {
         toast.success("App icon created successfully");
         handleRemoveIcon("App Icon");
@@ -177,8 +180,16 @@ const AddAppIcon = ({ handleRemoveIcon }: any) => {
       >
         <FaTimes size={18} />
       </button>
-      <div className={`flex justify-center bg-[#F2F2F2] rounded-xl ${selectedIconType !== 'Custom Image' && !imageFile ? 'py-5 px-20' : 'px-[60px] py-4'}  w-max mx-auto`}>
-        {selectedIcon && selectedIcon?.icon && selectedIconType !== "Custom Image" ? (
+      <div
+        className={`flex justify-center bg-[#F2F2F2] rounded-xl ${
+          selectedIconType !== "Custom Image" && !imageFile
+            ? "py-5 px-20"
+            : "px-[60px] py-4"
+        }  w-max mx-auto`}
+      >
+        {selectedIcon &&
+        selectedIcon?.icon &&
+        selectedIconType !== "Custom Image" ? (
           <Image
             alt="app-icon"
             src={selectedIcon?.icon}
@@ -207,20 +218,22 @@ const AddAppIcon = ({ handleRemoveIcon }: any) => {
             {selectedIconType === "Custom Image" && !imageFile ? (
               <Image
                 alt="custom-image"
-                src='/images/smartsite_icon/photo.png'
+                src="/images/smartsite_icon/photo.png"
                 width={220}
                 height={180}
                 className="w-24 h-auto"
                 quality={100}
               />
-            ) : <Image
-                  alt="custom-image"
-                  src={imageFile}
-                  width={220}
-                  height={180}
-                  className="w-14 h-auto"
-                  quality={100}
-                />}
+            ) : (
+              <Image
+                alt="custom-image"
+                src={imageFile}
+                width={220}
+                height={180}
+                className="w-14 h-auto"
+                quality={100}
+              />
+            )}
           </>
         )}
       </div>
@@ -235,10 +248,17 @@ const AddAppIcon = ({ handleRemoveIcon }: any) => {
               >
                 <span className="flex items-center gap-2">
                   {selectedIconType && (
+                    // <Image
+                    //   alt="app-icon"
+                    //   src={iconMap[selectedIconType]}
+                    //   className={"w-5 h-5"}
+                    // />
                     <Image
                       alt="app-icon"
                       src={iconMap[selectedIconType]}
-                      className="w-5 h-auto"
+                      className={`w-5 h-5 ${
+                        selectedIconType === "Link" && "rounded-full"
+                      }`}
                     />
                   )}
                   {selectedIconType}
@@ -267,133 +287,136 @@ const AddAppIcon = ({ handleRemoveIcon }: any) => {
                     <Image
                       src={data.categoryIcon}
                       alt={data.category}
-                      className="w-5 h-auto"
+                      className={`w-5 h-5 ${
+                        data.category === "Link" && "rounded-full"
+                      }`}
                     />{" "}
                     {data.category}
                   </div>
                 </DropdownItem>
               ))}
               <DropdownItem
-                  onClick={() => handleSelectIconType("Custom Image")}
-                  className="border-b rounded-none hover:rounded-md"
-                >
-                  <div className="flex items-center gap-2 font-semibold text-sm">
-                    <Image
-                      src={'/images/IconShop/Upload@3x.png'}
-                      alt={"custom image"}
-                      width={120}
-                      height={120}
-                      className="w-5 h-auto"
-                    />{" "}
-                    Upload Custom Image
-                  </div>
-                </DropdownItem>
+                onClick={() => handleSelectIconType("Custom Image")}
+                className="border-b rounded-none hover:rounded-md"
+              >
+                <div className="flex items-center gap-2 font-semibold text-sm">
+                  <Image
+                    src={"/images/IconShop/Upload@3x.png"}
+                    alt={"custom image"}
+                    width={120}
+                    height={120}
+                    className="w-5 h-auto"
+                  />{" "}
+                  Upload Custom Image
+                </div>
+              </DropdownItem>
             </DropdownMenu>
           </Dropdown>
         </div>
         <div className="flex items-center gap-2">
           <h3 className="font-semibold w-32">Select Icon</h3>
 
-          {
-            selectedIconType === 'Custom Image' ? <CustomFileInput handleFileChange={handleFileChange} /> : <Dropdown className="w-max rounded-lg" placement="bottom-start">
-            <DropdownTrigger>
-              <div
-                className={`flex items-center ${
-                  isEmptyObject(selectedIconData) && "relative group"
-                }`}
-              >
-                <button
-                  type="button"
-                  disabled={isEmptyObject(selectedIconData)}
-                  className={`bg-white w-48 2xl:w-64 flex justify-between items-center rounded px-2 py-2 text-sm font-medium shadow-small ${
-                    isEmptyObject(selectedIconData) && "cursor-not-allowed"
-                  } `}
+          {selectedIconType === "Custom Image" ? (
+            <CustomFileInput handleFileChange={handleFileChange} />
+          ) : (
+            <Dropdown className="w-max rounded-lg" placement="bottom-start">
+              <DropdownTrigger>
+                <div
+                  className={`flex items-center ${
+                    isEmptyObject(selectedIconData) && "relative group"
+                  }`}
                 >
-                  <span className="flex items-center gap-2">
-                    <Image
-                      src={selectedIcon.icon}
-                      alt={selectedIcon.inputText}
-                      className="w-4 h-auto"
-                      quality={100}
-                      // style={tintStyle}
-                    />
-                    {selectedIcon.name}
-                  </span>{" "}
-                  <FaAngleDown />
-                </button>
-                {isEmptyObject(selectedIconData) && (
-                  <div className="hidden text-xs text-gray-600 px-2 w-28 py-1.5 bg-slate-200 shadow-medium z-50 absolute left-6 top-0 group-hover:flex justify-center">
-                    <p>select icon type</p>
-                  </div>
-                )}
-              </div>
-            </DropdownTrigger>
-            {selectedIconData && selectedIconData?.icons?.length > 0 && (
-              <DropdownMenu
-                disabledKeys={["title"]}
-                aria-label="Static Actions"
-                className="p-2 overflow-y-auto max-h-[30rem]"
-              >
-                <DropdownItem
-                  key={"title"}
-                  className=" hover:!bg-white opacity-100 cursor-text disabled dropDownTitle"
-                >
-                  <p>Choose Icon</p>
-                </DropdownItem>
-
-                {selectedIconData?.icons?.map((data: any, index: number) => (
-                  <DropdownItem
-                    key={index}
-                    onClick={() =>
-                      setSelectedIcon({
-                        name: data.name,
-                        icon: data.icon,
-                        placeHolder: data.placeHolder,
-                        inputText: data.inputText,
-                        url: data.url,
-                      })
-                    }
-                    className="border-b rounded-none hover:rounded-md"
+                  <button
+                    type="button"
+                    disabled={isEmptyObject(selectedIconData)}
+                    className={`bg-white w-48 2xl:w-64 flex justify-between items-center rounded px-2 py-2 text-sm font-medium shadow-small ${
+                      isEmptyObject(selectedIconData) && "cursor-not-allowed"
+                    } `}
                   >
-                    <div className="flex items-center gap-2 font-semibold text-sm">
+                    <span className="flex items-center gap-2">
                       <Image
-                        src={data.icon}
-                        alt={data.inputText}
+                        src={selectedIcon.icon}
+                        alt={selectedIcon.inputText}
                         className="w-4 h-auto"
                         quality={100}
-                        //   style={tintStyle}
+                        // style={tintStyle}
                       />
-                      {data.name}
+                      {selectedIcon.name}
+                    </span>{" "}
+                    <FaAngleDown />
+                  </button>
+                  {isEmptyObject(selectedIconData) && (
+                    <div className="hidden text-xs text-gray-600 px-2 w-28 py-1.5 bg-slate-200 shadow-medium z-50 absolute left-6 top-0 group-hover:flex justify-center">
+                      <p>select icon type</p>
                     </div>
+                  )}
+                </div>
+              </DropdownTrigger>
+              {selectedIconData && selectedIconData?.icons?.length > 0 && (
+                <DropdownMenu
+                  disabledKeys={["title"]}
+                  aria-label="Static Actions"
+                  className="p-2 overflow-y-auto max-h-[30rem]"
+                >
+                  <DropdownItem
+                    key={"title"}
+                    className=" hover:!bg-white opacity-100 cursor-text disabled dropDownTitle"
+                  >
+                    <p>Choose Icon</p>
                   </DropdownItem>
-                ))}
-              </DropdownMenu>
-            )}
-          </Dropdown>
-          }
 
-          
+                  {selectedIconData?.icons?.map((data: any, index: number) => (
+                    <DropdownItem
+                      key={index}
+                      onClick={() =>
+                        setSelectedIcon({
+                          name: data.name,
+                          icon: data.icon,
+                          placeHolder: data.placeHolder,
+                          inputText: data.inputText,
+                          url: data.url,
+                        })
+                      }
+                      className="border-b rounded-none hover:rounded-md"
+                    >
+                      <div className="flex items-center gap-2 font-semibold text-sm">
+                        <Image
+                          src={data.icon}
+                          alt={data.inputText}
+                          className="w-4 h-auto"
+                          quality={100}
+                          //   style={tintStyle}
+                        />
+                        {data.name}
+                      </div>
+                    </DropdownItem>
+                  ))}
+                </DropdownMenu>
+              )}
+            </Dropdown>
+          )}
         </div>
         <div>
           <form onSubmit={handleAppIconFormSubmit}>
-           {
-            selectedIconType === "Custom Image" &&  <div>
-              <p className="font-semibold text-gray-700 mb-1">
-                Name :
-              </p>
-              <input
-                type="text"
-                name="customName"
-                className="w-full border border-[#ede8e8] focus:border-[#e5e0e0] rounded-xl focus:outline-none pl-4 py-2 text-gray-700 bg-gray-100"
-                placeholder={"Enter name"}
-                defaultValue={"Custom Name"}
-                required
-              />
-            </div>
-           }
-           <p className="font-semibold text-gray-700 mb-1">
-            {selectedIconType === 'Custom Image' ? 'Link' : selectedIcon.inputText} :
-          </p>
+            {selectedIconType === "Custom Image" && (
+              <div>
+                <p className="font-semibold text-gray-700 mb-1">Name :</p>
+                <input
+                  type="text"
+                  name="customName"
+                  className="w-full border border-[#ede8e8] focus:border-[#e5e0e0] rounded-xl focus:outline-none pl-4 py-2 text-gray-700 bg-gray-100"
+                  placeholder={"Enter name"}
+                  defaultValue={"Custom Name"}
+                  required
+                />
+              </div>
+            )}
+            <p className="font-semibold text-gray-700 mb-1">
+              {selectedIconType === "Custom Image"
+                ? "Link"
+                : selectedIcon.inputText}{" "}
+              :
+            </p>
             <div className="relative">
               <IoLinkOutline
                 className="absolute left-4 top-1/2 -translate-y-[50%] font-bold text-gray-600"
@@ -403,7 +426,11 @@ const AddAppIcon = ({ handleRemoveIcon }: any) => {
                 type="text"
                 name="url"
                 className="w-full border border-[#ede8e8] focus:border-[#e5e0e0] rounded-xl focus:outline-none pl-11 py-2 text-gray-700 bg-gray-100"
-                placeholder={selectedIconType === 'Custom Image' ? 'Enter Link' : selectedIcon.placeHolder}
+                placeholder={
+                  selectedIconType === "Custom Image"
+                    ? "Enter Link"
+                    : selectedIcon.placeHolder
+                }
                 required
               />
             </div>

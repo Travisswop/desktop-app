@@ -1,112 +1,22 @@
 "use client";
 import React from "react";
-// import Slider from "react-slick";
-// import "slick-carousel/slick/slick.css";
-// import "slick-carousel/slick/slick-theme.css";
 import Image from "next/image";
-import { MdInfoOutline, MdOutlineAddBox } from "react-icons/md";
-// import twitter from "@/public/images/websites/edit-microsite/twitter.svg";
-// import youtube from "@/public/images/websites/edit-microsite/youtube.svg";
-// import linkedin from "@/public/images/websites/edit-microsite/linkedin.svg";
-// import swopPay from "@/public/images/websites/edit-microsite/swop-pay.svg";
-// import contactCard from "@/public/images/websites/edit-microsite/contact-card.svg";
-// import x from "@/public/images/IconShop/x@3x.png";
-// import mp4 from "@/public/images/websites/edit-microsite/mp4.svg";
-// import photosVideos from "@/public/images/websites/edit-microsite/photos-videos.svg";
-// import redeemLink from "@/public/images/websites/edit-microsite/redeem-link.svg";
-// import appIcon from "@/public/images/websites/edit-microsite/updated/app-icon.svg"
+import { MdInfoOutline } from "react-icons/md";
 import smallIcon from "@/public/images/social-icon/small-icon.png";
 import appIcon from "@/public/images/smartsite_icon/app-icon.png";
 import embedIcon from "@/public/images/smartsite_icon/embeed.png";
 import blogIcon from "@/public/images/smartsite_icon/blog.png";
 import redeemIcon from "@/public/images/smartsite_icon/redeem-link.png";
 import marketPlaceIcon from "@/public/images/smartsite_icon/marketplace.png";
-// import photoIcon from "@/public/images/smartsite_icon/photo.png";
 import mp3Icon from "@/public/images/smartsite_icon/audio.png";
 import videoIcon from "@/public/images/smartsite_icon/video.png";
-// import blog from "@/public/images/websites/edit-microsite/updated/blog.svg";
-// import contact from "@/public/images/websites/edit-microsite/updated/contact-card.svg";
 import infobarIcon from "@/public/images/smartsite_icon/info-bar.png";
-// import embedIcon from "@/public/images/websites/edit-microsite/updated/embed-icon.svg";
-// import infoBar from "@/public/images/websites/edit-microsite/updated/info-bar.svg";
-// import referral from "@/public/images/websites/edit-microsite/updated/referral.svg";
-// import message from "@/public/images/websites/edit-microsite/updated/message.svg";
-// import feed from "@/public/images/feed.png";
-import { FaRegSquareMinus } from "react-icons/fa6";
 import { Tooltip } from "@nextui-org/react";
 import plus from "@/public/images/custom-icons/plus.png";
 import minus from "@/public/images/custom-icons/minus.png";
-import { FiMinusCircle } from "react-icons/fi";
-
-function SampleNextArrow(props: any) {
-  const { className, style, onClick } = props;
-  return (
-    <div
-      className={className}
-      style={{
-        ...style,
-        // marginRight: 20,
-      }}
-      onClick={onClick}
-    />
-  );
-}
-
-function SamplePrevArrow(props: any) {
-  const { className, style, onClick } = props;
-  return (
-    <div
-      className={className}
-      style={{
-        ...style,
-        // marginLeft: 20,
-      }}
-      onClick={onClick}
-    />
-  );
-}
+import photoIcon from "@/public/images/smartsite_icon/photo.png";
 
 const IconMaker = ({ handleToggleIcon, toggleIcon }: any) => {
-  // const settings = {
-  //   // dots: true,
-  //   infinite: true,
-  //   speed: 500,
-  //   slidesToShow: 8,
-  //   slidesToScroll: 4,
-  //   nextArrow: <SampleNextArrow />,
-  //   prevArrow: <SamplePrevArrow />,
-  //   responsive: [
-  //     {
-  //       breakpoint: 1500,
-  //       settings: {
-  //         slidesToShow: 7,
-  //         slidesToScroll: 4,
-  //       },
-  //     },
-  //     {
-  //       breakpoint: 1350,
-  //       settings: {
-  //         slidesToShow: 5,
-  //         slidesToScroll: 4,
-  //       },
-  //     },
-  //     {
-  //       breakpoint: 1000,
-  //       settings: {
-  //         slidesToShow: 4,
-  //         slidesToScroll: 4,
-  //       },
-  //     },
-  //     {
-  //       breakpoint: 730,
-  //       settings: {
-  //         slidesToShow: 2,
-  //         slidesToScroll: 4,
-  //       },
-  //     },
-  //   ],
-  // };
-
   const iconBuilderArry = [
     {
       _id: 1,
@@ -163,15 +73,9 @@ const IconMaker = ({ handleToggleIcon, toggleIcon }: any) => {
       title: "Mp3",
       toolTip: "Embed music to your smart site that people can listen to.",
     },
-    // {
-    //   _id: 9,
-    //   src: photoIcon,
-    //   title: "Photo",
-    //   toolTip: "Select the icon to upload a new photo.",
-    // },
     {
       _id: 10,
-      src: videoIcon,
+      src: photoIcon,
       title: "Video",
       toolTip:
         "You can embed a video by either uploading it directly or sharing an external link, along with providing a title for the content.",
@@ -202,7 +106,7 @@ const IconMaker = ({ handleToggleIcon, toggleIcon }: any) => {
               </div>
 
               <p className="text-center text-sm font-medium mt-1 2xl:mt-0">
-                {data.title}
+                {data.title === "Video" ? "Photo/Video" : data.title}
               </p>
               <div className="h-7 2xl:h-10 my-auto w-full flex justify-center items-center">
                 <Image
@@ -214,8 +118,12 @@ const IconMaker = ({ handleToggleIcon, toggleIcon }: any) => {
                       ? "h-4 2xl:h-5"
                       : data.title === "Info Bar"
                       ? "h-6 2xl:h-7"
-                      : data.title === "Photo"
+                      : data.title === "Video"
                       ? "h-14"
+                      : data.title === "Redeem Link"
+                      ? "h-11"
+                      : data.title === "Marketplace"
+                      ? "h-11"
                       : "h-full"
                   }`}
                 />

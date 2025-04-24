@@ -54,10 +54,11 @@ const UpdateInfoBar = ({ iconDataObj, isOn, setOff }: any) => {
   const modalRef = useRef<HTMLDivElement>(null);
 
   const iconData: any = newIcons[1];
-  // console.log("iconData", iconData);
+  console.log("selectedIconData", selectedIconData);
 
   console.log("iconDataObj", iconDataObj);
   console.log("selectedIconType", selectedIconType);
+  console.log("iconData", iconData);
 
   const [token, setToken] = useState("");
 
@@ -110,18 +111,26 @@ const UpdateInfoBar = ({ iconDataObj, isOn, setOff }: any) => {
 
   useEffect(() => {
     const data = iconData.icons.find(
-      (item: any) => item.category === iconDataObj.data.group
+      (item: any) =>
+        item.category === (selectedIconType || iconDataObj.data.group)
     );
     if (data) {
       const iconDatas = data.icons.find(
-        (item: any) => item.name === iconDataObj.data.iconName
+        (item: any) =>
+          item.name === selectedIcon.icon || iconDataObj.data.iconName
       );
       setSelectedIcon(iconDatas);
       setSelectedIconData(data);
     }
-  }, [iconData, iconDataObj.data.group, iconDataObj.data.iconName]);
+  }, [
+    iconData,
+    iconDataObj.data.group,
+    iconDataObj.data.iconName,
+    selectedIcon.icon,
+    selectedIconType,
+  ]);
 
-  const handleSelectIconType = (category: InfoBarSelectedIconType) => {
+  const handleSelectIconType = (category: string) => {
     setSelectedIconType(category);
     if (category === "Link") {
       setSelectedIcon({
@@ -157,9 +166,27 @@ const UpdateInfoBar = ({ iconDataObj, isOn, setOff }: any) => {
       iconPath: "",
       group: selectedIconType,
     };
+    const updateInfobarInfo = {
+      _id: iconDataObj.data._id,
+      micrositeId: state.data._id,
+      title: formData.get("url"),
+      link: "custom",
+      buttonName: buttonName,
+      description: formData.get("description"),
+      iconName: iconDataObj.data.iconName, //
+      iconPath: "",
+      group: "custom",
+    };
+    if (selectedIconType === "custom" && imageFile) {
+      const imgUrl = await sendCloudinaryImage(imageFile);
+      updateInfobarInfo.iconName = imgUrl;
+    }
     // console.log("smallIconInfo", infobarInfo);
     try {
-      const data = await updateInfoBar(infobarInfo, token);
+      const data = await updateInfoBar(
+        selectedIconType === "custom" ? updateInfobarInfo : infobarInfo,
+        token
+      );
       // console.log("data", data);
 
       if ((data.state = "success")) {
@@ -219,7 +246,7 @@ const UpdateInfoBar = ({ iconDataObj, isOn, setOff }: any) => {
     "Call To Action": icon.ChatlinkType,
     "Product Link": productImg,
     "Contact Card": contactCardImg,
-    "Upload Custom Image": customImg,
+    custom: customImg,
   };
 
   useEffect(() => {
@@ -275,7 +302,7 @@ const UpdateInfoBar = ({ iconDataObj, isOn, setOff }: any) => {
                     selectedIcon?.icon &&
                     selectedIconType !== "custom" ? (
                       <Image
-                        className="w-12 rounded-full"
+                        className="w-12 h-12 rounded-full"
                         src={selectedIcon.icon}
                         width={120}
                         height={90}
@@ -286,7 +313,7 @@ const UpdateInfoBar = ({ iconDataObj, isOn, setOff }: any) => {
                       selectedIconType == "custom" &&
                       !imageFile ? (
                       <Image
-                        className="w-12 rounded-full"
+                        className="w-12 h-12 rounded-full"
                         src={iconDataObj.data.iconName}
                         width={120}
                         height={90}
@@ -294,7 +321,7 @@ const UpdateInfoBar = ({ iconDataObj, isOn, setOff }: any) => {
                       />
                     ) : (
                       <Image
-                        className="w-12 rounded-full"
+                        className="w-12 h-12 rounded-full"
                         src={imageFile}
                         width={120}
                         height={90}
@@ -304,9 +331,7 @@ const UpdateInfoBar = ({ iconDataObj, isOn, setOff }: any) => {
 
                     <div>
                       {/* it should be button name  */}
-                      <p className="text-gray-700 font-medium">
-                        {selectedIcon.name}
-                      </p>
+                      <p className="text-gray-700 font-medium">{buttonName}</p>
                       <p className="text-gray-500 text-sm font-medium">
                         {description}
                       </p>
@@ -334,10 +359,14 @@ const UpdateInfoBar = ({ iconDataObj, isOn, setOff }: any) => {
                                 src={iconMap[selectedIconType]}
                                 width={120}
                                 height={90}
-                                className="w-5 h-auto"
+                                className={`w-5 h-5 ${
+                                  selectedIconType === "Link" && "rounded-full"
+                                }`}
                               />
                             )}
-                            {selectedIconType}
+                            {selectedIconType === "custom"
+                              ? "Upload Custom Image"
+                              : selectedIconType}
                           </span>{" "}
                           <FaAngleDown />
                         </button>
@@ -363,12 +392,27 @@ const UpdateInfoBar = ({ iconDataObj, isOn, setOff }: any) => {
                               <Image
                                 src={data.categoryIcon}
                                 alt={data.category}
-                                className="w-5 h-auto"
+                                className={`w-5 h-5 ${
+                                  data.category === "Link" && "rounded-full"
+                                }`}
                               />{" "}
                               {data.category}
                             </div>
                           </DropdownItem>
                         ))}
+                        <DropdownItem
+                          onClick={() => handleSelectIconType("custom")}
+                          className="border-b rounded-none hover:rounded-md"
+                        >
+                          <div className="flex items-center gap-2 font-semibold text-sm">
+                            <Image
+                              src={customImg}
+                              alt={"image"}
+                              className="w-5 h-auto"
+                            />{" "}
+                            Upload Custom Image
+                          </div>
+                        </DropdownItem>
                       </DropdownMenu>
                     </Dropdown>
                   </div>
@@ -377,17 +421,20 @@ const UpdateInfoBar = ({ iconDataObj, isOn, setOff }: any) => {
                   <h3 className="font-semibold text-gray-700 w-32">
                     Select Icon
                   </h3>
-                  <Dropdown
-                    className="rounded-lg w-max"
-                    placement="bottom-start"
-                  >
-                    <DropdownTrigger>
-                      <div
-                        className={`flex items-center ${
-                          isEmptyObject(selectedIconData) && "relative group"
-                        }`}
-                      >
-                        {/* <button
+                  {selectedIconType === "custom" ? (
+                    <CustomFileInput handleFileChange={handleFileChange} />
+                  ) : (
+                    <Dropdown
+                      className="rounded-lg w-max"
+                      placement="bottom-start"
+                    >
+                      <DropdownTrigger>
+                        <div
+                          className={`flex items-center ${
+                            isEmptyObject(selectedIconData) && "relative group"
+                          }`}
+                        >
+                          {/* <button
                           disabled={isEmptyObject(selectedIconData)}
                           className={`${
                             isEmptyObject(selectedIconData) &&
@@ -396,67 +443,65 @@ const UpdateInfoBar = ({ iconDataObj, isOn, setOff }: any) => {
                         >
                           <AiOutlineDownCircle size={20} color="gray" />
                         </button> */}
-                        <button
-                          type="button"
-                          disabled={isEmptyObject(selectedIconData)}
-                          className={`bg-white w-48 2xl:w-64 flex justify-between items-center rounded px-2 py-2 text-sm font-medium shadow-small ${
-                            isEmptyObject(selectedIconData) &&
-                            "cursor-not-allowed"
-                          } `}
-                        >
-                          <span className="flex items-center gap-2">
-                            <Image
-                              src={selectedIcon.icon}
-                              alt={selectedIcon.inputText}
-                              className="w-4 h-auto"
-                              quality={100}
-                              // style={tintStyle}
-                            />
-                            {selectedIcon.name}
-                          </span>{" "}
-                          <FaAngleDown />
-                        </button>
-                        {isEmptyObject(selectedIconData) && (
-                          <div className="hidden text-xs text-gray-600 px-2 w-28 py-1.5 bg-slate-200 shadow-medium z-50 absolute left-6 top-0 group-hover:flex justify-center">
-                            <p>select icon type</p>
-                          </div>
-                        )}
-                      </div>
-                    </DropdownTrigger>
-                    {selectedIconData &&
-                      selectedIconData?.icons?.length > 0 && (
-                        <DropdownMenu
-                          disabledKeys={["title"]}
-                          aria-label="Static Actions"
-                          className="p-2 overflow-y-auto max-h-[30rem]"
-                        >
-                          <DropdownItem
-                            key={"title"}
-                            className=" hover:!bg-white opacity-100 cursor-text disabled dropDownTitle"
+                          <button
+                            type="button"
+                            // disabled={isEmptyObject(selectedIconData)}
+                            className={`bg-white w-48 2xl:w-64 flex justify-between items-center rounded px-2 py-2 text-sm font-medium shadow-small`}
                           >
-                            <p>Choose Icon</p>
-                          </DropdownItem>
-                          {selectedIconData.icons.map((data: any) => (
+                            <span className="flex items-center gap-2">
+                              <Image
+                                src={selectedIcon.icon}
+                                alt={selectedIcon.inputText}
+                                className="w-4 h-auto"
+                                quality={100}
+                                // style={tintStyle}
+                              />
+                              {selectedIcon.name}
+                            </span>{" "}
+                            <FaAngleDown />
+                          </button>
+                          {/* {isEmptyObject(selectedIconData) && (
+                            <div className="hidden text-xs text-gray-600 px-2 w-28 py-1.5 bg-slate-200 shadow-medium z-50 absolute left-6 top-0 group-hover:flex justify-center">
+                              <p>select icon type</p>
+                            </div>
+                          )} */}
+                        </div>
+                      </DropdownTrigger>
+                      {selectedIconData &&
+                        selectedIconData?.icons?.length > 0 && (
+                          <DropdownMenu
+                            disabledKeys={["title"]}
+                            aria-label="Static Actions"
+                            className="p-2 overflow-y-auto max-h-[30rem]"
+                          >
                             <DropdownItem
-                              key={data._id}
-                              onClick={() => addSelectedIcon(data)}
-                              className="border-b rounded-none hover:rounded-md"
+                              key={"title"}
+                              className=" hover:!bg-white opacity-100 cursor-text disabled dropDownTitle"
                             >
-                              <div className="flex items-center gap-2 font-semibold text-sm">
-                                <Image
-                                  src={data.icon}
-                                  alt={data.inputText}
-                                  className="w-4 h-auto"
-                                  quality={100}
-                                  //   style={tintStyle}
-                                />
-                                {data.name}
-                              </div>
+                              <p>Choose Icon</p>
                             </DropdownItem>
-                          ))}
-                        </DropdownMenu>
-                      )}
-                  </Dropdown>
+                            {selectedIconData.icons.map((data: any) => (
+                              <DropdownItem
+                                key={data._id}
+                                onClick={() => addSelectedIcon(data)}
+                                className="border-b rounded-none hover:rounded-md"
+                              >
+                                <div className="flex items-center gap-2 font-semibold text-sm">
+                                  <Image
+                                    src={data.icon}
+                                    alt={data.inputText}
+                                    className="w-4 h-auto"
+                                    quality={100}
+                                    //   style={tintStyle}
+                                  />
+                                  {data.name}
+                                </div>
+                              </DropdownItem>
+                            ))}
+                          </DropdownMenu>
+                        )}
+                    </Dropdown>
+                  )}
                 </div>
                 <div>
                   <form
@@ -481,7 +526,9 @@ const UpdateInfoBar = ({ iconDataObj, isOn, setOff }: any) => {
                     </div>
                     <div>
                       <p className="font-semibold text-gray-700 mb-1">
-                        {selectedIcon.inputText}
+                        {selectedIconType === "custom"
+                          ? "Link"
+                          : selectedIcon.inputText}
                       </p>
                       <div className="relative">
                         <IoLinkOutline
@@ -493,7 +540,7 @@ const UpdateInfoBar = ({ iconDataObj, isOn, setOff }: any) => {
                           name="url"
                           defaultValue={iconDataObj.data.title}
                           className="w-full border border-[#ede8e8] focus:border-[#e5e0e0] rounded-xl focus:outline-none pl-11 py-2 text-gray-700 bg-gray-100"
-                          placeholder={selectedIcon.placeHolder}
+                          placeholder={selectedIcon?.placeHolder}
                           required
                         />
                       </div>
