@@ -23,6 +23,7 @@ import {
   SheetTitle,
 } from '@/components/ui/sheet';
 import NftPaymentModal from '@/components/modal/NftPayment';
+import { useSolanaWallets } from '@privy-io/react-auth';
 
 import {
   LoadingSpinner,
@@ -58,7 +59,12 @@ const CartCheckout: React.FC<CartCheckoutProps> = ({
   accessToken,
 }) => {
   const { user } = useUser();
-  console.log('🚀 ~ user:', user);
+  const { wallets: solanaWallets } = useSolanaWallets();
+
+  const solanaWallet = solanaWallets.find(
+    (w: any) => w.walletClientType === 'privy'
+  );
+
   const params = useParams();
   const name = params.username as string;
   const orderIdRef = useRef<string | null>(null);
@@ -84,7 +90,7 @@ const CartCheckout: React.FC<CartCheckoutProps> = ({
     phone: '',
     wallet: {
       ens: '',
-      address: '',
+      address: solanaWallet?.address || '',
     },
     useSwopId: false,
     address: {
@@ -170,7 +176,7 @@ const CartCheckout: React.FC<CartCheckoutProps> = ({
         email: user.email || prev.email,
         wallet: {
           ens: user.ensName || prev.wallet.ens,
-          address: user.solanaAddress || prev.wallet.address,
+          address: solanaWallet?.address || prev.wallet.address,
         },
         address: {
           ...prev.address,
@@ -180,7 +186,7 @@ const CartCheckout: React.FC<CartCheckoutProps> = ({
         },
       }));
     }
-  }, [user, customerInfo.useSwopId]);
+  }, [user, customerInfo.useSwopId, solanaWallet]);
 
   // Handlers for cart operations - memoized to prevent re-creation on renders
   const handleUpdateQuantity = useCallback(
@@ -300,7 +306,7 @@ const CartCheckout: React.FC<CartCheckoutProps> = ({
           email: user.email || prev.email,
           wallet: {
             ens: user.ensName || prev.wallet.ens,
-            address: user.solanaAddress || prev.wallet.address,
+            address: prev.wallet.address,
           },
           address: {
             ...prev.address,
@@ -381,7 +387,13 @@ const CartCheckout: React.FC<CartCheckoutProps> = ({
         setErrorMessage(null);
 
         const orderInfo = {
-          customerInfo,
+          customerInfo: {
+            ...customerInfo,
+            wallet: {
+              ...customerInfo.wallet,
+              address: solanaWallet?.address,
+            },
+          },
           items: cartItems.map((item: CartItem) => ({
             itemId: item._id,
             quantity: item.quantity,
@@ -393,8 +405,6 @@ const CartCheckout: React.FC<CartCheckoutProps> = ({
           paymentMethod,
           status: 'pending' as Status,
         };
-
-        console.log('paymentMethod', paymentMethod);
 
         const { orderId } = await createOrder(orderInfo, accessToken);
         return orderId;
