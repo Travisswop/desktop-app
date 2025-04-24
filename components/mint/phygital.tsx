@@ -56,6 +56,7 @@ const CreatePhygital = ({ collectionId }: { collectionId: string }) => {
   const { user, accessToken } = useUser();
   const { ready, authenticated } = usePrivy();
   const { wallets } = useSolanaWallets();
+  console.log('wallets', wallets);
   const [waitForToken, setWaitForToken] = useState(true);
   const solanaAddress = wallets?.[0]?.address || null;
   const [isSubmitting, setIsSubmitting] = useState(false); // Manage submission state
