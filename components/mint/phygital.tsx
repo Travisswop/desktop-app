@@ -56,19 +56,22 @@ const CreatePhygital = ({ collectionId }: { collectionId: string }) => {
   const { user, accessToken } = useUser();
   const { ready, authenticated } = usePrivy();
   const { wallets } = useSolanaWallets();
-  console.log('wallets', wallets);
-  const [waitForToken, setWaitForToken] = useState(true);
-  const solanaAddress = wallets?.[0]?.address || null;
-  console.log('solana wallet', solanaAddress)
-  const [isSubmitting, setIsSubmitting] = useState(false); // Manage submission state
+  const [walletLoaded, setWalletLoaded] = useState(false);
+  const [solanaAddress, setSolanaAddress] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
+  // Handle wallet initialization
   useEffect(() => {
-    const timeoutId = setTimeout(() => {
-      setWaitForToken(false);
-    }, 30000); // Wait for 30 seconds
-
-    return () => clearTimeout(timeoutId); // Cleanup timeout
-  }, []);
+    if (ready && authenticated && wallets && wallets.length > 0) {
+      setSolanaAddress(wallets[0]?.address || null);
+      setWalletLoaded(true);
+      console.log('Solana wallet detected:', wallets[0]?.address);
+    } else if (ready) {
+      // If Privy is ready but no wallet is found
+      setWalletLoaded(true);
+      console.log('No Solana wallet detected');
+    }
+  }, [ready, authenticated, wallets]);
 
   const handleChange = (
     e: React.ChangeEvent<
@@ -174,6 +177,13 @@ const CreatePhygital = ({ collectionId }: { collectionId: string }) => {
 
   const handleSubmit = async (e: React.MouseEvent<HTMLButtonElement>) => {
     e.preventDefault();
+    
+    // Check if wallet is available
+    if (!solanaAddress) {
+      alert("Solana wallet address not available. Please make sure your wallet is connected.");
+      return;
+    }
+    
     setIsSubmitting(true);
 
     try {
@@ -202,7 +212,6 @@ const CreatePhygital = ({ collectionId }: { collectionId: string }) => {
       if (response.ok) {
         const data = await response.json();
         if (data.state === "success") {
-          // alert("Subscription created successfully!");
           onOpenChange(true);
           setModelInfo({
             flag: true,
@@ -213,7 +222,6 @@ const CreatePhygital = ({ collectionId }: { collectionId: string }) => {
             router.push(`/mint/${data?.data?.collectionId}`);
           }, 3000);
         } else {
-          // alert(data.message || "Failed to create subscription.");
           onOpenChange(true);
           setModelInfo({
             flag: true,
@@ -223,7 +231,6 @@ const CreatePhygital = ({ collectionId }: { collectionId: string }) => {
         }
       } else {
         const errorData = await response.json();
-        // alert(errorData.message || "Failed to create subscription.");
         onOpenChange(true);
         setModelInfo({
           flag: false,
@@ -239,6 +246,26 @@ const CreatePhygital = ({ collectionId }: { collectionId: string }) => {
     }
   };
 
+  // Display wallet connection status if not loaded
+  if (!walletLoaded && ready) {
+    return (
+      <div className="main-container flex justify-center items-center h-64">
+        <div className="bg-white p-5 rounded-lg shadow-md border border-gray-300">
+          <p>Loading wallet connection...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Warn user if no wallet is connected
+  const walletWarning = ready && authenticated && !solanaAddress ? (
+    <div className="bg-yellow-100 p-4 rounded-lg border border-yellow-300 mb-4">
+      <p className="text-yellow-800">
+        No Solana wallet detected. Please connect your wallet to continue.
+      </p>
+    </div>
+  ) : null;
+
   return (
     <div className="main-container flex justify-center">
       <div className="bg-white p-5 rounded-lg shadow-md border border-gray-300 w-full flex flex-wrap md:flex-nowrap items-start">
@@ -249,6 +276,8 @@ const CreatePhygital = ({ collectionId }: { collectionId: string }) => {
               <label className="-mt-2 block font-normal text-sm text-gray-600">
                 <span className="text-red-400"> *</span> Required fields
               </label>
+
+              {walletWarning}
 
               <div>
                 <label htmlFor="name" className="mb-1 block font-medium">
@@ -440,84 +469,6 @@ const CreatePhygital = ({ collectionId }: { collectionId: string }) => {
                 </div>
               </div>
 
-              {/* <div className="bg-gray-100 p-4 rounded-lg border border-gray-300 mt-4">
-                <h3 className="text-md font-medium">
-                  Enable Pay with Credit Card
-                </h3>
-                <p className="text-sm text-gray-600 mb-2">
-                  Let users buy this phygital item with a credit card
-                </p>
-                <div
-                  className={`w-14 h-8 flex items-center rounded-full p-1 cursor-pointer ${
-                    formData.enableCreditCard ? "bg-black" : "bg-gray-300"
-                  }`}
-                  onClick={() =>
-                    setFormData((prevState) => ({
-                      ...prevState,
-                      enableCreditCard: !prevState.enableCreditCard,
-                    }))
-                  }
-                >
-                  <div
-                    className={`h-6 w-6 bg-white rounded-full shadow-md transform duration-300 ${
-                      formData.enableCreditCard ? "translate-x-6" : ""
-                    }`}
-                  ></div>
-                </div>
-
-                <div className="mt-4">
-                  <h3 className="text-md font-medium">Verify Identity</h3>
-                  <p className="text-sm text-gray-600">
-                    Verify your identity to enable credit card payments. You
-                    only complete this process once.
-                  </p>
-                  <button
-                    type="button"
-                    onClick={() => alert("Verification triggered!")}
-                    className="bg-black text-white px-4 py-2 rounded-lg mt-2"
-                  >
-                    Verify
-                  </button>
-                </div>
-              </div> */}
-
-              {/* <div className="bg-gray-100 p-4 rounded-lg border border-gray-300 mt-4">
-                <h3 className="text-md font-medium">Advanced Settings</h3>
-                <div className="flex items-center justify-between mt-2">
-                  <span className="text-sm font-medium">Limit quantity</span>
-                  <div
-                    className={`w-14 h-8 flex items-center rounded-full p-1 cursor-pointer ${
-                      formData.limitQuantity ? "bg-black" : "bg-gray-300"
-                    }`}
-                    onClick={() =>
-                      setFormData((prevState) => ({
-                        ...prevState,
-                        limitQuantity: !prevState.limitQuantity,
-                      }))
-                    }
-                  >
-                    <div
-                      className={`h-6 w-6 bg-white rounded-full shadow-md transform duration-300 ${
-                        formData.limitQuantity ? "translate-x-6" : ""
-                      }`}
-                    ></div>
-                  </div>
-                </div>
-                {formData.limitQuantity && (
-                  <input
-                    type="number"
-                    min="1"
-                    placeholder="Enter quantity"
-                    value={formData.quantity || ""}
-                    onChange={handleQuantityChange}
-                    className="w-full border border-gray-300 rounded-lg px-4 py-2 mt-2"
-                  />
-                )}
-                <p className="text-sm text-gray-500 mt-1">
-                  Limit the number of times this phygital item can be purchased
-                </p>
-              </div> */}
-
               <div className="mt-4">
                 <input type="checkbox" required /> I agree with swop Minting
                 <span className="text-[#8A2BE2] underline ml-1">
@@ -527,7 +478,7 @@ const CreatePhygital = ({ collectionId }: { collectionId: string }) => {
 
               <PushToMintCollectionButton
                 className="w-max mt-4"
-                disabled={isSubmitting}
+                disabled={isSubmitting || !solanaAddress}
                 onClick={handleSubmit}
               >
                 {isSubmitting ? "Creating..." : "Create Phygital"}
@@ -588,7 +539,6 @@ const CreatePhygital = ({ collectionId }: { collectionId: string }) => {
           </div>
         </div>
       </div>
-      {/* Mint Alert */}
 
       <MintAlertModal
         isOpen={isOpen}
