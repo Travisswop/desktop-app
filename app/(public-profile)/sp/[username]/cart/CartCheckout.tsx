@@ -58,6 +58,7 @@ const CartCheckout: React.FC<CartCheckoutProps> = ({
   accessToken,
 }) => {
   const { user } = useUser();
+  console.log('🚀 ~ user:', user);
   const params = useParams();
   const name = params.username as string;
   const orderIdRef = useRef<string | null>(null);
@@ -463,6 +464,7 @@ const CartCheckout: React.FC<CartCheckoutProps> = ({
     return <LoadingSpinner />;
   }
 
+  console.log('customerInfo', customerInfo);
   return (
     <div className="w-full max-w-md">
       {/* Cart Items Display */}
