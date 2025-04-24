@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { LiaFileMedicalSolid } from "react-icons/lia";
 import useSmartSiteApiDataStore from "@/zustandStore/UpdateSmartsiteInfo";
 // import useLoggedInUserStore from "@/zustandStore/SetLogedInUserSession";
@@ -8,6 +8,7 @@ import { postReferral } from "@/actions/referral";
 import { FaTimes } from "react-icons/fa";
 import { useToast } from "@/hooks/use-toast";
 import AnimateButton from "@/components/ui/Button/AnimateButton";
+import Cookies from "js-cookie"
 
 const AddReferral = ({ handleRemoveIcon }: any) => {
   const state: any = useSmartSiteApiDataStore((state) => state); //get small icon store value
@@ -15,8 +16,15 @@ const AddReferral = ({ handleRemoveIcon }: any) => {
 
   const { toast } = useToast();
 
-  const demoToken =
-    "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJfaWQiOiI2NjM4NjMyMDIzMDQxMDMyODAyOTk4MmIiLCJpYXQiOjE3MjcxNTI4MzB9.CsHnZAgUzsfkc_g_CZZyQMXc02Ko_LhnQcCVpeCwroY";
+  const [token, setToken] = useState("");
+
+  useEffect(() => {
+    const getAccessToken = async () => {
+      const token = Cookies.get('access-token');
+      setToken(token || "")
+    };
+    getAccessToken();
+  }, []);
 
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [error, setError] = useState<any>({});
@@ -54,7 +62,7 @@ const AddReferral = ({ handleRemoveIcon }: any) => {
       // console.log("contactCardInfo", submitInfo);
 
       try {
-        const data = await postReferral(submitInfo, demoToken);
+        const data = await postReferral(submitInfo, token);
         if ((data.state = "success")) {
           toast({
             title: "Error",

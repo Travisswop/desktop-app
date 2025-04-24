@@ -23,13 +23,23 @@ import AnimateButton from "@/components/ui/Button/AnimateButton";
 import { MdInfoOutline } from "react-icons/md";
 import { IconMap, SelectedIconType } from "@/types/smallIcon";
 import toast from "react-hot-toast";
+import Cookies from "js-cookie";
 
 const AddSmallIcon = ({ handleRemoveIcon }: any) => {
   const state: any = useSmartSiteApiDataStore((state) => state); //get small icon store value
   //const sesstionState = useLoggedInUserStore((state) => state.state.user); //get session value
+  const [token, setToken] = useState("");
 
-  const demoToken =
-    "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJfaWQiOiI2NjM4NjMyMDIzMDQxMDMyODAyOTk4MmIiLCJpYXQiOjE3MjcxNTI4MzB9.CsHnZAgUzsfkc_g_CZZyQMXc02Ko_LhnQcCVpeCwroY";
+  useEffect(() => {
+    const getAccessToken = async () => {
+      const token = Cookies.get('access-token');
+      setToken(token || "")
+    };
+    getAccessToken();
+  }, []);
+
+  console.log("add small token", token);
+  
   const [selectedIconType, setSelectedIconType] =
     useState<SelectedIconType>("Social Media");
   const [selectedIcon, setSelectedIcon] = useState({
@@ -106,7 +116,7 @@ const AddSmallIcon = ({ handleRemoveIcon }: any) => {
     // console.log("smallIconInfo", smallIconInfo);
     // console.log("token", sesstionState.accessToken);
     try {
-      const data = await handleSmallIcon(smallIconInfo, demoToken);
+      const data = await handleSmallIcon(smallIconInfo, token);
 
       // console.log("create small icon", data);
 

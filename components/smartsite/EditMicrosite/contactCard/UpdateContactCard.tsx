@@ -1,4 +1,4 @@
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import { LiaFileMedicalSolid } from "react-icons/lia";
 // import useLoggedInUserStore from "@/zustandStore/SetLogedInUserSession";
 // import { toast } from "react-toastify";
@@ -15,12 +15,18 @@ import { Tooltip } from "@nextui-org/react";
 import Image from "next/image";
 import contactCardImg from "@/public/images/IconShop/appIconContactCard.png";
 import toast from "react-hot-toast";
+import Cookies from "js-cookie";
 
 const UpdateContactCard = ({ iconDataObj, isOn, setOff }: any) => {
-  //const sesstionState = useLoggedInUserStore((state) => state.state.user); //get session value
+  const [token, setToken] = useState("");
 
-  const demoToken =
-    "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJfaWQiOiI2NjM4NjMyMDIzMDQxMDMyODAyOTk4MmIiLCJpYXQiOjE3MjcxNTI4MzB9.CsHnZAgUzsfkc_g_CZZyQMXc02Ko_LhnQcCVpeCwroY";
+  useEffect(() => {
+    const getAccessToken = async () => {
+      const token = Cookies.get('access-token');
+      setToken(token || "")
+    };
+    getAccessToken();
+  }, []);
 
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [isDeleteLoading, setIsDeleteLoading] = useState<boolean>(false);
@@ -62,7 +68,7 @@ const UpdateContactCard = ({ iconDataObj, isOn, setOff }: any) => {
       // console.log("contactCardInfo", contactCardInfo);
 
       try {
-        const data = await updateContactCard(contactCardInfo, demoToken);
+        const data = await updateContactCard(contactCardInfo, token);
         if (data.state === "success") {
           setOff();
           toast.success("Contact card updated succesfully");
@@ -98,7 +104,7 @@ const UpdateContactCard = ({ iconDataObj, isOn, setOff }: any) => {
       micrositeId: iconDataObj.data.micrositeId,
     };
     try {
-      const data: any = await handleDeleteContactCard(submitData, demoToken);
+      const data: any = await handleDeleteContactCard(submitData, token);
 
       if (data && data?.state === "success") {
         toast.success("Contact card deleted successfully");

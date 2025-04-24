@@ -204,7 +204,7 @@ const AddBlog = ({ handleRemoveIcon }: any) => {
           </div>
           <div className="flex flex-col gap-1">
             <p className="font-medium text-sm">
-              Headline
+              Blog Name
               <span className="text-red-600 font-medium text-sm mt-1">*</span>
             </p>
             <div>
@@ -217,14 +217,14 @@ const AddBlog = ({ handleRemoveIcon }: any) => {
               />
               {inputError.title && (
                 <p className="text-red-600 font-medium text-sm mt-1">
-                  headline is required
+                  blog name is required
                 </p>
               )}
             </div>
           </div>
           <div className="flex flex-col gap-1">
             <p className="font-medium text-sm">
-              Subtext
+              Headline Text
               <span className="text-red-600 font-medium text-sm mt-1">*</span>
             </p>
             <input
@@ -236,7 +236,7 @@ const AddBlog = ({ handleRemoveIcon }: any) => {
             />
             {inputError.headline && (
               <p className="text-red-600 font-medium text-sm">
-                Subtext is required
+                Headline text is required
               </p>
             )}
           </div>

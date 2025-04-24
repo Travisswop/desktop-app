@@ -1,4 +1,4 @@
-import React, { useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { LiaFileMedicalSolid } from "react-icons/lia";
 // import useLoggedInUserStore from "@/zustandStore/SetLogedInUserSession";
 // import { toast } from "react-toastify";
@@ -8,6 +8,7 @@ import { MdDelete } from "react-icons/md";
 import { deleteReferral, updateReferral } from "@/actions/referral";
 import { useToast } from "@/hooks/use-toast";
 import AnimateButton from "@/components/ui/Button/AnimateButton";
+import Cookies from 'js-cookie'
 
 const UpdateReferral = ({ iconDataObj, isOn, setOff }: any) => {
   const modalRef = useRef<HTMLDivElement>(null);
@@ -15,9 +16,15 @@ const UpdateReferral = ({ iconDataObj, isOn, setOff }: any) => {
   const [error, setError] = useState<any>({});
   const [isDeleteLoading, setIsDeleteLoading] = useState<boolean>(false);
 
-  //const sesstionState = useLoggedInUserStore((state) => state.state.user); //get session value
-  const demoToken =
-    "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJfaWQiOiI2NjM4NjMyMDIzMDQxMDMyODAyOTk4MmIiLCJpYXQiOjE3MjcxNTI4MzB9.CsHnZAgUzsfkc_g_CZZyQMXc02Ko_LhnQcCVpeCwroY";
+  const [token, setToken] = useState("");
+
+  useEffect(() => {
+    const getAccessToken = async () => {
+      const token = Cookies.get('access-token');
+      setToken(token || "")
+    };
+    getAccessToken();
+  }, []);
 
   const { toast } = useToast();
 
@@ -55,7 +62,7 @@ const UpdateReferral = ({ iconDataObj, isOn, setOff }: any) => {
       // console.log("contactCardInfo", submitInfo);
 
       try {
-        const data = await updateReferral(submitInfo, demoToken);
+        const data = await updateReferral(submitInfo, token);
         if ((data.state = "success")) {
           setOff();
           toast({
@@ -97,7 +104,7 @@ const UpdateReferral = ({ iconDataObj, isOn, setOff }: any) => {
       micrositeId: iconDataObj.data.micrositeId,
     };
     try {
-      const data: any = await deleteReferral(submitData, demoToken);
+      const data: any = await deleteReferral(submitData, token);
       // console.log("data,", data);
 
       if (data && data?.state === "success") {

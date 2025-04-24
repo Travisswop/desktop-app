@@ -82,7 +82,7 @@ const EditSmartSite = ({ data, token }: any) => {
     useSmartsiteFormStore();
 
   // console.log("selected image", selectedImage);
-  // console.log("formData from edit page", smartSiteEditFormData);
+  console.log("formData from edit page", smartSiteEditFormData);
 
   const [galleryImage, setGalleryImage] = useState(null); // get upload image base64 data
   const [uploadedImageUrl, setUploadedImageUrl] = useState(""); // get uploaded url from cloudinery
@@ -297,6 +297,7 @@ const EditSmartSite = ({ data, token }: any) => {
       primary: isPrimaryMicrosite,
       web3enabled: isWeb3Enabled,
       fontColor: smartSiteEditFormData.fontColor,
+      secondaryFontColor: smartSiteEditFormData.secondaryFontColor,
       fontFamily: smartSiteEditFormData.fontType,
       themeColor: smartSiteEditFormData.templateColor,
       backgroundColor: smartSiteEditFormData.backgroundColor,
@@ -598,23 +599,24 @@ const EditSmartSite = ({ data, token }: any) => {
                 ))}
               </Select>
               <div>
-                <p className="text-sm font-medium">Font Color</p>
+                <p className="text-sm font-medium">Primary Text Color</p>
                 <div className="flex items-center gap-2 mt-1">
-                  <button
-                    type="button"
-                    onClick={() => setFormData("fontColor", "#000000")}
-                    className="bg-black w-[22px] h-[22px] rounded-full flex items-center justify-center"
-                  >
-                    {smartSiteEditFormData.fontColor === "#000000" && (
-                      <MdDone color="white" size={16} />
-                    )}
-                  </button>
+                  
                   <button
                     type="button"
                     onClick={() => setFormData("fontColor", "#808080")}
                     className="bg-gray-400 w-[22px] h-[22px] rounded-full flex items-center justify-center"
                   >
                     {smartSiteEditFormData.fontColor === "#808080" && (
+                      <MdDone color="white" size={16} />
+                    )}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setFormData("fontColor", "#000000")}
+                    className="bg-black w-[22px] h-[22px] rounded-full flex items-center justify-center"
+                  >
+                    {smartSiteEditFormData.fontColor === "#000000" && (
                       <MdDone color="white" size={16} />
                     )}
                   </button>
@@ -627,10 +629,62 @@ const EditSmartSite = ({ data, token }: any) => {
                       <MdDone color="black" size={16} />
                     )}
                   </button>
+                  <button
+                    type="button"
+                    onClick={() => setFormData("fontColor", "#ffffff")}
+                    className="bg-[#ffffff] w-[22px] h-[22px] rounded-full flex items-center justify-center border border-black"
+                  >
+                    {smartSiteEditFormData.fontColor === "#ffffff" && (
+                      <MdDone color="black" size={16} />
+                    )}
+                  </button>
                 </div>
               </div>
               <div>
-                <p className="text-sm font-medium text-end">Templates Color</p>
+                <p className="text-sm font-medium">Secondary Text Color</p>
+                <div className="flex items-center gap-2 mt-1">
+                  
+                  <button
+                    type="button"
+                    onClick={() => setFormData("secondaryFontColor", "#808080")}
+                    className="bg-gray-400 w-[22px] h-[22px] rounded-full flex items-center justify-center"
+                  >
+                    {smartSiteEditFormData.secondaryFontColor === "#808080" && (
+                      <MdDone color="white" size={16} />
+                    )}
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setFormData("secondaryFontColor", "#000000")}
+                    className="bg-black w-[22px] h-[22px] rounded-full flex items-center justify-center"
+                  >
+                    {smartSiteEditFormData.secondaryFontColor === "#000000" && (
+                      <MdDone color="white" size={16} />
+                    )}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setFormData("secondaryFontColor", "#D3D3D3")}
+                    className="bg-[#D3D3D3] w-[22px] h-[22px] rounded-full flex items-center justify-center"
+                  >
+                    {smartSiteEditFormData.secondaryFontColor === "#D3D3D3" && (
+                      <MdDone color="black" size={16} />
+                    )}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setFormData("secondaryFontColor", "#ffffff")}
+                    className="bg-[#ffffff] w-[22px] h-[22px] rounded-full flex items-center justify-center border border-black"
+                  >
+                    {smartSiteEditFormData.secondaryFontColor === "#ffffff" && (
+                      <MdDone color="black" size={16} />
+                    )}
+                  </button>
+                </div>
+              </div>
+              <div>
+                <p className="text-sm font-medium text-end">Theme Color</p>
                 <div className="flex items-center justify-end gap-2 mt-1 w-36">
                   <button
                     type="button"
@@ -652,14 +706,24 @@ const EditSmartSite = ({ data, token }: any) => {
                   </button>
                   <button
                     type="button"
+                    onClick={() => setFormData("templateColor", "#D3D3D3")}
+                    className="bg-[#D3D3D3] w-[22px] h-[22px] rounded-full flex items-center justify-center"
+                  >
+                    {smartSiteEditFormData.templateColor === "#D3D3D3" && (
+                      <MdDone color="black" size={16} />
+                    )}
+                  </button>
+                  <button
+                    type="button"
                     onClick={() => setFormData("templateColor", "#FFFFFF")}
-                    className="bg-white w-[22px] h-[22px] rounded-full flex items-center justify-center border border-gray-300"
+                    className="bg-white w-[22px] h-[22px] rounded-full flex items-center justify-center border border-black"
                   >
                     {smartSiteEditFormData.templateColor === "#FFFFFF" && (
                       <MdDone color="black" size={16} />
                     )}
                   </button>
-                  {smartSiteEditFormData.templateColor !== "#FFFFFF" &&
+                  
+                  {/* {smartSiteEditFormData.templateColor !== "#FFFFFF" &&
                     smartSiteEditFormData.templateColor !== "#808080" &&
                     smartSiteEditFormData.templateColor !== "#000000" &&
                     smartSiteEditFormData.templateColor !== "" && (
@@ -672,9 +736,9 @@ const EditSmartSite = ({ data, token }: any) => {
                       >
                         <MdDone color="black" size={16} />
                       </button>
-                    )}
+                    )} */}
 
-                  <div className="relative">
+                  {/* <div className="relative">
                     <button
                       type="button"
                       onClick={() =>
@@ -702,7 +766,7 @@ const EditSmartSite = ({ data, token }: any) => {
                         />
                       </div>
                     )}
-                  </div>
+                  </div> */}
                 </div>
               </div>
             </div>

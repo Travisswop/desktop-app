@@ -1,6 +1,6 @@
 import Image from "next/image";
 import React, { useEffect, useRef, useState } from "react";
-import appIconImg from "@/public/images/websites/edit-microsite/add-icon/app-icon.svg";
+// import appIconImg from "@/public/images/websites/edit-microsite/add-icon/app-icon.svg";
 import {
   Dropdown,
   DropdownItem,
@@ -10,30 +10,31 @@ import {
 } from "@nextui-org/react";
 import { IoLinkOutline } from "react-icons/io5";
 import { LiaFileMedicalSolid } from "react-icons/lia";
-// import { icon, newIcons } from "@/util/data/smartsiteIconData";
-// import { isEmptyObject } from "@/util/checkIsEmptyObject";
-// import {
-//   handleDeleteSmallIcon,
-//   handleUpdateSmallIcon,
-// } from "@/actions/createSmallIcon";
-// import { toast } from "react-toastify";
 import { FaAngleDown, FaTimes } from "react-icons/fa";
 import { MdDelete, MdInfoOutline } from "react-icons/md";
-// import AnimateButton from "@/components/Button/AnimateButton";
 import { handleDeleteAppIcon, handleUpdateAppIcon } from "@/actions/appIcon";
 import { icon, newIcons } from "@/components/util/data/smartsiteIconData";
 import { isEmptyObject } from "@/components/util/checkIsEmptyObject";
 import AnimateButton from "@/components/ui/Button/AnimateButton";
 import toast from "react-hot-toast";
-import { AppIconMap } from "@/types/smallIcon";
-// import AnimateButton from "../Button/AnimateButton";
+import Cookies from "js-cookie";
+import customImg from "@/public/images/IconShop/Upload@3x.png";
+import CustomFileInput from "@/components/CustomFileInput";
+import isUrl from "@/lib/isUrl";
+import { sendCloudinaryImage } from "@/lib/SendCloudineryImage";
 
 const UpdateAppIcon = ({ iconDataObj, isOn, setOff }: any) => {
-  //const sesstionState = useLoggedInUserStore((state) => state.state.user); //get session value
-  const demoToken =
-    "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJfaWQiOiI2NjM4NjMyMDIzMDQxMDMyODAyOTk4MmIiLCJpYXQiOjE3MjcxNTI4MzB9.CsHnZAgUzsfkc_g_CZZyQMXc02Ko_LhnQcCVpeCwroY";
+  const [token, setToken] = useState("");
 
-  const [selectedIconType, setSelectedIconType] = useState("Link");
+  useEffect(() => {
+    const getAccessToken = async () => {
+      const token = Cookies.get("access-token");
+      setToken(token || "");
+    };
+    getAccessToken();
+  }, []);
+
+  const [selectedIconType, setSelectedIconType] = useState<any>("Link");
   const [selectedIcon, setSelectedIcon] = useState({
     name: "Amazon Music",
     icon: icon.appIconAmazonMusic,
@@ -46,24 +47,26 @@ const UpdateAppIcon = ({ iconDataObj, isOn, setOff }: any) => {
   //   useState<any>();
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [isDeleteLoading, setIsDeleteLoading] = useState<boolean>(false);
-  const [isHit, setIsHit] = useState<boolean>(true);
+  const [imageFile, setImageFile] = useState<any>(null);
+  const [fileError, setFileError] = useState<string>("");
 
   const modalRef = useRef<HTMLDivElement>(null);
 
   // console.log("ishit", isHit);
 
-  // console.log("selectedIconType", selectedIconType);
-  // console.log("selected icon data", selectedIconData);
-  // console.log("selected icon", selectedIcon);
+  console.log("selectedIconType", selectedIconType);
+  console.log("selected icon data", selectedIconData);
+  console.log("selected icon", selectedIcon);
   // console.log("open", open);
-  // console.log("icondataobj", iconDataObj);
+  console.log("icondataobj", iconDataObj);
 
   const iconData: any = newIcons[1];
   // console.log("selectedIconByLivePreview", selectedIconByLivePreview);
   useEffect(() => {
     if (
       iconDataObj.data.group === "Link" ||
-      iconDataObj.data.group === "Call To Action"
+      iconDataObj.data.group === "Call To Action" ||
+      iconDataObj.data.group === "custom"
     ) {
       setSelectedIconType(iconDataObj.data.group);
     }
@@ -78,36 +81,56 @@ const UpdateAppIcon = ({ iconDataObj, isOn, setOff }: any) => {
     }
   }, [selectedIconType, iconData.icons]);
 
-  useEffect(() => {
-    if (isHit) {
-      if (selectedIconData && selectedIconData?.icons?.length > 0) {
-        // console.log("hit");
-
-        const data = selectedIconData.icons.find(
-          (data: any) => data.name === iconDataObj.data.iconName
-        );
-        setSelectedIcon(data);
-        if (data) {
-          setIsHit(false);
-        }
+  const handleFileChange = (event: any) => {
+    const file = event.target.files[0];
+    if (file) {
+      if (file.size > 10 * 1024 * 1024) {
+        // Check if file size is greater than 10 MB
+        setFileError("File size should be less than 10 MB");
+        setImageFile(null);
+      } else {
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          setImageFile(reader.result as any);
+          setFileError("");
+        };
+        reader.readAsDataURL(file);
       }
     }
-  }, [selectedIconData, isHit, iconDataObj.data.iconName]);
+  };
+
+  // useEffect(() => {
+  //   if (isHit) {
+  //     if (selectedIconData && selectedIconData?.icons?.length > 0) {
+  //       // console.log("hit");
+
+  //       const data = selectedIconData.icons.find(
+  //         (data: any) => data.name === iconDataObj.data.iconName
+  //       );
+  //       setSelectedIcon(data);
+  //       if (data) {
+  //         setIsHit(false);
+  //       }
+  //     }
+  //   }
+  // }, [selectedIconData, isHit, iconDataObj.data.iconName]);
 
   //   const tintStyle = {
   //     filter: "brightness(0) invert(0)",
   //   };
 
-  const handleSelectedIcon = (data: any) => {
-    // setSelectedIconByLivePreview(null);
-    setSelectedIcon(data);
-  };
+  // const handleSelectedIcon = (data: any) => {
+  //   // setSelectedIconByLivePreview(null);
+  //   setSelectedIcon(data);
+  // };
 
   const handleSelectIconType = (category: string) => {
     setSelectedIconType(category);
-    // console.log("cateogy", category);
+    console.log("cateogy", category);
     if (category === "Link") {
-      setSelectedIcon({
+      console.log("hit link");
+
+      return setSelectedIcon({
         name: "Amazon Music",
         icon: icon.appIconAmazonMusic,
         placeHolder: "https://www.music.amazon.com/abc",
@@ -115,7 +138,8 @@ const UpdateAppIcon = ({ iconDataObj, isOn, setOff }: any) => {
         url: "https://music.amazon.com",
       });
     } else if (category === "Call To Action") {
-      setSelectedIcon({
+      console.log("hit action");
+      return setSelectedIcon({
         name: "Email",
         icon: icon.appIconEmail,
         placeHolder: "Type Your Email Address",
@@ -123,7 +147,8 @@ const UpdateAppIcon = ({ iconDataObj, isOn, setOff }: any) => {
         url: "www.email.com",
       });
     } else {
-      setSelectedIcon({
+      console.log("hit else");
+      return setSelectedIcon({
         name: "Amazon Music",
         icon: icon.appIconAmazonMusic,
         placeHolder: "https://www.music.amazon.com/abc",
@@ -147,10 +172,30 @@ const UpdateAppIcon = ({ iconDataObj, isOn, setOff }: any) => {
       url: selectedIcon.url,
       iconName: selectedIcon.name,
       iconPath: "",
-      group: selectedIconData.category,
+      group: selectedIconData?.category,
     };
+    const customIconInfo = {
+      micrositeId: iconDataObj.data.micrositeId,
+      _id: iconDataObj.data._id,
+      name: formData.get("customName") || "Custom name",
+      value: formData.get("url"),
+      url: "custom",
+      iconName: iconDataObj.data.iconName,
+      iconPath: "",
+      group: "custom",
+    };
+    console.log("customIconInfo", customIconInfo);
+
+    if (selectedIconType === "custom" && imageFile) {
+      const imgUrl = await sendCloudinaryImage(imageFile);
+      customIconInfo.iconName = imgUrl;
+    }
+
     try {
-      const data: any = await handleUpdateAppIcon(appIconInfo, demoToken);
+      const data: any = await handleUpdateAppIcon(
+        selectedIconType === "custom" ? customIconInfo : appIconInfo,
+        token
+      );
       // console.log("data,", data);
 
       if (data && data?.state === "success") {
@@ -191,7 +236,7 @@ const UpdateAppIcon = ({ iconDataObj, isOn, setOff }: any) => {
       micrositeId: iconDataObj.data.micrositeId,
     };
     try {
-      const data: any = await handleDeleteAppIcon(submitData, demoToken);
+      const data: any = await handleDeleteAppIcon(submitData, token);
       // console.log("data,", data);
 
       if (data && data?.state === "success") {
@@ -210,6 +255,7 @@ const UpdateAppIcon = ({ iconDataObj, isOn, setOff }: any) => {
   const iconMap: any = {
     Link: icon.Custom_link1,
     "Call To Action": icon.ChatlinkType,
+    custom: customImg,
   };
 
   return (
@@ -252,8 +298,12 @@ const UpdateAppIcon = ({ iconDataObj, isOn, setOff }: any) => {
                   </Tooltip>
                 </div>
               </div>
-              <div className="flex justify-center bg-[#F2F2F2] rounded-xl px-20 py-5 w-max mx-auto">
-                {selectedIcon && selectedIcon?.icon ? (
+              <div
+                className={`flex justify-center bg-[#F2F2F2] rounded-xl px-[60px] py-4 w-max mx-auto`}
+              >
+                {selectedIcon &&
+                selectedIcon?.icon &&
+                selectedIconType !== "custom" ? (
                   <Image
                     alt="app-icon"
                     src={selectedIcon?.icon}
@@ -278,6 +328,41 @@ const UpdateAppIcon = ({ iconDataObj, isOn, setOff }: any) => {
                         className="w-14 h-auto"
                         quality={100}
                       />
+                    )}
+                    {selectedIconType === "custom" &&
+                    !imageFile &&
+                    isUrl(iconDataObj.data.iconName) ? (
+                      <Image
+                        alt="custom-image"
+                        src={iconDataObj.data.iconName}
+                        width={220}
+                        height={180}
+                        className="w-14 h-auto"
+                        quality={100}
+                      />
+                    ) : selectedIconType === "custom" &&
+                      !imageFile &&
+                      !isUrl(iconDataObj.data.iconName) ? (
+                      <Image
+                        alt="custom-image"
+                        src="/images/smartsite_icon/photo.png"
+                        width={220}
+                        height={180}
+                        className="w-24 h-auto"
+                        quality={100}
+                      />
+                    ) : (
+                      selectedIconType === "custom" &&
+                      imageFile && (
+                        <Image
+                          alt="custom-image"
+                          src={imageFile}
+                          width={220}
+                          height={180}
+                          className="w-14 h-auto"
+                          quality={100}
+                        />
+                      )
                     )}
                   </>
                 )}
@@ -337,6 +422,21 @@ const UpdateAppIcon = ({ iconDataObj, isOn, setOff }: any) => {
                             </div>
                           </DropdownItem>
                         ))}
+                        <DropdownItem
+                          onClick={() => handleSelectIconType("custom")}
+                          className="border-b rounded-none hover:rounded-md"
+                        >
+                          <div className="flex items-center gap-2 font-semibold text-sm">
+                            <Image
+                              src={"/images/IconShop/Upload@3x.png"}
+                              alt={"custom image"}
+                              width={120}
+                              height={120}
+                              className="w-5 h-auto"
+                            />{" "}
+                            Upload Custom Image
+                          </div>
+                        </DropdownItem>
                       </DropdownMenu>
                     </Dropdown>
                   </div>
@@ -345,7 +445,94 @@ const UpdateAppIcon = ({ iconDataObj, isOn, setOff }: any) => {
                   <h3 className="font-semibold text-gray-700 w-32">
                     Select Icon
                   </h3>
-                  {!selectedIconType && (
+
+                  {selectedIconType === "custom" ? (
+                    <CustomFileInput handleFileChange={handleFileChange} />
+                  ) : (
+                    <Dropdown
+                      className="w-max rounded-lg"
+                      placement="bottom-start"
+                    >
+                      <DropdownTrigger>
+                        <div
+                          className={`flex items-center ${
+                            isEmptyObject(selectedIconData) && "relative group"
+                          }`}
+                        >
+                          <button
+                            type="button"
+                            disabled={isEmptyObject(selectedIconData)}
+                            className={`bg-white w-48 2xl:w-64 flex justify-between items-center rounded px-2 py-2 text-sm font-medium shadow-small ${
+                              isEmptyObject(selectedIconData) &&
+                              "cursor-not-allowed"
+                            } `}
+                          >
+                            <span className="flex items-center gap-2">
+                              <Image
+                                src={selectedIcon?.icon}
+                                alt={selectedIcon?.inputText}
+                                className="w-4 h-auto"
+                                quality={100}
+                                // style={tintStyle}
+                              />
+                              {selectedIcon?.name}
+                            </span>{" "}
+                            <FaAngleDown />
+                          </button>
+                          {isEmptyObject(selectedIconData) && (
+                            <div className="hidden text-xs text-gray-600 px-2 w-28 py-1.5 bg-slate-200 shadow-medium z-50 absolute left-6 top-0 group-hover:flex justify-center">
+                              <p>select icon type</p>
+                            </div>
+                          )}
+                        </div>
+                      </DropdownTrigger>
+                      {selectedIconData &&
+                        selectedIconData?.icons?.length > 0 && (
+                          <DropdownMenu
+                            disabledKeys={["title"]}
+                            aria-label="Static Actions"
+                            className="p-2 overflow-y-auto max-h-[30rem]"
+                          >
+                            <DropdownItem
+                              key={"title"}
+                              className=" hover:!bg-white opacity-100 cursor-text disabled dropDownTitle"
+                            >
+                              <p>Choose Icon</p>
+                            </DropdownItem>
+
+                            {selectedIconData?.icons?.map(
+                              (data: any, index: number) => (
+                                <DropdownItem
+                                  key={index}
+                                  onClick={() =>
+                                    setSelectedIcon({
+                                      name: data.name,
+                                      icon: data.icon,
+                                      placeHolder: data.placeHolder,
+                                      inputText: data.inputText,
+                                      url: data.url,
+                                    })
+                                  }
+                                  className="border-b rounded-none hover:rounded-md"
+                                >
+                                  <div className="flex items-center gap-2 font-semibold text-sm">
+                                    <Image
+                                      src={data.icon}
+                                      alt={data.inputText}
+                                      className="w-4 h-auto"
+                                      quality={100}
+                                      //   style={tintStyle}
+                                    />
+                                    {data.name}
+                                  </div>
+                                </DropdownItem>
+                              )
+                            )}
+                          </DropdownMenu>
+                        )}
+                    </Dropdown>
+                  )}
+                  {/* {!selectedIconType && (
                     <Image
                       alt="app-icon"
                       src={appIconImg}
@@ -431,13 +618,32 @@ const UpdateAppIcon = ({ iconDataObj, isOn, setOff }: any) => {
                           ))}
                         </DropdownMenu>
                       )}
-                  </Dropdown>
+                  </Dropdown> */}
                 </div>
                 <div>
-                  <p className="font-semibold text-gray-700 mb-1">
-                    {selectedIcon?.inputText} :
-                  </p>
                   <form onSubmit={handleAppIcon}>
+                    {selectedIconType === "custom" && (
+                      <div>
+                        <p className="font-semibold text-gray-700 mb-1">
+                          Name :
+                        </p>
+                        <input
+                          type="text"
+                          name="customName"
+                          className="w-full border border-[#ede8e8] focus:border-[#e5e0e0] rounded-xl focus:outline-none pl-4 py-2 text-gray-700 bg-gray-100"
+                          placeholder={"Enter name"}
+                          defaultValue={iconDataObj.data.name || "Custom Name"}
+                          required
+                        />
+                      </div>
+                    )}
+                    <p className="font-semibold text-gray-700 mb-1">
+                      {selectedIconType === "custom"
+                        ? "Link"
+                        : selectedIcon?.inputText}{" "}
+                      :
+                    </p>
+
                     <div className="relative">
                       <IoLinkOutline
                         className="absolute left-4 top-1/2 -translate-y-[50%] font-bold text-gray-600"
@@ -448,7 +654,11 @@ const UpdateAppIcon = ({ iconDataObj, isOn, setOff }: any) => {
                         name="url"
                         className="w-full border border-[#ede8e8] focus:border-[#e5e0e0] rounded-xl focus:outline-none pl-11 py-2 text-gray-700 bg-gray-100"
                         defaultValue={iconDataObj.data.value}
-                        placeholder={selectedIcon?.placeHolder}
+                        placeholder={
+                          selectedIconType === "custom"
+                            ? "Enter Link"
+                            : selectedIcon?.placeHolder
+                        }
                         required
                       />
                     </div>

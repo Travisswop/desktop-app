@@ -15,6 +15,7 @@ interface FormData {
   theme: boolean;
   galleryImg: string;
   fontColor: string;
+  secondaryFontColor: string;
   fontType: FontType;
   templateColor: string;
 }
@@ -36,6 +37,7 @@ const useSmartsiteFormStore = create<SmartsiteFormStore>((set) => ({
     galleryImg: "",
     backgroundColor: "",
     fontColor: "",
+    secondaryFontColor: "",
     fontType: "roboto",
     templateColor: "",
   },

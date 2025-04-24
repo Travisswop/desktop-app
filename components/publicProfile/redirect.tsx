@@ -109,11 +109,10 @@ const openLink = async (
   parentId: string | undefined,
   socialType: string | undefined
 ) => {
-  let { _id, group, name, value, url, link, title, iconName } =
-    social;
-  url = url || link;
-  value = value || title;
-  name = name || iconName;
+  const { _id, group, link, title, iconName, ...rest } = social;
+  const url = rest.url || link;
+  const value = rest.value || title;
+  const name = rest.name || iconName;
   try {
     fetch(`${API_URL}/web/updateCount`, {
       method: 'POST',

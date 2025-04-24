@@ -1,5 +1,5 @@
 import Image from "next/image";
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   Dropdown,
   DropdownItem,
@@ -23,12 +23,20 @@ import AnimateButton from "@/components/ui/Button/AnimateButton";
 import { MdInfoOutline } from "react-icons/md";
 import placeholder from "@/public/images/video_player_placeholder.gif";
 import toast from "react-hot-toast";
+import Cookies from "js-cookie";
 
 const AddEmbed = ({ handleRemoveIcon }: any) => {
   const state: any = useSmartSiteApiDataStore((state) => state); //get small icon store value
 
-  const demoToken =
-    "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJfaWQiOiI2NjM4NjMyMDIzMDQxMDMyODAyOTk4MmIiLCJpYXQiOjE3MjcxNTI4MzB9.CsHnZAgUzsfkc_g_CZZyQMXc02Ko_LhnQcCVpeCwroY";
+  const [token, setToken] = useState("");
+
+  useEffect(() => {
+    const getAccessToken = async () => {
+      const token = Cookies.get('access-token');
+      setToken(token || "")
+    };
+    getAccessToken();
+  }, []);
 
   //const sesstionState = useLoggedInUserStore((state) => state.state.user); //get session value
 
@@ -60,7 +68,7 @@ const AddEmbed = ({ handleRemoveIcon }: any) => {
     };
 
     try {
-      const data = await postEmbedLink(embedInfo, demoToken);
+      const data = await postEmbedLink(embedInfo, token);
       // console.log("data", data);
 
       if ((data.state = "success")) {

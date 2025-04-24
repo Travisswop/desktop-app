@@ -1,4 +1,4 @@
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import { LiaFileMedicalSolid } from "react-icons/lia";
 // import { toast } from "react-toastify";
 import { FaTimes } from "react-icons/fa";
@@ -17,12 +17,18 @@ import AnimateButton from "@/components/ui/Button/AnimateButton";
 import { Tooltip } from "@nextui-org/react";
 import { AiFillAudio } from "react-icons/ai";
 import toast from "react-hot-toast";
-// import { sendCloudinaryAudio } from "@/util/sendCloudineryAudio";
+import Cookies from "js-cookie"
 
 const UpdateAudio = ({ iconDataObj, isOn, setOff }: any) => {
-  //const sesstionState = useLoggedInUserStore((state) => state.state.user); //get session value
-  const demoToken =
-    "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJfaWQiOiI2NjM4NjMyMDIzMDQxMDMyODAyOTk4MmIiLCJpYXQiOjE3MjcxNTI4MzB9.CsHnZAgUzsfkc_g_CZZyQMXc02Ko_LhnQcCVpeCwroY";
+  const [token, setToken] = useState("");
+
+  useEffect(() => {
+    const getAccessToken = async () => {
+      const token = Cookies.get('access-token');
+      setToken(token || "")
+    };
+    getAccessToken();
+  }, []);
   const [isDeleteLoading, setIsDeleteLoading] = useState<boolean>(false);
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [inputError, setInputError] = useState<any>({});
@@ -126,7 +132,7 @@ const UpdateAudio = ({ iconDataObj, isOn, setOff }: any) => {
 
         // console.log("videee", info);
 
-        const data = await updateAudio(info, demoToken);
+        const data = await updateAudio(info, token);
         // console.log("data", data);
 
         if ((data.state = "success")) {
@@ -163,7 +169,7 @@ const UpdateAudio = ({ iconDataObj, isOn, setOff }: any) => {
       micrositeId: iconDataObj.data.micrositeId,
     };
     try {
-      const data: any = await deleteAudio(submitData, demoToken);
+      const data: any = await deleteAudio(submitData, token);
 
       if (data && data?.state === "success") {
         toast.success("Music deleted successfully");

@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { LiaFileMedicalSolid } from "react-icons/lia";
 import useSmartSiteApiDataStore from "@/zustandStore/UpdateSmartsiteInfo";
 // import useLoggedInUserStore from "@/zustandStore/SetLogedInUserSession";
@@ -8,12 +8,19 @@ import { isENSAvailable, postMessage } from "@/actions/message";
 import { FaTimes } from "react-icons/fa";
 import { useToast } from "@/hooks/use-toast";
 import AnimateButton from "@/components/ui/Button/AnimateButton";
+import Cookies from "js-cookie"
 
 const AddMessage = ({ handleRemoveIcon }: any) => {
   const state: any = useSmartSiteApiDataStore((state) => state); //get small icon store value
-  //const sesstionState = useLoggedInUserStore((state) => state.state.user); //get session value
-  const demoToken =
-    "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJfaWQiOiI2NjM4NjMyMDIzMDQxMDMyODAyOTk4MmIiLCJpYXQiOjE3MjcxNTI4MzB9.CsHnZAgUzsfkc_g_CZZyQMXc02Ko_LhnQcCVpeCwroY";
+  const [token, setToken] = useState("");
+
+  useEffect(() => {
+    const getAccessToken = async () => {
+      const token = Cookies.get('access-token');
+      setToken(token || "")
+    };
+    getAccessToken();
+  }, []);
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [error, setError] = useState<any>({});
 
@@ -40,7 +47,7 @@ const AddMessage = ({ handleRemoveIcon }: any) => {
     } else {
       setError("");
       try {
-        const isAvailable = await isENSAvailable(submitInfo.domain, demoToken);
+        const isAvailable = await isENSAvailable(submitInfo.domain, token);
         // console.log("isAvailable", isAvailable);
 
         if (isAvailable?.message === "Name not found") {
@@ -50,7 +57,7 @@ const AddMessage = ({ handleRemoveIcon }: any) => {
           });
         }
 
-        const data = await postMessage(submitInfo, demoToken);
+        const data = await postMessage(submitInfo, token);
         if ((data.state = "success")) {
           toast({
             title: "Success",

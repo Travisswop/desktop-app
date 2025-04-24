@@ -18,12 +18,20 @@ import toast from "react-hot-toast";
 import { MdInfoOutline } from "react-icons/md";
 import { Tooltip } from "@nextui-org/react";
 import filePlaceholder from "@/public/images/placeholder-photo.png";
+import Cookies from 'js-cookie';
+import {useEffect} from "react"
 
 const AddVideo = ({ handleRemoveIcon }: any) => {
   const state: any = useSmartSiteApiDataStore((state) => state);
-  //const sesstionState = useLoggedInUserStore((state) => state.state.user); //get session value
-  const demoToken =
-    "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJfaWQiOiI2NjM4NjMyMDIzMDQxMDMyODAyOTk4MmIiLCJpYXQiOjE3MjcxNTI4MzB9.CsHnZAgUzsfkc_g_CZZyQMXc02Ko_LhnQcCVpeCwroY";
+  const [token, setToken] = useState("");
+
+  useEffect(() => {
+    const getAccessToken = async () => {
+      const token = Cookies.get('access-token');
+      setToken(token || "")
+    };
+    getAccessToken();
+  }, []);
 
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [inputError, setInputError] = useState<any>({});
@@ -90,7 +98,7 @@ const AddVideo = ({ handleRemoveIcon }: any) => {
         } else {
           info.file = attachLink;
         }
-        const data = await postVideo(info, demoToken);
+        const data = await postVideo(info, token);
         // console.log("data", data);
 
         if ((data.state = "success")) {

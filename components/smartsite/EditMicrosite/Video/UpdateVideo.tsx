@@ -1,5 +1,5 @@
 // import Image from "next/image";
-import React, { useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 // import {
 //   Dropdown,
 //   DropdownItem,
@@ -28,11 +28,19 @@ import { Tooltip } from "@nextui-org/react";
 import Image from "next/image";
 import filePlaceholder from "@/public/images/placeholder-photo.png";
 import toast from "react-hot-toast";
+import Cookies from 'js-cookie'
 
 const UpdateVideo = ({ iconDataObj, isOn, setOff }: any) => {
-  //const sesstionState = useLoggedInUserStore((state) => state.state.user); //get session value
-  const demoToken =
-    "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJfaWQiOiI2NjM4NjMyMDIzMDQxMDMyODAyOTk4MmIiLCJpYXQiOjE3MjcxNTI4MzB9.CsHnZAgUzsfkc_g_CZZyQMXc02Ko_LhnQcCVpeCwroY";
+  const [token, setToken] = useState("");
+
+  useEffect(() => {
+    const getAccessToken = async () => {
+      const token = Cookies.get('access-token');
+      setToken(token || "")
+    };
+    getAccessToken();
+  }, []);
+  
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [isDeleteLoading, setIsDeleteLoading] = useState<boolean>(false);
   const modalRef = useRef<HTMLDivElement>(null);
@@ -104,7 +112,7 @@ const UpdateVideo = ({ iconDataObj, isOn, setOff }: any) => {
           info.file = attachLink;
         }
 
-        const data = await updateVideo(info, demoToken);
+        const data = await updateVideo(info, token);
         // console.log("data", data);
 
         if ((data.state = "success")) {
@@ -142,7 +150,7 @@ const UpdateVideo = ({ iconDataObj, isOn, setOff }: any) => {
       micrositeId: iconDataObj.data.micrositeId,
     };
     try {
-      const data: any = await deleteVideo(submitData, demoToken);
+      const data: any = await deleteVideo(submitData, token);
       // console.log("data,", data);
 
       if (data && data?.state === "success") {

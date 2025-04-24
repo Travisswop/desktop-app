@@ -40,8 +40,8 @@ const AddIcon = ({
           handleToggleIcon={handleToggleIcon}
         />
       )}
-      {data === "Contact Card" && (
-        <AddContactCard handleRemoveIcon={handleRemoveIcon} />
+          {data === "Contact Card" && (
+            <AddContactCard handleRemoveIcon={handleRemoveIcon} />
       )}
       {data === "Embed" && <AddEmbed handleRemoveIcon={handleRemoveIcon} />}
       {data === "Video" && <AddVideo handleRemoveIcon={handleRemoveIcon} />}

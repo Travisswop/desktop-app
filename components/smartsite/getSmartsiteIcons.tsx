@@ -103,6 +103,7 @@ import threadsIcon from "@/public/images/IconShop/Threads@3x.png";
 import amazon from "@/public/images/IconShop/amazon@3x.png";
 import figma from "@/public/images/IconShop/figma@3x.png";
 import lazy from "@/public/images/IconShop/Crypto/lazy@3x.png";
+import websiteIcon from "@/public/images/IconShop/outline-icons/light/website-outline@3x.png"
 
 import { newIconData } from "../util/data/smartsiteIconData";
 // import { newIconData } from "./data/smartsiteIconData";
@@ -111,7 +112,7 @@ export const smartsiteIcons = {
   Message: messageOutline,
   Contact: businessCardOutline,
   Swopple: ethereumOutline,
-  Website: appIconWebsite,
+  Website: websiteIcon,
   AppIconMap: appIconMap,
   AppIconAmazon: amazonIcon,
   AppIconWebsite: appIconWebsite,

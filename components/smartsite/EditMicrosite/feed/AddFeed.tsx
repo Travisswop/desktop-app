@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 // import { LiaFileMedicalSolid } from "react-icons/lia";
 import useSmartSiteApiDataStore from "@/zustandStore/UpdateSmartsiteInfo";
 // import useLoggedInUserStore from "@/zustandStore/SetLogedInUserSession";
@@ -7,13 +7,21 @@ import useSmartSiteApiDataStore from "@/zustandStore/UpdateSmartsiteInfo";
 // import { isENSAvailable, postMessage } from "@/actions/message";
 import { FaTimes } from "react-icons/fa";
 import Image from "next/image";
+import Cookies from "js-cookie";
 
 const AddFeed = ({ handleRemoveIcon }: any) => {
   const state: any = useSmartSiteApiDataStore((state) => state); //get small icon store value
   //const sesstionState = useLoggedInUserStore((state) => state.state.user); //get session value
 
-  const demoToken =
-    "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJfaWQiOiI2NjM4NjMyMDIzMDQxMDMyODAyOTk4MmIiLCJpYXQiOjE3MjcxNTI4MzB9.CsHnZAgUzsfkc_g_CZZyQMXc02Ko_LhnQcCVpeCwroY";
+  const [token, setToken] = useState("");
+
+  useEffect(() => {
+    const getAccessToken = async () => {
+      const token = Cookies.get('access-token');
+      setToken(token || "")
+    };
+    getAccessToken();
+  }, []);
 
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [error, setError] = useState<any>({});

@@ -13,8 +13,8 @@ import Reaction from "./view/Reaction";
 
 dayjs.extend(relativeTime);
 
-const FeedDetails = ({ feedData, accessToken }: any) => {
-  console.log("feed data from details", feedData);
+const FeedDetails = ({ feedData }: any) => {
+  // console.log("feed data from details", feedData);
 
   const renderTransactionContent = (feed: any) => {
     const {
@@ -89,7 +89,7 @@ const FeedDetails = ({ feedData, accessToken }: any) => {
   };
 
   return (
-    <div className="w-full flex gap-10">
+    <div className="w-full flex gap-10 pt-6">
       <div className="w-full flex flex-col gap-4">
         <div className="flex gap-2 border-b border-gray-200 pb-4">
           <div className="w-10 xl:w-12 h-10 xl:h-12 bg-gray-400 border border-gray-300 rounded-full overflow-hidden flex items-center justify-center">
@@ -234,6 +234,7 @@ const FeedDetails = ({ feedData, accessToken }: any) => {
                 feedData.content.post_content.length > 0 && (
                   <PostTypeMedia mediaFiles={feedData.content.post_content} />
                 )}
+
               {feedData.postType === "minting" && (
                 <div className="w-max">
                   <p>{feedData.content.title}</p>
@@ -259,12 +260,12 @@ const FeedDetails = ({ feedData, accessToken }: any) => {
             </div>
             <Reaction
               postId={feedData._id}
+              isFromFeedDetails={true}
               isLiked={feedData.isLiked}
               likeCount={feedData.likeCount}
               commentCount={feedData.commentCount}
               repostCount={feedData.repostCount}
               viewsCount={feedData.viewsCount}
-              accessToken={accessToken}
             />
           </div>
         </div>

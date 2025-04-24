@@ -4,7 +4,12 @@ import {
   postFeedLike,
   removeFeedLike,
 } from "@/actions/postFeed";
-import { Tooltip } from "@nextui-org/react";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+  Tooltip,
+} from "@nextui-org/react";
 import React, { useEffect, useState } from "react";
 import { FiShare } from "react-icons/fi";
 import { IoMdHeart, IoMdHeartEmpty } from "react-icons/io";
@@ -14,6 +19,9 @@ import { BiRepost } from "react-icons/bi";
 import CommentContent from "../CommentContent";
 import { useUser } from "@/lib/UserContext";
 import { formatCountReaction } from "@/lib/formatFeedReactionCount";
+import { TbCopy, TbCopyCheckFilled } from "react-icons/tb";
+import toast from "react-hot-toast";
+import Cookies from "js-cookie";
 
 const Reaction = ({
   postId,
@@ -21,28 +29,56 @@ const Reaction = ({
   commentCount,
   repostCount,
   viewsCount,
-  accessToken,
   commentId = null,
   replyId = null,
   isLiked = false,
+  isFromFeedDetails = false,
 }: {
   postId: string;
   likeCount: number;
   commentCount: number;
   repostCount: number;
   viewsCount: number;
-  accessToken: string;
   commentId?: string | null;
   replyId?: string | null;
   isLiked?: boolean;
+  isFromFeedDetails?: boolean;
 }) => {
   const [liked, setLiked] = useState(false);
   const [likeCount, setLikeCount] = useState(initialLikeCount);
   const [animate, setAnimate] = useState(false); // Trigger for the animation
   const [smartsiteId, setSmartsiteId] = useState(""); // Trigger for the animation
-  const [isCommentInputOpen, setIsCommentInputOpen] = useState(false);
-  // const [propsCommentCount, setPropsCommentCount] = useState(commentCount)
+  const [isCommentInputOpen, setIsCommentInputOpen] = useState(
+    isFromFeedDetails ? true : false
+  );
   const [latestCommentCount, setLatestCommentCount] = useState(commentCount);
+  const [isPopOpen, setIsPopOpen] = useState(false);
+  const [isCopied, setIsCopied] = useState(false);
+  const [accessToken, setAccessToken] = useState("");
+
+  // Get the access token from cookies once on mount.
+  useEffect(() => {
+    if (window !== undefined) {
+      const token = Cookies.get("access-token");
+      if (token) {
+        setAccessToken(token);
+      }
+    }
+  }, []);
+
+  const handleCopyLink = () => {
+    const link = `${window.location.origin}/feed/${postId}`;
+    navigator.clipboard
+      .writeText(link)
+      .then(() => {
+        setIsCopied(true);
+        toast.success("Copied!", { position: "bottom-center" });
+        setTimeout(() => setIsCopied(false), 2000); // Reset after 2 seconds
+      })
+      .catch((err) => {
+        console.error("Failed to copy link: ", err);
+      });
+  };
 
   const handleLike = async () => {
     // Optimistically update the like state
@@ -109,22 +145,6 @@ const Reaction = ({
     if (user) {
       setSmartsiteId(user.primaryMicrosite);
     }
-
-    // const fetchLikeStatus = async () => {
-    //   try {
-    //     const payload = {
-    //       postId,
-    //       smartsiteId: user.primaryMicrosite,
-    //       commentId,
-    //       replyId,
-    //     };
-    //     const like = await isPostLiked(payload, accessToken);
-    //     setLiked(like.liked);
-    //   } catch (error) {
-    //     console.error("Error fetching like status:", error);
-    //   }
-    // };
-    // fetchLikeStatus();
   }, [user]);
 
   useEffect(() => {
@@ -134,7 +154,7 @@ const Reaction = ({
   // console.log("commentPostContent", commentPostContent);
 
   return (
-    <div>
+    <div className="relative">
       <div className="flex items-center justify-between gap-2 mt-2 text-gray-700 font-normal">
         {/* comment */}
         <CommentMain
@@ -142,6 +162,7 @@ const Reaction = ({
           // commentCount={latestCommentCount ? latestCommentCount : commentCount}
           isCommentInputOpen={isCommentInputOpen}
           setIsCommentInputOpen={setIsCommentInputOpen}
+          isFromFeedDetails={isFromFeedDetails}
         />
         {/* repost */}
         <Tooltip
@@ -198,16 +219,46 @@ const Reaction = ({
           </button>
         </Tooltip>
 
-        <Tooltip
-          className="text-xs font-medium"
-          placement="bottom"
-          showArrow
-          content="Share"
+        <Popover
+          placement="bottom-end"
+          isOpen={isPopOpen}
+          onOpenChange={(open) => setIsPopOpen(open)}
         >
-          <button className="flex items-center gap-1 text-sm font-medium">
-            <FiShare size={17} />
-          </button>
-        </Tooltip>
+          <PopoverTrigger>
+            <div className="relative">
+              <Tooltip
+                className="text-xs font-medium"
+                placement="bottom"
+                showArrow
+                content="Share"
+              >
+                <button className="absolute top-0 left-0">
+                  <FiShare size={17} />
+                </button>
+              </Tooltip>
+              <button className="opacity-0">
+                <FiShare size={17} />
+              </button>
+            </div>
+          </PopoverTrigger>
+          <PopoverContent>
+            <div className="px-1 py-2">
+              <div className="text-small font-bold">
+                <button
+                  onClick={!isCopied ? handleCopyLink : () => {}}
+                  className="flex items-center gap-1 "
+                >
+                  {isCopied ? (
+                    <TbCopyCheckFilled color="green" size={20} />
+                  ) : (
+                    <TbCopy size={20} />
+                  )}
+                  <span>Copy Link</span>
+                </button>
+              </div>
+            </div>
+          </PopoverContent>
+        </Popover>
       </div>
       {/* comment input field  */}
       {isCommentInputOpen && (

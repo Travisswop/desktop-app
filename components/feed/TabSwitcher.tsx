@@ -11,7 +11,7 @@ const TabSwitcher = () => {
   const tab = searchParams.get("tab");
   return (
     <div className="flex items-center gap-2">
-      <Link href="?tab=feed">
+      <Link href={`${process.env.NEXT_PUBLIC_APP_URL}?tab=feed`}>
         {tab === "feed" || !tab ? (
           <DynamicPrimaryBtn
             enableGradient={false}
@@ -25,7 +25,7 @@ const TabSwitcher = () => {
           </AnimateButton>
         )}
       </Link>
-      <Link href="?tab=timeline">
+      <Link href={`${process.env.NEXT_PUBLIC_APP_URL}?tab=timeline`}>
         {tab === "timeline" ? (
           <DynamicPrimaryBtn enableGradient={false} className="!rounded w-28">
             Timeline
@@ -36,7 +36,7 @@ const TabSwitcher = () => {
           </AnimateButton>
         )}
       </Link>
-      <Link href="?tab=transaction">
+      <Link href={`${process.env.NEXT_PUBLIC_APP_URL}?tab=transaction`}>
         {tab === "transaction" ? (
           <DynamicPrimaryBtn enableGradient={false} className="!rounded w-32">
             Transaction

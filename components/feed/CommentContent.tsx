@@ -11,9 +11,7 @@ import { IoSend } from "react-icons/io5";
 import Emoji from "./Emoji";
 import { getFeedComments, postComment } from "@/actions/postFeed";
 import { MdScheduleSend } from "react-icons/md";
-// import Link from "next/link";
 import Image from "next/image";
-// import { FiPlusCircle } from "react-icons/fi";
 import { GoDotFill } from "react-icons/go";
 import dayjs from "dayjs";
 import {
@@ -26,7 +24,6 @@ import {
   useDisclosure,
 } from "@nextui-org/react";
 import { HiDotsHorizontal } from "react-icons/hi";
-// import { RiEdit2Fill } from "react-icons/ri";
 import FeedLoading from "../loading/FeedLoading";
 import DeleteFeedComment from "./DeleteFeedComment";
 import FeedCommentLoading from "../loading/FeedCommentLoading";
@@ -37,6 +34,7 @@ import { useCommentContentStore } from "@/zustandStore/CommentImgContent";
 import { Loader } from "lucide-react";
 import CommentImagePicker from "./comment/SelectImage";
 import { sendCloudinaryImage } from "@/lib/SendCloudineryImage";
+import toast from "react-hot-toast";
 
 const CommentContent = ({
   postId,
@@ -44,8 +42,7 @@ const CommentContent = ({
   latestCommentCount,
   setLatestCommentCount,
 }: any) => {
-  const { postContent, setPostContent } = useCommentContentStore(); //manage comment content
-
+  const { postContent, setPostContent } = useCommentContentStore();
   const [postComments, setPostComments] = useState<any>([]);
   const [isNewCommentPost, setIsNewCommentPost] = useState(false);
   const [commentLoading, setCommentLoading] = useState(true);
@@ -73,16 +70,14 @@ const CommentContent = ({
 
   const handleCommentChange = (e: any) => {
     const value = e.target.value;
-
-    // Check if the content length exceeds the max length
     if (value.length > MAX_LENGTH) {
       setError(`** Comment cannot exceed ${MAX_LENGTH} characters.`);
     } else {
       setError("");
     }
-
     setCommentPostContent(value);
   };
+
   const handleEmojiSelect = (emoji: string) => {
     setCommentPostContent((prevContent) => prevContent + emoji);
   };
@@ -93,87 +88,93 @@ const CommentContent = ({
     }
   }, [user]);
 
-  // console.log("postComments", postComments);
-
   const fetchFeedData = useCallback(
     async (reset = false) => {
-      if (isCommentFetching.current) return; // Prevent duplicate fetch
+      if (isCommentFetching.current) return;
       isCommentFetching.current = true;
-      // setCommentLoading(true);
-      const url = `${
-        process.env.NEXT_PUBLIC_API_URL
-      }/api/v1/feed/comment/${postId}?page=${reset ? 1 : page}&limit=5`;
-      const newFeedData = await getFeedComments(url, accessToken);
+      setCommentLoading(true);
 
-      if (reset) {
-        // console.log("trigger reset");
+      try {
+        const url = `${
+          process.env.NEXT_PUBLIC_API_URL
+        }/api/v1/feed/comment/${postId}?page=${reset ? 1 : page}&limit=5`;
+        const newFeedData = await getFeedComments(url, accessToken);
 
-        setPostComments(newFeedData.comments); // Reset data when refetching
-        setPage(1); // Set page to 2 after initial load for pagination
-        setHasMore(newFeedData.comments.length > 0); // Update hasMore based on response
-        setCommentLoading(false);
-      } else {
-        if (newFeedData.comments.length === 0) {
-          setHasMore(false); // Stop pagination if no more data
-          setCommentLoading(false);
+        if (reset) {
+          setPostComments(newFeedData.comments);
+          if (page !== 1) setPage(1);
         } else {
-          setHasMore(true);
           setPostComments((prev: any) => [...prev, ...newFeedData.comments]);
-          setCommentLoading(false);
         }
-      }
 
-      isCommentFetching.current = false;
+        setHasMore(newFeedData.comments.length === 5);
+      } catch (error) {
+        console.error("Error fetching comments:", error);
+        setHasMore(false);
+      } finally {
+        setCommentLoading(false);
+        isCommentFetching.current = false;
+      }
     },
-    [accessToken, hasMore, page, postId]
+    [accessToken, postId, page]
   );
 
-  // Initial fetch and fetch on page increment
+  // Initial fetch
   useEffect(() => {
-    fetchFeedData();
-  }, [page, fetchFeedData]);
+    fetchFeedData(true);
+  }, [fetchFeedData]);
 
+  // Handle comment post/delete effects
   useEffect(() => {
-    if (isCommentDelete) {
-      console.log("hit delete");
-
-      setPage(1); // Reset page to 1 when a new post is created
-      setPostComments([]); // Clear feed data to avoid duplication
-      setHasMore(true); // Reset hasMore to enable pagination !need to check
-      fetchFeedData(true); // Fetch the first page of new feed data
+    if (isCommentDelete || isNewCommentPost) {
+      fetchFeedData(true);
       setIsCommentDelete(false);
-    }
-  }, [fetchFeedData, isCommentDelete]);
-
-  useEffect(() => {
-    if (isNewCommentPost) {
-      console.log("hit post");
-      setPage(1); // Reset page to 1 when a new post is created
-      setPostComments([]); // Clear feed data to avoid duplication
-      setHasMore(true); // Reset hasMore to enable pagination !need to check
-      fetchFeedData(true); // Fetch the first page of new feed data
       setIsNewCommentPost(false);
     }
-  }, [fetchFeedData, isNewCommentPost]);
+  }, [isCommentDelete, isNewCommentPost, fetchFeedData]);
 
+  // Intersection observer for infinite scroll
   useEffect(() => {
-    if (!hasMore || isCommentFetching.current) return;
-
-    const observer = new IntersectionObserver((entries) => {
-      if (entries[0].isIntersecting) {
-        setPage((prevPage) => prevPage + 1);
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (
+          entries[0].isIntersecting &&
+          hasMore &&
+          !isCommentFetching.current &&
+          !commentLoading &&
+          postComments.length > 0
+        ) {
+          setPage((prevPage) => prevPage + 1);
+        }
+      },
+      {
+        root: null,
+        rootMargin: "100px",
+        threshold: 0.1,
       }
-    });
+    );
 
-    if (commentObserverRef.current) {
+    if (commentObserverRef.current && hasMore) {
       observer.observe(commentObserverRef.current);
     }
 
-    return () => observer.disconnect();
-  }, [hasMore, isCommentFetching.current]);
+    return () => {
+      if (commentObserverRef.current) {
+        observer.unobserve(commentObserverRef.current);
+      }
+    };
+  }, [hasMore, commentLoading, postComments.length]);
 
   const handleCommentPost = async () => {
     setIsLoading(true);
+    if (
+      commentPostContent.length > MAX_LENGTH ||
+      (commentPostContent.length === 0 && postContent.length === 0) ||
+      isLoading ||
+      !accessToken
+    ) {
+      toast.error("something went wrong!");
+    }
     const contentPayload = {
       postContent: [
         {
@@ -188,11 +189,13 @@ const CommentContent = ({
       commentText: commentPostContent,
       commentMedia: contentPayload,
     };
-    if (postContent?.length > 0) {
-      if (postContent[0].src.startsWith("data:image")) {
-        const imageUrl = await sendCloudinaryImage(postContent[0].src);
-        contentPayload.postContent[0].src = imageUrl;
-      }
+
+    if (
+      postContent?.length > 0 &&
+      postContent[0].src.startsWith("data:image")
+    ) {
+      const imageUrl = await sendCloudinaryImage(postContent[0].src);
+      contentPayload.postContent[0].src = imageUrl;
     }
 
     await postComment(payload, accessToken);
@@ -201,13 +204,9 @@ const CommentContent = ({
     setCommentPostContent("");
     setIsLoading(false);
     setIsNewCommentPost(true);
-    // setPage(1); // Reset page to 1 when a new post is created
-    // //setFeedData([]); // Clear feed data to avoid duplication
-    // setHasMore(true); // Reset hasMore to enable pagination
-    // fetchFeedData(true); // Fetch the first page of new feed data
   };
 
-  console.log("ostComments", postComments);
+  console.log("postComments", postComments);
 
   return (
     <div className="">
@@ -217,7 +216,7 @@ const CommentContent = ({
           name="commentText"
           id="commentText"
           rows={2}
-          className={`bg-gray-100 rounded-lg p-3  w-full ${
+          className={`bg-gray-100 rounded-lg p-3 w-full ${
             commentPostContent.length > MAX_LENGTH
               ? "border-red-500 focus:outline-red-500"
               : "border-gray-300 focus:outline-gray-200"
@@ -249,7 +248,6 @@ const CommentContent = ({
         )}
         <div className="flex items-center gap-6 justify-between">
           <div className="flex items-center gap-3">
-            {/* <FaRegImage size={22} className={"text-gray-400"} /> */}
             <CommentImagePicker />
             <CommentGifPickerContent />
             <Emoji onEmojiSelect={handleEmojiSelect} />
@@ -259,18 +257,20 @@ const CommentContent = ({
             disabled={
               commentPostContent.length > MAX_LENGTH ||
               (commentPostContent.length === 0 && postContent.length === 0) ||
-              isLoading
+              isLoading ||
+              !accessToken
             }
           >
             {isLoading ? (
-              // <MdScheduleSend size={23} className="text-gray-700" />
               <Loader size={20} className="animate-spin text-black" />
             ) : (
               <IoSend
                 size={22}
                 className={`${
                   commentPostContent.length > MAX_LENGTH ||
-                  (commentPostContent.length === 0 && postContent.length === 0)
+                  (commentPostContent.length === 0 &&
+                    postContent.length === 0) ||
+                  !accessToken
                     ? "text-gray-400"
                     : "text-gray-700"
                 }`}
@@ -280,7 +280,7 @@ const CommentContent = ({
         </div>
       </div>
       <hr className="my-3" />
-      {commentLoading ? (
+      {commentLoading && postComments.length === 0 ? (
         <FeedLoading />
       ) : (
         <div className="max-h-96 overflow-y-auto hide-scrollbar flex flex-col gap-4">
@@ -319,7 +319,6 @@ const CommentContent = ({
                 })()}
               </div>
               <div className="w-full">
-                {/* User and Feed Info */}
                 <div className="flex items-start justify-between">
                   <div>
                     <div className="flex items-center gap-1 text-base">
@@ -339,7 +338,6 @@ const CommentContent = ({
                         {dayjs(comment.createdAt).fromNow()}
                       </p>
                     </div>
-                    {/* Post Content */}
                     {comment.commentText && (
                       <div className="text-sm">
                         {comment.commentText
@@ -351,23 +349,24 @@ const CommentContent = ({
                           ))}
                       </div>
                     )}
-                    {comment.commentMedia.postContent.length > 0 && (
-                      <button
-                        onClick={() =>
-                          handleOpenImage(
-                            comment.commentMedia.postContent[0].src
-                          )
-                        }
-                      >
-                        <Image
-                          src={comment.commentMedia.postContent[0].src}
-                          alt="image"
-                          width={500}
-                          height={500}
-                          className="w-32 h-auto rounded-lg mt-0.5"
-                        />
-                      </button>
-                    )}
+                    {comment.commentMedia.postContent.length > 0 &&
+                      comment.commentMedia.postContent[0].src && (
+                        <button
+                          onClick={() =>
+                            handleOpenImage(
+                              comment.commentMedia.postContent[0].src
+                            )
+                          }
+                        >
+                          <Image
+                            src={comment.commentMedia.postContent[0].src}
+                            alt="image"
+                            width={500}
+                            height={500}
+                            className="w-32 h-auto rounded-lg mt-0.5"
+                          />
+                        </button>
+                      )}
                   </div>
                   {comment.smartsiteId._id === smartsiteId && (
                     <div>
@@ -376,8 +375,6 @@ const CommentContent = ({
                         placement="bottom-end"
                         showArrow={true}
                         style={{ zIndex: 10 }}
-                        // shouldBlockScroll={true}
-                        // shouldUpdatePosition={false}
                       >
                         <PopoverTrigger>
                           <button type="button">
@@ -386,9 +383,6 @@ const CommentContent = ({
                         </PopoverTrigger>
                         <PopoverContent>
                           <div className="px-1 py-2 flex flex-col">
-                            {/* <button className="text-gray-700 flex items-center gap-1 font-medium border-b p-1 text-sm">
-                              <RiEdit2Fill color="black" size={18} /> Edit
-                            </button> */}
                             <DeleteFeedComment
                               commentId={comment._id}
                               accessToken={accessToken}
@@ -402,18 +396,23 @@ const CommentContent = ({
                     </div>
                   )}
                 </div>
-                {/* <Reaction
-                postId={feed._id}
-                likeCount={feed.likeCount}
-                commentCount={feed.commentCount}
-                repostCount={feed.repostCount}
-                viewsCount={feed.viewsCount}
-                accessToken={accessToken}
-              /> */}
               </div>
             </div>
           ))}
-          {hasMore && (
+
+          {commentLoading && postComments.length > 0 && (
+            <div className="mt-2">
+              <FeedCommentLoading />
+            </div>
+          )}
+
+          {!hasMore && postComments.length > 0 && (
+            <div className="text-center py-4 text-gray-500">
+              No more comments available
+            </div>
+          )}
+
+          {hasMore && !commentLoading && postComments.length > 0 && (
             <div ref={commentObserverRef} className="mt-2">
               <FeedCommentLoading />
             </div>
@@ -434,10 +433,7 @@ const CommentContent = ({
                   src={image}
                   alt="feed image"
                   fill
-                  // placeholder="blur"
-                  // blurDataURL="/images/image_placeholder.png"
                   className="object-contain"
-                  // sizes="(max-width: 640px) 100vw, (max-width: 768px) 50vw, 33vw"
                   onLoadingComplete={() => setIsLoading(false)}
                 />
               </div>

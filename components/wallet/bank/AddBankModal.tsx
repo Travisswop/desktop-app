@@ -248,7 +248,7 @@ const AddBankModal = ({ bankShow, setBankShow }: any) => {
         type: accountType,
         full_name: `${firstName} ${lastName}`,
         email: email,
-        redirect_uri: 'https://www.desktop-app-psi.vercel.app/wallet',
+        redirect_uri: 'https://www.swopme.app/wallet',
       }),
     };
 
@@ -481,7 +481,7 @@ const AddBankModal = ({ bankShow, setBankShow }: any) => {
                       ) : (
                         <div className="text-center">
                           <h2 className="text-start text-lg font-semibold mb-2">
-                            Bank Account
+                            Virtual Bank Account
                           </h2>
                           <div className="border-2 border-dashed border-gray-200 rounded-xl p-5 flex flex-col items-center gap-3">
                             <div className="w-11 h-10 bg-gray-200 rounded-lg flex items-center justify-center">
@@ -489,7 +489,7 @@ const AddBankModal = ({ bankShow, setBankShow }: any) => {
                             </div>
                             <div className="flex flex-col items-center gap-1">
                               <p className="font-semibold">
-                                Add bank account
+                                Add virtual account
                               </p>
                               <p className="text-gray-400">
                                 You have no added bank account yet
@@ -501,7 +501,7 @@ const AddBankModal = ({ bankShow, setBankShow }: any) => {
                             className="mx-auto mt-3"
                           >
                             <FaPlus className="mr-1" />
-                            Add Bank Account
+                            Add Virtual Account
                           </DynamicPrimaryBtn>
                         </div>
                       )}

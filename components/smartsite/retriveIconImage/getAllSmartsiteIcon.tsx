@@ -7,6 +7,9 @@ const getAllSmartsitesIcon = (iconName: string) => {
     ""
   ) as keyof typeof smartsiteIcons;
 
+  console.log("refinedIconName", refinedIconName);
+  
+
   // Use refinedIconName as a key to access smartsiteIcons
   const icon = smartsiteIcons[refinedIconName];
 

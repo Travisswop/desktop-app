@@ -35,13 +35,16 @@ export default function DeleteFeedModal({ postId, token, setIsPosting }: any) {
   return (
     <>
       <button
-        onClick={onOpen}
+        onClick={(e) => {
+          e.stopPropagation();
+          onOpen();
+        }}
         className="text-red-600 flex items-center gap-0.5 font-medium border rounded py-1 px-2 text-sm"
       >
         <MdDeleteForever color="red" size={18} /> Delete
       </button>
       <Modal isOpen={isOpen} onOpenChange={onOpenChange}>
-        <ModalContent>
+        <ModalContent onClick={(e) => e.stopPropagation()}>
           {(onClose) => (
             <>
               <ModalHeader className="flex flex-col gap-1 pb-2 pt-6">
@@ -52,6 +55,7 @@ export default function DeleteFeedModal({ postId, token, setIsPosting }: any) {
               </ModalBody>
               <ModalFooter className="pt-2">
                 <Button
+                  onClick={(e) => e.stopPropagation()}
                   color="default"
                   variant="light"
                   onPress={onClose}
@@ -60,7 +64,10 @@ export default function DeleteFeedModal({ postId, token, setIsPosting }: any) {
                   Cancel
                 </Button>
                 <button
-                  onClick={handlePostDelete}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handlePostDelete();
+                  }}
                   className="bg-red-500 hover:bg-red-600 transition-colors ease-in rounded-lg text-white flex items-center px-4 justify-center gap-1 font-medium border-b p-1 text-sm w-20"
                 >
                   {deleteLoading ? (
