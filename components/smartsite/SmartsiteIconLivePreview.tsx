@@ -483,7 +483,8 @@ const SmartsiteIconLivePreview = ({
                           src={getSmallIconImage(item.name, item.group) as any}
                           alt="icon"
                           style={
-                            formData.templateColor === "#ffffff"
+                            formData.templateColor === "#ffffff" ||
+                            formData.templateColor === "#FFFFFF"
                               ? { filter: "brightness(0) invert(1)" }
                               : formData.templateColor === "#D3D3D3" ||
                                 formData.templateColor === "#808080"
@@ -631,8 +632,8 @@ const SmartsiteIconLivePreview = ({
                         </button>
                         <p
                           style={{
-                            color: formData.templateColor
-                              ? formData.templateColor
+                            color: formData.fontColor
+                              ? formData.fontColor
                               : "black",
                           }}
                           className="text-xs text-center"
