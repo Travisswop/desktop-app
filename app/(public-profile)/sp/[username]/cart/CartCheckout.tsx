@@ -40,14 +40,11 @@ import {
 } from './components/types';
 import { createOrder } from '@/actions/orderActions';
 
-// Make sure environment variable exists before using it
+// Environment variable constants
 const STRIPE_KEY =
-  typeof process !== 'undefined' &&
-  process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY
-    ? process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY
-    : '';
+  process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY || '';
 
-// Load Stripe only once in client environment
+// Initialize Stripe only once
 let stripePromise: ReturnType<typeof loadStripe> | null = null;
 const getStripePromise = () => {
   if (!stripePromise && STRIPE_KEY) {
@@ -79,64 +76,65 @@ const CartCheckout: React.FC<CartCheckoutProps> = ({
     null
   );
 
-  // Customer information state with proper default values
-  const [customerInfo, setCustomerInfo] = useState<CustomerInfo>({
-    email: user?.email || '',
-    name: user?.name || '',
-    phone: user?.mobileNo || '',
+  // Default customer information
+  const defaultCustomerInfo: CustomerInfo = {
+    email: '',
+    name: '',
+    phone: '',
     wallet: {
-      ens: user?.ensName || '',
-      address: user?.solanaAddress || '',
+      ens: '',
+      address: '',
     },
     useSwopId: false,
     address: {
-      line1: user?.address || '',
-      line2: user?.apt || '',
+      line1: '',
+      line2: '',
       city: '',
       state: '',
       postalCode: '',
-      country: user?.countryCode || 'US',
+      country: 'US',
     },
-  });
-
-  console.log('customer info', customerInfo);
+  };
+  const [customerInfo, setCustomerInfo] = useState<CustomerInfo>(
+    defaultCustomerInfo
+  );
 
   // NFT wallet payment modal state
   const { isOpen, onOpen, onOpenChange } = useDisclosure();
+  const [walletOrderId, setWalletOrderId] = useState<string | null>(
+    null
+  );
 
   // Parse cart items with proper error handling
   const cartItems: CartItem[] = useMemo(() => {
-    return data?.state === 'success' &&
-      Array.isArray(data?.data?.cartItems)
-      ? data.data.cartItems
-      : [];
+    if (
+      data?.state !== 'success' ||
+      !Array.isArray(data?.data?.cartItems)
+    ) {
+      return [];
+    }
+    return data.data.cartItems;
   }, [data]);
 
+  // Check if any product requires physical shipping
   const hasPhygitalProducts = useMemo(() => {
     return cartItems.some(
       (item) => item.nftTemplate.nftType === 'phygital'
     );
   }, [cartItems]);
 
-  // Use memoized values to prevent unnecessary recalculations
+  // Calculate total price
   const subtotal = useMemo(() => {
     if (!cartItems.length) return 0;
 
     return cartItems.reduce((total, item) => {
-      return (
-        total +
-        (item?.nftTemplate?.price || 0) * (item?.quantity || 0)
-      );
+      const price = item?.nftTemplate?.price || 0;
+      const quantity = item?.quantity || 0;
+      return total + price * quantity;
     }, 0);
   }, [cartItems]);
 
-  const sellerAddress = useMemo(() => {
-    return cartItems.length > 0
-      ? cartItems[0]?.nftTemplate?.ownerAddress
-      : '';
-  }, [cartItems]);
-
-  // Initialize payment only when necessary
+  // Initialize payment
   useEffect(() => {
     const initializePayment = async () => {
       if (subtotal <= 0 || clientSecret) return;
@@ -145,7 +143,7 @@ const CartCheckout: React.FC<CartCheckoutProps> = ({
         setLoading(true);
         setError(null);
         const { clientSecret: secret } = await createPaymentIntent(
-          Math.round(subtotal * 1000)
+          Math.round(subtotal * 100) // Convert to smallest currency unit (cents)
         );
         setClientSecret(secret);
       } catch (err) {
@@ -186,11 +184,13 @@ const CartCheckout: React.FC<CartCheckoutProps> = ({
   // Handlers for cart operations - memoized to prevent re-creation on renders
   const handleUpdateQuantity = useCallback(
     async (item: CartItem, type: 'inc' | 'dec') => {
+      const itemId = item._id;
+
       try {
-        // Update local state first for immediate feedback
+        // Update loading state
         setLoadingOperations((prev) => ({
           ...prev,
-          [item._id]: { ...prev[item._id], updating: true },
+          [itemId]: { ...prev[itemId], updating: true },
         }));
 
         const newQuantity =
@@ -198,7 +198,7 @@ const CartCheckout: React.FC<CartCheckoutProps> = ({
         if (newQuantity < 1) return;
 
         const payload = {
-          cartId: item._id,
+          cartId: itemId,
           quantity: newQuantity,
         };
 
@@ -209,18 +209,19 @@ const CartCheckout: React.FC<CartCheckoutProps> = ({
         console.error('Error updating quantity:', error);
         setErrorMessage('Failed to update quantity');
       } finally {
-        // Use a shorter timeout or remove for production
+        // Reset loading state with slight delay for UI feedback
         setTimeout(() => {
           setLoadingOperations((prev) => ({
             ...prev,
-            [item._id]: { ...prev[item._id], updating: false },
+            [itemId]: { ...prev[itemId], updating: false },
           }));
-        }, 500);
+        }, 300);
       }
     },
     [name, accessToken]
   );
 
+  // Cart item removal handler
   const handleRemoveItem = useCallback(
     async (id: string) => {
       try {
@@ -239,7 +240,7 @@ const CartCheckout: React.FC<CartCheckoutProps> = ({
             ...prev,
             [id]: { ...prev[id], deleting: false },
           }));
-        }, 500);
+        }, 300);
       }
     },
     [name, accessToken]
@@ -259,9 +260,10 @@ const CartCheckout: React.FC<CartCheckoutProps> = ({
     (e: React.ChangeEvent<HTMLInputElement>) => {
       const { name, value } = e.target;
 
-      if (name.includes('.')) {
-        const [parent, child] = name.split('.');
-        setCustomerInfo((prev) => {
+      setCustomerInfo((prev) => {
+        // Handle nested properties (address.line1, etc.)
+        if (name.includes('.')) {
+          const [parent, child] = name.split('.');
           if (parent === 'address') {
             return {
               ...prev,
@@ -272,13 +274,14 @@ const CartCheckout: React.FC<CartCheckoutProps> = ({
             };
           }
           return prev;
-        });
-      } else {
-        setCustomerInfo((prev) => ({
+        }
+
+        // Handle top-level properties
+        return {
           ...prev,
           [name]: value,
-        }));
-      }
+        };
+      });
     },
     []
   );
@@ -367,9 +370,15 @@ const CartCheckout: React.FC<CartCheckoutProps> = ({
     return true;
   }, [customerInfo, hasPhygitalProducts, setErrorMessage]);
 
-  const handleOpenPaymentSheet = useCallback(async () => {
-    if (validateFormFields()) {
+  const createOrderForPayment = useCallback(
+    async (paymentMethod: PaymentMethod) => {
+      if (!validateFormFields()) {
+        return null;
+      }
+
       try {
+        setErrorMessage(null);
+
         const orderInfo = {
           customerInfo,
           items: cartItems.map((item: CartItem) => ({
@@ -380,29 +389,73 @@ const CartCheckout: React.FC<CartCheckoutProps> = ({
             nftType: item.nftTemplate.nftType || 'collectible',
           })),
           subtotal,
-          paymentMethod: 'stripe' as PaymentMethod,
+          paymentMethod,
           status: 'pending' as Status,
         };
 
+        console.log('paymentMethod', paymentMethod);
+
         const { orderId } = await createOrder(orderInfo, accessToken);
-        console.log(
-          '🚀 ~ handleOpenPaymentSheet ~ orderId:',
-          orderId
-        );
-        orderIdRef.current = orderId;
-        setIsPaymentSheetOpen(true);
+        return orderId;
       } catch (error) {
         console.error('Error creating order:', error);
         setErrorMessage('Failed to create order. Please try again.');
+        return null;
       }
+    },
+    [
+      validateFormFields,
+      customerInfo,
+      cartItems,
+      subtotal,
+      accessToken,
+      setErrorMessage,
+    ]
+  );
+
+  // Handle wallet payment
+  const handleOpenWalletPayment = useCallback(async () => {
+    console.log('hit');
+    const orderId = await createOrderForPayment('wallet');
+    if (orderId) {
+      setWalletOrderId(orderId);
+      onOpen();
+    }
+  }, [createOrderForPayment, onOpen]);
+
+  // Handle Stripe payment
+  const handleOpenPaymentSheet = useCallback(async () => {
+    const orderId = await createOrderForPayment('stripe');
+    if (orderId) {
+      orderIdRef.current = orderId;
+
+      // Initialize payment intent
+      if (!clientSecret) {
+        try {
+          setLoading(true);
+          const { clientSecret: secret } = await createPaymentIntent(
+            Math.round(subtotal * 1000)
+          );
+          setClientSecret(secret);
+        } catch (paymentError) {
+          console.error('Error initializing payment:', paymentError);
+          setErrorMessage(
+            'Could not initialize payment. Please try again.'
+          );
+          return;
+        } finally {
+          setLoading(false);
+        }
+      }
+
+      setIsPaymentSheetOpen(true);
     }
   }, [
-    validateFormFields,
-    customerInfo,
-    cartItems,
+    createOrderForPayment,
+    clientSecret,
     subtotal,
-    accessToken,
     setErrorMessage,
+    setLoading,
   ]);
 
   // Main conditional rendering
@@ -428,10 +481,10 @@ const CartCheckout: React.FC<CartCheckoutProps> = ({
           handleInputChange={handleInputChange}
           handleCountryChange={handleCountryChange}
           handleOpenPaymentSheet={handleOpenPaymentSheet}
+          handleOpenWalletPayment={handleOpenWalletPayment}
           errorMessage={errorMessage}
           cartItems={cartItems}
           subtotal={subtotal}
-          onOpen={onOpen}
           hasPhygitalProducts={hasPhygitalProducts}
         />
       ) : error ? (
@@ -443,7 +496,9 @@ const CartCheckout: React.FC<CartCheckoutProps> = ({
         subtotal={subtotal}
         isOpen={isOpen}
         onOpenChange={onOpenChange}
-        sellerAddress={sellerAddress}
+        customerInfo={customerInfo}
+        cartItems={cartItems}
+        orderId={walletOrderId}
       />
 
       {/* Payment Sheet - Only rendered when clientSecret exists */}
@@ -463,7 +518,7 @@ const CartCheckout: React.FC<CartCheckoutProps> = ({
           >
             <SheetContent
               side="bottom"
-              className="h-[90vh] sm:max-w-full p-0 overflow-hidden flex flex-col"
+              className="h-[90vh] mx-auto max-w-md p-0 overflow-hidden flex flex-col"
             >
               <SheetTitle className="sr-only">
                 Payment Sheet

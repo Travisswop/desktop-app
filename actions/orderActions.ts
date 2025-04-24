@@ -1,7 +1,5 @@
 'use server';
 
-import { revalidatePath } from 'next/cache';
-
 const API_URL = process.env.NEXT_PUBLIC_API_URL;
 
 export interface OrderInfo {
@@ -106,8 +104,6 @@ export async function updateOrderPayment(
     }
 
     const data = await response.json();
-
-    revalidatePath('/sp/[username]/cart');
 
     return {
       success: true,

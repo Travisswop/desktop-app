@@ -1,6 +1,6 @@
-"use server";
+'use server';
 
-import { revalidatePath } from "next/cache";
+import { revalidatePath } from 'next/cache';
 export async function addProductToCart(
   payload: any,
   token: string,
@@ -10,21 +10,20 @@ export async function addProductToCart(
     const response = await fetch(
       `${process.env.NEXT_PUBLIC_API_URL}/api/v1/desktop/nft/userCart`,
       {
-        method: "POST",
+        method: 'POST',
         headers: {
-          "Content-Type": "application/json",
+          'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify(payload),
       }
     );
     const data = await response.json();
-    console.log("add to cart post response", data);
 
     revalidatePath(`/sp/${userName}`);
     return data;
   } catch (error) {
-    console.error("Error from add swop point:", error);
+    console.error('Error from add swop point:', error);
   }
 }
 
@@ -33,9 +32,9 @@ export async function getCartData(token: string) {
     const response = await fetch(
       `${process.env.NEXT_PUBLIC_API_URL}/api/v1/desktop/nft/userCart`,
       {
-        method: "GET",
+        method: 'GET',
         headers: {
-          "Content-Type": "application/json",
+          'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`,
         },
       }
@@ -44,7 +43,7 @@ export async function getCartData(token: string) {
     // revalidatePath(`/sp/${appIconInfo.micrositeId}`);
     return data;
   } catch (error) {
-    console.error("Error from add swop point:", error);
+    console.error('Error from add swop point:', error);
   }
 }
 
@@ -57,9 +56,9 @@ export async function updateCartQuantity(
     const response = await fetch(
       `${process.env.NEXT_PUBLIC_API_URL}/api/v1/desktop/nft/userCart/qty`,
       {
-        method: "POST",
+        method: 'POST',
         headers: {
-          "Content-Type": "application/json",
+          'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify(payload),
@@ -69,7 +68,7 @@ export async function updateCartQuantity(
     revalidatePath(`/sp/${userName}/cart`);
     return data;
   } catch (error) {
-    console.error("Error from add swop point:", error);
+    console.error('Error from add swop point:', error);
   }
 }
 
@@ -82,9 +81,9 @@ export async function deleteCartItem(
     const response = await fetch(
       `${process.env.NEXT_PUBLIC_API_URL}/api/v1/desktop/nft/deleteCartItem/${id}`,
       {
-        method: "DELETE",
+        method: 'DELETE',
         headers: {
-          "Content-Type": "application/json",
+          'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`,
         },
       }
@@ -93,6 +92,6 @@ export async function deleteCartItem(
     revalidatePath(`/sp/${userName}/cart`);
     return data;
   } catch (error) {
-    console.error("Error removing cart data:", error);
+    console.error('Error removing cart data:', error);
   }
 }

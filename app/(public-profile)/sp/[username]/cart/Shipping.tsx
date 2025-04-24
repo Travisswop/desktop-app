@@ -15,8 +15,9 @@ import {
 import Image from 'next/image';
 import { useParams, useRouter } from 'next/navigation';
 import React, { useEffect, useState } from 'react';
+import { CartItem, PaymentMethod, Status } from './components/types';
+import { Network } from '@/types/wallet-types';
 
-// Transaction stages for better UX
 const TRANSACTION_STAGES = {
   IDLE: 'idle',
   INITIATING: 'initiating',
@@ -30,24 +31,27 @@ const PaymentShipping: React.FC<{
   selectedToken: any;
   setSelectedToken: (token: any) => void;
   subtotal: number;
-  amontOfToken: number;
+  amontOfToken: string;
   walletData: any;
-  sellerAddress: string;
+  customerInfo: any;
+  cartItems: any;
+  orderId?: string | null;
 }> = ({
   selectedToken,
   setSelectedToken,
   subtotal,
   amontOfToken,
   walletData,
-  sellerAddress,
+  customerInfo,
+  cartItems,
+  orderId: existingOrderId,
 }) => {
-  const { user, accessToken } = useUser();
-  const [address, setAddress] = useState('');
+  const { accessToken } = useUser();
   const [transactionStage, setTransactionStage] = useState(
     TRANSACTION_STAGES.IDLE
   );
   const [orderId, setOrderId] = useState('');
-  const [error, setError] = useState(null);
+  const [error, setError] = useState<string | null>(null);
   const [transactionHash, setTransactionHash] = useState('');
   const { wallets: solanaWallets } = useSolanaWallets();
   const params = useParams();
@@ -60,22 +64,24 @@ const PaymentShipping: React.FC<{
     transactionStage !== TRANSACTION_STAGES.COMPLETED &&
     transactionStage !== TRANSACTION_STAGES.FAILED;
 
-  useEffect(() => {
-    if (user?.address) {
-      setAddress(user.address);
-    }
-  }, [user]);
-
   // Auto-redirect after successful transaction
+  useEffect(() => {
+    if (existingOrderId) {
+      setOrderId(existingOrderId);
+    }
+  }, [existingOrderId]);
+
   useEffect(() => {
     let redirectTimer: string | number | NodeJS.Timeout | undefined;
     if (transactionStage === TRANSACTION_STAGES.COMPLETED) {
       redirectTimer = setTimeout(() => {
-        router.push(`/order`);
+        router.push(
+          `/payment-success?orderId=${orderId}&username=${name}`
+        );
       }, 3000); // Give user time to see success message
     }
     return () => clearTimeout(redirectTimer);
-  }, [transactionStage, router, name]);
+  }, [transactionStage, router, name, orderId]);
 
   const getStageMessage = () => {
     switch (transactionStage) {
@@ -118,6 +124,10 @@ const PaymentShipping: React.FC<{
         recipient: {
           address: 'HPmEbq6VMzE8dqRuFjLrNNxmqzjvP72jCofoFap5vBR2',
         },
+        isUSD: false,
+        nft: null,
+        network: 'SOLANA' as Network,
+        step: null,
       };
 
       // Connection setup
@@ -140,21 +150,48 @@ const PaymentShipping: React.FC<{
       // Wait for confirmation
       await connection.confirmTransaction(hash);
 
-      // Create order record
       setTransactionStage(TRANSACTION_STAGES.CREATING_ORDER);
 
-      const orderData = {
-        customerName: user?.name,
-        customerEmail: user?.email,
-        customerPhone: user?.phone || '+01402348575',
-        customerShippingAddress: address,
-        txHash: hash,
-        customerWalletAddress: solanaWallet?.address,
-        ens: user?.ensName,
-      };
+      if (orderId && hash && accessToken) {
+        try {
+          const { updateOrderPayment } = await import(
+            '@/actions/orderActions'
+          );
 
-      if (hash && accessToken) {
-        const { data } = await createOrder(orderData, accessToken);
+          await updateOrderPayment(
+            orderId,
+            {
+              transactionHash: hash,
+              status: 'completed',
+            },
+            accessToken
+          );
+
+          setTransactionStage(TRANSACTION_STAGES.COMPLETED);
+        } catch (updateError) {
+          console.error('Error updating order payment:', updateError);
+          throw new Error(
+            'Failed to update order with payment details'
+          );
+        }
+      } else if (hash && accessToken) {
+        // Create a new order if we don't have an existing one (fallback)
+        const orderInfo = {
+          customerInfo,
+          txHash: hash,
+          items: cartItems.map((item: CartItem) => ({
+            itemId: item._id,
+            quantity: item.quantity,
+            price: item.nftTemplate.price,
+            name: item.nftTemplate.name,
+            nftType: item.nftTemplate.nftType || 'collectible',
+          })),
+          subtotal,
+          paymentMethod: 'wallet' as PaymentMethod,
+          status: 'completed' as Status,
+        };
+
+        const { data } = await createOrder(orderInfo, accessToken);
         setOrderId(data.data.orderId);
         setTransactionStage(TRANSACTION_STAGES.COMPLETED);
       }
@@ -260,17 +297,6 @@ const PaymentShipping: React.FC<{
           - <span className="text-red-500">{amontOfToken} </span>
           {selectedToken.symbol ? selectedToken.symbol : 'SOL'}
         </p>
-      </div>
-
-      <div className="flex items-center gap-2 justify-between">
-        <p className="font-medium">Shipping Address</p>
-        <input
-          className="text-gray-500 font-medium border border-gray-300 rounded px-1 py-0.5 focus:outline-gray-200 text-end w-3/5"
-          value={address}
-          onChange={(e) => setAddress(e.target.value)}
-          disabled={isLoading}
-          placeholder="Enter shipping address"
-        />
       </div>
 
       <div className="flex items-center gap-2 justify-between">

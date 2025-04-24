@@ -1,5 +1,5 @@
 'use client';
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Modal, ModalContent, ModalBody } from '@nextui-org/react';
 import { usePrivy, useSolanaWallets } from '@privy-io/react-auth';
 import { useMultiChainTokenData } from '@/lib/hooks/useToken';
@@ -13,12 +13,21 @@ export default function NftPaymentModal({
   subtotal,
   isOpen,
   onOpenChange,
-  sellerAddress,
-}: any) {
+  customerInfo,
+  cartItems,
+  orderId,
+}: {
+  subtotal: number;
+  isOpen: boolean;
+  onOpenChange: (isOpen: boolean) => void;
+  customerInfo: any;
+  cartItems: any[];
+  orderId: string | null;
+}) {
   const [walletData, setWalletData] = useState<any>(null);
   const [amontOfToken, setAmontOfToken] = useState<any>(null);
   const [selectedToken, setSelectedToken] = useState<any>(null);
-  const { createWallet, wallets: solanaWallets } = useSolanaWallets();
+  const { createWallet } = useSolanaWallets();
   const { authenticated, ready, user: PrivyUser } = usePrivy();
   const [solWalletAddress, setSolWalletAddress] = useState('');
   const [evmWalletAddress, setEvmWalletAddress] = useState('');
@@ -55,6 +64,16 @@ export default function NftPaymentModal({
   }, [PrivyUser, authenticated, ready]);
 
   useEffect(() => {
+    if (!walletData) return;
+
+    const solWallet = walletData.find((w: any) => !w.isEVM);
+    const evmWallet = walletData.find((w: any) => w.isEVM);
+
+    setSolWalletAddress(solWallet?.address || '');
+    setEvmWalletAddress(evmWallet?.address || '');
+  }, [walletData]);
+
+  useEffect(() => {
     if (authenticated && ready && PrivyUser) {
       const hasExistingSolanaWallet = PrivyUser.linkedAccounts.some(
         (account: any) =>
@@ -70,11 +89,7 @@ export default function NftPaymentModal({
   }, [authenticated, ready, PrivyUser, createWallet]);
 
   // Data fetching hooks
-  const {
-    tokens,
-    loading: tokenLoading,
-    error: tokenError,
-  } = useMultiChainTokenData(
+  const { tokens } = useMultiChainTokenData(
     solWalletAddress,
     evmWalletAddress,
     chains
@@ -107,7 +122,9 @@ export default function NftPaymentModal({
                       setSelectedToken={setSelectedToken}
                       amontOfToken={amontOfToken}
                       walletData={walletData}
-                      sellerAddress={sellerAddress}
+                      customerInfo={customerInfo}
+                      cartItems={cartItems}
+                      orderId={orderId}
                     />
                   ) : (
                     <TokenSelector
