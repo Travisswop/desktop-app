@@ -180,7 +180,7 @@ const Login: React.FC = () => {
         console.log('🚀 ~ data:', data);
 
         if (!response.ok) {
-          await createWallet();
+          // await createWallet();
           router.push('/onboard');
           return;
         }

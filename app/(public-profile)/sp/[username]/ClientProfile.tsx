@@ -75,12 +75,8 @@ export default function ClientProfile({
     profilePic,
     backgroundImg,
     info,
-    gatedAccess,
-    direct,
     parentId,
-    gatedInfo,
     theme,
-    ens,
   }: {
     _id: string;
     name: string;

@@ -20,13 +20,3 @@ export async function createOrder(info: any, token: string) {
     console.error('Error from action:', error);
   }
 }
-
-// const response = await fetch(`${VERSION_ONE_API}/desktop/nft/createOrder`, {
-//   method: "POST",
-//   headers: {
-//     Accept: "application/json",
-//     "Content-Type": "application/json",
-//     Authorization: "Bearer " + token,
-//   },
-//   body: JSON.stringify(orderData),
-// });

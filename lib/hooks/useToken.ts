@@ -16,6 +16,7 @@ export const useMultiChainTokenData = (
   evmWalletAddress?: string,
   chains: ChainType[] = ['ETHEREUM']
 ) => {
+  console.log('sol Wallet', solWalletAddress);
   const evmChains = chains.filter(
     (chain): chain is EVMChain => chain !== 'SOLANA'
   );
