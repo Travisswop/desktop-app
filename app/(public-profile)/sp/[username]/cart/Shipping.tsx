@@ -1,5 +1,5 @@
 'use client';
-import { createOrder } from '@/actions/order';
+import { createOrder } from '@/actions/orderActions';
 import AnimateButton from '@/components/ui/Button/AnimateButton';
 import { truncateWalletAddress } from '@/lib/tranacateWalletAddress';
 import { useUser } from '@/lib/UserContext';
@@ -191,8 +191,8 @@ const PaymentShipping: React.FC<{
           status: 'completed' as Status,
         };
 
-        const { data } = await createOrder(orderInfo, accessToken);
-        setOrderId(data.data.orderId);
+        const { orderId } = await createOrder(orderInfo, accessToken);
+        setOrderId(orderId);
         setTransactionStage(TRANSACTION_STAGES.COMPLETED);
       }
     } catch (error) {
