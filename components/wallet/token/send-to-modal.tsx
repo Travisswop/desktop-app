@@ -326,7 +326,25 @@ export default function SendToModal({
     } catch (error: any) {
       console.error('error', error);
       await deleteRedeemLink(user?.id || '', data.poolId); // Call to delete redeem link
-      throw new Error('Failed to transfer tokens');
+      
+      let errorMessage = 'Failed to transfer tokens';
+      
+      if (error.name === 'SendTransactionError') {
+        const { message, logs } = TransactionService.parseSendTransactionError(error);
+        console.error('Transaction error logs:', logs);
+        
+        if (logs.some(log => log.includes('Please upgrade to SPL Token 2022 for immutable owner support'))) {
+          errorMessage = 'This token requires SPL Token 2022 support. Please try again with sufficient SOL balance for rent.';
+        } else if (logs.some(log => log.includes('insufficient funds for rent'))) {
+          errorMessage = 'Insufficient SOL balance to cover rent for token account. Please add more SOL to your wallet.';
+        } else {
+          errorMessage = message || 'Failed to transfer tokens';
+        }
+      } else {
+        errorMessage = error.message || 'Failed to transfer tokens';
+      }
+      
+      throw new Error(errorMessage);
     }
   };
 
