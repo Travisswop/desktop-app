@@ -154,6 +154,7 @@ const AddRedeemLink = ({
       description: description,
       micrositeId: smartsiteid.split('/').pop(),
       tokenUrl: imageUrl,
+      poolId: selectedToken.pool_id,
     };
     // console.log("redeemInfo", redeemInfo);
     try {

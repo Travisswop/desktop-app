@@ -84,7 +84,7 @@ export default function RedeemTokenList() {
             pool.total_redeemed_amount || '0',
             pool.token_decimals
           ),
-          redeemLink: `${process.env.NEXT_PUBLIC_APP_URL}/redeem/${pool.pool_id}`,
+          redeemLink: `https://redeem.swopme.app/${pool.pool_id}`,
         }));
         setPools(items);
       } else {
