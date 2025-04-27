@@ -1,3 +1,6 @@
+import { postData } from "@/actions/fetchWallet";
+
+// "use server";
 export class APIUtils {
   static async fetchWithRetry<T>(
     url: string,
@@ -5,11 +8,13 @@ export class APIUtils {
     retries = 1
   ): Promise<T> {
     try {
-      const response = await fetch(url, options);
-      if (!response.ok) {
+      const response = await postData(url, options);
+      console.log("response jj", response);
+
+      if (!response) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
-      return response.json();
+      return response;
     } catch (error) {
       if (retries > 0) {
         await new Promise((resolve) => setTimeout(resolve, 1000));
