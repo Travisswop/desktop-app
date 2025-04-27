@@ -3,9 +3,9 @@
 import { useEffect, useState, useMemo, useCallback } from 'react';
 import {
   usePrivy,
-  useSolanaWallets,
   useWallets,
 } from '@privy-io/react-auth';
+import { useSolanaWalletContext } from '@/lib/context/SolanaWalletContext';
 import { Connection } from '@solana/web3.js';
 import { useToast } from '@/hooks/use-toast';
 
@@ -103,7 +103,7 @@ const WalletContentInner = () => {
   // Hooks
   const { authenticated, ready, user: PrivyUser } = usePrivy();
   const { wallets: ethWallets } = useWallets();
-  const { createWallet, wallets: solanaWallets } = useSolanaWallets();
+  const { createWallet, solanaWallets } = useSolanaWalletContext();
   const { toast } = useToast();
   const { user } = useUser();
 
@@ -336,7 +336,7 @@ const WalletContentInner = () => {
         'confirmed'
       );
 
-      const solanaWallet = solanaWallets.find(
+      const solanaWallet = solanaWallets?.find(
         (w: any) => w.walletClientType === 'privy'
       );
 

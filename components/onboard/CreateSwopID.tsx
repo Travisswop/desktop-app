@@ -10,7 +10,8 @@ import {
   CardTitle,
 } from '@/components/ui/card';
 import { OnboardingData } from '@/lib/types';
-import { useWallets, useSolanaWallets } from '@privy-io/react-auth';
+import { useWallets } from '@privy-io/react-auth';
+import { useSolanaWalletContext } from '@/lib/context/SolanaWalletContext';
 import { useToast } from '@/hooks/use-toast';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
@@ -38,7 +39,7 @@ export default function CreateSwopID({
 }: CreateSwopIDProps) {
   const { wallets } = useWallets();
   console.log('🚀 ~ wallets:', wallets);
-  const { createWallet, wallets: solanaWallets } = useSolanaWallets();
+  const { createWallet, solanaWallets } = useSolanaWalletContext();
   const { toast } = useToast();
   const router = useRouter();
 
@@ -127,7 +128,7 @@ export default function CreateSwopID({
         const ens = `${swopID}.swop.id`;
         const message = `Set ${ens} to ${address}`;
 
-        const solanaWallet = solanaWallets.find(
+        const solanaWallet = solanaWallets?.find(
           (w: any) => w.walletClientType === 'privy'
         );
 

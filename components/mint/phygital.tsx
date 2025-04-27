@@ -3,7 +3,8 @@ import PushToMintCollectionButton from "@/components/Button/PushToMintCollection
 import { sendCloudinaryImage } from "@/lib/SendCloudineryImage";
 import { useUser } from "@/lib/UserContext";
 import { useDisclosure } from "@nextui-org/react";
-import { usePrivy, useSolanaWallets } from "@privy-io/react-auth";
+import { usePrivy } from "@privy-io/react-auth";
+import { useSolanaWalletContext } from "@/lib/context/SolanaWalletContext";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { DragEvent, useEffect, useState } from "react";
@@ -55,7 +56,7 @@ const CreatePhygital = ({ collectionId }: { collectionId: string }) => {
   const [imageUploading, setImageUploading] = useState(false);
   const { user, accessToken } = useUser();
   const { ready, authenticated } = usePrivy();
-  const { wallets } = useSolanaWallets();
+  const { solanaWallets: wallets } = useSolanaWalletContext();
   const [walletLoaded, setWalletLoaded] = useState(false);
   const [solanaAddress, setSolanaAddress] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);

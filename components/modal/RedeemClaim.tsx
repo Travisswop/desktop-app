@@ -3,7 +3,7 @@ import React, { useEffect, useState } from "react";
 import { Modal, ModalContent, ModalBody } from "@nextui-org/react";
 import toast from "react-hot-toast";
 import { PublicKey } from "@solana/web3.js";
-import { useSolanaWallets } from "@privy-io/react-auth";
+import { useSolanaWalletContext } from "@/lib/context/SolanaWalletContext";
 import {
   Card,
   CardContent,
@@ -50,7 +50,7 @@ export default function RedeemClaimModal({
   const [isManualInput, setIsManualInput] = useState(false);
   const [inputError, setInputError] = useState("");
 
-  const { wallets: solanaWallets } = useSolanaWallets();
+  const { solanaWallets } = useSolanaWalletContext();
 
   console.log("solanaWallets", solanaWallets);
 
@@ -100,7 +100,7 @@ export default function RedeemClaimModal({
   };
 
   const handleRedeem = async () => {
-    const walletToUse = solanaWallets[0].address;
+    const walletToUse = solanaWallets?.[0]?.address;
 
     if (!pool) return;
 
@@ -278,7 +278,7 @@ export default function RedeemClaimModal({
                                     Connected Wallet
                                   </p>
                                   <p className="text-sm font-medium truncate">
-                                    {solanaWallets[0].address}
+                                    {solanaWallets?.[0]?.address}
                                   </p>
                                   <Button
                                     variant="outline"

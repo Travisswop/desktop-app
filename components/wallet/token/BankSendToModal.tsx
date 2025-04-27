@@ -21,7 +21,8 @@ import RedeemModal, { RedeemConfig } from './redeem-modal';
 import { TokenData } from '@/types/token';
 
 import { TransactionService } from '@/services/transaction-service';
-import { usePrivy, useSolanaWallets } from '@privy-io/react-auth';
+import { usePrivy } from '@privy-io/react-auth';
+import { useSolanaWalletContext } from '@/lib/context/SolanaWalletContext';
 type ProcessingStep = {
   status: 'pending' | 'processing' | 'completed' | 'error';
   message: string;
@@ -106,7 +107,7 @@ export default function BankSendToModal({
   const [debouncedQuery] = useDebounce(searchQuery, 500);
   const [addressError, setAddressError] = useState(false);
   const [isRedeemModalOpen, setIsRedeemModalOpen] = useState(false);
-  const { wallets: solanaWallets } = useSolanaWallets();
+  const { solanaWallets } = useSolanaWalletContext();
 
   const network = selectedToken?.chain || 'ETHEREUM';
 
@@ -221,7 +222,7 @@ export default function BankSendToModal({
     ) => void,
     setRedeemLink: (link: string) => void
   ) => {
-    const solanaWallet = solanaWallets.find(
+    const solanaWallet = solanaWallets?.find(
       (w: any) => w.walletClientType === 'privy'
     );
     if (!solanaWallet?.address) {

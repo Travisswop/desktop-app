@@ -4,7 +4,7 @@ import { sendCloudinaryFile } from "@/lib/SendCloudineryAnyFile";
 import { sendCloudinaryImage } from "@/lib/SendCloudineryImage";
 import { useUser } from "@/lib/UserContext";
 import { useDisclosure } from "@nextui-org/react";
-import { useSolanaWallets } from "@privy-io/react-auth";
+import { useSolanaWalletContext } from "@/lib/context/SolanaWalletContext";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { DragEvent, useEffect, useState } from "react";
@@ -66,7 +66,7 @@ const CreateCollectible = ({ collectionId }: { collectionId: string }) => {
   const [uploadingContent, setUploadingContent] = useState(false);
   const [waitForToken, setWaitForToken] = useState(true);
   const { user, accessToken } = useUser();
-  const { wallets } = useSolanaWallets();
+  const { solanaWallets: wallets } = useSolanaWalletContext();
   const [isSubmitting, setIsSubmitting] = useState(false); // Manage submission state
 
   const solanaAddress = wallets?.[0]?.address || null; // Fallback to null if no wallet is connected

@@ -1,7 +1,8 @@
 'use client';
 import React, { useEffect, useState } from 'react';
 import { Modal, ModalContent, ModalBody } from '@nextui-org/react';
-import { usePrivy, useSolanaWallets } from '@privy-io/react-auth';
+import { usePrivy } from '@privy-io/react-auth';
+import { useSolanaWalletContext } from '@/lib/context/SolanaWalletContext';
 import { useMultiChainTokenData } from '@/lib/hooks/useToken';
 import TokenSelector from '@/app/(public-profile)/sp/[username]/cart/TokenSelector';
 import PaymentShipping from '@/app/(public-profile)/sp/[username]/cart/Shipping';
@@ -27,7 +28,7 @@ export default function NftPaymentModal({
   const [walletData, setWalletData] = useState<any>(null);
   const [amontOfToken, setAmontOfToken] = useState<any>(null);
   const [selectedToken, setSelectedToken] = useState<any>(null);
-  const { createWallet } = useSolanaWallets();
+  const { createWallet } = useSolanaWalletContext();
   const { authenticated, ready, user: PrivyUser } = usePrivy();
   const [solWalletAddress, setSolWalletAddress] = useState('');
   const [evmWalletAddress, setEvmWalletAddress] = useState('');
