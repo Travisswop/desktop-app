@@ -405,7 +405,7 @@ const Feed = ({
                 commentCount={feed.commentCount}
                 repostCount={feed.repostCount}
                 viewsCount={feed.viewsCount}
-                accessToken={accessToken}
+                // accessToken={accessToken}
               />
             </div>
           </div>
