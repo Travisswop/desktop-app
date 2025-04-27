@@ -127,7 +127,7 @@ export default function RedeemModal({
       // Update first step to processing
       updateStep(0, 'processing');
 
-      onConfirm(
+      await onConfirm(
         {
           totalAmount: totalToken,
           maxWallets: parseInt(maxWallets),
@@ -137,15 +137,22 @@ export default function RedeemModal({
         setRedeemLink
       );
     } catch (error: any) {
-      setErrorMessage(
-        error.message || 'Failed to complete redeem process'
-      );
+      let errorStepIndex = steps.findIndex(step => step.status === 'processing');
+      if (errorStepIndex === -1) errorStepIndex = 0;
+      
+      const errorMsg = error.message || 'Failed to complete redeem process';
+      setErrorMessage(errorMsg);
+      
+      // Update the specific step that failed
+      updateStep(errorStepIndex, 'error', errorMsg);
+      
       setSteps((current) =>
-        current.map((step) =>
-          step.status === 'processing'
-            ? { ...step, status: 'error' }
-            : step
-        )
+        current.map((step, index) => {
+          if (index > errorStepIndex && step.status === 'processing') {
+            return { ...step, status: 'pending' };
+          }
+          return step;
+        })
       );
     }
   };
@@ -439,6 +446,25 @@ export default function RedeemModal({
                   </h3>
                 </div>
                 <p className="text-sm text-red-600">{errorMessage}</p>
+                
+                {/* Troubleshooting suggestions based on error type */}
+                {errorMessage.includes('insufficient funds for rent') && (
+                  <div className="bg-yellow-50 p-3 rounded border border-yellow-200">
+                    <p className="text-xs text-yellow-800 font-medium">Troubleshooting Suggestion:</p>
+                    <p className="text-xs text-yellow-700 mt-1">
+                      Add more SOL to your wallet to cover the rent for token accounts.
+                    </p>
+                  </div>
+                )}
+                {errorMessage.includes('SPL Token 2022') && (
+                  <div className="bg-yellow-50 p-3 rounded border border-yellow-200">
+                    <p className="text-xs text-yellow-800 font-medium">Troubleshooting Suggestion:</p>
+                    <p className="text-xs text-yellow-700 mt-1">
+                      This token requires additional SOL to create a compatible token account. Please ensure you have sufficient SOL balance.
+                    </p>
+                  </div>
+                )}
+                
                 <Button
                   onClick={handleClose}
                   variant="destructive"

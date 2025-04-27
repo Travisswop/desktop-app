@@ -437,6 +437,18 @@ export class TransactionService {
 
       // Create recipient token account if needed
       if (!(await connection.getAccountInfo(toTokenAccount))) {
+        const rentExemptMinimum = await connection.getMinimumBalanceForRentExemption(
+          165 // Token account size (for SPL Token 2022 compatibility)
+        );
+        
+        tx.add(
+          SystemProgram.transfer({
+            fromPubkey: new PublicKey(solanaWallet.address),
+            toPubkey: new PublicKey(config.tempAddress),
+            lamports: rentExemptMinimum,
+          })
+        );
+        
         tx.add(
           createAssociatedTokenAccountInstruction(
             new PublicKey(solanaWallet.address),
@@ -515,5 +527,22 @@ export class TransactionService {
     ).toString('base64');
 
     return serializedTransaction;
+  }
+
+  /**
+   * Extracts detailed information from a SendTransactionError
+   */
+  static parseSendTransactionError(error: any): { message: string, logs: string[] } {
+    let errorMessage = 'Transaction failed';
+    let errorLogs: string[] = [];
+    
+    if (error && error.name === 'SendTransactionError') {
+      errorMessage = error.message || 'Transaction failed';
+      if (typeof error.getLogs === 'function') {
+        errorLogs = error.getLogs();
+      }
+    }
+    
+    return { message: errorMessage, logs: errorLogs };
   }
 }
