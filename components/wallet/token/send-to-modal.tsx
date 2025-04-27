@@ -240,6 +240,8 @@ export default function SendToModal({
         'https://api.devnet.solana.com'
     );
 
+    console.log('selected token', selectedToken);
+
     // Convert amount to proper decimal format
     const totalAmount = parseFloat(config.totalAmount.toString());
 

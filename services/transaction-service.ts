@@ -11,6 +11,7 @@ import {
   getAssociatedTokenAddress,
   createTransferInstruction,
   createAssociatedTokenAccountInstruction,
+  getAccount,
 } from '@solana/spl-token';
 import { SendFlowState, Network } from '@/types/wallet-types';
 import { Transaction } from '@/types/transaction';
@@ -384,6 +385,7 @@ export class TransactionService {
   ) {
     if (!solanaWallet) throw new Error('No Solana wallet found');
 
+    console.log('config', config);
     if (!config.tokenAddress) {
       // Native SOL transfer
       const tx = new SolanaTransaction().add(
@@ -409,6 +411,23 @@ export class TransactionService {
         new PublicKey(solanaWallet.address)
       );
 
+      // fetch parsed account data
+      const fromAccount = await getAccount(
+        connection,
+        fromTokenAccount
+      );
+
+      const currentBalance =
+        Number(fromAccount.amount) / 10 ** config.tokenDecimals;
+
+      if (Number(fromAccount.amount) < config.totalAmount) {
+        throw new Error(
+          `Insufficient token balance: you have ${currentBalance}, tried to send ${
+            config.totalAmount / 10 ** config.tokenDecimals
+          }`
+        );
+      }
+
       const toTokenAccount = await getAssociatedTokenAddress(
         new PublicKey(config.tokenAddress),
         new PublicKey(config.tempAddress)
@@ -428,16 +447,12 @@ export class TransactionService {
         );
       }
 
-      const tokenAmount = Math.floor(
-        config.totalAmount * Math.pow(10, config.tokenDecimals)
-      );
-
       tx.add(
         createTransferInstruction(
           fromTokenAccount,
           toTokenAccount,
           new PublicKey(solanaWallet.address),
-          tokenAmount
+          config.totalAmount
         )
       );
 
