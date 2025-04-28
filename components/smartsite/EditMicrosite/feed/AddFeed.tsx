@@ -8,6 +8,12 @@ import useSmartSiteApiDataStore from "@/zustandStore/UpdateSmartsiteInfo";
 import { FaTimes } from "react-icons/fa";
 import Image from "next/image";
 import Cookies from "js-cookie";
+import feedIcon from "@/public/images/smartsite_icon/feed-embeed.png";
+import { IoLinkOutline } from "react-icons/io5";
+import AnimateButton from "@/components/ui/Button/AnimateButton";
+import { LiaFileMedicalSolid } from "react-icons/lia";
+import { Tooltip } from "@nextui-org/react";
+import { MdInfoOutline } from "react-icons/md";
 
 const AddFeed = ({ handleRemoveIcon }: any) => {
   const state: any = useSmartSiteApiDataStore((state) => state); //get small icon store value
@@ -17,8 +23,8 @@ const AddFeed = ({ handleRemoveIcon }: any) => {
 
   useEffect(() => {
     const getAccessToken = async () => {
-      const token = Cookies.get('access-token');
-      setToken(token || "")
+      const token = Cookies.get("access-token");
+      setToken(token || "");
     };
     getAccessToken();
   }, []);
@@ -38,48 +44,50 @@ const AddFeed = ({ handleRemoveIcon }: any) => {
 
   return (
     <div className="bg-white rounded-xl shadow-small p-6 flex flex-col gap-4">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-1">
+      <div className="flex items-center justify-between w-full">
+        <div className="flex items-center justify-center gap-1 w-full">
           <h1 className="text-lg font-semibold">Feed Embed</h1>
-          <Image
-            src={"/images/feed.png"}
-            alt="feed"
-            width={60}
-            height={60}
-            className="w-6 h-auto"
-          />
+          <Tooltip
+            size="sm"
+            content={"You can embed feed into your smartsite."}
+            className={`
+                      "max-w-40 h-auto `}
+          >
+            <button>
+              <MdInfoOutline />
+            </button>
+          </Tooltip>
         </div>
         <button type="button" onClick={() => handleRemoveIcon("Feed")}>
           <FaTimes size={20} />
         </button>
       </div>
 
-      <div className="flex items-center justify-center ">
-        <p>Coming Soon..</p>
-        {/* <form onSubmit={handleFormSubmit} className="flex flex-col gap-2.5">
-          <div className="flex flex-col gap-[2px]">
-            <label htmlFor="ensName" className="font-semibold text-gray-700">
-              ENS Name<span className="text-red-600 font-medium">*</span>
-            </label>
-            <input
-              type="text"
-              id="ensName"
-              name="ensName"
-              className="w-full border border-[#ede8e8] focus:border-[#e5e0e0] rounded-xl focus:outline-none px-4 py-2 text-gray-700 bg-gray-100"
-              placeholder="example.swop.id"
-              //   required
-            />
-            {error.ensName && (
-              <p className="text-sm text-red-600">{error.ensName}</p>
-            )}
-          </div>
-          <div className="flex justify-end mt-3">
-            <AnimateButton isLoading={isLoading} width={"w-52"}>
-              <LiaFileMedicalSolid size={20} />
-              Save Changes
-            </AnimateButton>
-          </div>
-        </form> */}
+      <div className="flex flex-col gap-2 items-center">
+        <p className="text-lg font-medium">Do You Want to Embed Swop Feed ?</p>
+        <div>
+          <Image src={feedIcon} alt="feed" className="w-16 h-auto" />
+        </div>
+        <div className="flex items-center gap-4 mt-2">
+          <AnimateButton
+            className="bg-black text-white py-2 !border-0 font-medium"
+            whiteLoading={true}
+            isLoading={isLoading}
+            width={"w-28"}
+          >
+            Yes
+          </AnimateButton>
+          <AnimateButton
+            className="font-medium"
+            whiteLoading={true}
+            type="button"
+            // onClick={handleDelete}
+            // isLoading={isDeleteLoading}
+            width={"w-28"}
+          >
+            No
+          </AnimateButton>
+        </div>
       </div>
     </div>
   );

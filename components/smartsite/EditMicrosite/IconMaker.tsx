@@ -15,6 +15,7 @@ import { Tooltip } from "@nextui-org/react";
 import plus from "@/public/images/custom-icons/plus.png";
 import minus from "@/public/images/custom-icons/minus.png";
 import photoIcon from "@/public/images/smartsite_icon/photo.png";
+import feedIcon from "@/public/images/smartsite_icon/feed-embeed.png";
 
 const IconMaker = ({ handleToggleIcon, toggleIcon }: any) => {
   const iconBuilderArry = [
@@ -80,6 +81,12 @@ const IconMaker = ({ handleToggleIcon, toggleIcon }: any) => {
       toolTip:
         "You can embed a video by either uploading it directly or sharing an external link, along with providing a title for the content.",
     },
+    {
+      _id: 12,
+      src: feedIcon,
+      title: "Feed",
+      toolTip: "You can embed feed into your smartsite.",
+    },
   ];
 
   return (
@@ -91,19 +98,21 @@ const IconMaker = ({ handleToggleIcon, toggleIcon }: any) => {
               onClick={() => handleToggleIcon(data.title)}
               className="bg-white cursor-pointer pt-4 pb-2 2xl:py-4 rounded-2xl flex flex-col items-center gap-1 shadow-small relative"
             >
-              <div className="absolute top-1 right-2">
-                <Tooltip
-                  size="sm"
-                  content={data.toolTip}
-                  className={`${
-                    data.title === "Marketplace" ? "max-w-32" : "max-w-40"
-                  } h-auto `}
-                >
-                  <button>
-                    <MdInfoOutline />
-                  </button>
-                </Tooltip>
-              </div>
+              {data?.toolTip && (
+                <div className="absolute top-1 right-2">
+                  <Tooltip
+                    size="sm"
+                    content={data.toolTip}
+                    className={`${
+                      data.title === "Marketplace" ? "max-w-32" : "max-w-40"
+                    } h-auto `}
+                  >
+                    <button>
+                      <MdInfoOutline />
+                    </button>
+                  </Tooltip>
+                </div>
+              )}
 
               <p className="text-center text-sm font-medium mt-1 2xl:mt-0">
                 {data.title === "Video" ? "Photo/Video" : data.title}
