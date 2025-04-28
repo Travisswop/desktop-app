@@ -17,18 +17,11 @@ export interface OrderInfo {
       country: string;
     };
   };
-  items: Array<{
-    itemId: string;
-    quantity: number;
-    price: number;
-    name: string;
-    nftType: string;
-  }>;
-  subtotal: number;
   paymentMethod: 'stripe' | 'wallet';
   paymentIntentId?: string;
   transactionHash?: string;
   status: 'pending' | 'processing' | 'completed' | 'failed';
+  mobileSDK?: boolean;
 }
 
 export interface PaymentResult {

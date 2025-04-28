@@ -178,15 +178,7 @@ const PaymentShipping: React.FC<{
         // Create a new order if we don't have an existing one (fallback)
         const orderInfo = {
           customerInfo,
-          txHash: hash,
-          items: cartItems.map((item: CartItem) => ({
-            itemId: item._id,
-            quantity: item.quantity,
-            price: item.nftTemplate.price,
-            name: item.nftTemplate.name,
-            nftType: item.nftTemplate.nftType || 'collectible',
-          })),
-          subtotal,
+          transactionHash: hash,
           paymentMethod: 'wallet' as PaymentMethod,
           status: 'completed' as Status,
         };

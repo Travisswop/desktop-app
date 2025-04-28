@@ -394,14 +394,6 @@ const CartCheckout: React.FC<CartCheckoutProps> = ({
               address: solanaWallet?.address,
             },
           },
-          items: cartItems.map((item: CartItem) => ({
-            itemId: item._id,
-            quantity: item.quantity,
-            price: item.nftTemplate.price,
-            name: item.nftTemplate.name,
-            nftType: item.nftTemplate.nftType || 'collectible',
-          })),
-          subtotal,
           paymentMethod,
           status: 'pending' as Status,
         };
