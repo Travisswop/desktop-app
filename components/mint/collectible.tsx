@@ -64,20 +64,25 @@ const CreateCollectible = ({ collectionId }: { collectionId: string }) => {
   const [imageUploading, setImageUploading] = useState(false);
   const [isDragOver, setIsDragOver] = useState(false);
   const [uploadingContent, setUploadingContent] = useState(false);
-  const [waitForToken, setWaitForToken] = useState(true);
+  const [checked, setChecked] = useState(false);
   const { user, accessToken } = useUser();
   const { solanaWallets: wallets } = useSolanaWalletContext();
   const [isSubmitting, setIsSubmitting] = useState(false); // Manage submission state
-
-  const solanaAddress = wallets?.[0]?.address || null; // Fallback to null if no wallet is connected
+  const [formErrors, setFormErrors] = useState<Record<string, string>>({});
+  const [imageError, setImageError] = useState<string | null>(null);
+  const [walletLoaded, setWalletLoaded] = useState(false);
+  const [solanaAddress, setSolanaAddress] = useState<string | null>(null);
 
   useEffect(() => {
-    const timeoutId = setTimeout(() => {
-      setWaitForToken(false);
-    }, 30000); // Wait for 30 seconds
-
-    return () => clearTimeout(timeoutId); // Cleanup timeout
-  }, []);
+    if (wallets && wallets.length > 0) {
+      setSolanaAddress(wallets[0]?.address || null);
+      setWalletLoaded(true);
+      console.log('Solana wallet detected:', wallets[0]?.address);
+    } else {
+      setWalletLoaded(true);
+      console.log('No Solana wallet detected');
+    }
+  }, [wallets]);
 
   const handleChange = (
     e: React.ChangeEvent<
@@ -85,6 +90,8 @@ const CreateCollectible = ({ collectionId }: { collectionId: string }) => {
     >
   ) => {
     const { name, value, type } = e.target;
+
+    setFormErrors((prev) => ({ ...prev, [name]: '' }));
 
     if (type === "checkbox") {
       setFormData((prevState) => ({
@@ -101,17 +108,28 @@ const CreateCollectible = ({ collectionId }: { collectionId: string }) => {
 
   const handleQuantityChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = parseInt(e.target.value, 10);
+    
+    setFormErrors((prev) => ({ ...prev, quantity: '' }));
+    
     setFormData((prevState) => ({
       ...prevState,
       quantity: isNaN(value) ? undefined : value,
     }));
   };
 
-  const handleImageUpload = async (
-    event: React.ChangeEvent<HTMLInputElement>
-  ) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
+  const processImage = async (file: File) => {
+    setImageError(null);
+
+    const validTypes = ['image/jpeg', 'image/jpg', 'image/png'];
+    if (!validTypes.includes(file.type)) {
+      setImageError('Invalid file type. Please upload JPEG, JPG, or PNG.');
+      return;
+    }
+
+    if (file.size > 5 * 1024 * 1024) {
+      setImageError('File size exceeds 5MB limit.');
+      return;
+    }
 
     setSelectedImageName(file.name);
 
@@ -126,42 +144,38 @@ const CreateCollectible = ({ collectionId }: { collectionId: string }) => {
           ...prevState,
           image: image,
         }));
-        setImageUploading(false);
+        setFormErrors((prev) => ({ ...prev, image: '' }));
       } catch (error) {
-        console.error("Error uploading image:", error);
+        console.error('Error uploading image:', error);
+        setImageError('Failed to upload image. Please try again.');
+        setFormErrors((prev) => ({
+          ...prev,
+          image: 'Failed to upload image',
+        }));
+      } finally {
         setImageUploading(false);
-        alert("Failed to upload image. Please try again.");
       }
     };
+
+    reader.onerror = () => {
+      setImageError('Error reading file. Please try again.');
+      setImageUploading(false);
+    };
+
     reader.readAsDataURL(file);
+  };
+
+  const handleImageUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    await processImage(file);
   };
 
   const handleImageDrop = async (event: DragEvent<HTMLDivElement>) => {
     event.preventDefault();
     const file = event.dataTransfer.files?.[0];
     if (!file) return;
-
-    setSelectedImageName(file.name);
-
-    const reader = new FileReader();
-    reader.onloadend = async () => {
-      const base64Image = reader.result as string;
-
-      try {
-        setImageUploading(true);
-        const image = await sendCloudinaryImage(base64Image);
-        setFormData((prevState) => ({
-          ...prevState,
-          image: image,
-        }));
-        setImageUploading(false);
-      } catch (error) {
-        console.error("Error uploading image:", error);
-        setImageUploading(false);
-        alert("Failed to upload image. Please try again.");
-      }
-    };
-    reader.readAsDataURL(file);
+    await processImage(file);
   };
 
   const handleContentUpload = async (
@@ -244,6 +258,8 @@ const CreateCollectible = ({ collectionId }: { collectionId: string }) => {
         benefits: [...prevState.benefits, newBenefit.trim()],
       }));
       setNewBenefit("");
+      
+      setFormErrors((prev) => ({ ...prev, benefits: '' }));
     }
   };
 
@@ -252,6 +268,30 @@ const CreateCollectible = ({ collectionId }: { collectionId: string }) => {
       ...prevState,
       benefits: prevState.benefits.filter((_, i) => i !== index),
     }));
+  };
+  
+  const validateForm = () => {
+    const errors: Record<string, string> = {};
+
+    if (!formData.name.trim()) errors.name = 'Name is required';
+    if (!formData.description.trim()) errors.description = 'Description is required';
+    if (!formData.image) errors.image = 'Image is required';
+    if (!formData.price.trim()) errors.price = 'Price is required';
+
+    if (formData.price && isNaN(Number(formData.price))) {
+      errors.price = 'Price must be a valid number';
+    }
+
+    if (formData.quantity !== undefined) {
+      if (formData.quantity <= 0) {
+        errors.quantity = 'Quantity must be greater than 0';
+      }
+    } else {
+      errors.quantity = 'Quantity is required';
+    }
+
+    setFormErrors(errors);
+    return Object.keys(errors).length === 0;
   };
 
   const getFileTypeIcon = (type: string) => {
@@ -264,6 +304,21 @@ const CreateCollectible = ({ collectionId }: { collectionId: string }) => {
 
   const handleSubmit = async (e: React.MouseEvent<HTMLButtonElement>) => {
     e.preventDefault();
+    
+    if (!validateForm()) {
+      return;
+    }
+    
+    if (!solanaAddress) {
+      setModelInfo({
+        flag: false,
+        title: "Wallet Not Connected",
+        description: "Solana wallet address not available. Please make sure your wallet is connected.",
+      });
+      onOpenChange(true);
+      return;
+    }
+    
     setIsSubmitting(true);
 
     try {
@@ -292,32 +347,30 @@ const CreateCollectible = ({ collectionId }: { collectionId: string }) => {
       if (response.ok) {
         const data = await response.json();
         if (data.state === "success") {
-          // alert("NFT Template created successfully!");
           onOpenChange(true);
           setModelInfo({
             flag: true,
-            title: "NFT Template created successfully!",
+            title: "Collectible Template Created Successfully",
             description: "",
           });
           setTimeout(() => {
             router.push(`/mint/${data?.data?.collectionId}`);
           }, 3000);
         } else {
-          // alert("Failed to create template");
-
           onOpenChange(true);
           setModelInfo({
             flag: false,
-            title: "Failed to create template",
-            description: "",
+            title: "Failed to Create Collectible",
+            description: data.message || "Server returned an error. Please try again later.",
           });
         }
       } else {
+        const errorData = await response.json();
         onOpenChange(true);
         setModelInfo({
           flag: false,
-          title: "Failed to create template",
-          description: "",
+          title: "Failed to Create Collectible",
+          description: errorData.message || "Failed to create collectible.",
         });
       }
     } catch (error) {
@@ -325,13 +378,21 @@ const CreateCollectible = ({ collectionId }: { collectionId: string }) => {
       onOpenChange(true);
       setModelInfo({
         flag: false,
-        title: "Failed to create template",
-        description: "",
+        title: "Failed to Create Collectible",
+        description: error instanceof Error ? error.message : "An unexpected error occurred. Please try again.",
       });
     } finally {
       setIsSubmitting(false);
     }
   };
+  
+  const walletWarning = walletLoaded && !solanaAddress ? (
+    <div className="bg-yellow-100 p-4 rounded-lg border border-yellow-300 mb-4">
+      <p className="text-yellow-800">
+        No Solana wallet detected. Please connect your wallet to continue.
+      </p>
+    </div>
+  ) : null;
 
   return (
     <div className="main-container flex justify-center">
@@ -344,6 +405,8 @@ const CreateCollectible = ({ collectionId }: { collectionId: string }) => {
                 <span className="text-red-400"> *</span> Required fields
               </label>
 
+              {walletWarning}
+              
               <div>
                 <label htmlFor="name" className="mb-1 block font-medium">
                   Name <span className="text-red-400"> *</span>
@@ -355,9 +418,16 @@ const CreateCollectible = ({ collectionId }: { collectionId: string }) => {
                   placeholder="Give your digital good a name..."
                   value={formData.name}
                   onChange={handleChange}
-                  className="w-full border border-gray-300 rounded-lg px-4 py-2"
+                  className={`w-full border ${
+                    formErrors.name ? 'border-red-500' : 'border-gray-300'
+                  } rounded-lg px-4 py-2`}
                   required
                 />
+                {formErrors.name && (
+                  <p className="text-sm text-red-500 mt-1">
+                    {formErrors.name}
+                  </p>
+                )}
                 <p className="text-sm text-gray-500 mt-2">
                   Note: Your pass name can&#39;t be changed after creation
                 </p>
@@ -428,6 +498,18 @@ const CreateCollectible = ({ collectionId }: { collectionId: string }) => {
                 {imageUploading && (
                   <p className="text-sm text-gray-400">Uploading image...</p>
                 )}
+                
+                {imageError && (
+                  <p className="text-sm text-red-500 mt-2">
+                    {imageError}
+                  </p>
+                )}
+                
+                {formErrors.image && !imageError && (
+                  <p className="text-sm text-red-500 mt-2">
+                    {formErrors.image}
+                  </p>
+                )}
               </div>
 
               <div>
@@ -440,9 +522,16 @@ const CreateCollectible = ({ collectionId }: { collectionId: string }) => {
                   placeholder="Enter description"
                   value={formData.description}
                   onChange={handleChange}
-                  className="w-full border border-gray-300 rounded-lg px-4 py-2"
+                  className={`w-full border ${
+                    formErrors.description ? 'border-red-500' : 'border-gray-300'
+                  } rounded-lg px-4 py-2`}
                   required
                 />
+                {formErrors.description && (
+                  <p className="text-sm text-red-500 mt-1">
+                    {formErrors.description}
+                  </p>
+                )}
               </div>
 
               <div>
@@ -458,9 +547,16 @@ const CreateCollectible = ({ collectionId }: { collectionId: string }) => {
                     placeholder="$ 0"
                     value={formData.price}
                     onChange={handleChange}
-                    className="w-full border border-gray-300 rounded-lg px-4 py-2 flex items-center space-x-4"
+                    className={`w-full border ${
+                      formErrors.price ? 'border-red-500' : 'border-gray-300'
+                    } rounded-lg px-4 py-2 flex items-center space-x-4`}
                     required
                   />
+                  {formErrors.price && (
+                    <p className="text-sm text-red-500 mt-1">
+                      {formErrors.price}
+                    </p>
+                  )}
                   <div className="w-full border border-gray-300 rounded-lg px-4 py-2 flex items-center space-x-2">
                     <Image
                       src={"/assets/crypto-icons/USDC.png"}
@@ -489,8 +585,15 @@ const CreateCollectible = ({ collectionId }: { collectionId: string }) => {
                   placeholder="Enter quantity"
                   value={formData.quantity || ""}
                   onChange={handleQuantityChange}
-                  className="w-full border border-gray-300 rounded-lg px-4 py-2 mt-2"
+                  className={`w-full border ${
+                    formErrors.quantity ? 'border-red-500' : 'border-gray-300'
+                  } rounded-lg px-4 py-2 mt-2`}
                 />
+                {formErrors.quantity && (
+                  <p className="text-sm text-red-500 mt-1">
+                    {formErrors.quantity}
+                  </p>
+                )}
                 <p className="text-sm text-gray-500 mt-2">
                   Limit the number of times this digital good can be purchased
                 </p>
@@ -663,7 +766,12 @@ const CreateCollectible = ({ collectionId }: { collectionId: string }) => {
               </div> */}
 
               <div className="mt-4">
-                <input type="checkbox" required /> I agree with swop Minting
+                <input 
+                  type="checkbox" 
+                  id="termsAgreement"
+                  checked={checked}
+                  onChange={() => setChecked(!checked)}
+                /> I agree with swop Minting
                 <span className="text-[#8A2BE2] underline ml-1">
                   Privacy & Policy
                 </span>
@@ -671,7 +779,7 @@ const CreateCollectible = ({ collectionId }: { collectionId: string }) => {
 
               <PushToMintCollectionButton
                 className="w-max mt-4"
-                disabled={isSubmitting}
+                disabled={isSubmitting || !solanaAddress || !checked}
                 onClick={handleSubmit}
               >
                 {isSubmitting ? "Creating..." : "Create Collectible"}

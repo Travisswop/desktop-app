@@ -56,8 +56,24 @@ const CreateMenu = ({ collectionId }: { collectionId: string }) => {
   const { solanaWallets } = useSolanaWalletContext();
   const [waitForToken, setWaitForToken] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false); // Manage submission state
+  const [formErrors, setFormErrors] = useState<Record<string, string>>({});
+  const [imageError, setImageError] = useState<string | null>(null);
+  const [walletLoaded, setWalletLoaded] = useState(false);
+  const [solanaAddress, setSolanaAddress] = useState<string | null>(null);
+  const [checked, setChecked] = useState(false);
 
-  const solanaAddress = solanaWallets?.[0]?.address || null;
+  const wallets = solanaWallets;
+
+  useEffect(() => {
+    if (wallets && wallets.length > 0) {
+      setSolanaAddress(wallets[0]?.address || null);
+      setWalletLoaded(true);
+      console.log('Solana wallet detected:', wallets[0]?.address);
+    } else {
+      setWalletLoaded(true);
+      console.log('No Solana wallet detected');
+    }
+  }, [wallets]);
 
   useEffect(() => {
     const timeoutId = setTimeout(() => {
@@ -73,6 +89,8 @@ const CreateMenu = ({ collectionId }: { collectionId: string }) => {
     >
   ) => {
     const { name, value, type } = e.target;
+    
+    setFormErrors((prev) => ({ ...prev, [name]: '' }));
 
     if (type === "checkbox") {
       setFormData((prevState) => ({
@@ -89,10 +107,61 @@ const CreateMenu = ({ collectionId }: { collectionId: string }) => {
 
   const handleQuantityChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = parseInt(e.target.value, 10);
+    
+    setFormErrors((prev) => ({ ...prev, quantity: '' }));
+    
     setFormData((prevState) => ({
       ...prevState,
       quantity: isNaN(value) ? undefined : value,
     }));
+  };
+
+  const processImage = async (file: File) => {
+    setImageError(null);
+
+    const validTypes = ['image/jpeg', 'image/jpg', 'image/png'];
+    if (!validTypes.includes(file.type)) {
+      setImageError('Invalid file type. Please upload JPEG, JPG, or PNG.');
+      return;
+    }
+
+    if (file.size > 5 * 1024 * 1024) {
+      setImageError('File size exceeds 5MB limit.');
+      return;
+    }
+
+    setSelectedImageName(file.name);
+
+    const reader = new FileReader();
+    reader.onloadend = async () => {
+      const base64Image = reader.result as string;
+
+      try {
+        setImageUploading(true);
+        const image = await sendCloudinaryImage(base64Image);
+        setFormData((prevState) => ({
+          ...prevState,
+          image: image,
+        }));
+        setFormErrors((prev) => ({ ...prev, image: '' }));
+      } catch (error) {
+        console.error("Error uploading image:", error);
+        setImageError('Failed to upload image. Please try again.');
+        setFormErrors((prev) => ({
+          ...prev,
+          image: 'Failed to upload image',
+        }));
+      } finally {
+        setImageUploading(false);
+      }
+    };
+
+    reader.onerror = () => {
+      setImageError('Error reading file. Please try again.');
+      setImageUploading(false);
+    };
+
+    reader.readAsDataURL(file);
   };
 
   const handleImageUpload = async (
@@ -100,56 +169,14 @@ const CreateMenu = ({ collectionId }: { collectionId: string }) => {
   ) => {
     const file = event.target.files?.[0];
     if (!file) return;
-
-    setSelectedImageName(file.name);
-
-    const reader = new FileReader();
-    reader.onloadend = async () => {
-      const base64Image = reader.result as string;
-
-      try {
-        setImageUploading(true);
-        const image = await sendCloudinaryImage(base64Image);
-        setFormData((prevState) => ({
-          ...prevState,
-          image: image,
-        }));
-        setImageUploading(false);
-      } catch (error) {
-        console.error("Error uploading image:", error);
-        setImageUploading(false);
-        alert("Failed to upload image. Please try again.");
-      }
-    };
-    reader.readAsDataURL(file);
+    await processImage(file);
   };
 
   const handleImageDrop = async (event: DragEvent<HTMLDivElement>) => {
     event.preventDefault();
     const file = event.dataTransfer.files?.[0];
     if (!file) return;
-
-    setSelectedImageName(file.name);
-
-    const reader = new FileReader();
-    reader.onloadend = async () => {
-      const base64Image = reader.result as string;
-
-      try {
-        setImageUploading(true);
-        const image = await sendCloudinaryImage(base64Image);
-        setFormData((prevState) => ({
-          ...prevState,
-          image: image,
-        }));
-        setImageUploading(false);
-      } catch (error) {
-        console.error("Error uploading image:", error);
-        setImageUploading(false);
-        alert("Failed to upload image. Please try again.");
-      }
-    };
-    reader.readAsDataURL(file);
+    await processImage(file);
   };
 
   const handleAddAddon = () => {
@@ -159,6 +186,7 @@ const CreateMenu = ({ collectionId }: { collectionId: string }) => {
         addons: [...prevState.addons, newAddon.trim()],
       }));
       setNewAddon("");
+      setFormErrors((prev) => ({ ...prev, addons: '' }));
     }
   };
 
@@ -168,29 +196,82 @@ const CreateMenu = ({ collectionId }: { collectionId: string }) => {
       addons: prevState.addons.filter((_, i) => i !== index),
     }));
   };
+  
+  const validateForm = () => {
+    const errors: Record<string, string> = {};
+
+    if (!formData.name.trim()) errors.name = 'Name is required';
+    if (!formData.description.trim()) errors.description = 'Description is required';
+    if (!formData.image) errors.image = 'Image is required';
+    if (!formData.price.trim()) errors.price = 'Price is required';
+
+    if (formData.price && isNaN(Number(formData.price))) {
+      errors.price = 'Price must be a valid number';
+    }
+
+    if (formData.quantity !== undefined) {
+      if (formData.quantity <= 0) {
+        errors.quantity = 'Quantity must be greater than 0';
+      }
+    } else {
+      errors.quantity = 'Quantity is required';
+    }
+
+    if (formData.addons.length === 0) {
+      errors.addons = 'At least one add-on is required';
+    }
+
+    setFormErrors(errors);
+    return Object.keys(errors).length === 0;
+  };
 
   const handleSubmit = async (e: React.MouseEvent<HTMLButtonElement>) => {
     e.preventDefault();
+    
+    if (!validateForm()) {
+      return;
+    }
+    
+    if (!solanaAddress) {
+      setModelInfo({
+        flag: false,
+        title: "Wallet Not Connected",
+        description: "Solana wallet address not available. Please make sure your wallet is connected.",
+      });
+      onOpenChange(true);
+      return;
+    }
+    
     setIsSubmitting(true);
 
     try {
       if (!accessToken && !waitForToken) {
-        alert("Access token is required. Please log in again.");
+        setModelInfo({
+          flag: false,
+          title: "Authentication Error",
+          description: "Access token is required. Please log in again.",
+        });
+        onOpenChange(true);
         return;
       }
 
       if (!accessToken && waitForToken) {
-        alert("Waiting for access token. Please try again shortly.");
+        setModelInfo({
+          flag: false,
+          title: "Authentication Error",
+          description: "Waiting for access token. Please try again shortly.",
+        });
+        onOpenChange(true);
         return;
       }
 
       if (!accessToken) {
-        alert("Access token is required. Please log in again.");
-        return;
-      }
-
-      if (!solanaAddress) {
-        alert("No Solana wallet connected. Please connect your wallet.");
+        setModelInfo({
+          flag: false,
+          title: "Authentication Error",
+          description: "Access token is required. Please log in again.",
+        });
+        onOpenChange(true);
         return;
       }
 
@@ -257,6 +338,14 @@ const CreateMenu = ({ collectionId }: { collectionId: string }) => {
     }
   };
 
+  const walletWarning = walletLoaded && !solanaAddress ? (
+    <div className="bg-yellow-100 p-4 rounded-lg border border-yellow-300 mb-4">
+      <p className="text-yellow-800">
+        No Solana wallet detected. Please connect your wallet to continue.
+      </p>
+    </div>
+  ) : null;
+
   return (
     <div className="main-container flex justify-center">
       <div className="bg-white p-5 rounded-lg shadow-md border border-gray-300 w-full flex flex-wrap md:flex-nowrap items-start">
@@ -267,6 +356,8 @@ const CreateMenu = ({ collectionId }: { collectionId: string }) => {
               <label className="-mt-2 block font-normal text-sm text-gray-600">
                 <span className="text-red-400"> *</span> Required fields
               </label>
+              
+              {walletWarning}
 
               <div>
                 <label htmlFor="name" className="mb-1 block font-medium">
@@ -279,9 +370,16 @@ const CreateMenu = ({ collectionId }: { collectionId: string }) => {
                   placeholder="Give your menu item a name."
                   value={formData.name}
                   onChange={handleChange}
-                  className="w-full border border-gray-300 rounded-lg px-4 py-2"
+                  className={`w-full border ${
+                    formErrors.name ? 'border-red-500' : 'border-gray-300'
+                  } rounded-lg px-4 py-2`}
                   required
                 />
+                {formErrors.name && (
+                  <p className="text-sm text-red-500 mt-1">
+                    {formErrors.name}
+                  </p>
+                )}
                 <p className="text-sm text-gray-500 mt-1">
                   Note: Your menu item name can&apos;t be changed after creation
                 </p>
@@ -292,7 +390,9 @@ const CreateMenu = ({ collectionId }: { collectionId: string }) => {
                 Image <span className="text-red-400"> *</span>
               </label>
               <div
-                className="bg-gray-100 p-8 rounded-lg border-2 border-dashed text-center border-gray-300 h-[255px] -mt-2"
+                className={`bg-gray-100 p-8 rounded-lg border-2 border-dashed text-center ${
+                  formErrors.image || imageError ? 'border-red-500' : 'border-gray-300'
+                } h-[255px] -mt-2`}
                 style={{ minWidth: "300px", width: "70%" }}
                 onDragOver={(e) => e.preventDefault()}
                 onDrop={handleImageDrop}
@@ -353,6 +453,18 @@ const CreateMenu = ({ collectionId }: { collectionId: string }) => {
                 {imageUploading && (
                   <p className="text-sm text-gray-400">Uploading image...</p>
                 )}
+                
+                {imageError && (
+                  <p className="text-sm text-red-500 mt-2">
+                    {imageError}
+                  </p>
+                )}
+                
+                {formErrors.image && !imageError && (
+                  <p className="text-sm text-red-500 mt-2">
+                    {formErrors.image}
+                  </p>
+                )}
               </div>
 
               <div>
@@ -365,9 +477,16 @@ const CreateMenu = ({ collectionId }: { collectionId: string }) => {
                   placeholder="Enter description"
                   value={formData.description}
                   onChange={handleChange}
-                  className="w-full border border-gray-300 rounded-lg px-4 py-2"
+                  className={`w-full border ${
+                    formErrors.description ? 'border-red-500' : 'border-gray-300'
+                  } rounded-lg px-4 py-2`}
                   required
                 />
+                {formErrors.description && (
+                  <p className="text-sm text-red-500 mt-1">
+                    {formErrors.description}
+                  </p>
+                )}
               </div>
 
               <div>
@@ -383,7 +502,9 @@ const CreateMenu = ({ collectionId }: { collectionId: string }) => {
                     placeholder="$ 0"
                     value={formData.price}
                     onChange={handleChange}
-                    className="w-full border border-gray-300 rounded-lg px-4 py-2 flex items-center space-x-4"
+                    className={`w-full border ${
+                      formErrors.price ? 'border-red-500' : 'border-gray-300'
+                    } rounded-lg px-4 py-2 flex items-center space-x-4`}
                     required
                   />
                   <div className="w-full border border-gray-300 rounded-lg px-4 py-2 flex items-center space-x-2">
@@ -399,6 +520,11 @@ const CreateMenu = ({ collectionId }: { collectionId: string }) => {
                     </label>
                   </div>
                 </div>
+                {formErrors.price && (
+                  <p className="text-sm text-red-500 mt-1">
+                    {formErrors.price}
+                  </p>
+                )}
                 <p className="text-sm text-gray-500 mt-2">
                   Note: Currency can&#39;t be changed after creation
                 </p>
@@ -414,8 +540,15 @@ const CreateMenu = ({ collectionId }: { collectionId: string }) => {
                   placeholder="Enter quantity"
                   value={formData.quantity || ""}
                   onChange={handleQuantityChange}
-                  className="w-full border border-gray-300 rounded-lg px-4 py-2 mt-2"
+                  className={`w-full border ${
+                    formErrors.quantity ? 'border-red-500' : 'border-gray-300'
+                  } rounded-lg px-4 py-2 mt-2`}
                 />
+                {formErrors.quantity && (
+                  <p className="text-sm text-red-500 mt-1">
+                    {formErrors.quantity}
+                  </p>
+                )}
                 <p className="text-sm text-gray-500 mt-1">
                   Note: Limit the number of times this menu item can be
                   purchased
@@ -431,7 +564,9 @@ const CreateMenu = ({ collectionId }: { collectionId: string }) => {
                   placeholder="Enter an add-on"
                   value={newAddon}
                   onChange={(e) => setNewAddon(e.target.value)}
-                  className="w-full border border-gray-300 rounded-lg px-4 py-2 mb-2"
+                  className={`w-full border ${
+                    formErrors.addons ? 'border-red-500' : 'border-gray-300'
+                  } rounded-lg px-4 py-2 mb-2`}
                 />
                 <button
                   type="button"
@@ -440,6 +575,11 @@ const CreateMenu = ({ collectionId }: { collectionId: string }) => {
                 >
                   + Add Add-on
                 </button>
+                {formErrors.addons && (
+                  <p className="text-sm text-red-500 mt-1">
+                    {formErrors.addons}
+                  </p>
+                )}
                 <div className="flex flex-col gap-2 mt-2">
                   {formData.addons.map((addon, index) => (
                     <div
@@ -540,7 +680,12 @@ const CreateMenu = ({ collectionId }: { collectionId: string }) => {
               {/* Privacy Policy Agreement */}
 
               <div className="mt-4">
-                <input type="checkbox" required /> I agree with swop Minting
+                <input 
+                  type="checkbox" 
+                  id="termsAgreement"
+                  onChange={() => setChecked(!checked)}
+                  checked={checked}
+                /> I agree with swop Minting
                 <span className="text-[#8A2BE2] underline ml-1">
                   Privacy & Policy
                 </span>
@@ -548,7 +693,7 @@ const CreateMenu = ({ collectionId }: { collectionId: string }) => {
 
               <PushToMintCollectionButton
                 className="w-max mt-4"
-                disabled={isSubmitting}
+                disabled={isSubmitting || !solanaAddress || !checked}
                 onClick={handleSubmit}
               >
                 {isSubmitting ? "Creating..." : "Create Menu"}
