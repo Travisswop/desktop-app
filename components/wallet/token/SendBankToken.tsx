@@ -16,7 +16,7 @@ import Cookies from 'js-cookie';
 import { BsBank2 } from 'react-icons/bs';
 import { PiWalletBold } from 'react-icons/pi';
 import { useUser } from '@/lib/UserContext';
-import { useSolanaWallets } from '@privy-io/react-auth';
+import { useSolanaWalletContext } from '@/lib/context/SolanaWalletContext';
 
 interface SendTokenModalProps {
   open: boolean;
@@ -48,7 +48,7 @@ export default function SendBankToken({
     networkFee = '0.000005';
   }
 
-  const { wallets } = useSolanaWallets();
+  const { solanaWallets: wallets } = useSolanaWalletContext();
 
   const { user, accessToken } = useUser();
 
@@ -112,7 +112,7 @@ export default function SendBankToken({
 
     console.log('options for bank', {
       network: token?.chain?.toLowerCase(),
-      walletAddress: wallets[0]?.address,
+      walletAddress: wallets?.[0]?.address,
       id: externalData.data.accounts[0].id,
       customerId: externalData.data.accounts[0].customer_id,
       amount: amount,
@@ -121,7 +121,7 @@ export default function SendBankToken({
 
     const response = await createBridgePayment(
       token?.chain?.toLowerCase(),
-      wallets[0]?.address,
+      wallets?.[0]?.address,
       externalData.data.accounts[0].id,
       externalData.data.accounts[0].customer_id,
       amount

@@ -23,7 +23,7 @@ import {
   SheetTitle,
 } from '@/components/ui/sheet';
 import NftPaymentModal from '@/components/modal/NftPayment';
-import { useSolanaWallets } from '@privy-io/react-auth';
+import { useSolanaWalletContext } from '@/lib/context/SolanaWalletContext';
 
 import {
   LoadingSpinner,
@@ -59,9 +59,9 @@ const CartCheckout: React.FC<CartCheckoutProps> = ({
   accessToken,
 }) => {
   const { user } = useUser();
-  const { wallets: solanaWallets } = useSolanaWallets();
+  const { solanaWallets } = useSolanaWalletContext();
 
-  const solanaWallet = solanaWallets.find(
+  const solanaWallet = solanaWallets?.find(
     (w: any) => w.walletClientType === 'privy'
   );
 

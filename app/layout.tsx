@@ -1,6 +1,7 @@
 import './globals.css';
 import PrivyProvider from '@/components/PrivyProvider';
 import { UserProvider } from '@/lib/UserContext';
+import { SolanaWalletProvider } from '@/lib/context/SolanaWalletContext';
 
 import { Figtree } from 'next/font/google';
 import { TanstackProvider } from '@/components/providers/tanstackProvider';
@@ -27,9 +28,11 @@ export default function RootLayout({
         <Toaster position="top-center" reverseOrder={false} />
         <TanstackProvider>
           <PrivyProvider>
-            <XmtpProvider>
-              <UserProvider>{children}</UserProvider>
-            </XmtpProvider>
+            <SolanaWalletProvider>
+              <XmtpProvider>
+                <UserProvider>{children}</UserProvider>
+              </XmtpProvider>
+            </SolanaWalletProvider>
           </PrivyProvider>
         </TanstackProvider>
       </body>
