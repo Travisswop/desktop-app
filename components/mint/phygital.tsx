@@ -27,7 +27,7 @@ interface FormData {
 
 interface ModelInfo {
   success: boolean;
-  message: string;
+  nftType: string;
   details?: string;
 }
 
@@ -41,7 +41,8 @@ const CreatePhygital = ({
   const [checked, setChecked] = useState(false);
   const [modelInfo, setModelInfo] = useState<ModelInfo>({
     success: false,
-    message: '',
+    nftType: '',
+    details: '',
   });
 
   const [formData, setFormData] = useState<FormData>({
@@ -260,7 +261,7 @@ const CreatePhygital = ({
     if (!solanaAddress) {
       setModelInfo({
         success: false,
-        message: 'Wallet Not Connected',
+        nftType: formData.nftType,
         details:
           'Solana wallet address not available. Please make sure your wallet is connected.',
       });
@@ -298,10 +299,7 @@ const CreatePhygital = ({
       if (response.ok && data.state === 'success') {
         setModelInfo({
           success: true,
-          message: 'Phygitals Template Created Successfully',
-          details: `Your phygital template has been created with ID: ${
-            data?.data?.id || 'N/A'
-          }`,
+          nftType: formData.nftType,
         });
         onOpenChange();
 
@@ -312,8 +310,8 @@ const CreatePhygital = ({
       } else {
         // Handle API error response
         setModelInfo({
-          success: false,
-          message: 'Failed to Create Phygitals Template',
+          success: true,
+          nftType: formData.nftType,
           details:
             data.message ||
             'Server returned an error. Please try again later.',
@@ -325,8 +323,8 @@ const CreatePhygital = ({
 
       // Handle unexpected errors
       setModelInfo({
-        success: false,
-        message: 'Failed to Create Phygitals Template',
+        success: true,
+        nftType: formData.nftType,
         details:
           error instanceof Error
             ? error.message

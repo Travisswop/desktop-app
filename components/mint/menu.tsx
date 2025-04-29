@@ -1,13 +1,13 @@
-"use client";
-import PushToMintCollectionButton from "@/components/Button/PushToMintCollectionButton";
-import { sendCloudinaryImage } from "@/lib/SendCloudineryImage";
-import { useUser } from "@/lib/UserContext";
-import { useDisclosure } from "@nextui-org/react";
-import { useSolanaWalletContext } from "@/lib/context/SolanaWalletContext";
-import Image from "next/image";
-import { useRouter } from "next/navigation";
-import { DragEvent, useEffect, useState } from "react";
-import MintAlertModal from "./MintAlertModal";
+'use client';
+import PushToMintCollectionButton from '@/components/Button/PushToMintCollectionButton';
+import { sendCloudinaryImage } from '@/lib/SendCloudineryImage';
+import { useUser } from '@/lib/UserContext';
+import { useDisclosure } from '@nextui-org/react';
+import { useSolanaWalletContext } from '@/lib/context/SolanaWalletContext';
+import Image from 'next/image';
+import { useRouter } from 'next/navigation';
+import { DragEvent, useEffect, useState } from 'react';
+import MintAlertModal, { ModelInfo } from './MintAlertModal';
 interface FormData {
   name: string;
   nftType: string;
@@ -26,19 +26,19 @@ interface FormData {
 const CreateMenu = ({ collectionId }: { collectionId: string }) => {
   const router = useRouter();
   const { isOpen, onOpenChange } = useDisclosure();
-  const [modelInfo, setModelInfo] = useState({
-    flag: null,
-    title: "",
-    description: "",
+  const [modelInfo, setModelInfo] = useState<ModelInfo>({
+    success: false,
+    nftType: '',
+    details: '',
   });
 
   const [formData, setFormData] = useState<FormData>({
-    name: "",
-    nftType: "menu",
-    description: "",
-    image: "",
-    price: "",
-    currency: "usdc",
+    name: '',
+    nftType: 'menu',
+    description: '',
+    image: '',
+    price: '',
+    currency: 'usdc',
     addons: [],
     enableCreditCard: false,
     verifyIdentity: false,
@@ -47,19 +47,23 @@ const CreateMenu = ({ collectionId }: { collectionId: string }) => {
     royaltyPercentage: 10,
   });
 
-  const [newAddon, setNewAddon] = useState("");
-  const [selectedImageName, setSelectedImageName] = useState<string | null>(
-    null
-  );
+  const [newAddon, setNewAddon] = useState('');
+  const [selectedImageName, setSelectedImageName] = useState<
+    string | null
+  >(null);
   const [imageUploading, setImageUploading] = useState(false);
   const { user, accessToken } = useUser();
   const { solanaWallets } = useSolanaWalletContext();
   const [waitForToken, setWaitForToken] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false); // Manage submission state
-  const [formErrors, setFormErrors] = useState<Record<string, string>>({});
+  const [formErrors, setFormErrors] = useState<
+    Record<string, string>
+  >({});
   const [imageError, setImageError] = useState<string | null>(null);
   const [walletLoaded, setWalletLoaded] = useState(false);
-  const [solanaAddress, setSolanaAddress] = useState<string | null>(null);
+  const [solanaAddress, setSolanaAddress] = useState<string | null>(
+    null
+  );
   const [checked, setChecked] = useState(false);
 
   const wallets = solanaWallets;
@@ -89,10 +93,10 @@ const CreateMenu = ({ collectionId }: { collectionId: string }) => {
     >
   ) => {
     const { name, value, type } = e.target;
-    
+
     setFormErrors((prev) => ({ ...prev, [name]: '' }));
 
-    if (type === "checkbox") {
+    if (type === 'checkbox') {
       setFormData((prevState) => ({
         ...prevState,
         [name]: (e.target as HTMLInputElement).checked,
@@ -105,11 +109,13 @@ const CreateMenu = ({ collectionId }: { collectionId: string }) => {
     }
   };
 
-  const handleQuantityChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleQuantityChange = (
+    e: React.ChangeEvent<HTMLInputElement>
+  ) => {
     const value = parseInt(e.target.value, 10);
-    
+
     setFormErrors((prev) => ({ ...prev, quantity: '' }));
-    
+
     setFormData((prevState) => ({
       ...prevState,
       quantity: isNaN(value) ? undefined : value,
@@ -121,7 +127,9 @@ const CreateMenu = ({ collectionId }: { collectionId: string }) => {
 
     const validTypes = ['image/jpeg', 'image/jpg', 'image/png'];
     if (!validTypes.includes(file.type)) {
-      setImageError('Invalid file type. Please upload JPEG, JPG, or PNG.');
+      setImageError(
+        'Invalid file type. Please upload JPEG, JPG, or PNG.'
+      );
       return;
     }
 
@@ -145,7 +153,7 @@ const CreateMenu = ({ collectionId }: { collectionId: string }) => {
         }));
         setFormErrors((prev) => ({ ...prev, image: '' }));
       } catch (error) {
-        console.error("Error uploading image:", error);
+        console.error('Error uploading image:', error);
         setImageError('Failed to upload image. Please try again.');
         setFormErrors((prev) => ({
           ...prev,
@@ -172,7 +180,9 @@ const CreateMenu = ({ collectionId }: { collectionId: string }) => {
     await processImage(file);
   };
 
-  const handleImageDrop = async (event: DragEvent<HTMLDivElement>) => {
+  const handleImageDrop = async (
+    event: DragEvent<HTMLDivElement>
+  ) => {
     event.preventDefault();
     const file = event.dataTransfer.files?.[0];
     if (!file) return;
@@ -185,7 +195,7 @@ const CreateMenu = ({ collectionId }: { collectionId: string }) => {
         ...prevState,
         addons: [...prevState.addons, newAddon.trim()],
       }));
-      setNewAddon("");
+      setNewAddon('');
       setFormErrors((prev) => ({ ...prev, addons: '' }));
     }
   };
@@ -196,12 +206,13 @@ const CreateMenu = ({ collectionId }: { collectionId: string }) => {
       addons: prevState.addons.filter((_, i) => i !== index),
     }));
   };
-  
+
   const validateForm = () => {
     const errors: Record<string, string> = {};
 
     if (!formData.name.trim()) errors.name = 'Name is required';
-    if (!formData.description.trim()) errors.description = 'Description is required';
+    if (!formData.description.trim())
+      errors.description = 'Description is required';
     if (!formData.image) errors.image = 'Image is required';
     if (!formData.price.trim()) errors.price = 'Price is required';
 
@@ -225,56 +236,31 @@ const CreateMenu = ({ collectionId }: { collectionId: string }) => {
     return Object.keys(errors).length === 0;
   };
 
-  const handleSubmit = async (e: React.MouseEvent<HTMLButtonElement>) => {
+  const handleSubmit = async (
+    e: React.MouseEvent<HTMLButtonElement>
+  ) => {
     e.preventDefault();
-    
+
+    // Form validation
     if (!validateForm()) {
       return;
     }
-    
+
+    // Check if wallet is available
     if (!solanaAddress) {
       setModelInfo({
-        flag: false,
-        title: "Wallet Not Connected",
-        description: "Solana wallet address not available. Please make sure your wallet is connected.",
+        success: false,
+        nftType: formData.nftType,
+        details:
+          'Solana wallet address not available. Please make sure your wallet is connected.',
       });
-      onOpenChange(true);
+      onOpenChange();
       return;
     }
-    
+
     setIsSubmitting(true);
 
     try {
-      if (!accessToken && !waitForToken) {
-        setModelInfo({
-          flag: false,
-          title: "Authentication Error",
-          description: "Access token is required. Please log in again.",
-        });
-        onOpenChange(true);
-        return;
-      }
-
-      if (!accessToken && waitForToken) {
-        setModelInfo({
-          flag: false,
-          title: "Authentication Error",
-          description: "Waiting for access token. Please try again shortly.",
-        });
-        onOpenChange(true);
-        return;
-      }
-
-      if (!accessToken) {
-        setModelInfo({
-          flag: false,
-          title: "Authentication Error",
-          description: "Access token is required. Please log in again.",
-        });
-        onOpenChange(true);
-        return;
-      }
-
       // Map and prepare final data
       const finalData = {
         ...formData,
@@ -288,63 +274,66 @@ const CreateMenu = ({ collectionId }: { collectionId: string }) => {
       const response = await fetch(
         `${process.env.NEXT_PUBLIC_API_URL}/api/v1/desktop/nft/template`,
         {
-          method: "POST",
+          method: 'POST',
           headers: {
-            "Content-Type": "application/json",
+            'Content-Type': 'application/json',
             Authorization: `Bearer ${accessToken}`,
           },
           body: JSON.stringify(finalData),
         }
       );
-      console.log("chdk data 25", response);
 
-      if (response.ok) {
-        const data = await response.json();
-        if (data.state === "success") {
-          // alert("Subscription created successfully!");
-          onOpenChange(true);
-          setModelInfo({
-            flag: true,
-            title: "NFT Template created successfully!",
-            description: "",
-          });
-          setTimeout(() => {
-            router.push(`/mint/${data?.data?.collectionId}`);
-          }, 3000);
-        } else {
-          // alert(data.message || "Failed to create subscription.");
-          onOpenChange(true);
-          setModelInfo({
-            flag: false,
-            title: "Failed to create template",
-            description: "",
-          });
-        }
-      } else {
-        const errorData = await response.json();
-        // alert(errorData.message || "Failed to create subscription.");
-        onOpenChange(true);
+      const data = await response.json();
+
+      if (response.ok && data.state === 'success') {
         setModelInfo({
-          flag: false,
-          title: "Failed to create subscription.",
-          description: "",
+          success: true,
+          nftType: formData.nftType,
         });
+        onOpenChange();
+
+        // Redirect after success
+        setTimeout(() => {
+          router.push(`/mint/${data?.data?.collectionId}`);
+        }, 2000);
+      } else {
+        // Handle API error response
+        setModelInfo({
+          success: true,
+          nftType: formData.nftType,
+          details:
+            data.message ||
+            'Server returned an error. Please try again later.',
+        });
+        onOpenChange();
       }
     } catch (error) {
-      console.error("Unexpected error:", error);
-      alert("An unexpected error occurred. Please try again.");
+      console.error('Unexpected error:', error);
+
+      // Handle unexpected errors
+      setModelInfo({
+        success: true,
+        nftType: formData.nftType,
+        details:
+          error instanceof Error
+            ? error.message
+            : 'An unexpected error occurred. Please try again.',
+      });
+      onOpenChange();
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  const walletWarning = walletLoaded && !solanaAddress ? (
-    <div className="bg-yellow-100 p-4 rounded-lg border border-yellow-300 mb-4">
-      <p className="text-yellow-800">
-        No Solana wallet detected. Please connect your wallet to continue.
-      </p>
-    </div>
-  ) : null;
+  const walletWarning =
+    walletLoaded && !solanaAddress ? (
+      <div className="bg-yellow-100 p-4 rounded-lg border border-yellow-300 mb-4">
+        <p className="text-yellow-800">
+          No Solana wallet detected. Please connect your wallet to
+          continue.
+        </p>
+      </div>
+    ) : null;
 
   return (
     <div className="main-container flex justify-center">
@@ -354,13 +343,17 @@ const CreateMenu = ({ collectionId }: { collectionId: string }) => {
             <div className="flex flex-col gap-4">
               <h2 className="text-2xl font-bold">Create Menu</h2>
               <label className="-mt-2 block font-normal text-sm text-gray-600">
-                <span className="text-red-400"> *</span> Required fields
+                <span className="text-red-400"> *</span> Required
+                fields
               </label>
-              
+
               {walletWarning}
 
               <div>
-                <label htmlFor="name" className="mb-1 block font-medium">
+                <label
+                  htmlFor="name"
+                  className="mb-1 block font-medium"
+                >
                   Name <span className="text-red-400"> *</span>
                 </label>
                 <input
@@ -371,7 +364,9 @@ const CreateMenu = ({ collectionId }: { collectionId: string }) => {
                   value={formData.name}
                   onChange={handleChange}
                   className={`w-full border ${
-                    formErrors.name ? 'border-red-500' : 'border-gray-300'
+                    formErrors.name
+                      ? 'border-red-500'
+                      : 'border-gray-300'
                   } rounded-lg px-4 py-2`}
                   required
                 />
@@ -381,7 +376,8 @@ const CreateMenu = ({ collectionId }: { collectionId: string }) => {
                   </p>
                 )}
                 <p className="text-sm text-gray-500 mt-1">
-                  Note: Your menu item name can&apos;t be changed after creation
+                  Note: Your menu item name can&apos;t be changed
+                  after creation
                 </p>
               </div>
 
@@ -391,9 +387,11 @@ const CreateMenu = ({ collectionId }: { collectionId: string }) => {
               </label>
               <div
                 className={`bg-gray-100 p-8 rounded-lg border-2 border-dashed text-center ${
-                  formErrors.image || imageError ? 'border-red-500' : 'border-gray-300'
+                  formErrors.image || imageError
+                    ? 'border-red-500'
+                    : 'border-gray-300'
                 } h-[255px] -mt-2`}
-                style={{ minWidth: "300px", width: "70%" }}
+                style={{ minWidth: '300px', width: '70%' }}
                 onDragOver={(e) => e.preventDefault()}
                 onDrop={handleImageDrop}
               >
@@ -421,7 +419,9 @@ const CreateMenu = ({ collectionId }: { collectionId: string }) => {
                     <div className="flex flex-col items-center justify-center cursor-pointer ">
                       <div className="text-6xl text-gray-400">
                         <Image
-                          src={"/assets/mintIcon/image-upload-icon.png"}
+                          src={
+                            '/assets/mintIcon/image-upload-icon.png'
+                          }
                           width={100}
                           height={100}
                           alt="Preview"
@@ -429,8 +429,8 @@ const CreateMenu = ({ collectionId }: { collectionId: string }) => {
                         />
                       </div>
                       <p className="text-gray-500 my-3 text-sm">
-                        Browse or drag and drop an image here . <br />( JPEG,
-                        JPG, PNG )
+                        Browse or drag and drop an image here . <br />
+                        ( JPEG, JPG, PNG )
                       </p>
                       <label
                         htmlFor="image"
@@ -451,15 +451,17 @@ const CreateMenu = ({ collectionId }: { collectionId: string }) => {
                 />
 
                 {imageUploading && (
-                  <p className="text-sm text-gray-400">Uploading image...</p>
+                  <p className="text-sm text-gray-400">
+                    Uploading image...
+                  </p>
                 )}
-                
+
                 {imageError && (
                   <p className="text-sm text-red-500 mt-2">
                     {imageError}
                   </p>
                 )}
-                
+
                 {formErrors.image && !imageError && (
                   <p className="text-sm text-red-500 mt-2">
                     {formErrors.image}
@@ -468,7 +470,10 @@ const CreateMenu = ({ collectionId }: { collectionId: string }) => {
               </div>
 
               <div>
-                <label htmlFor="description" className="mb-1 block font-medium">
+                <label
+                  htmlFor="description"
+                  className="mb-1 block font-medium"
+                >
                   Description <span className="text-red-400"> *</span>
                 </label>
                 <textarea
@@ -478,7 +483,9 @@ const CreateMenu = ({ collectionId }: { collectionId: string }) => {
                   value={formData.description}
                   onChange={handleChange}
                   className={`w-full border ${
-                    formErrors.description ? 'border-red-500' : 'border-gray-300'
+                    formErrors.description
+                      ? 'border-red-500'
+                      : 'border-gray-300'
                   } rounded-lg px-4 py-2`}
                   required
                 />
@@ -490,11 +497,14 @@ const CreateMenu = ({ collectionId }: { collectionId: string }) => {
               </div>
 
               <div>
-                <label htmlFor="price" className="mb-1 block font-medium">
+                <label
+                  htmlFor="price"
+                  className="mb-1 block font-medium"
+                >
                   Price <span className="text-red-400"> *</span>
                 </label>
                 <div className="flex items-center space-x-4">
-                  {" "}
+                  {' '}
                   <input
                     type="text"
                     id="price"
@@ -503,13 +513,15 @@ const CreateMenu = ({ collectionId }: { collectionId: string }) => {
                     value={formData.price}
                     onChange={handleChange}
                     className={`w-full border ${
-                      formErrors.price ? 'border-red-500' : 'border-gray-300'
+                      formErrors.price
+                        ? 'border-red-500'
+                        : 'border-gray-300'
                     } rounded-lg px-4 py-2 flex items-center space-x-4`}
                     required
                   />
                   <div className="w-full border border-gray-300 rounded-lg px-4 py-2 flex items-center space-x-2">
                     <Image
-                      src={"/assets/crypto-icons/USDC.png"}
+                      src={'/assets/crypto-icons/USDC.png'}
                       width={100}
                       height={100}
                       alt="Preview"
@@ -532,16 +544,19 @@ const CreateMenu = ({ collectionId }: { collectionId: string }) => {
 
               <div>
                 <label htmlFor="price" className="block font-medium">
-                  Limit quantity <span className="text-red-400"> *</span>
+                  Limit quantity{' '}
+                  <span className="text-red-400"> *</span>
                 </label>
                 <input
                   type="number"
                   min="1"
                   placeholder="Enter quantity"
-                  value={formData.quantity || ""}
+                  value={formData.quantity || ''}
                   onChange={handleQuantityChange}
                   className={`w-full border ${
-                    formErrors.quantity ? 'border-red-500' : 'border-gray-300'
+                    formErrors.quantity
+                      ? 'border-red-500'
+                      : 'border-gray-300'
                   } rounded-lg px-4 py-2 mt-2`}
                 />
                 {formErrors.quantity && (
@@ -550,13 +565,16 @@ const CreateMenu = ({ collectionId }: { collectionId: string }) => {
                   </p>
                 )}
                 <p className="text-sm text-gray-500 mt-1">
-                  Note: Limit the number of times this menu item can be
-                  purchased
+                  Note: Limit the number of times this menu item can
+                  be purchased
                 </p>
               </div>
 
               <div>
-                <label htmlFor="addons" className="mb-1 block font-medium">
+                <label
+                  htmlFor="addons"
+                  className="mb-1 block font-medium"
+                >
                   Add-ons <span className="text-red-400"> *</span>
                 </label>
                 <input
@@ -565,7 +583,9 @@ const CreateMenu = ({ collectionId }: { collectionId: string }) => {
                   value={newAddon}
                   onChange={(e) => setNewAddon(e.target.value)}
                   className={`w-full border ${
-                    formErrors.addons ? 'border-red-500' : 'border-gray-300'
+                    formErrors.addons
+                      ? 'border-red-500'
+                      : 'border-gray-300'
                   } rounded-lg px-4 py-2 mb-2`}
                 />
                 <button
@@ -680,12 +700,13 @@ const CreateMenu = ({ collectionId }: { collectionId: string }) => {
               {/* Privacy Policy Agreement */}
 
               <div className="mt-4">
-                <input 
-                  type="checkbox" 
+                <input
+                  type="checkbox"
                   id="termsAgreement"
                   onChange={() => setChecked(!checked)}
                   checked={checked}
-                /> I agree with swop Minting
+                />{' '}
+                I agree with swop Minting
                 <span className="text-[#8A2BE2] underline ml-1">
                   Privacy & Policy
                 </span>
@@ -696,7 +717,7 @@ const CreateMenu = ({ collectionId }: { collectionId: string }) => {
                 disabled={isSubmitting || !solanaAddress || !checked}
                 onClick={handleSubmit}
               >
-                {isSubmitting ? "Creating..." : "Create Menu"}
+                {isSubmitting ? 'Creating...' : 'Create Menu'}
               </PushToMintCollectionButton>
             </div>
           </div>
@@ -721,21 +742,22 @@ const CreateMenu = ({ collectionId }: { collectionId: string }) => {
             <div className="mb-2">
               <p className="text-lg font-bold">Name</p>
               <p className="text-sm text-gray-500">
-                {formData.name || "Name will appear here"}
+                {formData.name || 'Name will appear here'}
               </p>
             </div>
 
             <div className="mb-2">
               <p className="text-lg font-bold">Price</p>
               <p className="text-sm text-gray-500">
-                {formData.price ? `$${formData.price}` : "Free"}
+                {formData.price ? `$${formData.price}` : 'Free'}
               </p>
             </div>
 
             <div className="mb-2">
               <p className="text-lg font-bold">Description</p>
               <p className="text-sm text-gray-500">
-                {formData.description || "Description will appear here"}
+                {formData.description ||
+                  'Description will appear here'}
               </p>
             </div>
             <div className="mt-4 w-full">

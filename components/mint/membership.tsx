@@ -7,7 +7,7 @@ import { useSolanaWalletContext } from '@/lib/context/SolanaWalletContext';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { DragEvent, useEffect, useState } from 'react';
-import MintAlertModal from './MintAlertModal';
+import MintAlertModal, { ModelInfo } from './MintAlertModal';
 interface FormData {
   name: string;
   nftType: string;
@@ -30,10 +30,10 @@ const CreateMembership = ({
 }) => {
   const router = useRouter();
   const { isOpen, onOpenChange } = useDisclosure();
-  const [modelInfo, setModelInfo] = useState({
-    flag: false,
-    title: '',
-    description: '',
+  const [modelInfo, setModelInfo] = useState<ModelInfo>({
+    success: false,
+    nftType: '',
+    details: '',
   });
 
   const [formData, setFormData] = useState<FormData>({
@@ -64,12 +64,16 @@ const CreateMembership = ({
   const [submissionError, setSubmissionError] = useState<
     string | null
   >(null); // Manage submission errors
-  const [formErrors, setFormErrors] = useState<Record<string, string>>({});
+  const [formErrors, setFormErrors] = useState<
+    Record<string, string>
+  >({});
   const [imageError, setImageError] = useState<string | null>(null);
   const [walletLoaded, setWalletLoaded] = useState(false);
-  const [solanaAddress, setSolanaAddress] = useState<string | null>(null);
+  const [solanaAddress, setSolanaAddress] = useState<string | null>(
+    null
+  );
   const [checked, setChecked] = useState(false);
-  
+
   useEffect(() => {
     if (wallets && wallets.length > 0) {
       setSolanaAddress(wallets[0]?.address || null);
@@ -87,7 +91,7 @@ const CreateMembership = ({
     >
   ) => {
     const { name, value, type } = e.target;
-    
+
     setFormErrors((prev) => ({ ...prev, [name]: '' }));
 
     if (type === 'checkbox') {
@@ -107,9 +111,9 @@ const CreateMembership = ({
     e: React.ChangeEvent<HTMLInputElement>
   ) => {
     const value = parseInt(e.target.value, 10);
-    
+
     setFormErrors((prev) => ({ ...prev, quantity: '' }));
-    
+
     setFormData((prevState) => ({
       ...prevState,
       quantity: isNaN(value) ? undefined : value,
@@ -121,7 +125,9 @@ const CreateMembership = ({
 
     const validTypes = ['image/jpeg', 'image/jpg', 'image/png'];
     if (!validTypes.includes(file.type)) {
-      setImageError('Invalid file type. Please upload JPEG, JPG, or PNG.');
+      setImageError(
+        'Invalid file type. Please upload JPEG, JPG, or PNG.'
+      );
       return;
     }
 
@@ -197,12 +203,13 @@ const CreateMembership = ({
       benefits: prevState.benefits.filter((_, i) => i !== index),
     }));
   };
-  
+
   const validateForm = () => {
     const errors: Record<string, string> = {};
 
     if (!formData.name.trim()) errors.name = 'Name is required';
-    if (!formData.description.trim()) errors.description = 'Description is required';
+    if (!formData.description.trim())
+      errors.description = 'Description is required';
     if (!formData.image) errors.image = 'Image is required';
     if (!formData.price.trim()) errors.price = 'Price is required';
 
@@ -217,7 +224,7 @@ const CreateMembership = ({
     } else {
       errors.quantity = 'Quantity is required';
     }
-    
+
     if (formData.benefits.length === 0) {
       errors.benefits = 'At least one benefit is required';
     }
@@ -230,31 +237,33 @@ const CreateMembership = ({
     e: React.MouseEvent<HTMLButtonElement>
   ) => {
     e.preventDefault();
-    
+
+    // Form validation
     if (!validateForm()) {
       return;
     }
-    
+
+    // Check if wallet is available
     if (!solanaAddress) {
       setModelInfo({
-        flag: false,
-        title: "Wallet Not Connected",
-        description: "Solana wallet address not available. Please make sure your wallet is connected.",
+        success: false,
+        nftType: formData.nftType,
+        details:
+          'Solana wallet address not available. Please make sure your wallet is connected.',
       });
-      onOpenChange(true);
+      onOpenChange();
       return;
     }
-    
+
     setIsSubmitting(true);
-    setSubmissionError(null);
 
     try {
+      // Map and prepare final data
       const finalData = {
         ...formData,
         mintLimit: Number(formData.quantity),
         price: Number(formData.price),
-        royaltyPercentage: formData.royaltyPercentage,
-        collectionId: collectionId,
+        collectionId,
         ownerAddress: solanaAddress,
         userId: user._id,
       };
@@ -271,48 +280,57 @@ const CreateMembership = ({
         }
       );
 
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(
-          errorData.message || 'Failed to create membership.'
-        );
-      }
-
       const data = await response.json();
-      if (data) {
-        onOpenChange(true);
+
+      if (response.ok && data.state === 'success') {
         setModelInfo({
-          flag: true,
-          title: 'Membership Template created successfully!',
-          description: '',
+          success: true,
+          nftType: formData.nftType,
         });
+        onOpenChange();
+
+        // Redirect after success
         setTimeout(() => {
           router.push(`/mint/${data?.data?.collectionId}`);
-        }, 3000);
+        }, 2000);
+      } else {
+        // Handle API error response
+        setModelInfo({
+          success: true,
+          nftType: formData.nftType,
+          details:
+            data.message ||
+            'Server returned an error. Please try again later.',
+        });
+        onOpenChange();
       }
     } catch (error) {
-      console.error("Unexpected error:", error);
-      onOpenChange(true);
+      console.error('Unexpected error:', error);
+
+      // Handle unexpected errors
       setModelInfo({
-        flag: false,
-        title: "Failed to Create Membership",
-        description: error instanceof Error ? error.message : "An unexpected error occurred. Please try again.",
+        success: true,
+        nftType: formData.nftType,
+        details:
+          error instanceof Error
+            ? error.message
+            : 'An unexpected error occurred. Please try again.',
       });
-      setSubmissionError(
-        error instanceof Error ? error.message : 'Unexpected error.'
-      );
+      onOpenChange();
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  const walletWarning = walletLoaded && !solanaAddress ? (
-    <div className="bg-yellow-100 p-4 rounded-lg border border-yellow-300 mb-4">
-      <p className="text-yellow-800">
-        No Solana wallet detected. Please connect your wallet to continue.
-      </p>
-    </div>
-  ) : null;
+  const walletWarning =
+    walletLoaded && !solanaAddress ? (
+      <div className="bg-yellow-100 p-4 rounded-lg border border-yellow-300 mb-4">
+        <p className="text-yellow-800">
+          No Solana wallet detected. Please connect your wallet to
+          continue.
+        </p>
+      </div>
+    ) : null;
 
   return (
     <div className="main-container flex justify-center">
@@ -347,7 +365,9 @@ const CreateMembership = ({
                   value={formData.name}
                   onChange={handleChange}
                   className={`w-full border ${
-                    formErrors.name ? 'border-red-500' : 'border-gray-300'
+                    formErrors.name
+                      ? 'border-red-500'
+                      : 'border-gray-300'
                   } rounded-lg px-4 py-2`}
                   required
                 />
@@ -368,7 +388,9 @@ const CreateMembership = ({
               </label>
               <div
                 className={`bg-gray-100 p-8 rounded-lg border-2 border-dashed text-center ${
-                  formErrors.image || imageError ? 'border-red-500' : 'border-gray-300'
+                  formErrors.image || imageError
+                    ? 'border-red-500'
+                    : 'border-gray-300'
                 } h-[255px] -mt-2`}
                 style={{ minWidth: '300px', width: '70%' }}
                 onDragOver={(e) => e.preventDefault()}
@@ -434,13 +456,13 @@ const CreateMembership = ({
                     Uploading image...
                   </p>
                 )}
-                
+
                 {imageError && (
                   <p className="text-sm text-red-500 mt-2">
                     {imageError}
                   </p>
                 )}
-                
+
                 {formErrors.image && !imageError && (
                   <p className="text-sm text-red-500 mt-2">
                     {formErrors.image}
@@ -463,7 +485,9 @@ const CreateMembership = ({
                   value={formData.description}
                   onChange={handleChange}
                   className={`w-full border ${
-                    formErrors.description ? 'border-red-500' : 'border-gray-300'
+                    formErrors.description
+                      ? 'border-red-500'
+                      : 'border-gray-300'
                   } rounded-lg px-4 py-2`}
                   required
                 />
@@ -492,7 +516,9 @@ const CreateMembership = ({
                     value={formData.price}
                     onChange={handleChange}
                     className={`w-full border ${
-                      formErrors.price ? 'border-red-500' : 'border-gray-300'
+                      formErrors.price
+                        ? 'border-red-500'
+                        : 'border-gray-300'
                     } rounded-lg px-4 py-2 flex items-center space-x-4`}
                     required
                   />
@@ -531,7 +557,9 @@ const CreateMembership = ({
                   value={formData.quantity || ''}
                   onChange={handleQuantityChange}
                   className={`w-full border ${
-                    formErrors.quantity ? 'border-red-500' : 'border-gray-300'
+                    formErrors.quantity
+                      ? 'border-red-500'
+                      : 'border-gray-300'
                   } rounded-lg px-4 py-2`}
                 />
                 {formErrors.quantity && (
@@ -583,7 +611,9 @@ const CreateMembership = ({
                   value={newBenefit}
                   onChange={(e) => setNewBenefit(e.target.value)}
                   className={`w-full border ${
-                    formErrors.benefits ? 'border-red-500' : 'border-gray-300'
+                    formErrors.benefits
+                      ? 'border-red-500'
+                      : 'border-gray-300'
                   } rounded-lg px-4 py-2 mb-2`}
                 />
                 <button
@@ -620,13 +650,13 @@ const CreateMembership = ({
               {/* Privacy Policy Agreement */}
 
               <div className="mt-4">
-                <input 
-                  type="checkbox" 
+                <input
+                  type="checkbox"
                   id="termsAgreement"
                   onChange={() => setChecked(!checked)}
                   checked={checked}
-                /> I agree with swop
-                Minting
+                />{' '}
+                I agree with swop Minting
                 <span className="text-[#8A2BE2] underline ml-1">
                   Privacy & Policy
                 </span>
