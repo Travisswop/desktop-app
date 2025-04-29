@@ -28,7 +28,7 @@ import { FaArrowRightLong } from 'react-icons/fa6';
 import { MdDone } from 'react-icons/md';
 import { v4 as uuidv4 } from 'uuid';
 import Cookies from 'js-cookie';
-import { useSolanaWallets } from '@privy-io/react-auth';
+import { useSolanaWalletContext } from '@/lib/context/SolanaWalletContext';
 
 const AddBankModal = ({ bankShow, setBankShow }: any) => {
   const [stepper, setStepper] = useState('bank-account');
@@ -46,7 +46,7 @@ const AddBankModal = ({ bankShow, setBankShow }: any) => {
 
   const router = useRouter();
 
-  const { wallets: solanaWallets } = useSolanaWallets();
+  const { solanaWallets } = useSolanaWalletContext();
 
   // console.log("solanaWallets", solanaWallets);
 
@@ -167,7 +167,7 @@ const AddBankModal = ({ bankShow, setBankShow }: any) => {
                         destination: {
                           currency: 'usdc',
                           payment_rail: 'solana',
-                          address: solanaWallets[0]?.address, //solana wallet
+                          address: solanaWallets?.[0]?.address, //solana wallet
                         },
                         developer_fee_percent: '0.5',
                       }),

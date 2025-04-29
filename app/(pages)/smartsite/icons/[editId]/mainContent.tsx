@@ -62,6 +62,8 @@ const MicrositeEditMainContentPage = ({ data }: any) => {
     } else {
       setToggleIcon([...toggleIcon, title]); // Add the icon
     }
+
+    console.log("titlerr", title);
   };
 
   //set smartsite info into zustand store

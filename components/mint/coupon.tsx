@@ -1,13 +1,13 @@
-"use client";
-import PushToMintCollectionButton from "@/components/Button/PushToMintCollectionButton";
-import { sendCloudinaryImage } from "@/lib/SendCloudineryImage";
-import { useUser } from "@/lib/UserContext";
-import { useDisclosure } from "@nextui-org/react";
-import { useSolanaWallets } from "@privy-io/react-auth";
-import Image from "next/image";
-import { useRouter } from "next/navigation";
-import { DragEvent, useEffect, useState } from "react";
-import MintAlertModal from "./MintAlertModal";
+'use client';
+import PushToMintCollectionButton from '@/components/Button/PushToMintCollectionButton';
+import { sendCloudinaryImage } from '@/lib/SendCloudineryImage';
+import { useUser } from '@/lib/UserContext';
+import { useDisclosure } from '@nextui-org/react';
+import { useSolanaWalletContext } from '@/lib/context/SolanaWalletContext';
+import Image from 'next/image';
+import { useRouter } from 'next/navigation';
+import { DragEvent, useEffect, useState } from 'react';
+import MintAlertModal, { ModelInfo } from './MintAlertModal';
 
 interface FormData {
   name: string;
@@ -28,19 +28,19 @@ interface FormData {
 const CreateCoupon = ({ collectionId }: { collectionId: string }) => {
   const router = useRouter();
   const { isOpen, onOpenChange } = useDisclosure();
-  const [modelInfo, setModelInfo] = useState({
-    flag: null,
-    title: "",
-    description: "",
+  const [modelInfo, setModelInfo] = useState<ModelInfo>({
+    success: false,
+    nftType: '',
+    details: '',
   });
 
   const [formData, setFormData] = useState<FormData>({
-    name: "",
-    nftType: "coupon",
-    description: "",
-    image: "",
-    price: "",
-    currency: "usdc",
+    name: '',
+    nftType: 'coupon',
+    description: '',
+    image: '',
+    price: '',
+    currency: 'usdc',
     benefits: [],
     requirements: [],
     enableCreditCard: false,
@@ -50,26 +50,36 @@ const CreateCoupon = ({ collectionId }: { collectionId: string }) => {
     royaltyPercentage: 10,
   });
 
-  const [newBenefit, setNewBenefit] = useState("");
-  const [newRequirement, setNewRequirement] = useState("");
-  const [selectedImageName, setSelectedImageName] = useState<string | null>(
-    null
-  );
+  const [newBenefit, setNewBenefit] = useState('');
+  const [newRequirement, setNewRequirement] = useState('');
+  const [selectedImageName, setSelectedImageName] = useState<
+    string | null
+  >(null);
   const [imageUploading, setImageUploading] = useState(false);
   const { user, accessToken } = useUser();
-  const { wallets } = useSolanaWallets();
-  const [waitForToken, setWaitForToken] = useState(true);
-  const [isSubmitting, setIsSubmitting] = useState(false); // Manage submission state
+  const { solanaWallets: wallets } = useSolanaWalletContext();
 
-  const solanaAddress = wallets?.[0]?.address || null;
+  const [isSubmitting, setIsSubmitting] = useState(false); // Manage submission state
+  const [formErrors, setFormErrors] = useState<
+    Record<string, string>
+  >({});
+  const [imageError, setImageError] = useState<string | null>(null);
+  const [walletLoaded, setWalletLoaded] = useState(false);
+  const [solanaAddress, setSolanaAddress] = useState<string | null>(
+    null
+  );
+  const [checked, setChecked] = useState(false);
 
   useEffect(() => {
-    const timeoutId = setTimeout(() => {
-      setWaitForToken(false);
-    }, 30000); // Wait for 30 seconds
-
-    return () => clearTimeout(timeoutId); // Cleanup timeout
-  }, []);
+    if (wallets && wallets.length > 0) {
+      setSolanaAddress(wallets[0]?.address || null);
+      setWalletLoaded(true);
+      console.log('Solana wallet detected:', wallets[0]?.address);
+    } else {
+      setWalletLoaded(true);
+      console.log('No Solana wallet detected');
+    }
+  }, [wallets]);
 
   const handleChange = (
     e: React.ChangeEvent<
@@ -78,7 +88,9 @@ const CreateCoupon = ({ collectionId }: { collectionId: string }) => {
   ) => {
     const { name, value, type } = e.target;
 
-    if (type === "checkbox") {
+    setFormErrors((prev) => ({ ...prev, [name]: '' }));
+
+    if (type === 'checkbox') {
       setFormData((prevState) => ({
         ...prevState,
         [name]: (e.target as HTMLInputElement).checked, // Explicitly cast to HTMLInputElement
@@ -91,12 +103,67 @@ const CreateCoupon = ({ collectionId }: { collectionId: string }) => {
     }
   };
 
-  const handleQuantityChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleQuantityChange = (
+    e: React.ChangeEvent<HTMLInputElement>
+  ) => {
     const value = parseInt(e.target.value, 10);
+
+    setFormErrors((prev) => ({ ...prev, quantity: '' }));
+
     setFormData((prevState) => ({
       ...prevState,
       quantity: isNaN(value) ? undefined : value,
     }));
+  };
+
+  const processImage = async (file: File) => {
+    setImageError(null);
+
+    const validTypes = ['image/jpeg', 'image/jpg', 'image/png'];
+    if (!validTypes.includes(file.type)) {
+      setImageError(
+        'Invalid file type. Please upload JPEG, JPG, or PNG.'
+      );
+      return;
+    }
+
+    if (file.size > 5 * 1024 * 1024) {
+      setImageError('File size exceeds 5MB limit.');
+      return;
+    }
+
+    setSelectedImageName(file.name);
+
+    const reader = new FileReader();
+    reader.onloadend = async () => {
+      const base64Image = reader.result as string;
+
+      try {
+        setImageUploading(true);
+        const image = await sendCloudinaryImage(base64Image);
+        setFormData((prevState) => ({
+          ...prevState,
+          image: image,
+        }));
+        setFormErrors((prev) => ({ ...prev, image: '' }));
+      } catch (error) {
+        console.error('Error uploading image:', error);
+        setImageError('Failed to upload image. Please try again.');
+        setFormErrors((prev) => ({
+          ...prev,
+          image: 'Failed to upload image',
+        }));
+      } finally {
+        setImageUploading(false);
+      }
+    };
+
+    reader.onerror = () => {
+      setImageError('Error reading file. Please try again.');
+      setImageUploading(false);
+    };
+
+    reader.readAsDataURL(file);
   };
 
   const handleImageUpload = async (
@@ -104,56 +171,41 @@ const CreateCoupon = ({ collectionId }: { collectionId: string }) => {
   ) => {
     const file = event.target.files?.[0];
     if (!file) return;
-
-    setSelectedImageName(file.name);
-
-    const reader = new FileReader();
-    reader.onloadend = async () => {
-      const base64Image = reader.result as string;
-
-      try {
-        setImageUploading(true);
-        const image = await sendCloudinaryImage(base64Image);
-        setFormData((prevState) => ({
-          ...prevState,
-          image: image,
-        }));
-        setImageUploading(false);
-      } catch (error) {
-        console.error("Error uploading image:", error);
-        setImageUploading(false);
-        alert("Failed to upload image. Please try again.");
-      }
-    };
-    reader.readAsDataURL(file);
+    await processImage(file);
   };
 
-  const handleImageDrop = async (event: DragEvent<HTMLDivElement>) => {
+  const handleImageDrop = async (
+    event: DragEvent<HTMLDivElement>
+  ) => {
     event.preventDefault();
     const file = event.dataTransfer.files?.[0];
     if (!file) return;
+    await processImage(file);
+  };
 
-    setSelectedImageName(file.name);
+  const validateForm = () => {
+    const errors: Record<string, string> = {};
 
-    const reader = new FileReader();
-    reader.onloadend = async () => {
-      const base64Image = reader.result as string;
+    if (!formData.name.trim()) errors.name = 'Name is required';
+    if (!formData.description.trim())
+      errors.description = 'Description is required';
+    if (!formData.image) errors.image = 'Image is required';
+    if (!formData.price.trim()) errors.price = 'Price is required';
 
-      try {
-        setImageUploading(true);
-        const image = await sendCloudinaryImage(base64Image);
-        setFormData((prevState) => ({
-          ...prevState,
-          image: image,
-        }));
-        setImageUploading(false);
-      } catch (error) {
-        console.error("Error uploading image:", error);
-        setImageUploading(false);
-        alert("Failed to upload image. Please try again.");
+    if (formData.price && isNaN(Number(formData.price))) {
+      errors.price = 'Price must be a valid number';
+    }
+
+    if (formData.quantity !== undefined) {
+      if (formData.quantity <= 0) {
+        errors.quantity = 'Quantity must be greater than 0';
       }
-    };
-    reader.readAsDataURL(file);
+    } else {
+      errors.quantity = 'Quantity is required';
+    }
+
+    setFormErrors(errors);
+    return Object.keys(errors).length === 0;
   };
 
   const handleAddBenefit = () => {
@@ -162,7 +214,7 @@ const CreateCoupon = ({ collectionId }: { collectionId: string }) => {
         ...prevState,
         benefits: [...prevState.benefits, newBenefit.trim()],
       }));
-      setNewBenefit("");
+      setNewBenefit('');
     }
   };
 
@@ -178,21 +230,46 @@ const CreateCoupon = ({ collectionId }: { collectionId: string }) => {
     if (newRequirement.trim()) {
       setFormData((prevState) => ({
         ...prevState,
-        requirements: [...prevState.requirements, newRequirement.trim()],
+        requirements: [
+          ...prevState.requirements,
+          newRequirement.trim(),
+        ],
       }));
-      setNewRequirement("");
+      setNewRequirement('');
     }
   };
 
   const handleRemoveRequirement = (index: number) => {
     setFormData((prevState) => ({
       ...prevState,
-      requirements: prevState.requirements.filter((_, i) => i !== index),
+      requirements: prevState.requirements.filter(
+        (_, i) => i !== index
+      ),
     }));
   };
 
-  const handleSubmit = async (e: React.MouseEvent<HTMLButtonElement>) => {
+  const handleSubmit = async (
+    e: React.MouseEvent<HTMLButtonElement>
+  ) => {
     e.preventDefault();
+
+    // Form validation
+    if (!validateForm()) {
+      return;
+    }
+
+    // Check if wallet is available
+    if (!solanaAddress) {
+      setModelInfo({
+        success: false,
+        nftType: formData.nftType,
+        details:
+          'Solana wallet address not available. Please make sure your wallet is connected.',
+      });
+      onOpenChange();
+      return;
+    }
+
     setIsSubmitting(true);
 
     try {
@@ -209,61 +286,66 @@ const CreateCoupon = ({ collectionId }: { collectionId: string }) => {
       const response = await fetch(
         `${process.env.NEXT_PUBLIC_API_URL}/api/v1/desktop/nft/template`,
         {
-          method: "POST",
+          method: 'POST',
           headers: {
-            "Content-Type": "application/json",
+            'Content-Type': 'application/json',
             Authorization: `Bearer ${accessToken}`,
           },
           body: JSON.stringify(finalData),
         }
       );
 
-      if (response.ok) {
-        const data = await response.json();
-        if (data.state === "success") {
-          // alert("Subscription created successfully!");
-          onOpenChange(true);
-          setModelInfo({
-            flag: true,
-            title: "NFT Template created successfully!",
-            description: "",
-          });
+      const data = await response.json();
 
-          setTimeout(() => {
-            router.push(`/mint/${data?.data?.collectionId}`);
-          }, 3000);
-        } else {
-          // alert(data.message || "Failed to create subscription.");
-          onOpenChange(true);
-          setModelInfo({
-            flag: false,
-            title: "Failed to create template",
-            description: "",
-          });
-        }
-      } else {
-        const errorData = await response.json();
-        // alert(errorData.message || "Failed to create subscription.");
-        onOpenChange(true);
+      if (response.ok && data.state === 'success') {
         setModelInfo({
-          flag: false,
-          title: "Failed to create template",
-          description: "",
+          success: true,
+          nftType: formData.nftType,
         });
+        onOpenChange();
+
+        // Redirect after success
+        setTimeout(() => {
+          router.push(`/mint/${data?.data?.collectionId}`);
+        }, 2000);
+      } else {
+        // Handle API error response
+        setModelInfo({
+          success: true,
+          nftType: formData.nftType,
+          details:
+            data.message ||
+            'Server returned an error. Please try again later.',
+        });
+        onOpenChange();
       }
     } catch (error) {
-      console.error("Unexpected error:", error);
-      // alert("An unexpected error occurred. Please try again.");
-      onOpenChange(true);
+      console.error('Unexpected error:', error);
+
+      // Handle unexpected errors
       setModelInfo({
-        flag: false,
-        title: "Failed to create template",
-        description: "",
+        success: true,
+        nftType: formData.nftType,
+        details:
+          error instanceof Error
+            ? error.message
+            : 'An unexpected error occurred. Please try again.',
       });
+      onOpenChange();
     } finally {
       setIsSubmitting(false);
     }
   };
+
+  const walletWarning =
+    walletLoaded && !solanaAddress ? (
+      <div className="bg-yellow-100 p-4 rounded-lg border border-yellow-300 mb-4">
+        <p className="text-yellow-800">
+          No Solana wallet detected. Please connect your wallet to
+          continue.
+        </p>
+      </div>
+    ) : null;
 
   return (
     <div className="main-container flex justify-center">
@@ -274,12 +356,18 @@ const CreateCoupon = ({ collectionId }: { collectionId: string }) => {
             <div className="flex flex-col gap-6 flex-grow">
               <h2 className="text-2xl font-bold">Create Coupon</h2>
               <label className="-mt-2 block font-normal text-sm text-gray-600">
-                <span className="text-red-400"> *</span> Required fields
+                <span className="text-red-400"> *</span> Required
+                fields
               </label>
+
+              {walletWarning}
 
               {/* Name Input */}
               <div>
-                <label htmlFor="name" className="mb-1 block font-medium">
+                <label
+                  htmlFor="name"
+                  className="mb-1 block font-medium"
+                >
                   Name <span className="text-red-400"> *</span>
                 </label>
                 <input
@@ -289,11 +377,21 @@ const CreateCoupon = ({ collectionId }: { collectionId: string }) => {
                   placeholder="Give your coupon a name."
                   value={formData.name}
                   onChange={handleChange}
-                  className="w-full border border-gray-300 rounded-lg px-4 py-2"
+                  className={`w-full border ${
+                    formErrors.name
+                      ? 'border-red-500'
+                      : 'border-gray-300'
+                  } rounded-lg px-4 py-2`}
                   required
                 />
+                {formErrors.name && (
+                  <p className="text-sm text-red-500 mt-1">
+                    {formErrors.name}
+                  </p>
+                )}
                 <p className="text-sm text-gray-500 mt-1">
-                  Note: Your coupon name can&#39;t be changed after creation
+                  Note: Your coupon name can&#39;t be changed after
+                  creation
                 </p>
               </div>
 
@@ -303,7 +401,7 @@ const CreateCoupon = ({ collectionId }: { collectionId: string }) => {
               </label>
               <div
                 className="bg-gray-100 p-8 rounded-lg border-2 border-dashed text-center border-gray-300 h-[255px] -mt-2"
-                style={{ minWidth: "300px", width: "70%" }}
+                style={{ minWidth: '300px', width: '70%' }}
                 onDragOver={(e) => e.preventDefault()}
                 onDrop={handleImageDrop}
               >
@@ -331,7 +429,9 @@ const CreateCoupon = ({ collectionId }: { collectionId: string }) => {
                     <div className="flex flex-col items-center justify-center cursor-pointer ">
                       <div className="text-6xl text-gray-400">
                         <Image
-                          src={"/assets/mintIcon/image-upload-icon.png"}
+                          src={
+                            '/assets/mintIcon/image-upload-icon.png'
+                          }
                           width={100}
                           height={100}
                           alt="Preview"
@@ -339,8 +439,8 @@ const CreateCoupon = ({ collectionId }: { collectionId: string }) => {
                         />
                       </div>
                       <p className="text-gray-500 my-3 text-sm">
-                        Browse or drag and drop an image here . <br />( JPEG,
-                        JPG, PNG )
+                        Browse or drag and drop an image here . <br />
+                        ( JPEG, JPG, PNG )
                       </p>
                       <label
                         htmlFor="image"
@@ -361,13 +461,30 @@ const CreateCoupon = ({ collectionId }: { collectionId: string }) => {
                 />
 
                 {imageUploading && (
-                  <p className="text-sm text-gray-400">Uploading image...</p>
+                  <p className="text-sm text-gray-400">
+                    Uploading image...
+                  </p>
+                )}
+
+                {imageError && (
+                  <p className="text-sm text-red-500 mt-2">
+                    {imageError}
+                  </p>
+                )}
+
+                {formErrors.image && !imageError && (
+                  <p className="text-sm text-red-500 mt-2">
+                    {formErrors.image}
+                  </p>
                 )}
               </div>
 
               {/* Description */}
               <div>
-                <label htmlFor="description" className="mb-1 block font-medium">
+                <label
+                  htmlFor="description"
+                  className="mb-1 block font-medium"
+                >
                   Description <span className="text-red-400"> *</span>
                 </label>
                 <textarea
@@ -376,18 +493,30 @@ const CreateCoupon = ({ collectionId }: { collectionId: string }) => {
                   placeholder="Enter description"
                   value={formData.description}
                   onChange={handleChange}
-                  className="w-full border border-gray-300 rounded-lg px-4 py-2"
+                  className={`w-full border ${
+                    formErrors.description
+                      ? 'border-red-500'
+                      : 'border-gray-300'
+                  } rounded-lg px-4 py-2`}
                   required
                 />
+                {formErrors.description && (
+                  <p className="text-sm text-red-500 mt-1">
+                    {formErrors.description}
+                  </p>
+                )}
               </div>
 
               {/* Price */}
               <div>
-                <label htmlFor="price" className="mb-1 block font-medium">
+                <label
+                  htmlFor="price"
+                  className="mb-1 block font-medium"
+                >
                   Price <span className="text-red-400"> *</span>
                 </label>
                 <div className="flex items-center space-x-4">
-                  {" "}
+                  {' '}
                   <input
                     type="text"
                     id="price"
@@ -395,12 +524,16 @@ const CreateCoupon = ({ collectionId }: { collectionId: string }) => {
                     placeholder="$ 0"
                     value={formData.price}
                     onChange={handleChange}
-                    className="w-full border border-gray-300 rounded-lg px-4 py-2 flex items-center space-x-4"
+                    className={`w-full border ${
+                      formErrors.price
+                        ? 'border-red-500'
+                        : 'border-gray-300'
+                    } rounded-lg px-4 py-2 flex items-center space-x-4`}
                     required
                   />
                   <div className="w-full border border-gray-300 rounded-lg px-4 py-2 flex items-center space-x-2">
                     <Image
-                      src={"/assets/crypto-icons/USDC.png"}
+                      src={'/assets/crypto-icons/USDC.png'}
                       width={100}
                       height={100}
                       alt="Preview"
@@ -411,25 +544,44 @@ const CreateCoupon = ({ collectionId }: { collectionId: string }) => {
                     </label>
                   </div>
                 </div>
+                {formErrors.price && (
+                  <p className="text-sm text-red-500 mt-1">
+                    {formErrors.price}
+                  </p>
+                )}
                 <p className="text-sm text-gray-500 mt-2">
                   Note: Currency can&#39;t be changed after creation
                 </p>
               </div>
 
               <div>
-                <label htmlFor="price" className="mb-1 block font-medium">
-                  Limit quantity <span className="text-red-400"> *</span>
+                <label
+                  htmlFor="price"
+                  className="mb-1 block font-medium"
+                >
+                  Limit quantity{' '}
+                  <span className="text-red-400"> *</span>
                 </label>
                 <input
                   type="number"
                   min="1"
                   placeholder="Enter quantity"
-                  value={formData.quantity || ""}
+                  value={formData.quantity || ''}
                   onChange={handleQuantityChange}
-                  className="w-full border border-gray-300 rounded-lg px-4 py-2"
+                  className={`w-full border ${
+                    formErrors.quantity
+                      ? 'border-red-500'
+                      : 'border-gray-300'
+                  } rounded-lg px-4 py-2`}
                 />
+                {formErrors.quantity && (
+                  <p className="text-sm text-red-500 mt-1">
+                    {formErrors.quantity}
+                  </p>
+                )}
                 <p className="text-sm text-gray-500 mt-1">
-                  Limit the number of times this coupon can be purchased.
+                  Limit the number of times this coupon can be
+                  purchased.
                 </p>
               </div>
 
@@ -439,14 +591,17 @@ const CreateCoupon = ({ collectionId }: { collectionId: string }) => {
                   htmlFor="requirements"
                   className="mb-1 block font-medium"
                 >
-                  Requirements <span className="text-red-400"> *</span>
+                  Requirements{' '}
+                  <span className="text-red-400"> *</span>
                 </label>
                 <div className="flex items-center">
                   <input
                     type="text"
                     placeholder="Enter a requirement"
                     value={newRequirement}
-                    onChange={(e) => setNewRequirement(e.target.value)}
+                    onChange={(e) =>
+                      setNewRequirement(e.target.value)
+                    }
                     className="flex-grow border border-gray-300 rounded-lg px-4 py-2 mr-2"
                   />
                   <button
@@ -483,7 +638,10 @@ const CreateCoupon = ({ collectionId }: { collectionId: string }) => {
 
               {/* Add Benefits Section */}
               <div>
-                <label htmlFor="benefits" className="mb-1 block font-medium">
+                <label
+                  htmlFor="benefits"
+                  className="mb-1 block font-medium"
+                >
                   Benefits <span className="text-red-400"> *</span>
                 </label>
                 <div className="flex items-center">
@@ -519,7 +677,9 @@ const CreateCoupon = ({ collectionId }: { collectionId: string }) => {
                     </div>
                   ))}
                   {formData.benefits.length === 0 && (
-                    <p className="text-sm text-gray-500">No benefits added.</p>
+                    <p className="text-sm text-gray-500">
+                      No benefits added.
+                    </p>
                   )}
                 </div>
               </div>
@@ -609,9 +769,15 @@ const CreateCoupon = ({ collectionId }: { collectionId: string }) => {
               {/* Privacy Policy Agreement */}
 
               <div className="mt-4 flex items-center">
-                <input type="checkbox" required className="mr-2" />
-                <label>
-                  I agree with Swop Minting{" "}
+                <input
+                  type="checkbox"
+                  id="termsAgreement"
+                  checked={checked}
+                  onChange={() => setChecked(!checked)}
+                  className="mr-2"
+                />
+                <label htmlFor="termsAgreement">
+                  I agree with Swop Minting{' '}
                   <span className="text-[#8A2BE2] underline ml-1">
                     Privacy & Policy
                   </span>
@@ -622,10 +788,10 @@ const CreateCoupon = ({ collectionId }: { collectionId: string }) => {
             {/* Submit Button */}
             <PushToMintCollectionButton
               className="w-max mt-4"
-              disabled={isSubmitting}
+              disabled={isSubmitting || !solanaAddress || !checked}
               onClick={handleSubmit}
             >
-              {isSubmitting ? "Creating..." : "Create Coupon"}
+              {isSubmitting ? 'Creating...' : 'Create Coupon'}
             </PushToMintCollectionButton>
           </div>
         </div>
@@ -650,21 +816,22 @@ const CreateCoupon = ({ collectionId }: { collectionId: string }) => {
             <div className="mb-2">
               <p className="text-lg font-bold">Name</p>
               <p className="text-sm text-gray-500">
-                {formData.name || "Name will appear here"}
+                {formData.name || 'Name will appear here'}
               </p>
             </div>
 
             <div className="mb-2">
               <p className="text-lg font-bold">Price</p>
               <p className="text-sm text-gray-500">
-                {formData.price ? `$${formData.price}` : "Free"}
+                {formData.price ? `$${formData.price}` : 'Free'}
               </p>
             </div>
 
             <div className="mb-2">
               <p className="text-lg font-bold">Description</p>
               <p className="text-sm text-gray-500">
-                {formData.description || "Description will appear here"}
+                {formData.description ||
+                  'Description will appear here'}
               </p>
             </div>
 

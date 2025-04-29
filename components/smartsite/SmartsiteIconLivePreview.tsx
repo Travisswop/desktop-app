@@ -791,18 +791,18 @@ const SmartsiteIconLivePreview = ({
                             width={200}
                             height={200}
                             quality={100}
-                            className="w-8 h-8"
-                            style={
-                              formData.secondaryFontColor === "#ffffff"
-                                ? { filter: "brightness(0) invert(1)" }
-                                : formData.secondaryFontColor === "#D3D3D3" ||
-                                  formData.secondaryFontColor === "#808080"
-                                ? {
-                                    filter:
-                                      "brightness(0) saturate(0%) opacity(0.5)",
-                                  }
-                                : tintStyle
-                            }
+                            className="w-8 h-8 rounded-md"
+                            // style={
+                            //   formData.secondaryFontColor === "#ffffff"
+                            //     ? { filter: "brightness(0) invert(1)" }
+                            //     : formData.secondaryFontColor === "#D3D3D3" ||
+                            //       formData.secondaryFontColor === "#808080"
+                            //     ? {
+                            //         filter:
+                            //           "brightness(0) saturate(0%) opacity(0.5)",
+                            //       }
+                            //     : tintStyle
+                            // }
                           />
                           <div
                             style={{

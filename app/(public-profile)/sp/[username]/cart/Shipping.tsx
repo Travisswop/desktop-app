@@ -4,7 +4,7 @@ import AnimateButton from '@/components/ui/Button/AnimateButton';
 import { truncateWalletAddress } from '@/lib/tranacateWalletAddress';
 import { useUser } from '@/lib/UserContext';
 import { TransactionService } from '@/services/transaction-service';
-import { useSolanaWallets } from '@privy-io/react-auth';
+import { useSolanaWalletContext } from '@/lib/context/SolanaWalletContext';
 import { Connection } from '@solana/web3.js';
 import {
   AlertCircle,
@@ -53,7 +53,7 @@ const PaymentShipping: React.FC<{
   const [orderId, setOrderId] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [transactionHash, setTransactionHash] = useState('');
-  const { wallets: solanaWallets } = useSolanaWallets();
+  const { solanaWallets } = useSolanaWalletContext();
   const params = useParams();
   const router = useRouter();
   const name = params.username;
@@ -110,7 +110,7 @@ const PaymentShipping: React.FC<{
 
     try {
       // Find wallet
-      const solanaWallet = solanaWallets.find(
+      const solanaWallet = solanaWallets?.find(
         (w) => w.walletClientType === 'privy'
       );
 
