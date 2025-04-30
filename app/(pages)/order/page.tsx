@@ -232,6 +232,50 @@ const OrderManagement = () => {
     }
   };
 
+  /**
+   * Determine what to show in the “Order Status” column.
+   */
+  function getOrderStatus(order: Order) {
+    const {
+      orderType,
+      status: { payment, delivery, isDead },
+    } = order;
+
+    // 1) Non-phygitals: complete as soon as payment is done
+    if (orderType === 'non-phygitals') {
+      if (payment.toLowerCase() === 'completed') {
+        return {
+          text: 'Completed',
+          variant: 'default',
+          extraClasses: 'bg-green-100 text-green-600',
+        };
+      }
+      // otherwise fall back to dead/active
+      return {
+        text: isDead ? 'Cancelled' : 'Active',
+        variant: isDead ? 'destructive' : 'default',
+      };
+    }
+
+    // 2) Phygitals: only complete when both payment AND delivery are done
+    if (
+      payment.toLowerCase() === 'completed' &&
+      delivery.toLowerCase() === 'completed'
+    ) {
+      return {
+        text: 'Completed',
+        variant: 'default',
+        extraClasses: 'bg-green-100 text-green-600',
+      };
+    }
+
+    // 3) Everything else: cancelled vs active as before
+    return {
+      text: isDead ? 'Cancelled' : 'Active',
+      variant: isDead ? 'destructive' : 'default',
+    };
+  }
+
   // Memoized display orders based on active tab
   const displayOrders = useMemo(() => {
     return activeTab === 'purchases' ? purchases : orders;
@@ -713,18 +757,20 @@ const OrderManagement = () => {
                           )}
                         </TableCell>
                         <TableCell>
-                          <Badge
-                            variant={
-                              order.status.isDead
-                                ? 'destructive'
-                                : 'default'
-                            }
-                            className="font-normal"
-                          >
-                            {order.status.isDead
-                              ? 'Cancelled'
-                              : 'Active'}
-                          </Badge>
+                          {(() => {
+                            const { text, variant, extraClasses } =
+                              getOrderStatus(order);
+                            return (
+                              <Badge
+                                variant={variant}
+                                className={`font-normal ${
+                                  extraClasses || ''
+                                }`}
+                              >
+                                {text}
+                              </Badge>
+                            );
+                          })()}
                         </TableCell>
                       </TableRow>
                     ))}

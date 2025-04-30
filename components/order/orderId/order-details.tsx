@@ -85,6 +85,13 @@ interface OrderData {
       | 'In Progress'
       | 'Completed'
       | 'Cancelled';
+    payment:
+      | 'pending'
+      | 'processing'
+      | 'completed'
+      | 'failed'
+      | 'refunded'
+      | 'cancelled';
   };
   edited: boolean;
   createdAt: string;
@@ -645,6 +652,8 @@ export default function OrderPage() {
       totalCost: 0,
     };
 
+  console.log('order', order);
+
   return (
     <div className="max-w-6xl mx-auto p-4">
       <Card className="shadow-md w-full">
@@ -657,19 +666,37 @@ export default function OrderPage() {
                   ? 'My Purchase'
                   : 'Customer Order'}
               </h1>
-              <Chip
-                color={
-                  order.status.delivery === 'Completed'
-                    ? 'success'
-                    : order.status.delivery === 'In Progress'
-                    ? 'primary'
-                    : order.status.delivery === 'Cancelled'
-                    ? 'danger'
-                    : 'warning'
-                }
-              >
-                {order.status.delivery}
-              </Chip>
+              {order?.orderType !== 'non-phygitals' ? (
+                <Chip
+                  color={
+                    order.status.delivery === 'Completed'
+                      ? 'success'
+                      : order.status.delivery === 'In Progress'
+                      ? 'primary'
+                      : order.status.delivery === 'Cancelled'
+                      ? 'danger'
+                      : 'warning'
+                  }
+                >
+                  {order.status.delivery}
+                </Chip>
+              ) : (
+                <Chip
+                  color={
+                    order.status.payment === 'completed'
+                      ? 'success'
+                      : order.status.payment === 'processing'
+                      ? 'primary'
+                      : order.status.payment === 'cancelled'
+                      ? 'danger'
+                      : order.status.payment === 'failed'
+                      ? 'danger'
+                      : 'warning'
+                  }
+                >
+                  {order.status.payment}
+                </Chip>
+              )}
             </div>
             <h4 className="text-gray-500">Order #{order.orderId}</h4>
             <p className="text-sm text-gray-500">
@@ -683,9 +710,23 @@ export default function OrderPage() {
             userRole === 'buyer' && (
               <div>
                 {isCompleted ? (
-                  <Chip color="success" variant="flat" size="lg">
-                    <CheckCircle size={16} className="mr-1" />
-                    Order Completed
+                  <Chip
+                    color="success"
+                    variant="flat"
+                    size="lg"
+                    radius="full"
+                    startContent={
+                      <CheckCircle size={16} aria-hidden />
+                    }
+                    css={{
+                      dflex: 'center', // makes it a flex container, centering icon + text
+                      gap: '$2', // theme spacing between icon and text
+                      px: '$4', // horizontal padding
+                      py: '$1.5', // vertical padding
+                      fontWeight: '$semibold', // a bit bolder text
+                    }}
+                  >
+                    Completed
                   </Chip>
                 ) : (
                   <Button
