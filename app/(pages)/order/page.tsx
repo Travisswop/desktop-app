@@ -1,4 +1,5 @@
 'use client';
+
 import { useState, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { useUser } from '@/lib/UserContext';
@@ -24,6 +25,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
+import { useUserOrders } from '@/lib/hooks/useUserOrder';
 
 interface Summary {
   total: number;
@@ -78,23 +80,8 @@ const OrderManagement = () => {
   const router = useRouter();
   const { accessToken } = useUser();
 
-  // State management
-  const [orders, setOrders] = useState<Order[]>([]);
-  const [purchases, setPurchases] = useState<Order[]>([]);
-  const [summary, setSummary] = useState<Summary>({
-    total: 0,
-    asBuyer: 0,
-    asSeller: 0,
-    pendingDelivery: 0,
-    completed: 0,
-    totalSpent: null,
-    totalEarned: 0,
-    totalInEscrow: 0,
-    totalDispute: 0,
-  });
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState('sales');
+  // Changed initial activeTab to better match API data structure
+  const [activeTab, setActiveTab] = useState('orders');
   const [showFilters, setShowFilters] = useState(false);
   const [pagination, setPagination] = useState<Pagination>({
     currentPage: 1,
@@ -104,7 +91,7 @@ const OrderManagement = () => {
 
   // Filter states with improved defaults
   const [filters, setFilters] = useState<FilterOptions>({
-    role: 'all',
+    role: activeTab === 'orders' ? 'seller' : 'buyer', // Initialize based on tab
     status: '',
     page: 1,
     limit: 10,
@@ -115,6 +102,15 @@ const OrderManagement = () => {
     deadOrders: 'exclude',
     search: '',
   });
+
+  // Update role filter when tab changes
+  useEffect(() => {
+    setFilters((prev) => ({
+      ...prev,
+      role: activeTab === 'orders' ? 'seller' : 'buyer',
+      page: 1, // Reset page when switching tabs
+    }));
+  }, [activeTab]);
 
   // Debounce search input
   const [searchInput, setSearchInput] = useState('');
@@ -128,72 +124,26 @@ const OrderManagement = () => {
     return () => clearTimeout(timer);
   }, [searchInput]);
 
-  // Fetch orders based on current filters
-  const fetchOrders = async () => {
-    if (!accessToken) return;
+  const {
+    data,
+    isLoading,
+    isError,
+    error,
+    isFetching, // for background fetching indicator
+  } = useUserOrders(accessToken, filters);
 
-    const controller = new AbortController();
-    const { signal } = controller;
-
-    try {
-      setLoading(true);
-
-      const queryParams = new URLSearchParams();
-      Object.entries(filters).forEach(([key, value]) => {
-        if (value !== undefined && value !== null && value !== '') {
-          queryParams.append(key, String(value));
-        }
-      });
-
-      const response = await fetch(
-        `${
-          process.env.NEXT_PUBLIC_API_URL
-        }/api/v5/orders/getUserOrders?${queryParams.toString()}`,
-        {
-          method: 'GET',
-          headers: {
-            'Content-Type': 'application/json',
-            authorization: `Bearer ${accessToken}`,
-          },
-          signal,
-        }
-      );
-
-      if (!response.ok) {
-        throw new Error(`Error: ${response.status}`);
-      }
-
-      const data = await response.json();
-      const {
-        orders,
-        purchases,
-        summary,
-        pagination: paginationData,
-      } = data.data;
-
-      setPurchases(purchases);
-      setOrders(orders);
-      setPagination(paginationData);
-      setSummary(summary);
-      setError(null);
-    } catch (err: any) {
-      if (err.name !== 'AbortError') {
-        setError(
-          err.response?.data?.message ||
-            err.message ||
-            'An error occurred while fetching orders'
-        );
-      }
-    } finally {
-      setLoading(false);
-    }
-
-    return () => controller.abort();
-  };
-
+  // Update pagination state whenever data changes
   useEffect(() => {
-    fetchOrders();
-  }, [accessToken, filters]);
+    if (data?.pagination) {
+      setPagination({
+        currentPage: data.pagination.page,
+        totalPages: Math.ceil(
+          data.pagination.total / data.pagination.perPage
+        ),
+        totalCount: data.pagination.total,
+      });
+    }
+  }, [data]);
 
   const handleFilterChange = (
     name: string,
@@ -209,7 +159,7 @@ const OrderManagement = () => {
 
   const resetFilters = () => {
     setFilters({
-      role: 'all',
+      role: activeTab === 'orders' ? 'seller' : 'buyer',
       status: '',
       page: 1,
       limit: 10,
@@ -233,7 +183,7 @@ const OrderManagement = () => {
   };
 
   /**
-   * Determine what to show in the “Order Status” column.
+   * Determine what to show in the "Order Status" column.
    */
   function getOrderStatus(order: Order) {
     const {
@@ -276,11 +226,6 @@ const OrderManagement = () => {
     };
   }
 
-  // Memoized display orders based on active tab
-  const displayOrders = useMemo(() => {
-    return activeTab === 'purchases' ? purchases : orders;
-  }, [activeTab, purchases, orders]);
-
   // Status badge renderer
   const StatusBadge = ({
     status,
@@ -290,10 +235,14 @@ const OrderManagement = () => {
     type: 'payment' | 'delivery';
   }) => {
     let colorClass = '';
+    const statusLower = status.toLowerCase();
 
-    if (status === 'completed' || status === 'Completed') {
+    if (statusLower === 'completed') {
       colorClass = 'bg-green-100 text-green-600';
-    } else if (status === 'pending' || status === 'In Progress') {
+    } else if (
+      statusLower === 'pending' ||
+      statusLower === 'in progress'
+    ) {
       colorClass = 'bg-yellow-100 text-yellow-600';
     } else {
       colorClass = 'bg-red-100 text-red-600';
@@ -327,6 +276,15 @@ const OrderManagement = () => {
     </div>
   );
 
+  // Get the current orders to display based on active tab
+  const currentOrders =
+    activeTab === 'orders'
+      ? data?.orders || []
+      : data?.purchases || [];
+
+  // Determine if we have no data to show
+  const noOrders = !isLoading && currentOrders.length === 0;
+
   return (
     <div className="mx-auto max-w-full px-4 py-6">
       {/* Dashboard Cards */}
@@ -338,10 +296,10 @@ const OrderManagement = () => {
               Total Orders
             </CardTitle>
             <div className="text-5xl font-bold text-green-500 text-center">
-              {loading ? (
+              {isLoading ? (
                 <Skeleton className="h-12 w-12" />
               ) : (
-                summary.total
+                data?.summary.total || 0
               )}
             </div>
           </CardContent>
@@ -357,25 +315,39 @@ const OrderManagement = () => {
               <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
                 <div className="flex flex-col">
                   <div className="text-sm font-medium text-muted-foreground">
-                    Total Mints
+                    {activeTab === 'orders'
+                      ? 'Total Orders'
+                      : 'Total Purchases'}
                   </div>
                   <div className="text-2xl md:text-3xl font-bold text-green-500">
-                    {loading ? (
+                    {isLoading ? (
                       <Skeleton className="h-8 w-16" />
+                    ) : activeTab === 'orders' ? (
+                      data?.summary.asSeller || 0
                     ) : (
-                      orders.length || 0
+                      data?.summary.asBuyer || 0
                     )}
                   </div>
                 </div>
                 <div className="flex flex-col">
                   <div className="text-sm font-medium text-muted-foreground">
-                    Total Revenue
+                    {activeTab === 'orders'
+                      ? 'Total Revenue'
+                      : 'Total Spent'}
                   </div>
                   <div className="text-2xl md:text-3xl font-bold">
-                    {loading ? (
+                    {isLoading ? (
                       <Skeleton className="h-8 w-20" />
                     ) : (
-                      `$${summary.totalEarned.toFixed(2)}`
+                      `$${
+                        activeTab === 'orders'
+                          ? (data?.summary.totalEarned || 0).toFixed(
+                              2
+                            )
+                          : (data?.summary.totalSpent || 0)?.toFixed(
+                              2
+                            )
+                      }`
                     )}
                   </div>
                 </div>
@@ -384,10 +356,10 @@ const OrderManagement = () => {
                     In Escrow
                   </div>
                   <div className="text-2xl md:text-3xl font-bold text-blue-500">
-                    {loading ? (
+                    {isLoading ? (
                       <Skeleton className="h-8 w-16" />
                     ) : (
-                      `$${summary.totalInEscrow}`
+                      `$${data?.summary.totalInEscrow || 0}`
                     )}
                   </div>
                 </div>
@@ -396,10 +368,11 @@ const OrderManagement = () => {
                     Open Orders
                   </div>
                   <div className="text-2xl md:text-3xl font-bold">
-                    {loading ? (
+                    {isLoading ? (
                       <Skeleton className="h-8 w-12" />
                     ) : (
-                      summary.total - summary.completed
+                      (data?.summary.total || 0) -
+                      (data?.summary.completed || 0)
                     )}
                   </div>
                 </div>
@@ -408,10 +381,10 @@ const OrderManagement = () => {
                     Closed Orders
                   </div>
                   <div className="text-2xl md:text-3xl font-bold">
-                    {loading ? (
+                    {isLoading ? (
                       <Skeleton className="h-8 w-12" />
                     ) : (
-                      summary.completed
+                      data?.summary.completed || 0
                     )}
                   </div>
                 </div>
@@ -420,10 +393,10 @@ const OrderManagement = () => {
                     Disputes
                   </div>
                   <div className="text-2xl md:text-3xl font-bold text-red-500">
-                    {loading ? (
+                    {isLoading ? (
                       <Skeleton className="h-8 w-12" />
                     ) : (
-                      summary.totalDispute
+                      data?.summary.totalDispute || 0
                     )}
                   </div>
                 </div>
@@ -449,13 +422,13 @@ const OrderManagement = () => {
         {/* Middle Section - Tabs */}
         <div className="flex justify-center bg-gray-100 rounded-full">
           <Button
-            variant={activeTab === 'sales' ? 'default' : 'ghost'}
+            variant={activeTab === 'orders' ? 'default' : 'ghost'}
             className={`rounded-l-full ${
-              activeTab === 'sales'
+              activeTab === 'orders'
                 ? 'bg-black text-white'
                 : 'text-gray-700'
             }`}
-            onClick={() => setActiveTab('sales')}
+            onClick={() => setActiveTab('orders')}
           >
             Orders
           </Button>
@@ -510,7 +483,9 @@ const OrderManagement = () => {
                 val !== 'orderDate' &&
                 val !== 'desc' &&
                 val !== 1 &&
-                val !== 10
+                val !== 10 &&
+                val !== 'seller' &&
+                val !== 'buyer'
             ) && (
               <Badge className="ml-1 bg-black text-white text-xs">
                 Active
@@ -616,13 +591,17 @@ const OrderManagement = () => {
       )}
 
       {/* Order List */}
-      {loading ? (
+      {isLoading ? (
         <OrderSkeleton />
-      ) : error ? (
+      ) : isError ? (
         <div className="bg-red-100 text-red-800 p-4 rounded-lg mb-6">
-          <p>{error}</p>
+          <p>
+            {error instanceof Error
+              ? error.message
+              : 'An error occurred'}
+          </p>
         </div>
-      ) : displayOrders.length === 0 ? (
+      ) : noOrders ? (
         <div className="bg-white p-12 rounded-xl shadow text-center">
           <div className="text-gray-400 mb-4">
             <svg
@@ -695,7 +674,7 @@ const OrderManagement = () => {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {displayOrders.map((order) => (
+                    {currentOrders.map((order) => (
                       <TableRow
                         key={order.id}
                         className="cursor-pointer hover:bg-gray-50 transition-colors"
@@ -711,14 +690,6 @@ const OrderManagement = () => {
                         </TableCell>
                         <TableCell>
                           <div className="flex items-center gap-2">
-                            {order.counterparty.avatar && (
-                              <div className="w-8 h-8 rounded-full bg-gray-200 overflow-hidden">
-                                <img
-                                  src={order.counterparty.avatar}
-                                  alt={order.counterparty.name}
-                                />
-                              </div>
-                            )}
                             <span>{order.counterparty.name}</span>
                           </div>
                         </TableCell>
@@ -762,7 +733,7 @@ const OrderManagement = () => {
                               getOrderStatus(order);
                             return (
                               <Badge
-                                variant={variant}
+                                variant={variant as any}
                                 className={`font-normal ${
                                   extraClasses || ''
                                 }`}
