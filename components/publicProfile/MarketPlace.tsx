@@ -1,16 +1,16 @@
-'use client';
-import { FC, useState } from 'react';
-import Image from 'next/image';
-import { downloadVCard } from '@/lib/vCardUtils';
-import { motion } from 'framer-motion';
-import { LuCirclePlus } from 'react-icons/lu';
-import { useUser } from '@/lib/UserContext';
-import { useRouter } from 'next/navigation';
-import { Spinner } from '@nextui-org/react';
-import { addProductToCart } from '@/actions/addToCartActions';
-import toast from 'react-hot-toast';
-import { Loader } from 'lucide-react';
-import useAddToCardToggleStore from '@/zustandStore/addToCartToggle';
+"use client";
+import { FC, useState } from "react";
+import Image from "next/image";
+import { downloadVCard } from "@/lib/vCardUtils";
+import { motion } from "framer-motion";
+import { LuCirclePlus } from "react-icons/lu";
+import { useUser } from "@/lib/UserContext";
+import { useRouter } from "next/navigation";
+import { Spinner } from "@nextui-org/react";
+import { addProductToCart } from "@/actions/addToCartActions";
+import toast from "react-hot-toast";
+import { Loader } from "lucide-react";
+import useAddToCardToggleStore from "@/zustandStore/addToCartToggle";
 const API_URL = process.env.NEXT_PUBLIC_API_URL;
 interface Props {
   data: {
@@ -35,25 +35,25 @@ const variants = {
 
 const download = async (data: any, parentId: string) => {
   const vCard = await downloadVCard(data);
-  const blob = new Blob([vCard], { type: 'text/vcard' });
+  const blob = new Blob([vCard], { type: "text/vcard" });
   const url = window.URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.setAttribute('hidden', '');
-  a.setAttribute('href', url);
-  a.setAttribute('download', `${data.name}.vcf`);
+  const a = document.createElement("a");
+  a.setAttribute("hidden", "");
+  a.setAttribute("href", url);
+  a.setAttribute("download", `${data.name}.vcf`);
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
 
   try {
     fetch(`${API_URL}/api/v1/web/updateCount`, {
-      method: 'POST',
+      method: "POST",
       headers: {
-        Accept: 'application/json',
-        'Content-Type': 'application/json',
+        Accept: "application/json",
+        "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        socialType: 'contact',
+        socialType: "contact",
         socialId: data._id,
         parentId,
       }),
@@ -90,42 +90,72 @@ const MarketPlace: any = ({
 
   const router = useRouter();
 
-  // console.log("user from hook", user);
+  // Helper function to handle localStorage cart
+  const getCartFromLocalStorage = () => {
+    if (typeof window !== "undefined") {
+      const cart = localStorage.getItem("marketplace-add-to-cart");
+      return cart ? JSON.parse(cart) : [];
+    }
+    return [];
+  };
 
   const handleAddToCart = async (event: React.MouseEvent) => {
     event.stopPropagation();
     setAddToCartLoading(true);
-    if (!accessToken) {
-      return router.push('/login');
-    }
     const data = {
       userId: userId,
       collectionId: collectionId,
       templateId: templateId,
       quantity: 1,
     };
+    const cartItem = {
+      _id,
+      itemImageUrl,
+      itemName,
+      itemPrice,
+      collectionId,
+      templateId,
+      quantity: 1,
+      timestamp: new Date().getTime(), // For sorting/unique identification
+    };
 
-    try {
-      const response = await addProductToCart(
-        data,
-        accessToken,
-        userName
+    if (!accessToken) {
+      // Save to localStorage
+      const currentCart = getCartFromLocalStorage();
+
+      // Check if item already exists in cart
+      const existingItemIndex = currentCart.findIndex(
+        (item: any) => item._id === _id && item.templateId === templateId
       );
 
-      setToggle();
+      if (existingItemIndex >= 0) {
+        // Update quantity if item exists
+        currentCart[existingItemIndex].quantity += 1;
+      } else {
+        // Add new item
+        currentCart.push(cartItem);
+      }
 
-      // const resData = await response.json();
-
-      // if (resData?.data?.quantity === 1) {
-      //   setCartQty(cartQty + 1);
-      // }
-
+      localStorage.setItem(
+        "marketplace-add-to-cart",
+        JSON.stringify(currentCart)
+      );
       setAddToCartLoading(false);
-      toast.success('Items added to cart');
+      toast.success("Item added to cart (offline)");
+      setToggle(true); // Update your Zustand store if needed
+      //return router.push("/login"); // Redirect to login after adding to cart
+      return;
+    }
 
-      // console.log("data", data);
+    try {
+      // Existing API call for logged-in users
+      const response = await addProductToCart(data, accessToken, userName);
+
+      setToggle(true);
+      setAddToCartLoading(false);
+      toast.success("Items added to cart");
     } catch (error) {
-      toast.error('Something went wrong!Please try again!');
+      toast.error("Something went wrong! Please try again!");
       console.log(error);
       setAddToCartLoading(false);
     }
@@ -140,13 +170,13 @@ const MarketPlace: any = ({
       transition={{
         duration: 0.4,
         delay,
-        type: 'easeInOut',
+        type: "easeInOut",
       }}
     >
       <div>
         <motion.div
           transition={{
-            type: 'spring',
+            type: "spring",
             stiffness: 400,
             damping: 10,
           }}
@@ -158,7 +188,7 @@ const MarketPlace: any = ({
               <Image
                 className="w-full h-auto"
                 src={itemImageUrl}
-                alt={'mint image'}
+                alt={"mint image"}
                 width={240}
                 height={240}
               />
@@ -178,7 +208,7 @@ const MarketPlace: any = ({
               className="text-sm font-semibold flex items-center gap-1"
             >
               <span className="flex items-center gap-1">
-                Add To Cart{' '}
+                Add To Cart{" "}
                 <span className="w-5">
                   {addToCartLoading ? (
                     <Loader className="animate-spin" size={20} />

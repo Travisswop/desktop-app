@@ -1,4 +1,4 @@
-'use client';
+"use client";
 
 import React, {
   useEffect,
@@ -6,24 +6,21 @@ import React, {
   useCallback,
   useMemo,
   useRef,
-} from 'react';
-import { loadStripe } from '@stripe/stripe-js';
-import { Elements } from '@stripe/react-stripe-js';
-import { createPaymentIntent } from '@/lib/payment-actions';
+} from "react";
+import { loadStripe } from "@stripe/stripe-js";
+import { Elements } from "@stripe/react-stripe-js";
+import { createPaymentIntent } from "@/lib/payment-actions";
 import {
   deleteCartItem,
+  getNftDetails,
   updateCartQuantity,
-} from '@/actions/addToCartActions';
-import { useUser } from '@/lib/UserContext';
-import { useParams } from 'next/navigation';
-import { useDisclosure } from '@nextui-org/react';
-import {
-  Sheet,
-  SheetContent,
-  SheetTitle,
-} from '@/components/ui/sheet';
-import NftPaymentModal from '@/components/modal/NftPayment';
-import { useSolanaWalletContext } from '@/lib/context/SolanaWalletContext';
+} from "@/actions/addToCartActions";
+import { useUser } from "@/lib/UserContext";
+import { useParams } from "next/navigation";
+import { useDisclosure } from "@nextui-org/react";
+import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
+import NftPaymentModal from "@/components/modal/NftPayment";
+import { useSolanaWalletContext } from "@/lib/context/SolanaWalletContext";
 
 import {
   LoadingSpinner,
@@ -31,19 +28,18 @@ import {
   CartItemsList,
   CheckoutCard,
   ErrorDisplay,
-} from './components';
+} from "./components";
 import {
   CartCheckoutProps,
   CartItem,
   CustomerInfo,
   PaymentMethod,
   Status,
-} from './components/types';
-import { createOrder } from '@/actions/orderActions';
+} from "./components/types";
+import { createOrder } from "@/actions/orderActions";
 
 // Environment variable constants
-const STRIPE_KEY =
-  process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY || '';
+const STRIPE_KEY = process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY || "";
 
 // Initialize Stripe only once
 let stripePromise: ReturnType<typeof loadStripe> | null = null;
@@ -54,15 +50,43 @@ const getStripePromise = () => {
   return stripePromise;
 };
 
-const CartCheckout: React.FC<CartCheckoutProps> = ({
-  data,
-  accessToken,
-}) => {
+// Helper function to handle localStorage cart
+const getCartFromLocalStorage = () => {
+  if (typeof window !== "undefined") {
+    const cart = localStorage.getItem("marketplace-add-to-cart");
+    return cart ? JSON.parse(cart) : [];
+  }
+  return [];
+};
+
+const CartCheckout = ({ data, accessToken }: any) => {
   const { user } = useUser();
   const { solanaWallets } = useSolanaWalletContext();
+  const [localCartData, setLocalCartData] = useState([]);
+  const [nftDetails, setNftDetials] = useState<any>();
+  const [cartItems, setCartItems] = useState<any>([]);
+
+  useEffect(() => {
+    if (!accessToken) {
+      const cartData = getCartFromLocalStorage();
+      setLocalCartData(cartData);
+    }
+  }, [accessToken]);
+
+  useEffect(() => {
+    const fetchNftData = async () => {
+      const data = await getNftDetails(localCartData);
+      setNftDetials(data);
+    };
+    if (!accessToken && localCartData?.length > 0) {
+      fetchNftData();
+    }
+  }, [accessToken, localCartData, localCartData?.length]);
+
+  console.log("localCartData", localCartData);
 
   const solanaWallet = solanaWallets?.find(
-    (w: any) => w.walletClientType === 'privy'
+    (w: any) => w.walletClientType === "privy"
   );
 
   const params = useParams();
@@ -70,63 +94,85 @@ const CartCheckout: React.FC<CartCheckoutProps> = ({
   const orderIdRef = useRef<string | null>(null);
 
   // State variables
-  const [clientSecret, setClientSecret] = useState<string | null>(
-    null
-  );
+  const [clientSecret, setClientSecret] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isPaymentSheetOpen, setIsPaymentSheetOpen] = useState(false);
   const [loadingOperations, setLoadingOperations] = useState<
     Record<string, { updating: boolean; deleting: boolean }>
   >({});
-  const [errorMessage, setErrorMessage] = useState<string | null>(
-    null
-  );
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   // Default customer information
   const defaultCustomerInfo: CustomerInfo = {
-    email: '',
-    name: '',
-    phone: '',
+    email: "",
+    name: "",
+    phone: "",
     wallet: {
-      ens: '',
-      address: solanaWallet?.address || '',
+      ens: "",
+      address: solanaWallet?.address || "",
     },
     useSwopId: false,
     address: {
-      line1: '',
-      line2: '',
-      city: '',
-      state: '',
-      postalCode: '',
-      country: 'US',
+      line1: "",
+      line2: "",
+      city: "",
+      state: "",
+      postalCode: "",
+      country: "US",
     },
   };
-  const [customerInfo, setCustomerInfo] = useState<CustomerInfo>(
-    defaultCustomerInfo
-  );
+  const [customerInfo, setCustomerInfo] =
+    useState<CustomerInfo>(defaultCustomerInfo);
 
   // NFT wallet payment modal state
   const { isOpen, onOpen, onOpenChange } = useDisclosure();
-  const [walletOrderId, setWalletOrderId] = useState<string | null>(
-    null
-  );
+  const [walletOrderId, setWalletOrderId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (accessToken) {
+      if (data?.state !== "success" || !Array.isArray(data?.data?.cartItems)) {
+        setCartItems([]);
+      } else {
+        setCartItems(data.data.cartItems);
+      }
+    } else {
+      if (!accessToken && nftDetails?.data?.cartItems) {
+        setCartItems(nftDetails?.data?.cartItems);
+      } else {
+        setCartItems([]);
+      }
+    }
+  }, [
+    accessToken,
+    data?.data?.cartItems,
+    data?.state,
+    nftDetails?.data?.cartItems,
+  ]);
 
   // Parse cart items with proper error handling
-  const cartItems: CartItem[] = useMemo(() => {
-    if (
-      data?.state !== 'success' ||
-      !Array.isArray(data?.data?.cartItems)
-    ) {
-      return [];
-    }
-    return data.data.cartItems;
-  }, [data]);
+  // const cartItems: CartItem[] = useMemo(() => {
+  //   if (accessToken) {
+  //     if (data?.state !== "success" || !Array.isArray(data?.data?.cartItems)) {
+  //       return [];
+  //     }
+  //     return data.data.cartItems;
+  //   } else {
+  //     return nftDetails?.data?.cartItems;
+  //   }
+  // }, [
+  //   accessToken,
+  //   data?.data?.cartItems,
+  //   data?.state,
+  //   nftDetails?.data?.cartItems,
+  // ]);
+
+  console.log("cartItems", cartItems);
 
   // Check if any product requires physical shipping
   const hasPhygitalProducts = useMemo(() => {
     return cartItems.some(
-      (item) => item.nftTemplate.nftType === 'phygital'
+      (item: any) => item.nftTemplate.nftType === "phygital"
     );
   }, [cartItems]);
 
@@ -134,7 +180,7 @@ const CartCheckout: React.FC<CartCheckoutProps> = ({
   const subtotal = useMemo(() => {
     if (!cartItems.length) return 0;
 
-    return cartItems.reduce((total, item) => {
+    return cartItems.reduce((total: any, item: any) => {
       const price = item?.nftTemplate?.price || 0;
       const quantity = item?.quantity || 0;
       return total + price * quantity;
@@ -154,10 +200,8 @@ const CartCheckout: React.FC<CartCheckoutProps> = ({
         );
         setClientSecret(secret);
       } catch (err) {
-        console.error('Error initializing payment:', err);
-        setError(
-          'Could not initialize payment. Please try again later.'
-        );
+        console.error("Error initializing payment:", err);
+        setError("Could not initialize payment. Please try again later.");
       } finally {
         setLoading(false);
       }
@@ -190,7 +234,7 @@ const CartCheckout: React.FC<CartCheckoutProps> = ({
 
   // Handlers for cart operations - memoized to prevent re-creation on renders
   const handleUpdateQuantity = useCallback(
-    async (item: CartItem, type: 'inc' | 'dec') => {
+    async (item: CartItem, type: "inc" | "dec") => {
       const itemId = item._id;
 
       try {
@@ -201,7 +245,7 @@ const CartCheckout: React.FC<CartCheckoutProps> = ({
         }));
 
         const newQuantity =
-          type === 'inc' ? item.quantity + 1 : item.quantity - 1;
+          type === "inc" ? item.quantity + 1 : item.quantity - 1;
         if (newQuantity < 1) return;
 
         const payload = {
@@ -213,8 +257,8 @@ const CartCheckout: React.FC<CartCheckoutProps> = ({
           await updateCartQuantity(payload, accessToken, name);
         }
       } catch (error) {
-        console.error('Error updating quantity:', error);
-        setErrorMessage('Failed to update quantity');
+        console.error("Error updating quantity:", error);
+        setErrorMessage("Failed to update quantity");
       } finally {
         // Reset loading state with slight delay for UI feedback
         setTimeout(() => {
@@ -239,8 +283,8 @@ const CartCheckout: React.FC<CartCheckoutProps> = ({
 
         await deleteCartItem(id, accessToken, name);
       } catch (error) {
-        console.error('Error removing item:', error);
-        setErrorMessage('Failed to remove item');
+        console.error("Error removing item:", error);
+        setErrorMessage("Failed to remove item");
       } finally {
         setTimeout(() => {
           setLoadingOperations((prev) => ({
@@ -269,9 +313,9 @@ const CartCheckout: React.FC<CartCheckoutProps> = ({
 
       setCustomerInfo((prev) => {
         // Handle nested properties (address.line1, etc.)
-        if (name.includes('.')) {
-          const [parent, child] = name.split('.');
-          if (parent === 'address') {
+        if (name.includes(".")) {
+          const [parent, child] = name.split(".");
+          if (parent === "address") {
             return {
               ...prev,
               address: {
@@ -329,12 +373,12 @@ const CartCheckout: React.FC<CartCheckoutProps> = ({
     const requiredFields = [
       {
         field: customerInfo.email,
-        message: 'Please enter your email address',
+        message: "Please enter your email address",
       },
-      { field: customerInfo.name, message: 'Please enter your name' },
+      { field: customerInfo.name, message: "Please enter your name" },
       {
         field: customerInfo.phone,
-        message: 'Please enter your phone number',
+        message: "Please enter your phone number",
       },
     ];
 
@@ -342,25 +386,25 @@ const CartCheckout: React.FC<CartCheckoutProps> = ({
       requiredFields.push(
         {
           field: customerInfo.address.line1,
-          message: 'Please enter your address',
+          message: "Please enter your address",
         },
         {
           field: customerInfo.address.city,
-          message: 'Please enter your city',
+          message: "Please enter your city",
         },
         {
           field: customerInfo.address.state,
-          message: 'Please enter your state/province',
+          message: "Please enter your state/province",
         },
         {
           field: customerInfo.address.postalCode,
-          message: 'Please enter your postal code',
+          message: "Please enter your postal code",
         }
       );
     }
 
     for (const { field, message } of requiredFields) {
-      if (!field || field.trim() === '') {
+      if (!field || field.trim() === "") {
         setErrorMessage(message);
         return false;
       }
@@ -369,7 +413,7 @@ const CartCheckout: React.FC<CartCheckoutProps> = ({
     // Email validation
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(customerInfo.email)) {
-      setErrorMessage('Please enter a valid email address');
+      setErrorMessage("Please enter a valid email address");
       return false;
     }
 
@@ -395,14 +439,16 @@ const CartCheckout: React.FC<CartCheckoutProps> = ({
             },
           },
           paymentMethod,
-          status: 'pending' as Status,
+          status: "pending" as Status,
         };
+
+        console.log("orderInfo", orderInfo);
 
         const { orderId } = await createOrder(orderInfo, accessToken);
         return orderId;
       } catch (error) {
-        console.error('Error creating order:', error);
-        setErrorMessage('Failed to create order. Please try again.');
+        console.error("Error creating order:", error);
+        setErrorMessage("Failed to create order. Please try again.");
         return null;
       }
     },
@@ -418,8 +464,8 @@ const CartCheckout: React.FC<CartCheckoutProps> = ({
 
   // Handle wallet payment
   const handleOpenWalletPayment = useCallback(async () => {
-    console.log('hit');
-    const orderId = await createOrderForPayment('wallet');
+    console.log("hit");
+    const orderId = await createOrderForPayment("wallet");
     if (orderId) {
       setWalletOrderId(orderId);
       onOpen();
@@ -428,7 +474,7 @@ const CartCheckout: React.FC<CartCheckoutProps> = ({
 
   // Handle Stripe payment
   const handleOpenPaymentSheet = useCallback(async () => {
-    const orderId = await createOrderForPayment('stripe');
+    const orderId = await createOrderForPayment("stripe");
     if (orderId) {
       orderIdRef.current = orderId;
 
@@ -441,10 +487,8 @@ const CartCheckout: React.FC<CartCheckoutProps> = ({
           );
           setClientSecret(secret);
         } catch (paymentError) {
-          console.error('Error initializing payment:', paymentError);
-          setErrorMessage(
-            'Could not initialize payment. Please try again.'
-          );
+          console.error("Error initializing payment:", paymentError);
+          setErrorMessage("Could not initialize payment. Please try again.");
           return;
         } finally {
           setLoading(false);
@@ -466,7 +510,7 @@ const CartCheckout: React.FC<CartCheckoutProps> = ({
     return <LoadingSpinner />;
   }
 
-  console.log('customerInfo', customerInfo);
+  console.log("customerInfo", customerInfo);
   return (
     <div className="w-full max-w-md">
       {/* Cart Items Display */}
@@ -512,21 +556,16 @@ const CartCheckout: React.FC<CartCheckoutProps> = ({
           options={{
             clientSecret,
             appearance: {
-              theme: 'stripe',
+              theme: "stripe",
             },
           }}
         >
-          <Sheet
-            open={isPaymentSheetOpen}
-            onOpenChange={setIsPaymentSheetOpen}
-          >
+          <Sheet open={isPaymentSheetOpen} onOpenChange={setIsPaymentSheetOpen}>
             <SheetContent
               side="bottom"
               className="h-[90vh] mx-auto max-w-md p-0 overflow-hidden flex flex-col"
             >
-              <SheetTitle className="sr-only">
-                Payment Sheet
-              </SheetTitle>
+              <SheetTitle className="sr-only">Payment Sheet</SheetTitle>
               <div className="p-4 border-b border-gray-700 flex items-center justify-between">
                 <div>
                   <h2 className="text-xl font-semibold">Payment</h2>

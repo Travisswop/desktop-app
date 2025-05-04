@@ -32,6 +32,9 @@ const Header: FC<Props> = ({
   const [cartQty, setCartQty] = useState(0);
 
   const { toggle, setToggle } = useAddToCardToggleStore();
+
+  console.log("toggle", toggle);
+
   // const { accessToken } = useUser();
 
   const router = useRouter();
@@ -45,48 +48,71 @@ const Header: FC<Props> = ({
     const fetchCartData = async () => {
       try {
         const response = await getCartData(accessToken);
+        console.log("response fro cart", response);
+
         if (response.state === "success") {
           setCartQty(response.data.cartItems.length);
+          setToggle(false);
         }
       } catch (error: any) {
         console.error(
           "error is" + error?.message || "Failed to add item to cart"
         );
-      } finally {
-        setToggle(); // Reset the toggle state after fetching data
       }
     };
 
     // Always fetch cart data when the component mounts
-    if (accessToken) {
-      fetchCartData();
-    }
-  }, [accessToken, setToggle]); // Add `accessToken` and `setToggle` as dependencies
-
-  useEffect(() => {
-    const fetchCartData = async () => {
-      try {
-        const response = await getCartData(accessToken);
-        if (response.state === "success") {
-          setCartQty(response.data.cartItems.length);
-        }
-      } catch (error: any) {
-        console.error(
-          "error is" + error?.message || "Failed to add item to cart"
-        );
-      } finally {
-        setToggle(); // Reset the toggle state after fetching data
-      }
-    };
-
-    // Fetch cart data when `toggle` changes
     if (accessToken && toggle) {
       fetchCartData();
     }
-  }, [toggle, accessToken, setToggle]);
+  }, [accessToken, toggle]); // Add `accessToken` and `setToggle` as dependencies
+
+  // useEffect(() => {
+  //   const fetchCartData = async () => {
+  //     try {
+  //       const response = await getCartData(accessToken);
+  //       if (response.state === "success") {
+  //         setCartQty(response.data.cartItems.length);
+  //       }
+  //     } catch (error: any) {
+  //       console.error(
+  //         "error is" + error?.message || "Failed to add item to cart"
+  //       );
+  //     } finally {
+  //       setToggle(); // Reset the toggle state after fetching data
+  //     }
+  //   };
+
+  //   // Fetch cart data when `toggle` changes
+  //   if (accessToken && toggle) {
+  //     fetchCartData();
+  //   }
+  // }, [toggle, accessToken]);
+
+  useEffect(() => {
+    // Helper function to get cart from localStorage
+    const getLocalStorageCart = () => {
+      if (typeof window !== "undefined") {
+        const cart = localStorage.getItem("marketplace-add-to-cart");
+        if (!cart) {
+          return;
+        } else {
+          const cartData = JSON?.parse(cart || "");
+          if (cartData) {
+            setCartQty(cartData.length);
+            setToggle(false);
+          }
+        }
+      }
+      return [];
+    };
+    if (!accessToken && toggle) {
+      getLocalStorageCart();
+    }
+  }, [accessToken, toggle]);
 
   const handleRedirectIntoCartDetails = () => {
-    if (accessToken) {
+    if (true) {
       const newRoute = `${pathname}/cart`;
       router.push(newRoute);
     } else {
