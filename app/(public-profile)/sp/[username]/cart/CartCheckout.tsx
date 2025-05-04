@@ -95,13 +95,15 @@ const CartCheckout = ({ data, accessToken }: any) => {
 
   // State variables
   const [clientSecret, setClientSecret] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isPaymentSheetOpen, setIsPaymentSheetOpen] = useState(false);
   const [loadingOperations, setLoadingOperations] = useState<
     Record<string, { updating: boolean; deleting: boolean }>
   >({});
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  console.log("loading", loading);
 
   // Default customer information
   const defaultCustomerInfo: CustomerInfo = {
@@ -233,6 +235,70 @@ const CartCheckout = ({ data, accessToken }: any) => {
   }, [user, customerInfo.useSwopId, solanaWallet]);
 
   // Handlers for cart operations - memoized to prevent re-creation on renders
+  // const handleUpdateQuantity = useCallback(
+  //   async (item: CartItem, type: "inc" | "dec") => {
+  //     const itemId = item._id;
+
+  //     try {
+  //       // Update loading state
+  //       setLoadingOperations((prev) => ({
+  //         ...prev,
+  //         [itemId]: { ...prev[itemId], updating: true },
+  //       }));
+
+  //       const newQuantity =
+  //         type === "inc" ? item.quantity + 1 : item.quantity - 1;
+  //       if (newQuantity < 1) return;
+
+  //       const payload = {
+  //         cartId: itemId,
+  //         quantity: newQuantity,
+  //       };
+
+  //       if (name) {
+  //         await updateCartQuantity(payload, accessToken, name);
+  //       }
+  //     } catch (error) {
+  //       console.error("Error updating quantity:", error);
+  //       setErrorMessage("Failed to update quantity");
+  //     } finally {
+  //       // Reset loading state with slight delay for UI feedback
+  //       setTimeout(() => {
+  //         setLoadingOperations((prev) => ({
+  //           ...prev,
+  //           [itemId]: { ...prev[itemId], updating: false },
+  //         }));
+  //       }, 300);
+  //     }
+  //   },
+  //   [name, accessToken]
+  // );
+
+  // // Cart item removal handler
+  // const handleRemoveItem = useCallback(
+  //   async (id: string) => {
+  //     try {
+  //       setLoadingOperations((prev) => ({
+  //         ...prev,
+  //         [id]: { ...prev[id], deleting: true },
+  //       }));
+
+  //       await deleteCartItem(id, accessToken, name);
+  //     } catch (error) {
+  //       console.error("Error removing item:", error);
+  //       setErrorMessage("Failed to remove item");
+  //     } finally {
+  //       setTimeout(() => {
+  //         setLoadingOperations((prev) => ({
+  //           ...prev,
+  //           [id]: { ...prev[id], deleting: false },
+  //         }));
+  //       }, 300);
+  //     }
+  //   },
+  //   [name, accessToken]
+  // );
+
   const handleUpdateQuantity = useCallback(
     async (item: CartItem, type: "inc" | "dec") => {
       const itemId = item._id;
@@ -248,13 +314,26 @@ const CartCheckout = ({ data, accessToken }: any) => {
           type === "inc" ? item.quantity + 1 : item.quantity - 1;
         if (newQuantity < 1) return;
 
-        const payload = {
-          cartId: itemId,
-          quantity: newQuantity,
-        };
-
-        if (name) {
+        if (accessToken && name) {
+          // With accessToken - API call
+          const payload = {
+            cartId: itemId,
+            quantity: newQuantity,
+          };
           await updateCartQuantity(payload, accessToken, name);
+        } else {
+          // Without accessToken - localStorage
+          const currentCart = getCartFromLocalStorage();
+          const updatedCart = currentCart.map((cartItem: any) =>
+            cartItem._id === itemId
+              ? { ...cartItem, quantity: newQuantity }
+              : cartItem
+          );
+          localStorage.setItem(
+            "marketplace-add-to-cart",
+            JSON.stringify(updatedCart)
+          );
+          setLocalCartData(updatedCart);
         }
       } catch (error) {
         console.error("Error updating quantity:", error);
@@ -272,7 +351,6 @@ const CartCheckout = ({ data, accessToken }: any) => {
     [name, accessToken]
   );
 
-  // Cart item removal handler
   const handleRemoveItem = useCallback(
     async (id: string) => {
       try {
@@ -281,7 +359,20 @@ const CartCheckout = ({ data, accessToken }: any) => {
           [id]: { ...prev[id], deleting: true },
         }));
 
-        await deleteCartItem(id, accessToken, name);
+        if (accessToken && name) {
+          await deleteCartItem(id, accessToken, name);
+        } else {
+          // Without accessToken - localStorage
+          const currentCart = getCartFromLocalStorage();
+          const updatedCart = currentCart.filter(
+            (item: any) => item._id !== id
+          );
+          localStorage.setItem(
+            "marketplace-add-to-cart",
+            JSON.stringify(updatedCart)
+          );
+          setLocalCartData(updatedCart);
+        }
       } catch (error) {
         console.error("Error removing item:", error);
         setErrorMessage("Failed to remove item");

@@ -34,6 +34,7 @@ const Header: FC<Props> = ({
   const { toggle, setToggle } = useAddToCardToggleStore();
 
   console.log("toggle", toggle);
+  console.log("cartQty", cartQty);
 
   // const { accessToken } = useUser();
 
@@ -65,7 +66,7 @@ const Header: FC<Props> = ({
     if (accessToken && toggle) {
       fetchCartData();
     }
-  }, [accessToken, toggle]); // Add `accessToken` and `setToggle` as dependencies
+  }, [accessToken, setToggle, toggle]); // Add `accessToken` and `setToggle` as dependencies
 
   // useEffect(() => {
   //   const fetchCartData = async () => {
@@ -88,18 +89,24 @@ const Header: FC<Props> = ({
   //     fetchCartData();
   //   }
   // }, [toggle, accessToken]);
+  console.log("toggle", toggle);
 
   useEffect(() => {
     // Helper function to get cart from localStorage
     const getLocalStorageCart = () => {
+      console.log("hit local");
+
       if (typeof window !== "undefined") {
         const cart = localStorage.getItem("marketplace-add-to-cart");
         if (!cart) {
+          setToggle(false);
           return;
         } else {
           const cartData = JSON?.parse(cart || "");
           if (cartData) {
             setCartQty(cartData.length);
+            setToggle(false);
+          } else {
             setToggle(false);
           }
         }
@@ -109,7 +116,7 @@ const Header: FC<Props> = ({
     if (!accessToken && toggle) {
       getLocalStorageCart();
     }
-  }, [accessToken, toggle]);
+  }, [accessToken, setToggle, toggle]);
 
   const handleRedirectIntoCartDetails = () => {
     if (true) {

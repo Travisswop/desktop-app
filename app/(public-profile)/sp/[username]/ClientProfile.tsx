@@ -184,7 +184,7 @@ export default function ClientProfile({ initialData, userName }: any) {
         {/* market place */}
         {info?.marketPlace && info.marketPlace.length > 0 && (
           <div className="w-full">
-            {info.marketPlace.map((marketPlace: any) => (
+            {info.marketPlace.map((marketPlace: any, index: number) => (
               <MarketPlace
                 key={marketPlace._id}
                 data={marketPlace}
@@ -194,6 +194,7 @@ export default function ClientProfile({ initialData, userName }: any) {
                 number={0}
                 userId={userId}
                 accessToken={accessToken}
+                index={index}
               />
             ))}
           </div>

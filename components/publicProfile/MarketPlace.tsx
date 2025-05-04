@@ -1,5 +1,5 @@
 "use client";
-import { FC, useState } from "react";
+import { FC, useEffect, useState } from "react";
 import Image from "next/image";
 import { downloadVCard } from "@/lib/vCardUtils";
 import { motion } from "framer-motion";
@@ -71,8 +71,10 @@ const MarketPlace: any = ({
   userName,
   accessToken,
   userId,
+  index,
 }: any) => {
   const [addToCartLoading, setAddToCartLoading] = useState(false);
+  const [isExisting, setIsExisting] = useState(false);
   const {
     _id,
     itemImageUrl,
@@ -98,6 +100,16 @@ const MarketPlace: any = ({
     }
     return [];
   };
+
+  useEffect(() => {
+    const localData = getCartFromLocalStorage();
+    const isExisting = localData.findIndex(
+      (item: any) => item._id === _id && item.templateId === templateId
+    );
+    if (isExisting !== -1) {
+      setIsExisting(true);
+    }
+  }, [_id, templateId]);
 
   const handleAddToCart = async (event: React.MouseEvent) => {
     event.stopPropagation();
@@ -140,8 +152,9 @@ const MarketPlace: any = ({
         "marketplace-add-to-cart",
         JSON.stringify(currentCart)
       );
+      setIsExisting(true);
       setAddToCartLoading(false);
-      toast.success("Item added to cart (offline)");
+      toast.success("Item added to cart");
       setToggle(true); // Update your Zustand store if needed
       //return router.push("/login"); // Redirect to login after adding to cart
       return;
@@ -183,37 +196,44 @@ const MarketPlace: any = ({
           onClick={() => download(data, parentId)}
           className="my-1 flex gap-2 justify-between items-center cursor-pointer bg-white shadow-xl p-2 rounded-[12px]"
         >
-          <div className="flex items-center gap-2">
-            <div className="w-24 h-24">
+          <div className="flex items-center gap-2 flex-1">
+            <div className="flex items-center w-20 h-20">
               <Image
-                className="w-full h-auto"
+                className="w-20 h-20 rounded-xl"
                 src={itemImageUrl}
                 alt={"mint image"}
                 width={240}
                 height={240}
               />
             </div>
-            <div>
-              <div className="text-lg font-semibold">{itemName}</div>
+            <div className="w-auto">
+              <div className="text-lg font-semibold w-full">{itemName}</div>
               <div className="text-xs text-gray-600 font-medium">
                 {itemPrice} USDC
               </div>
             </div>
           </div>
-          <div className="pr-2">
+          <div>
             <button
               type="button"
-              disabled={addToCartLoading}
+              disabled={addToCartLoading || isExisting}
               onClick={handleAddToCart}
-              className="text-sm font-semibold flex items-center gap-1"
+              className={`text-sm flex items-center gap-1 w-max ${
+                isExisting
+                  ? "text-gray-400 cursor-not-allowed"
+                  : "font-semibold"
+              }`}
             >
               <span className="flex items-center gap-1">
-                Add To Cart{" "}
+                {isExisting ? "Already Added" : "Add To Cart"}
                 <span className="w-5">
                   {addToCartLoading ? (
                     <Loader className="animate-spin" size={20} />
                   ) : (
-                    <LuCirclePlus color="black" size={18} />
+                    <LuCirclePlus
+                      color={isExisting ? "gray" : "black"}
+                      size={18}
+                    />
                   )}
                 </span>
               </span>
