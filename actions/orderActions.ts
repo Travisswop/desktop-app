@@ -1,4 +1,4 @@
-"use server";
+'use server';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL;
 
@@ -17,10 +17,10 @@ export interface OrderInfo {
       country: string;
     };
   };
-  paymentMethod: "stripe" | "wallet";
+  paymentMethod: 'stripe' | 'wallet';
   paymentIntentId?: string;
   transactionHash?: string;
-  status: "pending" | "processing" | "completed" | "failed";
+  status: 'pending' | 'processing' | 'completed' | 'failed';
   mobileSDK?: boolean;
 }
 
@@ -39,27 +39,31 @@ export async function createOrder(
   accessToken: string
 ): Promise<{ orderId: string }> {
   try {
-    const response = await fetch(`${API_URL}/api/v5/orders/createOrder`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${accessToken}`,
-      },
-      body: JSON.stringify(orderInfo),
-    });
+    const response = await fetch(
+      `${API_URL}/api/v5/orders/createOrder`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify(orderInfo),
+      }
+    );
 
     if (!response.ok) {
       // console.log("not ok");
 
       const errorData = await response.json();
-      throw new Error(errorData.message || "Failed to create order");
+      throw new Error(errorData.message || 'Failed to create order');
     }
 
-    const data = await response.json();
+    const { data } = await response.json();
+
     return { orderId: data.orderId };
   } catch (error) {
-    console.error("Error creating order:", error);
-    throw new Error("Failed to create order");
+    console.error('Error creating order:', error);
+    throw new Error('Failed to create order');
   }
 }
 
@@ -71,7 +75,7 @@ export async function updateOrderPayment(
   paymentInfo: {
     paymentIntentId?: string;
     transactionHash?: string;
-    status: "processing" | "completed" | "failed";
+    status: 'processing' | 'completed' | 'failed';
   },
   accessToken: string
 ): Promise<PaymentResult> {
@@ -79,9 +83,9 @@ export async function updateOrderPayment(
     const response = await fetch(
       `${API_URL}/api/v5/orders/${orderId}/payment`,
       {
-        method: "PUT",
+        method: 'PUT',
         headers: {
-          "Content-Type": "application/json",
+          'Content-Type': 'application/json',
           Authorization: `Bearer ${accessToken}`,
         },
         body: JSON.stringify(paymentInfo),
@@ -90,7 +94,9 @@ export async function updateOrderPayment(
 
     if (!response.ok) {
       const errorData = await response.json();
-      throw new Error(errorData.message || "Failed to update order payment");
+      throw new Error(
+        errorData.message || 'Failed to update order payment'
+      );
     }
 
     const data = await response.json();
@@ -98,17 +104,17 @@ export async function updateOrderPayment(
     return {
       success: true,
       orderId,
-      redirectUrl: data.redirectUrl || "/payment-success",
+      redirectUrl: data.redirectUrl || '/payment-success',
     };
   } catch (error) {
-    console.error("Error updating order payment:", error);
+    console.error('Error updating order payment:', error);
     return {
       success: false,
       orderId,
       error:
         error instanceof Error
           ? error.message
-          : "Failed to update order payment",
+          : 'Failed to update order payment',
     };
   }
 }
@@ -121,21 +127,24 @@ export async function getOrderById(
   accessToken: string
 ): Promise<OrderInfo> {
   try {
-    const response = await fetch(`${API_URL}/api/v5/orders/${orderId}`, {
-      method: "GET",
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-      },
-    });
+    const response = await fetch(
+      `${API_URL}/api/v5/orders/${orderId}`,
+      {
+        method: 'GET',
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+        },
+      }
+    );
 
     if (!response.ok) {
       const errorData = await response.json();
-      throw new Error(errorData.message || "Failed to get order");
+      throw new Error(errorData.message || 'Failed to get order');
     }
 
     return response.json();
   } catch (error) {
-    console.error("Error getting order:", error);
-    throw new Error("Failed to get order");
+    console.error('Error getting order:', error);
+    throw new Error('Failed to get order');
   }
 }

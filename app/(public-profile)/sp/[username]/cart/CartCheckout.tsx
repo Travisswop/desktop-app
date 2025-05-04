@@ -95,7 +95,7 @@ const CartCheckout = ({ data, accessToken }: any) => {
 
   // State variables
   const [clientSecret, setClientSecret] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isPaymentSheetOpen, setIsPaymentSheetOpen] = useState(false);
   const [loadingOperations, setLoadingOperations] = useState<
@@ -529,6 +529,7 @@ const CartCheckout = ({ data, accessToken }: any) => {
               address: solanaWallet?.address,
             },
           },
+          cartItems,
           paymentMethod,
           status: "pending" as Status,
         };
@@ -536,6 +537,7 @@ const CartCheckout = ({ data, accessToken }: any) => {
         console.log("orderInfo", orderInfo);
 
         const { orderId } = await createOrder(orderInfo, accessToken);
+        console.log("🚀 ~ orderId:", orderId);
         return orderId;
       } catch (error) {
         console.error("Error creating order:", error);
@@ -555,7 +557,6 @@ const CartCheckout = ({ data, accessToken }: any) => {
 
   // Handle wallet payment
   const handleOpenWalletPayment = useCallback(async () => {
-    console.log("hit");
     const orderId = await createOrderForPayment("wallet");
     if (orderId) {
       setWalletOrderId(orderId);
