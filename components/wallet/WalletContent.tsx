@@ -1,54 +1,46 @@
-'use client';
+"use client";
 
-import { useEffect, useState, useMemo, useCallback } from 'react';
-import {
-  usePrivy,
-  useWallets,
-} from '@privy-io/react-auth';
-import { useSolanaWalletContext } from '@/lib/context/SolanaWalletContext';
-import { Connection } from '@solana/web3.js';
-import { useToast } from '@/hooks/use-toast';
+import { useEffect, useState, useMemo, useCallback } from "react";
+import { usePrivy, useWallets } from "@privy-io/react-auth";
+import { useSolanaWalletContext } from "@/lib/context/SolanaWalletContext";
+import { Connection } from "@solana/web3.js";
+import { useToast } from "@/hooks/use-toast";
 
-import { WalletItem } from '@/types/wallet';
-import { ChainType, TokenData } from '@/types/token';
-import { NFT } from '@/types/nft';
-import { CHAIN_ID, SendFlowState } from '@/types/wallet-types';
+import { WalletItem } from "@/types/wallet";
+import { ChainType, TokenData } from "@/types/token";
+import { NFT } from "@/types/nft";
+import { CHAIN_ID, SendFlowState } from "@/types/wallet-types";
 
 import {
   SWOP_ADDRESS,
   TransactionService,
   USDC_ADDRESS,
-} from '@/services/transaction-service';
-import { useSendFlow } from '@/lib/hooks/useSendFlow';
-import { useMultiChainTokenData } from '@/lib/hooks/useToken';
-import { useNFT } from '@/lib/hooks/useNFT';
-import { useUser } from '@/lib/UserContext';
-import { addSwopPoint } from '@/actions/addPoint';
-import { postFeed } from '@/actions/postFeed';
+} from "@/services/transaction-service";
+import { useSendFlow } from "@/lib/hooks/useSendFlow";
+import { useMultiChainTokenData } from "@/lib/hooks/useToken";
+import { useNFT } from "@/lib/hooks/useNFT";
+import { useUser } from "@/lib/UserContext";
+import { addSwopPoint } from "@/actions/addPoint";
+import { postFeed } from "@/actions/postFeed";
 
 // UI Components
-import TokenList from './token/token-list';
-import NFTSlider from './nft/nft-list';
-import TokenDetails from './token/token-details-view';
-import NFTDetailView from './nft/nft-details-view';
-import WalletModals from './WalletModals';
-import MessageList from './message-list';
-import { Toaster } from '../ui/toaster';
-import ProfileHeader from '../dashboard/profile-header';
-import RedeemTokenList from './redeem/token-list';
-import WalletBalanceChartForWalletPage from './WalletBalanceChart';
+import TokenList from "./token/token-list";
+import NFTSlider from "./nft/nft-list";
+import TokenDetails from "./token/token-details-view";
+import NFTDetailView from "./nft/nft-details-view";
+import WalletModals from "./WalletModals";
+import MessageList from "./message-list";
+import { Toaster } from "../ui/toaster";
+import ProfileHeader from "../dashboard/profile-header";
+import RedeemTokenList from "./redeem/token-list";
+import WalletBalanceChartForWalletPage from "./WalletBalanceChart";
 
 // Utilities
-import Cookies from 'js-cookie';
-import { createTransactionPayload } from '@/lib/utils/transactionUtils';
+import Cookies from "js-cookie";
+import { createTransactionPayload } from "@/lib/utils/transactionUtils";
 
 // Default chains supported by the wallet
-const SUPPORTED_CHAINS: ChainType[] = [
-  'ETHEREUM',
-  'POLYGON',
-  'BASE',
-  'SOLANA',
-];
+const SUPPORTED_CHAINS: ChainType[] = ["ETHEREUM", "POLYGON", "BASE", "SOLANA"];
 
 export default function WalletContent() {
   return <WalletContentInner />;
@@ -56,47 +48,42 @@ export default function WalletContent() {
 
 const WalletContentInner = () => {
   // Core state
-  const [walletData, setWalletData] = useState<WalletItem[] | null>(
-    null
-  );
+  const [walletData, setWalletData] = useState<WalletItem[] | null>(null);
 
-  const [selectedToken, setSelectedToken] =
-    useState<TokenData | null>(null);
+  const [selectedToken, setSelectedToken] = useState<TokenData | null>(null);
   const [selectedNFT, setSelectedNFT] = useState<NFT | null>(null);
   const [isNFTModalOpen, setIsNFTModalOpen] = useState(false);
 
-  const [accessToken, setAccessToken] = useState('');
+  const [accessToken, setAccessToken] = useState("");
 
   // Wallet addresses
-  const [solWalletAddress, setSolWalletAddress] = useState('');
-  const [evmWalletAddress, setEvmWalletAddress] = useState('');
+  const [solWalletAddress, setSolWalletAddress] = useState("");
+  const [evmWalletAddress, setEvmWalletAddress] = useState("");
 
   // QR code modals state
   const [walletQRModalOpen, setWalletQRModalOpen] = useState(false);
-  const [walletQRShareModalOpen, setWalletQRShareModalOpen] =
-    useState(false);
-  const [walletShareAddress, setWalletShareAddress] = useState('');
-  const [qrcodeShareUrl, setQrcodeShareUrl] = useState('');
-  const [QRCodeShareModalOpen, setQRCodeShareModalOpen] =
-    useState(false);
+  const [walletQRShareModalOpen, setWalletQRShareModalOpen] = useState(false);
+  const [walletShareAddress, setWalletShareAddress] = useState("");
+  const [qrcodeShareUrl, setQrcodeShareUrl] = useState("");
+  const [QRCodeShareModalOpen, setQRCodeShareModalOpen] = useState(false);
 
   // Transaction payload
   const [payload, setPayload] = useState({
-    smartsiteId: '',
-    userId: '',
-    smartsiteUserName: '',
-    smartsiteEnsName: '',
-    smartsiteProfilePic: '',
-    postType: 'transaction',
+    smartsiteId: "",
+    userId: "",
+    smartsiteUserName: "",
+    smartsiteEnsName: "",
+    smartsiteProfilePic: "",
+    postType: "transaction",
     content: {
-      transaction_type: 'token', // or 'swap', 'nft'
-      sender_ens: '',
-      sender_wallet_address: '',
-      receiver_ens: '',
-      receiver_wallet_address: '',
+      transaction_type: "token", // or 'swap', 'nft'
+      sender_ens: "",
+      sender_wallet_address: "",
+      receiver_ens: "",
+      receiver_wallet_address: "",
       amount: 0,
-      currency: 'ETH',
-      transaction_hash: '',
+      currency: "ETH",
+      transaction_hash: "",
     },
   });
 
@@ -132,8 +119,7 @@ const WalletContentInner = () => {
         userId: user?._id,
         smartsiteUserName: primaryMicrositeData?.name,
         smartsiteEnsName:
-          primaryMicrositeData?.ens ||
-          primaryMicrositeData?.ensData?.ens,
+          primaryMicrositeData?.ens || primaryMicrositeData?.ensData?.ens,
         smartsiteProfilePic: primaryMicrositeData?.profilePic,
       }));
     }
@@ -141,7 +127,7 @@ const WalletContentInner = () => {
 
   // Get access token from cookies
   useEffect(() => {
-    const token = Cookies.get('access-token');
+    const token = Cookies.get("access-token");
     if (token) {
       setAccessToken(token);
     }
@@ -154,8 +140,8 @@ const WalletContentInner = () => {
     const solWallet = walletData.find((w) => !w.isEVM);
     const evmWallet = walletData.find((w) => w.isEVM);
 
-    setSolWalletAddress(solWallet?.address || '');
-    setEvmWalletAddress(evmWallet?.address || '');
+    setSolWalletAddress(solWallet?.address || "");
+    setEvmWalletAddress(evmWallet?.address || "");
   }, [walletData]);
 
   // Load wallet data from Privy
@@ -164,15 +150,14 @@ const WalletContentInner = () => {
       const linkWallet = PrivyUser?.linkedAccounts
         .filter(
           (item: any) =>
-            item.chainType === 'ethereum' ||
-            item.chainType === 'solana'
+            item.chainType === "ethereum" || item.chainType === "solana"
         )
         .map((item: any) => ({
           address: item.address,
           isActive:
-            item.walletClientType === 'privy' ||
-            item.connectorType === 'embedded',
-          isEVM: item.chainType === 'ethereum',
+            item.walletClientType === "privy" ||
+            item.connectorType === "embedded",
+          isEVM: item.chainType === "ethereum",
           walletClientType: item.walletClientType,
         }));
 
@@ -185,9 +170,9 @@ const WalletContentInner = () => {
     if (authenticated && ready && PrivyUser) {
       const hasExistingSolanaWallet = PrivyUser.linkedAccounts.some(
         (account: any) =>
-          account.type === 'wallet' &&
-          account.walletClientType === 'privy' &&
-          account.chainType === 'solana'
+          account.type === "wallet" &&
+          account.walletClientType === "privy" &&
+          account.chainType === "solana"
       );
 
       if (!hasExistingSolanaWallet) {
@@ -218,16 +203,14 @@ const WalletContentInner = () => {
   const totalBalance = useMemo(() => {
     return tokens.reduce((total, token) => {
       const value =
-        parseFloat(token.balance) *
-        parseFloat(token.marketData.price);
+        parseFloat(token.balance) * parseFloat(token.marketData.price);
       return isNaN(value) ? total : total + value;
     }, 0);
   }, [tokens]);
 
   // Get native token price for fee calculations
   const nativeTokenPrice = useMemo(
-    () =>
-      tokens.find((token) => token.isNative)?.marketData.price || '0',
+    () => tokens.find((token) => token.isNative)?.marketData.price || "0",
     [tokens]
   );
 
@@ -239,9 +222,9 @@ const WalletContentInner = () => {
       !sendFlow.amount
     ) {
       toast({
-        variant: 'destructive',
-        title: 'Error',
-        description: 'Missing transaction information',
+        variant: "destructive",
+        title: "Error",
+        description: "Missing transaction information",
       });
       return;
     }
@@ -254,7 +237,7 @@ const WalletContentInner = () => {
       const result = await executeTransaction();
 
       if (!result.success) {
-        throw new Error(result.error || 'Transaction failed');
+        throw new Error(result.error || "Transaction failed");
       }
 
       const hash = result.hash;
@@ -263,8 +246,8 @@ const WalletContentInner = () => {
       if (sendFlow.recipient.isEns) {
         addSwopPoint({
           userId: user?._id,
-          pointType: 'Using Swop.ID for Transactions',
-          actionKey: 'launch-swop',
+          pointType: "Using Swop.ID for Transactions",
+          actionKey: "launch-swop",
         });
       }
 
@@ -272,7 +255,7 @@ const WalletContentInner = () => {
       const transactionPayload = createTransactionPayload({
         basePayload: payload,
         sendFlow,
-        hash: hash || '',
+        hash: hash || "",
         amount: Number(amount),
         walletAddress: evmWalletAddress || solWalletAddress,
       });
@@ -282,18 +265,16 @@ const WalletContentInner = () => {
       // Update UI state
       setSendFlow((prev) => ({
         ...prev,
-        hash: hash || '',
-        step: 'success',
+        hash: hash || "",
+        step: "success",
       }));
     } catch (error) {
-      console.error('Error sending token/NFT:', error);
+      console.error("Error sending token/NFT:", error);
       toast({
-        variant: 'destructive',
-        title: 'Error',
+        variant: "destructive",
+        title: "Error",
         description:
-          error instanceof Error
-            ? error.message
-            : 'Failed to send transaction',
+          error instanceof Error ? error.message : "Failed to send transaction",
       });
       resetSendFlow();
     } finally {
@@ -312,36 +293,30 @@ const WalletContentInner = () => {
   ]);
 
   // Calculating transaction amount (accounting for USD conversion)
-  const calculateTransactionAmount = useCallback(
-    (flowData: SendFlowState) => {
-      if (flowData.isUSD && flowData.token?.marketData.price) {
-        return (
-          Number(flowData.amount) /
-          Number(flowData.token.marketData.price)
-        );
-      }
-      return flowData.amount;
-    },
-    []
-  );
+  const calculateTransactionAmount = useCallback((flowData: SendFlowState) => {
+    if (flowData.isUSD && flowData.token?.marketData.price) {
+      return Number(flowData.amount) / Number(flowData.token.marketData.price);
+    }
+    return flowData.amount;
+  }, []);
 
   // Execute the actual transaction based on type and network
   const executeTransaction = useCallback(async () => {
     try {
-      let hash = '';
+      let hash = "";
       let transaction = null;
 
       const connection = new Connection(
         process.env.NEXT_PUBLIC_QUICKNODE_SOLANA_URL!,
-        'confirmed'
+        "confirmed"
       );
 
       const solanaWallet = solanaWallets?.find(
-        (w: any) => w.walletClientType === 'privy'
+        (w: any) => w.walletClientType === "privy"
       );
 
       const linkedEthereumWallet = PrivyUser?.linkedAccounts.find(
-        (item: any) => item.chainType === 'ethereum' && item.address
+        (item: any) => item.chainType === "ethereum" && item.address
       );
 
       const evmWallet = ethWallets.find(
@@ -352,7 +327,7 @@ const WalletContentInner = () => {
 
       if (sendFlow.nft) {
         // Handle NFT transfer
-        if (sendFlow.network === 'SOLANA') {
+        if (sendFlow.network === "SOLANA") {
           hash = await TransactionService.handleSolanaNFTTransfer(
             solanaWallet,
             sendFlow,
@@ -368,7 +343,7 @@ const WalletContentInner = () => {
         refetchNFTs();
       } else {
         // Handle token transfer
-        if (sendFlow.token?.chain === 'SOLANA') {
+        if (sendFlow.token?.chain === "SOLANA") {
           // Special handling for USDC and SWOP tokens on Solana
           if (
             sendFlow.token?.address === USDC_ADDRESS ||
@@ -384,9 +359,9 @@ const WalletContentInner = () => {
             const response = await fetch(
               `${process.env.NEXT_PUBLIC_API_URL}/api/v5/wallet/sponsor-transaction`,
               {
-                method: 'POST',
+                method: "POST",
                 headers: {
-                  'Content-Type': 'application/json',
+                  "Content-Type": "application/json",
                 },
                 body: JSON.stringify({
                   transaction: serializedTransaction,
@@ -423,11 +398,10 @@ const WalletContentInner = () => {
 
       return { success: true, hash, transaction };
     } catch (error) {
-      console.error('Transaction execution error:', error);
+      console.error("Transaction execution error:", error);
       return {
         success: false,
-        error:
-          error instanceof Error ? error.message : 'Unknown error',
+        error: error instanceof Error ? error.message : "Unknown error",
       };
     }
   }, [sendFlow, ethWallets, solanaWallets, PrivyUser, refetchNFTs]);
@@ -450,16 +424,13 @@ const WalletContentInner = () => {
 
   const handleBack = useCallback(() => setSelectedToken(null), []);
 
-  const handleQRClick = useCallback(
-    () => setWalletQRModalOpen(true),
-    []
-  );
+  const handleQRClick = useCallback(() => setWalletQRModalOpen(true), []);
 
   const handleAssetSelect = useCallback(
     () =>
       setSendFlow((prev) => ({
         ...prev,
-        step: 'select-method',
+        step: "select-method",
       })),
     [setSendFlow]
   );
@@ -471,6 +442,7 @@ const WalletContentInner = () => {
       {/* Balance & Token Section */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 my-6">
         <WalletBalanceChartForWalletPage
+          tokens={tokens}
           walletData={walletData || []}
           totalBalance={totalBalance}
           onSelectAsset={handleAssetSelect}
