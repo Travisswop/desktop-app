@@ -1,57 +1,26 @@
 /* eslint-disable prefer-const */
 import React, { useEffect, useState } from "react";
-import {
-  ArrowLeftRight,
-  ArrowUpDown,
-  ChevronRight,
-  DollarSign,
-  Droplet,
-} from "lucide-react";
+import { ArrowUpDown, ChevronRight } from "lucide-react";
+import { AiOutlineExclamationCircle } from "react-icons/ai";
+
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useSolanaWallets } from "@privy-io/react-auth";
-import { Connection, PublicKey, VersionedTransaction } from "@solana/web3.js";
+import { Connection, PublicKey } from "@solana/web3.js";
+
+import {
+  KNOWN_TOKENS,
+  getTokenInfoBySymbol,
+  formatUSD,
+} from "./utils/swapUtils";
+import { handleSwap } from "./utils/handleSwap";
 
 interface SwapModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   userToken: any;
 }
-
-const SOL_MINT = new PublicKey("So11111111111111111111111111111111111111112");
-const USDC_MINT = new PublicKey("EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v");
-const SWOP_MINT = new PublicKey("GAehkgN1ZDNvavX81FmzCcwRnzekKMkSyUNq8WkMsjX1");
-
-const KNOWN_TOKENS = [
-  {
-    symbol: "SOL",
-    mint: SOL_MINT,
-    logoURI:
-      "https://raw.githubusercontent.com/trustwallet/assets/master/blockchains/solana/info/logo.png",
-    decimals: 9,
-  },
-  {
-    symbol: "USDC",
-    mint: USDC_MINT,
-    logoURI:
-      "https://raw.githubusercontent.com/solana-labs/token-list/main/assets/mainnet/EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v/logo.png",
-    decimals: 6,
-  },
-  {
-    symbol: "SWOP",
-    mint: SWOP_MINT,
-    logoURI: "https://swop.fi/logo.svg",
-    decimals: 6,
-  },
-  {
-    symbol: "USDT",
-    mint: new PublicKey("Es9vMFrzaCERngt7T9yDg8K97Ed1iXy3Kcz7GnKxFQ2j"),
-    logoURI:
-      "https://raw.githubusercontent.com/solana-labs/token-list/main/assets/mainnet/Es9vMFrzaCERngt7T9yDg8K97Ed1iXy3Kcz7GnKxFQ2j/logo.png",
-    decimals: 6,
-  },
-];
 
 export default function SwapModal({
   open,
@@ -63,11 +32,13 @@ export default function SwapModal({
 
   const [amount, setAmount] = useState("0.01");
   const [quote, setQuote] = useState<any>(null);
-  const [routeLabels, setRouteLabels] = useState<string>("N/A");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isTokenListOpen, setIsTokenListOpen] = useState(false);
   const [isInputToken, setIsInputToken] = useState(true);
+
+  const [inputMint, setInputMint] = useState<PublicKey | null>(null);
+  const [outputMint, setOutputMint] = useState<PublicKey | null>(null);
 
   const wallet = useSolanaWallets();
   const solanaAddress = wallet.wallets[0]?.address?.toString();
@@ -76,13 +47,27 @@ export default function SwapModal({
     "https://frequent-neat-valley.solana-mainnet.quiknode.pro/c87706bb433055dc44d32b704d34e4f918432c09"
   );
 
-  let inputMint: unknown;
-  let outputMint: unknown;
+  const inputToken = getTokenInfoBySymbol(selectedInputSymbol, userToken);
+  const outputToken = getTokenInfoBySymbol(selectedOutputSymbol, userToken);
 
-  // Fetch Jupiter quote
+  // Assign mint values when token information is available
+  useEffect(() => {
+    if (inputToken && outputToken) {
+      setInputMint(inputToken.mint);
+      setOutputMint(outputToken.mint);
+    }
+  }, [inputToken, outputToken]); // Depend on inputToken and outputToken
+
   useEffect(() => {
     const fetchQuote = async () => {
       if (!inputMint || !outputMint || !amount) return;
+
+      console.log(
+        "input and output mint and amount inside useEffect: 111111111111111111111111111111111111111111111111111111111111111111111111",
+        inputMint,
+        outputMint,
+        amount
+      );
 
       setLoading(true);
       setError(null);
@@ -98,9 +83,6 @@ export default function SwapModal({
         const data = await res.json();
 
         setQuote(data);
-        setRouteLabels(
-          data.route?.map((r: any) => r.label).join(" → ") || "N/A"
-        );
       } catch (err: any) {
         setError(err.message || "Failed to fetch quote");
       } finally {
@@ -109,88 +91,9 @@ export default function SwapModal({
     };
 
     fetchQuote();
-  }, [inputMint, outputMint, amount]);
+  }, [inputMint, outputMint, amount]); // Only run when inputMint, outputMint, or amount changes
 
   console.log("Quote from jupiter :", quote);
-
-  const handleSwap = async () => {
-    if (!quote || !solanaAddress) return;
-
-    setLoading(true);
-    try {
-      const res = await fetch("https://lite-api.jup.ag/swap/v1/swap", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          quoteResponse: quote,
-          userPublicKey: solanaAddress,
-          wrapUnwrapSOL: true,
-          dynamicComputeUnitLimit: true,
-        }),
-      });
-
-      const swapResponse = await res.json();
-
-      const txBase64 = swapResponse.swapTransaction;
-      const txBuffer = Buffer.from(txBase64, "base64");
-      const transaction = VersionedTransaction.deserialize(txBuffer);
-
-      // Sign with Privy Wallet
-      const signed = await wallet.wallets[0]?.signTransaction!(transaction);
-      const serializedTx = signed.serialize();
-
-      const signature = await connection.sendRawTransaction(serializedTx, {
-        maxRetries: 2,
-        skipPreflight: true,
-      });
-
-      const confirmation = await connection.confirmTransaction(
-        signature,
-        "finalized"
-      );
-
-      if (confirmation.value.err) {
-        throw new Error(
-          `Transaction failed: ${JSON.stringify(confirmation.value.err)}`
-        );
-      }
-
-      console.log(`✅ Success: https://solscan.io/tx/${signature}`);
-    } catch (err) {
-      console.error("Swap Failed:", err);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const getTokenInfoBySymbol = (symbol: string) => {
-    const baseToken = KNOWN_TOKENS.find((t) => t.symbol === symbol);
-    const userHeldToken = userToken.find((t: any) => t.symbol === symbol);
-    return {
-      ...baseToken,
-      balance: userHeldToken?.balance || "0",
-      marketData: userHeldToken?.marketData || null,
-    };
-  };
-
-  const inputToken = getTokenInfoBySymbol(selectedInputSymbol);
-  const outputToken = getTokenInfoBySymbol(selectedOutputSymbol);
-
-  inputMint = inputToken?.mint;
-  outputMint = outputToken?.mint;
-
-  console.log(
-    "input token and the output token",
-    inputToken,
-    "output",
-    outputToken
-  );
-
-  const formatUSD = (price: string, amount: string, decimals: number = 9) => {
-    const numAmount = parseFloat(amount);
-    const priceNum = parseFloat(price);
-    return (numAmount * priceNum).toFixed(4);
-  };
 
   const exchangeRate =
     quote?.outAmount && amount
@@ -222,14 +125,14 @@ export default function SwapModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-md w-full rounded-2xl p-6">
+      <DialogContent className="max-w-md w-full rounded-2xl p-6 gap-2">
         <div className="flex justify-between items-center mb-4">
           <h2 className="text-lg font-semibold">Swap Tokens</h2>
           <button onClick={() => onOpenChange(false)} />
         </div>
 
-        {/* Token Input */}
-        <div className="relative bg-muted rounded-2xl p-4  shadow">
+        {/* Token Input - with curved bottom */}
+        <div className="relative bg-[#F7F7F7] rounded-2xl p-4 shadow  ">
           <div className="flex justify-between items-center">
             <Input
               type="number"
@@ -255,45 +158,34 @@ export default function SwapModal({
               <ChevronRight className="w-4 h-4" />
             </Button>
           </div>
-          <div className="flex gap-2 justify-between text-sm text-muted-foreground mt-1">
+          <div className="flex justify-between text-sm text-muted-foreground mt-1">
+            <div>
+              {inputToken?.marketData?.price &&
+                `$${formatUSD(
+                  inputToken.marketData.price,
+                  (quote?.outAmount / 10 ** inputToken?.decimals).toString(),
+                  inputToken.decimals
+                )}`}
+            </div>
             <div>Balance: {inputToken.balance}</div>
           </div>
         </div>
 
-        {/* Token Selection List */}
-        {isTokenListOpen && (
-          <div className="absolute bg-white shadow-xl rounded-lg p-4 max-h-60 overflow-auto w-full z-10">
-            {KNOWN_TOKENS.map((token) => (
-              <Button
-                key={token.symbol}
-                variant="ghost"
-                className="flex items-center space-x-2 w-full text-left"
-                onClick={() => handleTokenSelect(token.symbol)}
-              >
-                <img
-                  src={token.logoURI}
-                  alt={token.symbol}
-                  className="w-5 h-5 rounded-full"
-                />
-                <span>{token.symbol}</span>
-              </Button>
-            ))}
+        {/* Reverse Button - positioned in the middle */}
+        <div className="relative h-0">
+          <div className="absolute left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-10">
+            <Button
+              className="rounded-full w-12 h-12 flex items-center justify-center bg-[#F7F7F7]  border-5 border-white "
+              variant="outline"
+              onClick={reverseTokens}
+            >
+              <ArrowUpDown className="w-5 h-5" />
+            </Button>
           </div>
-        )}
-
-        {/* Reverse Button */}
-        <div className=" text-center">
-          <Button
-            className="rounded-full w-10 h-10"
-            variant="outline"
-            onClick={reverseTokens}
-          >
-            <ArrowUpDown className="w-4 h-4" />
-          </Button>
         </div>
 
-        {/* Token Output */}
-        <div className="relative bg-muted rounded-2xl p-4 mb-3 shadow">
+        {/* Token Output - with curved top */}
+        <div className="relative bg-[#F7F7F7] rounded-2xl p-4 mb-3 shadow pt-8">
           <div className="flex justify-between items-center">
             <Input
               type="number"
@@ -323,21 +215,72 @@ export default function SwapModal({
               <ChevronRight className="w-4 h-4" />
             </Button>
           </div>
-          <div className="flex gap-2 justify-between text-sm text-muted-foreground mt-1">
+          <div className="flex justify-between text-sm text-muted-foreground mt-1">
+            <div>
+              {outputToken?.marketData?.price &&
+                quote?.outAmount &&
+                `$${formatUSD(
+                  outputToken.marketData.price,
+                  (quote.outAmount / 10 ** outputToken?.decimals).toString(),
+                  outputToken.decimals
+                )}`}
+            </div>
             <div>Balance: {outputToken.balance}</div>
           </div>
         </div>
 
-        {/* Swap Button */}
-        <div className="flex flex-col items-center space-y-3">
-          <span>{exchangeRate}</span>
-          <Button onClick={handleSwap} disabled={loading}>
-            {loading ? "Swapping..." : "Swap"}
-          </Button>
+        {/* Exchange Rate Info */}
+        <div className="flex items-center p-3 bg-[#F7F7F7] rounded-lg my-3">
+          <div className="flex items-center text-sm text-gray-600 w-full">
+            <div className="flex items-center space-x-2 gap-1">
+              <div className="flex justify-center items-center ">
+                <AiOutlineExclamationCircle className="text-xl" />
+              </div>
+              <span>{exchangeRate}</span>
+            </div>
+          </div>
         </div>
 
+        {/* Swap Button */}
+        <Button
+          onClick={() =>
+            handleSwap({
+              quote,
+              solanaAddress,
+              wallet,
+              connection,
+              setLoading,
+            })
+          }
+          className=" py-6 text-base font-medium bg-[#F7F7F7] text-black hover:text-black hover:bg-[#F7F7F7] rounded-lg w-3/4 mx-auto"
+          disabled={loading}
+        >
+          Swap
+        </Button>
+
         {/* Error Handling */}
-        {error && <div className="mt-4 text-red-500">{error}</div>}
+        {/* {error && <div className="mt-4 text-red-500">{error}</div>} */}
+
+        {/* Token Selection List */}
+        {isTokenListOpen && (
+          <div className="absolute bg-white shadow-xl rounded-lg p-4 max-h-60 overflow-auto w-full z-10">
+            {KNOWN_TOKENS.map((token) => (
+              <Button
+                key={token.symbol}
+                variant="ghost"
+                className="flex items-center space-x-2 w-full text-left"
+                onClick={() => handleTokenSelect(token.symbol)}
+              >
+                <img
+                  src={token.logoURI}
+                  alt={token.symbol}
+                  className="w-5 h-5 rounded-full"
+                />
+                <span>{token.symbol}</span>
+              </Button>
+            ))}
+          </div>
+        )}
       </DialogContent>
     </Dialog>
   );
