@@ -1,4 +1,4 @@
-import { getCartData, getNftDetails } from "@/actions/addToCartActions";
+import { getCartData } from "@/actions/addToCartActions";
 import { cookies } from "next/headers";
 import React from "react";
 import CartCheckout from "./CartCheckout";
@@ -13,8 +13,6 @@ const CartPage = async () => {
 
   if (accessToken) {
     const data = await getCartData(accessToken);
-    console.log("data", data);
-
     return (
       <div className="flex max-w-md mx-auto min-h-screen flex-col items-center px-4">
         <p className="text-2xl font-bold mt-6 mb-4">Your Cart</p>
@@ -22,10 +20,6 @@ const CartPage = async () => {
       </div>
     );
   } else {
-    // const cartItems = (await cookieStore).get("marketplace-add-to-cart");
-    // console.log("cartItems from localStorage", cartItems);
-
-    // const data = await getNftDetails();
     return (
       <div className="flex max-w-md mx-auto min-h-screen flex-col items-center px-4">
         <p className="text-2xl font-bold mt-6 mb-4">Your Cart</p>

@@ -30,7 +30,6 @@ import {
   ErrorDisplay,
 } from "./components";
 import {
-  CartCheckoutProps,
   CartItem,
   CustomerInfo,
   PaymentMethod,
@@ -195,7 +194,7 @@ const CartCheckout = ({ data, accessToken }: any) => {
       if (subtotal <= 0 || clientSecret) return;
 
       try {
-        setLoading(true);
+        // setLoading(true);
         setError(null);
         const { clientSecret: secret } = await createPaymentIntent(
           Math.round(subtotal * 100) // Convert to smallest currency unit (cents)
@@ -302,7 +301,7 @@ const CartCheckout = ({ data, accessToken }: any) => {
   const handleUpdateQuantity = useCallback(
     async (item: CartItem, type: "inc" | "dec") => {
       const itemId = item._id;
-
+      setLoading(false);
       try {
         // Update loading state
         setLoadingOperations((prev) => ({
@@ -346,6 +345,7 @@ const CartCheckout = ({ data, accessToken }: any) => {
             [itemId]: { ...prev[itemId], updating: false },
           }));
         }, 300);
+        setLoading(false);
       }
     },
     [name, accessToken]
@@ -354,6 +354,7 @@ const CartCheckout = ({ data, accessToken }: any) => {
   const handleRemoveItem = useCallback(
     async (id: string) => {
       try {
+        setLoading(false);
         setLoadingOperations((prev) => ({
           ...prev,
           [id]: { ...prev[id], deleting: true },
@@ -372,6 +373,9 @@ const CartCheckout = ({ data, accessToken }: any) => {
             JSON.stringify(updatedCart)
           );
           setLocalCartData(updatedCart);
+          if (updatedCart.length === 0) {
+            setCartItems([]);
+          }
         }
       } catch (error) {
         console.error("Error removing item:", error);
