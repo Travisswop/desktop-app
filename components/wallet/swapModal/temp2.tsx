@@ -2,7 +2,6 @@
 import React, { useEffect, useState } from "react";
 import {
   ArrowLeftRight,
-  ArrowUpDown,
   ChevronRight,
   DollarSign,
   Droplet,
@@ -111,8 +110,6 @@ export default function SwapModal({
     fetchQuote();
   }, [inputMint, outputMint, amount]);
 
-  console.log("Quote from jupiter :", quote);
-
   const handleSwap = async () => {
     if (!quote || !solanaAddress) return;
 
@@ -179,13 +176,6 @@ export default function SwapModal({
   inputMint = inputToken?.mint;
   outputMint = outputToken?.mint;
 
-  console.log(
-    "input token and the output token",
-    inputToken,
-    "output",
-    outputToken
-  );
-
   const formatUSD = (price: string, amount: string, decimals: number = 9) => {
     const numAmount = parseFloat(amount);
     const priceNum = parseFloat(price);
@@ -215,11 +205,6 @@ export default function SwapModal({
     setIsTokenListOpen(false);
   };
 
-  const reverseTokens = () => {
-    setSelectedInputSymbol(outputToken?.symbol || "");
-    setSelectedOutputSymbol(inputToken?.symbol || "");
-  };
-
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-md w-full rounded-2xl p-6">
@@ -229,7 +214,7 @@ export default function SwapModal({
         </div>
 
         {/* Token Input */}
-        <div className="relative bg-muted rounded-2xl p-4  shadow">
+        <div className="relative bg-muted rounded-2xl p-4 mb-3 shadow">
           <div className="flex justify-between items-center">
             <Input
               type="number"
@@ -240,7 +225,7 @@ export default function SwapModal({
             />
             <Button
               variant="ghost"
-              className="flex items-center bg-white px-5 py-1 gap-0 rounded-full shadow"
+              className="flex items-center bg-white px-3 py-1 gap-0 rounded-full shadow"
               onClick={() => {
                 setIsInputToken(true);
                 setIsTokenListOpen(true);
@@ -280,18 +265,6 @@ export default function SwapModal({
             ))}
           </div>
         )}
-
-        {/* Reverse Button */}
-        <div className=" text-center">
-          <Button
-            className="rounded-full w-10 h-10"
-            variant="outline"
-            onClick={reverseTokens}
-          >
-            <ArrowUpDown className="w-4 h-4" />
-          </Button>
-        </div>
-
         {/* Token Output */}
         <div className="relative bg-muted rounded-2xl p-4 mb-3 shadow">
           <div className="flex justify-between items-center">
@@ -299,7 +272,7 @@ export default function SwapModal({
               type="number"
               value={
                 quote?.outAmount
-                  ? quote.outAmount / 10 ** outputToken?.decimals
+                  ? quote.outAmount / 10 ** outputToken.decimals
                   : "0"
               }
               placeholder="0.0"
@@ -308,7 +281,7 @@ export default function SwapModal({
             />
             <Button
               variant="ghost"
-              className="flex items-center bg-white px-5 py-1 gap-0 rounded-full shadow"
+              className="flex items-center bg-white px-3 py-1 gap-0 rounded-full shadow"
               onClick={() => {
                 setIsInputToken(false);
                 setIsTokenListOpen(true);
@@ -329,9 +302,13 @@ export default function SwapModal({
         </div>
 
         {/* Swap Button */}
-        <div className="flex flex-col items-center space-y-3">
+        <div className="flex justify-between items-center">
           <span>{exchangeRate}</span>
-          <Button onClick={handleSwap} disabled={loading}>
+          <Button
+            onClick={handleSwap}
+            className="bg-indigo-600 text-white"
+            disabled={loading}
+          >
             {loading ? "Swapping..." : "Swap"}
           </Button>
         </div>
