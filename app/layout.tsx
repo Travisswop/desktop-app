@@ -7,7 +7,8 @@ import { Figtree } from "next/font/google";
 import { TanstackProvider } from "@/components/providers/tanstackProvider";
 import { Toaster } from "react-hot-toast";
 import { XmtpProvider } from "@/lib/context/XmtpContext";
-import JupiterProviderClient from "@/components/providers/JupiterProviderClient";
+import { JupiterProviderClient } from "@/components/providers/JupiterProviderClient";
+
 
 const figtree = Figtree({
   subsets: ["latin"],
@@ -19,6 +20,9 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+
+  
+
   return (
     <html lang="en" className={figtree.className}>
       <body className={`font-[figtree] bg-[#F7F7F9]`}>
