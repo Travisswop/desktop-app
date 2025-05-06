@@ -425,9 +425,6 @@ const CartCheckout = () => {
     return <LoadingSpinner />;
   }
 
-  console.log('🚀 ~ state.items:', state.items);
-  console.log('🚀 ~ subtotal:', subtotal);
-
   return (
     <div className="w-full max-w-md">
       <CartItemsList
