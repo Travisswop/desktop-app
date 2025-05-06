@@ -5,17 +5,17 @@ export async function handleSwap({
   solanaAddress,
   wallet,
   connection,
-  setLoading,
+  setSwapLoading,
 }: {
   quote: any;
   solanaAddress: string;
   wallet: any;
   connection: Connection;
-  setLoading: (loading: boolean) => void;
+  setSwapLoading: (loading: boolean) => void;
 }) {
   if (!quote || !solanaAddress) return;
 
-  setLoading(true);
+  setSwapLoading(true);
   try {
     const res = await fetch("https://lite-api.jup.ag/swap/v1/swap", {
       method: "POST",
@@ -36,9 +36,6 @@ export async function handleSwap({
 
     const signed = await wallet.wallets[0]?.signTransaction!(transaction);
     const serializedTx = signed.serialize();
-
-    console.log('tx and signature:', transaction , signed, serializedTx);
-    console.log("Transaction:", transaction);
 
     const signature = await connection.sendRawTransaction(serializedTx, {
       maxRetries: 2,
@@ -62,6 +59,6 @@ export async function handleSwap({
   } catch (err) {
     console.error("Swap Failed:", err);
   } finally {
-    setLoading(false);
+    setSwapLoading(false);
   }
 }

@@ -317,7 +317,6 @@ const WalletBalanceChartForWalletPage = ({
 
   userToken =  tokens;
 
-  console.log("token fromm the wallet chat page : ", tokens);
 
   useEffect(() => {
     console.log("useEffect ran. user._id:", user?._id); // ← debug log

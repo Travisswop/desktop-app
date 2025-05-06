@@ -103,8 +103,6 @@ const TokenContent = ({
     );
   }
 
-  console.log("from the toke page : tokens", tokens);
-
   // const viewMode = "list";
 
   const containerClass =

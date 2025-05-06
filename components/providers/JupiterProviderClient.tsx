@@ -3,7 +3,6 @@
 import React, { ReactNode } from "react";
 import { Connection } from "@solana/web3.js";
 import { JupiterProvider } from "@jup-ag/react-hook";
-import { useSolanaWallets } from "@privy-io/react-auth";
 import { PublicKey } from "@solana/web3.js";
 
 const connection = new Connection(
@@ -12,20 +11,18 @@ const connection = new Connection(
 
 interface JupiterProviderClientProps {
   children: ReactNode;
+  userPublicKey: PublicKey | null;
 }
 
 export const JupiterProviderClient = ({
   children,
+  userPublicKey
 }: JupiterProviderClientProps) => {
-  const wallet = useSolanaWallets();
-  const userPublicKey = new PublicKey(
-    "AUArjTCpBFF67iFafnQYS1AmEK33FdmEbtk8UMCyLouU"
-  );
   // Create a direct implementation rather than using the problematic hook
   return (
     <JupiterProvider
       connection={connection}
-      userPublicKey={userPublicKey}
+      userPublicKey={userPublicKey ?? undefined}
       wrapUnwrapSOL={true}
     >
       {children}

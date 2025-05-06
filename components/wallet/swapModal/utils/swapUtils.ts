@@ -21,11 +21,11 @@ export const KNOWN_TOKENS = [
     symbol: "SWOP",
     mint: SWOP_MINT,
     logoURI: "https://swop.fi/logo.svg",
-    decimals: 6,
+    decimals: 9,
   },
   {
     symbol: "USDT",
-    mint: new PublicKey("Es9vMFrzaCERngt7T9yDg8K97Ed1iXy3Kcz7GnKxFQ2j"),
+    mint: new PublicKey("Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB"),
     logoURI: "https://raw.githubusercontent.com/solana-labs/token-list/main/assets/mainnet/Es9vMFrzaCERngt7T9yDg8K97Ed1iXy3Kcz7GnKxFQ2j/logo.png",
     decimals: 6,
   },
@@ -50,7 +50,6 @@ export const getTokenInfoBySymbol = (
     ...baseToken,
     balance: userHeldToken?.balance || "0",
     marketData: userHeldToken?.marketData || null,
-    
   };
 };
 

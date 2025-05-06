@@ -15,6 +15,7 @@ import {
   formatUSD,
 } from "./utils/swapUtils";
 import { handleSwap } from "./utils/handleSwap";
+import { getExchangeRate } from "./utils/helperFunction";
 
 interface SwapModalProps {
   open: boolean;
@@ -36,6 +37,7 @@ export default function SwapModal({
   const [error, setError] = useState<string | null>(null);
   const [isTokenListOpen, setIsTokenListOpen] = useState(false);
   const [isInputToken, setIsInputToken] = useState(true);
+  const [swapLoading, setSwapLoading] = useState(false);
 
   const [inputMint, setInputMint] = useState<PublicKey | null>(null);
   const [outputMint, setOutputMint] = useState<PublicKey | null>(null);
@@ -63,16 +65,15 @@ export default function SwapModal({
       if (!inputMint || !outputMint || !amount) return;
 
       console.log(
-        "input and output mint and amount inside useEffect: 111111111111111111111111111111111111111111111111111111111111111111111111",
-        inputMint,
-        outputMint,
-        amount
+        "input token and the output token symbol : ",
+        inputToken?.mint,
+        outputToken?.symbol
       );
 
       setLoading(true);
       setError(null);
       try {
-        const decimals = 9;
+        const decimals = inputToken?.decimals || 6; // fallback to 6 if undefined
         const amountInSmallestUnit = Math.floor(
           parseFloat(amount) * 10 ** decimals
         );
@@ -95,25 +96,28 @@ export default function SwapModal({
 
   console.log("Quote from jupiter :", quote);
 
-  const exchangeRate =
-    quote?.outAmount && amount
-      ? `1 ${inputToken?.symbol} = ${(
-          quote.outAmount /
-          10 ** (outputToken?.decimals || 6) /
-          parseFloat(amount)
-        ).toFixed(4)} ${outputToken?.symbol} ($${(
-          (quote.outAmount /
-            10 ** (outputToken?.decimals || 6) /
-            parseFloat(amount)) *
-          parseFloat(outputToken?.marketData?.price || "0")
-        ).toFixed(2)})`
-      : null;
+  const exchangeRate = getExchangeRate({
+    quote,
+    amount,
+    inputToken,
+    outputToken,
+  });
 
   const handleTokenSelect = (symbol: string) => {
     if (isInputToken) {
-      setSelectedInputSymbol(symbol);
+      // If the selected input token is the same as the output token, reverse them
+      if (symbol === selectedOutputSymbol) {
+        reverseTokens();
+      } else {
+        setSelectedInputSymbol(symbol);
+      }
     } else {
-      setSelectedOutputSymbol(symbol);
+      // If the selected output token is the same as the input token, reverse them
+      if (symbol === selectedInputSymbol) {
+        reverseTokens();
+      } else {
+        setSelectedOutputSymbol(symbol);
+      }
     }
     setIsTokenListOpen(false);
   };
@@ -150,11 +154,11 @@ export default function SwapModal({
               }}
             >
               <img
-                src={inputToken.logoURI}
-                alt={inputToken.symbol}
+                src={inputToken?.logoURI}
+                alt={inputToken?.symbol}
                 className="w-5 h-5 mr-2 rounded-full"
               />
-              <span className="font-medium">{inputToken.symbol}</span>
+              <span className="font-medium">{inputToken?.symbol}</span>
               <ChevronRight className="w-4 h-4" />
             </Button>
           </div>
@@ -167,7 +171,7 @@ export default function SwapModal({
                   inputToken.decimals
                 )}`}
             </div>
-            <div>Balance: {inputToken.balance}</div>
+            <div>Balance: {inputToken?.balance}</div>
           </div>
         </div>
 
@@ -207,11 +211,11 @@ export default function SwapModal({
               }}
             >
               <img
-                src={outputToken.logoURI}
-                alt={outputToken.symbol}
+                src={outputToken?.logoURI}
+                alt={outputToken?.symbol}
                 className="w-5 h-5 mr-2 rounded-full"
               />
-              <span className="font-medium">{outputToken.symbol}</span>
+              <span className="font-medium">{outputToken?.symbol}</span>
               <ChevronRight className="w-4 h-4" />
             </Button>
           </div>
@@ -225,7 +229,7 @@ export default function SwapModal({
                   outputToken.decimals
                 )}`}
             </div>
-            <div>Balance: {outputToken.balance}</div>
+            <div>Balance: {outputToken?.balance}</div>
           </div>
         </div>
 
@@ -241,7 +245,6 @@ export default function SwapModal({
           </div>
         </div>
 
-        {/* Swap Button */}
         <Button
           onClick={() =>
             handleSwap({
@@ -249,13 +252,13 @@ export default function SwapModal({
               solanaAddress,
               wallet,
               connection,
-              setLoading,
+              setSwapLoading,
             })
           }
-          className=" py-6 text-base font-medium bg-[#F7F7F7] text-black hover:text-black hover:bg-[#F7F7F7] rounded-lg w-3/4 mx-auto"
-          disabled={loading}
+          className="py-6 text-base font-medium bg-[#F7F7F7] text-black hover:text-black hover:bg-[#F7F7F7] rounded-lg w-3/4 mx-auto"
+          disabled={swapLoading}
         >
-          Swap
+          {swapLoading ? "Swapping..." : "Swap"}
         </Button>
 
         {/* Error Handling */}
@@ -268,8 +271,8 @@ export default function SwapModal({
               <Button
                 key={token.symbol}
                 variant="ghost"
-                className="flex items-center space-x-2 w-full text-left"
                 onClick={() => handleTokenSelect(token.symbol)}
+                className="flex items-center gap-3 w-full text-left"
               >
                 <img
                   src={token.logoURI}
