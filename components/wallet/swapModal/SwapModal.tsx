@@ -94,7 +94,14 @@ export default function SwapModal({
     fetchQuote();
   }, [inputMint, outputMint, amount]); // Only run when inputMint, outputMint, or amount changes
 
-  console.log("Quote from jupiter :", quote);
+  // console.log("Quote from jupiter :", quote);
+
+  console.log("userToken inputToken OutputToken knownToken", {
+    userToken,
+    inputToken,
+    outputToken,
+    KNOWN_TOKENS,
+  });
 
   const exchangeRate = getExchangeRate({
     quote,
@@ -123,8 +130,18 @@ export default function SwapModal({
   };
 
   const reverseTokens = () => {
-    setSelectedInputSymbol(outputToken?.symbol || "");
-    setSelectedOutputSymbol(inputToken?.symbol || "");
+    const newInput = outputToken;
+    const userOwnsNewInput = userToken.find(
+      (t: any) => t.symbol === newInput?.symbol
+    );
+
+    if (userOwnsNewInput) {
+      setSelectedInputSymbol(outputToken?.symbol || ""); // Fallback to an empty string if undefined
+      setSelectedOutputSymbol(inputToken?.symbol || "");
+      setError(null); // clear any previous error
+    } else {
+      setError(`You don't own ${newInput?.symbol}. Cannot reverse swap.`);
+    }
   };
 
   return (
@@ -264,24 +281,39 @@ export default function SwapModal({
         {/* Error Handling */}
         {/* {error && <div className="mt-4 text-red-500">{error}</div>} */}
 
-        {/* Token Selection List */}
+        {/* Token Selection Modal */}
         {isTokenListOpen && (
-          <div className="absolute bg-white shadow-xl rounded-lg p-4 max-h-60 overflow-auto w-full z-10">
-            {KNOWN_TOKENS.map((token) => (
-              <Button
-                key={token.symbol}
-                variant="ghost"
-                onClick={() => handleTokenSelect(token.symbol)}
-                className="flex items-center gap-3 w-full text-left"
-              >
-                <img
-                  src={token.logoURI}
-                  alt={token.symbol}
-                  className="w-5 h-5 rounded-full"
-                />
-                <span>{token.symbol}</span>
-              </Button>
-            ))}
+          <div className="absolute top-0 left-0 w-full h-full z-50 flex items-center justify-center bg-black bg-opacity-30">
+            <div className="bg-white rounded-xl shadow-lg w-[90%] max-w-sm max-h-[300px] overflow-y-auto p-4">
+              <h3 className="text-sm font-semibold mb-3">Select a token</h3>
+              {KNOWN_TOKENS.filter((token) => {
+                if (isInputToken) {
+                  // Only show tokens the user owns for input token selection
+                  return userToken.some(
+                    (userTokenItem) => userTokenItem.symbol === token.symbol
+                  );
+                }
+                // For output token, show all known tokens
+                return true;
+              }).map((token) => (
+                <Button
+                  key={token.symbol}
+                  variant="ghost"
+                  onClick={() => handleTokenSelect(token.symbol)}
+                  className="flex items-center gap-3 w-full text-left hover:bg-gray-100"
+                >
+                  <img
+                    src={token.logoURI}
+                    alt={token.symbol}
+                    className="w-5 h-5 rounded-full"
+                  />
+                  <div className="flex flex-col text-sm">
+                    <span className="font-medium">{token.symbol}</span>
+                    <span className="text-gray-400">{token.name}</span>
+                  </div>
+                </Button>
+              ))}
+            </div>
           </div>
         )}
       </DialogContent>
