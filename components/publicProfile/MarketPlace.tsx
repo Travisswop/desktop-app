@@ -1,31 +1,16 @@
-"use client";
-import { FC, useState } from "react";
-import Image from "next/image";
-import { downloadVCard } from "@/lib/vCardUtils";
-import { motion } from "framer-motion";
-import { LuCirclePlus } from "react-icons/lu";
-import { useUser } from "@/lib/UserContext";
-import { useRouter } from "next/navigation";
-import { Spinner } from "@nextui-org/react";
-import { addProductToCart } from "@/actions/addToCartActions";
-import toast from "react-hot-toast";
-import { Loader } from "lucide-react";
-import useAddToCardToggleStore from "@/zustandStore/addToCartToggle";
+'use client';
+import { useState } from 'react';
+import Image from 'next/image';
+import { downloadVCard } from '@/lib/vCardUtils';
+import { motion } from 'framer-motion';
+import { LuCirclePlus } from 'react-icons/lu';
+
+import { addProductToCart } from '@/actions/addToCartActions';
+import toast from 'react-hot-toast';
+import { Loader } from 'lucide-react';
+import { useCart } from '@/app/(public-profile)/sp/[username]/cart/context/CartContext';
+
 const API_URL = process.env.NEXT_PUBLIC_API_URL;
-interface Props {
-  data: {
-    _id: string;
-    micrositeId: string;
-    name: string;
-    mobileNo: string;
-    email: string;
-    address: string;
-    websiteUrl: string;
-  };
-  socialType: string;
-  parentId: string;
-  number: number;
-}
 
 const variants = {
   hidden: { opacity: 0, x: 0, y: 25 },
@@ -35,25 +20,25 @@ const variants = {
 
 const download = async (data: any, parentId: string) => {
   const vCard = await downloadVCard(data);
-  const blob = new Blob([vCard], { type: "text/vcard" });
+  const blob = new Blob([vCard], { type: 'text/vcard' });
   const url = window.URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.setAttribute("hidden", "");
-  a.setAttribute("href", url);
-  a.setAttribute("download", `${data.name}.vcf`);
+  const a = document.createElement('a');
+  a.setAttribute('hidden', '');
+  a.setAttribute('href', url);
+  a.setAttribute('download', `${data.name}.vcf`);
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
 
   try {
     fetch(`${API_URL}/api/v1/web/updateCount`, {
-      method: "POST",
+      method: 'POST',
       headers: {
-        Accept: "application/json",
-        "Content-Type": "application/json",
+        Accept: 'application/json',
+        'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        socialType: "contact",
+        socialType: 'contact',
         socialId: data._id,
         parentId,
       }),
@@ -65,7 +50,6 @@ const download = async (data: any, parentId: string) => {
 
 const MarketPlace: any = ({
   data,
-  socialType,
   parentId,
   number,
   userName,
@@ -74,89 +58,76 @@ const MarketPlace: any = ({
 }: any) => {
   const [addToCartLoading, setAddToCartLoading] = useState(false);
   const {
-    _id,
     itemImageUrl,
     itemName,
     itemPrice,
-    mintLimit,
     collectionId,
     templateId,
+    itemDescription,
   } = data;
+
   const delay = number + 1 * 0.2;
 
-  const { toggle, setToggle } = useAddToCardToggleStore();
-
-  // const { user, accessToken } = useUser();
-
-  const router = useRouter();
-
-  // Helper function to handle localStorage cart
-  const getCartFromLocalStorage = () => {
-    if (typeof window !== "undefined") {
-      const cart = localStorage.getItem("marketplace-add-to-cart");
-      return cart ? JSON.parse(cart) : [];
-    }
-    return [];
-  };
+  const { dispatch } = useCart();
 
   const handleAddToCart = async (event: React.MouseEvent) => {
     event.stopPropagation();
     setAddToCartLoading(true);
-    const data = {
-      userId: userId,
-      collectionId: collectionId,
-      templateId: templateId,
-      quantity: 1,
-    };
+
     const cartItem = {
-      _id,
-      itemImageUrl,
-      itemName,
-      itemPrice,
-      collectionId,
-      templateId,
+      _id: Math.random().toString(36).substring(2, 15),
       quantity: 1,
-      timestamp: new Date().getTime(), // For sorting/unique identification
+      timestamp: new Date().getTime(),
+      nftTemplate: {
+        _id: data._id,
+        name: itemName,
+        description: itemDescription,
+        image: itemImageUrl,
+        price: itemPrice,
+        collectionId: collectionId,
+        templateId: templateId,
+        nftType:
+          data.collectionMintAddress ===
+          'EFNUeHdd9dYNWaczMGfCtqThFea7HcL7xUdH8QNsYUcq'
+            ? ('phygital' as const)
+            : ('non-phygital' as const),
+      },
     };
 
     if (!accessToken) {
-      // Save to localStorage
-      const currentCart = getCartFromLocalStorage();
-
-      // Check if item already exists in cart
-      const existingItemIndex = currentCart.findIndex(
-        (item: any) => item._id === _id && item.templateId === templateId
-      );
-
-      if (existingItemIndex >= 0) {
-        // Update quantity if item exists
-        currentCart[existingItemIndex].quantity += 1;
-      } else {
-        // Add new item
-        currentCart.push(cartItem);
-      }
-
-      localStorage.setItem(
-        "marketplace-add-to-cart",
-        JSON.stringify(currentCart)
-      );
+      dispatch({ type: 'ADD_ITEM', payload: cartItem });
       setAddToCartLoading(false);
-      toast.success("Item added to cart (offline)");
-      setToggle(true); // Update your Zustand store if needed
-      //return router.push("/login"); // Redirect to login after adding to cart
+      toast.success('Item added to cart (offline)');
       return;
     }
 
     try {
-      // Existing API call for logged-in users
-      const response = await addProductToCart(data, accessToken, userName);
+      const cartData = {
+        userId: userId,
+        collectionId: collectionId,
+        templateId: templateId,
+        quantity: 1,
+        sellerId: parentId,
+      };
 
-      setToggle(true);
-      setAddToCartLoading(false);
-      toast.success("Items added to cart");
+      const response = await addProductToCart(
+        cartData,
+        accessToken,
+        userName
+      );
+
+      if (response.state === 'success') {
+        dispatch({ type: 'ADD_ITEM', payload: cartItem });
+        toast.success('Items added to cart');
+      } else {
+        throw new Error(
+          response.message || 'Failed to add item to cart'
+        );
+      }
     } catch (error) {
-      toast.error("Something went wrong! Please try again!");
-      console.log(error);
+      console.error('Error adding to cart:', error);
+      toast.error('Failed to add item to cart. Please try again.');
+    } finally {
       setAddToCartLoading(false);
     }
   };
@@ -170,13 +141,13 @@ const MarketPlace: any = ({
       transition={{
         duration: 0.4,
         delay,
-        type: "easeInOut",
+        type: 'easeInOut',
       }}
     >
       <div>
         <motion.div
           transition={{
-            type: "spring",
+            type: 'spring',
             stiffness: 400,
             damping: 10,
           }}
@@ -188,7 +159,7 @@ const MarketPlace: any = ({
               <Image
                 className="w-full h-auto"
                 src={itemImageUrl}
-                alt={"mint image"}
+                alt={'mint image'}
                 width={240}
                 height={240}
               />
@@ -208,7 +179,7 @@ const MarketPlace: any = ({
               className="text-sm font-semibold flex items-center gap-1"
             >
               <span className="flex items-center gap-1">
-                Add To Cart{" "}
+                Add To Cart{' '}
                 <span className="w-5">
                   {addToCartLoading ? (
                     <Loader className="animate-spin" size={20} />

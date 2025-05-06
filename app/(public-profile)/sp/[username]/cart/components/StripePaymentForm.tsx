@@ -8,6 +8,7 @@ import {
 } from '@stripe/react-stripe-js';
 import { useRouter, useParams } from 'next/navigation';
 import { updateOrderPayment } from '@/actions/orderActions';
+import toast from 'react-hot-toast';
 
 import { StripePaymentFormProps } from './types';
 
@@ -113,90 +114,52 @@ const StripePaymentForm: React.FC<StripePaymentFormProps> = ({
     [orderId, username, router]
   );
 
-  const handleSubmit = async (event: React.FormEvent) => {
-    event.preventDefault();
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
 
     if (!stripe || !elements || !orderId) {
-      setErrorMessage(
-        'Payment system is initializing. Please try again.'
-      );
       return;
     }
 
     setProcessing(true);
-    setMessage(null);
 
     try {
-      // Confirm the payment with Stripe
-      const { error, paymentIntent } = (await stripe.confirmPayment({
+      const { error, paymentIntent } = await stripe.confirmPayment({
         elements,
         confirmParams: {
-          return_url: `${window.location.origin}/payment-success?orderId=${orderId}&username=${username}`,
-          payment_method_data: {
-            billing_details: {
-              name: customerInfo.name,
-              email: customerInfo.email,
-              phone: customerInfo.phone,
-              address: {
-                line1: customerInfo.address.line1,
-                line2: customerInfo.address.line2 || undefined,
-                city: customerInfo.address.city,
-                state: customerInfo.address.state,
-                postal_code: customerInfo.address.postalCode,
-                country: customerInfo.address.country,
-              },
-            },
-          },
+          return_url: `${window.location.origin}/payment-success`,
+          receipt_email: email,
         },
         redirect: 'if_required',
-      })) as {
-        error: any;
-        paymentIntent: { id: string; status: string };
-      };
+      });
 
       if (error) {
-        // Update payment status as failed
-        if (paymentIntent?.id) {
-          await updatePaymentStatus(paymentIntent.id, 'failed');
-        }
-
-        const errorMessage =
-          error.message || 'Payment failed. Please try again.';
-        setErrorMessage(errorMessage);
-        redirectToResultPage(false, undefined, errorMessage);
-        return;
-      }
-
-      if (paymentIntent && paymentIntent.status === 'succeeded') {
-        const result = await updatePaymentStatus(
-          paymentIntent.id,
-          'completed'
-        );
-
-        if (result.success) {
-          setIsPaymentSheetOpen(false);
-          setMessage('Payment successful!');
-          redirectToResultPage(true, paymentIntent.id);
-        } else {
-          setErrorMessage(
-            result.error || 'Failed to update payment information'
-          );
-        }
-      } else if (paymentIntent) {
-        // Handle other payment intent statuses
-        setMessage(
-          `Payment status: ${paymentIntent.status}. Please wait or try again.`
-        );
-      } else {
         setErrorMessage(
-          'Payment processing incomplete. Please try again.'
+          error.message || 'An error occurred during payment'
         );
+        toast.error(
+          error.message || 'Payment failed. Please try again.'
+        );
+      } else if (
+        paymentIntent &&
+        paymentIntent.status === 'succeeded'
+      ) {
+        await updateOrderPayment(
+          orderId,
+          {
+            paymentIntentId: paymentIntent.id,
+            status: 'completed',
+          },
+          accessToken
+        );
+        toast.success('Payment successful!');
+        setIsPaymentSheetOpen(false);
+        redirectToResultPage(true, paymentIntent.id);
       }
-    } catch (unexpectedError) {
-      console.error('Unexpected payment error:', unexpectedError);
-      setErrorMessage(
-        'An unexpected error occurred. Please try again.'
-      );
+    } catch (err) {
+      console.error('Payment error:', err);
+      setErrorMessage('An unexpected error occurred');
+      toast.error('Payment failed. Please try again.');
     } finally {
       setProcessing(false);
     }

@@ -1,20 +1,9 @@
 'use client';
 
-import React, {
-  useEffect,
-  useState,
-  useCallback,
-  useMemo,
-  useRef,
-} from 'react';
+import React, { useEffect, useCallback, useMemo } from 'react';
 import { loadStripe } from '@stripe/stripe-js';
 import { Elements } from '@stripe/react-stripe-js';
 import { createPaymentIntent } from '@/lib/payment-actions';
-import {
-  deleteCartItem,
-  getNftDetails,
-  updateCartQuantity,
-} from '@/actions/addToCartActions';
 import { useUser } from '@/lib/UserContext';
 import { useParams } from 'next/navigation';
 import { useDisclosure } from '@nextui-org/react';
@@ -25,22 +14,26 @@ import {
 } from '@/components/ui/sheet';
 import NftPaymentModal from '@/components/modal/NftPayment';
 import { useSolanaWalletContext } from '@/lib/context/SolanaWalletContext';
-
+import { useCart } from './context/CartContext';
+import { useCartPersistence } from './hooks/useCartPersistence';
 import {
-  LoadingSpinner,
-  StripePaymentForm,
   CartItemsList,
   CheckoutCard,
   ErrorDisplay,
+  LoadingSpinner,
+  StripePaymentForm,
 } from './components';
 import {
-  CartCheckoutProps,
-  CartItem,
   CustomerInfo,
   PaymentMethod,
   Status,
 } from './components/types';
 import { createOrder } from '@/actions/orderActions';
+import {
+  updateCartQuantity,
+  deleteCartItem,
+} from '@/actions/addToCartActions';
+import toast from 'react-hot-toast';
 
 // Environment variable constants
 const STRIPE_KEY =
@@ -55,62 +48,31 @@ const getStripePromise = () => {
   return stripePromise;
 };
 
-// Helper function to handle localStorage cart
-const getCartFromLocalStorage = () => {
-  if (typeof window !== 'undefined') {
-    const cart = localStorage.getItem('marketplace-add-to-cart');
-    return cart ? JSON.parse(cart) : [];
-  }
-  return [];
-};
-
-const CartCheckout = ({ data, accessToken }: any) => {
-  const { user } = useUser();
+const CartCheckout = () => {
+  const { user, accessToken } = useUser();
   const { solanaWallets } = useSolanaWalletContext();
-  const [localCartData, setLocalCartData] = useState([]);
-  const [nftDetails, setNftDetials] = useState<any>();
-  const [cartItems, setCartItems] = useState<any>([]);
-
-  useEffect(() => {
-    if (!accessToken) {
-      const cartData = getCartFromLocalStorage();
-      setLocalCartData(cartData);
-    }
-  }, [accessToken]);
-
-  useEffect(() => {
-    const fetchNftData = async () => {
-      const data = await getNftDetails(localCartData);
-      setNftDetials(data);
-    };
-    if (!accessToken && localCartData?.length > 0) {
-      fetchNftData();
-    }
-  }, [accessToken, localCartData, localCartData?.length]);
-
-  console.log('localCartData', localCartData);
-
-  const solanaWallet = solanaWallets?.find(
-    (w: any) => w.walletClientType === 'privy'
-  );
-
+  const { state, dispatch, subtotal } = useCart();
   const params = useParams();
   const name = params.username as string;
-  const orderIdRef = useRef<string | null>(null);
+  const orderIdRef = React.useRef<string | null>(null);
+
+  // Initialize cart persistence
+  useCartPersistence();
 
   // State variables
-  const [clientSecret, setClientSecret] = useState<string | null>(
-    null
-  );
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [isPaymentSheetOpen, setIsPaymentSheetOpen] = useState(false);
-  const [loadingOperations, setLoadingOperations] = useState<
+  const [clientSecret, setClientSecret] = React.useState<
+    string | null
+  >(null);
+  const [loading, setLoading] = React.useState(true);
+  const [error, setError] = React.useState<string | null>(null);
+  const [isPaymentSheetOpen, setIsPaymentSheetOpen] =
+    React.useState(false);
+  const [loadingOperations, setLoadingOperations] = React.useState<
     Record<string, { updating: boolean; deleting: boolean }>
   >({});
-  const [errorMessage, setErrorMessage] = useState<string | null>(
-    null
-  );
+  const [errorMessage, setErrorMessage] = React.useState<
+    string | null
+  >(null);
 
   // Default customer information
   const defaultCustomerInfo: CustomerInfo = {
@@ -119,7 +81,10 @@ const CartCheckout = ({ data, accessToken }: any) => {
     phone: '',
     wallet: {
       ens: '',
-      address: solanaWallet?.address || '',
+      address:
+        solanaWallets?.find(
+          (w: any) => w.walletClientType === 'privy'
+        )?.address || '',
     },
     useSwopId: false,
     address: {
@@ -131,76 +96,21 @@ const CartCheckout = ({ data, accessToken }: any) => {
       country: 'US',
     },
   };
-  const [customerInfo, setCustomerInfo] = useState<CustomerInfo>(
-    defaultCustomerInfo
-  );
+  const [customerInfo, setCustomerInfo] =
+    React.useState<CustomerInfo>(defaultCustomerInfo);
 
   // NFT wallet payment modal state
   const { isOpen, onOpen, onOpenChange } = useDisclosure();
-  const [walletOrderId, setWalletOrderId] = useState<string | null>(
-    null
-  );
-
-  useEffect(() => {
-    if (accessToken) {
-      if (
-        data?.state !== 'success' ||
-        !Array.isArray(data?.data?.cartItems)
-      ) {
-        setCartItems([]);
-      } else {
-        setCartItems(data.data.cartItems);
-      }
-    } else {
-      if (!accessToken && nftDetails?.data?.cartItems) {
-        setCartItems(nftDetails?.data?.cartItems);
-      } else {
-        setCartItems([]);
-      }
-    }
-  }, [
-    accessToken,
-    data?.data?.cartItems,
-    data?.state,
-    nftDetails?.data?.cartItems,
-  ]);
-
-  // Parse cart items with proper error handling
-  // const cartItems: CartItem[] = useMemo(() => {
-  //   if (accessToken) {
-  //     if (data?.state !== "success" || !Array.isArray(data?.data?.cartItems)) {
-  //       return [];
-  //     }
-  //     return data.data.cartItems;
-  //   } else {
-  //     return nftDetails?.data?.cartItems;
-  //   }
-  // }, [
-  //   accessToken,
-  //   data?.data?.cartItems,
-  //   data?.state,
-  //   nftDetails?.data?.cartItems,
-  // ]);
-
-  console.log('cartItems', cartItems);
+  const [walletOrderId, setWalletOrderId] = React.useState<
+    string | null
+  >(null);
 
   // Check if any product requires physical shipping
   const hasPhygitalProducts = useMemo(() => {
-    return cartItems.some(
-      (item: any) => item.nftTemplate.nftType === 'phygital'
+    return state.items.some(
+      (item) => item.nftTemplate?.nftType === 'phygital'
     );
-  }, [cartItems]);
-
-  // Calculate total price
-  const subtotal = useMemo(() => {
-    if (!cartItems.length) return 0;
-
-    return cartItems.reduce((total: any, item: any) => {
-      const price = item?.nftTemplate?.price || 0;
-      const quantity = item?.quantity || 0;
-      return total + price * quantity;
-    }, 0);
-  }, [cartItems]);
+  }, [state.items]);
 
   // Initialize payment
   useEffect(() => {
@@ -211,14 +121,17 @@ const CartCheckout = ({ data, accessToken }: any) => {
         setLoading(true);
         setError(null);
         const { clientSecret: secret } = await createPaymentIntent(
-          Math.round(subtotal * 100) // Convert to smallest currency unit (cents)
+          Math.round(subtotal * 100)
         );
         setClientSecret(secret);
       } catch (err) {
         console.error('Error initializing payment:', err);
-        setError(
-          'Could not initialize payment. Please try again later.'
-        );
+        const errorMessage =
+          err instanceof Error
+            ? err.message
+            : 'Could not initialize payment. Please try again later.';
+        setError(errorMessage);
+        toast.error(errorMessage);
       } finally {
         setLoading(false);
       }
@@ -237,7 +150,10 @@ const CartCheckout = ({ data, accessToken }: any) => {
         email: user.email || prev.email,
         wallet: {
           ens: user.ensName || prev.wallet.ens,
-          address: solanaWallet?.address || prev.wallet.address,
+          address:
+            solanaWallets?.find(
+              (w: any) => w.walletClientType === 'privy'
+            )?.address || prev.wallet.address,
         },
         address: {
           ...prev.address,
@@ -247,15 +163,13 @@ const CartCheckout = ({ data, accessToken }: any) => {
         },
       }));
     }
-  }, [user, customerInfo.useSwopId, solanaWallet]);
+  }, [user, customerInfo.useSwopId, solanaWallets]);
 
-  // Handlers for cart operations - memoized to prevent re-creation on renders
+  // Handlers for cart operations
   const handleUpdateQuantity = useCallback(
-    async (item: CartItem, type: 'inc' | 'dec') => {
+    async (item: any, type: 'inc' | 'dec') => {
       const itemId = item._id;
-
       try {
-        // Update loading state
         setLoadingOperations((prev) => ({
           ...prev,
           [itemId]: { ...prev[itemId], updating: true },
@@ -265,19 +179,23 @@ const CartCheckout = ({ data, accessToken }: any) => {
           type === 'inc' ? item.quantity + 1 : item.quantity - 1;
         if (newQuantity < 1) return;
 
-        const payload = {
-          cartId: itemId,
-          quantity: newQuantity,
-        };
-
         if (name) {
-          await updateCartQuantity(payload, accessToken, name);
+          await updateCartQuantity(
+            { cartId: itemId, quantity: newQuantity },
+            accessToken,
+            name
+          );
+          dispatch({
+            type: 'UPDATE_QUANTITY',
+            payload: { id: itemId, quantity: newQuantity },
+          });
+          toast.success('Cart updated successfully');
         }
       } catch (error) {
         console.error('Error updating quantity:', error);
         setErrorMessage('Failed to update quantity');
+        toast.error('Failed to update quantity. Please try again.');
       } finally {
-        // Reset loading state with slight delay for UI feedback
         setTimeout(() => {
           setLoadingOperations((prev) => ({
             ...prev,
@@ -286,10 +204,9 @@ const CartCheckout = ({ data, accessToken }: any) => {
         }, 300);
       }
     },
-    [name, accessToken]
+    [name, accessToken, dispatch]
   );
 
-  // Cart item removal handler
   const handleRemoveItem = useCallback(
     async (id: string) => {
       try {
@@ -298,10 +215,15 @@ const CartCheckout = ({ data, accessToken }: any) => {
           [id]: { ...prev[id], deleting: true },
         }));
 
-        await deleteCartItem(id, accessToken, name);
+        if (accessToken) {
+          await deleteCartItem(id, accessToken, name);
+        }
+        dispatch({ type: 'REMOVE_ITEM', payload: id });
+        toast.success('Item removed from cart');
       } catch (error) {
         console.error('Error removing item:', error);
         setErrorMessage('Failed to remove item');
+        toast.error('Failed to remove item. Please try again.');
       } finally {
         setTimeout(() => {
           setLoadingOperations((prev) => ({
@@ -311,44 +233,32 @@ const CartCheckout = ({ data, accessToken }: any) => {
         }, 300);
       }
     },
-    [name, accessToken]
+    [name, accessToken, dispatch]
   );
 
+  // Form handlers
   const handleCountryChange = useCallback((value: string) => {
     setCustomerInfo((prev) => ({
       ...prev,
-      address: {
-        ...prev.address,
-        country: value,
-      },
+      address: { ...prev.address, country: value },
     }));
   }, []);
 
   const handleInputChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
       const { name, value } = e.target;
-
       setCustomerInfo((prev) => {
-        // Handle nested properties (address.line1, etc.)
         if (name.includes('.')) {
           const [parent, child] = name.split('.');
           if (parent === 'address') {
             return {
               ...prev,
-              address: {
-                ...prev.address,
-                [child]: value,
-              },
+              address: { ...prev.address, [child]: value },
             };
           }
           return prev;
         }
-
-        // Handle top-level properties
-        return {
-          ...prev,
-          [name]: value,
-        };
+        return { ...prev, [name]: value };
       });
     },
     []
@@ -357,7 +267,6 @@ const CartCheckout = ({ data, accessToken }: any) => {
   const toggleUseSwopId = useCallback(() => {
     setCustomerInfo((prev) => {
       const newUseSwopId = !prev.useSwopId;
-
       if (newUseSwopId && user) {
         return {
           ...prev,
@@ -377,15 +286,11 @@ const CartCheckout = ({ data, accessToken }: any) => {
           },
         };
       }
-
-      return {
-        ...prev,
-        useSwopId: newUseSwopId,
-      };
+      return { ...prev, useSwopId: newUseSwopId };
     });
   }, [user]);
 
-  // Validation function for form fields
+  // Validation function
   const validateFormFields = useCallback(() => {
     const requiredFields = [
       {
@@ -423,65 +328,63 @@ const CartCheckout = ({ data, accessToken }: any) => {
     for (const { field, message } of requiredFields) {
       if (!field || field.trim() === '') {
         setErrorMessage(message);
+        toast.error(message);
         return false;
       }
     }
 
-    // Email validation
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(customerInfo.email)) {
       setErrorMessage('Please enter a valid email address');
+      toast.error('Please enter a valid email address');
       return false;
     }
 
     setErrorMessage(null);
     return true;
-  }, [customerInfo, hasPhygitalProducts, setErrorMessage]);
+  }, [customerInfo, hasPhygitalProducts]);
 
+  // Order creation
   const createOrderForPayment = useCallback(
     async (paymentMethod: PaymentMethod) => {
-      if (!validateFormFields()) {
-        return null;
-      }
+      if (!validateFormFields()) return null;
 
       try {
         setErrorMessage(null);
-
         const orderInfo = {
           customerInfo: {
             ...customerInfo,
             wallet: {
               ...customerInfo.wallet,
-              address: solanaWallet?.address,
+              address: solanaWallets?.find(
+                (w: any) => w.walletClientType === 'privy'
+              )?.address,
             },
           },
-          cartItems,
+          cartItems: state.items,
           paymentMethod,
           status: 'pending' as Status,
         };
 
-        console.log('orderInfo', orderInfo);
-
         const { orderId } = await createOrder(orderInfo, accessToken);
-        console.log('🚀 ~ orderId:', orderId);
         return orderId;
       } catch (error) {
         console.error('Error creating order:', error);
         setErrorMessage('Failed to create order. Please try again.');
+        toast.error('Failed to create order. Please try again.');
         return null;
       }
     },
     [
       validateFormFields,
       customerInfo,
-      cartItems,
-      subtotal,
+      state.items,
       accessToken,
-      setErrorMessage,
+      solanaWallets,
     ]
   );
 
-  // Handle wallet payment
+  // Payment handlers
   const handleOpenWalletPayment = useCallback(async () => {
     const orderId = await createOrderForPayment('wallet');
     if (orderId) {
@@ -490,13 +393,10 @@ const CartCheckout = ({ data, accessToken }: any) => {
     }
   }, [createOrderForPayment, onOpen]);
 
-  // Handle Stripe payment
   const handleOpenPaymentSheet = useCallback(async () => {
     const orderId = await createOrderForPayment('stripe');
     if (orderId) {
       orderIdRef.current = orderId;
-
-      // Initialize payment intent
       if (!clientSecret) {
         try {
           setLoading(true);
@@ -509,39 +409,35 @@ const CartCheckout = ({ data, accessToken }: any) => {
           setErrorMessage(
             'Could not initialize payment. Please try again.'
           );
+          toast.error(
+            'Could not initialize payment. Please try again.'
+          );
           return;
         } finally {
           setLoading(false);
         }
       }
-
       setIsPaymentSheetOpen(true);
     }
-  }, [
-    createOrderForPayment,
-    clientSecret,
-    subtotal,
-    setErrorMessage,
-    setLoading,
-  ]);
+  }, [createOrderForPayment, clientSecret, subtotal]);
 
-  // Main conditional rendering
   if (loading && !clientSecret && subtotal > 0) {
     return <LoadingSpinner />;
   }
 
-  console.log('customerInfo', customerInfo);
+  console.log('🚀 ~ state.items:', state.items);
+  console.log('🚀 ~ subtotal:', subtotal);
+
   return (
     <div className="w-full max-w-md">
-      {/* Cart Items Display */}
       <CartItemsList
-        cartItems={cartItems}
+        cartItems={state.items}
         loadingOperations={loadingOperations}
         onUpdate={handleUpdateQuantity}
         onRemove={handleRemoveItem}
       />
 
-      {subtotal > 0 && cartItems.length > 0 ? (
+      {subtotal > 0 && state.items.length > 0 ? (
         <CheckoutCard
           user={user}
           customerInfo={customerInfo}
@@ -551,7 +447,7 @@ const CartCheckout = ({ data, accessToken }: any) => {
           handleOpenPaymentSheet={handleOpenPaymentSheet}
           handleOpenWalletPayment={handleOpenWalletPayment}
           errorMessage={errorMessage}
-          cartItems={cartItems}
+          cartItems={state.items}
           subtotal={subtotal}
           hasPhygitalProducts={hasPhygitalProducts}
         />
@@ -559,25 +455,21 @@ const CartCheckout = ({ data, accessToken }: any) => {
         <ErrorDisplay error={error} />
       ) : null}
 
-      {/* NFT Payment Modal */}
       <NftPaymentModal
         subtotal={subtotal}
         isOpen={isOpen}
         onOpenChange={onOpenChange}
         customerInfo={customerInfo}
-        cartItems={cartItems}
+        cartItems={state.items}
         orderId={walletOrderId}
       />
 
-      {/* Payment Sheet - Only rendered when clientSecret exists */}
       {clientSecret && (
         <Elements
           stripe={getStripePromise()}
           options={{
             clientSecret,
-            appearance: {
-              theme: 'stripe',
-            },
+            appearance: { theme: 'stripe' },
           }}
         >
           <Sheet
@@ -605,7 +497,7 @@ const CartCheckout = ({ data, accessToken }: any) => {
                 setIsPaymentSheetOpen={setIsPaymentSheetOpen}
                 setErrorMessage={setErrorMessage}
                 customerInfo={customerInfo}
-                cartItems={cartItems}
+                cartItems={state.items}
                 accessToken={accessToken}
                 orderId={orderIdRef.current}
                 clientSecret={clientSecret}

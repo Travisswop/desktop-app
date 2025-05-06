@@ -6,34 +6,65 @@ export type Status =
   | 'processing'
   | 'completed'
   | 'failed';
+
+export interface Wallet {
+  ens: string;
+  address: string;
+}
+
+export interface Address {
+  line1: string;
+  line2: string;
+  city: string;
+  state: string;
+  postalCode: string;
+  country: string;
+}
+
+export type NftType = 'phygital' | 'non-phygital';
+
 export interface CustomerInfo {
   email: string;
   name: string;
   phone: string;
+  wallet: Wallet;
   useSwopId: boolean;
-  wallet: {
-    ens: string;
-    address: string;
-  };
-  address: {
-    line1: string;
-    line2: string;
-    city: string;
-    state: string;
-    postalCode: string;
-    country: string;
-  };
+  address: Address;
 }
 
 export interface CartItem {
   _id: string;
   quantity: number;
+  collectionId?: string;
+  templateId?: string;
+  userId?: string;
+  sellerId?: string;
   nftTemplate: {
+    _id?: string;
     name: string;
-    price: number;
+    description: string;
     image: string;
-    ownerAddress: string;
-    nftType?: string;
+    price: number;
+    nftType: NftType;
+    collectionId?: string;
+    collectionMintAddress?: string;
+    ownerAddress?: string;
+    mintLimit?: number;
+    royaltyPercentage?: number;
+    userId?: string;
+    createdAt?: string;
+    updatedAt?: string;
+    addons?: string[];
+    benefits?: any[];
+    content?: any[];
+    requirements?: any[];
+  };
+}
+
+export interface LoadingOperations {
+  [key: string]: {
+    updating: boolean;
+    deleting: boolean;
   };
 }
 

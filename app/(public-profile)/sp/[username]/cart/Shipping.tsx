@@ -162,7 +162,7 @@ const PaymentShipping: React.FC<{
             orderId,
             {
               transactionHash: hash,
-              status: 'completed',
+              status: 'completed' as Status,
             },
             accessToken
           );
