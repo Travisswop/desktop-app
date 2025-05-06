@@ -163,19 +163,25 @@ const Login: React.FC = () => {
         const data = await response.json();
 
         if (!response.ok) {
+          console.log("hit error");
+
           // await createWallet();
           router.push("/onboard");
           return;
         }
 
-        // const cookieStore = await cookies();
+        // if (data && data?.user && data?.user?._id) {
+        //   Cookies.set("user-id", data?.user?._id, {
+        //     secure: true,
+        //     sameSite: "strict",
+        //     maxAge: 60 * 60 * 24 * 7, // 7 days
+        //     path: "/",
+        //   });
+        // }
 
-        Cookies.set("user-id", data.user._id, {
-          secure: true,
-          sameSite: "strict",
-          maxAge: 60 * 60 * 24 * 7, // 7 days
-          path: "/",
-        });
+        if (data?.user?._id) {
+          Cookies.set("user-id", data?.user?._id.toString());
+        }
 
         const payload = {
           userId: data.user._id,
