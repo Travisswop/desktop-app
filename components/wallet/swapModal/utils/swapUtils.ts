@@ -17,5 +17,7 @@ export const getTokenInfoBySymbol = (
 export const formatUSD = (price: string, amount: string): string => {
   const numAmount = parseFloat(amount);
   const priceNum = parseFloat(price);
+
+  console.log("price and the amount", price, amount, numAmount, priceNum);
   return (numAmount * priceNum).toFixed(4);
 };
