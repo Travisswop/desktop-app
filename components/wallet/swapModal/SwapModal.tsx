@@ -30,6 +30,7 @@ export default function SwapModal({
 }: SwapModalProps) {
   const [selectedInputSymbol, setSelectedInputSymbol] = useState("SOL");
   const [selectedOutputSymbol, setSelectedOutputSymbol] = useState("USDC");
+  const [tokenMetaData, setTokenMetaData] = useState<any>(null);
 
   const [amount, setAmount] = useState("0.01");
   const [quote, setQuote] = useState<any>(null);
@@ -49,14 +50,47 @@ export default function SwapModal({
     "https://frequent-neat-valley.solana-mainnet.quiknode.pro/c87706bb433055dc44d32b704d34e4f918432c09"
   );
 
-  const inputToken = getTokenInfoBySymbol(selectedInputSymbol, userToken);
-  const outputToken = getTokenInfoBySymbol(selectedOutputSymbol, userToken);
+  const inputToken = getTokenInfoBySymbol(
+    selectedInputSymbol,
+    userToken,
+    tokenMetaData
+  );
+  const outputToken = getTokenInfoBySymbol(
+    selectedOutputSymbol,
+    userToken,
+    tokenMetaData
+  );
+
+  useEffect(() => {
+    const fetchTokenMetadata = async () => {
+      const url = `https://datapi.jup.ag/v1/assets/search?query=sol`;
+
+      try {
+        const res = await fetch(url);
+        const json = await res.json();
+        console.log("Filtered token metadata: cccc", json);
+        setTokenMetaData(json);
+      } catch (err) {
+        console.error("Error fetching metadata:", err);
+        setError("Error fetching metadata");
+      }
+    };
+
+    fetchTokenMetadata();
+  }, []); // Empty
+
+  console.log(
+    "Token metadata: ",
+    tokenMetaData,
+    "known tokens: ",
+    KNOWN_TOKENS
+  );
 
   // Assign mint values when token information is available
   useEffect(() => {
     if (inputToken && outputToken) {
-      setInputMint(inputToken.mint);
-      setOutputMint(outputToken.mint);
+      setInputMint(inputToken.id);
+      setOutputMint(outputToken.id);
     }
   }, [inputToken, outputToken]); // Depend on inputToken and outputToken
 
@@ -66,7 +100,7 @@ export default function SwapModal({
 
       console.log(
         "input token and the output token symbol : ",
-        inputToken?.mint,
+        inputToken?.id,
         outputToken?.symbol
       );
 
@@ -92,16 +126,9 @@ export default function SwapModal({
     };
 
     fetchQuote();
-  }, [inputMint, outputMint, amount]); // Only run when inputMint, outputMint, or amount changes
+  }, [inputMint, outputMint, amount]);
 
-  // console.log("Quote from jupiter :", quote);
-
-  console.log("userToken inputToken OutputToken knownToken", {
-    userToken,
-    inputToken,
-    outputToken,
-    KNOWN_TOKENS,
-  });
+  console.log("Quote data: ", quote);
 
   const exchangeRate = getExchangeRate({
     quote,
@@ -171,7 +198,7 @@ export default function SwapModal({
               }}
             >
               <img
-                src={inputToken?.logoURI}
+                src={inputToken?.icon}
                 alt={inputToken?.symbol}
                 className="w-5 h-5 mr-2 rounded-full"
               />
@@ -185,7 +212,6 @@ export default function SwapModal({
                 `$${formatUSD(
                   inputToken.marketData.price,
                   (quote?.outAmount / 10 ** inputToken?.decimals).toString(),
-                  inputToken.decimals
                 )}`}
             </div>
             <div>Balance: {inputToken?.balance}</div>
@@ -228,7 +254,7 @@ export default function SwapModal({
               }}
             >
               <img
-                src={outputToken?.logoURI}
+                src={outputToken?.icon}
                 alt={outputToken?.symbol}
                 className="w-5 h-5 mr-2 rounded-full"
               />
@@ -243,7 +269,6 @@ export default function SwapModal({
                 `$${formatUSD(
                   outputToken.marketData.price,
                   (quote.outAmount / 10 ** outputToken?.decimals).toString(),
-                  outputToken.decimals
                 )}`}
             </div>
             <div>Balance: {outputToken?.balance}</div>
@@ -286,33 +311,36 @@ export default function SwapModal({
           <div className="absolute top-0 left-0 w-full h-full z-50 flex items-center justify-center bg-black bg-opacity-30">
             <div className="bg-white rounded-xl shadow-lg w-[90%] max-w-sm max-h-[300px] overflow-y-auto p-4">
               <h3 className="text-sm font-semibold mb-3">Select a token</h3>
-              {KNOWN_TOKENS.filter((token) => {
-                if (isInputToken) {
-                  // Only show tokens the user owns for input token selection
-                  return userToken.some(
-                    (userTokenItem) => userTokenItem.symbol === token.symbol
-                  );
-                }
-                // For output token, show all known tokens
-                return true;
-              }).map((token) => (
-                <Button
-                  key={token.symbol}
-                  variant="ghost"
-                  onClick={() => handleTokenSelect(token.symbol)}
-                  className="flex items-center gap-3 w-full text-left hover:bg-gray-100"
-                >
-                  <img
-                    src={token.logoURI}
-                    alt={token.symbol}
-                    className="w-5 h-5 rounded-full"
-                  />
-                  <div className="flex flex-col text-sm">
-                    <span className="font-medium">{token.symbol}</span>
-                    <span className="text-gray-400">{token.name}</span>
-                  </div>
-                </Button>
-              ))}
+              {tokenMetaData
+                .filter((token: { symbol: any }) => {
+                  if (isInputToken) {
+                    // Only show tokens the user owns for input token selection
+                    return userToken.some(
+                      (userTokenItem: { symbol: any }) =>
+                        userTokenItem.symbol === token.symbol
+                    );
+                  }
+                  // For output token, show all known tokens
+                  return true;
+                })
+                .map((token: { symbol: any }) => (
+                  <Button
+                    key={token.symbol}
+                    variant="ghost"
+                    onClick={() => handleTokenSelect(token.symbol)}
+                    className="flex items-center gap-3 w-full text-left hover:bg-gray-100"
+                  >
+                    <img
+                      src={token?.icon}
+                      alt={token.symbol}
+                      className="w-5 h-5 rounded-full"
+                    />
+                    <div className="flex flex-col text-sm">
+                      <span className="font-medium">{token.symbol}</span>
+                      <span className="text-gray-400">{token?.name}</span>
+                    </div>
+                  </Button>
+                ))}
             </div>
           </div>
         )}
