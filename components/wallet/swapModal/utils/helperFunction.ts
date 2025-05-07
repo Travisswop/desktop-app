@@ -19,8 +19,9 @@ function getExchangeRate({
   const price = parseFloat(outputToken?.marketData?.price || "0");
   const formattedUSD = (rate * price).toFixed(2);
 
-
-  return `1 ${inputToken?.symbol} = ${formattedRate} ${outputToken?.symbol} ($${formattedUSD})`;
+  return `1 ${inputToken?.symbol} = ${formattedRate} ${
+    outputToken?.symbol
+  } ($${Number(inputToken?.price).toFixed(4)})`;
 }
 
 export { getExchangeRate };

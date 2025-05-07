@@ -61,7 +61,6 @@ export default function SwapModal({
     tokenMetaData
   );
 
-
   useEffect(() => {
     const fetchTokenMetadata = async () => {
       const mintList = Object.values(TOKEN_ADDRESSES);
@@ -93,7 +92,6 @@ export default function SwapModal({
     const fetchQuote = async () => {
       if (!inputMint || !outputMint || !amount) return;
 
-
       setLoading(true);
       setError(null);
       try {
@@ -117,6 +115,15 @@ export default function SwapModal({
 
     fetchQuote();
   }, [inputMint, outputMint, amount]);
+
+  console.log(
+    "Quote response:",
+    quote,
+    "inputToken:",
+    inputToken,
+    "outputToken : ",
+    outputToken
+  ); // Debugging line
 
   const exchangeRate = getExchangeRate({
     quote,
@@ -212,10 +219,10 @@ export default function SwapModal({
           </div>
           <div className="flex justify-between text-sm text-muted-foreground mt-1">
             <div>
-              {inputToken?.marketData?.price &&
+              {inputToken?.price &&
                 `$${formatUSD(
-                  inputToken.marketData.price,
-                  (quote?.outAmount / 10 ** inputToken?.decimals).toString()
+                  inputToken.price || inputToken?.usdPrice,
+                  (quote?.inAmount / 10 ** inputToken?.decimals).toString()
                 )}`}
             </div>
             <div>Balance: {inputToken?.balance}</div>
@@ -268,10 +275,10 @@ export default function SwapModal({
           </div>
           <div className="flex justify-between text-sm text-muted-foreground mt-1">
             <div>
-              {outputToken?.marketData?.price &&
+              {outputToken &&
                 quote?.outAmount &&
                 `$${formatUSD(
-                  outputToken.marketData.price,
+                  outputToken.price || outputToken?.usdPrice,
                   (quote.outAmount / 10 ** outputToken?.decimals).toString()
                 )}`}
             </div>
