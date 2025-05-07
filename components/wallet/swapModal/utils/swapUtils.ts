@@ -3,7 +3,6 @@ export const getTokenInfoBySymbol = (
   userToken: any[],
   tokenMetaData: any[]
 ) => {
-  console.log("gettokenInfoBySymbol", symbol, userToken, tokenMetaData);
   const baseToken = tokenMetaData?.find((t) => t.symbol === symbol);
   const userHeldToken = userToken?.find((t: any) => t.symbol === symbol);
 
@@ -11,6 +10,7 @@ export const getTokenInfoBySymbol = (
     ...baseToken,
     balance: userHeldToken?.balance || "0",
     ...(userHeldToken?.marketData || null),
+    ...userHeldToken,
   };
 };
 
@@ -18,13 +18,12 @@ export const formatUSD = (price: string, amount: string): string => {
   const numAmount = parseFloat(amount);
   const priceNum = parseFloat(price);
 
-  console.log("price and the amount", price, amount, numAmount, priceNum);
   return (numAmount * priceNum).toFixed(4);
 };
 
 export const TOKEN_ADDRESSES = {
   SOL: "So11111111111111111111111111111111111111112",
-  USDC: "KMNo3nJsBXfcpJTVhZcXLW7RmTwTt4GVFE7suUBo9sS",
+  USDC: "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
   USDT: "Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB",
   JUP: "JUPyiwrYJFskUPiHa7hkeR8VUtAeFoSYbKedZNsDvCN",
   BONK: "DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB263",

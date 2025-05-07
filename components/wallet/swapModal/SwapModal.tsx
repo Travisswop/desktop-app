@@ -61,11 +61,6 @@ export default function SwapModal({
     tokenMetaData
   );
 
-  console.log(
-    "input token and the output token symbol : ",
-    inputToken,
-    outputToken
-  );
 
   useEffect(() => {
     const fetchTokenMetadata = async () => {
@@ -76,7 +71,6 @@ export default function SwapModal({
       try {
         const res = await fetch(url);
         const json = await res.json();
-        console.log("Filtered token metadata: cccc", json);
         setTokenMetaData(json);
       } catch (err) {
         console.error("Error fetching metadata:", err);
@@ -87,13 +81,11 @@ export default function SwapModal({
     fetchTokenMetadata();
   }, []); // Empty
 
-  console.log("Token metadata: ", tokenMetaData, "known tokens: ");
-
   // Assign mint values when token information is available
   useEffect(() => {
     if (inputToken && outputToken) {
-      setInputMint(inputToken.id);
-      setOutputMint(outputToken.id);
+      setInputMint(inputToken.address || inputToken.id);
+      setOutputMint(outputToken.address || outputToken.id);
     }
   }, [inputToken, outputToken]); // Depend on inputToken and outputToken
 
@@ -101,11 +93,6 @@ export default function SwapModal({
     const fetchQuote = async () => {
       if (!inputMint || !outputMint || !amount) return;
 
-      console.log(
-        "input token and the output token symbol : ",
-        inputToken?.id,
-        outputToken?.symbol
-      );
 
       setLoading(true);
       setError(null);
@@ -130,8 +117,6 @@ export default function SwapModal({
 
     fetchQuote();
   }, [inputMint, outputMint, amount]);
-
-  console.log("Quote data: ", quote);
 
   const exchangeRate = getExchangeRate({
     quote,
@@ -217,7 +202,7 @@ export default function SwapModal({
               }}
             >
               <img
-                src={inputToken?.icon}
+                src={inputToken?.icon || inputToken?.logoURI}
                 alt={inputToken?.symbol}
                 className="w-5 h-5 mr-2 rounded-full"
               />
@@ -273,7 +258,7 @@ export default function SwapModal({
               }}
             >
               <img
-                src={outputToken?.icon}
+                src={outputToken?.icon || outputToken?.logoURI}
                 alt={outputToken?.symbol}
                 className="w-5 h-5 mr-2 rounded-full"
               />
@@ -341,7 +326,7 @@ export default function SwapModal({
                   className="flex items-center gap-3 w-full text-left hover:bg-gray-100"
                 >
                   <img
-                    src={token?.icon}
+                    src={token?.icon || token?.logoURI}
                     alt={token.symbol}
                     className="w-5 h-5 rounded-full"
                   />
