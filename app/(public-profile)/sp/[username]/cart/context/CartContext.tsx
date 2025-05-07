@@ -5,6 +5,7 @@ import React, {
   useContext,
   useReducer,
   useEffect,
+  useState,
 } from 'react';
 import { CartItem } from '../components/types';
 import { useParams } from 'next/navigation';
@@ -40,35 +41,38 @@ const cartReducer = (
   state: CartState,
   action: CartAction
 ): CartState => {
+  // Ensure items is always an array
+  const currentItems = state.items || [];
+
   switch (action.type) {
     case 'SET_CART':
       return { ...state, items: action.payload, error: null };
     case 'ADD_ITEM':
-      const existingItem = state.items.find(
+      const existingItem = currentItems.find(
         (item) => item._id === action.payload._id
       );
       if (existingItem) {
         return {
           ...state,
-          items: state.items.map((item) =>
+          items: currentItems.map((item) =>
             item._id === action.payload._id
               ? { ...item, quantity: item.quantity + 1 }
               : item
           ),
         };
       }
-      return { ...state, items: [...state.items, action.payload] };
+      return { ...state, items: [...currentItems, action.payload] };
     case 'REMOVE_ITEM':
       return {
         ...state,
-        items: state.items.filter(
+        items: currentItems.filter(
           (item) => item._id !== action.payload
         ),
       };
     case 'UPDATE_QUANTITY':
       return {
         ...state,
-        items: state.items.map((item) =>
+        items: currentItems.map((item) =>
           item._id === action.payload.id
             ? { ...item, quantity: action.payload.quantity }
             : item
@@ -90,6 +94,8 @@ interface CartContextType {
   dispatch: React.Dispatch<CartAction>;
   subtotal: number;
   itemCount: number;
+  sellerId: string | null;
+  hasPhygitalProducts: boolean;
 }
 
 const CartContext = createContext<CartContextType | undefined>(
@@ -101,19 +107,25 @@ export const CartProvider: React.FC<{
 }> = ({ children }) => {
   const [state, dispatch] = useReducer(cartReducer, initialState);
   const { user, loading: userLoading, accessToken } = useUser();
+  const [sellerId, setSellerId] = useState<string | null>(null);
   const params = useParams();
   const username = params?.username as string;
 
-  const subtotal = state.items.reduce(
-    (total, item) =>
-      total + (item.nftTemplate.price || 0) * item.quantity,
-    0
-  );
+  const subtotal =
+    state.items?.reduce(
+      (total, item) =>
+        total + (item.nftTemplate?.price || 0) * item.quantity,
+      0
+    ) || 0;
 
-  const itemCount = state.items.reduce(
-    (total, item) => total + item.quantity,
-    0
-  );
+  const itemCount =
+    state.items?.reduce((total, item) => total + item.quantity, 0) ||
+    0;
+
+  const hasPhygitalProducts =
+    state.items?.some(
+      (item) => item.nftTemplate?.nftType === 'phygital'
+    ) || false;
 
   // Fetch cart data from backend for authenticated users
   useEffect(() => {
@@ -140,14 +152,20 @@ export const CartProvider: React.FC<{
           }
 
           const { data } = await response.json();
+
           if (data.cart) {
-            dispatch({ type: 'SET_CART', payload: data.cart });
+            dispatch({
+              type: 'SET_CART',
+              payload: data.cart.cartItems,
+            });
+            setSellerId(data.microsite.parentId);
           }
         } catch (error) {
           console.error('Error fetching cart:', error);
           dispatch({
             type: 'SET_ERROR',
-            payload: 'Failed to load cart data',
+            payload:
+              'Failed to load cart data. Please try again later.',
           });
         } finally {
           dispatch({ type: 'SET_LOADING', payload: false });
@@ -156,46 +174,18 @@ export const CartProvider: React.FC<{
     };
 
     fetchCartFromBackend();
-  }, [user, username, userLoading]);
-
-  // Sync with localStorage for guest users only after user loading is complete
-  useEffect(() => {
-    if (!userLoading && !user && typeof window !== 'undefined') {
-      const savedCart = localStorage.getItem(
-        'marketplace-add-to-cart'
-      );
-      if (savedCart) {
-        try {
-          const parsedCart = JSON.parse(savedCart);
-          dispatch({ type: 'SET_CART', payload: parsedCart });
-        } catch (error) {
-          console.error(
-            'Error parsing cart from localStorage:',
-            error
-          );
-        }
-      }
-    }
-  }, [user, userLoading]);
-
-  // Save to localStorage when cart changes (for guest users only)
-  useEffect(() => {
-    if (
-      !userLoading &&
-      !user &&
-      typeof window !== 'undefined' &&
-      state.items.length > 0
-    ) {
-      localStorage.setItem(
-        'marketplace-add-to-cart',
-        JSON.stringify(state.items)
-      );
-    }
-  }, [state.items, user, userLoading]);
+  }, [user, username, userLoading, accessToken]);
 
   return (
     <CartContext.Provider
-      value={{ state, dispatch, subtotal, itemCount }}
+      value={{
+        state,
+        dispatch,
+        subtotal,
+        itemCount,
+        sellerId,
+        hasPhygitalProducts,
+      }}
     >
       {children}
     </CartContext.Provider>

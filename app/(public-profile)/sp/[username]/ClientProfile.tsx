@@ -1,7 +1,5 @@
 'use client';
 
-// import { useState, useEffect } from "react";
-// import { getUserData } from '../../actions/user';
 import Header from '@/components/publicProfile/header';
 import Bio from '@/components/publicProfile/bio';
 import Blog from '@/components/publicProfile/blog';
@@ -17,57 +15,24 @@ import Contact from '@/components/publicProfile/contact';
 import InfoBar from '@/components/publicProfile/infoBar';
 import PaymentBar from '@/components/publicProfile/paymentBar';
 import Footer from '@/components/publicProfile/footer';
-// import GatedAccess from "@/components/publicProfile/gatedAccess";
-// import { Toaster } from '@/components/publicProfile/ui/toaster';
-// import Image from "next/image";
-// import styles from "@/app/styles.module.css";
-// import { background } from "@/lib/icons";
 import { redirect } from 'next/navigation';
-// import { getUserData } from "@/actions/user";
 import { Toaster } from '@/components/ui/toaster';
 import MarketPlace from '@/components/publicProfile/MarketPlace';
-// import { cookies } from "next/headers";
+
 import { useEffect, useState } from 'react';
 import Cookies from 'js-cookie';
 import { CartProvider } from './cart/context/CartContext';
+import { useUser } from '@/lib/UserContext';
 
 export default function ClientProfile({
   initialData,
   userName,
 }: any) {
-  // const [data, setData] = useState(initialData);
   if (initialData.redirect) {
     redirect(`/sp/${initialData.username}`);
   }
 
-  const [userId, setUserId] = useState('');
-  const [accessToken, setAccessToken] = useState('');
-
-  // useEffect(() => {
-  //   const refreshData = async () => {
-  //     try {
-  //       const freshData = await getUserData(data.username);
-  //       setData(freshData);
-  //     } catch (error) {
-  //       console.error("Error refreshing data:", error);
-  //     }
-  //   };
-  // }, [data.username]);
-  // const cookieStore = cookies();
-  // const accessToken = (await cookieStore).get("access-token")?.value;
-  // const userId = (await cookieStore).get("user-id")?.value;
-
-  useEffect(() => {
-    const getAccessToken = async () => {
-      const token = Cookies.get('access-token');
-      const id = Cookies.get('user-id');
-      if (token && id) {
-        setAccessToken(token);
-        setUserId(id);
-      }
-    };
-    getAccessToken();
-  }, []);
+  const { user, accessToken } = useUser();
 
   const {
     _id,
@@ -198,7 +163,7 @@ export default function ClientProfile({
                   parentId={parentId}
                   userName={userName}
                   number={0}
-                  userId={userId}
+                  userId={user?._id}
                   accessToken={accessToken}
                 />
               ))}

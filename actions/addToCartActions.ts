@@ -1,6 +1,7 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
+
 export async function addProductToCart(
   payload: any,
   token: string,
@@ -8,7 +9,7 @@ export async function addProductToCart(
 ) {
   try {
     const response = await fetch(
-      `${process.env.NEXT_PUBLIC_API_URL}/api/v1/desktop/nft/userCart`,
+      `${process.env.NEXT_PUBLIC_API_URL}/api/v5/orders/addToCart`,
       {
         method: 'POST',
         headers: {
@@ -18,19 +19,30 @@ export async function addProductToCart(
         body: JSON.stringify(payload),
       }
     );
-    const data = await response.json();
 
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(
+        errorData.message || 'Failed to add item to cart'
+      );
+    }
+
+    const data = await response.json();
     revalidatePath(`/sp/${userName}`);
     return data;
   } catch (error) {
-    console.error('Error from add swop point:', error);
+    const errorMessage =
+      error instanceof Error
+        ? error.message
+        : 'Failed to add item to cart';
+    throw new Error(errorMessage);
   }
 }
 
 export async function getCartData(token: string, parentId: string) {
   try {
     const response = await fetch(
-      `${process.env.NEXT_PUBLIC_API_URL}/api/v5/orders/getUserCart/${parentId}`,
+      `${process.env.NEXT_PUBLIC_API_URL}/api/v1/desktop/nft/userCart`,
       {
         method: 'GET',
         headers: {
@@ -39,11 +51,22 @@ export async function getCartData(token: string, parentId: string) {
         },
       }
     );
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(
+        errorData.message || 'Failed to fetch cart data'
+      );
+    }
+
     const data = await response.json();
-    console.log('🚀 ~ getCartData ~ data:', data);
     return data;
   } catch (error) {
-    console.error('Error from add swop point:', error);
+    const errorMessage =
+      error instanceof Error
+        ? error.message
+        : 'Failed to fetch cart data';
+    throw new Error(errorMessage);
   }
 }
 
@@ -59,11 +82,22 @@ export async function getNftDetails(payload: any) {
         body: JSON.stringify({ cartItems: payload }),
       }
     );
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(
+        errorData.message || 'Failed to get NFT details'
+      );
+    }
+
     const data = await response.json();
-    // revalidatePath(`/sp/${appIconInfo.micrositeId}`);
     return data;
   } catch (error) {
-    console.error('Error from add swop point:', error);
+    const errorMessage =
+      error instanceof Error
+        ? error.message
+        : 'Failed to get NFT details';
+    throw new Error(errorMessage);
   }
 }
 
@@ -72,7 +106,6 @@ export async function updateCartQuantity(
   token: string,
   userName: string
 ) {
-  console.log('token', token);
   try {
     const response = await fetch(
       `${process.env.NEXT_PUBLIC_API_URL}/api/v2/desktop/user/updateCart`,
@@ -85,11 +118,23 @@ export async function updateCartQuantity(
         body: JSON.stringify(payload),
       }
     );
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(
+        errorData.message || 'Failed to update cart quantity'
+      );
+    }
+
     const data = await response.json();
     revalidatePath(`/sp/${userName}/cart`);
     return data;
   } catch (error) {
-    console.error('Error from add swop point:', error);
+    const errorMessage =
+      error instanceof Error
+        ? error.message
+        : 'Failed to update cart quantity';
+    throw new Error(errorMessage);
   }
 }
 
@@ -109,10 +154,22 @@ export async function deleteCartItem(
         },
       }
     );
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(
+        errorData.message || 'Failed to remove item from cart'
+      );
+    }
+
     const data = await response.json();
     revalidatePath(`/sp/${userName}/cart`);
     return data;
   } catch (error) {
-    console.error('Error removing cart data:', error);
+    const errorMessage =
+      error instanceof Error
+        ? error.message
+        : 'Failed to remove item from cart';
+    throw new Error(errorMessage);
   }
 }

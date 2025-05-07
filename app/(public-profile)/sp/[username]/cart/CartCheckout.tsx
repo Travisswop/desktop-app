@@ -51,10 +51,12 @@ const getStripePromise = () => {
 const CartCheckout = () => {
   const { user, accessToken } = useUser();
   const { solanaWallets } = useSolanaWalletContext();
-  const { state, dispatch, subtotal } = useCart();
+  const { state, dispatch, subtotal, sellerId } = useCart();
   const params = useParams();
   const name = params.username as string;
   const orderIdRef = React.useRef<string | null>(null);
+
+  console.log('state', state);
 
   // Initialize cart persistence
   useCartPersistence();
@@ -120,12 +122,20 @@ const CartCheckout = () => {
       try {
         setLoading(true);
         setError(null);
+
+        // Validate prices server-side before creating payment intent
         const { clientSecret: secret } = await createPaymentIntent(
           Math.round(subtotal * 100)
         );
+
+        if (!secret) {
+          throw new Error(
+            'Failed to initialize payment. Please try again.'
+          );
+        }
+
         setClientSecret(secret);
       } catch (err) {
-        console.error('Error initializing payment:', err);
         const errorMessage =
           err instanceof Error
             ? err.message
@@ -192,9 +202,12 @@ const CartCheckout = () => {
           toast.success('Cart updated successfully');
         }
       } catch (error) {
-        console.error('Error updating quantity:', error);
-        setErrorMessage('Failed to update quantity');
-        toast.error('Failed to update quantity. Please try again.');
+        const errorMessage =
+          error instanceof Error
+            ? error.message
+            : 'Failed to update quantity';
+        setErrorMessage(errorMessage);
+        toast.error(errorMessage);
       } finally {
         setTimeout(() => {
           setLoadingOperations((prev) => ({
@@ -221,9 +234,12 @@ const CartCheckout = () => {
         dispatch({ type: 'REMOVE_ITEM', payload: id });
         toast.success('Item removed from cart');
       } catch (error) {
-        console.error('Error removing item:', error);
-        setErrorMessage('Failed to remove item');
-        toast.error('Failed to remove item. Please try again.');
+        const errorMessage =
+          error instanceof Error
+            ? error.message
+            : 'Failed to remove item';
+        setErrorMessage(errorMessage);
+        toast.error(errorMessage);
       } finally {
         setTimeout(() => {
           setLoadingOperations((prev) => ({
@@ -364,14 +380,25 @@ const CartCheckout = () => {
           cartItems: state.items,
           paymentMethod,
           status: 'pending' as Status,
+          sellerId,
         };
 
         const { orderId } = await createOrder(orderInfo, accessToken);
+
+        if (!orderId) {
+          throw new Error(
+            'Failed to create order. Please try again.'
+          );
+        }
+
         return orderId;
       } catch (error) {
-        console.error('Error creating order:', error);
-        setErrorMessage('Failed to create order. Please try again.');
-        toast.error('Failed to create order. Please try again.');
+        const errorMessage =
+          error instanceof Error
+            ? error.message
+            : 'Failed to create order. Please try again.';
+        setErrorMessage(errorMessage);
+        toast.error(errorMessage);
         return null;
       }
     },
@@ -386,38 +413,59 @@ const CartCheckout = () => {
 
   // Payment handlers
   const handleOpenWalletPayment = useCallback(async () => {
-    const orderId = await createOrderForPayment('wallet');
-    if (orderId) {
-      setWalletOrderId(orderId);
-      onOpen();
+    try {
+      const orderId = await createOrderForPayment('wallet');
+      if (orderId) {
+        setWalletOrderId(orderId);
+        onOpen();
+      }
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error
+          ? error.message
+          : 'Failed to process wallet payment';
+      setErrorMessage(errorMessage);
+      toast.error(errorMessage);
     }
   }, [createOrderForPayment, onOpen]);
 
   const handleOpenPaymentSheet = useCallback(async () => {
-    const orderId = await createOrderForPayment('stripe');
-    if (orderId) {
-      orderIdRef.current = orderId;
-      if (!clientSecret) {
-        try {
-          setLoading(true);
-          const { clientSecret: secret } = await createPaymentIntent(
-            Math.round(subtotal * 1000)
-          );
-          setClientSecret(secret);
-        } catch (paymentError) {
-          console.error('Error initializing payment:', paymentError);
-          setErrorMessage(
-            'Could not initialize payment. Please try again.'
-          );
-          toast.error(
-            'Could not initialize payment. Please try again.'
-          );
-          return;
-        } finally {
-          setLoading(false);
+    try {
+      const orderId = await createOrderForPayment('stripe');
+      if (orderId) {
+        orderIdRef.current = orderId;
+        if (!clientSecret) {
+          try {
+            setLoading(true);
+            const { clientSecret: secret } =
+              await createPaymentIntent(Math.round(subtotal * 100));
+
+            if (!secret) {
+              throw new Error('Failed to initialize payment');
+            }
+
+            setClientSecret(secret);
+          } catch (paymentError) {
+            const errorMessage =
+              paymentError instanceof Error
+                ? paymentError.message
+                : 'Could not initialize payment. Please try again.';
+            setErrorMessage(errorMessage);
+            toast.error(errorMessage);
+            return;
+          } finally {
+            setLoading(false);
+          }
         }
+        setIsPaymentSheetOpen(true);
       }
-      setIsPaymentSheetOpen(true);
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error
+          ? error.message
+          : 'Failed to process payment';
+      setErrorMessage(errorMessage);
+      toast.error(errorMessage);
     }
   }, [createOrderForPayment, clientSecret, subtotal]);
 
