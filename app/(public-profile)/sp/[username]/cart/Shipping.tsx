@@ -17,6 +17,7 @@ import { useParams, useRouter } from 'next/navigation';
 import React, { useEffect, useState } from 'react';
 import { CartItem, PaymentMethod, Status } from './components/types';
 import { Network } from '@/types/wallet-types';
+import { useCart } from './context/CartContext';
 
 const TRANSACTION_STAGES = {
   IDLE: 'idle',
@@ -27,6 +28,15 @@ const TRANSACTION_STAGES = {
   COMPLETED: 'completed',
   FAILED: 'failed',
 };
+
+// Add the helper function to clear cart from localStorage
+const clearCartFromLocalStorage = (username: string) => {
+  if (typeof window !== 'undefined' && username) {
+    const storageKey = `marketplace-cart-${username}`;
+    localStorage.removeItem(storageKey);
+  }
+};
+
 const PaymentShipping: React.FC<{
   selectedToken: any;
   setSelectedToken: (token: any) => void;
@@ -47,6 +57,7 @@ const PaymentShipping: React.FC<{
   orderId: existingOrderId,
 }) => {
   const { accessToken } = useUser();
+  const { dispatch } = useCart();
   const [transactionStage, setTransactionStage] = useState(
     TRANSACTION_STAGES.IDLE
   );
@@ -74,6 +85,10 @@ const PaymentShipping: React.FC<{
   useEffect(() => {
     let redirectTimer: string | number | NodeJS.Timeout | undefined;
     if (transactionStage === TRANSACTION_STAGES.COMPLETED) {
+      // Clear the cart when transaction is completed
+      dispatch({ type: 'CLEAR_CART' });
+      clearCartFromLocalStorage(name as string);
+
       redirectTimer = setTimeout(() => {
         router.push(
           `/payment-success?orderId=${orderId}&username=${name}`
@@ -81,7 +96,7 @@ const PaymentShipping: React.FC<{
       }, 3000); // Give user time to see success message
     }
     return () => clearTimeout(redirectTimer);
-  }, [transactionStage, router, name, orderId]);
+  }, [transactionStage, router, name, orderId, dispatch]);
 
   const getStageMessage = () => {
     switch (transactionStage) {

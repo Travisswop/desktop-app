@@ -19,8 +19,6 @@ import { redirect } from 'next/navigation';
 import { Toaster } from '@/components/ui/toaster';
 import MarketPlace from '@/components/publicProfile/MarketPlace';
 
-import { useEffect, useState } from 'react';
-import Cookies from 'js-cookie';
 import { CartProvider } from './cart/context/CartContext';
 import { useUser } from '@/lib/UserContext';
 

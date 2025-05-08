@@ -37,57 +37,113 @@ const initialState: CartState = {
   error: null,
 };
 
-const cartReducer = (
-  state: CartState,
-  action: CartAction
-): CartState => {
-  // Ensure items is always an array
-  const currentItems = state.items || [];
+// Helper function to get localStorage key for a specific seller's username
+const getCartStorageKey = (username: string) =>
+  `marketplace-cart-${username}`;
 
-  switch (action.type) {
-    case 'SET_CART':
-      return { ...state, items: action.payload, error: null };
-    case 'ADD_ITEM':
-      const existingItem = currentItems.find(
-        (item) => item._id === action.payload._id
-      );
-      if (existingItem) {
-        return {
+// Helper function to save cart to localStorage
+const saveCartToLocalStorage = (
+  items: CartItem[],
+  username: string
+) => {
+  if (typeof window !== 'undefined' && username) {
+    const storageKey = getCartStorageKey(username);
+    if (items && items.length > 0) {
+      localStorage.setItem(storageKey, JSON.stringify(items));
+    } else {
+      localStorage.removeItem(storageKey);
+    }
+  }
+};
+
+// Helper function to load cart from localStorage
+const loadCartFromLocalStorage = (
+  username: string
+): CartItem[] | null => {
+  if (typeof window !== 'undefined' && username) {
+    const storageKey = getCartStorageKey(username);
+    const savedCart = localStorage.getItem(storageKey);
+    if (savedCart) {
+      try {
+        const parsedCart = JSON.parse(savedCart);
+        if (Array.isArray(parsedCart) && parsedCart.length > 0) {
+          return parsedCart;
+        }
+      } catch (error) {
+        console.error('Error parsing cart from localStorage:', error);
+        localStorage.removeItem(storageKey);
+      }
+    }
+  }
+  return null;
+};
+
+const createCartReducer =
+  (username: string) =>
+  (state: CartState, action: CartAction): CartState => {
+    // Ensure items is always an array
+    const currentItems = state.items || [];
+    let newState: CartState;
+
+    switch (action.type) {
+      case 'SET_CART':
+        newState = { ...state, items: action.payload, error: null };
+        break;
+      case 'ADD_ITEM':
+        const existingItem = currentItems.find(
+          (item) => item._id === action.payload._id
+        );
+        if (existingItem) {
+          newState = {
+            ...state,
+            items: currentItems.map((item) =>
+              item._id === action.payload._id
+                ? { ...item, quantity: item.quantity + 1 }
+                : item
+            ),
+          };
+        } else {
+          newState = {
+            ...state,
+            items: [...currentItems, action.payload],
+          };
+        }
+        break;
+      case 'REMOVE_ITEM':
+        newState = {
+          ...state,
+          items: currentItems.filter(
+            (item) => item._id !== action.payload
+          ),
+        };
+        break;
+      case 'UPDATE_QUANTITY':
+        newState = {
           ...state,
           items: currentItems.map((item) =>
-            item._id === action.payload._id
-              ? { ...item, quantity: item.quantity + 1 }
+            item._id === action.payload.id
+              ? { ...item, quantity: action.payload.quantity }
               : item
           ),
         };
-      }
-      return { ...state, items: [...currentItems, action.payload] };
-    case 'REMOVE_ITEM':
-      return {
-        ...state,
-        items: currentItems.filter(
-          (item) => item._id !== action.payload
-        ),
-      };
-    case 'UPDATE_QUANTITY':
-      return {
-        ...state,
-        items: currentItems.map((item) =>
-          item._id === action.payload.id
-            ? { ...item, quantity: action.payload.quantity }
-            : item
-        ),
-      };
-    case 'SET_LOADING':
-      return { ...state, loading: action.payload };
-    case 'SET_ERROR':
-      return { ...state, error: action.payload };
-    case 'CLEAR_CART':
-      return { ...state, items: [] };
-    default:
-      return state;
-  }
-};
+        break;
+      case 'SET_LOADING':
+        newState = { ...state, loading: action.payload };
+        break;
+      case 'SET_ERROR':
+        newState = { ...state, error: action.payload };
+        break;
+      case 'CLEAR_CART':
+        newState = { ...state, items: [] };
+        break;
+      default:
+        return state;
+    }
+
+    // Save to localStorage after state update
+    saveCartToLocalStorage(newState.items, username);
+    return newState;
+  };
 
 interface CartContextType {
   state: CartState;
@@ -105,11 +161,18 @@ const CartContext = createContext<CartContextType | undefined>(
 export const CartProvider: React.FC<{
   children: React.ReactNode;
 }> = ({ children }) => {
-  const [state, dispatch] = useReducer(cartReducer, initialState);
   const { user, loading: userLoading, accessToken } = useUser();
   const [sellerId, setSellerId] = useState<string | null>(null);
   const params = useParams();
   const username = params?.username as string;
+
+  // Create reducer with current username (not sellerId)
+  const cartReducer = React.useMemo(
+    () => createCartReducer(username || ''),
+    [username]
+  );
+
+  const [state, dispatch] = useReducer(cartReducer, initialState);
 
   const subtotal =
     state.items?.reduce(
@@ -126,6 +189,21 @@ export const CartProvider: React.FC<{
     state.items?.some(
       (item) => item.nftTemplate?.nftType === 'phygital'
     ) || false;
+
+  // Load cart from localStorage on mount if user is not authenticated
+  useEffect(() => {
+    if (!userLoading && !user && username) {
+      const savedCart = loadCartFromLocalStorage(username);
+      if (savedCart) {
+        dispatch({ type: 'SET_CART', payload: savedCart });
+
+        // Extract sellerId from the first cart item for unauthenticated users
+        if (savedCart.length > 0 && savedCart[0].sellerId) {
+          setSellerId(savedCart[0].sellerId);
+        }
+      }
+    }
+  }, [user, userLoading, username]);
 
   // Fetch cart data from backend for authenticated users
   useEffect(() => {
@@ -152,13 +230,29 @@ export const CartProvider: React.FC<{
           }
 
           const { data } = await response.json();
-
+          // Check if data structure is as expected
           if (data.cart) {
             dispatch({
               type: 'SET_CART',
               payload: data.cart.cartItems,
             });
-            setSellerId(data.microsite.parentId);
+
+            // Make sure we have a valid parentId before setting
+            if (data.microsite && data.microsite.parentId) {
+              setSellerId(data.microsite.parentId);
+            } else if (data.cart.sellerId) {
+              // Alternative: check if sellerId exists directly in the cart
+              setSellerId(data.cart.sellerId);
+            } else if (
+              data.cart.cartItems &&
+              data.cart.cartItems.length > 0 &&
+              data.cart.cartItems[0].sellerId
+            ) {
+              // Alternative: try to get sellerId from first cart item
+              setSellerId(data.cart.cartItems[0].sellerId);
+            } else {
+              console.warn('No seller ID found in response data');
+            }
           }
         } catch (error) {
           console.error('Error fetching cart:', error);
@@ -175,6 +269,19 @@ export const CartProvider: React.FC<{
 
     fetchCartFromBackend();
   }, [user, username, userLoading, accessToken]);
+
+  // Also update the sellerId when new items are added to the cart for unauthenticated users
+  useEffect(() => {
+    // For unauthenticated users, update sellerId when cart items change
+    if (
+      !user &&
+      state.items.length > 0 &&
+      state.items[0].sellerId &&
+      !sellerId
+    ) {
+      setSellerId(state.items[0].sellerId);
+    }
+  }, [state.items, user, sellerId]);
 
   return (
     <CartContext.Provider

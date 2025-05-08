@@ -1,6 +1,11 @@
 'use client';
 
-import React, { useEffect, useCallback, useMemo } from 'react';
+import React, {
+  useEffect,
+  useCallback,
+  useMemo,
+  useState,
+} from 'react';
 import { loadStripe } from '@stripe/stripe-js';
 import { Elements } from '@stripe/react-stripe-js';
 import { createPaymentIntent } from '@/lib/payment-actions';
@@ -48,6 +53,14 @@ const getStripePromise = () => {
   return stripePromise;
 };
 
+// Helper function to clear cart from localStorage
+const clearCartFromLocalStorage = (username: string) => {
+  if (typeof window !== 'undefined' && username) {
+    const storageKey = `marketplace-cart-${username}`;
+    localStorage.removeItem(storageKey);
+  }
+};
+
 const CartCheckout = () => {
   const { user, accessToken } = useUser();
   const { solanaWallets } = useSolanaWalletContext();
@@ -56,7 +69,24 @@ const CartCheckout = () => {
   const name = params.username as string;
   const orderIdRef = React.useRef<string | null>(null);
 
-  console.log('state', state);
+  // Ensure we have a parentId to use for the order even if sellerId is missing
+  const [localParentId, setLocalParentId] = useState<string | null>(
+    null
+  );
+
+  // Try to get parentId from cart items if it's not available in the cart context
+  useEffect(() => {
+    if (!sellerId && state.items.length > 0) {
+      const firstItemWithSellerId = state.items.find(
+        (item) => item.sellerId
+      );
+      if (firstItemWithSellerId?.sellerId) {
+        setLocalParentId(firstItemWithSellerId.sellerId);
+      }
+    } else if (sellerId) {
+      setLocalParentId(sellerId);
+    }
+  }, [sellerId, state.items]);
 
   // Initialize cart persistence
   useCartPersistence();
@@ -189,18 +219,18 @@ const CartCheckout = () => {
           type === 'inc' ? item.quantity + 1 : item.quantity - 1;
         if (newQuantity < 1) return;
 
-        if (name) {
+        if (accessToken && name) {
           await updateCartQuantity(
             { cartId: itemId, quantity: newQuantity },
             accessToken,
             name
           );
-          dispatch({
-            type: 'UPDATE_QUANTITY',
-            payload: { id: itemId, quantity: newQuantity },
-          });
-          toast.success('Cart updated successfully');
         }
+        dispatch({
+          type: 'UPDATE_QUANTITY',
+          payload: { id: itemId, quantity: newQuantity },
+        });
+        toast.success('Cart updated successfully');
       } catch (error) {
         const errorMessage =
           error instanceof Error
@@ -228,7 +258,7 @@ const CartCheckout = () => {
           [id]: { ...prev[id], deleting: true },
         }));
 
-        if (accessToken) {
+        if (accessToken && name) {
           await deleteCartItem(id, accessToken, name);
         }
         dispatch({ type: 'REMOVE_ITEM', payload: id });
@@ -380,7 +410,7 @@ const CartCheckout = () => {
           cartItems: state.items,
           paymentMethod,
           status: 'pending' as Status,
-          sellerId,
+          sellerId: sellerId || localParentId, // Use the local parentId as fallback
         };
 
         const { orderId } = await createOrder(orderInfo, accessToken);
@@ -408,6 +438,8 @@ const CartCheckout = () => {
       state.items,
       accessToken,
       solanaWallets,
+      sellerId,
+      localParentId,
     ]
   );
 
@@ -417,6 +449,10 @@ const CartCheckout = () => {
       const orderId = await createOrderForPayment('wallet');
       if (orderId) {
         setWalletOrderId(orderId);
+        // Clear the cart when an order is successfully created
+        dispatch({ type: 'CLEAR_CART' });
+        // Clear from localStorage
+        clearCartFromLocalStorage(name);
         onOpen();
       }
     } catch (error) {
@@ -427,13 +463,16 @@ const CartCheckout = () => {
       setErrorMessage(errorMessage);
       toast.error(errorMessage);
     }
-  }, [createOrderForPayment, onOpen]);
+  }, [createOrderForPayment, onOpen, dispatch, name]);
 
   const handleOpenPaymentSheet = useCallback(async () => {
     try {
       const orderId = await createOrderForPayment('stripe');
       if (orderId) {
         orderIdRef.current = orderId;
+        // Don't clear cart yet - only store the order ID
+        // We'll clear it after successful payment in StripePaymentForm
+
         if (!clientSecret) {
           try {
             setLoading(true);
@@ -467,7 +506,7 @@ const CartCheckout = () => {
       setErrorMessage(errorMessage);
       toast.error(errorMessage);
     }
-  }, [createOrderForPayment, clientSecret, subtotal]);
+  }, [createOrderForPayment, clientSecret, subtotal, dispatch, name]);
 
   if (loading && !clientSecret && subtotal > 0) {
     return <LoadingSpinner />;

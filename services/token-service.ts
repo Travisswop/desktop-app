@@ -331,36 +331,27 @@ export class SolanaService {
         walletAddress
       );
 
-      if (swopTokenBalance) {
-        const swopTokenPrice = await this.fetchTokenPrice(
-          SWOP_TOKEN.address || ''
-        );
+      const swopTokenPrice = await this.fetchTokenPrice(
+        SWOP_TOKEN.address || ''
+      );
 
-        const swopTokenMarketData = {
-          ...SWOP_TOKEN.marketData,
-          price: swopTokenPrice,
-        };
+      const swopTokenMarketData = {
+        ...SWOP_TOKEN.marketData,
+        price: swopTokenPrice,
+      };
 
-        tokens = [
-          {
-            ...SWOP_TOKEN,
-            balance: (
-              Number(swopTokenBalance) /
-              Math.pow(10, SWOP_TOKEN.decimals)
-            ).toString(),
-            address: SWOP_TOKEN.address || '',
-            marketData: swopTokenMarketData,
-          },
-          solToken,
-          ...validTokenData,
-        ];
-      } else {
-        tokens = [
-          { ...SWOP_TOKEN, balance: '0', address: '' },
-          solToken,
-          ...validTokenData,
-        ];
-      }
+      tokens = [
+        {
+          ...SWOP_TOKEN,
+          balance: (
+            Number(swopTokenBalance) /
+            Math.pow(10, SWOP_TOKEN.decimals)
+          ).toString(),
+          marketData: swopTokenMarketData,
+        },
+        solToken,
+        ...validTokenData,
+      ];
 
       return tokens;
     } catch (error) {
