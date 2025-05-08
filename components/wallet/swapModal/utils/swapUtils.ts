@@ -18,6 +18,8 @@ export const formatUSD = (price: string, amount: string): string => {
   const numAmount = parseFloat(amount);
   const priceNum = parseFloat(price);
 
+  console.log('from usdt format',numAmount, priceNum,'amount', amount, 'price', price);
+
   return (numAmount * priceNum).toFixed(4);
 };
 

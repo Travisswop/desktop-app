@@ -1,6 +1,6 @@
 /* eslint-disable prefer-const */
 import React, { useEffect, useState } from "react";
-import { ArrowUpDown, ChevronRight } from "lucide-react";
+import { ArrowUpDown, ChevronRight, AlertCircle } from "lucide-react";
 import { AiOutlineExclamationCircle } from "react-icons/ai";
 
 import { Dialog, DialogContent } from "@/components/ui/dialog";
@@ -39,6 +39,10 @@ export default function SwapModal({
   const [isTokenListOpen, setIsTokenListOpen] = useState(false);
   const [isInputToken, setIsInputToken] = useState(true);
   const [swapLoading, setSwapLoading] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchedTokens, setSearchedTokens] = useState<any[]>([]);
+  const [isSearching, setIsSearching] = useState(false);
+  const [searchKey, setSearchKey] = useState(0);
 
   const [inputMint, setInputMint] = useState<PublicKey | null>(null);
   const [outputMint, setOutputMint] = useState<PublicKey | null>(null);
@@ -61,6 +65,8 @@ export default function SwapModal({
     tokenMetaData
   );
 
+  
+
   useEffect(() => {
     const fetchTokenMetadata = async () => {
       const mintList = Object.values(TOKEN_ADDRESSES);
@@ -78,15 +84,14 @@ export default function SwapModal({
     };
 
     fetchTokenMetadata();
-  }, []); // Empty
+  }, []); 
 
-  // Assign mint values when token information is available
   useEffect(() => {
     if (inputToken && outputToken) {
       setInputMint(inputToken.address || inputToken.id);
       setOutputMint(outputToken.address || outputToken.id);
     }
-  }, [inputToken, outputToken]); // Depend on inputToken and outputToken
+  }, [inputToken, outputToken]); 
 
   useEffect(() => {
     const fetchQuote = async () => {
@@ -95,7 +100,7 @@ export default function SwapModal({
       setLoading(true);
       setError(null);
       try {
-        const decimals = inputToken?.decimals || 6; // fallback to 6 if undefined
+        const decimals = inputToken?.decimals || 6;
         const amountInSmallestUnit = Math.floor(
           parseFloat(amount) * 10 ** decimals
         );
@@ -116,14 +121,61 @@ export default function SwapModal({
     fetchQuote();
   }, [inputMint, outputMint, amount]);
 
-  console.log(
-    "Quote response:",
-    quote,
-    "inputToken:",
-    inputToken,
-    "outputToken : ",
-    outputToken
-  ); // Debugging line
+  useEffect(() => {
+    let isMounted = true; 
+    
+    const searchTokensViaAPI = async () => {
+      if (!searchQuery || searchQuery.length < 2) {
+        if (isMounted) {
+          setSearchedTokens([]);
+          setIsSearching(false);
+        }
+        return;
+      }
+
+      if (isMounted) {
+        setIsSearching(true);
+        setSearchedTokens([]);
+      }
+      
+      try {
+        const url = `https://datapi.jup.ag/v1/assets/search?query=${encodeURIComponent(searchQuery)}`;
+        const response = await fetch(url);
+        
+        if (!response.ok) {
+          throw new Error(`API returned status ${response.status}`);
+        }
+        
+        const data = await response.json();
+        
+        if (isMounted) {
+          const newTokens = Array.isArray(data) ? [...data] : [];
+          setSearchedTokens(newTokens);
+        }
+      } catch (err) {
+        console.error("Error searching tokens:", err);
+        if (isMounted) {
+          setSearchedTokens([]);
+          setError("Failed to search tokens. Please try again.");
+        }
+      } finally {
+        if (isMounted) {
+          setIsSearching(false);
+        }
+      }
+    };
+
+    const timeoutId = setTimeout(() => {
+      searchTokensViaAPI();
+    }, 500);
+
+    return () => {
+      isMounted = false;
+      clearTimeout(timeoutId);
+    };
+  }, [searchQuery]);
+
+  console.log("Quote response:" , quote , "output token : " , outputToken); 
 
   const exchangeRate = getExchangeRate({
     quote,
@@ -132,23 +184,41 @@ export default function SwapModal({
     outputToken,
   });
 
-  const handleTokenSelect = (symbol: string) => {
+  const handleTokenSelect = (symbol: string, tokenData?: any) => {
+
+
+    console.log('token metadata of the selected token : ', tokenMetaData);
+    if (tokenData) {
+      const tokenExists = tokenMetaData?.some((t: any) => t.symbol === symbol);
+      
+      if (!tokenExists && tokenMetaData) {
+        const formattedToken = {
+          ...tokenData,
+          balance: "0", 
+        };
+        
+        setTokenMetaData([...tokenMetaData, formattedToken]);
+      }
+    }
+    
     if (isInputToken) {
-      // If the selected input token is the same as the output token, reverse them
       if (symbol === selectedOutputSymbol) {
         reverseTokens();
       } else {
         setSelectedInputSymbol(symbol);
       }
     } else {
-      // If the selected output token is the same as the input token, reverse them
       if (symbol === selectedInputSymbol) {
         reverseTokens();
       } else {
         setSelectedOutputSymbol(symbol);
       }
     }
+    
     setIsTokenListOpen(false);
+    setSearchQuery("");
+    setSearchedTokens([]);
+    setSearchKey(prev => prev + 1); 
   };
 
   const reverseTokens = () => {
@@ -158,9 +228,9 @@ export default function SwapModal({
     );
 
     if (userOwnsNewInput) {
-      setSelectedInputSymbol(outputToken?.symbol || ""); // Fallback to an empty string if undefined
+      setSelectedInputSymbol(outputToken?.symbol || ""); 
       setSelectedOutputSymbol(inputToken?.symbol || "");
-      setError(null); // clear any previous error
+      setError(null);
     } else {
       setError(`You don't own ${newInput?.symbol}. Cannot reverse swap.`);
     }
@@ -181,6 +251,29 @@ export default function SwapModal({
 
     return merged;
   }
+
+  function handleSearchChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const value = e.target.value;
+    setSearchQuery(value);
+    
+    if (!value || value.length < 2) {
+      setSearchedTokens([]);
+    }
+    setSearchKey(prev => prev + 1);
+  }
+
+  const getDisplayTokens = () => {
+    if (isInputToken) {
+      return userToken;
+    }
+    
+    if (searchQuery && searchQuery.length >= 2) {
+      return searchedTokens;
+    }
+    
+    return mergeTokens(userToken, tokenMetaData || []);
+  };
+    
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -204,6 +297,11 @@ export default function SwapModal({
               variant="ghost"
               className="flex items-center bg-white px-5 py-1 gap-0 rounded-full shadow"
               onClick={() => {
+                // Reset all search related state
+                setSearchQuery("");
+                setSearchedTokens([]);
+                setIsSearching(false);
+                setSearchKey(prev => prev + 1); // Force refresh
                 setIsInputToken(true);
                 setIsTokenListOpen(true);
               }}
@@ -219,11 +317,12 @@ export default function SwapModal({
           </div>
           <div className="flex justify-between text-sm text-muted-foreground mt-1">
             <div>
-              {inputToken?.price &&
-                `$${formatUSD(
-                  inputToken.price || inputToken?.usdPrice,
-                  (quote?.inAmount / 10 ** inputToken?.decimals).toString()
-                )}`}
+              {inputToken?.price && !isNaN(inputToken.price || inputToken?.usdPrice)
+                ? `$${formatUSD(
+                    inputToken.price || inputToken?.usdPrice,
+                    (quote?.inAmount / 10 ** inputToken?.decimals).toString()
+                  )}`
+                : <span className="flex items-center gap-1"><AlertCircle className="w-3 h-3" /> No price data</span>}
             </div>
             <div>Balance: {inputToken?.balance}</div>
           </div>
@@ -260,6 +359,11 @@ export default function SwapModal({
               variant="ghost"
               className="flex items-center bg-white px-5 py-1 gap-0 rounded-full shadow"
               onClick={() => {
+                // Reset all search related state
+                setSearchQuery("");
+                setSearchedTokens([]);
+                setIsSearching(false);
+                setSearchKey(prev => prev + 1); // Force refresh
                 setIsInputToken(false);
                 setIsTokenListOpen(true);
               }}
@@ -275,12 +379,12 @@ export default function SwapModal({
           </div>
           <div className="flex justify-between text-sm text-muted-foreground mt-1">
             <div>
-              {outputToken &&
-                quote?.outAmount &&
-                `$${formatUSD(
-                  outputToken.price || outputToken?.usdPrice,
-                  (quote.outAmount / 10 ** outputToken?.decimals).toString()
-                )}`}
+              {outputToken && quote?.outAmount && !isNaN(outputToken.price || outputToken?.usdPrice)
+                ? `$${formatUSD(
+                    outputToken.price || outputToken?.usdPrice,
+                    (quote.outAmount / 10 ** outputToken?.decimals).toString()
+                  )}`
+                : <span className="flex items-center gap-1"><AlertCircle className="w-3 h-3" /> No price data</span>}
             </div>
             <div>Balance: {outputToken?.balance}</div>
           </div>
@@ -319,30 +423,68 @@ export default function SwapModal({
 
         {/* Token Selection Modal */}
         {isTokenListOpen && (
-          <div className="absolute top-0 left-0 w-full h-full z-50 flex items-center justify-center bg-black bg-opacity-30">
-            <div className="bg-white rounded-xl shadow-lg w-[90%] max-w-sm max-h-[300px] overflow-y-auto p-4">
-              <h3 className="text-sm font-semibold mb-3">Select a token</h3>
-              {(isInputToken
-                ? userToken
-                : mergeTokens(userToken, tokenMetaData)
-              ).map((token: { symbol: any; icon: string; name: string }) => (
-                <Button
-                  key={token.symbol}
-                  variant="ghost"
-                  onClick={() => handleTokenSelect(token.symbol)}
-                  className="flex items-center gap-3 w-full text-left hover:bg-gray-100"
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
+            <div className="bg-white rounded-xl shadow-lg w-[90%] max-w-sm max-h-[450px] overflow-hidden p-0">
+              <div className="flex justify-between items-center p-4 ">
+                <h3 className="text-md font-semibold">Select a token</h3>
+                <button
+                  onClick={() => setIsTokenListOpen(false)}
+                  className="text-gray-500 hover:text-gray-700 focus:outline-none"
                 >
-                  <img
-                    src={token?.icon || token?.logoURI}
-                    alt={token.symbol}
-                    className="w-5 h-5 rounded-full"
+                  ✕
+                </button>
+              </div>
+
+              {/* Show search input only for output token */}
+              {!isInputToken && (
+                <div className="px-4 py-2">
+                  <input
+                    type="text"
+                    placeholder="Search token..."
+                    value={searchQuery}
+                    onChange={handleSearchChange}
+                    className="w-full px-3 py-2 border rounded-md text-sm "
                   />
-                  <div className="flex flex-col text-sm">
-                    <span className="font-medium">{token.symbol}</span>
-                    <span className="text-gray-400">{token?.name}</span>
-                  </div>
-                </Button>
-              ))}
+                </div>
+              )}
+
+              {isSearching && (
+                <div className="text-center py-4 text-gray-500">Searching tokens...</div>
+              )}
+
+              <div className="overflow-y-auto max-h-[300px] p-2" key={`token-list-${searchKey}-${searchQuery}`}>
+                <div className="space-y-1 flex flex-col">
+                  {getDisplayTokens().map(
+                    (token: {
+                      symbol: any;
+                      icon: string;
+                      name: string;
+                      logoURI: string;
+                    }) => (
+                      <Button
+                        key={`${token.symbol}-${searchKey}`}
+                        variant="ghost"
+                        onClick={() => handleTokenSelect(token.symbol, token)}
+                        className="flex items-center justify-start w-full gap-3 text-left hover:bg-gray-100 px-3 py-2 rounded-lg h-auto"
+                      >
+                        <img
+                          src={token?.icon || token?.logoURI}
+                          alt={token.symbol}
+                          className="w-8 h-8 rounded-full"
+                        />
+                        <div className="flex flex-col text-sm">
+                          <span className="font-medium">{token.symbol}</span>
+                          <span className="text-gray-400 text-xs">{token?.name}</span>
+                        </div>
+                      </Button>
+                    )
+                  )}
+                </div>
+
+                {searchQuery && !isSearching && searchedTokens.length === 0 && (
+                  <div className="text-center py-4 text-gray-500">No tokens found</div>
+                )}
+              </div>
             </div>
           </div>
         )}
