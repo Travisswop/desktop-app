@@ -25,6 +25,7 @@ export default async function PublicProfile({
     const userName = (await params)?.username;
 
     const { data } = await getUserData(userName);
+    console.log('🚀 ~ data:', data);
 
     addSwopPoint({
       userId: data.microsite.parentId,
