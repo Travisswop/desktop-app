@@ -77,20 +77,18 @@ const CheckoutCard: React.FC<CheckoutCardProps> = ({
   handleInputChange,
   handleCountryChange,
   handleOpenPaymentSheet,
+  handleOpenWalletPayment,
   errorMessage,
   cartItems,
   subtotal,
-  handleOpenWalletPayment,
   hasPhygitalProducts,
 }) => {
-  // Add loading states for the buttons
   const [isWalletLoading, setIsWalletLoading] = useState(false);
   const [isCardLoading, setIsCardLoading] = useState(false);
 
-  // Wrap handlers to manage loading states
   const handleWalletPayment = async () => {
+    setIsWalletLoading(true);
     try {
-      setIsWalletLoading(true);
       await handleOpenWalletPayment();
     } finally {
       setIsWalletLoading(false);
@@ -98,23 +96,22 @@ const CheckoutCard: React.FC<CheckoutCardProps> = ({
   };
 
   const handleCardPayment = async () => {
+    setIsCardLoading(true);
     try {
-      setIsCardLoading(true);
       await handleOpenPaymentSheet();
     } finally {
       setIsCardLoading(false);
     }
   };
 
-  // Helper to get nested object value
   const getNestedValue = (obj: any, path: string) => {
-    return path
-      .split('.')
-      .reduce((o, k) => (o && o[k] !== undefined ? o[k] : ''), obj);
+    return (
+      path.split('.').reduce((acc, part) => acc?.[part], obj) || ''
+    );
   };
 
   return (
-    <Card className="w-full shadow-lg bg-white mb-6">
+    <Card className="w-full shadow-lg bg-white my-4">
       <CardHeader className="border-b">
         <div className="text-lg font-semibold">Checkout</div>
       </CardHeader>

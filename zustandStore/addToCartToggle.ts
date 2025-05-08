@@ -1,13 +1,15 @@
-// toggleStore.js
+// toggleStore.ts
 import { create } from "zustand";
+
 type Store = {
   toggle: boolean;
-  setToggle: () => void;
+  setToggle: (item: boolean) => void;
 };
+
 // Create the toggle store
 const useAddToCardToggleStore = create<Store>((set) => ({
   toggle: true, // Initial state
-  setToggle: () => set((state) => ({ toggle: !state.toggle })), // Toggle function
+  setToggle: (item: boolean) => set({ toggle: item }), // Toggle function
 }));
 
 export default useAddToCardToggleStore;

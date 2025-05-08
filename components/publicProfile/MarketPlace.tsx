@@ -1,31 +1,16 @@
 'use client';
-import { FC, useState } from 'react';
+import { useState } from 'react';
 import Image from 'next/image';
 import { downloadVCard } from '@/lib/vCardUtils';
 import { motion } from 'framer-motion';
 import { LuCirclePlus } from 'react-icons/lu';
-import { useUser } from '@/lib/UserContext';
-import { useRouter } from 'next/navigation';
-import { Spinner } from '@nextui-org/react';
+
 import { addProductToCart } from '@/actions/addToCartActions';
 import toast from 'react-hot-toast';
 import { Loader } from 'lucide-react';
-import useAddToCardToggleStore from '@/zustandStore/addToCartToggle';
+import { useCart } from '@/app/(public-profile)/sp/[username]/cart/context/CartContext';
+
 const API_URL = process.env.NEXT_PUBLIC_API_URL;
-interface Props {
-  data: {
-    _id: string;
-    micrositeId: string;
-    name: string;
-    mobileNo: string;
-    email: string;
-    address: string;
-    websiteUrl: string;
-  };
-  socialType: string;
-  parentId: string;
-  number: number;
-}
 
 const variants = {
   hidden: { opacity: 0, x: 0, y: 25 },
@@ -65,68 +50,86 @@ const download = async (data: any, parentId: string) => {
 
 const MarketPlace: any = ({
   data,
-  socialType,
   parentId,
   number,
   userName,
   accessToken,
   userId,
+  index,
 }: any) => {
   const [addToCartLoading, setAddToCartLoading] = useState(false);
+  const [isExisting, setIsExisting] = useState(false);
   const {
-    _id,
     itemImageUrl,
     itemName,
     itemPrice,
-    mintLimit,
     collectionId,
     templateId,
+    itemDescription,
   } = data;
+
   const delay = number + 1 * 0.2;
 
-  const { toggle, setToggle } = useAddToCardToggleStore();
-
-  // const { user, accessToken } = useUser();
-
-  const router = useRouter();
-
-  // console.log("user from hook", user);
+  const { dispatch } = useCart();
 
   const handleAddToCart = async (event: React.MouseEvent) => {
     event.stopPropagation();
     setAddToCartLoading(true);
-    if (!accessToken) {
-      return router.push('/login');
-    }
-    const data = {
-      userId: userId,
-      collectionId: collectionId,
-      templateId: templateId,
+
+    const cartItem = {
+      _id: Math.random().toString(36).substring(2, 15),
       quantity: 1,
+      timestamp: new Date().getTime(),
+      nftTemplate: {
+        _id: data._id,
+        name: itemName,
+        description: itemDescription,
+        image: itemImageUrl,
+        price: itemPrice,
+        collectionId: collectionId,
+        templateId: templateId,
+        nftType:
+          data.collectionMintAddress ===
+          'EFNUeHdd9dYNWaczMGfCtqThFea7HcL7xUdH8QNsYUcq'
+            ? ('phygital' as const)
+            : ('non-phygital' as const),
+      },
     };
 
+    if (!accessToken) {
+      dispatch({ type: 'ADD_ITEM', payload: cartItem });
+      setAddToCartLoading(false);
+      toast.success('Item added to cart (offline)');
+      return;
+    }
+
     try {
+      const cartData = {
+        userId: userId,
+        collectionId: collectionId,
+        templateId: templateId,
+        quantity: 1,
+        sellerId: parentId,
+      };
+
       const response = await addProductToCart(
-        data,
+        cartData,
         accessToken,
         userName
       );
 
-      setToggle();
-
-      // const resData = await response.json();
-
-      // if (resData?.data?.quantity === 1) {
-      //   setCartQty(cartQty + 1);
-      // }
-
-      setAddToCartLoading(false);
-      toast.success('Items added to cart');
-
-      // console.log("data", data);
+      if (response.state === 'success') {
+        dispatch({ type: 'ADD_ITEM', payload: cartItem });
+        toast.success('Items added to cart');
+      } else {
+        throw new Error(
+          response.message || 'Failed to add item to cart'
+        );
+      }
     } catch (error) {
-      toast.error('Something went wrong!Please try again!');
-      console.log(error);
+      console.error('Error adding to cart:', error);
+      toast.error('Failed to add item to cart. Please try again.');
+    } finally {
       setAddToCartLoading(false);
     }
   };
@@ -153,29 +156,35 @@ const MarketPlace: any = ({
           onClick={() => download(data, parentId)}
           className="my-1 flex gap-2 justify-between items-center cursor-pointer bg-white shadow-xl p-2 rounded-[12px]"
         >
-          <div className="flex items-center gap-2">
-            <div className="w-24 h-24">
+          <div className="flex items-center gap-2 flex-1">
+            <div className="flex items-center w-20 h-20">
               <Image
-                className="w-full h-auto"
+                className="w-20 h-20 rounded-xl"
                 src={itemImageUrl}
                 alt={'mint image'}
                 width={240}
                 height={240}
               />
             </div>
-            <div>
-              <div className="text-lg font-semibold">{itemName}</div>
+            <div className="w-auto">
+              <div className="text-lg font-semibold w-full">
+                {itemName}
+              </div>
               <div className="text-xs text-gray-600 font-medium">
                 {itemPrice} USDC
               </div>
             </div>
           </div>
-          <div className="pr-2">
+          <div>
             <button
               type="button"
-              disabled={addToCartLoading}
+              disabled={addToCartLoading || isExisting}
               onClick={handleAddToCart}
-              className="text-sm font-semibold flex items-center gap-1"
+              className={`text-sm flex items-center gap-1 w-max ${
+                isExisting
+                  ? 'text-gray-400 cursor-not-allowed'
+                  : 'font-semibold'
+              }`}
             >
               <span className="flex items-center gap-1">
                 Add To Cart{' '}
@@ -183,7 +192,10 @@ const MarketPlace: any = ({
                   {addToCartLoading ? (
                     <Loader className="animate-spin" size={20} />
                   ) : (
-                    <LuCirclePlus color="black" size={18} />
+                    <LuCirclePlus
+                      color={isExisting ? 'gray' : 'black'}
+                      size={18}
+                    />
                   )}
                 </span>
               </span>

@@ -52,11 +52,14 @@ export async function createOrder(
     );
 
     if (!response.ok) {
+      // console.log("not ok");
+
       const errorData = await response.json();
       throw new Error(errorData.message || 'Failed to create order');
     }
 
-    const data = await response.json();
+    const { data } = await response.json();
+
     return { orderId: data.orderId };
   } catch (error) {
     console.error('Error creating order:', error);
