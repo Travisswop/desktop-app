@@ -1,6 +1,6 @@
 /* eslint-disable prefer-const */
 import React, { useEffect, useState } from "react";
-import { ArrowUpDown, ChevronRight, AlertCircle } from "lucide-react";
+import { ArrowUpDown, ChevronRight, AlertCircle, ExternalLink } from "lucide-react";
 import { AiOutlineExclamationCircle } from "react-icons/ai";
 
 import { Dialog, DialogContent } from "@/components/ui/dialog";
@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useSolanaWallets } from "@privy-io/react-auth";
 import { Connection, PublicKey } from "@solana/web3.js";
+import toast from "react-hot-toast";
 
 import {
   getTokenInfoBySymbol,
@@ -43,6 +44,7 @@ export default function SwapModal({
   const [searchedTokens, setSearchedTokens] = useState<any[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const [searchKey, setSearchKey] = useState(0);
+  const [txSignature, setTxSignature] = useState<string | null>(null);
 
   const [inputMint, setInputMint] = useState<PublicKey | null>(null);
   const [outputMint, setOutputMint] = useState<PublicKey | null>(null);
@@ -106,13 +108,14 @@ export default function SwapModal({
         );
 
         const res = await fetch(
-          `https://quote-api.jup.ag/v6/quote?inputMint=${inputMint.toString()}&outputMint=${outputMint.toString()}&amount=${amountInSmallestUnit}&slippageBps=50`
+          `https://quote-api.jup.ag/v6/quote?inputMint=${inputMint.toString()}&outputMint=${outputMint.toString()}&amount=${amountInSmallestUnit}&slippageBps=200`
         );
         const data = await res.json();
 
         setQuote(data);
       } catch (err: any) {
         setError(err.message || "Failed to fetch quote");
+        toast.error("Failed to fetch quote. Please try again.");
       } finally {
         setLoading(false);
       }
@@ -175,7 +178,7 @@ export default function SwapModal({
     };
   }, [searchQuery]);
 
-  console.log("Quote response:" , quote , "output token : " , outputToken); 
+  console.log("Quote response:" , quote , "output token : " , outputToken , 'input token : ' , inputToken, "usertoken : " , userToken); 
 
   const exchangeRate = getExchangeRate({
     quote,
@@ -185,7 +188,16 @@ export default function SwapModal({
   });
 
   const handleTokenSelect = (symbol: string, tokenData?: any) => {
-
+    // Check if user is trying to select the same token that's already in the other field
+    if ((isInputToken && symbol === selectedOutputSymbol) || 
+        (!isInputToken && symbol === selectedInputSymbol)) {
+      toast.error("You cannot select the same token for both input and output");
+      setIsTokenListOpen(false);
+      setSearchQuery("");
+      setSearchedTokens([]);
+      setSearchKey(prev => prev + 1);
+      return;
+    }
 
     console.log('token metadata of the selected token : ', tokenMetaData);
     if (tokenData) {
@@ -202,17 +214,9 @@ export default function SwapModal({
     }
     
     if (isInputToken) {
-      if (symbol === selectedOutputSymbol) {
-        reverseTokens();
-      } else {
-        setSelectedInputSymbol(symbol);
-      }
+      setSelectedInputSymbol(symbol);
     } else {
-      if (symbol === selectedInputSymbol) {
-        reverseTokens();
-      } else {
-        setSelectedOutputSymbol(symbol);
-      }
+      setSelectedOutputSymbol(symbol);
     }
     
     setIsTokenListOpen(false);
@@ -222,18 +226,21 @@ export default function SwapModal({
   };
 
   const reverseTokens = () => {
-    const newInput = outputToken;
+    const newInputSymbol = selectedOutputSymbol;
     const userOwnsNewInput = userToken.find(
-      (t: any) => t.symbol === newInput?.symbol
+      (t: any) => t.symbol === newInputSymbol
     );
 
     if (userOwnsNewInput) {
-      setSelectedInputSymbol(outputToken?.symbol || ""); 
-      setSelectedOutputSymbol(inputToken?.symbol || "");
-      setError(null);
+      // If user owns the output token, do normal swap
+      setSelectedInputSymbol(selectedOutputSymbol);
+      setSelectedOutputSymbol(selectedInputSymbol);
     } else {
-      setError(`You don't own ${newInput?.symbol}. Cannot reverse swap.`);
+      // If user doesn't own the output token, set input to empty and move current input to output
+      setSelectedOutputSymbol(selectedInputSymbol);
+      setSelectedInputSymbol("");
     }
+    setError(null);
   };
 
   function mergeTokens(
@@ -286,13 +293,17 @@ export default function SwapModal({
         {/* Token Input - with curved bottom */}
         <div className="relative bg-[#F7F7F7] rounded-2xl p-4 shadow  ">
           <div className="flex justify-between items-center">
-            <Input
-              type="number"
-              value={amount}
-              onChange={(e) => setAmount(e.target.value)}
-              placeholder="0.0"
-              className="text-xl border-none shadow-none bg-transparent p-0"
-            />
+            {selectedInputSymbol ? (
+              <Input
+                type="number"
+                value={amount}
+                onChange={(e) => setAmount(e.target.value)}
+                placeholder="0.0"
+                className="text-xl border-none shadow-none bg-transparent p-0"
+              />
+            ) : (
+              <div className="text-gray-500 text-xl p-0">Select a token</div>
+            )}
             <Button
               variant="ghost"
               className="flex items-center bg-white px-5 py-1 gap-0 rounded-full shadow"
@@ -306,25 +317,31 @@ export default function SwapModal({
                 setIsTokenListOpen(true);
               }}
             >
-              <img
-                src={inputToken?.icon || inputToken?.logoURI}
-                alt={inputToken?.symbol}
-                className="w-5 h-5 mr-2 rounded-full"
-              />
-              <span className="font-medium">{inputToken?.symbol}</span>
+              {selectedInputSymbol ? (
+                <>
+                  <img
+                    src={inputToken?.icon || inputToken?.logoURI}
+                    alt={inputToken?.symbol}
+                    className="w-5 h-5 mr-2 rounded-full"
+                  />
+                  <span className="font-medium">{inputToken?.symbol}</span>
+                </>
+              ) : (
+                <span className="font-medium">Select</span>
+              )}
               <ChevronRight className="w-4 h-4" />
             </Button>
           </div>
           <div className="flex justify-between text-sm text-muted-foreground mt-1">
             <div>
-              {inputToken?.price && !isNaN(inputToken.price || inputToken?.usdPrice)
+              {selectedInputSymbol && inputToken?.price && !isNaN(inputToken.price || inputToken?.usdPrice)
                 ? `$${formatUSD(
                     inputToken.price || inputToken?.usdPrice,
                     (quote?.inAmount / 10 ** inputToken?.decimals).toString()
                   )}`
                 : <span className="flex items-center gap-1"><AlertCircle className="w-3 h-3" /> No price data</span>}
             </div>
-            <div>Balance: {inputToken?.balance}</div>
+            <div>Balance: {inputToken?.balance || "0"}</div>
           </div>
         </div>
 
@@ -397,7 +414,7 @@ export default function SwapModal({
               <div className="flex justify-center items-center ">
                 <AiOutlineExclamationCircle className="text-xl" />
               </div>
-              <span>{exchangeRate}</span>
+              <span>{selectedInputSymbol ? exchangeRate : "Please select an input token"}</span>
             </div>
           </div>
         </div>
@@ -410,16 +427,39 @@ export default function SwapModal({
               wallet,
               connection,
               setSwapLoading,
+              onSuccess: (signature) => {
+                setTxSignature(signature);
+                // Clear any previous errors
+                setError(null);
+              }
             })
           }
           className="py-6 text-base font-medium bg-[#F7F7F7] text-black hover:text-black hover:bg-[#F7F7F7] rounded-lg w-3/4 mx-auto"
-          disabled={swapLoading}
+          disabled={swapLoading || !quote || !selectedInputSymbol}
         >
-          {swapLoading ? "Swapping..." : "Swap"}
+          {swapLoading ? "Swapping..." : selectedInputSymbol ? "Swap" : "Select input token"}
         </Button>
 
-        {/* Error Handling */}
-        {/* {error && <div className="mt-4 text-red-500">{error}</div>} */}
+        {/* Transaction result section */}
+        {txSignature && (
+          <div className="mt-3 text-center">
+            <a 
+              href={`https://solscan.io/tx/${txSignature}`}
+              target="_blank" 
+              rel="noopener noreferrer"
+              className="flex items-center justify-center gap-1 text-blue-500 hover:text-blue-700 text-sm"
+            >
+              View transaction on Solscan <ExternalLink className="w-3 h-3" />
+            </a>
+          </div>
+        )}
+
+        {/* Error display */}
+        {error && (
+          <div className="mt-3 text-red-500 text-sm text-center">
+            {error}
+          </div>
+        )}
 
         {/* Token Selection Modal */}
         {isTokenListOpen && (
