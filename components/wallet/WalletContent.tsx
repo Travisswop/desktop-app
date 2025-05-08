@@ -192,6 +192,7 @@ const WalletContentInner = () => {
     SUPPORTED_CHAINS
   );
 
+
   const {
     nfts,
     loading: nftLoading,
@@ -434,6 +435,7 @@ const WalletContentInner = () => {
       })),
     [setSendFlow]
   );
+
 
   return (
     <div className="">

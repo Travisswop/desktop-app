@@ -29,7 +29,7 @@ export interface TimeSeriesData {
   '1Y': Array<{ timestamp: number; value: number }>;
 }
 
-export interface TokenData {
+export interface  TokenData {
   name: string;
   symbol: string;
   balance: string;
