@@ -1,6 +1,11 @@
 'use client';
 
-import React, { useEffect, useState, useCallback } from 'react';
+import React, {
+  useEffect,
+  useState,
+  useCallback,
+  useMemo,
+} from 'react';
 import {
   PaymentElement,
   useElements,
@@ -9,8 +14,17 @@ import {
 import { useRouter, useParams } from 'next/navigation';
 import { updateOrderPayment } from '@/actions/orderActions';
 import toast from 'react-hot-toast';
+import { useCart } from '../context/CartContext';
 
 import { StripePaymentFormProps } from './types';
+
+// Helper function to clear cart from localStorage
+const clearCartFromLocalStorage = (username: string) => {
+  if (typeof window !== 'undefined' && username) {
+    const storageKey = `marketplace-cart-${username}`;
+    localStorage.removeItem(storageKey);
+  }
+};
 
 const StripePaymentForm: React.FC<StripePaymentFormProps> = ({
   email,
@@ -30,6 +44,17 @@ const StripePaymentForm: React.FC<StripePaymentFormProps> = ({
   const username = params.username as string;
   const [processing, setProcessing] = useState<boolean>(false);
   const [message, setMessage] = useState<string | null>(null);
+  const { dispatch } = useCart();
+
+  // Memoize the subtotal and cart items count to prevent them from changing
+  // if the cart is cleared elsewhere
+  const memoizedValues = useMemo(
+    () => ({
+      subtotal: subtotal > 0 ? subtotal : 0,
+      itemCount: cartItems?.length || 0,
+    }),
+    [subtotal, cartItems]
+  ); // Capture initial values
 
   useEffect(() => {
     if (!stripe || !clientSecret) return;
@@ -42,6 +67,9 @@ const StripePaymentForm: React.FC<StripePaymentFormProps> = ({
         switch (paymentIntent.status) {
           case 'succeeded':
             setMessage('Payment succeeded!');
+            // Clear cart on successful payment
+            dispatch({ type: 'CLEAR_CART' });
+            clearCartFromLocalStorage(username);
             break;
           case 'processing':
             setMessage('Your payment is processing.');
@@ -57,7 +85,7 @@ const StripePaymentForm: React.FC<StripePaymentFormProps> = ({
       .catch((error) => {
         console.error('Error retrieving payment intent:', error);
       });
-  }, [clientSecret, stripe]);
+  }, [clientSecret, stripe, dispatch, username]);
 
   // Handle updating payment status in the database
   const updatePaymentStatus = useCallback(
@@ -153,6 +181,11 @@ const StripePaymentForm: React.FC<StripePaymentFormProps> = ({
           accessToken
         );
         toast.success('Payment successful!');
+
+        // Clear cart on successful payment
+        dispatch({ type: 'CLEAR_CART' });
+        clearCartFromLocalStorage(username);
+
         setIsPaymentSheetOpen(false);
         redirectToResultPage(true, paymentIntent.id);
       }
@@ -203,8 +236,8 @@ const StripePaymentForm: React.FC<StripePaymentFormProps> = ({
           </p>
           <p className="text-xs text-gray-600 mb-1">
             You are about to complete your purchase of{' '}
-            {cartItems?.length || 0} item(s) for a total of $
-            {subtotal.toFixed(2)}.
+            {memoizedValues.itemCount} item(s) for a total of $
+            {memoizedValues.subtotal.toFixed(2)}.
           </p>
           <p className="text-xs text-gray-600">
             This charge will appear on your statement as SWOP.
@@ -242,7 +275,7 @@ const StripePaymentForm: React.FC<StripePaymentFormProps> = ({
               Processing...
             </>
           ) : (
-            `Pay $${subtotal.toFixed(2)}`
+            `Pay $${memoizedValues.subtotal.toFixed(2)}`
           )}
         </button>
 

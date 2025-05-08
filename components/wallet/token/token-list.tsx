@@ -111,6 +111,8 @@ const TokenContent = ({
     );
   }
 
+  console.log('tokens', tokens);
+
   // const viewMode = "list";
 
   const containerClass =

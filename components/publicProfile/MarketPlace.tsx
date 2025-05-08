@@ -80,6 +80,7 @@ const MarketPlace: any = ({
       _id: Math.random().toString(36).substring(2, 15),
       quantity: 1,
       timestamp: new Date().getTime(),
+      sellerId: parentId,
       nftTemplate: {
         _id: data._id,
         name: itemName,
