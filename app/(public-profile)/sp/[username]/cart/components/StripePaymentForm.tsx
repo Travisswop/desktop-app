@@ -46,15 +46,18 @@ const StripePaymentForm: React.FC<StripePaymentFormProps> = ({
   const [message, setMessage] = useState<string | null>(null);
   const { dispatch } = useCart();
 
+  // Ensure cartItems is an array
+  const safeCartItems = Array.isArray(cartItems) ? cartItems : [];
+
   // Memoize the subtotal and cart items count to prevent them from changing
   // if the cart is cleared elsewhere
   const memoizedValues = useMemo(
     () => ({
       subtotal: subtotal > 0 ? subtotal : 0,
-      itemCount: cartItems?.length || 0,
+      itemCount: safeCartItems.length || 0,
     }),
-    [subtotal, cartItems]
-  ); // Capture initial values
+    [subtotal, safeCartItems]
+  );
 
   useEffect(() => {
     if (!stripe || !clientSecret) return;

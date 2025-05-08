@@ -65,6 +65,8 @@ const CartCheckout = () => {
   const { user, accessToken } = useUser();
   const { solanaWallets } = useSolanaWalletContext();
   const { state, dispatch, subtotal, sellerId } = useCart();
+  console.log('🚀 ~ CartCheckout ~ state:', state);
+  console.log('🚀 ~ CartCheckout ~ state.items:', state?.items);
   const params = useParams();
   const name = params.username as string;
   const orderIdRef = React.useRef<string | null>(null);
@@ -139,8 +141,11 @@ const CartCheckout = () => {
 
   // Check if any product requires physical shipping
   const hasPhygitalProducts = useMemo(() => {
-    return state.items.some(
-      (item) => item.nftTemplate?.nftType === 'phygital'
+    return (
+      Array.isArray(state.items) &&
+      state.items.some(
+        (item) => item.nftTemplate?.nftType === 'phygital'
+      )
     );
   }, [state.items]);
 
@@ -259,7 +264,12 @@ const CartCheckout = () => {
         }));
 
         if (accessToken && name) {
-          await deleteCartItem(id, accessToken, name);
+          await deleteCartItem(
+            id,
+            accessToken,
+            name,
+            localParentId || ''
+          );
         }
         dispatch({ type: 'REMOVE_ITEM', payload: id });
         toast.success('Item removed from cart');
@@ -397,6 +407,11 @@ const CartCheckout = () => {
 
       try {
         setErrorMessage(null);
+        // Ensure state.items is an array
+        const cartItems = Array.isArray(state?.items)
+          ? state.items
+          : [];
+
         const orderInfo = {
           customerInfo: {
             ...customerInfo,
@@ -407,7 +422,7 @@ const CartCheckout = () => {
               )?.address,
             },
           },
-          cartItems: state.items,
+          cartItems: cartItems,
           paymentMethod,
           status: 'pending' as Status,
           sellerId: sellerId || localParentId, // Use the local parentId as fallback
@@ -512,16 +527,20 @@ const CartCheckout = () => {
     return <LoadingSpinner />;
   }
 
+  // Make sure state.items is defined and is an array
+  const cartItems = Array.isArray(state?.items) ? state.items : [];
+  const hasItems = cartItems.length > 0;
+
   return (
     <div className="w-full max-w-md">
       <CartItemsList
-        cartItems={state.items}
+        cartItems={cartItems}
         loadingOperations={loadingOperations}
         onUpdate={handleUpdateQuantity}
         onRemove={handleRemoveItem}
       />
 
-      {subtotal > 0 && state.items.length > 0 ? (
+      {subtotal > 0 && hasItems ? (
         <CheckoutCard
           user={user}
           customerInfo={customerInfo}
@@ -531,7 +550,7 @@ const CartCheckout = () => {
           handleOpenPaymentSheet={handleOpenPaymentSheet}
           handleOpenWalletPayment={handleOpenWalletPayment}
           errorMessage={errorMessage}
-          cartItems={state.items}
+          cartItems={cartItems}
           subtotal={subtotal}
           hasPhygitalProducts={hasPhygitalProducts}
         />
@@ -544,7 +563,7 @@ const CartCheckout = () => {
         isOpen={isOpen}
         onOpenChange={onOpenChange}
         customerInfo={customerInfo}
-        cartItems={state.items}
+        cartItems={cartItems}
         orderId={walletOrderId}
       />
 
@@ -581,7 +600,7 @@ const CartCheckout = () => {
                 setIsPaymentSheetOpen={setIsPaymentSheetOpen}
                 setErrorMessage={setErrorMessage}
                 customerInfo={customerInfo}
-                cartItems={state.items}
+                cartItems={cartItems}
                 accessToken={accessToken}
                 orderId={orderIdRef.current}
                 clientSecret={clientSecret}

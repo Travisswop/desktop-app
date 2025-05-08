@@ -141,17 +141,19 @@ export async function updateCartQuantity(
 export async function deleteCartItem(
   id: string,
   token: string,
-  userName: string
+  userName: string,
+  sellerId: string
 ) {
   try {
     const response = await fetch(
-      `${process.env.NEXT_PUBLIC_API_URL}/api/v1/desktop/nft/deleteCartItem/${id}`,
+      `${process.env.NEXT_PUBLIC_API_URL}/api/v5/orders/deleteCartItem`,
       {
-        method: 'DELETE',
+        method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`,
         },
+        body: JSON.stringify({ cartId: id, sellerId }),
       }
     );
 
