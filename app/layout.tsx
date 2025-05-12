@@ -1,20 +1,18 @@
-import './globals.css';
-import PrivyProvider from '@/components/PrivyProvider';
-import { UserProvider } from '@/lib/UserContext';
-import { SolanaWalletProvider } from '@/lib/context/SolanaWalletContext';
+import "./globals.css";
+import PrivyProvider from "@/components/PrivyProvider";
+import { UserProvider } from "@/lib/UserContext";
+import { SolanaWalletProvider } from "@/lib/context/SolanaWalletContext";
 
-import { Figtree } from 'next/font/google';
-import { TanstackProvider } from '@/components/providers/tanstackProvider';
-import { Toaster } from 'react-hot-toast';
-import { XmtpProvider } from '@/lib/context/XmtpContext';
+import { Figtree } from "next/font/google";
+import { TanstackProvider } from "@/components/providers/tanstackProvider";
+import { Toaster } from "react-hot-toast";
+import { XmtpProvider } from "@/lib/context/XmtpContext";
+import { JupiterProviderClient } from "@/components/providers/JupiterProviderClient";
 
-// const roboto = Roboto({
-//   subsets: ["latin"],
-//   weight: ["100", "300", "400", "500", "700", "900"],
-// });
+
 const figtree = Figtree({
-  subsets: ['latin'],
-  weight: ['300', '400', '500', '700', '900'],
+  subsets: ["latin"],
+  weight: ["300", "400", "500", "700", "900"],
 });
 
 export default function RootLayout({
@@ -22,19 +20,24 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+
+  
+
   return (
     <html lang="en" className={figtree.className}>
       <body className={`font-[figtree] bg-[#F7F7F9]`}>
         <Toaster position="top-center" reverseOrder={false} />
-        <TanstackProvider>
-          <PrivyProvider>
-            <SolanaWalletProvider>
-              <XmtpProvider>
-                <UserProvider>{children}</UserProvider>
-              </XmtpProvider>
-            </SolanaWalletProvider>
-          </PrivyProvider>
-        </TanstackProvider>
+        <JupiterProviderClient>
+          <TanstackProvider>
+            <PrivyProvider>
+              <SolanaWalletProvider>
+                <XmtpProvider>
+                  <UserProvider>{children}</UserProvider>
+                </XmtpProvider>
+              </SolanaWalletProvider>
+            </PrivyProvider>
+          </TanstackProvider>
+        </JupiterProviderClient>
       </body>
     </html>
   );

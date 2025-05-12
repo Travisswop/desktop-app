@@ -9,7 +9,6 @@ export class APIUtils {
   ): Promise<T> {
     try {
       const response = await postData(url, options);
-      console.log("response jj", response);
 
       if (!response) {
         throw new Error(`HTTP error! status: ${response.status}`);
