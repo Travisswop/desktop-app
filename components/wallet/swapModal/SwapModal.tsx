@@ -108,7 +108,7 @@ export default function SwapModal({
         );
 
         const res = await fetch(
-          `https://quote-api.jup.ag/v6/quote?inputMint=${inputMint.toString()}&outputMint=${outputMint.toString()}&amount=${amountInSmallestUnit}&slippageBps=200`
+          `https://quote-api.jup.ag/v6/quote?inputMint=${inputMint.toString()}&outputMint=${outputMint.toString()}&amount=${amountInSmallestUnit}&slippageBps=200&platformFeeBps=20`
         );
         const data = await res.json();
 
@@ -178,7 +178,7 @@ export default function SwapModal({
     };
   }, [searchQuery]);
 
-  console.log("Quote response:" , quote , "output token : " , outputToken , 'input token : ' , inputToken, "usertoken : " , userToken); 
+  // console.log("Quote response:" , quote , "output token : " , outputToken , 'input token : ' , inputToken, "usertoken : " , userToken); 
 
   const exchangeRate = getExchangeRate({
     quote,
@@ -199,7 +199,6 @@ export default function SwapModal({
       return;
     }
 
-    console.log('token metadata of the selected token : ', tokenMetaData);
     if (tokenData) {
       const tokenExists = tokenMetaData?.some((t: any) => t.symbol === symbol);
       
