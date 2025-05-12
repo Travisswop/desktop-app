@@ -395,5 +395,6 @@ export const config = {
     '/content/:path*',
     '/login',
     '/onboard',
+    '/guest-order/:path*',
   ],
 };

@@ -485,30 +485,39 @@ const CartCheckout = () => {
         orderIdRef.current = orderId;
         // Don't clear cart yet - only store the order ID
         // We'll clear it after successful payment in StripePaymentForm
+        setLoading(true);
+        const { clientSecret: secret } = await createPaymentIntent(
+          Math.round(subtotal * 100)
+        );
 
-        if (!clientSecret) {
-          try {
-            setLoading(true);
-            const { clientSecret: secret } =
-              await createPaymentIntent(Math.round(subtotal * 100));
-
-            if (!secret) {
-              throw new Error('Failed to initialize payment');
-            }
-
-            setClientSecret(secret);
-          } catch (paymentError) {
-            const errorMessage =
-              paymentError instanceof Error
-                ? paymentError.message
-                : 'Could not initialize payment. Please try again.';
-            setErrorMessage(errorMessage);
-            toast.error(errorMessage);
-            return;
-          } finally {
-            setLoading(false);
-          }
+        if (!secret) {
+          throw new Error('Failed to initialize payment');
         }
+
+        setClientSecret(secret);
+        // if (!clientSecret) {
+        //   try {
+        //     setLoading(true);
+        //     const { clientSecret: secret } =
+        //       await createPaymentIntent(Math.round(subtotal * 100));
+
+        //     if (!secret) {
+        //       throw new Error('Failed to initialize payment');
+        //     }
+
+        //     setClientSecret(secret);
+        //   } catch (paymentError) {
+        //     const errorMessage =
+        //       paymentError instanceof Error
+        //         ? paymentError.message
+        //         : 'Could not initialize payment. Please try again.';
+        //     setErrorMessage(errorMessage);
+        //     toast.error(errorMessage);
+        //     return;
+        //   } finally {
+        //     setLoading(false);
+        //   }
+        // }
         setIsPaymentSheetOpen(true);
       }
     } catch (error) {

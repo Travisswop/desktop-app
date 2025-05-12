@@ -28,6 +28,8 @@ import {
   CreditCard,
   AlertCircle,
   ShoppingCart,
+  CreditCard as BillingIcon,
+  MapPin,
 } from 'lucide-react';
 
 import Image from 'next/image';
@@ -68,6 +70,11 @@ interface Customer {
   };
   address?: {
     line1?: string;
+    line2?: string;
+    city?: string;
+    state?: string;
+    postalCode?: string;
+    country?: string;
   };
 }
 
@@ -105,6 +112,32 @@ interface OrderData {
     shippingCost: number;
     totalCost: number;
   };
+  billing?: {
+    name?: string;
+    email?: string;
+    address?: {
+      line1?: string;
+      line2?: string;
+      city?: string;
+      state?: string;
+      postalCode?: string;
+      country?: string;
+    };
+  };
+  shipping?: {
+    trackingNumber?: string;
+    provider?: string;
+    estimatedDeliveryDate?: string;
+    notes?: string;
+    address?: {
+      line1?: string;
+      line2?: string;
+      city?: string;
+      state?: string;
+      postalCode?: string;
+      country?: string;
+    };
+  };
 }
 
 interface ProcessingStage {
@@ -132,7 +165,9 @@ type StageKey =
   | 'payment_verified'
   | 'nft_minted'
   | 'shipping_prepared'
-  | 'completed';
+  | 'completed'
+  | 'stripe_payment'
+  | 'guest_receipt';
 type StatusKey = 'pending' | 'in_progress' | 'completed' | 'failed';
 
 // Constants
@@ -142,6 +177,8 @@ const stageDisplayNames: Record<StageKey, string> = {
   nft_minted: 'NFT Minted',
   shipping_prepared: 'Shipping',
   completed: 'Order Completed',
+  stripe_payment: 'Stripe Payment',
+  guest_receipt: 'Guest Receipt',
 };
 
 const statusDisplayNames: Record<StatusKey, string> = {
@@ -157,6 +194,8 @@ const stageIcons = {
   nft_minted: <Package size={20} />,
   shipping_prepared: <Truck size={20} />,
   completed: <CheckCircle size={20} />,
+  stripe_payment: <CreditCard size={20} />,
+  guest_receipt: <CreditCard size={20} />,
 };
 
 // Memoized components for better performance
@@ -369,6 +408,150 @@ const NFTDetailSection = memo(({ nft }: { nft: NFT }) => {
 });
 
 NFTDetailSection.displayName = 'NFTDetailSection';
+
+// Add BillingDetailsSection component
+const BillingDetailsSection = memo(
+  ({ order }: { order: OrderData }) => {
+    const billing = order.billing || {};
+    const billingAddress = billing.address || {};
+
+    const formatAddress = () => {
+      if (!billingAddress.line1) return 'No address provided';
+
+      let addressParts = [billingAddress.line1];
+      if (billingAddress.line2)
+        addressParts.push(billingAddress.line2);
+      if (billingAddress.city) addressParts.push(billingAddress.city);
+
+      let stateZip = '';
+      if (billingAddress.state) stateZip += billingAddress.state;
+      if (billingAddress.postalCode)
+        stateZip += ` ${billingAddress.postalCode}`;
+      if (stateZip) addressParts.push(stateZip);
+
+      if (billingAddress.country)
+        addressParts.push(billingAddress.country);
+
+      return addressParts.join(', ');
+    };
+
+    return (
+      <Card className="w-full">
+        <CardHeader className="pb-0">
+          <div className="flex items-center">
+            <BillingIcon className="mr-2" size={18} />
+            <h3 className="text-lg font-semibold">Billing Details</h3>
+          </div>
+        </CardHeader>
+        <CardBody className="p-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <DetailItem
+              label="Name"
+              value={
+                billing.name || order.buyer?.name || 'Not provided'
+              }
+            />
+            <DetailItem
+              label="Email"
+              value={
+                billing.email || order.buyer?.email || 'Not provided'
+              }
+            />
+            <DetailItem
+              label="Billing Address"
+              value={formatAddress()}
+              icon={<MapPin size={16} />}
+            />
+          </div>
+        </CardBody>
+      </Card>
+    );
+  }
+);
+
+BillingDetailsSection.displayName = 'BillingDetailsSection';
+
+// Add ShippingDetailsSection component
+const ShippingDetailsSection = memo(
+  ({ order }: { order: OrderData }) => {
+    const shipping = order.shipping || {};
+    const shippingAddress =
+      shipping.address || order.buyer?.address || {};
+
+    const formatAddress = () => {
+      if (!shippingAddress.line1) return 'No address provided';
+
+      let addressParts = [shippingAddress.line1];
+      if (shippingAddress.line2)
+        addressParts.push(shippingAddress.line2);
+      if (shippingAddress.city)
+        addressParts.push(shippingAddress.city);
+
+      let stateZip = '';
+      if (shippingAddress.state) stateZip += shippingAddress.state;
+      if (shippingAddress.postalCode)
+        stateZip += ` ${shippingAddress.postalCode}`;
+      if (stateZip) addressParts.push(stateZip);
+
+      if (shippingAddress.country)
+        addressParts.push(shippingAddress.country);
+
+      return addressParts.join(', ');
+    };
+
+    return (
+      <Card className="w-full mt-4">
+        <CardHeader className="pb-0">
+          <div className="flex items-center">
+            <Truck className="mr-2" size={18} />
+            <h3 className="text-lg font-semibold">
+              Shipping Details
+            </h3>
+          </div>
+        </CardHeader>
+        <CardBody className="p-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <DetailItem
+              label="Shipping Address"
+              value={formatAddress()}
+              icon={<MapPin size={16} />}
+            />
+            {shipping.trackingNumber && (
+              <DetailItem
+                label="Tracking Number"
+                value={shipping.trackingNumber}
+                icon={<Truck size={16} />}
+              />
+            )}
+            {shipping.provider && (
+              <DetailItem
+                label="Shipping Provider"
+                value={shipping.provider}
+              />
+            )}
+            {shipping.estimatedDeliveryDate && (
+              <DetailItem
+                label="Estimated Delivery"
+                value={new Date(
+                  shipping.estimatedDeliveryDate
+                ).toLocaleDateString()}
+                icon={<Clock size={16} />}
+              />
+            )}
+            {shipping.notes && (
+              <DetailItem
+                label="Additional Notes"
+                value={shipping.notes}
+              />
+            )}
+          </div>
+        </CardBody>
+      </Card>
+    );
+  }
+);
+
+ShippingDetailsSection.displayName = 'ShippingDetailsSection';
 
 export default function OrderPage() {
   const { user, accessToken } = useUser();
@@ -718,13 +901,7 @@ export default function OrderPage() {
                     startContent={
                       <CheckCircle size={16} aria-hidden />
                     }
-                    css={{
-                      dflex: 'center', // makes it a flex container, centering icon + text
-                      gap: '$2', // theme spacing between icon and text
-                      px: '$4', // horizontal padding
-                      py: '$1.5', // vertical padding
-                      fontWeight: '$semibold', // a bit bolder text
-                    }}
+                    className="flex items-center gap-2 px-4 py-1.5 font-semibold"
                   >
                     Completed
                   </Chip>
@@ -891,7 +1068,7 @@ export default function OrderPage() {
             <Tabs
               aria-label="Order Details"
               selectedKey={selected}
-              onSelectionChange={setSelected}
+              onSelectionChange={(key) => setSelected(key as string)}
               variant="underlined"
               size="lg"
               classNames={{
@@ -950,23 +1127,15 @@ export default function OrderPage() {
                             order?.buyer?.phone || 'Not provided'
                           }
                         />
-                        <DetailItem
-                          label="Shipping Address"
-                          value={
-                            order?.buyer?.address?.line1 ||
-                            'Unknown Address'
-                          }
-                        />
-                        {shippingData.trackingNumber && (
-                          <DetailItem
-                            label="Tracking Number"
-                            value={shippingData.trackingNumber}
-                            icon={<Truck size={16} />}
-                          />
-                        )}
                       </div>
                     </CardBody>
                   </Card>
+
+                  <BillingDetailsSection order={order} />
+
+                  {order?.orderType !== 'non-phygitals' && (
+                    <ShippingDetailsSection order={order} />
+                  )}
                 </Tab>
               )}
 
@@ -1010,6 +1179,12 @@ export default function OrderPage() {
                       </div>
                     </CardBody>
                   </Card>
+
+                  <BillingDetailsSection order={order} />
+
+                  {order?.orderType !== 'non-phygitals' && (
+                    <ShippingDetailsSection order={order} />
+                  )}
                 </Tab>
               )}
 
