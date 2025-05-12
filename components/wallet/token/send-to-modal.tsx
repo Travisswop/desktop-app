@@ -116,9 +116,17 @@ export default function SendToModal({
 
   const isValidAddress =
     searchQuery &&
-    ((['ETHEREUM', 'POLYGON', 'BASE'].includes(network) &&
+    ((['ETHEREUM', 'POLYGON', 'BASE', 'SEPOLIA'].includes(network) &&
       validateEthereumAddress(searchQuery)) ||
       (network === 'SOLANA' && validateSolanaAddress(searchQuery)));
+
+  console.log('Debug validation:', {
+    searchQuery,
+    network,
+    isEthereumNetwork: ['ETHEREUM', 'POLYGON', 'BASE'].includes(network),
+    isValidEthereum: validateEthereumAddress(searchQuery),
+    isValidAddress
+  });
 
   const {
     data: userData,
@@ -136,6 +144,13 @@ export default function SendToModal({
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setAddressError(false);
+
+    // Debug network information
+    console.log('Transaction network debug:', {
+      network,
+      selectedToken,
+      chain: selectedToken?.chain
+    });
 
     // Validate address is not empty or current wallet
     if (!searchQuery.trim()) {

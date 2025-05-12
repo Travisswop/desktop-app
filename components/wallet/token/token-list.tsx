@@ -146,6 +146,8 @@ const TokenList = ({
     );
   }, [loading, tokens, viewMode, onSelectToken]);
 
+  console.log("content", content  , 'tokens', tokens);
+
   return (
     <Card className="w-full border-none rounded-xl">
       <CardHeader>

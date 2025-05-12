@@ -151,7 +151,7 @@ const BalanceChart = ({
             // variant="black"
             // size="icon"
             // className={totalBalance === 0 ? "cursor-not-allowed" : ""}
-            disabled={totalTokensValue === 0}
+            // disabled={totalTokensValue === 0}
             onClick={onSelectAsset}
           >
             <IoIosSend color="black" size={18} /> Send

@@ -42,6 +42,8 @@ export default function AssetSelector({
         asset?.symbol?.toLowerCase().includes(search.toLowerCase())
     ) || [];
 
+  console.log("filteredAssets", filteredAssets, 'assets', assets );
+
   const filteredNfts =
     nfts?.filter(
       (nft, index, self) =>

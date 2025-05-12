@@ -269,6 +269,25 @@ export class TransactionService {
     hash: string;
     transaction: Transaction;
   }> {
+    console.log('EVM Transaction Debug:', {
+      network,
+      evmWallet,
+      sendFlow,
+      token: sendFlow.token,
+      tokenChain: sendFlow.token?.chain,
+    });
+
+    // Make sure we're explicitly on the right network
+    try {
+      // This ensures the wallet is on the correct chain before proceeding
+      if (network === 'SEPOLIA') {
+        console.log('Explicitly switching to Sepolia testnet (11155111)');
+        await evmWallet.switchChain(11155111); // Sepolia chain ID
+      }
+    } catch (error) {
+      console.error('Failed to switch chain:', error);
+    }
+
     const provider = await evmWallet.getEthereumProvider();
 
     if (!sendFlow.token?.address) {
@@ -277,6 +296,11 @@ export class TransactionService {
         to: sendFlow.recipient?.address,
         value: ethers.parseEther(sendFlow.amount),
       };
+
+      // Add chainId parameter explicitly for Sepolia 
+      if (network === 'SEPOLIA') {
+        Object.assign(tx, { chainId: 11155111 });
+      }
 
       const txHash = await provider.request({
         method: 'eth_sendTransaction',
@@ -422,8 +446,7 @@ export class TransactionService {
 
       if (Number(fromAccount.amount) < config.totalAmount) {
         throw new Error(
-          `Insufficient token balance: you have ${currentBalance}, tried to send ${
-            config.totalAmount / 10 ** config.tokenDecimals
+          `Insufficient token balance: you have ${currentBalance}, tried to send ${config.totalAmount / 10 ** config.tokenDecimals
           }`
         );
       }
@@ -440,7 +463,7 @@ export class TransactionService {
         const rentExemptMinimum = await connection.getMinimumBalanceForRentExemption(
           165 // Token account size (for SPL Token 2022 compatibility)
         );
-        
+
         tx.add(
           SystemProgram.transfer({
             fromPubkey: new PublicKey(solanaWallet.address),
@@ -448,7 +471,7 @@ export class TransactionService {
             lamports: rentExemptMinimum,
           })
         );
-        
+
         tx.add(
           createAssociatedTokenAccountInstruction(
             new PublicKey(solanaWallet.address),
@@ -535,14 +558,14 @@ export class TransactionService {
   static parseSendTransactionError(error: any): { message: string, logs: string[] } {
     let errorMessage = 'Transaction failed';
     let errorLogs: string[] = [];
-    
+
     if (error && error.name === 'SendTransactionError') {
       errorMessage = error.message || 'Transaction failed';
       if (typeof error.getLogs === 'function') {
         errorLogs = error.getLogs();
       }
     }
-    
+
     return { message: errorMessage, logs: errorLogs };
   }
 }

@@ -40,7 +40,7 @@ import Cookies from "js-cookie";
 import { createTransactionPayload } from "@/lib/utils/transactionUtils";
 
 // Default chains supported by the wallet
-const SUPPORTED_CHAINS: ChainType[] = ["ETHEREUM", "POLYGON", "BASE", "SOLANA"];
+const SUPPORTED_CHAINS: ChainType[] = ["ETHEREUM", "POLYGON", "BASE", "SOLANA", "SEPOLIA"];
 
 export default function WalletContent() {
   return <WalletContentInner />;
@@ -105,6 +105,8 @@ const WalletContentInner = () => {
     handleNFTNext,
     resetSendFlow,
   } = useSendFlow();
+
+
 
   // Update user profile data for transaction payload
   useEffect(() => {
@@ -191,6 +193,16 @@ const WalletContentInner = () => {
     evmWalletAddress,
     SUPPORTED_CHAINS
   );
+
+
+  const { tokens : sepoliaTokens, loading, error, refetch } = useMultiChainTokenData(
+    undefined, // Solana wallet (optional)
+    evmWalletAddress,
+    ['SEPOLIA'] // Add Sepolia here
+  );
+
+
+  console.log("sepoliaTokens", sepoliaTokens, 'tokens', tokens);
 
 
   const {
@@ -307,6 +319,12 @@ const WalletContentInner = () => {
       let hash = "";
       let transaction = null;
 
+      console.log("Transaction execution debug:", {
+        network: sendFlow.network,
+        tokenChain: sendFlow.token?.chain,
+        CHAIN_ID_mapping: CHAIN_ID
+      });
+
       const connection = new Connection(
         process.env.NEXT_PUBLIC_QUICKNODE_SOLANA_URL!,
         "confirmed"
@@ -335,6 +353,8 @@ const WalletContentInner = () => {
             connection
           );
         } else {
+          // Make sure we're on the right chain before sending
+          console.log("Switching chain to:", sendFlow.network, CHAIN_ID[sendFlow.network]);
           await evmWallet?.switchChain(CHAIN_ID[sendFlow.network]);
           hash = await TransactionService.handleNFTTransfer(
             evmWallet,
@@ -387,6 +407,10 @@ const WalletContentInner = () => {
           }
         } else {
           // EVM token transfer
+          // Make sure we're on the right chain before sending
+          console.log("Switching chain for token transfer to:", sendFlow.network, CHAIN_ID[sendFlow.network]);
+          await evmWallet?.switchChain(CHAIN_ID[sendFlow.network]);
+          
           const result = await TransactionService.handleEVMSend(
             evmWallet,
             sendFlow,

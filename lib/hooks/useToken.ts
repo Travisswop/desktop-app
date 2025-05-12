@@ -36,6 +36,8 @@ export const useMultiChainTokenData = (
     [evmChains]
   );
 
+  console.log('evmProviders', evmChains);
+
   // Define queries with proper error boundaries
   const queries = useQueries({
     queries: [
@@ -72,6 +74,9 @@ export const useMultiChainTokenData = (
             evmWalletAddress!
           );
           const provider = evmProviders[chain];
+
+
+          console.log('tokens from the use token hook', tokens);
 
           const results = await Promise.all(
             tokens.map(async (token: any) => {
@@ -122,28 +127,29 @@ export const useMultiChainTokenData = (
       // Solana Query
       ...(hasSolana
         ? [
-            {
-              queryKey: ['solanaTokens', solWalletAddress],
-              queryFn: async () => {
-                try {
-                  // Fixed: Added error handling
-                  return await SolanaService.getSplTokens(
-                    solWalletAddress!
-                  );
-                } catch (error) {
-                  console.error(
-                    'Error fetching Solana tokens:',
-                    error
-                  );
-                  return [];
-                }
-              },
-              enabled: !!solWalletAddress,
+          {
+            queryKey: ['solanaTokens', solWalletAddress],
+            queryFn: async () => {
+              try {
+                // Fixed: Added error handling
+                return await SolanaService.getSplTokens(
+                  solWalletAddress!
+                );
+              } catch (error) {
+                console.error(
+                  'Error fetching Solana tokens:',
+                  error
+                );
+                return [];
+              }
             },
-          ]
+            enabled: !!solWalletAddress,
+          },
+        ]
         : []),
     ],
   });
+  
 
   // Process results
   const processedData = useMemo(() => {
