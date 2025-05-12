@@ -1,99 +1,13 @@
 import {
   VersionedTransaction,
   Connection,
+  Keypair,
   PublicKey,
-  TransactionMessage,
-} from "@solana/web3.js";
-import toast from "react-hot-toast";
-// import {
-//   ASSOCIATED_TOKEN_PROGRAM_ID,
-//   TOKEN_PROGRAM_ID,
-//   getAssociatedTokenAddress,
-//   createAssociatedTokenAccountIdempotent
+} from '@solana/web3.js';
+import toast from 'react-hot-toast';
+import { getOrCreateFeeTokenAccount } from './tokenAccountUtils';
+import bs58 from 'bs58';
 
-// } from "@solana/spl-token";
-
-// Function to get or create the associated token address (ATA)
-// async function getOrCreateATA(
-//   mint: PublicKey,
-//   solanaAddress: string,
-//   adminFeeOwner: PublicKey,
-//   connection: Connection,
-//   wallet: any
-// ): Promise<PublicKey> {
-//   const owner = new PublicKey('FG4n7rVKzYyM9QGjUu6Mae8JGmQYJjsi6FJvmJHeM9HP');
-
-//   const ata = await Token.getAssociatedTokenAddress(
-//     mint,
-//     owner,
-//     false,
-//     TOKEN_PROGRAM_ID,
-//     ASSOCIATED_TOKEN_PROGRAM_ID,
-//   );
-//   console.log("ata : ", ata.toBase58());
-
-//   const accountInfo = await connection.getAccountInfo(ata);
-//   console.log("accountInfo : ", accountInfo);
-
-//   if (accountInfo !== null) {
-//     console.log(`ATA exists: ${ata.toBase58()}`);
-//     return ata;
-//   }
-
-//   return await toast.promise(
-//     (async () => {
-//       console.log(`Creating ATA for ${mint.toBase58()}...`);
-
-//       const walletPublicKeyString = wallet.wallets[0]?.address;
-//       const walletPublicKey = new PublicKey(walletPublicKeyString);
-//       if (!walletPublicKey) {
-//         throw new Error("Wallet public key not found");
-//       }
-
-//       const createIx = createAssociatedTokenAccountIdempotent(
-//         connection,
-//         walletPublicKey,
-//         mint,
-//         owner,
-//         ata,
-//         TOKEN_PROGRAM_ID,
-//         ASSOCIATED_TOKEN_PROGRAM_ID,
-//       );
-
-//       const blockhashInfo = await connection.getLatestBlockhash();
-//       const messageV0 = new TransactionMessage({
-//         payerKey: walletPublicKey,
-//         recentBlockhash: blockhashInfo.blockhash,
-//         instructions: [createIx],
-//       }).compileToV0Message();
-
-//       const transaction = new VersionedTransaction(messageV0);
-
-//       const signedTx = await wallet.wallets[0]?.signTransaction(transaction);
-//       if (!signedTx) {
-//         throw new Error("Failed to sign transaction");
-//       }
-
-//       const signature = await connection.sendRawTransaction(signedTx.serialize(), {
-//         maxRetries: 3,
-//         skipPreflight: true,
-//       });
-
-//       await connection.confirmTransaction(signature, "finalized");
-//       console.log(`Successfully created ATA: ${ata.toBase58()}`);
-//       return ata;
-//     })(),
-//     {
-//       loading: "Creating associated token account...",
-//       success: "ATA created successfully",
-//       error: "Failed to create ATA",
-//     }
-//   );
-// }
-
-
-
-// Main swap handler
 export async function handleSwap({
   quote,
   solanaAddress,
@@ -114,74 +28,185 @@ export async function handleSwap({
 
   setSwapLoading(true);
   try {
-    // const inputMint = new PublicKey(quote.inputMint);
-    // const outputMint = new PublicKey(quote.outputMint);
-    // const feeAccount = await getOrCreateATA(
-    //   outputMint,
-    //   solanaAddress,
-    //   adminFeeOwner,
-    //   connection,
-    //   wallet
-    // );
+    // Validate the quote object
+    if (!quote.inputMint) {
+      throw new Error('Quote is missing inputMint');
+    }
 
+    // Get the input mint from the quote
+    console.log('Input mint from quote:', quote.inputMint);
+    let inputMint: PublicKey;
 
-    // console.log("feeAccount from handleSwap: ", feeAccount);
+    try {
+      inputMint = new PublicKey(quote.inputMint);
+      console.log(
+        'Converted input mint to PublicKey:',
+        inputMint.toString()
+      );
+    } catch (err) {
+      console.error('Invalid input mint format:', err);
+      throw new Error(
+        `Failed to create PublicKey from input mint: ${quote.inputMint}`
+      );
+    }
 
-    const res = await fetch("https://lite-api.jup.ag/swap/v1/swap", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        quoteResponse: quote,
-        userPublicKey: solanaAddress,
-        // feeAccount: feeAccount.toBase58(),
-        wrapUnwrapSOL: true,
-        dynamicComputeUnitLimit: true,
-        prioritizationFeeLamports: "auto",
-      }),
+    let feeAccount: PublicKey | undefined;
+
+    try {
+      // Get private key from env variable for creating token accounts if needed
+      const feePayerPrivateKey =
+        process.env.NEXT_PUBLIC_FEE_PAYER_PRIVATE_KEY;
+
+      if (!feePayerPrivateKey) {
+        console.warn(
+          'Fee payer private key not found in environment variables'
+        );
+        console.log(
+          'Will continue without creating fee accounts if needed'
+        );
+      } else {
+        try {
+          // Create a keypair from the private key
+          const feePayerKeypair = Keypair.fromSecretKey(
+            bs58.decode(feePayerPrivateKey)
+          );
+
+          // Get or create the fee token account for the input mint
+          feeAccount = await getOrCreateFeeTokenAccount(
+            connection,
+            inputMint,
+            feePayerKeypair
+          );
+
+          console.log('Using fee account:', feeAccount.toString());
+        } catch (keyError) {
+          console.error(
+            'Error creating keypair from private key:',
+            keyError
+          );
+          console.log('Will continue swap without fee collection');
+        }
+      }
+    } catch (feeAccountError) {
+      console.error('Error setting up fee account:', feeAccountError);
+      console.log('Will continue swap without fee collection');
+    }
+
+    // Prepare the swap request body
+    const swapRequestBody: any = {
+      quoteResponse: quote,
+      userPublicKey: solanaAddress,
+      wrapUnwrapSOL: true,
+      dynamicComputeUnitLimit: true,
+      prioritizationFeeLamports: 'auto',
+    };
+
+    // Add fee account if available
+    if (feeAccount) {
+      swapRequestBody.feeAccount = feeAccount.toString();
+      console.log(
+        'Fee collection enabled with account:',
+        feeAccount.toString()
+      );
+    } else {
+      console.log(
+        'Fee collection disabled - continuing without fees'
+      );
+    }
+
+    // Log the swap request
+    console.log(
+      'Swap request body:',
+      JSON.stringify(swapRequestBody, null, 2)
+    );
+
+    const res = await fetch('https://lite-api.jup.ag/swap/v1/swap', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(swapRequestBody),
     });
+
+    if (!res.ok) {
+      const errorText = await res.text();
+      throw new Error(`Swap API error (${res.status}): ${errorText}`);
+    }
 
     const swapResponse = await res.json();
+
+    if (!swapResponse.swapTransaction) {
+      throw new Error(
+        `Failed to create swap transaction: ${JSON.stringify(
+          swapResponse
+        )}`
+      );
+    }
+
     const txBase64 = swapResponse.swapTransaction;
-    const txBuffer = Buffer.from(txBase64, "base64");
+    const txBuffer = Buffer.from(txBase64, 'base64');
     const transaction = VersionedTransaction.deserialize(txBuffer);
 
-    const signed = await wallet.wallets[0]?.signTransaction!(transaction);
+    const signed = await wallet.wallets[0]?.signTransaction!(
+      transaction
+    );
     const serializedTx = signed.serialize();
 
-    const signature = await connection.sendRawTransaction(serializedTx, {
-      maxRetries: 3,
-      skipPreflight: true,
-    });
+    const signature = await connection.sendRawTransaction(
+      serializedTx,
+      {
+        maxRetries: 3,
+        skipPreflight: true,
+      }
+    );
 
-    const loadingToastId = toast.loading("Confirming transaction...");
+    console.log('Signature:', signature);
+    // Create a loading toast with an ID we can reference later
+    const loadingToastId = toast.loading('Confirming transaction...');
+
     const confirmation = await connection.confirmTransaction(
       signature,
-      "finalized"
+      'finalized'
     );
     toast.dismiss(loadingToastId);
 
     if (confirmation.value.err) {
       throw new Error(
-        `Transaction failed: ${JSON.stringify(confirmation.value.err)}`
+        `Transaction failed: ${JSON.stringify(
+          confirmation.value.err
+        )}`
       );
     }
 
-    toast.success("Swap completed successfully!");
-    onSuccess?.(signature);
+    console.log(`✅ Success: https://solscan.io/tx/${signature}`);
+
+    // Show success toast
+    toast.success('Swap completed successfully!');
+
+    // Call onSuccess callback with the signature
+    if (onSuccess) {
+      onSuccess(signature);
+    }
 
     return signature;
   } catch (err: any) {
-    console.error("Swap Failed:", err);
+    console.error('Swap Failed:', err);
+
+    // Dismiss any loading toasts that might be active
     toast.dismiss();
 
-    if (err.message && err.message.includes("Custom")) {
-      toast.error("Swap failed due to price movement. Try increasing slippage tolerance.");
-    } else if (err.message && err.message.includes("Blockhash")) {
-      toast.error("Transaction expired. Please try again.");
-    } else if (err.message && err.message.includes("insufficient funds")) {
-      toast.error("Insufficient funds to complete this transaction.");
+    // Show appropriate error toast based on error type
+    if (err.message && err.message.includes('Custom')) {
+      toast.error(
+        'Swap failed due to price movement. Try increasing slippage tolerance.'
+      );
+    } else if (err.message && err.message.includes('Blockhash')) {
+      toast.error('Transaction expired. Please try again.');
+    } else if (
+      err.message &&
+      err.message.includes('insufficient funds')
+    ) {
+      toast.error('Insufficient funds to complete this transaction.');
     } else {
-      toast.error(err.message || "Swap failed. Please try again.");
+      toast.error(err.message || 'Swap failed. Please try again.');
     }
 
     return null;
