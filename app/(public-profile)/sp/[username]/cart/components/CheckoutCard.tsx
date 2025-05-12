@@ -340,21 +340,23 @@ const CheckoutCard: React.FC<CheckoutCardProps> = ({
             {errorMessage}
           </div>
         )}
-        <Button
-          onClick={handleWalletPayment}
-          disabled={!customerInfo.email || isWalletLoading}
-          type="button"
-          className="bg-black text-white py-2 w-full font-medium hover:bg-gray-800 transition-colors"
-        >
-          {isWalletLoading ? (
-            <>
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              Processing...
-            </>
-          ) : (
-            'Pay With Wallet'
-          )}
-        </Button>
+        {user && (
+          <Button
+            onClick={handleWalletPayment}
+            disabled={!customerInfo.email || isWalletLoading}
+            type="button"
+            className="bg-black text-white py-2 w-full font-medium hover:bg-gray-800 transition-colors"
+          >
+            {isWalletLoading ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Processing...
+              </>
+            ) : (
+              'Pay With Wallet'
+            )}
+          </Button>
+        )}
         <Button
           onClick={handleCardPayment}
           disabled={!customerInfo.email || isCardLoading}

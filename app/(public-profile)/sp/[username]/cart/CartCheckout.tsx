@@ -65,8 +65,6 @@ const CartCheckout = () => {
   const { user, accessToken } = useUser();
   const { solanaWallets } = useSolanaWalletContext();
   const { state, dispatch, subtotal, sellerId } = useCart();
-  console.log('🚀 ~ CartCheckout ~ state:', state);
-  console.log('🚀 ~ CartCheckout ~ state.items:', state?.items);
   const params = useParams();
   const name = params.username as string;
   const orderIdRef = React.useRef<string | null>(null);
