@@ -62,6 +62,9 @@ export default function Registration({
   const { isOpen, onOpen, onOpenChange } = useDisclosure();
   const { authenticated, ready, user: PrivyUser } = usePrivy();
   console.log('privyuser', PrivyUser);
+  console.log('🚀 ~ PrivyUser:', PrivyUser);
+  console.log('🚀 ~ ready:', ready);
+  console.log('🚀 ~ authenticated:', authenticated);
   console.log('walletData', walletData);
 
   useEffect(() => {
