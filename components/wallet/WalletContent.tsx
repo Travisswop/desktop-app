@@ -511,7 +511,7 @@ const WalletContentInner = () => {
             />
           )}
         </div>
-        <MessageList />
+        <MessageList tokens={tokens} />
       </div>
 
       {/* All Modals */}

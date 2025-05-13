@@ -21,6 +21,8 @@ import { useXmtpContext } from '@/lib/context/XmtpContext';
 import ChatBox from '@/components/wallet/chat/chat-box';
 import { useDebouncedCallback } from 'use-debounce';
 import { Skeleton } from '@/components/ui/skeleton';
+import { useSolanaWallets } from '@privy-io/react-auth';
+import { useWallets } from '@privy-io/react-auth';
 
 interface MessageProps {
   bio: string;
@@ -86,8 +88,6 @@ const getPeerData = async (peerAddresses: string[]) => {
   }
 };
 
-
-
 const ChatPageContent = () => {
   const { client: xmtpClient } = useXmtpContext();
   const { user: PrivyUser } = usePrivy();
@@ -117,8 +117,14 @@ const ChatPageContent = () => {
   const [recipientAddress, setRecipientAddress] = useState<
     string | null
   >(null);
+  const [tokenData, setTokenData] = useState<any>(null);
 
-  console.log('peerData from chat page', peerData);
+  console.log('walletData with Address', walletData);
+
+  const { wallets: solanaWallets, } = useSolanaWallets();
+  const { wallets: ethereumWallets, } = useWallets();
+
+  console.log('here is the solana wallet', solanaWallets, 'and here is the ethereum wallet', ethereumWallets);
 
   const fetchConversations = useCallback(async () => {
     if (!xmtpClient) return;
@@ -190,9 +196,6 @@ const ChatPageContent = () => {
       setIsLoadingPeerData(false);
     }
   }, [peerAddressList]);
-
-  
-    
 
   const debouncedFetchEnsData = useDebouncedCallback(
     async (searchTerm: string) => {
@@ -274,6 +277,21 @@ const ChatPageContent = () => {
   // Handle recipient from URL params
   useEffect(() => {
     const recipient = searchParams.get('recipient');
+
+    // Get token data from sessionStorage instead of URL
+    if (typeof window !== 'undefined') {
+      try {
+        const storedTokenData = sessionStorage.getItem('chatTokenData');
+        if (storedTokenData) {
+          const parsedTokenData = JSON.parse(storedTokenData);
+          console.log('Retrieved token data from sessionStorage:', parsedTokenData);
+          setTokenData(parsedTokenData);
+        }
+      } catch (error) {
+        console.error('Error retrieving token data from sessionStorage:', error);
+      }
+    }
+
     if (recipient) {
       setRecipientAddress(recipient);
       startConversation(recipient);
@@ -401,6 +419,9 @@ const ChatPageContent = () => {
                     client={xmtpClient}
                     conversation={conversation}
                     messageHistory={messageHistory}
+                    tokenData={tokenData}
+                    recipientWalletData={walletData || []}
+                    recipientAddress={recipientAddress || ''}
                   />
                 )}
               </div>
@@ -445,6 +466,7 @@ const ChatPageContent = () => {
                 <MessageList
                   {...searchResult}
                   handleWalletClick={handleWalletClick}
+                  recipientAddress={recipientAddress}
                 />
               </div>
             )}
@@ -469,6 +491,7 @@ const ChatPageContent = () => {
                   key={chat.ethAddress}
                   {...chat}
                   handleWalletClick={handleWalletClick}
+                  recipientAddress={recipientAddress}
                 />
               ))
             )}
@@ -493,12 +516,14 @@ const MessageList = ({
   profilePic,
   ethAddress,
   handleWalletClick,
+  recipientAddress,
 }: {
   bio: string;
   name: string;
   profilePic: string;
   ethAddress: string;
   handleWalletClick: (ethAddress: string) => Promise<void>;
+  recipientAddress: string | null;
 }) => {
   return (
     <div
