@@ -86,6 +86,8 @@ const getPeerData = async (peerAddresses: string[]) => {
   }
 };
 
+
+
 const ChatPageContent = () => {
   const { client: xmtpClient } = useXmtpContext();
   const { user: PrivyUser } = usePrivy();
@@ -115,6 +117,8 @@ const ChatPageContent = () => {
   const [recipientAddress, setRecipientAddress] = useState<
     string | null
   >(null);
+
+  console.log('peerData from chat page', peerData);
 
   const fetchConversations = useCallback(async () => {
     if (!xmtpClient) return;
@@ -186,6 +190,9 @@ const ChatPageContent = () => {
       setIsLoadingPeerData(false);
     }
   }, [peerAddressList]);
+
+  
+    
 
   const debouncedFetchEnsData = useDebouncedCallback(
     async (searchTerm: string) => {

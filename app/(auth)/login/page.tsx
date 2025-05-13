@@ -165,7 +165,7 @@ const Login: React.FC = () => {
         if (!response.ok) {
           console.log("hit error");
 
-          // await createWallet();
+          await createWallet();
           router.push("/onboard");
           return;
         }
