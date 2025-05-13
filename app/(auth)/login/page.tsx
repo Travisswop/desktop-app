@@ -185,11 +185,13 @@ const Login: React.FC = () => {
   });
 
   // Use the specific hook for Solana wallets
-  const { wallets: solanaWallets } = useSolanaWallets();
+  const { wallets: solanaWallets, createWallet } = useSolanaWallets();
 
   // Track createWallet function separately
   const createSolanaWallet = useCallback(async () => {
     try {
+      await createWallet();
+      console.log('solana', solanaWallets);
       if (solanaWallets && solanaWallets.length > 0) {
         // Already has a Solana wallet
         setWalletsCreated((prev) => ({ ...prev, solana: true }));
@@ -312,6 +314,7 @@ const Login: React.FC = () => {
 
   const handleUserVerification = useCallback(
     async (user: any) => {
+      console.log('🚀 ~ handleUserVerification ~ user:');
       // Early exit if already processing to prevent multiple calls
       if (loginInitiated.current || isLoading || isRedirecting) {
         console.log(
@@ -452,13 +455,6 @@ const Login: React.FC = () => {
       setWalletData(processedWalletData);
     }
   }, [authenticated, ready, user, processWalletData]);
-
-  useEffect(() => {
-    const privyToken = document.cookie.includes('privy-token');
-    console.log('🚀 ~ useEffect ~ privyToken:', privyToken);
-    const privyIdToken = document.cookie.includes('privy-id-token');
-    console.log('🚀 ~ useEffect ~ privyIdToken:', privyIdToken);
-  }, [authenticated, logout]);
 
   const isValidEmail = (email: string | null): string => {
     if (!email) {

@@ -11,7 +11,7 @@ import {
 } from '@/components/ui/card';
 import { OnboardingData } from '@/lib/types';
 import { useWallets } from '@privy-io/react-auth';
-import { useSolanaWallets } from '@privy-io/react-auth';
+import { useSolanaWallets } from '@privy-io/react-auth/solana';
 import { useToast } from '@/hooks/use-toast';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
@@ -38,7 +38,7 @@ export default function CreateSwopID({
   userData,
 }: CreateSwopIDProps) {
   const { wallets } = useWallets();
-  const { wallets: solanaWallets, createWallet } = useSolanaWallets();
+  const { wallets: solanaWallets } = useSolanaWallets();
   const { toast } = useToast();
   const router = useRouter();
 
@@ -51,48 +51,6 @@ export default function CreateSwopID({
       type: null,
       message: '',
     });
-
-  useEffect(() => {
-    if (!solanaWallets || solanaWallets.length === 0) {
-      const createSolanaWallet = async () => {
-        try {
-          // Check if user already has an embedded wallet first
-          if (
-            wallets &&
-            wallets.some(
-              (wallet: any) =>
-                wallet.chainType === 'solana' &&
-                (wallet.walletClientType === 'privy' ||
-                  wallet.connectorType === 'embedded')
-            )
-          ) {
-            console.log(
-              'User already has a Solana wallet, skipping creation'
-            );
-            return;
-          }
-
-          // Create the wallet and handle any errors
-          await createWallet().catch((error) => {
-            // Don't treat 'embedded_wallet_already_exists' as an actual error
-            if (error === 'embedded_wallet_already_exists') {
-              console.log('Solana wallet already exists');
-            } else {
-              console.error('Error creating Solana wallet:', error);
-            }
-          });
-          console.log('Solana wallet creation completed');
-        } catch (error) {
-          console.error(
-            'Error in Solana wallet creation flow:',
-            error
-          );
-        }
-      };
-      createSolanaWallet();
-    } else {
-    }
-  }, [solanaWallets, createWallet, wallets]);
 
   const validateSwopID = useCallback((id: string): boolean => {
     return SWOP_ID_REGEX.test(id);
@@ -149,13 +107,11 @@ export default function CreateSwopID({
   const createSwopID = useCallback(async () => {
     try {
       // Find an appropriate Ethereum wallet
-      const ethereumWallet =
-        wallets.find(
-          (wallet: any) =>
-            wallet.chainType === 'ethereum' &&
-            (wallet.walletClientType === 'privy' ||
-              wallet.connectorType === 'embedded')
-        ) || wallets[0];
+      const ethereumWallet = wallets.find(
+        (wallet: any) =>
+          wallet.type === 'ethereum' &&
+          wallet.walletClientType === 'privy'
+      );
 
       if (!ethereumWallet) {
         throw new Error('No Ethereum wallet available');
