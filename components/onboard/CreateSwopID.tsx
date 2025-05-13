@@ -11,7 +11,7 @@ import {
 } from '@/components/ui/card';
 import { OnboardingData } from '@/lib/types';
 import { useWallets } from '@privy-io/react-auth';
-import { useSolanaWalletContext } from '@/lib/context/SolanaWalletContext';
+import { useSolanaWallets } from '@privy-io/react-auth';
 import { useToast } from '@/hooks/use-toast';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
@@ -38,8 +38,7 @@ export default function CreateSwopID({
   userData,
 }: CreateSwopIDProps) {
   const { wallets } = useWallets();
-  console.log('🚀 ~ wallets:', wallets);
-  const { createWallet, solanaWallets } = useSolanaWalletContext();
+  const { wallets: solanaWallets, createWallet } = useSolanaWallets();
   const { toast } = useToast();
   const router = useRouter();
 
@@ -57,16 +56,43 @@ export default function CreateSwopID({
     if (!solanaWallets || solanaWallets.length === 0) {
       const createSolanaWallet = async () => {
         try {
-          await createWallet();
+          // Check if user already has an embedded wallet first
+          if (
+            wallets &&
+            wallets.some(
+              (wallet: any) =>
+                wallet.chainType === 'solana' &&
+                (wallet.walletClientType === 'privy' ||
+                  wallet.connectorType === 'embedded')
+            )
+          ) {
+            console.log(
+              'User already has a Solana wallet, skipping creation'
+            );
+            return;
+          }
+
+          // Create the wallet and handle any errors
+          await createWallet().catch((error) => {
+            // Don't treat 'embedded_wallet_already_exists' as an actual error
+            if (error === 'embedded_wallet_already_exists') {
+              console.log('Solana wallet already exists');
+            } else {
+              console.error('Error creating Solana wallet:', error);
+            }
+          });
+          console.log('Solana wallet creation completed');
         } catch (error) {
-          console.error('Error creating Solana wallet:', error);
+          console.error(
+            'Error in Solana wallet creation flow:',
+            error
+          );
         }
       };
       createSolanaWallet();
+    } else {
     }
-  }, [solanaWallets, createWallet]);
-
-  console.log('solanawallet', solanaWallets);
+  }, [solanaWallets, createWallet, wallets]);
 
   const validateSwopID = useCallback((id: string): boolean => {
     return SWOP_ID_REGEX.test(id);
@@ -120,87 +146,112 @@ export default function CreateSwopID({
     return () => clearTimeout(debounceTimeout);
   }, [checkSwopIDAvailability]);
 
-  const createSwopID = useCallback(
-    async (wallet: any) => {
-      try {
-        const provider = await wallet.getEthereumProvider();
-        const address = wallet.address;
-        const ens = `${swopID}.swop.id`;
-        const message = `Set ${ens} to ${address}`;
+  const createSwopID = useCallback(async () => {
+    try {
+      // Find an appropriate Ethereum wallet
+      const ethereumWallet =
+        wallets.find(
+          (wallet: any) =>
+            wallet.chainType === 'ethereum' &&
+            (wallet.walletClientType === 'privy' ||
+              wallet.connectorType === 'embedded')
+        ) || wallets[0];
 
-        const solanaWallet = solanaWallets?.find(
-          (w: any) => w.walletClientType === 'privy'
+      if (!ethereumWallet) {
+        throw new Error('No Ethereum wallet available');
+      }
+
+      // Get the first available Solana wallet
+      const solanaWallet = solanaWallets?.[0];
+      if (!solanaWallet) {
+        console.warn(
+          'No Solana wallet available, proceeding with Ethereum only'
         );
+      }
 
-        const signature = await provider.request({
-          method: 'personal_sign',
-          params: [message, address],
-        });
+      const provider = await ethereumWallet.getEthereumProvider();
+      const address = ethereumWallet.address;
+      const ens = `${swopID}.swop.id`;
+      const message = `Set ${ens} to ${address}`;
 
-        const requestBody = {
-          name: ens,
-          owner: address,
-          addresses: { 60: address, 501: solanaWallet?.address },
-          texts: {
-            avatar: userData.userInfo?.avatar || '',
-          },
-          signature: {
-            hash: signature,
-            message: message,
-          },
-        };
+      console.log('Requesting signature for ENS registration');
+      const signature = await provider.request({
+        method: 'personal_sign',
+        params: [message, address],
+      });
 
-        const response = await fetch(`${SWOP_ID_GATEWAY}/set`, {
+      console.log('Signature obtained, preparing registration data');
+      const requestBody = {
+        name: ens,
+        owner: address,
+        addresses: {
+          60: address,
+          // Only include Solana if wallet exists
+          ...(solanaWallet?.address
+            ? { 501: solanaWallet.address }
+            : {}),
+        },
+        texts: {
+          avatar: userData.userInfo?.avatar || '',
+        },
+        signature: {
+          hash: signature,
+          message: message,
+        },
+      };
+
+      console.log('Registering SwopID with gateway');
+      const response = await fetch(`${SWOP_ID_GATEWAY}/set`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(requestBody),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.text();
+        throw new Error(`Failed to create Swop ID: ${errorData}`);
+      }
+
+      console.log('SwopID created, updating user profile');
+      await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL}/api/v2/desktop/user/addSocial`,
+        {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
           },
-          body: JSON.stringify(requestBody),
-        });
-
-        if (!response.ok) {
-          throw new Error('Failed to create Swop ID');
+          body: JSON.stringify({
+            contentType: 'ensDomain',
+            micrositeId: userData.userInfo?.primaryMicrosite,
+            domain: ens,
+          }),
         }
+      );
 
-        await fetch(
-          `${process.env.NEXT_PUBLIC_API_URL}/api/v2/desktop/user/addSocial`,
-          {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              contentType: 'ensDomain',
-              micrositeId: userData.userInfo?.primaryMicrosite,
-              domain: ens,
-            }),
-          }
-        );
+      toast({
+        title: 'Success',
+        description: 'SwopID created successfully!',
+      });
 
-        toast({
-          title: 'Success',
-          description: 'SwopID created successfully!',
-        });
-
-        setTimeout(() => {
-          setIsSubmitting(false);
-          router.push('/');
-        }, 2000);
-      } catch (error) {
-        console.error('Error:', error);
-        toast({
-          variant: 'destructive',
-          title: 'Error',
-          description:
-            error instanceof Error
-              ? error.message
-              : 'Failed to create SwopID',
-        });
+      setTimeout(() => {
         setIsSubmitting(false);
-      }
-    },
-    [swopID, userData, toast, router]
-  );
+        router.push('/');
+      }, 2000);
+    } catch (error) {
+      console.error('Error creating SwopID:', error);
+      toast({
+        variant: 'destructive',
+        title: 'Error',
+        description:
+          error instanceof Error
+            ? error.message
+            : 'Failed to create SwopID',
+      });
+      setIsSubmitting(false);
+    }
+  }, [swopID, userData, toast, router, solanaWallets, wallets]);
 
   const handleSubmit = useCallback(
     async (e: React.FormEvent) => {
@@ -216,25 +267,7 @@ export default function CreateSwopID({
 
       setIsSubmitting(true);
 
-      const wallet =
-        wallets.find(
-          (wallet) =>
-            wallet.walletClientType === 'privy' &&
-            wallet.connectorType === 'embedded'
-        ) || wallets[0];
-
-      if (!wallet) {
-        toast({
-          variant: 'destructive',
-          title: 'Error',
-          description:
-            'No wallet connected. Please connect a wallet first.',
-        });
-        setIsSubmitting(false);
-        return;
-      }
-
-      await createSwopID(wallet);
+      await createSwopID();
     },
     [
       swopID,
