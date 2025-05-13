@@ -16,6 +16,8 @@ export async function createPaymentIntent(
       },
     });
 
+    console.log('paymentIntent', paymentIntent);
+
     if (!paymentIntent.client_secret) {
       throw new Error(
         'Failed to create payment intent: No client secret returned'

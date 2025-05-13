@@ -41,7 +41,6 @@ export interface PrivyUser {
   id: string;
   email: string;
   name?: string;
-
   wallet?: WalletInfo;
 }
 

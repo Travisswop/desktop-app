@@ -273,7 +273,6 @@ class AuthMiddleware {
 
       const token = req.cookies.get('privy-token')?.value;
       const isAuthRoute = this.isAuthRoute(pathname);
-
       // Handle authenticated users
       if (token) {
         let isValidToken = false;
@@ -294,7 +293,6 @@ class AuthMiddleware {
             userId = cachedResult.userId || '';
           } else {
             // Verify token with Privy
-            console.log('userId in cached', userId);
 
             const privyServer = new PrivyClient(
               process.env.NEXT_PUBLIC_PRIVY_APP_ID!,
@@ -395,5 +393,6 @@ export const config = {
     '/content/:path*',
     '/login',
     '/onboard',
+    '/guest-order/:path*',
   ],
 };
