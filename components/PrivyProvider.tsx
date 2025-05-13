@@ -21,7 +21,12 @@ export default function PrivyProvider({
           walletChainType: 'ethereum-and-solana',
         },
         embeddedWallets: {
-          createOnLogin: 'users-without-wallets',
+          ethereum: {
+            createOnLogin: 'users-without-wallets',
+          },
+          solana: {
+            createOnLogin: 'users-without-wallets',
+          },
         },
       }}
     >

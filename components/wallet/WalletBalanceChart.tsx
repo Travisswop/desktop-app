@@ -160,10 +160,7 @@ const BalanceChart = ({
           <WalletChartButton onClick={() => setShowPopup(!showPopup)}>
             <Wallet size={16} /> Receive
           </WalletChartButton>
-          {/* <WalletChartButton onClick={() => setOpenSwapModal(true)}>
-            <ArrowLeftRight size={16} /> Swap
-          </WalletChartButton> */}
-          <WalletChartButton>
+          <WalletChartButton onClick={() => setOpenSwapModal(true)}>
             <ArrowLeftRight size={16} /> Swap
           </WalletChartButton>
 
