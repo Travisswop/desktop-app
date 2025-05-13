@@ -22,6 +22,7 @@ import DeleteFeedModal from "./DeleteFeedModal";
 import isUrl from "@/lib/isUrl";
 import RedeemClaimModal from "../modal/RedeemClaim";
 import { useRouter } from "next/navigation";
+import IndividualFeedContent from "./IndividualFeedContent";
 
 dayjs.extend(relativeTime);
 
@@ -210,6 +211,8 @@ const Feed = ({
 
   const router = useRouter();
 
+  console.log("feedData", feedData);
+
   return (
     <div className="w-full flex gap-10">
       <div className="w-full flex flex-col gap-4">
@@ -268,19 +271,49 @@ const Feed = ({
                     </p>
                   </button>
                   {/* Render Post Content */}
-                  {feed.postType === "post" && feed.content.title && (
-                    <button
-                      onClick={() => router.push(`/feed/${feed._id}`)}
-                      className="w-full text-start"
-                    >
-                      {feed.content.title
-                        .split("\n")
-                        .map((line: string, index: number) => (
-                          <p className="break-text" key={index}>
-                            {line}
-                          </p>
-                        ))}
-                    </button>
+                  {(feed.postType === "post" || feed.postType === "repost") &&
+                    feed.content.title && (
+                      <button
+                        onClick={() => router.push(`/feed/${feed._id}`)}
+                        className="w-full text-start"
+                      >
+                        {feed.content.title
+                          .split("\n")
+                          .map((line: string, index: number) => (
+                            <p className="break-text" key={index}>
+                              {line}
+                            </p>
+                          ))}
+                      </button>
+                    )}
+
+                  {feed.postType === "repost" && feed.repostedPostDetails ? (
+                    <IndividualFeedContent feed={feed} />
+                  ) : (
+                    feed.postType === "repost" &&
+                    !feed.repostedPostDetails && (
+                      <div className="p-4 bg-blue-50 rounded-lg border border-blue-100 text-blue-800 text-sm mt-1">
+                        <div className="flex items-start">
+                          <svg
+                            className="w-4 h-4 mr-2 mt-0.5 flex-shrink-0"
+                            fill="currentColor"
+                            viewBox="0 0 20 20"
+                          >
+                            <path
+                              fillRule="evenodd"
+                              d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2h-1V9z"
+                              clipRule="evenodd"
+                            />
+                          </svg>
+                          <div>
+                            <p className="font-medium">Content Removed</p>
+                            <p className="mt-1 text-blue-700">
+                              The original poster has deleted this content
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    )
                   )}
                   {/* Render Redeem Content */}
                   {feed.postType === "redeem" && (
@@ -405,7 +438,7 @@ const Feed = ({
                 commentCount={feed.commentCount}
                 repostCount={feed.repostCount}
                 viewsCount={feed.viewsCount}
-                // accessToken={accessToken}
+                setIsPosting={setIsPosting}
               />
             </div>
           </div>
