@@ -62,6 +62,9 @@ export default function Registration({
   const { isOpen, onOpen, onOpenChange } = useDisclosure();
   const { authenticated, ready, user: PrivyUser } = usePrivy();
   console.log('privyuser', PrivyUser);
+  console.log('🚀 ~ PrivyUser:', PrivyUser);
+  console.log('🚀 ~ ready:', ready);
+  console.log('🚀 ~ authenticated:', authenticated);
   console.log('walletData', walletData);
 
   useEffect(() => {
@@ -157,8 +160,8 @@ export default function Registration({
       const solanaWallet = walletData.find(
         (wallet) => !wallet?.isEVM
       );
-      // console.log("ethereumWallet", ethereumWallet);
-      // console.log("solanaWallet", solanaWallet);
+      console.log('ethereumWallet', ethereumWallet);
+      console.log('solanaWallet', solanaWallet);
 
       const formatData = {
         name,
@@ -171,9 +174,9 @@ export default function Registration({
         apt: apartment || '',
         countryFlag: 'US',
         countryCode: 'US',
-        // privyId: PrivyUser?.id,
-        // ethereumWallet: ethereumWallet && ethereumWallet.address, // Ethereum Wallet Address
-        // solanaWallet: solanaWallet && solanaWallet.address, // Solana Wallet Address
+        privyId: PrivyUser?.id,
+        ethereumWallet: ethereumWallet && ethereumWallet.address, // Ethereum Wallet Address
+        solanaWallet: solanaWallet && solanaWallet.address, // Solana Wallet Address
       };
 
       // Create user and smartsite

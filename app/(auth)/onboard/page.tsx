@@ -4,8 +4,21 @@ import React, { useState } from 'react';
 import Registration from '@/components/onboard/Registration';
 import SmartSiteInformation from '@/components/onboard/SmartSiteInformation';
 import CreateSwopID from '@/components/onboard/CreateSwopID';
-import { OnboardingData, PrivyUser } from '@/lib/types';
+import { OnboardingData, PrivyUser, WalletInfo } from '@/lib/types';
 import { usePrivy } from '@privy-io/react-auth';
+
+// Helper function to safely extract wallet data
+const extractWalletInfo = (
+  userWallet: any
+): WalletInfo | undefined => {
+  if (!userWallet) return undefined;
+
+  return {
+    address: userWallet.address || '',
+    chainId: String(userWallet.chainId || ''),
+    chainType: userWallet.chainType || '',
+  };
+};
 
 const Onboard: React.FC = () => {
   const { user } = usePrivy();
@@ -35,13 +48,7 @@ const Onboard: React.FC = () => {
       ...user,
       name: user?.google?.name || '',
       email: email || '',
-      wallet: user.wallet
-        ? {
-            address: user.wallet.address,
-            chainId: user.wallet.chainId,
-            chainType: user.wallet.chainType,
-          }
-        : undefined,
+      wallet: extractWalletInfo(user.wallet),
     };
 
     return (
