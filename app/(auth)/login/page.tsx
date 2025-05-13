@@ -165,24 +165,7 @@ const Login: React.FC = () => {
     []
   );
 
-  const { createWallet: createEthereumWallet } = useCreateWallet({
-    onSuccess: (params: any) => {
-      console.log('Created Ethereum wallet ', params.wallet);
-      setWalletsCreated((prev) => ({ ...prev, ethereum: true }));
-    },
-    onError: (error: any) => {
-      // Don't log 'embedded_wallet_already_exists' as an error since it's expected
-      // in cases where wallet creation is attempted on a wallet that already exists
-      if (error !== 'embedded_wallet_already_exists') {
-        console.error(
-          'Failed to create Ethereum wallet with error ',
-          error
-        );
-      } else {
-        setWalletsCreated((prev) => ({ ...prev, ethereum: true }));
-      }
-    },
-  });
+  const { createWallet: createEthereumWallet } = useCreateWallet();
 
   // Use the specific hook for Solana wallets
   const { wallets: solanaWallets, createWallet } = useSolanaWallets();
@@ -246,56 +229,26 @@ const Login: React.FC = () => {
       if (!hasEthereumWallet && !walletsCreated.ethereum) {
         try {
           console.log('Creating Ethereum wallet...');
-          await createEthereumWallet({
-            chainType: 'ethereum',
-          } as any).catch((err) => {
-            if (err === 'embedded_wallet_already_exists') {
-              console.log('Ethereum wallet already exists');
-              setWalletsCreated((prev) => ({
-                ...prev,
-                ethereum: true,
-              }));
-            } else {
-              console.error('Error creating Ethereum wallet:', err);
-            }
-          });
+          await createEthereumWallet();
 
           setWalletsCreated((prev) => ({ ...prev, ethereum: true }));
           console.log('Ethereum wallet creation complete');
         } catch (err) {
           console.error('Ethereum wallet creation error:', err);
-          // Mark as attempted even if it failed
-          setWalletsCreated((prev) => ({ ...prev, ethereum: true }));
         }
-      } else {
-        setWalletsCreated((prev) => ({ ...prev, ethereum: true }));
       }
 
       // Create Solana wallet if needed
       if (!hasSolanaWallet && !walletsCreated.solana) {
         try {
           console.log('Creating Solana wallet...');
-          await createSolanaWallet().catch((err) => {
-            if (err === 'embedded_wallet_already_exists') {
-              console.log('Solana wallet already exists');
-              setWalletsCreated((prev) => ({
-                ...prev,
-                solana: true,
-              }));
-            } else {
-              console.error('Error creating Solana wallet:', err);
-            }
-          });
+          await createSolanaWallet();
 
           setWalletsCreated((prev) => ({ ...prev, solana: true }));
           console.log('Solana wallet creation complete');
         } catch (err) {
           console.error('Solana wallet creation error:', err);
-          // Mark as attempted even if it failed
-          setWalletsCreated((prev) => ({ ...prev, solana: true }));
         }
-      } else {
-        setWalletsCreated((prev) => ({ ...prev, solana: true }));
       }
 
       // Final status check
