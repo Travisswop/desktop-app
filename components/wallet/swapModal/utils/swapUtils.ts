@@ -4,7 +4,7 @@ export const getTokenInfoBySymbol = (
   symbol: string,
   userToken: TokenInfo[],
   tokenMetaData: TokenInfo[]
-) => {
+): TokenInfo => {
   const baseToken =
     tokenMetaData && Array.isArray(tokenMetaData)
       ? tokenMetaData.find((t) => t.symbol === symbol)
@@ -15,12 +15,16 @@ export const getTokenInfoBySymbol = (
       ? userToken.find((t) => t.symbol === symbol)
       : undefined;
 
-  return {
-    ...baseToken,
+  // Ensure a valid symbol is returned even if tokens aren't found
+  const result: TokenInfo = {
+    symbol: symbol,
     balance: userHeldToken?.balance || '0',
-    ...(userHeldToken?.marketData || null),
-    ...userHeldToken,
+    ...(baseToken || {}),
+    ...(userHeldToken?.marketData || {}),
+    ...(userHeldToken || {}),
   };
+
+  return result;
 };
 
 export const formatUSD = (price: string, amount: string): string => {

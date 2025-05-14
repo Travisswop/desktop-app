@@ -4,12 +4,19 @@ import React, {
   useState,
   useCallback,
   useMemo,
+  useRef,
 } from 'react';
 import {
   ArrowUpDown,
   ChevronRight,
   AlertCircle,
   ExternalLink,
+  RefreshCw,
+  Info,
+  CheckCircle,
+  Loader2,
+  XCircle,
+  Clock,
 } from 'lucide-react';
 import { AiOutlineExclamationCircle } from 'react-icons/ai';
 
@@ -29,6 +36,11 @@ import { handleSwap } from './utils/handleSwap';
 import { getExchangeRate } from './utils/helperFunction';
 import { PLATFORM_FEE_BPS } from './utils/feeConfig';
 import { TokenInfo, QuoteResponse, SwapModalProps } from './types';
+import SlippageControl from './utils/SlippageControl';
+import PriceCard from './utils/PriceCard';
+import PriorityFeeSelector, {
+  PriorityLevel,
+} from './utils/PriorityFeeSelector';
 
 export default function SwapModal({
   open,
@@ -57,9 +69,53 @@ export default function SwapModal({
   const [searchKey, setSearchKey] = useState(0);
   const [txSignature, setTxSignature] = useState<string | null>(null);
 
+  // Quote refresh timer states
+  const [refreshCountdown, setRefreshCountdown] = useState(5);
+  const [autoRefreshEnabled, setAutoRefreshEnabled] = useState(true);
+  const refreshTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  // New state variables for transaction status
+  const [txStatus, setTxStatus] = useState<string | null>(null);
+  const [txSuccess, setTxSuccess] = useState(false);
+
+  // New state variables
+  const [slippageBps, setSlippageBps] = useState(50); // Default 0.5%
+  const [priorityLevel, setPriorityLevel] =
+    useState<PriorityLevel>('none');
+  const [showAdvancedOptions, setShowAdvancedOptions] =
+    useState(false);
+  const [refreshingBalances, setRefreshingBalances] = useState(false);
+
   const [inputMint, setInputMint] = useState<PublicKey | null>(null);
   const [outputMint, setOutputMint] = useState<PublicKey | null>(
     null
+  );
+
+  // Function to reset transaction state when modal is opened/closed
+  const resetModalState = useCallback(() => {
+    // Only reset transaction-related state, not the token selection
+    setError(null);
+    setTxStatus(null);
+    setTxSuccess(false);
+    setTxSignature(null);
+    setSwapLoading(false);
+    setShowAdvancedOptions(false);
+  }, []);
+
+  // Reset state when modal opens or closes
+  useEffect(() => {
+    resetModalState();
+  }, [open, resetModalState]);
+
+  // Handle custom onOpenChange to properly reset state
+  const handleOpenChange = useCallback(
+    (newOpenState: boolean) => {
+      if (!newOpenState) {
+        resetModalState();
+      }
+      onOpenChange(newOpenState);
+    },
+    [onOpenChange, resetModalState]
   );
 
   // Get wallet information
@@ -93,6 +149,54 @@ export default function SwapModal({
       ),
     [selectedOutputSymbol, userToken, tokenMetaData]
   );
+
+  // Set input amount to half of balance
+  const setHalfAmount = useCallback(() => {
+    if (!inputToken || !inputToken.balance) return;
+
+    try {
+      const balance = parseFloat(inputToken.balance);
+      if (isNaN(balance) || balance <= 0) return;
+
+      // Calculate half of the balance
+      const halfAmount = (balance / 2).toString();
+      setAmount(halfAmount);
+    } catch (err) {
+      console.error('Error setting half amount:', err);
+    }
+  }, [inputToken]);
+
+  // Set input amount to max balance
+  const setMaxAmount = useCallback(() => {
+    if (!inputToken || !inputToken.balance) return;
+
+    try {
+      const balance = parseFloat(inputToken.balance);
+      if (isNaN(balance) || balance <= 0) return;
+
+      // If token is SOL, keep a small amount for transaction fees
+      if (selectedInputSymbol === 'SOL') {
+        const maxAmount = Math.max(0, balance - 0.01).toString();
+        setAmount(maxAmount);
+      } else {
+        setAmount(balance.toString());
+      }
+    } catch (err) {
+      console.error('Error setting max amount:', err);
+    }
+  }, [inputToken, selectedInputSymbol]);
+
+  // Check if the user has insufficient funds
+  const hasInsufficientFunds = useMemo(() => {
+    if (!inputToken || !amount || !inputToken.balance) {
+      return false;
+    }
+
+    const inputAmount = parseFloat(amount);
+    const userBalance = parseFloat(inputToken.balance);
+
+    return inputAmount > userBalance;
+  }, [inputToken, amount]);
 
   // Fetch token metadata once on component mount
   useEffect(() => {
@@ -132,51 +236,117 @@ export default function SwapModal({
     }
   }, [inputToken, outputToken]);
 
-  // Fetch quote when input or output changes
+  // Fetch quote function
+  const fetchQuote = useCallback(async () => {
+    if (
+      !inputMint ||
+      !outputMint ||
+      !amount ||
+      parseFloat(amount) === 0 ||
+      swapLoading
+    ) {
+      return;
+    }
+
+    setLoading(true);
+    setError(null);
+
+    try {
+      const decimals = inputToken?.decimals || 6;
+      const amountInSmallestUnit = Math.floor(
+        parseFloat(amount) * 10 ** decimals
+      );
+
+      const url = `https://quote-api.jup.ag/v6/quote?inputMint=${inputMint.toString()}&outputMint=${outputMint.toString()}&amount=${amountInSmallestUnit}&slippageBps=${slippageBps}&restrictIntermediateTokens=true&platformFeeBps=${PLATFORM_FEE_BPS}`;
+
+      const res = await fetch(url);
+      if (!res.ok) {
+        throw new Error(`Failed to fetch quote: ${res.status}`);
+      }
+
+      const data = await res.json();
+      setQuote(data);
+      // Reset countdown whenever we get a new quote
+      setRefreshCountdown(5);
+    } catch (err: any) {
+      console.error('Quote fetch error:', err);
+      setError(err.message || 'Failed to fetch quote');
+      toast.error('Failed to fetch quote. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  }, [
+    inputMint,
+    outputMint,
+    amount,
+    inputToken?.decimals,
+    slippageBps,
+    swapLoading,
+  ]);
+
+  // Fetch quote when input or output changes with debounce
   useEffect(() => {
-    const fetchQuote = async () => {
-      if (
-        !inputMint ||
-        !outputMint ||
-        !amount ||
-        parseFloat(amount) === 0
-      ) {
-        return;
-      }
-
-      setLoading(true);
-      setError(null);
-
-      try {
-        const decimals = inputToken?.decimals || 6;
-        const amountInSmallestUnit = Math.floor(
-          parseFloat(amount) * 10 ** decimals
-        );
-
-        const url = `https://quote-api.jup.ag/v6/quote?inputMint=${inputMint.toString()}&outputMint=${outputMint.toString()}&amount=${amountInSmallestUnit}&slippageBps=200&restrictIntermediateTokens=true&platformFeeBps=${PLATFORM_FEE_BPS}`;
-
-        const res = await fetch(url);
-        if (!res.ok) {
-          throw new Error(`Failed to fetch quote: ${res.status}`);
-        }
-
-        const data = await res.json();
-        setQuote(data);
-      } catch (err: any) {
-        console.error('Quote fetch error:', err);
-        setError(err.message || 'Failed to fetch quote');
-        toast.error('Failed to fetch quote. Please try again.');
-      } finally {
-        setLoading(false);
-      }
-    };
-
     const timeoutId = setTimeout(() => {
       fetchQuote();
     }, 500); // Debounce the API call
 
     return () => clearTimeout(timeoutId);
-  }, [inputMint, outputMint, amount, inputToken?.decimals]);
+  }, [
+    inputMint,
+    outputMint,
+    amount,
+    inputToken?.decimals,
+    slippageBps,
+    fetchQuote,
+  ]);
+
+  // Setup auto-refresh timer for quotes
+  useEffect(() => {
+    if (!open || !autoRefreshEnabled || swapLoading) {
+      // Clear any existing timer if modal is closed or auto-refresh disabled
+      if (refreshTimerRef.current) {
+        clearInterval(refreshTimerRef.current);
+        refreshTimerRef.current = null;
+      }
+      return;
+    }
+
+    // Set up countdown and refresh logic
+    refreshTimerRef.current = setInterval(() => {
+      setRefreshCountdown((prev) => {
+        // When we reach 0, refresh the quote and reset to 5
+        if (prev <= 1) {
+          fetchQuote();
+          return 5;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
+    // Clean up on unmount
+    return () => {
+      if (refreshTimerRef.current) {
+        clearInterval(refreshTimerRef.current);
+      }
+    };
+  }, [open, autoRefreshEnabled, fetchQuote, swapLoading]);
+
+  // Clear refresh timer when component unmounts
+  useEffect(() => {
+    return () => {
+      if (refreshTimerRef.current) {
+        clearInterval(refreshTimerRef.current);
+      }
+    };
+  }, []);
+
+  // Reset auto-refresh when modal state changes
+  useEffect(() => {
+    if (open) {
+      setAutoRefreshEnabled(true);
+      setRefreshCountdown(5);
+    }
+  }, [open]);
 
   // Handle token search with debouncing
   useEffect(() => {
@@ -333,15 +503,42 @@ export default function SwapModal({
   const handleSwapClick = useCallback(() => {
     if (!quote || !selectedInputSymbol) return;
 
+    // Reset transaction states
+    setTxStatus(null);
+    setTxSuccess(false);
+    setError(null);
+    setTxSignature(null);
+
     handleSwap({
       quote,
       solanaAddress,
       wallet: wallets.length > 0 ? { wallets } : null,
       connection,
       setSwapLoading,
+      priorityLevel,
+      slippageBps,
+      onStatusUpdate: (status) => {
+        setTxStatus(status);
+      },
       onSuccess: (signature) => {
         setTxSignature(signature);
+        setTxStatus('Transaction completed successfully!');
+        setTxSuccess(true);
         setError(null);
+      },
+      onError: (errorMessage) => {
+        setError(errorMessage);
+        setTxStatus(null);
+      },
+      onBalanceRefresh: () => {
+        // Implement balance refresh logic if available in your app
+        // This would typically involve fetching updated token balances
+        setRefreshingBalances(true);
+        setTimeout(() => {
+          setRefreshingBalances(false);
+          // Use toast just for this notification since it's not related to the transaction directly
+          toast.success('Balances updated');
+        }, 2000);
       },
     });
   }, [
@@ -350,6 +547,8 @@ export default function SwapModal({
     solanaAddress,
     wallets,
     connection,
+    priorityLevel,
+    slippageBps,
   ]);
 
   const openTokenList = useCallback((isInput: boolean) => {
@@ -401,32 +600,64 @@ export default function SwapModal({
   }, [quote?.outAmount, outputToken?.decimals]);
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent className="max-w-md w-full rounded-2xl p-6 gap-2">
         <div className="flex justify-between items-center mb-4">
           <h2 className="text-lg font-semibold">Swap Tokens</h2>
-          <button onClick={() => onOpenChange(false)} />
+          <div className="flex items-center gap-2 relative">
+            <SlippageControl
+              slippage={slippageBps}
+              setSlippage={setSlippageBps}
+            />
+            <button onClick={() => onOpenChange(false)} />
+          </div>
         </div>
 
         {/* Token Input - with curved bottom */}
         <div className="relative bg-[#F7F7F7] rounded-2xl p-4 shadow">
-          <div className="flex justify-between items-center">
+          <div className="flex justify-between items-start gap-2">
             {selectedInputSymbol ? (
-              <Input
-                type="number"
-                value={amount}
-                onChange={(e) => setAmount(e.target.value)}
-                placeholder="0.0"
-                className="text-xl border-none shadow-none bg-transparent p-0"
-              />
+              <div className="flex-1 min-w-0">
+                <Input
+                  type="number"
+                  value={amount}
+                  onChange={(e) => setAmount(e.target.value)}
+                  placeholder="0.0"
+                  className={`text-xl border-none shadow-none bg-transparent p-0 w-full ${
+                    hasInsufficientFunds ? 'text-red-500' : ''
+                  }`}
+                />
+                <div className="text-sm text-gray-500 mt-1">
+                  {selectedInputSymbol &&
+                  inputToken?.price &&
+                  !isNaN(
+                    parseFloat(
+                      inputToken.price || inputToken?.usdPrice || '0'
+                    )
+                  ) ? (
+                    `$${formatUSD(
+                      inputToken.price || inputToken?.usdPrice || '0',
+                      (
+                        (quote?.inAmount || 0) /
+                        10 ** (inputToken?.decimals || 6)
+                      ).toString()
+                    )}`
+                  ) : (
+                    <span className="flex items-center gap-1">
+                      <AlertCircle className="w-3 h-3" /> No price
+                      data
+                    </span>
+                  )}
+                </div>
+              </div>
             ) : (
-              <div className="text-gray-500 text-xl p-0">
+              <div className="text-gray-500 text-xl p-0 flex-1">
                 Select a token
               </div>
             )}
             <Button
               variant="ghost"
-              className="flex items-center bg-white px-5 py-1 gap-0 rounded-full shadow"
+              className="flex items-center bg-white px-5 py-1 gap-0 rounded-full shadow shrink-0"
               onClick={() => openTokenList(true)}
             >
               {selectedInputSymbol ? (
@@ -450,35 +681,42 @@ export default function SwapModal({
               <ChevronRight className="w-4 h-4" />
             </Button>
           </div>
-          <div className="flex justify-between text-sm text-muted-foreground mt-1">
-            <div>
-              {selectedInputSymbol &&
-              inputToken?.price &&
-              !isNaN(
-                parseFloat(
-                  inputToken.price || inputToken?.usdPrice || '0'
-                )
-              ) ? (
-                `$${formatUSD(
-                  inputToken.price || inputToken?.usdPrice || '0',
-                  (
-                    (quote?.inAmount || 0) /
-                    10 ** (inputToken?.decimals || 6)
-                  ).toString()
-                )}`
-              ) : (
-                <span className="flex items-center gap-1">
-                  <AlertCircle className="w-3 h-3" /> No price data
-                </span>
-              )}
+          <div className="flex justify-between items-center mt-2">
+            <div className="flex space-x-2">
+              {inputToken?.balance &&
+                parseFloat(inputToken.balance) > 0 && (
+                  <>
+                    <button
+                      onClick={setHalfAmount}
+                      className="text-xs bg-gray-200 hover:bg-gray-300 px-2 py-1 rounded text-gray-700 transition-colors"
+                    >
+                      Half
+                    </button>
+                    <button
+                      onClick={setMaxAmount}
+                      className="text-xs bg-gray-200 hover:bg-gray-300 px-2 py-1 rounded text-gray-700 transition-colors"
+                    >
+                      Max
+                    </button>
+                  </>
+                )}
             </div>
-            <div>Balance: {inputToken?.balance || '0'}</div>
+            <div className="flex items-center gap-1 text-sm text-muted-foreground">
+              <span
+                className={hasInsufficientFunds ? 'text-red-500' : ''}
+              >
+                Balance: {inputToken?.balance || '0'}
+              </span>
+              {refreshingBalances ? (
+                <RefreshCw className="w-3 h-3 animate-spin" />
+              ) : null}
+            </div>
           </div>
         </div>
 
         {/* Reverse Button - positioned in the middle */}
-        <div className="relative h-0">
-          <div className="absolute left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-10">
+        <div className="relative h-0 z-10">
+          <div className="absolute left-1/2 transform -translate-x-1/2 -translate-y-1/2">
             <Button
               className="rounded-full w-12 h-12 flex items-center justify-center bg-[#F7F7F7] border-5 border-white"
               variant="outline"
@@ -539,44 +777,116 @@ export default function SwapModal({
                 </span>
               )}
             </div>
-            <div>Balance: {outputToken?.balance || '0'}</div>
-          </div>
-        </div>
-
-        {/* Exchange Rate Info */}
-        <div className="flex items-center p-3 bg-[#F7F7F7] rounded-lg my-3">
-          <div className="flex items-center text-sm text-gray-600 w-full">
-            <div className="flex items-center space-x-2 gap-1">
-              <div className="flex justify-center items-center">
-                <AiOutlineExclamationCircle className="text-xl" />
-              </div>
-              <span>
-                {selectedInputSymbol
-                  ? exchangeRate
-                  : 'Please select an input token'}
-              </span>
+            <div className="flex items-center gap-1">
+              <span>Balance: {outputToken?.balance || '0'}</span>
+              {refreshingBalances ? (
+                <RefreshCw className="w-3 h-3 animate-spin" />
+              ) : null}
             </div>
           </div>
         </div>
+
+        {/* Price Card - shows price impact and other details */}
+        {quote && (
+          <div className="mb-2">
+            <div className="flex items-center justify-between mb-1">
+              <div className="flex items-center text-xs text-gray-500">
+                <span className="mr-1">
+                  Quote includes a 0.5% Swop fee
+                </span>
+                <Info className="w-3 h-3" />
+              </div>
+              <div className="flex items-center text-xs text-gray-500">
+                <Clock className="w-3 h-3 mr-1" />
+                <span>Refreshing in {refreshCountdown}s</span>
+                <button
+                  onClick={() => fetchQuote()}
+                  className="ml-2 p-1 hover:bg-gray-200 rounded-full"
+                >
+                  <RefreshCw className="w-3 h-3" />
+                </button>
+              </div>
+            </div>
+            <PriceCard
+              quote={quote}
+              inputToken={inputToken}
+              outputToken={outputToken}
+              loading={loading}
+              slippageBps={slippageBps}
+            />
+          </div>
+        )}
+
+        {/* Advanced Options Toggle */}
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => setShowAdvancedOptions(!showAdvancedOptions)}
+          className="text-xs text-gray-500 ml-auto"
+        >
+          {showAdvancedOptions ? 'Hide Advanced' : 'Advanced Options'}
+        </Button>
+
+        {/* Priority Fee Selector */}
+        {showAdvancedOptions && (
+          <div className="bg-[#F7F7F7] rounded-xl p-3">
+            <PriorityFeeSelector
+              priorityLevel={priorityLevel}
+              setPriorityLevel={setPriorityLevel}
+            />
+          </div>
+        )}
+
+        {/* Transaction Status Display */}
+        {(txStatus || error || txSuccess) && (
+          <div
+            className={`mt-2 p-3 rounded-lg ${
+              error
+                ? 'bg-red-100 text-red-700'
+                : txSuccess
+                ? 'bg-green-100 text-green-700'
+                : 'bg-blue-100 text-blue-700'
+            }`}
+          >
+            <div className="flex items-center gap-2">
+              {error ? (
+                <XCircle className="w-5 h-5 text-red-500" />
+              ) : txSuccess ? (
+                <CheckCircle className="w-5 h-5 text-green-500" />
+              ) : (
+                <Loader2 className="w-5 h-5 text-blue-500 animate-spin" />
+              )}
+              <span className="text-sm font-medium">
+                {error || txStatus}
+              </span>
+            </div>
+          </div>
+        )}
 
         <Button
           onClick={handleSwapClick}
           className="py-6 text-base font-medium bg-[#F7F7F7] text-black hover:text-black hover:bg-[#F7F7F7] rounded-lg w-3/4 mx-auto"
           disabled={
-            swapLoading || !quote || !selectedInputSymbol || loading
+            swapLoading ||
+            !quote ||
+            !selectedInputSymbol ||
+            loading ||
+            hasInsufficientFunds
           }
         >
           {swapLoading
             ? 'Swapping...'
             : loading
             ? 'Loading...'
+            : hasInsufficientFunds
+            ? `Insufficient ${inputToken?.symbol}`
             : selectedInputSymbol
             ? 'Swap'
             : 'Select input token'}
         </Button>
 
         {/* Transaction result section */}
-        {txSignature && (
+        {txSignature && txSuccess && (
           <div className="mt-3 text-center">
             <a
               href={`https://solscan.io/tx/${txSignature}`}
@@ -587,13 +897,6 @@ export default function SwapModal({
               View transaction on Solscan{' '}
               <ExternalLink className="w-3 h-3" />
             </a>
-          </div>
-        )}
-
-        {/* Error display */}
-        {error && (
-          <div className="mt-3 text-red-500 text-sm text-center">
-            {error}
           </div>
         )}
 
