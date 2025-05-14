@@ -18,6 +18,7 @@ import DeleteFeedModal from "./DeleteFeedModal";
 import isUrl from "@/lib/isUrl";
 import { useUser } from "@/lib/UserContext";
 import { useRouter } from "next/navigation";
+import IndividualFeedContent from "./IndividualFeedContent";
 
 dayjs.extend(relativeTime);
 
@@ -227,7 +228,14 @@ const Timeline = ({
                     className="rounded-full w-full h-full"
                   />
                 ) : (
-                  <FaUser size={28} color="white" />
+                  <Image
+                    alt="user image"
+                    src={`/images/user_avator/${profilePic}.png`}
+                    width={300}
+                    height={300}
+                    quality={100}
+                    className="rounded-full w-full h-full"
+                  />
                 );
               })()}
             </div>
@@ -293,16 +301,45 @@ const Timeline = ({
                     </button>
                   )}
                   {/* Post Content */}
-                  {feed.postType === "post" && feed.content.title && (
-                    <button onClick={() => router.push(`/feed/${feed._id}`)}>
-                      {feed.content.title
-                        .split("\n")
-                        .map((line: any, index: number) => (
-                          <p className="break-text" key={index}>
-                            {line}
-                          </p>
-                        ))}
-                    </button>
+                  {(feed.postType === "post" || feed.postType === "repost") &&
+                    feed.content.title && (
+                      <button onClick={() => router.push(`/feed/${feed._id}`)}>
+                        {feed.content.title
+                          .split("\n")
+                          .map((line: any, index: number) => (
+                            <p className="break-text" key={index}>
+                              {line}
+                            </p>
+                          ))}
+                      </button>
+                    )}
+                  {feed.postType === "repost" && feed.repostedPostDetails ? (
+                    <IndividualFeedContent feed={feed} />
+                  ) : (
+                    feed.postType === "repost" &&
+                    !feed.repostedPostDetails && (
+                      <div className="p-4 bg-blue-50 rounded-lg border border-blue-100 text-blue-800 text-sm mt-1">
+                        <div className="flex items-start">
+                          <svg
+                            className="w-4 h-4 mr-2 mt-0.5 flex-shrink-0"
+                            fill="currentColor"
+                            viewBox="0 0 20 20"
+                          >
+                            <path
+                              fillRule="evenodd"
+                              d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2h-1V9z"
+                              clipRule="evenodd"
+                            />
+                          </svg>
+                          <div>
+                            <p className="font-medium">Content Removed</p>
+                            <p className="mt-1 text-blue-700">
+                              The original poster has deleted this content
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    )
                   )}
                   {/* Additional Post Types */}
                   {feed.postType === "connection" && (
@@ -392,7 +429,8 @@ const Timeline = ({
                 commentCount={feed.commentCount}
                 repostCount={feed.repostCount}
                 viewsCount={feed.viewsCount}
-                accessToken={accessToken}
+                setIsPosting={setIsPosting}
+                // accessToken={accessToken}
               />
             </div>
           </div>

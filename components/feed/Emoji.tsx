@@ -52,7 +52,7 @@ const Emoji = ({ onEmojiSelect }: EmojiProps) => {
       </button>
 
       {showPicker && (
-        <div ref={pickerRef} className="absolute top-full mt-2 z-10">
+        <div ref={pickerRef} className="absolute top-full mt-2 z-50">
           <EmojiPicker onEmojiClick={handleEmojiClick} />
         </div>
       )}

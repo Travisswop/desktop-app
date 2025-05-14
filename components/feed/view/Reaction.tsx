@@ -10,7 +10,6 @@ import {
   Modal,
   ModalBody,
   ModalContent,
-  ModalFooter,
   ModalHeader,
   Popover,
   PopoverContent,
@@ -23,7 +22,7 @@ import { FiShare } from "react-icons/fi";
 import { IoMdHeart, IoMdHeartEmpty } from "react-icons/io";
 import { RiBarChartGroupedFill } from "react-icons/ri";
 import CommentMain from "../reaction/CommentMain";
-import { BiEdit, BiRepost, BiTrash } from "react-icons/bi";
+import { BiEdit, BiRepost } from "react-icons/bi";
 import CommentContent from "../CommentContent";
 import { useUser } from "@/lib/UserContext";
 import { formatCountReaction } from "@/lib/formatFeedReactionCount";
@@ -32,7 +31,6 @@ import toast from "react-hot-toast";
 import Cookies from "js-cookie";
 import EmojiPicker from "emoji-picker-react";
 import { BsEmojiSmile } from "react-icons/bs";
-import ReactDOM from "react-dom";
 import { Loader } from "lucide-react";
 
 const Reaction = ({
@@ -237,8 +235,11 @@ const Reaction = ({
 
       if (data?.state === "success") {
         toast.success("You reposted successfully!");
-        onRepostModalChange();
+        if (isRepostModalOpen) {
+          onRepostModalChange();
+        }
         setIsPosting(true);
+        setIsRepostPopOpen(false);
       }
       if (data?.state === "not-allowed") {
         toast.error("You not allowed to create feed post!");
@@ -299,10 +300,19 @@ const Reaction = ({
           </PopoverTrigger>
           <PopoverContent className="w-52 p-2 rounded-lg shadow-lg border border-gray-200 bg-white">
             <div className="">
-              <button className="w-full flex items-center gap-3 p-3 rounded-md hover:bg-gray-100 transition-colors duration-150">
+              <button
+                onClick={(e: any) => {
+                  handlePostingRepost(e);
+                }}
+                disabled={repostLoading}
+                className="w-full flex items-center gap-3 p-3 rounded-md hover:bg-gray-100 transition-colors duration-150"
+              >
                 <BiRepost className="text-lg text-gray-700" size={20} />
-                <span className="text-sm font-medium text-gray-900">
-                  Instant Repost
+                <span className="text-sm font-medium text-gray-900 flex items-center gap-1">
+                  Instant Repost{" "}
+                  {repostLoading && (
+                    <Loader size={20} className="animate-spin" />
+                  )}
                 </span>
               </button>
 

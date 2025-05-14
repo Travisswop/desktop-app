@@ -79,7 +79,7 @@ const GifPickerContent = ({
         />
       </button>
       {showPicker && (
-        <div ref={pickerRef} className="absolute top-full mt-2 z-10">
+        <div ref={pickerRef} className="absolute top-full mt-2 z-50">
           <GifPicker
             onGifClick={handleGifClick}
             tenorApiKey={"AIzaSyA-Xn0TwTUBNXY4EBbDCmnAs7o1XYIoZgU"}
