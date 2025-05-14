@@ -8,6 +8,7 @@ import {
 import { getOrCreateFeeTokenAccount } from './tokenAccountUtils';
 import bs58 from 'bs58';
 import { PriorityLevel } from './PriorityFeeSelector';
+import { saveSwapTransaction } from '@/actions/saveTransactionData';
 
 /**
  * Simulates a transaction to catch errors before sending
@@ -53,18 +54,26 @@ export async function handleSwap({
   priorityLevel = 'none',
   slippageBps = 200,
   onBalanceRefresh,
+  inputToken,
+  outputToken,
+  platformFeeBps = 50, // Default to 0.5%
+  accessToken,
 }: {
   quote: any;
   solanaAddress: string;
   wallet: any;
   connection: Connection;
   setSwapLoading: (loading: boolean) => void;
-  onSuccess?: (signature: string) => void;
+  onSuccess?: (signature: string, feedData?: any) => void;
   onError?: (message: string) => void;
   onStatusUpdate?: (message: string) => void;
   priorityLevel?: PriorityLevel;
   slippageBps?: number;
   onBalanceRefresh?: () => void;
+  inputToken?: any;
+  outputToken?: any;
+  platformFeeBps?: number;
+  accessToken: string;
 }) {
   if (!quote || !solanaAddress) return;
 
@@ -263,9 +272,44 @@ export async function handleSwap({
 
     console.log(`✅ Success: https://solscan.io/tx/${signature}`);
 
-    // Call onSuccess callback with the signature
-    if (onSuccess) {
-      onSuccess(signature);
+    try {
+      // Format the swap details for saving
+      const swapDetails = {
+        signature,
+        solanaAddress,
+        inputToken: {
+          symbol: inputToken?.symbol || quote.inputMint,
+          amount: quote.inAmount / 10 ** (inputToken?.decimals || 6),
+          decimals: inputToken?.decimals || 6,
+          mint: quote.inputMint,
+          price: inputToken?.price || inputToken?.usdPrice || '0', // Include token price in USD
+        },
+        outputToken: {
+          symbol: outputToken?.symbol || quote.outputMint,
+          amount:
+            quote.outAmount / 10 ** (outputToken?.decimals || 6),
+          decimals: outputToken?.decimals || 6,
+          mint: quote.outputMint,
+          price: outputToken?.price || outputToken?.usdPrice || '0', // Include token price in USD
+        },
+        slippageBps,
+        platformFeeBps: platformFeeBps || 50,
+        timestamp: Date.now(),
+      };
+
+      // Save to database
+      saveSwapTransaction(swapDetails, accessToken);
+
+      // Call onSuccess callback with both signature and feed data
+      if (onSuccess) {
+        onSuccess(signature);
+      }
+    } catch (saveError) {
+      console.error('Failed to save swap details:', saveError);
+      // Still consider the swap successful, just log the error
+      if (onSuccess) {
+        onSuccess(signature);
+      }
     }
 
     // Refresh balances after swap completes

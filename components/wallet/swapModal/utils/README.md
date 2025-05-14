@@ -4,7 +4,7 @@ This directory contains the implementation for collecting platform fees from Jup
 
 ## Overview
 
-- Platform fees are set to 0.25% (25 basis points) for all swap transactions
+- Platform fees are set to 0.5% (50 basis points) for all swap transactions
 - Fees are collected in the token being swapped (input token)
 - The system automatically checks if a token account exists for the platform fee wallet and creates one if needed
 
@@ -42,9 +42,13 @@ To test the fee collection:
 
 ## Implementation Details
 
-- `feeConfig.ts`: Contains the platform fee wallet address and fee percentage
+- `feeConfig.ts`: Contains the platform fee wallet address and fee percentage (50 BPS = 0.5%)
 - `tokenAccountUtils.ts`: Utility to check and create token accounts for fee collection
 - `handleSwap.ts`: Updated to incorporate fee collection in the swap process
+- `swapUtils.ts`: Utilities for token information and formatting
+- `SlippageControl.tsx`: Component for adjusting slippage tolerance
+- `PriceCard.tsx`: Component for displaying price information
+- `PriorityFeeSelector.tsx`: Component for selecting transaction priority levels
 
 ## Troubleshooting
 

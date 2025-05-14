@@ -1,4 +1,3 @@
-/* eslint-disable prefer-const */
 import React, {
   useEffect,
   useState,
@@ -18,7 +17,6 @@ import {
   XCircle,
   Clock,
 } from 'lucide-react';
-import { AiOutlineExclamationCircle } from 'react-icons/ai';
 
 import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
@@ -33,7 +31,6 @@ import {
   TOKEN_ADDRESSES,
 } from './utils/swapUtils';
 import { handleSwap } from './utils/handleSwap';
-import { getExchangeRate } from './utils/helperFunction';
 import { PLATFORM_FEE_BPS } from './utils/feeConfig';
 import { TokenInfo, QuoteResponse, SwapModalProps } from './types';
 import SlippageControl from './utils/SlippageControl';
@@ -46,6 +43,7 @@ export default function SwapModal({
   open,
   onOpenChange,
   userToken,
+  accessToken,
 }: SwapModalProps) {
   // State management
   const [selectedInputSymbol, setSelectedInputSymbol] =
@@ -405,18 +403,6 @@ export default function SwapModal({
     };
   }, [searchQuery]);
 
-  // Memoize the exchange rate calculation
-  const exchangeRate = useMemo(
-    () =>
-      getExchangeRate({
-        quote,
-        amount,
-        inputToken,
-        outputToken,
-      }),
-    [quote, amount, inputToken, outputToken]
-  );
-
   // Handler functions as useCallbacks to prevent unnecessary re-creations
   const handleTokenSelect = useCallback(
     (symbol: string, tokenData?: TokenInfo) => {
@@ -517,14 +503,25 @@ export default function SwapModal({
       setSwapLoading,
       priorityLevel,
       slippageBps,
+      inputToken,
+      outputToken,
+      platformFeeBps: PLATFORM_FEE_BPS,
+      accessToken,
       onStatusUpdate: (status) => {
         setTxStatus(status);
       },
-      onSuccess: (signature) => {
+      onSuccess: (signature, feedData) => {
         setTxSignature(signature);
         setTxStatus('Transaction completed successfully!');
         setTxSuccess(true);
         setError(null);
+
+        // Show a success notification for the feed
+        if (feedData) {
+          toast.success(
+            'Swap transaction added to your activity feed!'
+          );
+        }
       },
       onError: (errorMessage) => {
         setError(errorMessage);
@@ -549,6 +546,9 @@ export default function SwapModal({
     connection,
     priorityLevel,
     slippageBps,
+    inputToken,
+    outputToken,
+    accessToken,
   ]);
 
   const openTokenList = useCallback((isInput: boolean) => {
