@@ -3,10 +3,43 @@ import {
   Connection,
   Keypair,
   PublicKey,
+  SimulatedTransactionResponse,
 } from '@solana/web3.js';
-import toast from 'react-hot-toast';
 import { getOrCreateFeeTokenAccount } from './tokenAccountUtils';
 import bs58 from 'bs58';
+import { PriorityLevel } from './PriorityFeeSelector';
+
+/**
+ * Simulates a transaction to catch errors before sending
+ * @param connection Solana connection
+ * @param transaction The transaction to simulate
+ * @param address User's wallet address
+ * @returns Simulation result
+ */
+async function simulateTransaction(
+  connection: Connection,
+  transaction: VersionedTransaction,
+  address: string
+): Promise<SimulatedTransactionResponse> {
+  try {
+    const simulation = await connection.simulateTransaction(
+      transaction,
+      { sigVerify: false }
+    );
+
+    if (simulation.value.err) {
+      console.error('Simulation error:', simulation.value.err);
+      throw new Error(
+        `Simulation failed: ${JSON.stringify(simulation.value.err)}`
+      );
+    }
+
+    return simulation.value;
+  } catch (error) {
+    console.error('Transaction simulation error:', error);
+    throw error;
+  }
+}
 
 export async function handleSwap({
   quote,
@@ -15,6 +48,11 @@ export async function handleSwap({
   connection,
   setSwapLoading,
   onSuccess,
+  onError,
+  onStatusUpdate,
+  priorityLevel = 'none',
+  slippageBps = 200,
+  onBalanceRefresh,
 }: {
   quote: any;
   solanaAddress: string;
@@ -22,10 +60,17 @@ export async function handleSwap({
   connection: Connection;
   setSwapLoading: (loading: boolean) => void;
   onSuccess?: (signature: string) => void;
+  onError?: (message: string) => void;
+  onStatusUpdate?: (message: string) => void;
+  priorityLevel?: PriorityLevel;
+  slippageBps?: number;
+  onBalanceRefresh?: () => void;
 }) {
   if (!quote || !solanaAddress) return;
 
   setSwapLoading(true);
+  let signature: string | null = null;
+
   try {
     // Validate the quote object
     if (!quote.inputMint) {
@@ -97,8 +142,13 @@ export async function handleSwap({
       userPublicKey: solanaAddress,
       wrapUnwrapSOL: true,
       dynamicComputeUnitLimit: true,
-      prioritizationFeeLamports: 'auto',
     };
+
+    // Add priority fee if selected
+    if (priorityLevel !== 'none') {
+      swapRequestBody.prioritizationFeeLamports = 'auto';
+      swapRequestBody.priorityLevel = priorityLevel;
+    }
 
     // Add fee account if available
     if (feeAccount) {
@@ -113,11 +163,20 @@ export async function handleSwap({
       );
     }
 
+    // Set custom slippage if provided
+    if (slippageBps !== 200) {
+      swapRequestBody.slippageBps = slippageBps;
+    }
+
     // Log the swap request
     console.log(
       'Swap request body:',
       JSON.stringify(swapRequestBody, null, 2)
     );
+
+    if (onStatusUpdate) {
+      onStatusUpdate('Preparing transaction...');
+    }
 
     const res = await fetch('https://lite-api.jup.ag/swap/v1/swap', {
       method: 'POST',
@@ -144,30 +203,55 @@ export async function handleSwap({
     const txBuffer = Buffer.from(txBase64, 'base64');
     const transaction = VersionedTransaction.deserialize(txBuffer);
 
+    // Simulate transaction before sending
+    if (onStatusUpdate) {
+      onStatusUpdate('Simulating transaction...');
+    }
+
+    try {
+      await simulateTransaction(
+        connection,
+        transaction,
+        solanaAddress
+      );
+      console.log('Transaction simulation successful');
+    } catch (simError) {
+      console.error('Transaction simulation failed:', simError);
+      throw new Error(
+        `Transaction simulation failed: ${
+          (simError as Error).message
+        }`
+      );
+    }
+
+    if (onStatusUpdate) {
+      onStatusUpdate('Please approve transaction in wallet...');
+    }
+
     const signed = await wallet.wallets[0]?.signTransaction!(
       transaction
     );
     const serializedTx = signed.serialize();
 
-    const signature = await connection.sendRawTransaction(
-      serializedTx,
-      {
-        maxRetries: 3,
-        skipPreflight: true,
-      }
-    );
+    if (onStatusUpdate) {
+      onStatusUpdate('Sending transaction...');
+    }
+
+    signature = await connection.sendRawTransaction(serializedTx, {
+      maxRetries: 3,
+      skipPreflight: true,
+    });
 
     console.log('Signature:', signature);
-    // Create a loading toast with an ID we can reference later
-    const loadingToastId = toast.loading('Confirming transaction...');
+
+    if (onStatusUpdate) {
+      onStatusUpdate('Confirming transaction...');
+    }
 
     const confirmation = await connection.confirmTransaction(
       signature,
       'finalized'
     );
-
-    // Dismiss the loading toast
-    toast.dismiss(loadingToastId);
 
     if (confirmation.value.err) {
       throw new Error(
@@ -179,35 +263,51 @@ export async function handleSwap({
 
     console.log(`✅ Success: https://solscan.io/tx/${signature}`);
 
-    // Show success toast
-    toast.success('Swap completed successfully!');
-
     // Call onSuccess callback with the signature
     if (onSuccess) {
       onSuccess(signature);
+    }
+
+    // Refresh balances after swap completes
+    if (onBalanceRefresh) {
+      setTimeout(() => {
+        onBalanceRefresh();
+      }, 2000); // Small delay to ensure blockchain state is updated
     }
 
     return signature;
   } catch (err: any) {
     console.error('Swap Failed:', err);
 
-    // Dismiss any loading toasts that might be active
-    toast.dismiss();
+    let errorMessage = 'Swap failed. Please try again.';
 
-    // Show appropriate error toast based on error type
-    if (err.message && err.message.includes('Custom')) {
-      toast.error(
-        'Swap failed due to price movement. Try increasing slippage tolerance.'
-      );
+    // Generate appropriate error message based on error type
+    if (err.message && err.message.includes('simulation failed')) {
+      errorMessage =
+        'Transaction failed simulation. Please try again with different parameters.';
+    } else if (err.message && err.message.includes('Custom')) {
+      errorMessage =
+        'Swap failed due to price movement. Try increasing slippage tolerance.';
     } else if (err.message && err.message.includes('Blockhash')) {
-      toast.error('Transaction expired. Please try again.');
+      errorMessage = 'Transaction expired. Please try again.';
     } else if (
       err.message &&
       err.message.includes('insufficient funds')
     ) {
-      toast.error('Insufficient funds to complete this transaction.');
-    } else {
-      toast.error(err.message || 'Swap failed. Please try again.');
+      errorMessage =
+        'Insufficient funds to complete this transaction.';
+    } else if (
+      err.message &&
+      err.message.includes('Transaction too large')
+    ) {
+      errorMessage =
+        'Transaction is too large. Try a smaller swap amount.';
+    } else if (err.message) {
+      errorMessage = err.message;
+    }
+
+    if (onError) {
+      onError(errorMessage);
     }
 
     return null;
