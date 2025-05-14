@@ -1,27 +1,39 @@
 "use client";
 import {
   addFeedLikePoints,
+  postFeed,
   postFeedLike,
   removeFeedLike,
 } from "@/actions/postFeed";
 import {
+  Button,
+  Modal,
+  ModalBody,
+  ModalContent,
+  ModalFooter,
+  ModalHeader,
   Popover,
   PopoverContent,
   PopoverTrigger,
   Tooltip,
+  useDisclosure,
 } from "@nextui-org/react";
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { FiShare } from "react-icons/fi";
 import { IoMdHeart, IoMdHeartEmpty } from "react-icons/io";
 import { RiBarChartGroupedFill } from "react-icons/ri";
 import CommentMain from "../reaction/CommentMain";
-import { BiRepost } from "react-icons/bi";
+import { BiEdit, BiRepost, BiTrash } from "react-icons/bi";
 import CommentContent from "../CommentContent";
 import { useUser } from "@/lib/UserContext";
 import { formatCountReaction } from "@/lib/formatFeedReactionCount";
 import { TbCopy, TbCopyCheckFilled } from "react-icons/tb";
 import toast from "react-hot-toast";
 import Cookies from "js-cookie";
+import EmojiPicker from "emoji-picker-react";
+import { BsEmojiSmile } from "react-icons/bs";
+import ReactDOM from "react-dom";
+import { Loader } from "lucide-react";
 
 const Reaction = ({
   postId,
@@ -33,6 +45,7 @@ const Reaction = ({
   replyId = null,
   isLiked = false,
   isFromFeedDetails = false,
+  setIsPosting,
 }: {
   postId: string;
   likeCount: number;
@@ -43,6 +56,7 @@ const Reaction = ({
   replyId?: string | null;
   isLiked?: boolean;
   isFromFeedDetails?: boolean;
+  setIsPosting: any;
 }) => {
   const [liked, setLiked] = useState(false);
   const [likeCount, setLikeCount] = useState(initialLikeCount);
@@ -53,8 +67,36 @@ const Reaction = ({
   );
   const [latestCommentCount, setLatestCommentCount] = useState(commentCount);
   const [isPopOpen, setIsPopOpen] = useState(false);
+  const [isRepostPopOpen, setIsRepostPopOpen] = useState(false);
   const [isCopied, setIsCopied] = useState(false);
   const [accessToken, setAccessToken] = useState("");
+
+  const [postContent, setPostContent] = useState("");
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+  const [repostLoading, setRepostLoading] = useState(false);
+  const [repostContentError, setRepostContentError] = useState("");
+
+  const emojiPickerRef = useRef<HTMLDivElement>(null);
+
+  // Add this useEffect to handle outside clicks
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (
+        emojiPickerRef.current &&
+        !emojiPickerRef.current.contains(event.target as Node)
+      ) {
+        setShowEmojiPicker(false);
+      }
+    };
+
+    if (showEmojiPicker) {
+      document.addEventListener("mousedown", handleClickOutside);
+    }
+
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, [showEmojiPicker]);
 
   // Get the access token from cookies once on mount.
   useEffect(() => {
@@ -139,7 +181,7 @@ const Reaction = ({
   };
 
   const { user, loading, error: userError }: any = useUser();
-  // console.log("user", user);
+  console.log("user", user);
 
   useEffect(() => {
     if (user) {
@@ -153,6 +195,61 @@ const Reaction = ({
 
   // console.log("commentPostContent", commentPostContent);
 
+  const {
+    isOpen: isRepostModalOpen,
+    onOpen: onRepostModalOpen,
+    onOpenChange: onRepostModalChange,
+  } = useDisclosure();
+
+  const MAX_LENGTH = 512;
+
+  const handlePostChange = (e: any) => {
+    const value = e.target.value;
+
+    // Check if the content length exceeds the max length
+    if (value.length > MAX_LENGTH) {
+      setRepostContentError(
+        `** Content cannot exceed ${MAX_LENGTH} characters.`
+      );
+    } else {
+      setRepostContentError("");
+    }
+
+    setPostContent(value);
+  };
+
+  const handlePostingRepost = async (e: any) => {
+    e.preventDefault();
+    setRepostLoading(true);
+    const payload = {
+      smartsiteId: user?.primaryMicrosite,
+      userId: user?._id,
+      postType: "repost",
+      content: {
+        postId: postId,
+        title: postContent,
+      },
+    };
+    console.log("payload", payload);
+    try {
+      const data = await postFeed(payload, accessToken);
+      console.log("feed post response", data);
+
+      if (data?.state === "success") {
+        toast.success("You reposted successfully!");
+        onRepostModalChange();
+        setIsPosting(true);
+      }
+      if (data?.state === "not-allowed") {
+        toast.error("You not allowed to create feed post!");
+      }
+    } catch (error) {
+      console.error(error);
+    } finally {
+      setRepostLoading(false);
+    }
+  };
+
   return (
     <div className="relative">
       <div className="flex items-center justify-between gap-2 mt-2 text-gray-700 font-normal">
@@ -165,7 +262,7 @@ const Reaction = ({
           isFromFeedDetails={isFromFeedDetails}
         />
         {/* repost */}
-        <Tooltip
+        {/* <Tooltip
           className="text-xs font-medium"
           placement="bottom"
           showArrow
@@ -175,7 +272,62 @@ const Reaction = ({
             <BiRepost size={21} />
             <p>{repostCount}</p>
           </button>
-        </Tooltip>
+        </Tooltip> */}
+
+        <Popover
+          placement="bottom-start"
+          isOpen={isRepostPopOpen}
+          onOpenChange={(open) => setIsRepostPopOpen(open)}
+        >
+          <PopoverTrigger>
+            <div className="relative">
+              <Tooltip
+                className="text-xs font-medium"
+                placement="bottom"
+                showArrow
+                content="Repost"
+              >
+                <button className="flex items-center gap-1 text-sm font-medium w-12">
+                  <BiRepost size={21} />
+                  <p>{repostCount}</p>
+                </button>
+              </Tooltip>
+              {/* <button className="opacity-0">
+                <FiShare size={17} />
+              </button> */}
+            </div>
+          </PopoverTrigger>
+          <PopoverContent className="w-52 p-2 rounded-lg shadow-lg border border-gray-200 bg-white">
+            <div className="">
+              <button className="w-full flex items-center gap-3 p-3 rounded-md hover:bg-gray-100 transition-colors duration-150">
+                <BiRepost className="text-lg text-gray-700" size={20} />
+                <span className="text-sm font-medium text-gray-900">
+                  Instant Repost
+                </span>
+              </button>
+
+              <button
+                onClick={() => {
+                  onRepostModalOpen();
+                  setIsRepostPopOpen(false);
+                }}
+                className="w-full flex items-center gap-3 p-3 rounded-md hover:bg-gray-100 transition-colors duration-150"
+              >
+                <BiEdit className="text-lg text-gray-700" />
+                <span className="text-sm font-medium text-gray-900">
+                  Repost With Content
+                </span>
+              </button>
+
+              {/* <div className="border-t border-gray-100 my-1"></div> */}
+
+              {/* <button className="w-full flex items-center gap-3 p-3 rounded-md hover:bg-gray-50 transition-colors duration-150 text-red-500">
+                <BiTrash className="text-lg" />
+                <span className="text-sm font-medium">Cancel Repost</span>
+              </button> */}
+            </div>
+          </PopoverContent>
+        </Popover>
 
         <Tooltip
           className="text-xs font-medium"
@@ -232,31 +384,36 @@ const Reaction = ({
                 showArrow
                 content="Share"
               >
-                <button className="absolute top-0 left-0">
+                <button>
                   <FiShare size={17} />
                 </button>
               </Tooltip>
-              <button className="opacity-0">
+              {/* <button className="opacity-0">
                 <FiShare size={17} />
-              </button>
+              </button> */}
             </div>
           </PopoverTrigger>
-          <PopoverContent>
-            <div className="px-1 py-2">
-              <div className="text-small font-bold">
-                <button
-                  onClick={!isCopied ? handleCopyLink : () => {}}
-                  className="flex items-center gap-1 "
-                >
-                  {isCopied ? (
-                    <TbCopyCheckFilled color="green" size={20} />
-                  ) : (
-                    <TbCopy size={20} />
-                  )}
+          <PopoverContent className="w-40 p-1.5 rounded-lg shadow-lg border border-gray-100 bg-white">
+            <button
+              onClick={!isCopied ? handleCopyLink : () => {}}
+              className={`w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors duration-200 ${
+                isCopied
+                  ? "text-green-600 hover:bg-green-50"
+                  : "text-gray-700 hover:bg-gray-100"
+              }`}
+            >
+              {isCopied ? (
+                <>
+                  <TbCopyCheckFilled size={18} className="shrink-0" />
+                  <span>Link Copied!</span>
+                </>
+              ) : (
+                <>
+                  <TbCopy size={18} className="shrink-0" />
                   <span>Copy Link</span>
-                </button>
-              </div>
-            </div>
+                </>
+              )}
+            </button>
           </PopoverContent>
         </Popover>
       </div>
@@ -269,6 +426,100 @@ const Reaction = ({
           setLatestCommentCount={setLatestCommentCount}
         />
       )}
+      <Modal
+        isOpen={isRepostModalOpen}
+        onOpenChange={onRepostModalChange}
+        size="lg"
+      >
+        <ModalContent className="max-w-md overflow-visible">
+          {(onClose) => (
+            <>
+              <ModalHeader className="flex flex-col gap-1 border-b border-gray-100 p-6">
+                <h3 className="text-lg font-semibold text-gray-900">
+                  Repost this post
+                </h3>
+                <p className="text-sm text-gray-500">Add your thoughts here</p>
+              </ModalHeader>
+              <ModalBody className="p-6">
+                <form onSubmit={handlePostingRepost}>
+                  <div className="space-y-4">
+                    <div className="relative ">
+                      <textarea
+                        name="postRepost"
+                        id="postRepost"
+                        rows={3}
+                        className="w-full rounded-lg bg-gray-50 p-4 pr-10 text-sm focus:outline-gray-100 transition-colors"
+                        placeholder="What are your thoughts?"
+                        maxLength={280}
+                        value={postContent}
+                        onChange={handlePostChange}
+                      />
+                      <div>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setShowEmojiPicker(!showEmojiPicker);
+                          }}
+                          onMouseDown={(e) => e.stopPropagation()}
+                          type="button"
+                          className="absolute right-3 bottom-3 p-1 text-gray-400 hover:text-gray-600"
+                        >
+                          <BsEmojiSmile size={20} />
+                        </button>
+                        {showEmojiPicker && (
+                          <div
+                            ref={emojiPickerRef}
+                            className="absolute z-[9999] top-[90px] right-0"
+                          >
+                            <EmojiPicker
+                              onEmojiClick={(emojiObject) => {
+                                setPostContent(
+                                  (prev) => prev + emojiObject.emoji
+                                );
+                              }}
+                              width={300}
+                              height={350}
+                            />
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="flex items-center justify-between">
+                      <div className="text-xs text-gray-500">
+                        {postContent?.length || 0}/280
+                      </div>
+
+                      <div className="flex gap-2">
+                        <Button
+                          type="button"
+                          variant="light"
+                          className="px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100"
+                          onPress={onClose}
+                        >
+                          Cancel
+                        </Button>
+                        <Button
+                          type="submit"
+                          color="primary"
+                          className="px-4 py-2 text-sm font-medium text-white shadow-sm rounded-md"
+                          isDisabled={!postContent.trim() || repostLoading}
+                        >
+                          {repostLoading ? (
+                            <Loader className="animate-spin" />
+                          ) : (
+                            "Repost"
+                          )}
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                </form>
+              </ModalBody>
+            </>
+          )}
+        </ModalContent>
+      </Modal>
     </div>
   );
 };
