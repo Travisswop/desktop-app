@@ -190,33 +190,35 @@ const PostFeed = ({
 
           {/* Render media files */}
           {mediaFiles.length > 0 && (
-            <div className="mt-4 w-full">
+            <div className="mt-4 w-full flex justify-center">
               {mediaFiles.length === 1 && (
-                <div className="relative w-full min-h-96 max-h-[30rem] border border-black bg-black rounded-2xl overflow-hidden">
+                <div className="relative max-h-[30rem] overflow-hidden rounded-2xl w-max">
                   <button
                     onClick={() => handleRemoveMedia(0)}
-                    className="absolute top-2 right-2 bg-white p-1 rounded-full hover:bg-gray-300 z-50"
+                    className="absolute top-2 right-2 bg-black/50 p-1 rounded-full hover:bg-black/70 z-50 text-white"
                   >
-                    <AiOutlineClose size={20} className="text-gray-600" />
+                    <AiOutlineClose size={20} />
                   </button>
                   {mediaFiles[0].type === "image" ||
                   mediaFiles[0].type === "gif" ? (
-                    <Image
-                      src={mediaFiles[0].src}
-                      alt="media"
-                      fill
-                      sizes="(max-width: 640px) 100vw, (max-width: 768px) 50vw, 33vw"
-                      className="object-contain"
-                    />
+                    <div className="flex items-center justify-center h-full">
+                      <Image
+                        src={mediaFiles[0].src}
+                        alt="media"
+                        width={1600}
+                        height={1600}
+                        className="object-contain max-h-[30rem] w-auto"
+                        style={{
+                          maxWidth: "100%",
+                          height: "auto",
+                        }}
+                      />
+                    </div>
                   ) : (
                     <video
                       src={mediaFiles[0].src}
                       controls
-                      className="w-full h-auto rounded-2xl"
-                      style={{
-                        maxHeight: "30rem",
-                        borderRadius: "0.75rem",
-                      }}
+                      className="w-full h-auto max-h-[30rem] rounded-2xl"
                     />
                   )}
                 </div>
@@ -224,7 +226,7 @@ const PostFeed = ({
 
               {/* Display for 2 media items */}
               {mediaFiles.length === 2 && (
-                <div className="w-full grid grid-cols-2 gap-2 border border-black bg-black rounded-2xl overflow-hidden relative h-auto sm:h-72 md:h-96 xl:h-[28rem]">
+                <div className="w-full grid grid-cols-2 gap-1 border rounded-2xl overflow-hidden relative h-auto sm:h-72 md:h-96 xl:h-[28rem]">
                   {mediaFiles.map((file, index) => (
                     <div
                       key={index}
@@ -258,7 +260,7 @@ const PostFeed = ({
 
               {/* Display for 3 media items */}
               {mediaFiles.length === 3 && (
-                <div className="w-full bg-black grid grid-cols-3 gap-2 border border-black rounded-2xl overflow-hidden relative h-auto sm:h-72 md:h-96">
+                <div className="w-full grid grid-cols-3 gap-1 border rounded-2xl overflow-hidden relative h-auto sm:h-72 md:h-96">
                   {mediaFiles.map((file, index) => (
                     <div
                       key={index}
@@ -292,7 +294,7 @@ const PostFeed = ({
 
               {/* Display for 4 media items */}
               {mediaFiles.length === 4 && (
-                <div className="grid grid-cols-2 gap-1 border-2 border-black bg-black rounded-2xl overflow-hidden relative h-auto sm:h-72 md:h-96 xl:h-[30rem]">
+                <div className="grid grid-cols-2 gap-1 border rounded-2xl overflow-hidden relative h-auto sm:h-72 md:h-96 xl:h-[30rem]">
                   {mediaFiles.map((file, index) => (
                     <div
                       key={index}

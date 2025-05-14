@@ -21,42 +21,39 @@ const PostTypeMedia = ({ mediaFiles }: any) => {
   return (
     <div className="">
       {mediaFiles.length > 0 && (
-        <div className="mt-2">
+        <div className="mt-2 w-full flex justify-center">
           {mediaFiles.length === 1 && (
-            <div className={``}>
+            <div className={`max-h-[30rem] overflow-hidden rounded-2xl w-max`}>
               {mediaFiles[0].type === "image" ||
               mediaFiles[0].type === "photo" ||
               mediaFiles[0].type === "gif" ? (
-                <div className="relative min-h-96 max-h-[30rem] border border-black bg-black rounded-2xl overflow-hidden">
+                <div className="flex items-center justify-center h-full">
                   <Image
                     src={mediaFiles[0].src}
-                    onClick={() => handleOpenImage(mediaFiles[0].src)}
                     alt="media"
-                    fill
-                    // loader={customLoader as any}
-                    sizes="(max-width: 640px) 100vw, (max-width: 768px) 50vw, 33vw"
-                    className="object-contain cursor-pointer"
-                  />
-                </div>
-              ) : (
-                <div className="flex items-center h-full">
-                  <video
-                    src={mediaFiles[0].src}
-                    controls
-                    className="w-full h-full rounded-2xl object-cover"
+                    onClick={() => handleOpenImage(mediaFiles[0].src)}
+                    width={1600}
+                    height={1600}
+                    className="object-contain max-h-[30rem] w-auto cursor-pointer"
                     style={{
-                      maxHeight: "30rem",
-                      borderRadius: "0.75rem",
+                      maxWidth: "100%",
+                      height: "auto",
                     }}
                   />
                 </div>
+              ) : (
+                <video
+                  src={mediaFiles[0].src}
+                  controls
+                  className="w-full h-auto max-h-[30rem] rounded-2xl"
+                />
               )}
             </div>
           )}
 
           {/* Display for 2 media items */}
           {mediaFiles.length === 2 && (
-            <div className="grid grid-cols-2 gap-2 border border-black bg-black rounded-2xl overflow-hidden relative h-auto sm:h-72 md:h-96 xl:h-[28rem]">
+            <div className="grid grid-cols-2 gap-1 border rounded-2xl overflow-hidden relative h-auto sm:h-72 md:h-96 xl:h-[28rem]">
               {mediaFiles.map((file: any, index: number) => (
                 <div
                   key={index}
@@ -87,7 +84,7 @@ const PostTypeMedia = ({ mediaFiles }: any) => {
 
           {/* Display for 3 media items */}
           {mediaFiles.length === 3 && (
-            <div className="w-full bg-black grid grid-cols-3 gap-2 border border-black rounded-2xl overflow-hidden relative h-auto sm:h-72 md:h-96">
+            <div className="w-full grid grid-cols-3 gap-1 border rounded-2xl overflow-hidden relative h-auto sm:h-72 md:h-96">
               {mediaFiles.map((file: any, index: number) => (
                 <div
                   key={index}
@@ -118,7 +115,7 @@ const PostTypeMedia = ({ mediaFiles }: any) => {
 
           {/* Display for 4 media items */}
           {mediaFiles.length === 4 && (
-            <div className="grid grid-cols-2 gap-1 border-2 border-black bg-black rounded-2xl overflow-hidden relative h-auto sm:h-72 md:h-96 xl:h-[30rem]">
+            <div className="grid grid-cols-2 gap-1 border rounded-2xl overflow-hidden relative h-auto sm:h-72 md:h-96 xl:h-[30rem]">
               {mediaFiles.map((file: any, index: number) => (
                 <div
                   key={index}
