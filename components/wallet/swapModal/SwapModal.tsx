@@ -1,4 +1,3 @@
-/* eslint-disable prefer-const */
 import React, {
   useEffect,
   useState,
@@ -18,9 +17,12 @@ import {
   XCircle,
   Clock,
 } from 'lucide-react';
-import { AiOutlineExclamationCircle } from 'react-icons/ai';
 
-import { Dialog, DialogContent } from '@/components/ui/dialog';
+import {
+  Dialog,
+  DialogContent,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useSolanaWallets } from '@privy-io/react-auth';
@@ -33,7 +35,6 @@ import {
   TOKEN_ADDRESSES,
 } from './utils/swapUtils';
 import { handleSwap } from './utils/handleSwap';
-import { getExchangeRate } from './utils/helperFunction';
 import { PLATFORM_FEE_BPS } from './utils/feeConfig';
 import { TokenInfo, QuoteResponse, SwapModalProps } from './types';
 import SlippageControl from './utils/SlippageControl';
@@ -46,6 +47,7 @@ export default function SwapModal({
   open,
   onOpenChange,
   userToken,
+  accessToken,
 }: SwapModalProps) {
   // State management
   const [selectedInputSymbol, setSelectedInputSymbol] =
@@ -405,18 +407,6 @@ export default function SwapModal({
     };
   }, [searchQuery]);
 
-  // Memoize the exchange rate calculation
-  const exchangeRate = useMemo(
-    () =>
-      getExchangeRate({
-        quote,
-        amount,
-        inputToken,
-        outputToken,
-      }),
-    [quote, amount, inputToken, outputToken]
-  );
-
   // Handler functions as useCallbacks to prevent unnecessary re-creations
   const handleTokenSelect = useCallback(
     (symbol: string, tokenData?: TokenInfo) => {
@@ -517,14 +507,25 @@ export default function SwapModal({
       setSwapLoading,
       priorityLevel,
       slippageBps,
+      inputToken,
+      outputToken,
+      platformFeeBps: PLATFORM_FEE_BPS,
+      accessToken,
       onStatusUpdate: (status) => {
         setTxStatus(status);
       },
-      onSuccess: (signature) => {
+      onSuccess: (signature, feedData) => {
         setTxSignature(signature);
         setTxStatus('Transaction completed successfully!');
         setTxSuccess(true);
         setError(null);
+
+        // Show a success notification for the feed
+        if (feedData) {
+          toast.success(
+            'Swap transaction added to your activity feed!'
+          );
+        }
       },
       onError: (errorMessage) => {
         setError(errorMessage);
@@ -549,6 +550,9 @@ export default function SwapModal({
     connection,
     priorityLevel,
     slippageBps,
+    inputToken,
+    outputToken,
+    accessToken,
   ]);
 
   const openTokenList = useCallback((isInput: boolean) => {
@@ -602,6 +606,7 @@ export default function SwapModal({
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent className="max-w-md w-full rounded-2xl p-6 gap-2">
+        <DialogTitle className="sr-only">Swap Tokens</DialogTitle>
         <div className="flex justify-between items-center mb-4">
           <h2 className="text-lg font-semibold">Swap Tokens</h2>
           <div className="flex items-center gap-2 relative">
@@ -942,7 +947,9 @@ export default function SwapModal({
                 <div className="space-y-1 flex flex-col">
                   {displayTokens.map((token) => (
                     <Button
-                      key={`${token.symbol}-${searchKey}`}
+                      key={`${token.symbol}-${
+                        token.address || token.id || Math.random()
+                      }-${searchKey}`}
                       variant="ghost"
                       onClick={() =>
                         handleTokenSelect(token.symbol, token)

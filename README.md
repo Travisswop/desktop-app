@@ -20,6 +20,22 @@ You can start editing the page by modifying `app/page.tsx`. The page auto-update
 
 This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
 
+## Features
+
+This desktop application integrates with the Solana blockchain to provide a complete wallet experience with advanced features:
+
+1. **Wallet Integration** - Secure wallet connection using Privy Auth
+2. **Swap Functionality** - Token swap functionality powered by Jupiter Exchange
+3. **Transaction History** - Complete transaction tracking and history
+4. **NFT Management** - View and manage NFT collections
+5. **Token Management** - Track and manage token balances
+
+Each feature has its own documentation in its respective directory.
+
+## Feature Documentation
+
+- [**Swap Modal**](/components/wallet/swapModal/README.md) - Swap tokens on the Solana blockchain with Jupiter integration
+
 ## Learn More
 
 To learn more about Next.js, take a look at the following resources:

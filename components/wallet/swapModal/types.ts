@@ -37,4 +37,5 @@ export interface SwapModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   userToken: TokenInfo[];
+  accessToken: string;
 }

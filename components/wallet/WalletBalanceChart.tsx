@@ -34,6 +34,7 @@ const BalanceChart = ({
   // onQRClick,
   walletData,
   totalTokensValue,
+  accessToken,
 }: any) => {
   const [timeRange, setTimeRange] = useState('7days');
   const [showPopup, setShowPopup] = useState(false);
@@ -168,6 +169,7 @@ const BalanceChart = ({
             open={openSwapModal}
             onOpenChange={setOpenSwapModal}
             userToken={userToken}
+            accessToken={accessToken}
           />
 
           {/* <Button
@@ -309,9 +311,9 @@ const SkeletonBalanceChart = () => (
         <h2 className="font-bold text-xl text-gray-700">
           <Skeleton className="h-10 w-40 rounded-full" />
         </h2>
-        <p className="font-bold text-xl text-gray-700 my-2">
+        <div className="font-bold text-xl text-gray-700 my-2">
           <Skeleton className="h-10 w-40 rounded-full" />
-        </p>
+        </div>
       </div>
       <div className="flex gap-2">
         <Skeleton className="h-10 w-10" />
@@ -334,7 +336,7 @@ const WalletBalanceChartForWalletPage = ({
   onSelectAsset,
   onQRClick,
 }: any) => {
-  const { user } = useUser();
+  const { user, accessToken } = useUser();
   const [balanceData, setBalanceData] = useState([]);
   const [totalTokensValue, setTotalTokensValue] = useState(0);
   const [walletList, setWalletList] = useState({});
@@ -378,6 +380,7 @@ const WalletBalanceChartForWalletPage = ({
           onQRClick={onQRClick}
           walletData={walletData}
           totalTokensValue={totalTokensValue}
+          accessToken={accessToken}
         />
       ) : (
         <SkeletonBalanceChart /> // Render Skeleton while loading
