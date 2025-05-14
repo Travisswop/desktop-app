@@ -18,7 +18,11 @@ import {
   Clock,
 } from 'lucide-react';
 
-import { Dialog, DialogContent } from '@/components/ui/dialog';
+import {
+  Dialog,
+  DialogContent,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useSolanaWallets } from '@privy-io/react-auth';
@@ -602,6 +606,7 @@ export default function SwapModal({
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent className="max-w-md w-full rounded-2xl p-6 gap-2">
+        <DialogTitle className="sr-only">Swap Tokens</DialogTitle>
         <div className="flex justify-between items-center mb-4">
           <h2 className="text-lg font-semibold">Swap Tokens</h2>
           <div className="flex items-center gap-2 relative">
@@ -942,7 +947,9 @@ export default function SwapModal({
                 <div className="space-y-1 flex flex-col">
                   {displayTokens.map((token) => (
                     <Button
-                      key={`${token.symbol}-${searchKey}`}
+                      key={`${token.symbol}-${
+                        token.address || token.id || Math.random()
+                      }-${searchKey}`}
                       variant="ghost"
                       onClick={() =>
                         handleTokenSelect(token.symbol, token)

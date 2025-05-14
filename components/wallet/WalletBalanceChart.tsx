@@ -311,9 +311,9 @@ const SkeletonBalanceChart = () => (
         <h2 className="font-bold text-xl text-gray-700">
           <Skeleton className="h-10 w-40 rounded-full" />
         </h2>
-        <p className="font-bold text-xl text-gray-700 my-2">
+        <div className="font-bold text-xl text-gray-700 my-2">
           <Skeleton className="h-10 w-40 rounded-full" />
-        </p>
+        </div>
       </div>
       <div className="flex gap-2">
         <Skeleton className="h-10 w-10" />
