@@ -70,7 +70,7 @@ export default function SwapModal({
   const [txSignature, setTxSignature] = useState<string | null>(null);
 
   // Quote refresh timer states
-  const [refreshCountdown, setRefreshCountdown] = useState(5);
+  const [refreshCountdown, setRefreshCountdown] = useState(10);
   const [autoRefreshEnabled, setAutoRefreshEnabled] = useState(true);
   const refreshTimerRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -267,7 +267,7 @@ export default function SwapModal({
       const data = await res.json();
       setQuote(data);
       // Reset countdown whenever we get a new quote
-      setRefreshCountdown(5);
+      setRefreshCountdown(10);
     } catch (err: any) {
       console.error('Quote fetch error:', err);
       setError(err.message || 'Failed to fetch quote');
@@ -314,10 +314,10 @@ export default function SwapModal({
     // Set up countdown and refresh logic
     refreshTimerRef.current = setInterval(() => {
       setRefreshCountdown((prev) => {
-        // When we reach 0, refresh the quote and reset to 5
+        // When we reach 0, refresh the quote and reset to 10
         if (prev <= 1) {
           fetchQuote();
-          return 5;
+          return 10;
         }
         return prev - 1;
       });
@@ -344,7 +344,7 @@ export default function SwapModal({
   useEffect(() => {
     if (open) {
       setAutoRefreshEnabled(true);
-      setRefreshCountdown(5);
+      setRefreshCountdown(10);
     }
   }, [open]);
 
