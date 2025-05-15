@@ -17,9 +17,6 @@ const FeedDetailsPage = async ({
   const accessToken = (await cookieStore).get("access-token")?.value;
 
   const feedData = await getFeedDetails(url);
-  // console.log("id", id);
-  // console.log("accessToken", accessToken);
-  // console.log("feedData", feedData);
 
   return (
     <div className="relative">
@@ -28,7 +25,9 @@ const FeedDetailsPage = async ({
           <TabSwitcher />
         </div>
         <Suspense fallback={<FeedLoading />}>
-          {feedData && <FeedDetails feedData={feedData.data} />}
+          {feedData && (
+            <FeedDetails feedData={feedData.data} feedDetails={feedData} />
+          )}
         </Suspense>
       </div>
       {!accessToken && (

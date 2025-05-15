@@ -1,3 +1,4 @@
+"use client";
 import {
   Modal,
   ModalBody,
@@ -7,7 +8,7 @@ import {
 import Image from "next/image";
 import React, { useState } from "react";
 
-const PostTypeMedia = ({ mediaFiles }: any) => {
+const PostTypeMedia = ({ mediaFiles, isFromRepost = false }: any) => {
   const { isOpen, onOpen, onOpenChange } = useDisclosure();
   const [image, setImage] = useState("");
   const [isLoading, setIsLoading] = useState(true);
@@ -17,6 +18,8 @@ const PostTypeMedia = ({ mediaFiles }: any) => {
     setImage(image);
     onOpen();
   };
+
+  console.log("isFromRepost", isFromRepost);
 
   return (
     <div className="">
@@ -34,7 +37,9 @@ const PostTypeMedia = ({ mediaFiles }: any) => {
                     onClick={() => handleOpenImage(mediaFiles[0].src)}
                     width={1600}
                     height={1600}
-                    className="object-contain max-h-[30rem] w-auto cursor-pointer"
+                    className={`object-contain ${
+                      isFromRepost ? "max-h-[26rem]" : "max-h-[30rem]"
+                    }  w-auto cursor-pointer`}
                     style={{
                       maxWidth: "100%",
                       height: "auto",
@@ -45,7 +50,9 @@ const PostTypeMedia = ({ mediaFiles }: any) => {
                 <video
                   src={mediaFiles[0].src}
                   controls
-                  className="w-full h-auto max-h-[30rem] rounded-2xl"
+                  className={`w-full h-auto ${
+                    isFromRepost ? "max-h-[26rem]" : "max-h-[30rem]"
+                  } rounded-2xl`}
                 />
               )}
             </div>

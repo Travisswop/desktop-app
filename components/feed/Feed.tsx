@@ -249,7 +249,7 @@ const Feed = ({
             <div className="flex-1">
               {/* User and Feed Info */}
               <div className="w-full flex items-start justify-between">
-                <div>
+                <div className="w-full">
                   <button
                     onClick={() => router.push(`/feed/${feed._id}`)}
                     className="flex items-center gap-1"

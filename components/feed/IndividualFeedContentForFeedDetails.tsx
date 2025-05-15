@@ -1,24 +1,17 @@
 "use client";
 
 import isUrl from "@/lib/isUrl";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-  useDisclosure,
-} from "@nextui-org/react";
+import { useDisclosure } from "@nextui-org/react";
 import dayjs from "dayjs";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { GoDotFill } from "react-icons/go";
-import { HiDotsHorizontal } from "react-icons/hi";
-import DeleteFeedModal from "./DeleteFeedModal";
 import PostTypeMedia from "./view/PostTypeMedia";
 import Link from "next/link";
 import { FiPlusCircle } from "react-icons/fi";
 
-const IndividualFeedContent = ({ feed }: any) => {
+const IndividualFeedContentForFeedDetails = ({ feed }: any) => {
   console.log("individual feed", feed);
 
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -265,4 +258,4 @@ const IndividualFeedContent = ({ feed }: any) => {
   );
 };
 
-export default IndividualFeedContent;
+export default IndividualFeedContentForFeedDetails;
