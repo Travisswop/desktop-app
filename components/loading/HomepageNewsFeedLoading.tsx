@@ -1,3 +1,4 @@
+"use client";
 import { Card, Skeleton } from "@nextui-org/react";
 import { BsThreeDots } from "react-icons/bs";
 

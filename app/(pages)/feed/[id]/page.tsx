@@ -18,6 +18,8 @@ const FeedDetailsPage = async ({
 
   const feedData = await getFeedDetails(url);
 
+  console.log("feed data", feedData);
+
   return (
     <div className="relative">
       <div className="bg-white rounded-xl w-2/3 2xl:w-[54%] py-4 px-6">
