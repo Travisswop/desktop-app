@@ -78,7 +78,7 @@ export class TokenAPIService {
     } catch (error) {
       if (retries > 0) {
         await new Promise((resolve) => setTimeout(resolve, 1000));
-        return this.fetchWithRetry(url, options, retries - -1);
+        return this.fetchWithRetry(url, options, retries - 1);
       }
       throw error;
     }
