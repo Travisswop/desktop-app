@@ -34,6 +34,8 @@ export default function QRCodeShareModal({
   const [loading, setLoading] = useState<any>(false);
   const [error, setError] = useState<any>(null);
 
+  console.log("imageUrl", imageUrl);
+
   useEffect(() => {
     setLoading(true);
     if (qrCodeUrl) {
@@ -60,7 +62,7 @@ export default function QRCodeShareModal({
   };
 
   // Initial text
-  const [textToCopy, setTextToCopy] = useState(imageUrl);
+  // const [textToCopy, setTextToCopy] = useState(imageUrl);
   // State to manage copied effect
   const [isCopied, setIsCopied] = useState(false);
   // State to manage notification visibility
@@ -69,7 +71,7 @@ export default function QRCodeShareModal({
   const handleCopy = (e: any) => {
     e.stopPropagation();
     // Copy text to clipboard
-    navigator.clipboard.writeText(textToCopy);
+    navigator.clipboard.writeText(imageUrl);
     setIsCopied(true); // Show "Copied!" effect
     setShowNotification(true); // Show notification
     // Remove "Copied!" text after 2 seconds
