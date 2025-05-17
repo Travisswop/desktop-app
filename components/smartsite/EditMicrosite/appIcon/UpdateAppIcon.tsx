@@ -21,7 +21,7 @@ import Cookies from "js-cookie";
 import customImg from "@/public/images/IconShop/Upload@3x.png";
 import CustomFileInput from "@/components/CustomFileInput";
 import isUrl from "@/lib/isUrl";
-import { sendCloudinaryImage } from "@/lib/SendCloudineryImage";
+import { sendCloudinaryImage } from "@/lib/SendCloudinaryImage";
 
 const UpdateAppIcon = ({ iconDataObj, isOn, setOff }: any) => {
   const [token, setToken] = useState("");

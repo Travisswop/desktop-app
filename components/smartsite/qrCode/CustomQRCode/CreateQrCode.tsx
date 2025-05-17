@@ -24,7 +24,7 @@ import {
 // import qrJson4 from "@/components/smartsite/qrCode/qr-code-json/4-A.json";
 import customQrJson from "@/components/smartsite/qrCode/qr-code-json/customQr.json";
 import { FaSave } from "react-icons/fa";
-// import { sendCloudinaryImage } from "@/util/SendCloudineryImage";
+// import { sendCloudinaryImage } from "@/util/SendCloudinaryImage";
 // import CustomFileInput from "../CustomFileInput";
 // import { toast } from "react-toastify";
 import {
@@ -33,7 +33,7 @@ import {
 } from "@/actions/customQrCode";
 import { IoMdLink } from "react-icons/io";
 import { useRouter } from "next/navigation";
-import { sendCloudinaryImage } from "@/lib/SendCloudineryImage";
+import { sendCloudinaryImage } from "@/lib/SendCloudinaryImage";
 import toast from "react-hot-toast";
 import CustomFileInput from "@/components/CustomFileInput";
 import DynamicPrimaryBtn from "@/components/ui/Button/DynamicPrimaryBtn";

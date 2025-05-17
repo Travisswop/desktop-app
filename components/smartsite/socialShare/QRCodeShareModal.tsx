@@ -15,7 +15,7 @@ import {
   FacebookIcon,
   WhatsappIcon,
 } from "react-share";
-import { sendCloudinaryImage } from "@/lib/SendCloudineryImage";
+import { sendCloudinaryImage } from "@/lib/SendCloudinaryImage";
 import Image from "next/image";
 import { BsFillSendFill } from "react-icons/bs";
 import { IoCopyOutline } from "react-icons/io5";

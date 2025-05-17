@@ -22,7 +22,7 @@ import { FaSave } from "react-icons/fa";
 import { updateUserCustomQrCode } from "@/actions/customQrCode";
 import { IoMdLink } from "react-icons/io";
 import { useRouter } from "next/navigation";
-import { sendCloudinaryImage } from "@/lib/SendCloudineryImage";
+import { sendCloudinaryImage } from "@/lib/SendCloudinaryImage";
 import toast from "react-hot-toast";
 import CustomFileInput from "@/components/CustomFileInput";
 import DynamicPrimaryBtn from "@/components/ui/Button/DynamicPrimaryBtn";
