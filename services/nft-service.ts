@@ -115,11 +115,14 @@ export class SolanaNFTService {
         headers: {
           'Content-type': 'application/json',
         },
-        body: JSON.stringify(requestBody),
+        body: JSON.stringify({
+          endpoint: this.API_ENDPOINT,
+          requestBody,
+        }),
       };
 
       const response = (await APIUtils.fetchWithRetry(
-        this.API_ENDPOINT,
+        '/api/proxy/solana-nft',
         options
       )) as MetaplexResponse;
 

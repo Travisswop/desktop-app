@@ -96,6 +96,7 @@ class AuthMiddleware {
     this.AUTH_ROUTES = new Set(['/login', '/onboard']);
     this.PUBLIC_ROUTES = new Set([
       '/api',
+      '/api/proxy/solana-nft', // Add proxy endpoint for Solana NFT fetching
       '/_next',
       '/favicon.ico',
       '/static',
