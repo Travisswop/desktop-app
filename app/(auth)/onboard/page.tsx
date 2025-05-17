@@ -39,8 +39,11 @@ const Onboard: React.FC = () => {
     setStep((prevStep) => prevStep + 1);
   };
 
-  if (typeof window !== 'undefined' && !user) {
-    window.location.href = '/login'; // Redirect to login page if user is null
+  if (!user) {
+    if (typeof window !== 'undefined') {
+      window.location.href = '/login'; // Redirect to login page if user is null
+    }
+    return null;
   }
 
   if (user) {
