@@ -16,7 +16,7 @@ import qrJson4 from "@/components/smartsite/qrCode/qr-code-json/4-A.json";
 import { FaSave } from "react-icons/fa";
 import { postCustomQrCode } from "@/actions/customQrCode";
 import { useRouter } from "next/navigation";
-import { sendCloudinaryImage } from "@/lib/SendCloudineryImage";
+import { sendCloudinaryImage } from "@/lib/SendCloudinaryImage";
 import { useToast } from "@/hooks/use-toast";
 import CustomFileInput from "@/components/CustomFileInput";
 import DynamicPrimaryBtn from "@/components/ui/Button/DynamicPrimaryBtn";

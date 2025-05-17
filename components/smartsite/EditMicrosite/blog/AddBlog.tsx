@@ -7,7 +7,7 @@ import imagePlaceholder from "@/public/images/image_placeholder.png";
 import CustomFileInput from "@/components/CustomFileInput";
 import { postBlog } from "@/actions/blog";
 import { FaTimes } from "react-icons/fa";
-import { sendCloudinaryImage } from "@/lib/SendCloudineryImage";
+import { sendCloudinaryImage } from "@/lib/SendCloudinaryImage";
 import AnimateButton from "@/components/ui/Button/AnimateButton";
 import { Editor } from "@tinymce/tinymce-react";
 import toast from "react-hot-toast";

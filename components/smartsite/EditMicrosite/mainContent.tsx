@@ -22,7 +22,7 @@ import { IoMdLink } from "react-icons/io";
 import { PiAddressBook } from "react-icons/pi";
 import SelectAvatorModal from "@/components/modal/SelectAvatorModal";
 // import userProfileImages from "@/util/data/userProfileImage";
-// import { sendCloudinaryImage } from "@/util/SendCloudineryImage";
+// import { sendCloudinaryImage } from "@/util/SendCloudinaryImage";
 // import smatsiteBackgroundImageList from "@/util/data/smatsiteBackgroundImageList";
 // import smatsiteBannerImageList from "@/util/data/smartsiteBannerImageList";
 import useSmartsiteFormStore from "@/zustandStore/EditSmartsiteInfo";
@@ -45,7 +45,7 @@ import smatsiteBannerImageList from "@/components/util/data/smartsiteBannerImage
 import smatsiteBackgroundImageList from "@/components/util/data/smatsiteBackgroundImageList";
 // import UpdateModalComponents from "./UpdateModalComponents";
 import AnimateButton from "@/components/ui/Button/AnimateButton";
-import { sendCloudinaryImage } from "@/lib/SendCloudineryImage";
+import { sendCloudinaryImage } from "@/lib/SendCloudinaryImage";
 import SmartsiteIconLivePreview from "../SmartsiteIconLivePreview";
 import { useDesktopUserData } from "@/components/tanstackQueryApi/getUserData";
 import { HexColorPicker } from "react-colorful";

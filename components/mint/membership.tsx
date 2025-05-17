@@ -1,6 +1,6 @@
 'use client';
 import PushToMintCollectionButton from '@/components/Button/PushToMintCollectionButton';
-import { sendCloudinaryImage } from '@/lib/SendCloudineryImage';
+import { sendCloudinaryImage } from '@/lib/SendCloudinaryImage';
 import { useUser } from '@/lib/UserContext';
 import { useDisclosure } from '@nextui-org/react';
 import { useSolanaWalletContext } from '@/lib/context/SolanaWalletContext';
