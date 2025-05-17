@@ -79,8 +79,8 @@ export class AlchemyService {
       tokenId: originalNFT.tokenId,
       tokenType: originalNFT.tokenType,
       image: isSpecialContract
-        ? originalNFT.contract.openSeaMetadata.imageUrl
-        : originalNFT?.image.originalUrl,
+        ? originalNFT.contract.openSeaMetadata.imageUrl || ''
+        : originalNFT?.image?.originalUrl || '',
       network,
       collection: {
         collectionName:
