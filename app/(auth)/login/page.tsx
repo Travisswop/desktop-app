@@ -35,6 +35,20 @@ const Login: React.FC = () => {
   const router = useRouter();
   const loginInitiated = useRef(false);
 
+  // Redirect authenticated users away from the login page
+  useEffect(() => {
+    if (
+      authenticated &&
+      ready &&
+      user &&
+      !loginInitiated.current &&
+      !isLoading &&
+      !isRedirecting
+    ) {
+      router.push('/');
+    }
+  }, [authenticated, ready, user, isLoading, isRedirecting, router]);
+
   const [isLoading, setIsLoading] = useState(false);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [isRedirecting, setIsRedirecting] = useState(false);
