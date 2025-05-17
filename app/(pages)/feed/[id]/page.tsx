@@ -12,9 +12,13 @@ const FeedDetailsPage = async ({
   params: Promise<{ id: string }>;
 }) => {
   const { id } = await params;
-  const url = `${process.env.NEXT_PUBLIC_API_URL}/api/v1/feed/${id}`;
   const cookieStore = cookies();
   const accessToken = (await cookieStore).get("access-token")?.value;
+  const userId = (await cookieStore).get("user-id")?.value;
+
+  const url = userId
+    ? `${process.env.NEXT_PUBLIC_API_URL}/api/v1/feed/${id}?userId=${userId}`
+    : `${process.env.NEXT_PUBLIC_API_URL}/api/v1/feed/${id}`;
 
   const feedData = await getFeedDetails(url);
 
@@ -28,7 +32,11 @@ const FeedDetailsPage = async ({
         </div>
         <Suspense fallback={<FeedLoading />}>
           {feedData && (
-            <FeedDetails feedData={feedData.data} feedDetails={feedData} />
+            <FeedDetails
+              feedData={feedData.data}
+              feedDetails={feedData}
+              accessToken={accessToken}
+            />
           )}
         </Suspense>
       </div>

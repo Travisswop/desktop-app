@@ -121,6 +121,9 @@ const Reaction = ({
   };
 
   const handleLike = async () => {
+    if (!accessToken) {
+      return toast.error("Please Login to Continue.");
+    }
     // Optimistically update the like state
     setLiked(!liked);
     setLikeCount((prevCount) => {
@@ -218,6 +221,9 @@ const Reaction = ({
 
   const handlePostingRepost = async (e: any) => {
     e.preventDefault();
+    if (!accessToken) {
+      return toast.error("Please Login to Continue.");
+    }
     setRepostLoading(true);
     const payload = {
       smartsiteId: user?.primaryMicrosite,

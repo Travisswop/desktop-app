@@ -10,12 +10,11 @@ import PostTypeMedia from "./view/PostTypeMedia";
 import Link from "next/link";
 import { FiPlusCircle } from "react-icons/fi";
 import Reaction from "./view/Reaction";
-import IndividualFeedContent from "./IndividualFeedContent";
 import IndividualFeedContentForFeedDetails from "./IndividualFeedContentForFeedDetails";
 
 dayjs.extend(relativeTime);
 
-const FeedDetails = ({ feedData, feedDetails }: any) => {
+const FeedDetails = ({ feedData, feedDetails, accessToken }: any) => {
   console.log("feed data from details", feedDetails);
 
   const renderTransactionContent = (feed: any) => {
