@@ -28,7 +28,7 @@ import userProfileImages from "../util/data/userProfileImage";
 import smatsiteBannerImageList from "../util/data/smartsiteBannerImageList";
 import smatsiteBackgroundImageList from "../util/data/smatsiteBackgroundImageList";
 import SmartsiteLivePreview from "./CreateSmartsiteLivePreview";
-import { sendCloudinaryImage } from "@/lib/SendCloudineryImage";
+import { sendCloudinaryImage } from "@/lib/SendCloudinaryImage";
 import { useUser } from "@/lib/UserContext";
 import { HexColorPicker } from "react-colorful";
 import { useDesktopUserData } from "../tanstackQueryApi/getUserData";

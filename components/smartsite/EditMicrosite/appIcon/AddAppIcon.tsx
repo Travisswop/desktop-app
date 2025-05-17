@@ -21,7 +21,7 @@ import toast from "react-hot-toast";
 import { useUser } from "@/lib/UserContext";
 import customImg from "@/public/images/IconShop/Upload@3x.png";
 import CustomFileInput from "@/components/CustomFileInput";
-import { sendCloudinaryImage } from "@/lib/SendCloudineryImage";
+import { sendCloudinaryImage } from "@/lib/SendCloudinaryImage";
 
 const AddAppIcon = ({ handleRemoveIcon }: any) => {
   const state: any = useSmartSiteApiDataStore((state) => state); //get small icon store value

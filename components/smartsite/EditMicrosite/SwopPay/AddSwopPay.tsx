@@ -9,7 +9,7 @@ import imagePlaceholder from "@/public/images/image_placeholder.png";
 // import ReactQuill from "react-quill";
 // import "react-quill/dist/quill.snow.css";
 // import CustomFileInput from "@/components/CustomFileInput";
-// import { sendCloudinaryImage } from "@/util/SendCloudineryImage";
+// import { sendCloudinaryImage } from "@/util/SendCloudinaryImage";
 // import { postBlog } from "@/actions/blog";
 // import { currencyItems, icon, newIcons } from "@/util/data/smartsiteIconData";
 import {
@@ -22,7 +22,7 @@ import {
 import { postSwopPay } from "@/actions/swopPay";
 import { FaAngleDown, FaTimes } from "react-icons/fa";
 import { currencyItems, icon } from "@/components/util/data/smartsiteIconData";
-import { sendCloudinaryImage } from "@/lib/SendCloudineryImage";
+import { sendCloudinaryImage } from "@/lib/SendCloudinaryImage";
 import AnimateButton from "@/components/ui/Button/AnimateButton";
 import CustomFileInput from "@/components/CustomFileInput";
 import { MdInfoOutline } from "react-icons/md";

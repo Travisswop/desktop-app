@@ -9,14 +9,14 @@ import { FaTimes } from "react-icons/fa";
 //   updateContactCard,
 // } from "@/actions/contactCard";
 import { MdDelete, MdInfoOutline } from "react-icons/md";
-// import { sendCloudinaryImage } from "@/util/SendCloudineryImage";
+// import { sendCloudinaryImage } from "@/util/SendCloudinaryImage";
 // import "react-quill/dist/quill.snow.css"; // Add this line if not already present
 // import ReactQuill from "react-quill";
 import Image from "next/image";
 import CustomFileInput from "@/components/CustomFileInput";
 // import { icon } from "@/util/data/smartsiteIconData";
 import { deleteBlog, updateBlog } from "@/actions/blog";
-import { sendCloudinaryImage } from "@/lib/SendCloudineryImage";
+import { sendCloudinaryImage } from "@/lib/SendCloudinaryImage";
 import AnimateButton from "@/components/ui/Button/AnimateButton";
 import { Editor } from "@tinymce/tinymce-react";
 import { Tooltip } from "@nextui-org/react";

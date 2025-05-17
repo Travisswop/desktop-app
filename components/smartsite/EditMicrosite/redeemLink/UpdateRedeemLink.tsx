@@ -18,7 +18,7 @@ import toast from "react-hot-toast";
 import placeholder from "@/public/images/image_placeholder.png";
 import CustomFileInput from "@/components/CustomFileInput";
 import { usePrivy } from "@privy-io/react-auth";
-import { sendCloudinaryImage } from "@/lib/SendCloudineryImage";
+import { sendCloudinaryImage } from "@/lib/SendCloudinaryImage";
 import { usePathname } from "next/navigation";
 import { deleteRedeem, postRedeem, updateRedeem } from "@/actions/redeem";
 import Cookies from "js-cookie";

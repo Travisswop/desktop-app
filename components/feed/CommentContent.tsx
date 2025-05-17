@@ -33,7 +33,7 @@ import CommentGifPickerContent from "./comment/GifPicker";
 import { useCommentContentStore } from "@/zustandStore/CommentImgContent";
 import { Loader } from "lucide-react";
 import CommentImagePicker from "./comment/SelectImage";
-import { sendCloudinaryImage } from "@/lib/SendCloudineryImage";
+import { sendCloudinaryImage } from "@/lib/SendCloudinaryImage";
 import toast from "react-hot-toast";
 
 const CommentContent = ({
