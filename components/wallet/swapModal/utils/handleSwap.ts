@@ -9,6 +9,7 @@ import { getOrCreateFeeTokenAccount } from './tokenAccountUtils';
 import bs58 from 'bs58';
 import { PriorityLevel } from './PriorityFeeSelector';
 import { saveSwapTransaction } from '@/actions/saveTransactionData';
+import logger from '@/utils/logger';
 
 /**
  * Simulates a transaction to catch errors before sending
@@ -29,7 +30,7 @@ async function simulateTransaction(
     );
 
     if (simulation.value.err) {
-      console.error('Simulation error:', simulation.value.err);
+      logger.error('Simulation error:', simulation.value.err);
       throw new Error(
         `Simulation failed: ${JSON.stringify(simulation.value.err)}`
       );
@@ -37,7 +38,7 @@ async function simulateTransaction(
 
     return simulation.value;
   } catch (error) {
-    console.error('Transaction simulation error:', error);
+    logger.error('Transaction simulation error:', error);
     throw error;
   }
 }
@@ -87,17 +88,17 @@ export async function handleSwap({
     }
 
     // Get the input mint from the quote
-    console.log('Input mint from quote:', quote.inputMint);
+    logger.log('Input mint from quote:', quote.inputMint);
     let inputMint: PublicKey;
 
     try {
       inputMint = new PublicKey(quote.inputMint);
-      console.log(
+      logger.log(
         'Converted input mint to PublicKey:',
         inputMint.toString()
       );
     } catch (err) {
-      console.error('Invalid input mint format:', err);
+      logger.error('Invalid input mint format:', err);
       throw new Error(
         `Failed to create PublicKey from input mint: ${quote.inputMint}`
       );
@@ -111,10 +112,10 @@ export async function handleSwap({
         process.env.NEXT_PUBLIC_FEE_PAYER_PRIVATE_KEY;
 
       if (!feePayerPrivateKey) {
-        console.warn(
+        logger.warn(
           'Fee payer private key not found in environment variables'
         );
-        console.log(
+        logger.log(
           'Will continue without creating fee accounts if needed'
         );
       } else {
@@ -131,18 +132,18 @@ export async function handleSwap({
             feePayerKeypair
           );
 
-          console.log('Using fee account:', feeAccount.toString());
+          logger.log('Using fee account:', feeAccount.toString());
         } catch (keyError) {
-          console.error(
+          logger.error(
             'Error creating keypair from private key:',
             keyError
           );
-          console.log('Will continue swap without fee collection');
+          logger.log('Will continue swap without fee collection');
         }
       }
     } catch (feeAccountError) {
-      console.error('Error setting up fee account:', feeAccountError);
-      console.log('Will continue swap without fee collection');
+      logger.error('Error setting up fee account:', feeAccountError);
+      logger.log('Will continue swap without fee collection');
     }
 
     // Prepare the swap request body
@@ -162,14 +163,12 @@ export async function handleSwap({
     // Add fee account if available
     if (feeAccount) {
       swapRequestBody.feeAccount = feeAccount.toString();
-      console.log(
+      logger.log(
         'Fee collection enabled with account:',
         feeAccount.toString()
       );
     } else {
-      console.log(
-        'Fee collection disabled - continuing without fees'
-      );
+      logger.log('Fee collection disabled - continuing without fees');
     }
 
     // Set custom slippage if provided
@@ -178,7 +177,7 @@ export async function handleSwap({
     }
 
     // Log the swap request
-    console.log(
+    logger.log(
       'Swap request body:',
       JSON.stringify(swapRequestBody, null, 2)
     );
@@ -223,9 +222,9 @@ export async function handleSwap({
         transaction,
         solanaAddress
       );
-      console.log('Transaction simulation successful');
+      logger.log('Transaction simulation successful');
     } catch (simError) {
-      console.error('Transaction simulation failed:', simError);
+      logger.error('Transaction simulation failed:', simError);
       throw new Error(
         `Transaction simulation failed: ${
           (simError as Error).message
@@ -251,7 +250,7 @@ export async function handleSwap({
       skipPreflight: true,
     });
 
-    console.log('Signature:', signature);
+    logger.log('Signature:', signature);
 
     if (onStatusUpdate) {
       onStatusUpdate('Confirming transaction...');
@@ -270,7 +269,7 @@ export async function handleSwap({
       );
     }
 
-    console.log(`✅ Success: https://solscan.io/tx/${signature}`);
+    logger.log(`✅ Success: https://solscan.io/tx/${signature}`);
 
     try {
       // Format the swap details for saving
@@ -305,7 +304,7 @@ export async function handleSwap({
         onSuccess(signature);
       }
     } catch (saveError) {
-      console.error('Failed to save swap details:', saveError);
+      logger.error('Failed to save swap details:', saveError);
       // Still consider the swap successful, just log the error
       if (onSuccess) {
         onSuccess(signature);
@@ -321,7 +320,7 @@ export async function handleSwap({
 
     return signature;
   } catch (err: any) {
-    console.error('Swap Failed:', err);
+    logger.error('Swap Failed:', err);
 
     let errorMessage = 'Swap failed. Please try again.';
 

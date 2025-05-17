@@ -26,7 +26,6 @@ export default function ChatBox({
 }: ChatProps) {
   const [inputMessage, setInputMessage] = useState('');
   const lastMessageRef = useRef<HTMLDivElement>(null);
-  console.log('conversatio', conversation);
   useEffect(() => {
     if (lastMessageRef.current) {
       lastMessageRef.current.scrollIntoView({ behavior: 'smooth' });
@@ -92,8 +91,6 @@ export default function ChatBox({
       </div>
     );
   };
-
-  console.log('messgage history', messageHistory);
 
   return (
     <div className="pt-4 w-full overflow-x-hidden h-full">

@@ -1,6 +1,6 @@
-"use client";
+'use client';
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect } from 'react';
 import {
   Area,
   AreaChart,
@@ -9,17 +9,24 @@ import {
   CartesianGrid,
   XAxis,
   YAxis,
-} from "recharts";
-import { Card, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
-import { getCurrentCashFlow } from "@/actions/cashflow";
-import { useUser } from "@/lib/UserContext";
+} from 'recharts';
+import {
+  Card,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card';
+import { getCurrentCashFlow } from '@/actions/cashflow';
+import { useUser } from '@/lib/UserContext';
 
 const CustomTooltip = ({ active, payload }: any) => {
   if (active && payload && payload.length) {
     return (
       <div className="bg-white p-4 rounded-lg shadow-lg border">
         <p className="font-medium">{payload[0].payload.date}</p>
-        <p className="text-green-600">${payload[0].value.toLocaleString()}</p>
+        <p className="text-green-600">
+          ${payload[0].value.toLocaleString()}
+        </p>
         <p className="text-gray-500 text-sm">
           {payload[0].payload.transactions} transactions
         </p>
@@ -43,8 +50,6 @@ export default function CashflowChartPrevious() {
     value: 0,
     transactions: 0,
   }));
-
-  console.log("cashflow data", cashflowData);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -75,7 +80,8 @@ export default function CashflowChartPrevious() {
     );
     setTotalCashflow(getTotalCashflow);
 
-    const getCurrentValue = cashflowData[cashflowData.length - 1]?.value || 0;
+    const getCurrentValue =
+      cashflowData[cashflowData.length - 1]?.value || 0;
     const getPreviousValue = cashflowData[0]?.value || 1; // Avoid division by zero
     const percentageChange =
       ((getCurrentValue - getPreviousValue) / getPreviousValue) * 100;
@@ -93,7 +99,9 @@ export default function CashflowChartPrevious() {
       <CardHeader>
         <div className="flex justify-between items-center">
           <div>
-            <CardTitle className="text-lg font-medium">Cashflow</CardTitle>
+            <CardTitle className="text-lg font-medium">
+              Cashflow
+            </CardTitle>
             <div className="text-2xl font-bold text-gray-700">
               ${totalCashflow}
             </div>
@@ -123,9 +131,23 @@ export default function CashflowChartPrevious() {
             margin={{ top: 10, right: 30, left: 0, bottom: 0 }}
           >
             <defs>
-              <linearGradient id="colorValue" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor="#CFFAD6" stopOpacity={1} />
-                <stop offset="100%" stopColor="#EFFDF1" stopOpacity={1} />
+              <linearGradient
+                id="colorValue"
+                x1="0"
+                y1="0"
+                x2="0"
+                y2="1"
+              >
+                <stop
+                  offset="0%"
+                  stopColor="#CFFAD6"
+                  stopOpacity={1}
+                />
+                <stop
+                  offset="100%"
+                  stopColor="#EFFDF1"
+                  stopOpacity={1}
+                />
               </linearGradient>
             </defs>
             <CartesianGrid strokeDasharray="3 3" opacity={0.1} />
@@ -138,7 +160,7 @@ export default function CashflowChartPrevious() {
             <YAxis
               tickLine={false}
               tick={{ fontSize: 12 }}
-              domain={["auto", "auto"]}
+              domain={['auto', 'auto']}
               tickFormatter={(value) => `$${value.toLocaleString()}`}
             />
             <Tooltip content={<CustomTooltip />} />
@@ -157,15 +179,17 @@ export default function CashflowChartPrevious() {
           <span
             className={`inline-flex items-center rounded-md px-2 py-1 ${
               Number(percentageChange) >= 0
-                ? "bg-green-50 text-green-600"
-                : "bg-red-50 text-red-600"
+                ? 'bg-green-50 text-green-600'
+                : 'bg-red-50 text-red-600'
             }`}
           >
-            {Number(percentageChange) >= 0 ? "+" : ""}
+            {Number(percentageChange) >= 0 ? '+' : ''}
             {percentageChange}%
           </span>
           <span className="text-muted-foreground">in the last</span>
-          <span className="font-medium text-[#8A2BE2]">{dateRange} days</span>
+          <span className="font-medium text-[#8A2BE2]">
+            {dateRange} days
+          </span>
         </div>
       </CardFooter>
     </Card>

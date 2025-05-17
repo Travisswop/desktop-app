@@ -2,6 +2,7 @@ import {
   saveTokenTransferTransaction,
   saveNftTransferTransaction,
 } from '@/actions/saveTransactionData';
+import logger from '@/utils/logger';
 
 /**
  * Mock function to generate a fake token transfer transaction and save it to the backend
@@ -12,7 +13,7 @@ export async function mockTokenTransfer(
   walletAddress?: string,
   recipientAddress?: string
 ) {
-  console.log('Starting mock token transfer test...');
+  logger.log('Starting mock token transfer test...');
 
   // Generate a mock transaction signature
   const mockSignature = `mock_token_${Math.random()
@@ -40,7 +41,7 @@ export async function mockTokenTransfer(
     memo: 'Mock token transfer for testing',
   };
 
-  console.log('Mock token transfer details:', mockTransferDetails);
+  logger.log('Mock token transfer details:', mockTransferDetails);
 
   try {
     // Call the actual save transaction function with our mock data
@@ -50,7 +51,7 @@ export async function mockTokenTransfer(
     );
 
     if (result) {
-      console.log(
+      logger.log(
         '✅ Mock token transfer transaction saved successfully:',
         result
       );
@@ -62,7 +63,7 @@ export async function mockTokenTransfer(
         tokenSymbol: 'SOL',
       };
     } else {
-      console.error(
+      logger.error(
         '❌ Failed to save mock token transfer transaction'
       );
       return {
@@ -72,7 +73,7 @@ export async function mockTokenTransfer(
       };
     }
   } catch (error) {
-    console.error('❌ Error in mock token transfer test:', error);
+    logger.error('❌ Error in mock token transfer test:', error);
     return {
       success: false,
       error: error instanceof Error ? error.message : String(error),
@@ -90,7 +91,7 @@ export async function mockNftTransfer(
   walletAddress?: string,
   recipientAddress?: string
 ) {
-  console.log('Starting mock NFT transfer test...');
+  logger.log('Starting mock NFT transfer test...');
 
   // Generate a mock transaction signature
   const mockSignature = `mock_nft_${Math.random()
@@ -147,7 +148,7 @@ export async function mockNftTransfer(
     memo: 'Mock NFT transfer for testing',
   };
 
-  console.log('Mock NFT transfer details:', mockTransferDetails);
+  logger.log('Mock NFT transfer details:', mockTransferDetails);
 
   try {
     // Call the actual save transaction function with our mock data
@@ -157,7 +158,7 @@ export async function mockNftTransfer(
     );
 
     if (result) {
-      console.log(
+      logger.log(
         '✅ Mock NFT transfer transaction saved successfully:',
         result
       );
@@ -169,9 +170,7 @@ export async function mockNftTransfer(
         nftName: randomNft.name,
       };
     } else {
-      console.error(
-        '❌ Failed to save mock NFT transfer transaction'
-      );
+      logger.error('❌ Failed to save mock NFT transfer transaction');
       return {
         success: false,
         error: 'Failed to save transaction data',
@@ -179,7 +178,7 @@ export async function mockNftTransfer(
       };
     }
   } catch (error) {
-    console.error('❌ Error in mock NFT transfer test:', error);
+    logger.error('❌ Error in mock NFT transfer test:', error);
     return {
       success: false,
       error: error instanceof Error ? error.message : String(error),

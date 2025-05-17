@@ -1,6 +1,6 @@
-import UpdateQRCode from "@/components/smartsite/qrCode/CustomQRCode/UpdateQrCode";
-import { cookies } from "next/headers";
-import React from "react";
+import UpdateQRCode from '@/components/smartsite/qrCode/CustomQRCode/UpdateQrCode';
+import { cookies } from 'next/headers';
+import React from 'react';
 
 const UpdateQrCodePage = async ({
   params,
@@ -12,8 +12,8 @@ const UpdateQrCodePage = async ({
   const id = (await params).id;
 
   // Retrieve data from specific cookie
-  const accessToken = (await cookieStore).get("access-token")?.value;
-  const userId = (await cookieStore).get("user-id")?.value;
+  const accessToken = (await cookieStore).get('access-token')?.value;
+  const userId = (await cookieStore).get('user-id')?.value;
   const session = {
     _id: userId,
     accessToken,
@@ -22,16 +22,14 @@ const UpdateQrCodePage = async ({
   const response = await fetch(
     `${process.env.NEXT_PUBLIC_API_URL}/api/v1/desktop/user/customQRCodes/details/${id}`,
     {
-      method: "GET",
+      method: 'GET',
       headers: {
-        "Content-Type": "application/json",
+        'Content-Type': 'application/json',
         authorization: `Bearer ${session.accessToken}`,
       },
     }
   );
   const data = await response.json();
-
-  console.log("single qr data", data);
 
   return (
     <div>

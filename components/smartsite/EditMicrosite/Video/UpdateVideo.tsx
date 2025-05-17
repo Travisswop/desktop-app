@@ -1,78 +1,54 @@
-// import Image from "next/image";
-import React, { useEffect, useRef, useState } from "react";
-// import {
-//   Dropdown,
-//   DropdownItem,
-//   DropdownMenu,
-//   DropdownTrigger,
-//   Switch,
-// } from "@nextui-org/react";
-// import { AiOutlineDownCircle } from "react-icons/ai";
-// import { IoLinkOutline } from "react-icons/io5";
-import { LiaFileMedicalSolid } from "react-icons/lia";
-// import { embedItems, icon } from "@/util/data/smartsiteIconData";
-// import useLoggedInUserStore from "@/zustandStore/SetLogedInUserSession";
-// import { toast } from "react-toastify";
-import { FaTimes } from "react-icons/fa";
-import { MdDelete, MdInfoOutline } from "react-icons/md";
-// import AnimateButton from "@/components/Button/AnimateButton";
-// import { deleteEmbedLink, updateEmbedLink } from "@/actions/embedLink";
-// import { sendCloudinaryVideo } from "@/util/sendCloudinaryVideo";
-import { deleteVideo, updateVideo } from "@/actions/video";
-// import placeholder from "@/public/images/video_player_placeholder.gif";
-// import CustomFileInput from "@/components/CustomFileInput";
-import { sendCloudinaryVideo } from "@/lib/sendCloudinaryVideo";
-import CustomFileInput from "@/components/CustomFileInput";
-import AnimateButton from "@/components/ui/Button/AnimateButton";
-import { Tooltip } from "@nextui-org/react";
-import Image from "next/image";
-import filePlaceholder from "@/public/images/placeholder-photo.png";
-import toast from "react-hot-toast";
-import Cookies from 'js-cookie'
+import React, { useEffect, useRef, useState } from 'react';
+import { LiaFileMedicalSolid } from 'react-icons/lia';
+import { FaTimes } from 'react-icons/fa';
+import { MdDelete, MdInfoOutline } from 'react-icons/md';
+import { deleteVideo, updateVideo } from '@/actions/video';
+import { sendCloudinaryVideo } from '@/lib/sendCloudinaryVideo';
+import CustomFileInput from '@/components/CustomFileInput';
+import AnimateButton from '@/components/ui/Button/AnimateButton';
+import { Tooltip } from '@nextui-org/react';
+import Image from 'next/image';
+import filePlaceholder from '@/public/images/placeholder-photo.png';
+import toast from 'react-hot-toast';
+import Cookies from 'js-cookie';
 
 const UpdateVideo = ({ iconDataObj, isOn, setOff }: any) => {
-  const [token, setToken] = useState("");
+  const [token, setToken] = useState('');
+  const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [isDeleteLoading, setIsDeleteLoading] =
+    useState<boolean>(false);
+  const modalRef = useRef<HTMLDivElement>(null);
+  const [inputError, setInputError] = useState<any>({});
+  const [videoFile, setVideoFile] = useState<any>(null);
+  const [fileError, setFileError] = useState<string>('');
+  const [attachLink, setAttachLink] = useState<string>('');
 
   useEffect(() => {
     const getAccessToken = async () => {
       const token = Cookies.get('access-token');
-      setToken(token || "")
+      setToken(token || '');
     };
     getAccessToken();
   }, []);
-  
-  const [isLoading, setIsLoading] = useState<boolean>(false);
-  const [isDeleteLoading, setIsDeleteLoading] = useState<boolean>(false);
-  const modalRef = useRef<HTMLDivElement>(null);
-  const [inputError, setInputError] = useState<any>({});
-  const [videoFile, setVideoFile] = useState<any>(null);
-  const [fileError, setFileError] = useState<string>("");
-  const [attachLink, setAttachLink] = useState<string>("");
-
-  // console.log("iconDataObj", iconDataObj);
 
   const handleFileChange = (event: any) => {
     const file = event.target.files[0];
-    if (file && file.type.startsWith("video/")) {
+    if (file && file.type.startsWith('video/')) {
       if (file.size > 20 * 1024 * 1024) {
-        // Check if file size is greater than 10 MB
-        setFileError("File size should be less than 20 MB");
+        setFileError('File size should be less than 20 MB');
         setVideoFile(null);
       } else {
         const reader = new FileReader();
         reader.onloadend = () => {
           setVideoFile(reader.result as any);
-          setFileError("");
+          setFileError('');
         };
         reader.readAsDataURL(file);
       }
     } else {
-      setFileError("Please upload a valid video file.");
+      setFileError('Please upload a valid video file.');
     }
   };
-
-  // console.log("videoFile", videoFile);
-  // console.log("icon data obj", iconDataObj);
 
   const handleFormSubmit = async (e: any) => {
     setIsLoading(true);
@@ -82,7 +58,7 @@ const UpdateVideo = ({ iconDataObj, isOn, setOff }: any) => {
     const info = {
       _id: iconDataObj.data._id,
       micrositeId: iconDataObj.data.micrositeId,
-      title: formData.get("title"),
+      title: formData.get('title'),
       file: videoFile || iconDataObj.data.link,
       attachLink: attachLink,
     };
@@ -90,22 +66,22 @@ const UpdateVideo = ({ iconDataObj, isOn, setOff }: any) => {
     let errors = {};
 
     if (!info.title) {
-      errors = { ...errors, title: "title is required" };
+      errors = { ...errors, title: 'title is required' };
     }
     if (!info.file && !attachLink) {
-      errors = { ...errors, image: "video is required" };
+      errors = { ...errors, image: 'video is required' };
     }
 
     if (Object.keys(errors).length > 0) {
       setInputError(errors);
       setIsLoading(false);
     } else {
-      setInputError("");
+      setInputError('');
       try {
         if (videoFile) {
           const videoUrl = await sendCloudinaryVideo(info.file);
           if (!videoUrl) {
-            toast.error("Image upload failed!");
+            toast.error('Image upload failed!');
           }
           info.file = videoUrl;
         } else if (attachLink) {
@@ -113,13 +89,12 @@ const UpdateVideo = ({ iconDataObj, isOn, setOff }: any) => {
         }
 
         const data = await updateVideo(info, token);
-        // console.log("data", data);
 
-        if ((data.state = "success")) {
+        if ((data.state = 'success')) {
           setOff();
-          toast.success("Video updated successfully");
+          toast.success('Video updated successfully');
         } else {
-          toast.error("Something went wrong!");
+          toast.error('Something went wrong!');
         }
       } catch (error) {
         console.error(error);
@@ -129,15 +104,14 @@ const UpdateVideo = ({ iconDataObj, isOn, setOff }: any) => {
     }
   };
 
-  // Function to close the modal
   const closeModal = () => {
     setOff();
   };
-  // Function to handle click on the backdrop
+
   const handleBackdropClick = (e: any) => {
     if (
-      e.target.classList.contains("backdrop") &&
-      !e.target.closest(".modal-content")
+      e.target.classList.contains('backdrop') &&
+      !e.target.closest('.modal-content')
     ) {
       closeModal();
     }
@@ -151,14 +125,13 @@ const UpdateVideo = ({ iconDataObj, isOn, setOff }: any) => {
     };
     try {
       const data: any = await deleteVideo(submitData, token);
-      // console.log("data,", data);
 
-      if (data && data?.state === "success") {
+      if (data && data?.state === 'success') {
         setOff();
-        toast.success("Video deleted successfully");
+        toast.success('Video deleted successfully');
         setOff();
       } else {
-        toast.error("Something went wrong!");
+        toast.error('Something went wrong!');
       }
     } catch (error) {
       console.error(error);
@@ -199,9 +172,10 @@ const UpdateVideo = ({ iconDataObj, isOn, setOff }: any) => {
                         size="sm"
                         content={
                           <span className="font-medium">
-                            You can embed a video by either uploading it
-                            directly or sharing an external link, along with
-                            providing a title for the content.
+                            You can embed a video by either uploading
+                            it directly or sharing an external link,
+                            along with providing a title for the
+                            content.
                           </span>
                         }
                         className={`max-w-40 h-auto`}
@@ -234,7 +208,8 @@ const UpdateVideo = ({ iconDataObj, isOn, setOff }: any) => {
                                 srcLang="en"
                                 label="English"
                               />
-                              Your browser does not support the video tag.
+                              Your browser does not support the video
+                              tag.
                             </video>
                           ) : (
                             <video
@@ -252,7 +227,8 @@ const UpdateVideo = ({ iconDataObj, isOn, setOff }: any) => {
                                 srcLang="en"
                                 label="English"
                               />
-                              Your browser does not support the video tag.
+                              Your browser does not support the video
+                              tag.
                             </video>
                           )}
                         </div>
@@ -285,7 +261,7 @@ const UpdateVideo = ({ iconDataObj, isOn, setOff }: any) => {
                                 Select Video
                               </p>
                               <CustomFileInput
-                                title={"Browse"}
+                                title={'Browse'}
                                 handleFileChange={handleFileChange}
                               />
                             </div>
@@ -306,7 +282,7 @@ const UpdateVideo = ({ iconDataObj, isOn, setOff }: any) => {
                           name="title"
                           defaultValue={iconDataObj.data.title}
                           className="w-full border border-[#ede8e8] focus:border-[#e5e0e0] rounded-xl focus:outline-none px-3 py-2 text-gray-700 bg-gray-100"
-                          placeholder={"Enter video title"}
+                          placeholder={'Enter video title'}
                           // required
                         />
                         {inputError.title && (
@@ -323,8 +299,10 @@ const UpdateVideo = ({ iconDataObj, isOn, setOff }: any) => {
                           type="url"
                           name="link"
                           className="w-full border border-[#ede8e8] focus:border-[#e5e0e0] rounded-xl focus:outline-none px-3 py-2 text-gray-700 bg-gray-100"
-                          placeholder={"Enter video url"}
-                          onChange={(e) => setAttachLink(e.target.value)}
+                          placeholder={'Enter video url'}
+                          onChange={(e) =>
+                            setAttachLink(e.target.value)
+                          }
                         />
                       </div>
                     </div>
@@ -335,7 +313,7 @@ const UpdateVideo = ({ iconDataObj, isOn, setOff }: any) => {
                     className="bg-black text-white py-2 !border-0"
                     whiteLoading={true}
                     isLoading={isLoading}
-                    width={"w-52"}
+                    width={'w-52'}
                   >
                     <LiaFileMedicalSolid size={20} />
                     Save Changes
@@ -346,7 +324,7 @@ const UpdateVideo = ({ iconDataObj, isOn, setOff }: any) => {
                     type="button"
                     onClick={handleDelete}
                     isLoading={isDeleteLoading}
-                    width={"w-28"}
+                    width={'w-28'}
                   >
                     <MdDelete size={20} /> Delete
                   </AnimateButton>

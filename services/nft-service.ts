@@ -7,6 +7,7 @@ import {
   AlchemyNftData,
 } from '@/types/nft';
 import { APIUtils } from '@/utils/api';
+import logger from '../utils/logger';
 
 interface MetaplexAsset {
   id: string; // Use the asset ID as the 'contract' or identifier
@@ -58,7 +59,7 @@ export class AlchemyService {
         this.transformAlchemyNFT(nft, network)
       );
     } catch (error) {
-      console.error('Error fetching NFTs:', error);
+      logger.error('Error fetching NFTs:', error);
       return [];
     }
   }
@@ -127,7 +128,7 @@ export class SolanaNFTService {
       )) as MetaplexResponse;
 
       if (response.error) {
-        console.error(
+        logger.error(
           'Error fetching Solana NFTs from DAS API:',
           response.error
         );
@@ -139,7 +140,7 @@ export class SolanaNFTService {
       // Transform the assets into the NFT format
       return this.transformMetaplexNFTs(assets);
     } catch (error) {
-      console.error('Error fetching Solana NFTs:', error);
+      logger.error('Error fetching Solana NFTs:', error);
       return [];
     }
   }

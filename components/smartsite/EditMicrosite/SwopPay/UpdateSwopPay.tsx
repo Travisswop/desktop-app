@@ -1,65 +1,55 @@
-import Image from "next/image";
-import React, { useEffect, useRef, useState } from "react";
+import Image from 'next/image';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   Dropdown,
   DropdownItem,
   DropdownMenu,
   DropdownTrigger,
   Tooltip,
-  // Switch,
-} from "@nextui-org/react";
-import { AiOutlineDownCircle } from "react-icons/ai";
-// import { IoLinkOutline } from "react-icons/io5";
-import { LiaFileMedicalSolid } from "react-icons/lia";
-// import { currencyItems, embedItems, icon } from "@/util/data/smartsiteIconData";
-// import { toast } from "react-toastify";
-import { FaAngleDown, FaTimes } from "react-icons/fa";
-import { MdDelete, MdInfoOutline } from "react-icons/md";
-// import AnimateButton from "@/components/Button/AnimateButton";
-// import { deleteEmbedLink, updateEmbedLink } from "@/actions/embedLink";
-// import { sendCloudinaryVideo } from "@/util/sendCloudinaryVideo";
-// import { deleteVideo, postVideo, updateVideo } from "@/actions/video";
-// import placeholder from "@/public/images/video_player_placeholder.gif";
-// import CustomFileInput from "@/components/CustomFileInput";
-// import { sendCloudinaryImage } from "@/util/SendCloudinaryImage";
-import { deleteSwopPay, updateSwopPay } from "@/actions/swopPay";
-import { currencyItems, icon } from "@/components/util/data/smartsiteIconData";
-import { sendCloudinaryImage } from "@/lib/SendCloudinaryImage";
-import CustomFileInput from "@/components/CustomFileInput";
-import AnimateButton from "@/components/ui/Button/AnimateButton";
-import toast from "react-hot-toast";
-import Cookies from 'js-cookie'
+} from '@nextui-org/react';
+import { AiOutlineDownCircle } from 'react-icons/ai';
+import { LiaFileMedicalSolid } from 'react-icons/lia';
+import { FaAngleDown, FaTimes } from 'react-icons/fa';
+import { MdDelete, MdInfoOutline } from 'react-icons/md';
+import { deleteSwopPay, updateSwopPay } from '@/actions/swopPay';
+import {
+  currencyItems,
+  icon,
+} from '@/components/util/data/smartsiteIconData';
+import { sendCloudinaryImage } from '@/lib/SendCloudinaryImage';
+import CustomFileInput from '@/components/CustomFileInput';
+import AnimateButton from '@/components/ui/Button/AnimateButton';
+import toast from 'react-hot-toast';
+import Cookies from 'js-cookie';
 
 const UpdateSwopPay = ({ iconDataObj, isOn, setOff }: any) => {
-  const [token, setToken] = useState("");
+  const [token, setToken] = useState('');
 
   useEffect(() => {
     const getAccessToken = async () => {
       const token = Cookies.get('access-token');
-      setToken(token || "")
+      setToken(token || '');
     };
     getAccessToken();
   }, []);
-  
-  const [isDeleteLoading, setIsDeleteLoading] = useState<boolean>(false);
+
+  const [isDeleteLoading, setIsDeleteLoading] =
+    useState<boolean>(false);
   const modalRef = useRef<HTMLDivElement>(null);
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [inputError, setInputError] = useState<any>({});
   const [imageFile, setImageFile] = useState<any>(null);
-  const [fileError, setFileError] = useState<string>("");
+  const [fileError, setFileError] = useState<string>('');
   const [selectedIcon, setSelectedIcon] = useState({
     id: 4,
-    name: "Solana",
+    name: 'Solana',
     icon: icon.appIconSolana,
-    characterText: "$",
+    characterText: '$',
   });
 
-  const [productName, setProductName] = useState<string>("");
-  const [description, setDescription] = useState<string>("");
+  const [productName, setProductName] = useState<string>('');
+  const [description, setDescription] = useState<string>('');
   const [price, setPrice] = useState<number>(50);
-
-  // console.log("file error", fileError);
-  // console.log("icon data ggg", iconDataObj);
 
   const currencyList: any = currencyItems;
 
@@ -74,21 +64,18 @@ const UpdateSwopPay = ({ iconDataObj, isOn, setOff }: any) => {
     const file = event.target.files[0];
     if (file) {
       if (file.size > 10 * 1024 * 1024) {
-        // Check if file size is greater than 10 MB
-        setFileError("File size should be less than 10 MB");
+        setFileError('File size should be less than 10 MB');
         setImageFile(null);
       } else {
         const reader = new FileReader();
         reader.onloadend = () => {
           setImageFile(reader.result as any);
-          setFileError("");
+          setFileError('');
         };
         reader.readAsDataURL(file);
       }
     }
   };
-
-  //   console.log("imagefile", imageFile);
 
   const handleFormSubmit = async (e: any) => {
     setIsLoading(true);
@@ -98,85 +85,79 @@ const UpdateSwopPay = ({ iconDataObj, isOn, setOff }: any) => {
     const info: any = {
       _id: iconDataObj.data._id,
       micrositeId: iconDataObj.data.micrositeId,
-      title: formData.get("title"),
-      price: formData.get("price"),
-      description: formData.get("description"),
-      paymentUrl: formData.get("paymentUrl"),
+      title: formData.get('title'),
+      price: formData.get('price'),
+      description: formData.get('description'),
+      paymentUrl: formData.get('paymentUrl'),
       currency: selectedIcon.name,
       imageUrl: imageFile || iconDataObj.data.imageUrl,
     };
 
-    // console.log("info", info);
-
     let errors = {};
 
     if (!info.title) {
-      errors = { ...errors, title: "title is required" };
+      errors = { ...errors, title: 'title is required' };
     }
     if (!info.price) {
-      errors = { ...errors, headline: "price is required" };
+      errors = { ...errors, headline: 'price is required' };
     }
     if (!info.description) {
-      errors = { ...errors, description: "description is required" };
+      errors = { ...errors, description: 'description is required' };
     }
     if (info.description && info?.description?.length < 5) {
       errors = {
         ...errors,
-        description: "description must be atleast 5 characters long",
+        description: 'description must be atleast 5 characters long',
       };
     }
     if (!info.paymentUrl) {
-      errors = { ...errors, image: "product url is required" };
+      errors = { ...errors, image: 'product url is required' };
     }
     if (!info.currency) {
-      errors = { ...errors, image: "currency is required" };
+      errors = { ...errors, image: 'currency is required' };
     }
     if (!info.imageUrl) {
-      errors = { ...errors, image: "image is required" };
+      errors = { ...errors, image: 'image is required' };
     }
 
     if (Object.keys(errors).length > 0) {
       setInputError(errors);
       setIsLoading(false);
     } else {
-      setInputError("");
+      setInputError('');
 
       try {
         if (imageFile) {
           const imageUrl = await sendCloudinaryImage(info.imageUrl);
           if (!imageUrl) {
-            return toast.error("photo upload failed!");
+            return toast.error('photo upload failed!');
           }
           info.imageUrl = imageUrl;
         }
         const data = await updateSwopPay(info, token);
-        // console.log("data", data);
 
-        if ((data.state = "success")) {
+        if ((data.state = 'success')) {
           setOff();
-          toast.success("Product updated successfully");
+          toast.success('Product updated successfully');
         } else {
-          toast.error("Something went wrong!");
+          toast.error('Something went wrong!');
         }
       } catch (error) {
-        console.error(error);
+        toast.error('An error occurred');
       } finally {
         setIsLoading(false);
       }
     }
   };
 
-  //   console.log("selectedIcon", selectedIcon);
-
-  // Function to close the modal
   const closeModal = () => {
     setOff();
   };
-  // Function to handle click on the backdrop
+
   const handleBackdropClick = (e: any) => {
     if (
-      e.target.classList.contains("backdrop") &&
-      !e.target.closest(".modal-content")
+      e.target.classList.contains('backdrop') &&
+      !e.target.closest('.modal-content')
     ) {
       closeModal();
     }
@@ -190,16 +171,15 @@ const UpdateSwopPay = ({ iconDataObj, isOn, setOff }: any) => {
     };
     try {
       const data: any = await deleteSwopPay(submitData, token);
-      // console.log("data,", data);
 
-      if (data && data?.state === "success") {
+      if (data && data?.state === 'success') {
         setOff();
-        toast.success("Product deleted successfully");
+        toast.success('Product deleted successfully');
       } else {
-        toast.error("Something went wrong");
+        toast.error('Something went wrong');
       }
     } catch (error) {
-      console.error(error);
+      toast.error('An error occurred');
     } finally {
       setIsDeleteLoading(false);
     }
@@ -245,9 +225,9 @@ const UpdateSwopPay = ({ iconDataObj, isOn, setOff }: any) => {
                     size="sm"
                     content={
                       <span className="font-medium">
-                        You will be able to set the icon type, choose an icon ,
-                        specify a button name, provide a link, and add a
-                        description.
+                        You will be able to set the icon type, choose
+                        an icon , specify a button name, provide a
+                        link, and add a description.
                       </span>
                     }
                     className={`max-w-40 h-auto`}
@@ -263,19 +243,27 @@ const UpdateSwopPay = ({ iconDataObj, isOn, setOff }: any) => {
                   <div className=" w-full flex items-center gap-2">
                     <Image
                       className="w-12 h-12 rounded-full"
-                      src={imageFile ? imageFile : iconDataObj?.data?.imageUrl}
+                      src={
+                        imageFile
+                          ? imageFile
+                          : iconDataObj?.data?.imageUrl
+                      }
                       alt="icon"
                       width={90}
                       height={90}
                     />
                     <div>
-                      <p className="text-gray-700 font-medium">{productName}</p>
+                      <p className="text-gray-700 font-medium">
+                        {productName}
+                      </p>
                       <p className="text-gray-500 text-sm font-medium">
                         {description}
                       </p>
                     </div>
                   </div>
-                  <p className="text-gray-700 font-medium">${price}</p>
+                  <p className="text-gray-700 font-medium">
+                    ${price}
+                  </p>
                 </div>
               </div>
               <div className="flex justify-between gap-10">
@@ -288,7 +276,9 @@ const UpdateSwopPay = ({ iconDataObj, isOn, setOff }: any) => {
                           *
                         </span>
                       </p>
-                      <CustomFileInput handleFileChange={handleFileChange} />
+                      <CustomFileInput
+                        handleFileChange={handleFileChange}
+                      />
                     </div>
                     {inputError.image && (
                       <p className="text-red-600 font-medium text-sm mt-2">
@@ -302,7 +292,10 @@ const UpdateSwopPay = ({ iconDataObj, isOn, setOff }: any) => {
                     )}
                   </div>
                   <div className="flex flex-col gap-1">
-                    <label htmlFor="title" className="font-medium text-sm">
+                    <label
+                      htmlFor="title"
+                      className="font-medium text-sm"
+                    >
                       Product Name
                       <span className="text-red-600 font-medium text-sm mt-1">
                         *
@@ -315,8 +308,10 @@ const UpdateSwopPay = ({ iconDataObj, isOn, setOff }: any) => {
                         name="title"
                         defaultValue={iconDataObj.data.title}
                         className="w-full border border-[#ede8e8] focus:border-[#e5e0e0] rounded-xl focus:outline-none px-3 py-2 text-gray-700 bg-gray-100"
-                        placeholder={"Enter product name"}
-                        onChange={(e) => setProductName(e.target.value)}
+                        placeholder={'Enter product name'}
+                        onChange={(e) =>
+                          setProductName(e.target.value)
+                        }
                       />
                       {inputError.title && (
                         <p className="text-red-600 font-medium text-sm mt-1">
@@ -326,7 +321,10 @@ const UpdateSwopPay = ({ iconDataObj, isOn, setOff }: any) => {
                     </div>
                   </div>
                   <div className="flex flex-col gap-1">
-                    <label htmlFor="paymentUrl" className="font-medium text-sm">
+                    <label
+                      htmlFor="paymentUrl"
+                      className="font-medium text-sm"
+                    >
                       Product Url
                       <span className="text-red-600 font-medium text-sm mt-1">
                         *
@@ -338,7 +336,7 @@ const UpdateSwopPay = ({ iconDataObj, isOn, setOff }: any) => {
                       name="paymentUrl"
                       defaultValue={iconDataObj.data.paymentUrl}
                       className="w-full border border-[#ede8e8] focus:border-[#e5e0e0] rounded-xl focus:outline-none px-3 py-2 text-gray-700 bg-gray-100"
-                      placeholder={"Enter Product Url"}
+                      placeholder={'Enter Product Url'}
                       //   required
                     />
                     {inputError.headline && (
@@ -350,9 +348,14 @@ const UpdateSwopPay = ({ iconDataObj, isOn, setOff }: any) => {
                 </div>
               </div>
               <div className="flex items-center gap-2">
-                <h3 className="font-semibold text-gray-700">Select Currency</h3>
+                <h3 className="font-semibold text-gray-700">
+                  Select Currency
+                </h3>
 
-                <Dropdown className="w-max rounded-lg" placement="bottom-start">
+                <Dropdown
+                  className="w-max rounded-lg"
+                  placement="bottom-start"
+                >
                   <DropdownTrigger>
                     <div className={`flex items-center`}>
                       <button
@@ -368,7 +371,7 @@ const UpdateSwopPay = ({ iconDataObj, isOn, setOff }: any) => {
                             />
                           )}
                           {selectedIcon.name}
-                        </span>{" "}
+                        </span>{' '}
                         <FaAngleDown />
                       </button>
                       <div className="hidden text-xs text-gray-600 px-2 w-28 py-1.5 bg-slate-200 shadow-medium z-50 absolute left-6 top-0 group-hover:flex justify-center">
@@ -377,12 +380,12 @@ const UpdateSwopPay = ({ iconDataObj, isOn, setOff }: any) => {
                     </div>
                   </DropdownTrigger>
                   <DropdownMenu
-                    disabledKeys={["title"]}
+                    disabledKeys={['title']}
                     aria-label="Static Actions"
                     className="p-2"
                   >
                     <DropdownItem
-                      key={"title"}
+                      key={'title'}
                       className=" hover:!bg-white opacity-100 cursor-text disabled dropDownTitle"
                     >
                       <p>Choose Icon</p>
@@ -395,7 +398,7 @@ const UpdateSwopPay = ({ iconDataObj, isOn, setOff }: any) => {
                             id: data.id,
                             name: data.name,
                             icon: data.icon,
-                            characterText: "$",
+                            characterText: '$',
                           })
                         }
                         className="border-b rounded-none hover:rounded-md"
@@ -416,7 +419,10 @@ const UpdateSwopPay = ({ iconDataObj, isOn, setOff }: any) => {
                 </Dropdown>
               </div>
               <div className="flex flex-col gap-1">
-                <label htmlFor="price" className="font-medium text-sm">
+                <label
+                  htmlFor="price"
+                  className="font-medium text-sm"
+                >
                   Price
                   <span className="text-red-600 font-medium text-sm mt-1">
                     *
@@ -438,8 +444,10 @@ const UpdateSwopPay = ({ iconDataObj, isOn, setOff }: any) => {
                       id="price"
                       defaultValue={iconDataObj.data.price}
                       className="w-full border border-[#ede8e8] focus:border-[#e5e0e0] rounded-xl focus:outline-none pl-11 py-2 text-gray-700 bg-gray-100"
-                      placeholder={"Enter product price"}
-                      onChange={(e) => setPrice(Number(e.target.value))}
+                      placeholder={'Enter product price'}
+                      onChange={(e) =>
+                        setPrice(Number(e.target.value))
+                      }
                       required
                     />
                   </div>
@@ -451,7 +459,10 @@ const UpdateSwopPay = ({ iconDataObj, isOn, setOff }: any) => {
                 </div>
               </div>
               <div className="flex flex-col gap-1">
-                <label htmlFor="description" className="font-medium text-sm">
+                <label
+                  htmlFor="description"
+                  className="font-medium text-sm"
+                >
                   Description
                   <span className="text-red-600 font-medium text-sm mt-1">
                     *
@@ -462,7 +473,7 @@ const UpdateSwopPay = ({ iconDataObj, isOn, setOff }: any) => {
                   name="description"
                   defaultValue={iconDataObj.data.description}
                   className="w-full border border-[#ede8e8] focus:border-[#e5e0e0] rounded-xl focus:outline-none px-3 py-2 text-gray-700 bg-gray-100"
-                  placeholder={"Enter description"}
+                  placeholder={'Enter description'}
                   onChange={(e) => setDescription(e.target.value)}
                 />
                 {inputError.description && (
@@ -476,7 +487,7 @@ const UpdateSwopPay = ({ iconDataObj, isOn, setOff }: any) => {
                   whiteLoading={true}
                   className="bg-black text-white py-2 !border-0"
                   isLoading={isLoading}
-                  width={"w-52"}
+                  width={'w-52'}
                 >
                   <LiaFileMedicalSolid size={20} />
                   Update Changes
@@ -487,7 +498,7 @@ const UpdateSwopPay = ({ iconDataObj, isOn, setOff }: any) => {
                   type="button"
                   onClick={handleDelete}
                   isLoading={isDeleteLoading}
-                  width={"w-28"}
+                  width={'w-28'}
                 >
                   <MdDelete size={20} /> Delete
                 </AnimateButton>

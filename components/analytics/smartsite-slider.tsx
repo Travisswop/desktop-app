@@ -1,24 +1,24 @@
-"use client";
+'use client';
 
-import * as React from "react";
-import Image from "next/image";
-import { Card, CardContent, CardHeader } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
+import * as React from 'react';
+import Image from 'next/image';
+import { Card, CardContent, CardHeader } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
 import {
   Carousel,
   CarouselContent,
   CarouselItem,
   CarouselNext,
   CarouselPrevious,
-} from "@/components/ui/carousel";
-import { Edit, QrCode, Send, Settings, Wallet } from "lucide-react";
-import Link from "next/link";
-import isUrl from "@/lib/isUrl";
-import { useState } from "react";
-import SmartSiteUrlShareModal from "../smartsite/socialShare/SmartsiteShareModal";
-import { useDisclosure } from "@nextui-org/react";
-import QRCodeShareModal from "../smartsite/socialShare/QRCodeShareModal";
-import filePlus from "@/public/images/file-plus.png";
+} from '@/components/ui/carousel';
+import { Edit, QrCode, Send, Settings, Wallet } from 'lucide-react';
+import Link from 'next/link';
+import isUrl from '@/lib/isUrl';
+import { useState } from 'react';
+import SmartSiteUrlShareModal from '../smartsite/socialShare/SmartsiteShareModal';
+import { useDisclosure } from '@nextui-org/react';
+import QRCodeShareModal from '../smartsite/socialShare/QRCodeShareModal';
+import filePlus from '@/public/images/file-plus.png';
 
 // interface Lead {
 //   id: string;
@@ -51,20 +51,18 @@ export default function SmartSiteSlider({
     onOpenChange: onSmartsiteOpenChange,
   } = useDisclosure();
 
-  const [smartSiteProfileUrl, setSmartSiteProfileUrl] = useState<string | null>(
-    null
-  );
+  const [smartSiteProfileUrl, setSmartSiteProfileUrl] = useState<
+    string | null
+  >(null);
   const [qrCode, setQrCode] = useState<string | null>(null);
 
   const handleShareMicrosite = (smartsiteUrl: string) => {
-    console.log("smartsiteUrl", smartsiteUrl);
     onSmartsiteOpen();
     setQrCode(null);
     setSmartSiteProfileUrl(smartsiteUrl);
   };
 
   const handleShareQrCode = (qrCode: string) => {
-    console.log("🚀 ~ handleShareQrCode ~ qrCode:", qrCode);
     setQrCode(qrCode); // Ensure this is the correct QR code URL
     onOpen(); // Open the modal after setting the QR code
   };
@@ -74,7 +72,7 @@ export default function SmartSiteSlider({
       <Carousel
         className="w-full "
         opts={{
-          align: "start",
+          align: 'start',
         }}
       >
         <CarouselContent className="">
@@ -83,7 +81,9 @@ export default function SmartSiteSlider({
               <Card className="bg-white border-0 ">
                 <CardHeader className="">
                   <div className="flex justify-between items-center">
-                    <h2 className="text-lg font-semibold">Smartsites</h2>
+                    <h2 className="text-lg font-semibold">
+                      Smartsites
+                    </h2>
                     <Link
                       href={`/smartsite/icons/${item._id}`}
                       className="flex items-center border border-gray-400 px-4 py-1.5 rounded-lg"
@@ -166,7 +166,9 @@ export default function SmartSiteSlider({
                           variant="black"
                           size="icon"
                           className="rounded-xl"
-                          onClick={() => handleShareMicrosite(item.profileUrl)}
+                          onClick={() =>
+                            handleShareMicrosite(item.profileUrl)
+                          }
                         >
                           <Send />
                         </Button>
@@ -174,7 +176,9 @@ export default function SmartSiteSlider({
                           variant="black"
                           size="icon"
                           className="rounded-xl"
-                          onClick={() => handleShareQrCode(item.qrcodeUrl)}
+                          onClick={() =>
+                            handleShareQrCode(item.qrcodeUrl)
+                          }
                         >
                           <QrCode />
                         </Button>

@@ -74,9 +74,7 @@ export default function QrcodeGenerator() {
           url: url,
         });
       }
-    } catch (err) {
-      console.log('Failed to share:', err);
-    }
+    } catch (err) {}
   };
 
   return (

@@ -53,7 +53,6 @@ export async function POST(request: NextRequest) {
       userId,
     });
   } catch (error) {
-    console.log('🚀 ~ VerifyTokens ~ error:', error);
     return NextResponse.json(
       {
         error: 'Authentication failed',

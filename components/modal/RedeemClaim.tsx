@@ -1,19 +1,19 @@
-"use client";
-import React, { useEffect, useState } from "react";
-import { Modal, ModalContent, ModalBody } from "@nextui-org/react";
-import toast from "react-hot-toast";
-import { PublicKey } from "@solana/web3.js";
-import { useSolanaWalletContext } from "@/lib/context/SolanaWalletContext";
+'use client';
+import React, { useEffect, useState } from 'react';
+import { Modal, ModalContent, ModalBody } from '@nextui-org/react';
+import toast from 'react-hot-toast';
+import { PublicKey } from '@solana/web3.js';
+import { useSolanaWalletContext } from '@/lib/context/SolanaWalletContext';
 import {
   Card,
   CardContent,
   CardDescription,
   CardHeader,
   CardTitle,
-} from "../ui/card";
-import Image from "next/image";
-import { Input } from "../ui/input";
-import { Button } from "../ui/button";
+} from '../ui/card';
+import Image from 'next/image';
+import { Input } from '../ui/input';
+import { Button } from '../ui/button';
 
 interface RedemptionPool {
   pool_id: string;
@@ -41,18 +41,17 @@ export default function RedeemClaimModal({
   onOpenChange,
   redeemFeedData,
 }: any) {
-  console.log("redeem dta modal", redeemFeedData);
   const [loading, setLoading] = useState(false);
   const [redeemed, setRedeemed] = useState(false);
   const [pool, setPool] = useState<RedemptionPool | null>(null);
-  const [redeemedPool, setRedeemedPool] = useState<RedeemedPool[]>([]);
-  const [manualWalletAddress, setManualWalletAddress] = useState("");
+  const [redeemedPool, setRedeemedPool] = useState<RedeemedPool[]>(
+    []
+  );
+  const [manualWalletAddress, setManualWalletAddress] = useState('');
   const [isManualInput, setIsManualInput] = useState(false);
-  const [inputError, setInputError] = useState("");
+  const [inputError, setInputError] = useState('');
 
   const { solanaWallets } = useSolanaWalletContext();
-
-  console.log("solanaWallets", solanaWallets);
 
   useEffect(() => {
     fetchPool();
@@ -69,10 +68,10 @@ export default function RedeemClaimModal({
         setPool(data.pool);
         setRedeemedPool(data.redeemed);
       } else {
-        toast.error("Failed to fetch pool details");
+        toast.error('Failed to fetch pool details');
       }
     } catch (error) {
-      toast.error("Failed to fetch pool details");
+      toast.error('Failed to fetch pool details');
     }
   };
 
@@ -89,13 +88,15 @@ export default function RedeemClaimModal({
     }
   };
 
-  const handleManualWalletChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleManualWalletChange = (
+    e: React.ChangeEvent<HTMLInputElement>
+  ) => {
     const address = e.target.value;
     setManualWalletAddress(address);
     if (address && !validateSolanaAddress(address)) {
-      setInputError("Invalid Solana address");
+      setInputError('Invalid Solana address');
     } else {
-      setInputError("");
+      setInputError('');
     }
   };
 
@@ -111,15 +112,17 @@ export default function RedeemClaimModal({
         (item) => item.user_wallet === walletToUse
       );
       if (checkWalletRedeemed) {
-        throw Error("Maximum redemption limit reached for this wallet");
+        throw Error(
+          'Maximum redemption limit reached for this wallet'
+        );
       }
 
       const response = await fetch(
         `${process.env.NEXT_PUBLIC_API_URL}/api/v2/desktop/wallet/redeemToken`,
         {
-          method: "POST",
+          method: 'POST',
           headers: {
-            "Content-Type": "application/json",
+            'Content-Type': 'application/json',
           },
           body: JSON.stringify({
             userWallet: walletToUse,
@@ -140,10 +143,10 @@ export default function RedeemClaimModal({
         setRedeemed(true);
         await fetchPool();
       } else {
-        toast.error(data.message || "Failed to redeem tokens");
+        toast.error(data.message || 'Failed to redeem tokens');
       }
     } catch (error: any) {
-      toast.error(error.message || "Failed to redeem tokens");
+      toast.error(error.message || 'Failed to redeem tokens');
     } finally {
       setLoading(false);
     }
@@ -157,7 +160,7 @@ export default function RedeemClaimModal({
             size="2xl"
             isOpen={isOpen}
             onOpenChange={onOpenChange}
-            backdrop={"blur"}
+            backdrop={'blur'}
             className=" overflow-y-auto hide-scrollbar"
           >
             <ModalContent>
@@ -201,12 +204,13 @@ export default function RedeemClaimModal({
                                 {formatAmount(
                                   pool.tokens_per_wallet,
                                   pool.token_decimals
-                                )}{" "}
+                                )}{' '}
                                 {pool.token_name}
                               </p>
                             </div>
                             <p className="mt-2 text-sm text-muted-foreground">
-                              The tokens have been transferred to your wallet
+                              The tokens have been transferred to your
+                              wallet
                             </p>
                           </div>
                         </CardContent>
@@ -236,7 +240,8 @@ export default function RedeemClaimModal({
                                 Redeem {pool?.token_name}
                               </CardTitle>
                               <CardDescription>
-                                {pool?.max_wallets - redeemedPool.length}{" "}
+                                {pool?.max_wallets -
+                                  redeemedPool.length}{' '}
                                 redemptions remaining
                               </CardDescription>
                             </div>
@@ -252,10 +257,14 @@ export default function RedeemClaimModal({
                                   </p>
                                   <Input
                                     value={manualWalletAddress}
-                                    onChange={handleManualWalletChange}
+                                    onChange={
+                                      handleManualWalletChange
+                                    }
                                     placeholder="Solana wallet address"
                                     className={
-                                      inputError ? "border-red-500" : ""
+                                      inputError
+                                        ? 'border-red-500'
+                                        : ''
                                     }
                                   />
                                   {inputError && (
@@ -267,7 +276,9 @@ export default function RedeemClaimModal({
                                     variant="outline"
                                     size="sm"
                                     className="mt-2"
-                                    onClick={() => setIsManualInput(false)}
+                                    onClick={() =>
+                                      setIsManualInput(false)
+                                    }
                                   >
                                     Switch to Wallet Connection
                                   </Button>
@@ -284,7 +295,9 @@ export default function RedeemClaimModal({
                                     variant="outline"
                                     size="sm"
                                     className="mt-2"
-                                    onClick={() => setIsManualInput(true)}
+                                    onClick={() =>
+                                      setIsManualInput(true)
+                                    }
                                   >
                                     Switch to Manual Input
                                   </Button>
@@ -296,9 +309,12 @@ export default function RedeemClaimModal({
                               onClick={handleRedeem}
                               disabled={
                                 loading ||
-                                pool.max_wallets - redeemedPool.length === 0 ||
+                                pool.max_wallets -
+                                  redeemedPool.length ===
+                                  0 ||
                                 (isManualInput &&
-                                  (!manualWalletAddress || !!inputError))
+                                  (!manualWalletAddress ||
+                                    !!inputError))
                               }
                               className="w-full h-12 text-lg"
                               variant="outline"
@@ -308,9 +324,10 @@ export default function RedeemClaimModal({
                                   <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
                                   <span>Redeeming...</span>
                                 </div>
-                              ) : pool.max_wallets - redeemedPool.length ===
+                              ) : pool.max_wallets -
+                                  redeemedPool.length ===
                                 0 ? (
-                                "No redemptions remaining"
+                                'No redemptions remaining'
                               ) : (
                                 `Redeem ${formatAmount(
                                   pool.tokens_per_wallet,

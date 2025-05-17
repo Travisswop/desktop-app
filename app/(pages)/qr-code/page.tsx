@@ -44,11 +44,6 @@ const QrCodePage = async () => {
 
     const data = await response.json();
 
-    // const handleDelete = async (id: string) => {
-    //   const data = await deleteQrCode(id, session.accessToken);
-    //   console.log("data delete", data);
-    // };
-
     if (data.data) {
       return (
         <div className="main-container pb-6 relative">

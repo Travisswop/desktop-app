@@ -27,6 +27,7 @@ import { GoArrowLeft } from 'react-icons/go';
 import { LuArrowRight } from 'react-icons/lu';
 import { RiMailSendLine } from 'react-icons/ri';
 import Cookies from 'js-cookie';
+import logger from '@/utils/logger';
 
 const Login: React.FC = () => {
   const { authenticated, ready, user } = usePrivy();
@@ -188,11 +189,11 @@ const Login: React.FC = () => {
   // Track createWallet function separately
   const createSolanaWallet = useCallback(async () => {
     try {
-      console.log('Attempting to create Solana wallet');
+      logger.log('Attempting to create Solana wallet');
 
       // Check if there's already a Solana wallet
       if (solanaWallets && solanaWallets.length > 0) {
-        console.log(
+        logger.log(
           'User already has a Solana wallet, skipping creation'
         );
         setWalletsCreated((prev) => ({ ...prev, solana: true }));
@@ -209,7 +210,7 @@ const Login: React.FC = () => {
             'message' in error &&
             error.message === 'embedded_wallet_already_exists')
         ) {
-          console.log(
+          logger.log(
             'Solana wallet already exists, marking as created'
           );
           return { status: 'already_exists' };
@@ -218,10 +219,10 @@ const Login: React.FC = () => {
         throw error;
       });
 
-      console.log('Solana wallet creation result:', result);
+      logger.log('Solana wallet creation result:', result);
       setWalletsCreated((prev) => ({ ...prev, solana: true }));
     } catch (error) {
-      console.error(
+      logger.error(
         'Failed to create Solana wallet with error:',
         error
       );
@@ -249,7 +250,7 @@ const Login: React.FC = () => {
             account.connectorType === 'embedded')
       );
 
-      console.log('Wallet status:', {
+      logger.log('Wallet status:', {
         hasEthereumWallet,
         hasSolanaWallet,
         walletsCreated,
@@ -258,7 +259,7 @@ const Login: React.FC = () => {
       // Create Ethereum wallet if needed
       if (!hasEthereumWallet && !walletsCreated.ethereum) {
         try {
-          console.log('Creating Ethereum wallet...');
+          logger.log('Creating Ethereum wallet...');
 
           // Attempt to create the wallet with explicit error handling
           const result = await createEthereumWallet().catch(
@@ -271,7 +272,7 @@ const Login: React.FC = () => {
                   'message' in error &&
                   error.message === 'embedded_wallet_already_exists')
               ) {
-                console.log(
+                logger.log(
                   'Ethereum wallet already exists, marking as created'
                 );
                 return { status: 'already_exists' };
@@ -281,11 +282,11 @@ const Login: React.FC = () => {
             }
           );
 
-          console.log('Ethereum wallet creation result:', result);
+          logger.log('Ethereum wallet creation result:', result);
           setWalletsCreated((prev) => ({ ...prev, ethereum: true }));
-          console.log('Ethereum wallet creation complete');
+          logger.log('Ethereum wallet creation complete');
         } catch (err) {
-          console.error('Ethereum wallet creation error:', err);
+          logger.error('Ethereum wallet creation error:', err);
           // Don't mark as created if there was a real error
         }
       }
@@ -293,20 +294,20 @@ const Login: React.FC = () => {
       // Create Solana wallet if needed
       if (!hasSolanaWallet && !walletsCreated.solana) {
         try {
-          console.log('Creating Solana wallet...');
+          logger.log('Creating Solana wallet...');
           await createSolanaWallet();
 
           setWalletsCreated((prev) => ({ ...prev, solana: true }));
-          console.log('Solana wallet creation complete');
+          logger.log('Solana wallet creation complete');
         } catch (err) {
-          console.error('Solana wallet creation error:', err);
+          logger.error('Solana wallet creation error:', err);
         }
       }
 
       // Final status check
-      console.log('Wallet creation status:', walletsCreated);
+      logger.log('Wallet creation status:', walletsCreated);
     } catch (error) {
-      console.error('Error in wallet creation flow:', error);
+      logger.error('Error in wallet creation flow:', error);
       // Still mark wallets as attempted to prevent infinite loops
       setWalletsCreated({ ethereum: true, solana: true });
     }
@@ -319,10 +320,10 @@ const Login: React.FC = () => {
 
   const handleUserVerification = useCallback(
     async (user: any) => {
-      console.log('🚀 ~ handleUserVerification ~ user:');
+      logger.log('🚀 ~ handleUserVerification ~ user:');
       // Early exit if already processing to prevent multiple calls
       if (loginInitiated.current || isLoading || isRedirecting) {
-        console.log(
+        logger.log(
           'Verification already in progress, skipping duplicate call'
         );
         return;
@@ -336,7 +337,7 @@ const Login: React.FC = () => {
         const email = extractEmail(user);
 
         if (!email) {
-          console.log('No email found, redirecting to onboard');
+          logger.log('No email found, redirecting to onboard');
           setLoginError(
             'No email found in your account. Please complete the onboarding process.'
           );
@@ -346,15 +347,15 @@ const Login: React.FC = () => {
         }
 
         // Attempt to create wallets first, regardless of user verification outcome
-        console.log('Creating wallets for user...');
+        logger.log('Creating wallets for user...');
         try {
           await createPrivyWallets();
         } catch (error) {
-          console.error('Error creating wallets:', error);
+          logger.error('Error creating wallets:', error);
           // Continue despite wallet creation errors
         }
 
-        console.log('Verifying user with API...');
+        logger.log('Verifying user with API...');
         let response, data;
         try {
           response = await fetch(`${apiUrl}${email}`, {
@@ -362,7 +363,7 @@ const Login: React.FC = () => {
           });
           data = await response.json();
         } catch (error) {
-          console.error('API connection error:', error);
+          logger.error('API connection error:', error);
           setLoginError(
             'Could not connect to our servers. Please try again later.'
           );
@@ -372,7 +373,7 @@ const Login: React.FC = () => {
         }
 
         if (!response.ok) {
-          console.log(
+          logger.log(
             'User verification failed, redirecting to onboard'
           );
           setLoginError(
@@ -384,10 +385,10 @@ const Login: React.FC = () => {
         }
 
         if (data?.user?._id) {
-          console.log('Setting user ID cookie');
+          logger.log('Setting user ID cookie');
           Cookies.set('user-id', data?.user?._id.toString());
         } else {
-          console.error('No user ID found in API response');
+          logger.error('No user ID found in API response');
           setLoginError(
             'Something went wrong while setting up your account.'
           );
@@ -402,7 +403,7 @@ const Login: React.FC = () => {
         }, 3000);
 
         // Use the wallet data we have at this point - don't wait forever
-        console.log('Preparing wallet data for API...');
+        logger.log('Preparing wallet data for API...');
         const updatedWalletData = processWalletData(user);
         setWalletData(updatedWalletData);
 
@@ -416,7 +417,7 @@ const Login: React.FC = () => {
           )?.address,
         };
 
-        console.log(
+        logger.log(
           'Updating wallet balances and redirecting to home'
         );
         setIsRedirecting(true);
@@ -424,14 +425,14 @@ const Login: React.FC = () => {
         try {
           await createLoginWalletBalance(payload);
         } catch (err) {
-          console.error('Error updating wallet balances:', err);
+          logger.error('Error updating wallet balances:', err);
           // Continue with redirect even if wallet balance update fails
         }
 
         clearTimeout(forceCompleteWallets);
         router.push('/');
       } catch (error) {
-        console.error('Error verifying user:', error);
+        logger.error('Error verifying user:', error);
         setLoginError(
           'An unexpected error occurred. Please try again.'
         );
@@ -503,7 +504,7 @@ const Login: React.FC = () => {
     if (state.status === 'awaiting-code-input' && allDigitsFilled) {
       // Only call loginWithCode when all fields are filled and not already submitting
       if (!loginInitiated.current) {
-        console.log('All OTP fields filled, attempting login');
+        logger.log('All OTP fields filled, attempting login');
         loginWithCodeCallback(otp.join(''));
       }
     }
@@ -516,7 +517,7 @@ const Login: React.FC = () => {
       !isLoading &&
       !isRedirecting
     ) {
-      console.log(
+      logger.log(
         'Login successful, proceeding with user verification'
       );
       // Use setTimeout to avoid React state update conflicts
@@ -545,12 +546,12 @@ const Login: React.FC = () => {
     }
   }, [state.status, otpLength]);
 
-  console.log('user', user);
-  console.log('authenticate', authenticated);
-  console.log('ready', ready);
-  console.log('loginInitiated.curret', loginInitiated.current);
-  console.log('state', state);
-  console.log('solanaWallets', solanaWallets);
+  logger.log('user', user);
+  logger.log('authenticate', authenticated);
+  logger.log('ready', ready);
+  logger.log('loginInitiated.curret', loginInitiated.current);
+  logger.log('state', state);
+  logger.log('solanaWallets', solanaWallets);
 
   if (isLoading || isRedirecting) {
     return (

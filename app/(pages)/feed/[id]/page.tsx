@@ -1,10 +1,10 @@
-import { getFeedDetails } from "@/actions/postFeed";
-import FeedDetails from "@/components/feed/FeedDetails";
-import TabSwitcher from "@/components/feed/TabSwitcher";
-import FeedLoading from "@/components/loading/FeedLoading";
-import { cookies } from "next/headers";
-import Link from "next/link";
-import React, { Suspense } from "react";
+import { getFeedDetails } from '@/actions/postFeed';
+import FeedDetails from '@/components/feed/FeedDetails';
+import TabSwitcher from '@/components/feed/TabSwitcher';
+import FeedLoading from '@/components/loading/FeedLoading';
+import { cookies } from 'next/headers';
+import Link from 'next/link';
+import React, { Suspense } from 'react';
 
 const FeedDetailsPage = async ({
   params,
@@ -13,16 +13,14 @@ const FeedDetailsPage = async ({
 }) => {
   const { id } = await params;
   const cookieStore = cookies();
-  const accessToken = (await cookieStore).get("access-token")?.value;
-  const userId = (await cookieStore).get("user-id")?.value;
+  const accessToken = (await cookieStore).get('access-token')?.value;
+  const userId = (await cookieStore).get('user-id')?.value;
 
   const url = userId
     ? `${process.env.NEXT_PUBLIC_API_URL}/api/v1/feed/${id}?userId=${userId}`
     : `${process.env.NEXT_PUBLIC_API_URL}/api/v1/feed/${id}`;
 
   const feedData = await getFeedDetails(url);
-
-  console.log("feed data", feedData);
 
   return (
     <div className="relative">
@@ -42,9 +40,11 @@ const FeedDetailsPage = async ({
       </div>
       {!accessToken && (
         <div className="text-white bg-blue-500 py-4 w-full z-50 flex items-center gap-4 justify-between px-8 fixed bottom-0 left-0">
-          <p className="text-lg font-bold">Don’t miss what’s happening</p>
+          <p className="text-lg font-bold">
+            Don’t miss what’s happening
+          </p>
           <Link
-            href={"/login"}
+            href={'/login'}
             className="border border-white rounded-full px-4 py-1 hover:bg-white hover:text-black font-medium"
           >
             Log in

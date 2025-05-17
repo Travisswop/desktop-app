@@ -1,10 +1,10 @@
-"use client";
+'use client';
 import {
   addFeedLikePoints,
   postFeed,
   postFeedLike,
   removeFeedLike,
-} from "@/actions/postFeed";
+} from '@/actions/postFeed';
 import {
   Button,
   Modal,
@@ -16,22 +16,22 @@ import {
   PopoverTrigger,
   Tooltip,
   useDisclosure,
-} from "@nextui-org/react";
-import React, { useEffect, useRef, useState } from "react";
-import { FiShare } from "react-icons/fi";
-import { IoMdHeart, IoMdHeartEmpty } from "react-icons/io";
-import { RiBarChartGroupedFill } from "react-icons/ri";
-import CommentMain from "../reaction/CommentMain";
-import { BiEdit, BiRepost } from "react-icons/bi";
-import CommentContent from "../CommentContent";
-import { useUser } from "@/lib/UserContext";
-import { formatCountReaction } from "@/lib/formatFeedReactionCount";
-import { TbCopy, TbCopyCheckFilled } from "react-icons/tb";
-import toast from "react-hot-toast";
-import Cookies from "js-cookie";
-import EmojiPicker from "emoji-picker-react";
-import { BsEmojiSmile } from "react-icons/bs";
-import { Loader } from "lucide-react";
+} from '@nextui-org/react';
+import React, { useEffect, useRef, useState } from 'react';
+import { FiShare } from 'react-icons/fi';
+import { IoMdHeart, IoMdHeartEmpty } from 'react-icons/io';
+import { RiBarChartGroupedFill } from 'react-icons/ri';
+import CommentMain from '../reaction/CommentMain';
+import { BiEdit, BiRepost } from 'react-icons/bi';
+import CommentContent from '../CommentContent';
+import { useUser } from '@/lib/UserContext';
+import { formatCountReaction } from '@/lib/formatFeedReactionCount';
+import { TbCopy, TbCopyCheckFilled } from 'react-icons/tb';
+import toast from 'react-hot-toast';
+import Cookies from 'js-cookie';
+import EmojiPicker from 'emoji-picker-react';
+import { BsEmojiSmile } from 'react-icons/bs';
+import { Loader } from 'lucide-react';
 
 const Reaction = ({
   postId,
@@ -59,20 +59,21 @@ const Reaction = ({
   const [liked, setLiked] = useState(false);
   const [likeCount, setLikeCount] = useState(initialLikeCount);
   const [animate, setAnimate] = useState(false); // Trigger for the animation
-  const [smartsiteId, setSmartsiteId] = useState(""); // Trigger for the animation
+  const [smartsiteId, setSmartsiteId] = useState(''); // Trigger for the animation
   const [isCommentInputOpen, setIsCommentInputOpen] = useState(
     isFromFeedDetails ? true : false
   );
-  const [latestCommentCount, setLatestCommentCount] = useState(commentCount);
+  const [latestCommentCount, setLatestCommentCount] =
+    useState(commentCount);
   const [isPopOpen, setIsPopOpen] = useState(false);
   const [isRepostPopOpen, setIsRepostPopOpen] = useState(false);
   const [isCopied, setIsCopied] = useState(false);
-  const [accessToken, setAccessToken] = useState("");
+  const [accessToken, setAccessToken] = useState('');
 
-  const [postContent, setPostContent] = useState("");
+  const [postContent, setPostContent] = useState('');
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [repostLoading, setRepostLoading] = useState(false);
-  const [repostContentError, setRepostContentError] = useState("");
+  const [repostContentError, setRepostContentError] = useState('');
 
   const emojiPickerRef = useRef<HTMLDivElement>(null);
 
@@ -88,18 +89,18 @@ const Reaction = ({
     };
 
     if (showEmojiPicker) {
-      document.addEventListener("mousedown", handleClickOutside);
+      document.addEventListener('mousedown', handleClickOutside);
     }
 
     return () => {
-      document.removeEventListener("mousedown", handleClickOutside);
+      document.removeEventListener('mousedown', handleClickOutside);
     };
   }, [showEmojiPicker]);
 
   // Get the access token from cookies once on mount.
   useEffect(() => {
     if (window !== undefined) {
-      const token = Cookies.get("access-token");
+      const token = Cookies.get('access-token');
       if (token) {
         setAccessToken(token);
       }
@@ -112,17 +113,17 @@ const Reaction = ({
       .writeText(link)
       .then(() => {
         setIsCopied(true);
-        toast.success("Copied!", { position: "bottom-center" });
+        toast.success('Copied!', { position: 'bottom-center' });
         setTimeout(() => setIsCopied(false), 2000); // Reset after 2 seconds
       })
       .catch((err) => {
-        console.error("Failed to copy link: ", err);
+        console.error('Failed to copy link: ', err);
       });
   };
 
   const handleLike = async () => {
     if (!accessToken) {
-      return toast.error("Please Login to Continue.");
+      return toast.error('Please Login to Continue.');
     }
     // Optimistically update the like state
     setLiked(!liked);
@@ -148,25 +149,22 @@ const Reaction = ({
         if (user?._id) {
           const payloadForPoints = {
             userId: user._id,
-            pointType: "Receiving a Like on Your Feed",
-            actionKey: "launch-swop", //use same value
+            pointType: 'Receiving a Like on Your Feed',
+            actionKey: 'launch-swop', //use same value
             feedPostId: postId,
           };
-          console.log("payloadForPoints", payloadForPoints);
 
           const response = await addFeedLikePoints(
             payloadForPoints,
             accessToken
           );
-          console.log("response", response);
         }
       } else {
         const payload = { postId, smartsiteId, commentId, replyId };
         await removeFeedLike(payload, accessToken);
-        // console.log("remove like", remove);
       }
     } catch (error) {
-      console.error("Error updating like status:", error);
+      console.error('Error updating like status:', error);
       // Revert the like state if the API call fails
       setLiked(liked); // Reset to previous state
       setLikeCount((prevCount) => {
@@ -182,7 +180,7 @@ const Reaction = ({
   };
 
   const { user, loading, error: userError }: any = useUser();
-  console.log("user", user);
+  console.log('user', user);
 
   useEffect(() => {
     if (user) {
@@ -213,7 +211,7 @@ const Reaction = ({
         `** Content cannot exceed ${MAX_LENGTH} characters.`
       );
     } else {
-      setRepostContentError("");
+      setRepostContentError('');
     }
 
     setPostContent(value);
@@ -222,33 +220,33 @@ const Reaction = ({
   const handlePostingRepost = async (e: any) => {
     e.preventDefault();
     if (!accessToken) {
-      return toast.error("Please Login to Continue.");
+      return toast.error('Please Login to Continue.');
     }
     setRepostLoading(true);
     const payload = {
       smartsiteId: user?.primaryMicrosite,
       userId: user?._id,
-      postType: "repost",
+      postType: 'repost',
       content: {
         postId: postId,
         title: postContent,
       },
     };
-    console.log("payload", payload);
+    console.log('payload', payload);
     try {
       const data = await postFeed(payload, accessToken);
-      console.log("feed post response", data);
+      console.log('feed post response', data);
 
-      if (data?.state === "success") {
-        toast.success("You reposted successfully!");
+      if (data?.state === 'success') {
+        toast.success('You reposted successfully!');
         if (isRepostModalOpen) {
           onRepostModalChange();
         }
         setIsPosting(true);
         setIsRepostPopOpen(false);
       }
-      if (data?.state === "not-allowed") {
-        toast.error("You not allowed to create feed post!");
+      if (data?.state === 'not-allowed') {
+        toast.error('You not allowed to create feed post!');
       }
     } catch (error) {
       console.error(error);
@@ -313,9 +311,12 @@ const Reaction = ({
                 disabled={repostLoading}
                 className="w-full flex items-center gap-3 p-3 rounded-md hover:bg-gray-100 transition-colors duration-150"
               >
-                <BiRepost className="text-lg text-gray-700" size={20} />
+                <BiRepost
+                  className="text-lg text-gray-700"
+                  size={20}
+                />
                 <span className="text-sm font-medium text-gray-900 flex items-center gap-1">
-                  Instant Repost{" "}
+                  Instant Repost{' '}
                   {repostLoading && (
                     <Loader size={20} className="animate-spin" />
                   )}
@@ -349,12 +350,12 @@ const Reaction = ({
           className="text-xs font-medium"
           placement="bottom"
           showArrow
-          content={liked ? "Unlike" : "Like"}
+          content={liked ? 'Unlike' : 'Like'}
         >
           <button
             onClick={handleLike}
             className={`relative flex items-center gap-1 text-sm font-medium w-12 ${
-              liked ? "text-[#FF0000]" : ""
+              liked ? 'text-[#FF0000]' : ''
             }`}
           >
             {liked ? (
@@ -367,7 +368,7 @@ const Reaction = ({
             {/* Heart animation effect */}
             <span
               className={`absolute top-[-10px] left-[10px] text-red-500 ${
-                animate ? "animate-ping-heart" : "hidden"
+                animate ? 'animate-ping-heart' : 'hidden'
               }`}
             >
               <IoMdHeart size={30} />
@@ -414,8 +415,8 @@ const Reaction = ({
               onClick={!isCopied ? handleCopyLink : () => {}}
               className={`w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors duration-200 ${
                 isCopied
-                  ? "text-green-600 hover:bg-green-50"
-                  : "text-gray-700 hover:bg-gray-100"
+                  ? 'text-green-600 hover:bg-green-50'
+                  : 'text-gray-700 hover:bg-gray-100'
               }`}
             >
               {isCopied ? (
@@ -454,7 +455,9 @@ const Reaction = ({
                 <h3 className="text-lg font-semibold text-gray-900">
                   Repost this post
                 </h3>
-                <p className="text-sm text-gray-500">Add your thoughts here</p>
+                <p className="text-sm text-gray-500">
+                  Add your thoughts here
+                </p>
               </ModalHeader>
               <ModalBody className="p-6">
                 <form onSubmit={handlePostingRepost}>
@@ -519,12 +522,14 @@ const Reaction = ({
                           type="submit"
                           color="primary"
                           className="px-4 py-2 text-sm font-medium text-white shadow-sm rounded-md"
-                          isDisabled={!postContent.trim() || repostLoading}
+                          isDisabled={
+                            !postContent.trim() || repostLoading
+                          }
                         >
                           {repostLoading ? (
                             <Loader className="animate-spin" />
                           ) : (
-                            "Repost"
+                            'Repost'
                           )}
                         </Button>
                       </div>

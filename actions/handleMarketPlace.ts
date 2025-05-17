@@ -20,7 +20,6 @@ export async function createMarketPlace(payload: any, token: string) {
     if (response.ok) {
       // revalidatePath(`/smartsites/icons/${payload.micrositeId}`);
       const data = await response.json();
-      console.log('🚀 ~ createMarketPlace ~ data:', data);
       return data;
     }
   } catch (error) {
@@ -47,7 +46,6 @@ export async function handleDeleteMarketPlace(
     );
     revalidatePath(`/smartsites/icons/${payload.micrositeId}`);
     const data = await response.json();
-    // console.log("data from action", data);
     return data;
   } catch (error) {
     console.error('Error from action:', error);

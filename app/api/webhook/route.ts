@@ -14,7 +14,7 @@ export async function POST(req: NextRequest) {
     if (!webhookSecret) {
       throw new Error('Webhook secret is not set');
     }
-    
+
     event = stripe.webhooks.constructEvent(
       payload,
       signature,
@@ -31,10 +31,9 @@ export async function POST(req: NextRequest) {
   switch (event.type) {
     case 'payment_intent.succeeded':
       const paymentIntent = event.data.object;
-      console.log(`PaymentIntent for ${paymentIntent.amount} was successful!`);
-      
+
       const { orderId, accessToken } = paymentIntent.metadata || {};
-      
+
       if (orderId && accessToken) {
         try {
           await updateOrderPayment(
@@ -45,18 +44,19 @@ export async function POST(req: NextRequest) {
             },
             accessToken
           );
-          console.log(`Order ${orderId} updated successfully`);
         } catch (error) {
           console.error('Error updating order:', error);
         }
       }
       break;
-      
+
     case 'payment_intent.payment_failed':
       const failedPaymentIntent = event.data.object;
-      const { orderId: failedOrderId, accessToken: failedAccessToken } = 
-        failedPaymentIntent.metadata || {};
-      
+      const {
+        orderId: failedOrderId,
+        accessToken: failedAccessToken,
+      } = failedPaymentIntent.metadata || {};
+
       if (failedOrderId && failedAccessToken) {
         try {
           await updateOrderPayment(
@@ -67,15 +67,13 @@ export async function POST(req: NextRequest) {
             },
             failedAccessToken
           );
-          console.log(`Order ${failedOrderId} marked as failed`);
         } catch (error) {
           console.error('Error updating failed order:', error);
         }
       }
       break;
-      
+
     default:
-      console.log(`Unhandled event type ${event.type}`);
   }
 
   return NextResponse.json({ received: true });

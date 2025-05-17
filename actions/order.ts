@@ -1,5 +1,7 @@
 'use server';
 
+import logger from '../utils/logger';
+
 export async function createOrder(info: any, token: string) {
   try {
     const response = await fetch(
@@ -14,9 +16,9 @@ export async function createOrder(info: any, token: string) {
       }
     );
     const data = await response.json();
-    console.log('🚀 ~ createOrder ~ data:', data);
+    logger.log('🚀 ~ createOrder ~ data:', data);
     return data;
   } catch (error) {
-    console.error('Error from action:', error);
+    logger.error('Error from action:', error);
   }
 }

@@ -1,12 +1,11 @@
-"use client";
-import React from "react";
-import { ImCloudUpload } from "react-icons/im";
-import { MdFileUpload } from "react-icons/md";
-import AnimateButton from "../ui/Button/AnimateButton";
+'use client';
+import React from 'react';
+import { ImCloudUpload } from 'react-icons/im';
+import { MdFileUpload } from 'react-icons/md';
+import AnimateButton from '../ui/Button/AnimateButton';
 
 const UploadImageButton = ({ handleModal }: any) => {
   const handleClickOnUploadImage = () => {
-    // console.log("clicked");
     handleModal();
   };
   return (

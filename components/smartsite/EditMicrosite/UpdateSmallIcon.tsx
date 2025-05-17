@@ -1,74 +1,58 @@
-import Image from "next/image";
-import React, { useEffect, useState } from "react";
+import Image from 'next/image';
+import React, { useEffect, useState } from 'react';
 import {
   Dropdown,
   DropdownItem,
   DropdownMenu,
   DropdownTrigger,
   Tooltip,
-} from "@nextui-org/react";
-import { IoLinkOutline } from "react-icons/io5";
-import { LiaFileMedicalSolid } from "react-icons/lia";
-// import EditMicrositeBtn from "../Button/EditMicrositeBtn";
-// import { icon, newIcons } from "@/util/data/smartsiteIconData";
-// import { isEmptyObject } from "@/util/checkIsEmptyObject";
+} from '@nextui-org/react';
+import { IoLinkOutline } from 'react-icons/io5';
+import { LiaFileMedicalSolid } from 'react-icons/lia';
 import {
   handleDeleteSmallIcon,
   handleUpdateSmallIcon,
-} from "@/actions/createSmallIcon";
-// import { toast } from "react-toastify";
-import { FaAngleDown, FaTimes } from "react-icons/fa";
-import { MdDelete, MdInfoOutline } from "react-icons/md";
-import { icon, newIcons } from "@/components/util/data/smartsiteIconData";
-import { isEmptyObject } from "@/components/util/checkIsEmptyObject";
-import AnimateButton from "@/components/ui/Button/AnimateButton";
-import { IconMap, SelectedIconType } from "@/types/smallIcon";
-import toast from "react-hot-toast";
-import Cookies from "js-cookie";
-// import { cookies } from "next/headers";
-// import useSmallIconToggleStore from "@/zustandStore/SmallIconModalToggle";
-// import AnimateButton from "../Button/AnimateButton";
+} from '@/actions/createSmallIcon';
+import { FaAngleDown, FaTimes } from 'react-icons/fa';
+import { MdDelete, MdInfoOutline } from 'react-icons/md';
+import {
+  icon,
+  newIcons,
+} from '@/components/util/data/smartsiteIconData';
+import { isEmptyObject } from '@/components/util/checkIsEmptyObject';
+import AnimateButton from '@/components/ui/Button/AnimateButton';
+import { IconMap, SelectedIconType } from '@/types/smallIcon';
+import toast from 'react-hot-toast';
+import Cookies from 'js-cookie';
 
 const UpdateSmallIcon = ({ iconDataObj, isOn, setOff }: any) => {
-  //const sesstionState = useLoggedInUserStore((state) => state.state.user); //get session value
+  const [accessToken, setAccessToken] = useState('');
+  const [selectedIconType, setSelectedIconType] =
+    useState<SelectedIconType>('Social Media');
+  const [selectedIcon, setSelectedIcon] = useState({
+    name: 'X',
+    icon: icon.SmallIconTwitter,
+    placeHolder: 'https://x.com/username',
+    inputText: 'X Username',
+    url: 'www.x.com',
+  });
+  const [selectedIconData, setSelectedIconData] = useState<any>({});
+  const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [isDeleteLoading, setIsDeleteLoading] =
+    useState<boolean>(false);
+  const [isHit, setIsHit] = useState<boolean>(true);
 
-  const [accessToken, setAccessToken] = useState("");
+  const iconData: any = newIcons[0];
 
   useEffect(() => {
     const getAccessToken = async () => {
-      const token = Cookies.get("access-token");
+      const token = Cookies.get('access-token');
       if (token) {
         setAccessToken(token);
       }
     };
     getAccessToken();
   }, []);
-
-  const [selectedIconType, setSelectedIconType] =
-    useState<SelectedIconType>("Social Media");
-  const [selectedIcon, setSelectedIcon] = useState({
-    name: "X",
-    icon: icon.SmallIconTwitter,
-    placeHolder: "https://x.com/username",
-    inputText: "X Username",
-    url: "www.x.com",
-  });
-  const [selectedIconData, setSelectedIconData] = useState<any>({});
-  // const [selectedIconByLivePreview, setSelectedIconByLivePreview] =
-  //   useState<any>();
-  const [isLoading, setIsLoading] = useState<boolean>(false);
-  const [isDeleteLoading, setIsDeleteLoading] = useState<boolean>(false);
-  const [isHit, setIsHit] = useState<boolean>(true);
-
-  // console.log("ishit", isHit);
-
-  // console.log("selectedIconType", selectedIconType);
-  // console.log("selected icon data", selectedIconData);
-  // console.log("selected icon", selectedIcon);
-  // console.log("open", open);
-
-  const iconData: any = newIcons[0];
-  // console.log("selectedIconByLivePreview", selectedIconByLivePreview);
 
   useEffect(() => {
     if (selectedIconType) {
@@ -84,62 +68,54 @@ const UpdateSmallIcon = ({ iconDataObj, isOn, setOff }: any) => {
   }, [iconDataObj.data.group]);
 
   useEffect(() => {
-    if (isHit) {
-      if (selectedIconData && selectedIconData?.icons?.length > 0) {
-        // console.log("hit");
-
-        const data = selectedIconData.icons.find(
-          (data: any) => data.name === iconDataObj.data.name
-        );
-        setSelectedIcon(data);
-        if (data) {
-          setIsHit(false);
-        }
+    if (isHit && selectedIconData?.icons?.length > 0) {
+      const data = selectedIconData.icons.find(
+        (data: any) => data.name === iconDataObj.data.name
+      );
+      setSelectedIcon(data);
+      if (data) {
+        setIsHit(false);
       }
     }
   }, [selectedIconData, isHit, iconDataObj.data.name]);
 
   const tintStyle = {
-    filter: "brightness(0) invert(0)",
+    filter: 'brightness(0) invert(0)',
   };
 
   const handleSelectedIcon = (data: any) => {
-    // setSelectedIconByLivePreview(null);
     setSelectedIcon(data);
   };
 
   const handleSelectIconType = (category: SelectedIconType) => {
     setSelectedIconType(category);
-    // console.log("cateogy", category);
 
-    if (category === "Social Media") {
+    if (category === 'Social Media') {
       setSelectedIcon({
-        name: "X",
+        name: 'X',
         icon: icon.SmallIconTwitter,
-        placeHolder: "https://x.com/username",
-        inputText: "X Username",
-        url: "www.x.com",
+        placeHolder: 'https://x.com/username',
+        inputText: 'X Username',
+        url: 'www.x.com',
       });
-    } else if (category === "Chat Links") {
+    } else if (category === 'Chat Links') {
       setSelectedIcon({
-        name: "Whatsapp",
+        name: 'Whatsapp',
         icon: icon.smallIconWhatsapp,
-        placeHolder: "+123456789",
-        inputText: "Whatsapp Number",
-        url: "www.whatsapp.com",
+        placeHolder: '+123456789',
+        inputText: 'Whatsapp Number',
+        url: 'www.whatsapp.com',
       });
-    } else if (category === "Commands") {
+    } else if (category === 'Commands') {
       setSelectedIcon({
-        name: "Email",
+        name: 'Email',
         icon: icon.smallIconEmail,
-        placeHolder: "xyz@gmail.com",
-        inputText: "Email Address",
-        url: "www.gmail.com",
+        placeHolder: 'xyz@gmail.com',
+        inputText: 'Email Address',
+        url: 'www.gmail.com',
       });
     }
   };
-
-  // console.log("icondaa", iconDataObj);
 
   const handleSmallIconFormSubmit = async (e: any) => {
     setIsLoading(true);
@@ -149,22 +125,23 @@ const UpdateSmallIcon = ({ iconDataObj, isOn, setOff }: any) => {
       _id: iconDataObj.data._id,
       micrositeId: iconDataObj.data.micrositeId,
       name: selectedIcon.name,
-      value: formData.get("url"),
+      value: formData.get('url'),
       url: selectedIcon.url,
       iconName: selectedIcon.name,
-      iconPath: "",
+      iconPath: '',
       group: selectedIconData.category,
     };
-    // console.log("smallIconInfoupdate", smallIconInfo);
-    try {
-      const data: any = await handleUpdateSmallIcon(smallIconInfo, accessToken);
-      console.log("data,", data);
 
-      if (data && data?.state === "success") {
-        toast.success("Small icon updated successfully");
+    try {
+      const data: any = await handleUpdateSmallIcon(
+        smallIconInfo,
+        accessToken
+      );
+      if (data?.state === 'success') {
+        toast.success('Small icon updated successfully');
         setOff();
       } else {
-        toast.error("Something went wrong");
+        toast.error('Something went wrong');
       }
     } catch (error) {
       console.error(error);
@@ -173,18 +150,12 @@ const UpdateSmallIcon = ({ iconDataObj, isOn, setOff }: any) => {
     }
   };
 
-  // console.log("smartSiteData", state);
-  // console.log("sesstionState", sesstionState);
-
-  // Function to close the modal
   const closeModal = () => {
     setOff();
   };
 
-  // Function to handle click on the backdrop
   const handleBackdropClick = (e: any) => {
-    // Check if the click is on the backdrop element (with class 'backdrop')
-    if (e.target.classList.contains("backdrop")) {
+    if (e.target.classList.contains('backdrop')) {
       closeModal();
     }
   };
@@ -196,14 +167,15 @@ const UpdateSmallIcon = ({ iconDataObj, isOn, setOff }: any) => {
       micrositeId: iconDataObj.data.micrositeId,
     };
     try {
-      const data: any = await handleDeleteSmallIcon(submitData, accessToken);
-      // console.log("data,", data);
-
-      if (data && data?.state === "success") {
-        toast.success("Small icon deleted successfully");
+      const data: any = await handleDeleteSmallIcon(
+        submitData,
+        accessToken
+      );
+      if (data?.state === 'success') {
+        toast.success('Small icon deleted successfully');
         setOff();
       } else {
-        toast.error("Something went wrong");
+        toast.error('Something went wrong');
       }
     } catch (error) {
       console.error(error);
@@ -213,8 +185,8 @@ const UpdateSmallIcon = ({ iconDataObj, isOn, setOff }: any) => {
   };
 
   const iconMap: IconMap = {
-    "Social Media": icon.customLink,
-    "Chat Links": icon.CommandType,
+    'Social Media': icon.customLink,
+    'Chat Links': icon.CommandType,
     Commands: icon.ChatlinkType,
   };
 
@@ -242,11 +214,12 @@ const UpdateSmallIcon = ({ iconDataObj, isOn, setOff }: any) => {
                     size="sm"
                     content={
                       <span className="font-medium">
-                        Select the icon type and icon then find your username or
-                        link that you want to share to create your small icon
+                        Select the icon type and icon then find your
+                        username or link that you want to share to
+                        create your small icon
                       </span>
                     }
-                    className={`max-w-40 h-auto`}
+                    className="max-w-40 h-auto"
                   >
                     <button>
                       <MdInfoOutline />
@@ -255,17 +228,17 @@ const UpdateSmallIcon = ({ iconDataObj, isOn, setOff }: any) => {
                 </div>
               </div>
               <div className="flex justify-center">
-                {selectedIcon && selectedIcon?.icon ? (
+                {selectedIcon?.icon ? (
                   <Image
                     alt="app-icon"
-                    src={selectedIcon?.icon}
+                    src={selectedIcon.icon}
                     className="w-12 h-auto"
                     style={tintStyle}
                     quality={100}
                   />
                 ) : (
                   <>
-                    {selectedIconType === "Social Media" && (
+                    {selectedIconType === 'Social Media' && (
                       <Image
                         alt="app-icon"
                         src={icon.SocialIconType}
@@ -273,7 +246,7 @@ const UpdateSmallIcon = ({ iconDataObj, isOn, setOff }: any) => {
                         quality={100}
                       />
                     )}
-                    {selectedIconType === "Chat Links" && (
+                    {selectedIconType === 'Chat Links' && (
                       <Image
                         alt="app-icon"
                         src={icon.ChatlinkType}
@@ -281,7 +254,7 @@ const UpdateSmallIcon = ({ iconDataObj, isOn, setOff }: any) => {
                         quality={100}
                       />
                     )}
-                    {selectedIconType === "Commands" && (
+                    {selectedIconType === 'Commands' && (
                       <Image
                         alt="app-icon"
                         src={icon.CommandType}
@@ -292,14 +265,12 @@ const UpdateSmallIcon = ({ iconDataObj, isOn, setOff }: any) => {
                   </>
                 )}
               </div>
-              {/* icon select  */}
               <div className="flex flex-col gap-3 mt-4 px-10 xl:px-[10%]">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <h3 className="font-semibold text-gray-700 w-32">
                       Small Icon Type
                     </h3>
-
                     <Dropdown
                       className="w-max rounded-lg"
                       placement="bottom-start"
@@ -315,49 +286,52 @@ const UpdateSmallIcon = ({ iconDataObj, isOn, setOff }: any) => {
                                 alt="app-icon"
                                 src={iconMap[selectedIconType]}
                                 className={`w-5 h-5 ${
-                                  selectedIconType === "Social Media" &&
-                                  "rounded-full"
+                                  selectedIconType ===
+                                    'Social Media' && 'rounded-full'
                                 }`}
                               />
                             )}
                             {selectedIconType}
-                          </span>{" "}
+                          </span>{' '}
                           <FaAngleDown />
                         </button>
                       </DropdownTrigger>
                       <DropdownMenu
-                        disabledKeys={["title"]}
+                        disabledKeys={['title']}
                         aria-label="Static Actions"
                         className="p-2"
                       >
                         <DropdownItem
-                          key={"title"}
+                          key={'title'}
                           className=" hover:!bg-white opacity-100 cursor-text disabled dropDownTitle"
                         >
                           <p>Choose Icon Type</p>
                         </DropdownItem>
                         {iconData?.icons?.length > 0 &&
-                          iconData?.icons.map((data: any, index: number) => (
-                            <DropdownItem
-                              key={index}
-                              onClick={() =>
-                                handleSelectIconType(data.category)
-                              }
-                              className="border-b rounded-none hover:rounded-md"
-                            >
-                              <div className="flex items-center gap-2 font-semibold text-sm">
-                                <Image
-                                  src={data.categoryIcon}
-                                  alt={data.category}
-                                  className={`w-5 h-5 ${
-                                    data.category === "Social Media" &&
-                                    "rounded-full"
-                                  } `}
-                                />{" "}
-                                {data.category}
-                              </div>
-                            </DropdownItem>
-                          ))}
+                          iconData?.icons.map(
+                            (data: any, index: number) => (
+                              <DropdownItem
+                                key={index}
+                                onClick={() =>
+                                  handleSelectIconType(data.category)
+                                }
+                                className="border-b rounded-none hover:rounded-md"
+                              >
+                                <div className="flex items-center gap-2 font-semibold text-sm">
+                                  <Image
+                                    src={data.categoryIcon}
+                                    alt={data.category}
+                                    className={`w-5 h-5 ${
+                                      data.category ===
+                                        'Social Media' &&
+                                      'rounded-full'
+                                    } `}
+                                  />{' '}
+                                  {data.category}
+                                </div>
+                              </DropdownItem>
+                            )
+                          )}
                       </DropdownMenu>
                     </Dropdown>
                   </div>
@@ -373,7 +347,8 @@ const UpdateSmallIcon = ({ iconDataObj, isOn, setOff }: any) => {
                     <DropdownTrigger>
                       <div
                         className={`flex items-center ${
-                          isEmptyObject(selectedIconData) && "relative group"
+                          isEmptyObject(selectedIconData) &&
+                          'relative group'
                         }`}
                       >
                         {/* <button
@@ -390,7 +365,7 @@ const UpdateSmallIcon = ({ iconDataObj, isOn, setOff }: any) => {
                           disabled={isEmptyObject(selectedIconData)}
                           className={`bg-white w-64 flex justify-between items-center rounded px-2 py-2 text-sm font-medium shadow-small ${
                             isEmptyObject(selectedIconData) &&
-                            "cursor-not-allowed"
+                            'cursor-not-allowed'
                           } `}
                         >
                           <span className="flex items-center gap-2">
@@ -402,7 +377,7 @@ const UpdateSmallIcon = ({ iconDataObj, isOn, setOff }: any) => {
                               style={tintStyle}
                             />
                             {selectedIcon?.name}
-                          </span>{" "}
+                          </span>{' '}
                           <FaAngleDown />
                         </button>
                         {isEmptyObject(selectedIconData) && (
@@ -415,12 +390,12 @@ const UpdateSmallIcon = ({ iconDataObj, isOn, setOff }: any) => {
                     {selectedIconData &&
                       selectedIconData?.icons?.length > 0 && (
                         <DropdownMenu
-                          disabledKeys={["title"]}
+                          disabledKeys={['title']}
                           aria-label="Static Actions"
                           className="p-2"
                         >
                           <DropdownItem
-                            key={"title"}
+                            key={'title'}
                             className=" hover:!bg-white opacity-100 cursor-text disabled dropDownTitle"
                           >
                             <p>Choose Icon</p>
@@ -481,7 +456,7 @@ const UpdateSmallIcon = ({ iconDataObj, isOn, setOff }: any) => {
                         whiteLoading={true}
                         className="bg-black text-white py-2 !border-0"
                         isLoading={isLoading}
-                        width={"w-52"}
+                        width={'w-52'}
                       >
                         <LiaFileMedicalSolid size={20} />
                         Update Changes
@@ -492,7 +467,7 @@ const UpdateSmallIcon = ({ iconDataObj, isOn, setOff }: any) => {
                         type="button"
                         onClick={handleDeleteIcon}
                         isLoading={isDeleteLoading}
-                        width={"w-28"}
+                        width={'w-28'}
                         className="bg-black text-white py-2 !border-0"
                       >
                         <MdDelete size={20} /> Delete

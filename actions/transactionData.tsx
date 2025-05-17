@@ -1,6 +1,9 @@
 'use server';
 
-export async function getTransactionData(walletInfo: any, token: string) {
+export async function getTransactionData(
+  walletInfo: any,
+  token: string
+) {
   try {
     const response = await fetch(
       `${process.env.NEXT_PUBLIC_API_URL}/api/v2/wallet/transactionsList`,
@@ -11,11 +14,10 @@ export async function getTransactionData(walletInfo: any, token: string) {
           authorization: `Bearer ${token}`,
         },
         body: JSON.stringify(walletInfo),
-      },
+      }
     );
     //   revalidatePath(`/smartsites/icons/${contactCardInfo.micrositeId}`);
     const data = response.json();
-    // console.log("data from action", data);
 
     return data;
   } catch (error) {

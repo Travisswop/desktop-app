@@ -1,6 +1,7 @@
 'use server';
 
 import { Stripe } from 'stripe';
+import logger from '../utils/logger';
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
 
@@ -16,7 +17,7 @@ export async function createPaymentIntent(
       },
     });
 
-    console.log('paymentIntent', paymentIntent);
+    logger.log('paymentIntent', paymentIntent);
 
     if (!paymentIntent.client_secret) {
       throw new Error(
@@ -28,7 +29,7 @@ export async function createPaymentIntent(
       clientSecret: paymentIntent.client_secret,
     };
   } catch (error) {
-    console.error('Error creating payment intent:', error);
+    logger.error('Error creating payment intent:', error);
     throw new Error('Failed to create payment intent');
   }
 }
@@ -48,7 +49,7 @@ export async function verifyStripeWebhook(
 
     return event;
   } catch (error) {
-    console.error('Error verifying webhook:', error);
+    logger.error('Error verifying webhook:', error);
     throw new Error(
       `Webhook signature verification failed: ${
         error instanceof Error ? error.message : 'Unknown error'
@@ -65,7 +66,7 @@ export async function getPaymentDetails(paymentIntentId: string) {
     );
     return paymentIntent;
   } catch (error) {
-    console.error('Error retrieving payment details:', error);
+    logger.error('Error retrieving payment details:', error);
     throw new Error('Failed to retrieve payment details');
   }
 }
@@ -87,7 +88,7 @@ export async function handleSuccessfulPayment(
       status: paymentIntent.status,
     };
   } catch (error) {
-    console.error('Error handling successful payment:', error);
+    logger.error('Error handling successful payment:', error);
     throw new Error('Failed to process successful payment');
   }
 }

@@ -8,8 +8,6 @@ export async function mockSwapTransaction(
   accessToken: string,
   walletAddress?: string
 ) {
-  console.log('Starting mock swap transaction test...');
-
   // Generate a mock transaction signature
   const mockSignature = `mock_${Math.random()
     .toString(36)
@@ -40,8 +38,6 @@ export async function mockSwapTransaction(
     timestamp: Date.now(),
   };
 
-  console.log('Mock swap details:', mockSwapDetails);
-
   try {
     // Call the actual save transaction function with our mock data
     const result = await saveSwapTransaction(
@@ -50,10 +46,6 @@ export async function mockSwapTransaction(
     );
 
     if (result) {
-      console.log(
-        '✅ Mock swap transaction saved successfully:',
-        result
-      );
       return {
         success: true,
         data: result,

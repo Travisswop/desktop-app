@@ -24,6 +24,7 @@ import { IoIosSend } from 'react-icons/io';
 import { BsBank2, BsQrCodeScan } from 'react-icons/bs';
 import { FaRegListAlt } from 'react-icons/fa';
 import SwapModal from './swapModal/SwapModal';
+import logger from '../../utils/logger';
 
 let userToken: string[];
 
@@ -93,7 +94,7 @@ const BalanceChart = ({
       return acc;
     }, {});
 
-    console.log('dateamountmap', dateAmountMap);
+    logger.log('dateamountmap', dateAmountMap);
 
     const result: { createdAt: string; amount: number }[] = [];
     const currentDate = new Date(startDate);
@@ -344,13 +345,13 @@ const WalletBalanceChartForWalletPage = ({
   userToken = tokens;
 
   useEffect(() => {
-    console.log('useEffect ran. user._id:', user?._id); // ← debug log
+    logger.log('useEffect ran. user._id:', user?._id); // ← debug log
     const fetchData = async () => {
       try {
         const response = await fetch(
           `${process.env.NEXT_PUBLIC_API_URL}/api/v5/wallet/getBalance/${user._id}`
         );
-        console.log('here is the user data : ', response);
+
         if (!response.ok) {
           throw new Error('Network response was not ok');
         }
@@ -361,8 +362,8 @@ const WalletBalanceChartForWalletPage = ({
         setTotalTokensValue(result.totalTokensValue);
       } catch (error) {
         // setError(error);
-        console.log('error while fetching data');
-        console.log('error', error);
+        logger.error('error while fetching data');
+        logger.error('error', error);
       }
     };
     if (user?._id) {

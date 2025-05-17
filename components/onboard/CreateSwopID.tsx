@@ -130,13 +130,11 @@ export default function CreateSwopID({
       const ens = `${swopID}.swop.id`;
       const message = `Set ${ens} to ${address}`;
 
-      console.log('Requesting signature for ENS registration');
       const signature = await provider.request({
         method: 'personal_sign',
         params: [message, address],
       });
 
-      console.log('Signature obtained, preparing registration data');
       const requestBody = {
         name: ens,
         owner: address,
@@ -156,7 +154,6 @@ export default function CreateSwopID({
         },
       };
 
-      console.log('Registering SwopID with gateway');
       const response = await fetch(`${SWOP_ID_GATEWAY}/set`, {
         method: 'POST',
         headers: {
@@ -170,7 +167,6 @@ export default function CreateSwopID({
         throw new Error(`Failed to create Swop ID: ${errorData}`);
       }
 
-      console.log('SwopID created, updating user profile');
       await fetch(
         `${process.env.NEXT_PUBLIC_API_URL}/api/v2/desktop/user/addSocial`,
         {

@@ -25,7 +25,6 @@ import { uploadImageToCloudinary } from '@/lib/cloudinary';
 import { useToast } from '@/hooks/use-toast';
 import astronot from '@/public/onboard/astronot.svg';
 import blackPlanet from '@/public/onboard/black-planet.svg';
-import yellowPlanet from '@/public/onboard/yellow-planet.svg';
 import editIcon from '@/public/images/websites/edit-icon.svg';
 import { useDisclosure } from '@nextui-org/react';
 import userProfileImages from '../util/data/userProfileImage';
@@ -33,6 +32,8 @@ import SelectAvatorModal from '../modal/SelectAvatorModal';
 import { usePrivy } from '@privy-io/react-auth';
 import { WalletItem } from '@/types/wallet';
 import { createWalletBalance } from '@/actions/createWallet';
+import logger from '@/utils/logger';
+
 interface RegistrationProps {
   user: PrivyUser;
   onComplete: (data: Partial<OnboardingData>) => void;
@@ -55,21 +56,16 @@ export default function Registration({
     '/images/user_avator/1.png?height=32&width=32'
   );
   const [walletData, setWalletData] = useState<WalletItem[]>([]);
-
   const [isUserProfileModalOpen, setIsUserProfileModalOpen] =
     useState(false);
 
   const { isOpen, onOpen, onOpenChange } = useDisclosure();
-  const { authenticated, ready, user: PrivyUser } = usePrivy();
-  console.log('privyuser', PrivyUser);
-  console.log('🚀 ~ PrivyUser:', PrivyUser);
-  console.log('🚀 ~ ready:', ready);
-  console.log('🚀 ~ authenticated:', authenticated);
-  console.log('walletData', walletData);
+  const { authenticated, ready, user: privyUser } = usePrivy();
 
+  // Extract wallet data from Privy user
   useEffect(() => {
-    if (authenticated && ready && PrivyUser) {
-      const linkWallet = PrivyUser?.linkedAccounts
+    if (authenticated && ready && privyUser) {
+      const linkedWallets = privyUser?.linkedAccounts
         .map((item: any) => {
           if (item.chainType === 'ethereum') {
             return {
@@ -94,26 +90,16 @@ export default function Registration({
         })
         .filter(Boolean);
 
-      setWalletData(linkWallet as WalletItem[]);
+      setWalletData(linkedWallets as WalletItem[]);
     }
-  }, [PrivyUser, authenticated, ready]);
-
-  // Fetch the base64 image when the component mounts
-
-  // useEffect(() => {
-  //   const fetchAvatar = async () => {
-  //     const base64Image = await getBase64Image(profileImage);
-  //     setProfileImage(base64Image);
-  //   };
-  //   fetchAvatar();
-  // }, [profileImage]);
+  }, [privyUser, authenticated, ready]);
 
   const handleUserProfileModal = () => {
     onOpen();
     setIsUserProfileModalOpen(true);
   };
 
-  // image upload for user profile
+  // Handle avatar image selection
   const handleSelectImage = (image: any) => {
     setProfileImage(image);
     setProfileImageUrl(
@@ -121,6 +107,7 @@ export default function Registration({
     );
   };
 
+  // Handle custom image upload
   const handleImageUpload = (
     event: React.ChangeEvent<HTMLInputElement>
   ) => {
@@ -138,32 +125,38 @@ export default function Registration({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim()) {
-      alert('Name is required.');
-      return; // Prevent form submission
+      toast({
+        variant: 'destructive',
+        title: 'Error',
+        description: 'Name is required.',
+      });
+      return;
     }
+
     setIsSubmitting(true);
 
     try {
+      // Process profile image
       let avatarUrl = profileImage;
-
       if (profileImage && profileImage.startsWith('data:image')) {
         try {
           avatarUrl = await uploadImageToCloudinary(profileImage);
         } catch (error) {
-          avatarUrl = '0';
+          logger.error('Error uploading image to Cloudinary:', error);
+          avatarUrl = '1'; // Default image if upload fails
         }
       }
 
+      // Find wallet addresses
       const ethereumWallet = walletData.find(
         (wallet) => wallet?.isEVM
       );
       const solanaWallet = walletData.find(
         (wallet) => !wallet?.isEVM
       );
-      console.log('ethereumWallet', ethereumWallet);
-      console.log('solanaWallet', solanaWallet);
 
-      const formatData = {
+      // Format user data for API
+      const userData = {
         name,
         email: user.email,
         mobileNo: phone || '',
@@ -174,9 +167,9 @@ export default function Registration({
         apt: apartment || '',
         countryFlag: 'US',
         countryCode: 'US',
-        privyId: PrivyUser?.id,
-        ethereumWallet: ethereumWallet && ethereumWallet.address, // Ethereum Wallet Address
-        solanaWallet: solanaWallet && solanaWallet.address, // Solana Wallet Address
+        privyId: privyUser?.id,
+        ethereumWallet: ethereumWallet?.address,
+        solanaWallet: solanaWallet?.address,
       };
 
       // Create user and smartsite
@@ -187,7 +180,7 @@ export default function Registration({
           headers: {
             'Content-Type': 'application/json',
           },
-          body: JSON.stringify({ ...formatData }),
+          body: JSON.stringify(userData),
         }
       );
 
@@ -196,6 +189,15 @@ export default function Registration({
       }
 
       const result = await response.json();
+
+      // Create wallet balance record
+      const walletPayload = {
+        ethAddress: ethereumWallet?.address,
+        solanaAddress: solanaWallet?.address,
+        userId: result.data._id,
+      };
+
+      await createWalletBalance(walletPayload);
 
       toast({
         title: 'Success',
@@ -206,19 +208,8 @@ export default function Registration({
       onComplete({
         userInfo: result.data,
       });
-      const payload = {
-        ethAddress: ethereumWallet?.address,
-        solanaAddress: solanaWallet?.address,
-        userId: result.data._id,
-      };
-
-      console.log('payload for wallet', payload);
-
-      const walletResponse = await createWalletBalance(payload);
-      console.log('respnse for wallet', walletResponse);
     } catch (error) {
-      setIsSubmitting(false);
-      console.error('Error creating account:', error);
+      logger.error('Error creating account:', error);
       toast({
         variant: 'destructive',
         title: 'Error',
@@ -229,11 +220,8 @@ export default function Registration({
     }
   };
 
-  console.log('walletdata', walletData);
-
   return (
     <div className="relative w-full max-w-3xl mx-auto border-0 my-20">
-      {/* <div className="bg-gradient-to-br from-purple-200 to-blue-300 w-52 h-52 rounded-full absolute -bottom-32 -left-16 -z-10 opacity-80"></div> */}
       <div className="absolute -top-28 left-0">
         <Image
           src={astronot}
@@ -265,7 +253,7 @@ export default function Registration({
           <div>
             <form className="space-y-6" onSubmit={handleSubmit}>
               <div className="flex flex-col items-center">
-                <div className="w-24 h-24 rounded-full  mb-2 relative">
+                <div className="w-24 h-24 rounded-full mb-2 relative">
                   <Image
                     src={profileImageUrl}
                     alt="Profile Picture"
@@ -495,7 +483,6 @@ export default function Registration({
               images={userProfileImages}
               onSelectImage={handleSelectImage}
               setIsModalOpen={setIsUserProfileModalOpen}
-              // handleFileChange={handleFileChange}
             />
           )}
         </CardContent>

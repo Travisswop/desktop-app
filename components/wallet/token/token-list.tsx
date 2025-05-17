@@ -111,10 +111,6 @@ const TokenContent = ({
     );
   }
 
-  console.log('tokens', tokens);
-
-  // const viewMode = "list";
-
   const containerClass =
     viewMode === 'card'
       ? 'grid grid-cols-1 md:grid-cols-2 gap-4'

@@ -1,26 +1,24 @@
-"use client";
+'use client';
 
-import isUrl from "@/lib/isUrl";
+import isUrl from '@/lib/isUrl';
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
   useDisclosure,
-} from "@nextui-org/react";
-import dayjs from "dayjs";
-import Image from "next/image";
-import { useRouter } from "next/navigation";
-import { useState } from "react";
-import { GoDotFill } from "react-icons/go";
-import { HiDotsHorizontal } from "react-icons/hi";
-import DeleteFeedModal from "./DeleteFeedModal";
-import PostTypeMedia from "./view/PostTypeMedia";
-import Link from "next/link";
-import { FiPlusCircle } from "react-icons/fi";
+} from '@nextui-org/react';
+import dayjs from 'dayjs';
+import Image from 'next/image';
+import { useRouter } from 'next/navigation';
+import { useState } from 'react';
+import { GoDotFill } from 'react-icons/go';
+import { HiDotsHorizontal } from 'react-icons/hi';
+import DeleteFeedModal from './DeleteFeedModal';
+import PostTypeMedia from './view/PostTypeMedia';
+import Link from 'next/link';
+import { FiPlusCircle } from 'react-icons/fi';
 
 const IndividualFeedContent = ({ feed }: any) => {
-  console.log("individual feed", feed);
-
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [redeemFeedData, setRedeemFeedData] = useState({});
   const router = useRouter();
@@ -53,13 +51,19 @@ const IndividualFeedContent = ({ feed }: any) => {
           5
         )}...${receiver_wallet_address.slice(-5)}`;
 
-    if (transaction_type === "nft") {
+    if (transaction_type === 'nft') {
       return (
         <div>
           <p className="text-gray-600 text-sm">
-            Sent NFT{" "}
-            <span className="font-medium text-base">{name || "item"}</span> to{" "}
-            <span className="font-medium text-base">{recipientDisplay}</span>.
+            Sent NFT{' '}
+            <span className="font-medium text-base">
+              {name || 'item'}
+            </span>{' '}
+            to{' '}
+            <span className="font-medium text-base">
+              {recipientDisplay}
+            </span>
+            .
           </p>
           {image && (
             <div className="w-52">
@@ -71,32 +75,33 @@ const IndividualFeedContent = ({ feed }: any) => {
                 className="w-full h-auto"
               />
               <p className="text-sm text-gray-600 font-medium mt-0.5 text-center">
-                {amount} {currency || "NFT"}
+                {amount} {currency || 'NFT'}
               </p>
             </div>
           )}
         </div>
       );
-    } else if (transaction_type === "token") {
+    } else if (transaction_type === 'token') {
       return (
         <p className="text-gray-600 text-sm">
-          Transferred{" "}
+          Transferred{' '}
           <span className="font-medium">
             {amount.toFixed(2)} {token}
-          </span>{" "}
+          </span>{' '}
           {tokenPrice && (
             <span className="text-sm text-gray-600 font-medium mt-0.5">
               (${Number(tokenPrice).toFixed(2)})
             </span>
-          )}{" "}
-          tokens to <span className="font-medium">{recipientDisplay}</span> on
+          )}{' '}
+          tokens to{' '}
+          <span className="font-medium">{recipientDisplay}</span> on
           the {chain}.
         </p>
       );
     } else {
       return (
         <p className="text-gray-600 text-sm">
-          Executed a {transaction_type} transaction involving {amount}{" "}
+          Executed a {transaction_type} transaction involving {amount}{' '}
           {currency}.
         </p>
       );
@@ -143,13 +148,13 @@ const IndividualFeedContent = ({ feed }: any) => {
               <p className="text-gray-700 font-semibold">
                 {feed.repostedPostDetails?.smartsiteId?.name ||
                   feed.repostedPostDetails?.smartsiteUserName ||
-                  "Anonymous"}
+                  'Anonymous'}
               </p>
               <GoDotFill size={10} />
               <p className="text-gray-500 font-normal">
                 {feed.repostedPostDetails?.smartsiteId?.ens ||
                   feed.repostedPostDetails?.smartsiteEnsName ||
-                  "n/a"}
+                  'n/a'}
               </p>
               <GoDotFill size={10} />
               <p className="text-gray-500 font-normal">
@@ -157,14 +162,14 @@ const IndividualFeedContent = ({ feed }: any) => {
               </p>
             </button>
             {/* Render Post Content */}
-            {feed.repostedPostDetails.postType === "post" &&
+            {feed.repostedPostDetails.postType === 'post' &&
               feed.repostedPostDetails.content.title && (
                 <button
                   onClick={() => router.push(`/feed/${feed._id}`)}
                   className="w-full text-start"
                 >
                   {feed.repostedPostDetails.content.title
-                    .split("\n")
+                    .split('\n')
                     .map((line: string, index: number) => (
                       <p className="break-text" key={index}>
                         {line}
@@ -173,12 +178,13 @@ const IndividualFeedContent = ({ feed }: any) => {
                 </button>
               )}
             {/* Render Redeem Content */}
-            {feed.repostedPostDetails.postType === "redeem" && (
+            {feed.repostedPostDetails.postType === 'redeem' && (
               <div className="flex flex-col gap-2 text-gray-600 text-sm">
                 <div>
                   <p>
-                    Created a new {feed.repostedPostDetails.content.redeemName}{" "}
-                    Redeemable Link -{" "}
+                    Created a new{' '}
+                    {feed.repostedPostDetails.content.redeemName}{' '}
+                    Redeemable Link -{' '}
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
@@ -202,42 +208,48 @@ const IndividualFeedContent = ({ feed }: any) => {
                   <div className="font-semibold text-sm">
                     <p>{feed.repostedPostDetails.content.network}</p>
                     <p>
-                      {feed.repostedPostDetails.content.amount}{" "}
+                      {feed.repostedPostDetails.content.amount}{' '}
                       {feed.repostedPostDetails.content.symbol}
                     </p>
                   </div>
                 </div>
               </div>
             )}
-            {feed.repostedPostDetails.postType === "connection" && (
+            {feed.repostedPostDetails.postType === 'connection' && (
               <p className="text-gray-600 text-sm">
-                Connected with{" "}
+                Connected with{' '}
                 <span className="text-gray-700 font-medium text-base">
-                  {feed.repostedPostDetails.content.connectedSmartsiteName}
+                  {
+                    feed.repostedPostDetails.content
+                      .connectedSmartsiteName
+                  }
                 </span>
               </p>
             )}
-            {feed.repostedPostDetails.postType === "ensClaim" && (
+            {feed.repostedPostDetails.postType === 'ensClaim' && (
               <p className="text-gray-600 text-sm">
-                Claim a new ENS{" "}
+                Claim a new ENS{' '}
                 <span className="text-gray-700 font-medium text-base">
                   {feed.repostedPostDetails.content.claimEnsName}
                 </span>
               </p>
             )}
-            {feed.repostedPostDetails.postType === "transaction" &&
+            {feed.repostedPostDetails.postType === 'transaction' &&
               renderTransactionContent(feed)}
           </div>
         </div>
         <div>
-          {feed.repostedPostDetails.postType === "post" &&
-            feed.repostedPostDetails.content.post_content.length > 0 && (
+          {feed.repostedPostDetails.postType === 'post' &&
+            feed.repostedPostDetails.content.post_content.length >
+              0 && (
               <PostTypeMedia
-                mediaFiles={feed.repostedPostDetails.content.post_content}
+                mediaFiles={
+                  feed.repostedPostDetails.content.post_content
+                }
                 isFromRepost={true}
               />
             )}
-          {feed.repostedPostDetails.postType === "minting" && (
+          {feed.repostedPostDetails.postType === 'minting' && (
             <div className="w-max">
               <p>{feed.repostedPostDetails.content.title}</p>
               <div className="shadow-medium bg-white rounded-lg mt-2 p-2 relative">
@@ -255,7 +267,10 @@ const IndividualFeedContent = ({ feed }: any) => {
                   <p className="text-center text-sm text-gray-500 font-medium">
                     {feed.repostedPostDetails.content.price}
                   </p>
-                  <FiPlusCircle className="absolute top-2 right-2" size={24} />
+                  <FiPlusCircle
+                    className="absolute top-2 right-2"
+                    size={24}
+                  />
                 </Link>
               </div>
             </div>

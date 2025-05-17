@@ -1,16 +1,14 @@
-"use server";
-import { revalidatePath } from "next/cache";
+'use server';
+import { revalidatePath } from 'next/cache';
 
 export async function postAudio(info: any, token: string) {
   try {
-    // console.log("file from server actions", info);
-
     const response = await fetch(
       `${process.env.NEXT_PUBLIC_API_URL}/api/v4/microsite/audio`,
       {
-        method: "POST",
+        method: 'POST',
         headers: {
-          "Content-Type": "application/json",
+          'Content-Type': 'application/json',
           authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({
@@ -23,11 +21,9 @@ export async function postAudio(info: any, token: string) {
     );
     revalidatePath(`/smartsites/icons/${info.micrositeId}`);
     const data = await response.json();
-    // console.log("data from action", data);
-
     return data;
   } catch (error) {
-    console.error("Error from action:", error);
+    console.error('Error from action:', error);
   }
 }
 export async function updateAudio(info: any, token: string) {
@@ -35,9 +31,9 @@ export async function updateAudio(info: any, token: string) {
     const response = await fetch(
       `${process.env.NEXT_PUBLIC_API_URL}/api/v4/microsite/audio`,
       {
-        method: "PUT",
+        method: 'PUT',
         headers: {
-          "Content-Type": "application/json",
+          'Content-Type': 'application/json',
           authorization: `Bearer ${token}`,
         },
         body: JSON.stringify(info),
@@ -47,7 +43,7 @@ export async function updateAudio(info: any, token: string) {
     const data = await response.json();
     return data;
   } catch (error) {
-    console.error("Error from action:", error);
+    console.error('Error from action:', error);
   }
 }
 
@@ -56,9 +52,9 @@ export async function deleteAudio(info: any, token: string) {
     const response = await fetch(
       `${process.env.NEXT_PUBLIC_API_URL}/api/v4/microsite/audio`,
       {
-        method: "DELETE",
+        method: 'DELETE',
         headers: {
-          "Content-Type": "application/json",
+          'Content-Type': 'application/json',
           authorization: `Bearer ${token}`,
         },
         body: JSON.stringify(info),
@@ -66,9 +62,8 @@ export async function deleteAudio(info: any, token: string) {
     );
     revalidatePath(`/smartsites/icons/${info.micrositeId}`);
     const data = await response.json();
-    // console.log("data from action", data);
     return data;
   } catch (error) {
-    console.error("Error from action:", error);
+    console.error('Error from action:', error);
   }
 }

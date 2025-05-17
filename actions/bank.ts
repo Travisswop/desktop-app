@@ -1,6 +1,6 @@
-"use server";
+'use server';
 
-import { v4 as uuidv4 } from "uuid";
+import { v4 as uuidv4 } from 'uuid';
 
 export async function postKycInBridge(options: any) {
   try {
@@ -11,7 +11,7 @@ export async function postKycInBridge(options: any) {
     const data = await response.json();
     return data;
   } catch (error) {
-    console.error("Error from action:", error);
+    console.error('Error from action:', error);
   }
 }
 export async function postExternalAccountInBridge(
@@ -26,18 +26,21 @@ export async function postExternalAccountInBridge(
     const data = await response.json();
     return data;
   } catch (error) {
-    console.error("Error from action:", error);
+    console.error('Error from action:', error);
   }
 }
 
-export async function postExternalAccountInSwopDB(userId: string, data: any) {
+export async function postExternalAccountInSwopDB(
+  userId: string,
+  data: any
+) {
   try {
     const response = await fetch(
       `${process.env.NEXT_PUBLIC_API_URL}/api/v4/user/saveBrigeAccount`,
       {
-        method: "POST",
+        method: 'POST',
         headers: {
-          "Content-Type": "application/json", // Make sure to set the correct content type
+          'Content-Type': 'application/json', // Make sure to set the correct content type
         },
         body: JSON.stringify({ user_id: userId, data }), // Convert data to JSON before sending
       }
@@ -45,7 +48,7 @@ export async function postExternalAccountInSwopDB(userId: string, data: any) {
     const res = await response.json();
     return res;
   } catch (error) {
-    console.error("Error from action:", error);
+    console.error('Error from action:', error);
   }
 }
 
@@ -54,9 +57,9 @@ export async function saveQycInfoToSwopDB(data: any, userId: string) {
     const response = await fetch(
       `${process.env.NEXT_PUBLIC_API_URL}/api/v4/user/saveKyc`,
       {
-        method: "POST",
+        method: 'POST',
         headers: {
-          "Content-Type": "application/json", // Make sure to set the correct content type
+          'Content-Type': 'application/json', // Make sure to set the correct content type
         },
         body: JSON.stringify({ ...data, user_id: userId }), // Convert data to JSON before sending
       }
@@ -64,7 +67,7 @@ export async function saveQycInfoToSwopDB(data: any, userId: string) {
     const result = await response.json();
     return result;
   } catch (error) {
-    console.error("Error from action:", error);
+    console.error('Error from action:', error);
   }
 }
 
@@ -77,9 +80,9 @@ export async function saveVirtualInfoToSwopDB(
     const response = await fetch(
       `${process.env.NEXT_PUBLIC_API_URL}/api/v4/user/saveVirtualAccount`,
       {
-        method: "POST",
+        method: 'POST',
         headers: {
-          "Content-Type": "application/json", // Make sure to set the correct content type
+          'Content-Type': 'application/json', // Make sure to set the correct content type
           authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({ user_id: userId, data }), // !need to be sure
@@ -88,7 +91,7 @@ export async function saveVirtualInfoToSwopDB(
     const result = await response.json();
     return result;
   } catch (error) {
-    console.error("Error from action:", error);
+    console.error('Error from action:', error);
   }
 }
 
@@ -100,9 +103,9 @@ export async function getDBExternalAccountInfo(
     const response = await fetch(
       `${process.env.NEXT_PUBLIC_API_URL}/api/v4/user/getBridgeAccount/${userId}`,
       {
-        method: "GET",
+        method: 'GET',
         headers: {
-          "Content-Type": "application/json", // Make sure to set the correct content type
+          'Content-Type': 'application/json', // Make sure to set the correct content type
           authorization: `Bearer ${accessToken}`,
         },
       }
@@ -110,7 +113,7 @@ export async function getDBExternalAccountInfo(
     const result = await response.json();
     return result;
   } catch (error) {
-    console.error("Error from action:", error);
+    console.error('Error from action:', error);
   }
 }
 
@@ -122,9 +125,9 @@ export async function getVirtualAccountInfo(
     const response = await fetch(
       `${process.env.NEXT_PUBLIC_API_URL}/api/v4/user/getVirtualAccount/${userId}`,
       {
-        method: "GET",
+        method: 'GET',
         headers: {
-          "Content-Type": "application/json", // Make sure to set the correct content type
+          'Content-Type': 'application/json', // Make sure to set the correct content type
           authorization: `Bearer ${accessToken}`,
         },
       }
@@ -132,7 +135,7 @@ export async function getVirtualAccountInfo(
     const result = await response.json();
     return result;
   } catch (error) {
-    console.error("Error from action:", error);
+    console.error('Error from action:', error);
   }
 }
 
@@ -148,7 +151,7 @@ export async function getVirtualAccountInfoFromBridge(
     const result = await response.json();
     return result;
   } catch (error) {
-    console.error("Error from action:", error);
+    console.error('Error from action:', error);
   }
 }
 
@@ -164,18 +167,21 @@ export async function postVirtualAccountInfoIntoBridge(
     const result = await response.json();
     return result;
   } catch (error) {
-    console.error("Error from action:", error);
+    console.error('Error from action:', error);
   }
 }
 
-export async function getKycInfo(userId: string, accessToken: string) {
+export async function getKycInfo(
+  userId: string,
+  accessToken: string
+) {
   try {
     const response = await fetch(
       `${process.env.NEXT_PUBLIC_API_URL}/api/v4/user/getUserKyc/${userId}`,
       {
-        method: "GET",
+        method: 'GET',
         headers: {
-          "Content-Type": "application/json", // Make sure to set the correct content type
+          'Content-Type': 'application/json', // Make sure to set the correct content type
           authorization: `Bearer ${accessToken}`,
         },
       }
@@ -183,11 +189,14 @@ export async function getKycInfo(userId: string, accessToken: string) {
     const result = await response.json();
     return result;
   } catch (error) {
-    console.error("Error from action:", error);
+    console.error('Error from action:', error);
   }
 }
 
-export async function getKycInfoFromBridge(options: any, customerId: string) {
+export async function getKycInfoFromBridge(
+  options: any,
+  customerId: string
+) {
   try {
     const response = await fetch(
       `https://api.bridge.xyz/v0/kyc_links/${customerId}`,
@@ -196,7 +205,7 @@ export async function getKycInfoFromBridge(options: any, customerId: string) {
     const result = await response.json();
     return result;
   } catch (error) {
-    console.error("Error from action:", error);
+    console.error('Error from action:', error);
   }
 }
 
@@ -210,41 +219,38 @@ export const createBridgePayment = async (
   try {
     const body = {
       source: {
-        currency: "usdc",
+        currency: 'usdc',
         payment_rail: network,
         from_address: Source_wallet,
       },
       destination: {
-        currency: "usd",
-        payment_rail: "wire",
+        currency: 'usd',
+        payment_rail: 'wire',
         external_account_id: bankId,
       },
       amount: amount,
       on_behalf_of: customerId,
       developer_fee: (Number(amount) * 0.005)?.toFixed(2),
     };
-    console.log("test", body);
 
     const apiKey = process.env.NEXT_PUBLIC_BRIDGE_SECRET;
-    console.log("api keydd", apiKey);
 
     const options: any = {
-      method: "POST",
+      method: 'POST',
       headers: {
-        accept: "application/json",
-        "content-type": "application/json",
-        "Api-Key": apiKey,
-        "Idempotency-Key": uuidv4()?.toString(),
+        accept: 'application/json',
+        'content-type': 'application/json',
+        'Api-Key': apiKey,
+        'Idempotency-Key': uuidv4()?.toString(),
       },
       body: JSON.stringify(body),
     };
 
     const response = await fetch(
-      "https://api.bridge.xyz/v0/transfers",
+      'https://api.bridge.xyz/v0/transfers',
       options
     );
     const data = await response.json();
-    console.log("data res posne", data);
 
     if (
       data?.source_deposit_instructions &&
@@ -255,7 +261,6 @@ export const createBridgePayment = async (
       return false;
     }
   } catch (e) {
-    console.log(e);
     return false;
   }
 };

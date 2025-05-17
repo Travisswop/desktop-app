@@ -1,7 +1,6 @@
-'use client'; // for onsubmit -> replace this with server action
+'use client';
 import React, { useEffect, useRef, useState } from 'react';
 import Image from 'next/image';
-// import UploadImageButton from "@/components/SignUp/UploadImageButton";
 import uploadImgIcon from '@/public/images/upload_image_icon.svg';
 import { FiUser } from 'react-icons/fi';
 import { FaRegUserCircle } from 'react-icons/fa';
@@ -9,15 +8,12 @@ import { MdOutlineEmail } from 'react-icons/md';
 import { SlCalender } from 'react-icons/sl';
 import SelectAvatorModal from '@/components/modal/SelectAvatorModal';
 import { Spinner, useDisclosure } from '@nextui-org/react';
-// import { sendCloudinaryImage } from "@/util/SendCloudinaryImage";
 import { PhoneInput } from 'react-international-phone';
 import 'react-international-phone/style.css';
 import ProfileLoading from '@/components/loading/ProfileLoading';
 import GooglePlacesAutocomplete from 'react-google-places-autocomplete';
 import 'react-datepicker/dist/react-datepicker.css';
 import { format, parse } from 'date-fns';
-// import { toast } from "react-toastify";
-// import isUrl from "@/util/isUrl";
 import { updateUserProfile } from '@/actions/updateUserProfile';
 import { useRouter } from 'next/navigation';
 import { sendCloudinaryImage } from '@/lib/SendCloudinaryImage';
@@ -25,8 +21,6 @@ import toast from 'react-hot-toast';
 import isUrl from '@/lib/isUrl';
 import UploadImageButton from '@/components/Button/UploadImageButton';
 import AnimateButton from '@/components/ui/Button/AnimateButton';
-// import { Card, CardContent } from "@/components/ui/card";
-// import Link from "next/link";
 import { Button } from '@/components/ui/button';
 import {
   AlertDialog,
@@ -40,12 +34,7 @@ import {
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
 
-// export const maxDuration = 60;
-
 const UpdateProfile = ({ data, token, switchToTab }: any) => {
-  // console.log("dataggg", data);
-  // console.log("token", token);
-
   const [selectedImage, setSelectedImage] = useState(null);
   const [galleryImage, setGalleryImage] = useState(null);
   const [uploadedImageUrl, setUploadedImageUrl] = useState('');
@@ -61,13 +50,10 @@ const UpdateProfile = ({ data, token, switchToTab }: any) => {
 
   const { isOpen, onOpen, onOpenChange } = useDisclosure();
 
-  // console.log("phone", phone);
-  // console.log("selectedCountryCode", selectedCountryCode);
-
   const router = useRouter();
 
   const handleGoToSubscriptions = () => {
-    switchToTab('subscriptions'); // Change to the Subscriptions tab
+    switchToTab('subscriptions');
   };
 
   const handleDeleteAccount = async () => {
@@ -146,7 +132,6 @@ const UpdateProfile = ({ data, token, switchToTab }: any) => {
 
   useEffect(() => {
     if (galleryImage) {
-      // Upload the image to Cloudinary
       sendCloudinaryImage(galleryImage)
         .then((url) => {
           setUploadedImageUrl(url);
@@ -178,11 +163,8 @@ const UpdateProfile = ({ data, token, switchToTab }: any) => {
       apt: 'N/A',
     };
 
-    // console.log("user info", userInfo);
-
     try {
       const data = await updateUserProfile(userInfo, token);
-      // console.log('update result', data);
 
       if (data.state === 'success') {
         router.push('/');
@@ -195,18 +177,12 @@ const UpdateProfile = ({ data, token, switchToTab }: any) => {
     } finally {
       setSubmitLoading(false);
     }
-    // console.log("form submitted successfully", userInfo);
   };
 
   const handleSelectImage = (image: any) => {
     setSelectedImage(image);
     setGalleryImage(null);
   };
-
-  // console.log("galleryImage", galleryImage);
-  // console.log("upload Image url", uploadedImageUrl);
-
-  // console.log("selectedImage", selectedImage);
 
   const handleModal = () => {
     onOpen();
@@ -229,7 +205,7 @@ const UpdateProfile = ({ data, token, switchToTab }: any) => {
   const dateInputRef = useRef<any>(null);
 
   const handleDateIconClick = () => {
-    dateInputRef?.current?.showPicker(); // Triggers the native date picker
+    dateInputRef?.current?.showPicker();
   };
 
   useEffect(() => {
@@ -269,8 +245,6 @@ const UpdateProfile = ({ data, token, switchToTab }: any) => {
                     {galleryImage && (
                       <Image
                         src={galleryImage}
-                        // width={400}
-                        // height={400}
                         fill
                         alt="image"
                         quality={100}

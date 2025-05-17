@@ -1,22 +1,20 @@
-"use client";
+'use client';
 
-import React from "react";
-import dayjs from "dayjs";
-import relativeTime from "dayjs/plugin/relativeTime";
-import Image from "next/image";
-import isUrl from "@/lib/isUrl";
-import { GoDotFill } from "react-icons/go";
-import PostTypeMedia from "./view/PostTypeMedia";
-import Link from "next/link";
-import { FiPlusCircle } from "react-icons/fi";
-import Reaction from "./view/Reaction";
-import IndividualFeedContentForFeedDetails from "./IndividualFeedContentForFeedDetails";
+import React from 'react';
+import dayjs from 'dayjs';
+import relativeTime from 'dayjs/plugin/relativeTime';
+import Image from 'next/image';
+import isUrl from '@/lib/isUrl';
+import { GoDotFill } from 'react-icons/go';
+import PostTypeMedia from './view/PostTypeMedia';
+import Link from 'next/link';
+import { FiPlusCircle } from 'react-icons/fi';
+import Reaction from './view/Reaction';
+import IndividualFeedContentForFeedDetails from './IndividualFeedContentForFeedDetails';
 
 dayjs.extend(relativeTime);
 
 const FeedDetails = ({ feedData, feedDetails, accessToken }: any) => {
-  console.log("feed data from details", feedDetails);
-
   const renderTransactionContent = (feed: any) => {
     const {
       transaction_type,
@@ -40,13 +38,19 @@ const FeedDetails = ({ feedData, feedDetails, accessToken }: any) => {
           5
         )}...${receiver_wallet_address.slice(-5)}`;
 
-    if (transaction_type === "nft") {
+    if (transaction_type === 'nft') {
       return (
         <div>
           <p className="text-gray-600 text-sm">
-            Sent NFT{" "}
-            <span className="font-medium text-base">{name || "item"}</span> to{" "}
-            <span className="font-medium text-base">{recipientDisplay}</span>.
+            Sent NFT{' '}
+            <span className="font-medium text-base">
+              {name || 'item'}
+            </span>{' '}
+            to{' '}
+            <span className="font-medium text-base">
+              {recipientDisplay}
+            </span>
+            .
           </p>
           {image && (
             <div className="w-52">
@@ -58,32 +62,33 @@ const FeedDetails = ({ feedData, feedDetails, accessToken }: any) => {
                 className="w-full h-auto"
               />
               <p className="text-sm text-gray-600 font-medium mt-0.5 text-center">
-                {amount} {currency || "NFT"}
+                {amount} {currency || 'NFT'}
               </p>
             </div>
           )}
         </div>
       );
-    } else if (transaction_type === "token") {
+    } else if (transaction_type === 'token') {
       return (
         <p className="text-gray-600 text-sm">
-          Transferred{" "}
+          Transferred{' '}
           <span className="font-medium">
             {amount.toFixed(2)} {token}
-          </span>{" "}
+          </span>{' '}
           {tokenPrice && (
             <span className="text-sm text-gray-600 font-medium mt-0.5">
               (${Number(tokenPrice).toFixed(2)})
             </span>
-          )}{" "}
-          tokens to <span className="font-medium">{recipientDisplay}</span> on
+          )}{' '}
+          tokens to{' '}
+          <span className="font-medium">{recipientDisplay}</span> on
           the {chain}.
         </p>
       );
     } else {
       return (
         <p className="text-gray-600 text-sm">
-          Executed a {transaction_type} transaction involving {amount}{" "}
+          Executed a {transaction_type} transaction involving {amount}{' '}
           {currency}.
         </p>
       );
@@ -128,13 +133,13 @@ const FeedDetails = ({ feedData, feedDetails, accessToken }: any) => {
                   <p className="text-gray-700 font-semibold">
                     {feedData?.smartsiteId?.name ||
                       feedData?.smartsiteUserName ||
-                      "Anonymous"}
+                      'Anonymous'}
                   </p>
                   <GoDotFill size={10} />
                   <p className="text-gray-500 font-normal">
                     {feedData?.smartsiteId?.ens ||
                       feedData?.smartsiteEnsName ||
-                      "n/a"}
+                      'n/a'}
                   </p>
                   <GoDotFill size={10} />
                   <p className="text-gray-500 font-normal">
@@ -142,12 +147,12 @@ const FeedDetails = ({ feedData, feedDetails, accessToken }: any) => {
                   </p>
                 </div>
                 {/* Render Post Content */}
-                {(feedData.postType === "post" ||
-                  feedData.postType === "repost") &&
+                {(feedData.postType === 'post' ||
+                  feedData.postType === 'repost') &&
                   feedData.content.title && (
                     <div>
                       {feedData.content.title
-                        .split("\n")
+                        .split('\n')
                         .map((line: string, index: number) => (
                           <p className="break-text" key={index}>
                             {line}
@@ -156,11 +161,13 @@ const FeedDetails = ({ feedData, feedDetails, accessToken }: any) => {
                     </div>
                   )}
 
-                {feedData.postType === "repost" &&
+                {feedData.postType === 'repost' &&
                 feedDetails.repostedPostDetails ? (
-                  <IndividualFeedContentForFeedDetails feed={feedDetails} />
+                  <IndividualFeedContentForFeedDetails
+                    feed={feedDetails}
+                  />
                 ) : (
-                  feedData.postType === "repost" &&
+                  feedData.postType === 'repost' &&
                   !feedDetails.repostedPostDetails && (
                     <div className="p-4 bg-blue-50 rounded-lg border border-blue-100 text-blue-800 text-sm mt-1">
                       <div className="flex items-start">
@@ -176,9 +183,12 @@ const FeedDetails = ({ feedData, feedDetails, accessToken }: any) => {
                           />
                         </svg>
                         <div>
-                          <p className="font-medium">Content Removed</p>
+                          <p className="font-medium">
+                            Content Removed
+                          </p>
                           <p className="mt-1 text-blue-700">
-                            The original poster has deleted this content
+                            The original poster has deleted this
+                            content
                           </p>
                         </div>
                       </div>
@@ -186,12 +196,12 @@ const FeedDetails = ({ feedData, feedDetails, accessToken }: any) => {
                   )
                 )}
                 {/* Render Redeem Content */}
-                {feedData.postType === "redeem" && (
+                {feedData.postType === 'redeem' && (
                   <div className="flex flex-col gap-2 text-gray-600 text-sm">
                     <div>
                       <p>
-                        Created a new {feedData.content.redeemName} Redeemable
-                        Link -{" "}
+                        Created a new {feedData.content.redeemName}{' '}
+                        Redeemable Link -{' '}
                         <button
                           // onClick={() => openRedeemModal(feedData.content)}
                           className="text-blue-500 underline"
@@ -212,29 +222,30 @@ const FeedDetails = ({ feedData, feedDetails, accessToken }: any) => {
                       <div className="font-semibold text-sm">
                         <p>{feedData.content.network}</p>
                         <p>
-                          {feedData.content.amount} {feedData.content.symbol}
+                          {feedData.content.amount}{' '}
+                          {feedData.content.symbol}
                         </p>
                       </div>
                     </div>
                   </div>
                 )}
-                {feedData.postType === "connection" && (
+                {feedData.postType === 'connection' && (
                   <p className="text-gray-600 text-sm">
-                    Connected with{" "}
+                    Connected with{' '}
                     <span className="text-gray-700 font-medium text-base">
                       {feedData.content.connectedSmartsiteName}
                     </span>
                   </p>
                 )}
-                {feedData.postType === "ensClaim" && (
+                {feedData.postType === 'ensClaim' && (
                   <p className="text-gray-600 text-sm">
-                    Claim a new ENS{" "}
+                    Claim a new ENS{' '}
                     <span className="text-gray-700 font-medium text-base">
                       {feedData.content.claimEnsName}
                     </span>
                   </p>
                 )}
-                {feedData.postType === "transaction" &&
+                {feedData.postType === 'transaction' &&
                   renderTransactionContent(feedData)}
               </div>
               {/* {userId === feed.userId && (
@@ -264,16 +275,21 @@ const FeedDetails = ({ feedData, feedDetails, accessToken }: any) => {
                 )} */}
             </div>
             <div>
-              {feedData.postType === "post" &&
+              {feedData.postType === 'post' &&
                 feedData.content.post_content.length > 0 && (
-                  <PostTypeMedia mediaFiles={feedData.content.post_content} />
+                  <PostTypeMedia
+                    mediaFiles={feedData.content.post_content}
+                  />
                 )}
 
-              {feedData.postType === "minting" && (
+              {feedData.postType === 'minting' && (
                 <div className="w-max">
                   <p>{feedData.content.title}</p>
                   <div className="shadow-medium bg-white rounded-lg mt-2 p-2 relative">
-                    <Link href={feedData.content.link} className="w-max">
+                    <Link
+                      href={feedData.content.link}
+                      className="w-max"
+                    >
                       <Image
                         src={feedData.content.image}
                         alt="nft image"

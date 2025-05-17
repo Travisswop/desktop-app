@@ -1,3 +1,5 @@
+import logger from '../utils/logger';
+
 interface SwapDetails {
   signature: string;
   solanaAddress: string;
@@ -67,20 +69,17 @@ export async function saveSwapTransaction(
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error('Failed to save swap transaction:', errorText);
+      logger.error('Failed to save swap transaction:', errorText);
       throw new Error(
         `Failed to save transaction: ${response.status}`
       );
     }
 
     const data = await response.json();
-    console.log('Transaction saved to database:', data);
+    logger.log('Transaction saved to database:', data);
     return data;
   } catch (error) {
-    console.error(
-      'Error saving swap transaction to database:',
-      error
-    );
+    logger.error('Error saving swap transaction to database:', error);
     // We don't want to break the flow if saving fails
     return null;
   }
@@ -143,7 +142,7 @@ export async function saveTokenTransferTransaction(
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error(
+      logger.error(
         'Failed to save token transfer transaction:',
         errorText
       );
@@ -153,13 +152,10 @@ export async function saveTokenTransferTransaction(
     }
 
     const data = await response.json();
-    console.log(
-      'Token transfer transaction saved to database:',
-      data
-    );
+    logger.log('Token transfer transaction saved to database:', data);
     return data;
   } catch (error) {
-    console.error(
+    logger.error(
       'Error saving token transfer transaction to database:',
       error
     );
@@ -228,7 +224,7 @@ export async function saveNftTransferTransaction(
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error(
+      logger.error(
         'Failed to save NFT transfer transaction:',
         errorText
       );
@@ -238,10 +234,10 @@ export async function saveNftTransferTransaction(
     }
 
     const data = await response.json();
-    console.log('NFT transfer transaction saved to database:', data);
+    logger.log('NFT transfer transaction saved to database:', data);
     return data;
   } catch (error) {
-    console.error(
+    logger.error(
       'Error saving NFT transfer transaction to database:',
       error
     );

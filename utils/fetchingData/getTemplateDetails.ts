@@ -7,22 +7,22 @@ export async function getTemplateDetails(
 
   try {
     const response = await fetch(apiUrl, {
-      method: "GET",
+      method: 'GET',
       headers: {
-        "Content-Type": "application/json",
+        'Content-Type': 'application/json',
         authorization: `Bearer ${token}`,
       },
     });
 
     if (!response.ok) {
-      throw new Error("Failed to fetch template details");
+      throw new Error('Failed to fetch template details');
     }
 
     const data = await response.json();
-    // console.log("this is data.data: "+data.data);
+
     return data.data;
   } catch (error) {
-    console.error("Error fetching template details:", error);
+    console.error('Error fetching template details:', error);
     return null;
   }
 }

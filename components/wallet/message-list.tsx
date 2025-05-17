@@ -39,7 +39,7 @@ const MessageList = () => {
 
     try {
       const conversations = await xmtpClient.conversations.list();
-      console.log('conversation', conversations);
+      s;
       const peerList = conversations.map(
         (conversation) => conversation.peerAddress
       );

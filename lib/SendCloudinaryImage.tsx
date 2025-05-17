@@ -1,3 +1,5 @@
+import logger from '../utils/logger';
+
 export const maxDuration = 60;
 export const sendCloudinaryImage = async (
   base64Image: string
@@ -29,7 +31,7 @@ export const sendCloudinaryImage = async (
     const cloudPicUrl = cloudResData.secure_url;
     return cloudPicUrl;
   } catch (err) {
-    console.error('Error uploading image to Cloudinary:', err);
+    logger.error('Error uploading image to Cloudinary:', err);
     throw err;
   }
 };

@@ -17,6 +17,7 @@ import { SendFlowState, Network } from '@/types/wallet-types';
 import { Transaction } from '@/types/transaction';
 import erc721Abi from '@/utils/erc721abi';
 import erc1155Abi from '@/utils/erc1155abi';
+import logger from '../utils/logger';
 
 export const USDC_ADDRESS =
   'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v';
@@ -253,7 +254,7 @@ export class TransactionService {
         throw new Error('Unsupported NFT type');
       }
     } catch (error) {
-      console.error('NFT Transfer Failed:', error);
+      logger.error('NFT Transfer Failed:', error);
       throw new Error('NFT Transfer Failed: Please try again.');
     }
   }
@@ -385,7 +386,7 @@ export class TransactionService {
   ) {
     if (!solanaWallet) throw new Error('No Solana wallet found');
 
-    console.log('config', config);
+    logger.log('config', config);
     if (!config.tokenAddress) {
       // Native SOL transfer
       const tx = new SolanaTransaction().add(
@@ -437,10 +438,11 @@ export class TransactionService {
 
       // Create recipient token account if needed
       if (!(await connection.getAccountInfo(toTokenAccount))) {
-        const rentExemptMinimum = await connection.getMinimumBalanceForRentExemption(
-          165 // Token account size (for SPL Token 2022 compatibility)
-        );
-        
+        const rentExemptMinimum =
+          await connection.getMinimumBalanceForRentExemption(
+            165 // Token account size (for SPL Token 2022 compatibility)
+          );
+
         tx.add(
           SystemProgram.transfer({
             fromPubkey: new PublicKey(solanaWallet.address),
@@ -448,7 +450,7 @@ export class TransactionService {
             lamports: rentExemptMinimum,
           })
         );
-        
+
         tx.add(
           createAssociatedTokenAccountInstruction(
             new PublicKey(solanaWallet.address),
@@ -532,17 +534,20 @@ export class TransactionService {
   /**
    * Extracts detailed information from a SendTransactionError
    */
-  static parseSendTransactionError(error: any): { message: string, logs: string[] } {
+  static parseSendTransactionError(error: any): {
+    message: string;
+    logs: string[];
+  } {
     let errorMessage = 'Transaction failed';
     let errorLogs: string[] = [];
-    
+
     if (error && error.name === 'SendTransactionError') {
       errorMessage = error.message || 'Transaction failed';
       if (typeof error.getLogs === 'function') {
         errorLogs = error.getLogs();
       }
     }
-    
+
     return { message: errorMessage, logs: errorLogs };
   }
 }

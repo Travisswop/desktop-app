@@ -6,6 +6,7 @@ import {
   TokenAccountNotFoundError,
 } from '@solana/spl-token';
 import { PLATFORM_FEE_WALLET } from './feeConfig';
+import logger from '@/utils/logger';
 
 // Cache for token accounts to avoid repeated lookups
 const tokenAccountCache = new Map<string, PublicKey>();
@@ -23,10 +24,10 @@ export async function getOrCreateFeeTokenAccount(
   payerKeypair: Keypair
 ): Promise<PublicKey> {
   const mintKey = mint.toString();
-  console.log(
+  logger.log(
     `Getting or creating token account for mint: ${mintKey}`
   );
-  console.log(
+  logger.log(
     `Platform fee wallet: ${PLATFORM_FEE_WALLET.toString()}`
   );
 
@@ -38,7 +39,7 @@ export async function getOrCreateFeeTokenAccount(
   // Check cache first
   if (tokenAccountCache.has(mintKey)) {
     const cachedAccount = tokenAccountCache.get(mintKey)!;
-    console.log(
+    logger.log(
       `Using cached token account: ${cachedAccount.toString()}`
     );
     return cachedAccount;
@@ -46,28 +47,28 @@ export async function getOrCreateFeeTokenAccount(
 
   try {
     // Get the associated token address for the platform fee wallet
-    console.log('Getting associated token address...');
+    logger.log('Getting associated token address...');
     const tokenAddress = await getAssociatedTokenAddress(
       mint,
       PLATFORM_FEE_WALLET,
       false // allowOwnerOffCurve should be false for a normal account
     );
-    console.log(
+    logger.log(
       `Associated token address: ${tokenAddress.toString()}`
     );
 
     // Check if the token account already exists
     try {
-      console.log('Checking if token account exists...');
+      logger.log('Checking if token account exists...');
       await getAccount(connection, tokenAddress);
       // Account exists, so we use it
-      console.log('Token account exists, using it');
+      logger.log('Token account exists, using it');
       tokenAccountCache.set(mintKey, tokenAddress);
       return tokenAddress;
     } catch (error) {
       if (error instanceof TokenAccountNotFoundError) {
         // Token account doesn't exist, create it
-        console.log(
+        logger.log(
           `Token account not found. Creating new token account for mint ${mintKey}`
         );
         try {
@@ -77,13 +78,13 @@ export async function getOrCreateFeeTokenAccount(
             mint,
             PLATFORM_FEE_WALLET
           );
-          console.log(
+          logger.log(
             `Created new token account: ${newAccount.toString()}`
           );
           tokenAccountCache.set(mintKey, newAccount);
           return newAccount;
         } catch (createError) {
-          console.error('Error creating token account:', createError);
+          logger.error('Error creating token account:', createError);
           throw new Error(
             `Failed to create token account: ${
               (createError as Error).message
@@ -91,11 +92,11 @@ export async function getOrCreateFeeTokenAccount(
           );
         }
       }
-      console.error('Error checking token account:', error);
+      logger.error('Error checking token account:', error);
       throw error;
     }
   } catch (error) {
-    console.error(
+    logger.error(
       'Error getting or creating fee token account:',
       error
     );

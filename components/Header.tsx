@@ -1,34 +1,34 @@
-"use client";
+'use client';
 
 import {
   useLoginWithPasskey,
   useMfaEnrollment,
   usePrivy,
-} from "@privy-io/react-auth";
-import Image from "next/image";
-import Link from "next/link";
-import { ChevronDown } from "lucide-react";
-import { Button } from "@/components/ui/button";
+} from '@privy-io/react-auth';
+import Image from 'next/image';
+import Link from 'next/link';
+import { ChevronDown } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { useUser } from "@/lib/UserContext";
-import { Skeleton } from "./ui/skeleton";
-import { useRouter } from "next/navigation";
-import isUrl from "@/lib/isUrl";
-import { useState } from "react";
-import logo from "@/public/logo.png";
+} from '@/components/ui/dropdown-menu';
+import { useUser } from '@/lib/UserContext';
+import { Skeleton } from './ui/skeleton';
+import { useRouter } from 'next/navigation';
+import isUrl from '@/lib/isUrl';
+import { useState } from 'react';
+import logo from '@/public/logo.png';
 // import { LiaFileMedicalSolid } from "react-icons/lia";
 // import filePlus from "@/public/images/file-plus.png";
-import bellIcon from "@/public/images/bell-icon.png";
-import { BiMessageSquareDots } from "react-icons/bi";
-import { IoKeyOutline, IoLockClosedOutline } from "react-icons/io5";
-import DynamicPrimaryBtn from "./ui/Button/DynamicPrimaryBtn";
-import { LuPlus } from "react-icons/lu";
-import { MdOutlineEdit } from "react-icons/md";
+import bellIcon from '@/public/images/bell-icon.png';
+import { BiMessageSquareDots } from 'react-icons/bi';
+import { IoKeyOutline, IoLockClosedOutline } from 'react-icons/io5';
+import DynamicPrimaryBtn from './ui/Button/DynamicPrimaryBtn';
+import { LuPlus } from 'react-icons/lu';
+import { MdOutlineEdit } from 'react-icons/md';
 
 export default function Header() {
   const { logout } = usePrivy();
@@ -40,12 +40,9 @@ export default function Header() {
   const { showMfaEnrollmentModal } = useMfaEnrollment();
   const { state, loginWithPasskey } = useLoginWithPasskey();
 
-  // console.log("authenticated", authenticated);
-
   const handleLogout = async () => {
     // Prevent multiple logout attempts
     if (isLoggingOut) {
-      console.log("Logout already in progress");
       return;
     }
 
@@ -55,9 +52,9 @@ export default function Header() {
       clearCache();
 
       // Perform logout and navigation in parallel for better performance
-      await Promise.all([logout(), router.replace("/login")]);
+      await Promise.all([logout(), router.replace('/login')]);
     } catch (error) {
-      console.error("Logout failed:", error);
+      console.error('Logout failed:', error);
       // Revert loading state on error
       setIsLoggingOut(false);
       throw error; // Re-throw to allow error handling by parent components
@@ -107,14 +104,14 @@ export default function Header() {
                     {isUrl(user?.profilePic) ? (
                       <Image
                         src={user.profilePic}
-                        alt={user.name || ""}
+                        alt={user.name || ''}
                         fill
                         className="rounded-full object-cover border"
                       />
                     ) : (
                       <Image
                         src={`/images/user_avator/${user.profilePic}.png`}
-                        alt={user.name || ""}
+                        alt={user.name || ''}
                         fill
                         className="rounded-full object-cover"
                       />
@@ -131,7 +128,7 @@ export default function Header() {
               color="red"
               className="cursor-pointer"
               onSelect={() => {
-                router.push("/account-settings");
+                router.push('/account-settings');
               }}
             >
               Settings
@@ -163,7 +160,9 @@ export default function Header() {
             </DropdownMenuItem>
 
             <DropdownMenuItem>
-              <button onClick={showMfaEnrollmentModal}>Biometrics</button>
+              <button onClick={showMfaEnrollmentModal}>
+                Biometrics
+              </button>
               {/* <div className="w-96 flex flex-col gap-3 bg-white rounded-xl shadow-medium p-4">
                 <div className="flex items-center gap-2 justify-between">
                   <div className="flex items-center gap-1 font-medium">
@@ -203,7 +202,7 @@ export default function Header() {
               onSelect={handleLogout}
               disabled={isLoggingOut}
             >
-              {isLoggingOut ? "Logging out..." : "Logout"}
+              {isLoggingOut ? 'Logging out...' : 'Logout'}
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>

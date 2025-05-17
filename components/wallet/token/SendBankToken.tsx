@@ -17,6 +17,7 @@ import { BsBank2 } from 'react-icons/bs';
 import { PiWalletBold } from 'react-icons/pi';
 import { useUser } from '@/lib/UserContext';
 import { useSolanaWalletContext } from '@/lib/context/SolanaWalletContext';
+import logger from '@/utils/logger';
 
 interface SendTokenModalProps {
   open: boolean;
@@ -68,7 +69,6 @@ export default function SendBankToken({
         accessToken
       );
       setExternalBanks(externalDBInfo?.data?.accounts || []);
-      console.log('externalDBInfo', externalDBInfo);
     };
     if (userId && !userId.startsWith('did:privy:cm')) {
       fetchBanks();
@@ -108,9 +108,8 @@ export default function SendBankToken({
       user?._id,
       accessToken
     );
-    console.log('externalData', externalData);
 
-    console.log('options for bank', {
+    logger.info('options for bank', {
       network: token?.chain?.toLowerCase(),
       walletAddress: wallets?.[0]?.address,
       id: externalData.data.accounts[0].id,

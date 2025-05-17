@@ -109,7 +109,6 @@ export default function RedeemTokenList() {
       await navigator.clipboard.writeText(link);
       toast.success('Link copied to clipboard!');
     } catch (error) {
-      console.log('error', error);
       toast.error('Failed to copy link');
     }
   };

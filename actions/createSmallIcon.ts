@@ -1,17 +1,20 @@
-"use server";
+'use server';
 
 // export const maxDuration = 60;
 
-import { revalidatePath } from "next/cache";
+import { revalidatePath } from 'next/cache';
 
-export async function handleSmallIcon(smallIconInfo: any, token: string) {
+export async function handleSmallIcon(
+  smallIconInfo: any,
+  token: string
+) {
   try {
     const response = await fetch(
       `${process.env.NEXT_PUBLIC_API_URL}/api/v4/microsite/socialSmall`,
       {
-        method: "POST",
+        method: 'POST',
         headers: {
-          "Content-Type": "application/json",
+          'Content-Type': 'application/json',
           authorization: `Bearer ${token}`,
         },
         body: JSON.stringify(smallIconInfo),
@@ -19,22 +22,24 @@ export async function handleSmallIcon(smallIconInfo: any, token: string) {
     );
     revalidatePath(`/smartsites/icons/${smallIconInfo.micrositeId}`);
     const data = await response.json();
-    // console.log("data from action", data);
 
     return data;
   } catch (error) {
-    console.error("Error from action:", error);
+    console.error('Error from action:', error);
   }
 }
 
-export async function handleUpdateSmallIcon(smallIconInfo: any, token: string) {
+export async function handleUpdateSmallIcon(
+  smallIconInfo: any,
+  token: string
+) {
   try {
     const response = await fetch(
       `${process.env.NEXT_PUBLIC_API_URL}/api/v4/microsite/socialSmall`,
       {
-        method: "PUT",
+        method: 'PUT',
         headers: {
-          "Content-Type": "application/json",
+          'Content-Type': 'application/json',
           authorization: `Bearer ${token}`,
         },
         body: JSON.stringify(smallIconInfo),
@@ -42,21 +47,23 @@ export async function handleUpdateSmallIcon(smallIconInfo: any, token: string) {
     );
     revalidatePath(`/smartsites/icons/${smallIconInfo.micrositeId}`);
     const data = await response.json();
-    // console.log("data from action", data);
     return data;
   } catch (error) {
-    console.error("Error from action:", error);
+    console.error('Error from action:', error);
   }
 }
 
-export async function handleDeleteSmallIcon(smallIconInfo: any, token: string) {
+export async function handleDeleteSmallIcon(
+  smallIconInfo: any,
+  token: string
+) {
   try {
     const response = await fetch(
       `${process.env.NEXT_PUBLIC_API_URL}/api/v4/microsite/socialSmall`,
       {
-        method: "DELETE",
+        method: 'DELETE',
         headers: {
-          "Content-Type": "application/json",
+          'Content-Type': 'application/json',
           authorization: `Bearer ${token}`,
         },
         body: JSON.stringify(smallIconInfo),
@@ -64,9 +71,8 @@ export async function handleDeleteSmallIcon(smallIconInfo: any, token: string) {
     );
     revalidatePath(`/smartsites/icons/${smallIconInfo.micrositeId}`);
     const data = await response.json();
-    // console.log("data from action", data);
     return data;
   } catch (error) {
-    console.error("Error from action:", error);
+    console.error('Error from action:', error);
   }
 }

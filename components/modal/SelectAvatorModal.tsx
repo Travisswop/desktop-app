@@ -1,8 +1,8 @@
-"use client";
-import React, { useRef } from "react";
-import { Modal, ModalContent, ModalBody } from "@nextui-org/react";
-import Image from "next/image";
-import { MdFileUpload } from "react-icons/md";
+'use client';
+import React, { useRef } from 'react';
+import { Modal, ModalContent, ModalBody } from '@nextui-org/react';
+import Image from 'next/image';
+import { MdFileUpload } from 'react-icons/md';
 
 export default function SelectAvatorModal({
   isOpen,
@@ -19,13 +19,10 @@ export default function SelectAvatorModal({
     onSelectImage(image);
     setIsModalOpen(false);
   };
-  // console.log(isOpen, onOpenChange);
 
   const handleButtonClick = () => {
     fileInputRef?.current?.click();
   };
-
-  // console.log("images", images);
 
   return (
     <>
@@ -35,7 +32,7 @@ export default function SelectAvatorModal({
             size="4xl"
             isOpen={isOpen}
             onOpenChange={onOpenChange}
-            backdrop={"blur"}
+            backdrop={'blur'}
             className="h-[94vh] overflow-y-auto hide-scrollbar"
           >
             <ModalContent>
@@ -46,8 +43,8 @@ export default function SelectAvatorModal({
                       Select Your Avator
                     </h2>
                     <p className="text-sm text-gray-600 my-3">
-                      Select from our wide variety of links and contact info
-                      below.
+                      Select from our wide variety of links and
+                      contact info below.
                     </p>
                   </div>
                   <div className="grid grid-cols-8 gap-3">

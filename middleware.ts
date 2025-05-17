@@ -325,8 +325,6 @@ class AuthMiddleware {
               );
 
               if (response.ok) {
-                console.log('hit createRedirect');
-
                 return this.createRedirect(req, '/');
               }
             }

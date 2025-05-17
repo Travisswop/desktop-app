@@ -1,32 +1,28 @@
-"use client";
+'use client';
 
-import { useEffect, useState } from "react";
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { TabsContent } from "@radix-ui/react-tabs";
+import { useEffect, useState } from 'react';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { TabsContent } from '@radix-ui/react-tabs';
 // import Settings from "./users-setting";
-import SubscriptionPlans from "./subscriptionPlan";
-import UpdateProfile from "./mainContent";
-import { useSearchParams } from "next/navigation";
+import SubscriptionPlans from './subscriptionPlan';
+import UpdateProfile from './mainContent';
+import { useSearchParams } from 'next/navigation';
 
 export default function UserAccountTabSwitcher({ data, token }: any) {
-  // console.log("data", data);
-  // console.log("token", token);
-
   const searchParams = useSearchParams();
   // State to control the active tab
-  const [activeTab, setActiveTab] = useState("profile");
+  const [activeTab, setActiveTab] = useState('profile');
 
   // Function to switch tabs programmatically
   const handleTabChange = (value: string) => {
     setActiveTab(value);
   };
 
-  const isUpgrade = searchParams.get("upgrade");
-  // console.log("isup date", isUpgrade);
+  const isUpgrade = searchParams.get('upgrade');
 
   useEffect(() => {
     if (isUpgrade) {
-      setActiveTab("subscriptions");
+      setActiveTab('subscriptions');
     }
   }, [isUpgrade]);
 

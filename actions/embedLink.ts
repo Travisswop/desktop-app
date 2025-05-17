@@ -1,17 +1,17 @@
-"use server";
+'use server';
 
 // export const maxDuration = 60;
 
-import { revalidatePath } from "next/cache";
+import { revalidatePath } from 'next/cache';
 
 export async function postEmbedLink(embedInfo: any, token: string) {
   try {
     const response = await fetch(
       `${process.env.NEXT_PUBLIC_API_URL}/api/v4/microsite/embed`,
       {
-        method: "POST",
+        method: 'POST',
         headers: {
-          "Content-Type": "application/json",
+          'Content-Type': 'application/json',
           authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({
@@ -23,11 +23,10 @@ export async function postEmbedLink(embedInfo: any, token: string) {
     );
     revalidatePath(`/smartsites/icons/${embedInfo.micrositeId}`);
     const data = await response.json();
-    // console.log("data from action", data);
 
     return data;
   } catch (error) {
-    console.error("Error from action:", error);
+    console.error('Error from action:', error);
   }
 }
 
@@ -36,9 +35,9 @@ export async function updateEmbedLink(embedInfo: any, token: string) {
     const response = await fetch(
       `${process.env.NEXT_PUBLIC_API_URL}/api/v4/microsite/embed`,
       {
-        method: "PUT",
+        method: 'PUT',
         headers: {
-          "Content-Type": "application/json",
+          'Content-Type': 'application/json',
           authorization: `Bearer ${token}`,
         },
         body: JSON.stringify(embedInfo),
@@ -46,10 +45,9 @@ export async function updateEmbedLink(embedInfo: any, token: string) {
     );
     revalidatePath(`/smartsites/icons/${embedInfo.micrositeId}`);
     const data = await response.json();
-    // console.log("data from action", data);
     return data;
   } catch (error) {
-    console.error("Error from action:", error);
+    console.error('Error from action:', error);
   }
 }
 
@@ -58,9 +56,9 @@ export async function deleteEmbedLink(info: any, token: string) {
     const response = await fetch(
       `${process.env.NEXT_PUBLIC_API_URL}/api/v4/microsite/embed`,
       {
-        method: "DELETE",
+        method: 'DELETE',
         headers: {
-          "Content-Type": "application/json",
+          'Content-Type': 'application/json',
           authorization: `Bearer ${token}`,
         },
         body: JSON.stringify(info),
@@ -68,9 +66,8 @@ export async function deleteEmbedLink(info: any, token: string) {
     );
     revalidatePath(`/smartsites/icons/${info.micrositeId}`);
     const data = await response.json();
-    // console.log("data from action", data);
     return data;
   } catch (error) {
-    console.error("Error from action:", error);
+    console.error('Error from action:', error);
   }
 }

@@ -37,8 +37,6 @@ export const CartItem: React.FC<CartItemProps> = ({
     onRemoveItem(item._id);
   };
 
-  console.log('🚀 ~ CartItem ~ item:', item);
-
   return (
     <div
       key={item._id}

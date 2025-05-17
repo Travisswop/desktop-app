@@ -52,8 +52,6 @@ export async function createOrder(
     );
 
     if (!response.ok) {
-      // console.log("not ok");
-
       const errorData = await response.json();
       throw new Error(errorData.message || 'Failed to create order');
     }

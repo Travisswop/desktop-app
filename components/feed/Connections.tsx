@@ -13,8 +13,6 @@ const Connections = ({ userId, accessToken }: any) => {
   const [filteredConnections, setFilteredConnections] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  // console.log("connectionData", connectionData);
-
   useEffect(() => {
     const fetchConnectionData = async () => {
       setLoading(true);
@@ -52,8 +50,6 @@ const Connections = ({ userId, accessToken }: any) => {
       clearTimeout(debounceSearch);
     };
   }, [connectionData?.following, searchQuery]);
-
-  console.log('connection', connectionData);
 
   return (
     <div className="py-5 px-6 bg-white rounded-lg">

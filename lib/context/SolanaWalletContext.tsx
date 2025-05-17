@@ -9,6 +9,7 @@ import React, {
 } from 'react';
 import { useSolanaWallets } from '@privy-io/react-auth';
 import { usePathname } from 'next/navigation';
+import logger from '../../utils/logger';
 
 interface SolanaWalletContextType {
   solanaWallets: any[] | undefined;
@@ -28,7 +29,9 @@ export const SolanaWalletProvider: React.FC<{
   children: React.ReactNode;
 }> = ({ children }) => {
   const { wallets, createWallet } = useSolanaWallets();
-  const [storedWallets, setStoredWallets] = useState<any[] | undefined>(wallets);
+  const [storedWallets, setStoredWallets] = useState<
+    any[] | undefined
+  >(wallets);
   const pathname = usePathname();
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<Error | null>(null);
@@ -36,7 +39,7 @@ export const SolanaWalletProvider: React.FC<{
   useEffect(() => {
     if (wallets) {
       setStoredWallets(wallets);
-      console.log('Solana wallets updated:', wallets);
+      logger.log('Solana wallets updated:', wallets);
     }
   }, [wallets]);
 

@@ -18,6 +18,7 @@ import {
 } from '@/types/token';
 import { CHAINS } from '@/types/config';
 import { fetchPrice } from '@/components/wallet/tools/fetch_price';
+import logger from '../utils/logger';
 
 interface TokenAccount {
   account: SolanaTokenData;
@@ -187,7 +188,7 @@ export class TokenContractService {
       // Check if the contract is deployed and has the expected methods
       const isContract = (await provider.getCode(address)) !== '0x';
       if (!isContract) {
-        console.error('Address is not a contract:', address);
+        logger.error('Address is not a contract:', address);
         return null;
       }
 
@@ -210,7 +211,7 @@ export class TokenContractService {
         symbol === null ||
         name === null
       ) {
-        console.error(
+        logger.error(
           'One or more token details could not be fetched:',
           {
             balance,
@@ -229,7 +230,7 @@ export class TokenContractService {
         name,
       };
     } catch (error) {
-      console.error('Error fetching token details:', error);
+      logger.error('Error fetching token details:', error);
       return null;
     }
   }
@@ -241,7 +242,7 @@ export class TokenContractService {
       const nativeToken = await this.formatNativeToken(chain);
       return nativeToken;
     } catch (error) {
-      console.error('Error fetching Solana tokens:', error);
+      logger.error('Error fetching Solana tokens:', error);
       return null;
     }
   }
@@ -285,7 +286,7 @@ export class SolanaService {
 
       // Validate the public key
       if (!publicKey) {
-        console.error('Invalid wallet address:', walletAddress);
+        logger.error('Invalid wallet address:', walletAddress);
         return [];
       }
 
@@ -300,7 +301,7 @@ export class SolanaService {
 
       // Check if tokenAccounts is in the expected format
       if (!Array.isArray(tokenAccounts.value)) {
-        console.error(
+        logger.error(
           'Unexpected token accounts format:',
           tokenAccounts
         );
@@ -355,7 +356,7 @@ export class SolanaService {
 
       return tokens;
     } catch (error) {
-      console.error('Error fetching Solana tokens:', error);
+      logger.error('Error fetching Solana tokens:', error);
       return [];
     }
   }
@@ -368,7 +369,7 @@ export class SolanaService {
       });
 
       if (!marketData) {
-        console.error('Failed to fetch SOL market data');
+        logger.error('Failed to fetch SOL market data');
         return null;
       }
 
@@ -387,7 +388,7 @@ export class SolanaService {
         isNative: true,
       };
     } catch (error) {
-      console.error('Error fetching native SOL token:', error);
+      logger.error('Error fetching native SOL token:', error);
       return null;
     }
   }
@@ -407,7 +408,7 @@ export class SolanaService {
               address: mint,
             };
           } catch (error) {
-            console.error('Error parsing token account:', error);
+            logger.error('Error parsing token account:', error);
             return null;
           }
         })
@@ -422,7 +423,7 @@ export class SolanaService {
           });
 
           if (!marketData) {
-            console.error(
+            logger.error(
               `No market data found for
               token: ${token.address}`
             );
@@ -442,7 +443,7 @@ export class SolanaService {
             isNative: false,
           };
         } catch (error) {
-          console.error(
+          logger.error(
             `Error fetching token data for $
             {token.address}:`,
             error
@@ -454,7 +455,7 @@ export class SolanaService {
       const results = await Promise.all(tokenDataPromises);
       return results.filter(Boolean);
     } catch (error) {
-      console.error('Error processing token accounts:', error);
+      logger.error('Error processing token accounts:', error);
       return [];
     }
   }
@@ -475,7 +476,7 @@ export class SolanaService {
 
       // Check if the associated token address is valid
       if (!associatedTokenAddress) {
-        console.error(
+        logger.error(
           'Associated token address not found for SWOP token'
         );
         return null;
@@ -488,7 +489,7 @@ export class SolanaService {
 
       // Check if the token account is valid
       if (!tokenAccount) {
-        console.error(
+        logger.error(
           'Token account not found for associated address:',
           associatedTokenAddress.toString()
         );
@@ -497,7 +498,7 @@ export class SolanaService {
 
       return tokenAccount.amount;
     } catch (error) {
-      console.error('Error fetching SWOP token balance:', error);
+      logger.error('Error fetching SWOP token balance:', error);
       return null;
     }
   }

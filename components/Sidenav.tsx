@@ -58,7 +58,6 @@ export default function Sidenav() {
   const handleLogout = async () => {
     // Prevent multiple logout attempts
     if (isLoggingOut) {
-      console.log('Logout already in progress');
       return;
     }
 
