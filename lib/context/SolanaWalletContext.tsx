@@ -4,7 +4,6 @@ import React, {
   createContext,
   useContext,
   useEffect,
-  useRef,
   useState,
   useMemo,
 } from 'react';
@@ -29,32 +28,34 @@ export const SolanaWalletProvider: React.FC<{
   children: React.ReactNode;
 }> = ({ children }) => {
   const { wallets, createWallet } = useSolanaWallets();
-  const walletsRef = useRef<any[] | undefined>(undefined);
+  const [storedWallets, setStoredWallets] = useState<any[] | undefined>(wallets);
   const pathname = usePathname();
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<Error | null>(null);
 
   useEffect(() => {
     if (wallets) {
-      walletsRef.current = wallets;
+      setStoredWallets(wallets);
       console.log('Solana wallets updated:', wallets);
     }
   }, [wallets]);
 
   useEffect(() => {
     if (pathname === '/login' || pathname === '/onboard') {
-      walletsRef.current = undefined;
+      setStoredWallets(undefined);
+    } else if (wallets) {
+      setStoredWallets(wallets);
     }
-  }, [pathname]);
+  }, [pathname, wallets]);
 
   const contextValue = useMemo(
     () => ({
-      solanaWallets: walletsRef.current || wallets,
+      solanaWallets: storedWallets,
       createWallet,
       isLoading,
       error,
     }),
-    [wallets, createWallet, isLoading, error]
+    [storedWallets, createWallet, isLoading, error]
   );
 
   return (
