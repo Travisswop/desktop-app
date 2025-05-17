@@ -40,7 +40,8 @@ const IndividualFeedContentForFeedDetails = ({ feed }: any) => {
     // Use receiver ENS if available; otherwise, show a truncated wallet address.
     const recipientDisplay = receiver_ens
       ? receiver_ens
-      : `${receiver_wallet_address.slice(
+      : receiver_wallet_address &&
+        `${receiver_wallet_address.slice(
           0,
           5
         )}...${receiver_wallet_address.slice(-5)}`;
