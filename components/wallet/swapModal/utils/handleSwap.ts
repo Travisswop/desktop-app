@@ -1,12 +1,9 @@
 import {
   VersionedTransaction,
   Connection,
-  Keypair,
   PublicKey,
   SimulatedTransactionResponse,
 } from '@solana/web3.js';
-import { getOrCreateFeeTokenAccount } from './tokenAccountUtils';
-import bs58 from 'bs58';
 import { PriorityLevel } from './PriorityFeeSelector';
 import { saveSwapTransaction } from '@/actions/saveTransactionData';
 import logger from '@/utils/logger';
@@ -107,43 +104,13 @@ export async function handleSwap({
     let feeAccount: PublicKey | undefined;
 
     try {
-      // Get private key from env variable for creating token accounts if needed
-      const feePayerPrivateKey =
-        process.env.NEXT_PUBLIC_FEE_PAYER_PRIVATE_KEY;
-
-      if (!feePayerPrivateKey) {
-        logger.warn(
-          'Fee payer private key not found in environment variables'
-        );
-        logger.log(
-          'Will continue without creating fee accounts if needed'
-        );
-      } else {
-        try {
-          // Create a keypair from the private key
-          const feePayerKeypair = Keypair.fromSecretKey(
-            bs58.decode(feePayerPrivateKey)
-          );
-
-          // Get or create the fee token account for the input mint
-          feeAccount = await getOrCreateFeeTokenAccount(
-            connection,
-            inputMint,
-            feePayerKeypair
-          );
-
-          logger.log('Using fee account:', feeAccount.toString());
-        } catch (keyError) {
-          logger.error(
-            'Error creating keypair from private key:',
-            keyError
-          );
-          logger.log('Will continue swap without fee collection');
-        }
-      }
-    } catch (feeAccountError) {
-      logger.error('Error setting up fee account:', feeAccountError);
-      logger.log('Will continue swap without fee collection');
+      const response = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL}/api/v5/wallet/tokenAccount/${inputMint}`
+      );
+      const data = await response.json();
+      feeAccount = data.tokenAccount;
+    } catch (error: any) {
+      logger.log('Error setting up fee account:', error);
     }
 
     // Prepare the swap request body

@@ -1,11 +1,5 @@
 import { useUser } from '@/lib/UserContext';
-import {
-  ArrowLeftRight,
-  // BadgeDollarSign,
-  // QrCode,
-  // Rocket,
-  Wallet,
-} from 'lucide-react';
+import { ArrowLeftRight, Wallet } from 'lucide-react';
 import React, { useState, useMemo, useEffect } from 'react';
 import {
   AreaChart,

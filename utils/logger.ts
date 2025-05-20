@@ -1,6 +1,7 @@
 /**
  * Custom logger utility for Next.js application
  * Provides different log levels with environment-aware formatting
+ * Only logs in development mode
  */
 
 type LogLevel = 'info' | 'warn' | 'error' | 'debug' | 'log';
@@ -21,48 +22,43 @@ const colors = {
 // Format the log message based on environment and level
 const formatLog = (level: LogLevel, message: any, ...args: any[]) => {
   const timestamp = new Date().toISOString();
-
-  if (isDev) {
-    // In development, use colors and detailed logging
-    const color = colors[level];
-    return [
-      `${color}[${level.toUpperCase()}]${colors.reset} ${timestamp}:`,
-      message,
-      ...args,
-    ];
-  } else {
-    // In production, use a more compact format
-    return [
-      `[${level.toUpperCase()}] ${timestamp}:`,
-      message,
-      ...args,
-    ];
-  }
+  const color = colors[level];
+  return [
+    `${color}[${level.toUpperCase()}]${colors.reset} ${timestamp}:`,
+    message,
+    ...args,
+  ];
 };
 
 // Create the logger object with all required methods
 const logger = {
   info: (message: any, ...args: any[]) => {
-    console.info(...formatLog('info', message, ...args));
+    if (isDev) {
+      console.info(...formatLog('info', message, ...args));
+    }
   },
 
   warn: (message: any, ...args: any[]) => {
-    console.warn(...formatLog('warn', message, ...args));
+    if (isDev) {
+      console.warn(...formatLog('warn', message, ...args));
+    }
   },
 
   error: (message: any, ...args: any[]) => {
-    console.error(...formatLog('error', message, ...args));
+    const formattedLog = formatLog('error', message, ...args);
+    console.error(...formattedLog);
   },
 
   debug: (message: any, ...args: any[]) => {
-    // Only log debug messages in development
     if (isDev) {
       console.debug(...formatLog('debug', message, ...args));
     }
   },
 
   log: (message: any, ...args: any[]) => {
-    console.log(...formatLog('log', message, ...args));
+    if (isDev) {
+      console.log(...formatLog('log', message, ...args));
+    }
   },
 };
 
