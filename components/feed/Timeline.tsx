@@ -29,6 +29,7 @@ const Timeline = ({
   isPosting,
   setIsPostLoading,
   isPostLoading,
+  fromLivePreview = false,
 }: {
   accessToken: string;
   userId: string;
@@ -36,6 +37,7 @@ const Timeline = ({
   isPosting: boolean;
   setIsPostLoading: (value: boolean) => void;
   isPostLoading: boolean;
+  fromLivePreview?: boolean;
 }) => {
   const [feedData, setFeedData] = useState<any[]>([]);
   const [hasMore, setHasMore] = useState(true);
@@ -211,7 +213,7 @@ const Timeline = ({
   const router = useRouter();
 
   return (
-    <div className="w-full flex gap-10">
+    <div className={`w-full flex gap-10 ${fromLivePreview && "mt-3"}`}>
       <div className="w-full flex flex-col gap-4">
         {feedData.map((feed, index) => (
           <div key={index} className="flex gap-2 border-b border-gray-200 pb-4">
@@ -368,31 +370,31 @@ const Timeline = ({
                   {feed.postType === "transaction" &&
                     renderTransactionContent(feed)}
                 </div>
-                {userId === feed.userId && (
-                  <div>
-                    <Popover
-                      backdrop="opaque"
-                      placement="bottom-end"
-                      showArrow
-                      style={{ zIndex: 10 }}
-                    >
-                      <PopoverTrigger>
-                        <button type="button">
-                          <HiDotsHorizontal size={20} />
-                        </button>
-                      </PopoverTrigger>
-                      <PopoverContent>
-                        <div className="px-1 py-2 flex flex-col">
-                          <DeleteFeedModal
-                            postId={feed._id}
-                            token={accessToken}
-                            setIsPosting={setIsPosting}
-                          />
-                        </div>
-                      </PopoverContent>
-                    </Popover>
-                  </div>
-                )}
+                {/* {userId === feed.userId && ( */}
+                <div>
+                  <Popover
+                    backdrop="opaque"
+                    placement="bottom-end"
+                    showArrow
+                    style={{ zIndex: 10 }}
+                  >
+                    <PopoverTrigger>
+                      <button type="button">
+                        <HiDotsHorizontal size={20} />
+                      </button>
+                    </PopoverTrigger>
+                    <PopoverContent>
+                      <div className="px-1 py-2 flex flex-col">
+                        <DeleteFeedModal
+                          postId={feed._id}
+                          token={accessToken}
+                          setIsPosting={setIsPosting}
+                        />
+                      </div>
+                    </PopoverContent>
+                  </Popover>
+                </div>
+                {/* )} */}
               </div>
               <div>
                 {/* Post Media */}

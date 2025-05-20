@@ -1,3 +1,4 @@
+"use client";
 import React, { useEffect, useState } from "react";
 // import { LiaFileMedicalSolid } from "react-icons/lia";
 import useSmartSiteApiDataStore from "@/zustandStore/UpdateSmartsiteInfo";
@@ -9,17 +10,24 @@ import { FaTimes } from "react-icons/fa";
 import Image from "next/image";
 import Cookies from "js-cookie";
 import feedIcon from "@/public/images/smartsite_icon/feed-embeed.png";
-import { IoLinkOutline } from "react-icons/io5";
+// import { IoLinkOutline } from "react-icons/io5";
 import AnimateButton from "@/components/ui/Button/AnimateButton";
-import { LiaFileMedicalSolid } from "react-icons/lia";
+// import { LiaFileMedicalSolid } from "react-icons/lia";
 import { Tooltip } from "@nextui-org/react";
 import { MdInfoOutline } from "react-icons/md";
+import { handleV5SmartSiteUpdate } from "@/actions/update";
+import { Loader } from "lucide-react";
+import toast from "react-hot-toast";
 
 const AddFeed = ({ handleRemoveIcon }: any) => {
   const state: any = useSmartSiteApiDataStore((state) => state); //get small icon store value
   //const sesstionState = useLoggedInUserStore((state) => state.state.user); //get session value
 
   const [token, setToken] = useState("");
+  const [showFeedLoading, setShowFeedLoading] = useState({
+    status: false,
+    for: "Yes",
+  });
 
   useEffect(() => {
     const getAccessToken = async () => {
@@ -29,17 +37,40 @@ const AddFeed = ({ handleRemoveIcon }: any) => {
     getAccessToken();
   }, []);
 
-  const [isLoading, setIsLoading] = useState<boolean>(false);
-  const [error, setError] = useState<any>({});
+  // const [isLoading, setIsLoading] = useState<boolean>(false);
+  // const [error, setError] = useState<any>({});
 
-  const handleFormSubmit = async (e: any) => {
-    setIsLoading(true);
-    e.preventDefault();
-    const formData = new FormData(e.currentTarget);
-    const submitInfo = {
-      micrositeId: state.data._id,
-      domain: formData.get("ensName"),
+  // const handleFormSubmit = async (e: any) => {
+  //   setIsLoading(true);
+  //   e.preventDefault();
+  //   const formData = new FormData(e.currentTarget);
+  //   const submitInfo = {
+  //     micrositeId: state.data._id,
+  //     domain: formData.get("ensName"),
+  //   };
+  // };
+
+  const hangleEditSwopFeed = async (feedStatus: string) => {
+    const payload = {
+      _id: state.data._id,
+      showFeed: feedStatus === "yes" ? true : false,
     };
+    setShowFeedLoading({
+      status: true,
+      for: feedStatus === "yes" ? "Yes" : "No",
+    });
+    try {
+      await handleV5SmartSiteUpdate(payload, token);
+      toast.success("Feed embedded successfully");
+      handleRemoveIcon("Feed");
+    } catch (error) {
+      console.error(error);
+    } finally {
+      setShowFeedLoading({
+        status: false,
+        for: feedStatus === "yes" ? "Yes" : "No",
+      });
+    }
   };
 
   return (
@@ -70,22 +101,29 @@ const AddFeed = ({ handleRemoveIcon }: any) => {
         </div>
         <div className="flex items-center gap-4 mt-2">
           <AnimateButton
+            onClick={() => hangleEditSwopFeed("yes")}
             className="bg-black text-white py-2 !border-0 font-medium"
             whiteLoading={true}
-            isLoading={isLoading}
             width={"w-28"}
           >
-            Yes
+            {showFeedLoading.status && showFeedLoading.for === "Yes" ? (
+              <Loader className="animate-spin" />
+            ) : (
+              "Yes"
+            )}
           </AnimateButton>
           <AnimateButton
+            onClick={() => hangleEditSwopFeed("no")}
             className="font-medium"
             whiteLoading={true}
             type="button"
-            // onClick={handleDelete}
-            // isLoading={isDeleteLoading}
             width={"w-28"}
           >
-            No
+            {showFeedLoading.status && showFeedLoading.for === "No" ? (
+              <Loader className="animate-spin" />
+            ) : (
+              "No"
+            )}
           </AnimateButton>
         </div>
       </div>

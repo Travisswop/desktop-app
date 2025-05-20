@@ -1,20 +1,17 @@
-'use server';
+"use server";
 
 // export const maxDuration = 60;
 
-import { revalidatePath } from 'next/cache';
+import { revalidatePath } from "next/cache";
 
-export async function handleCreateSmartSite(
-  smartSiteInfo: any,
-  token: string
-) {
+export async function handleCreateSmartSite(smartSiteInfo: any, token: string) {
   try {
     const response = await fetch(
       `${process.env.NEXT_PUBLIC_API_URL}/api/v4/microsite`,
       {
-        method: 'POST',
+        method: "POST",
         headers: {
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
           authorization: `Bearer ${token}`,
         },
         body: JSON.stringify(smartSiteInfo),
@@ -25,21 +22,18 @@ export async function handleCreateSmartSite(
     const data = await response.json();
     return data;
   } catch (error) {
-    console.error('Error from action:', error);
+    console.error("Error from action:", error);
   }
 }
 
-export async function handleSmartSiteUpdate(
-  smartSiteInfo: any,
-  token: string
-) {
+export async function handleSmartSiteUpdate(smartSiteInfo: any, token: string) {
   try {
     const response = await fetch(
       `${process.env.NEXT_PUBLIC_API_URL}/api/v4/microsite`,
       {
-        method: 'PUT',
+        method: "PUT",
         headers: {
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
           authorization: `Bearer ${token}`,
         },
         body: JSON.stringify(smartSiteInfo),
@@ -51,6 +45,31 @@ export async function handleSmartSiteUpdate(
 
     return data;
   } catch (error) {
-    console.error('Error from action:', error);
+    console.error("Error from action:", error);
+  }
+}
+
+export async function handleV5SmartSiteUpdate(
+  smartSiteInfo: any,
+  token: string
+) {
+  try {
+    const response = await fetch(
+      `${process.env.NEXT_PUBLIC_API_URL}/api/v5/microsite`,
+      {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(smartSiteInfo),
+      }
+    );
+    const data = await response.json();
+
+    revalidatePath(`/smartsites/icons/${data?.data?.micrositeId}`);
+    return data;
+  } catch (error) {
+    console.error("Error from action:", error);
   }
 }

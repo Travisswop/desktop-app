@@ -39,7 +39,7 @@ const FeedMain = ({ isFromHome = false }: { isFromHome?: boolean }) => {
   }, [user]);
 
   const searchParams = useSearchParams();
-  const tab = searchParams.get("tab");
+  const tab = searchParams && searchParams.get("tab");
 
   const ComponentToRender = useMemo(() => {
     if (loading) return null;
