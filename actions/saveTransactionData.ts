@@ -9,6 +9,7 @@ interface SwapDetails {
     decimals: number;
     mint: string;
     price?: string | number; // Price in USD
+    logo?: string;
   };
   outputToken: {
     symbol: string;
@@ -16,6 +17,7 @@ interface SwapDetails {
     decimals: number;
     mint: string;
     price?: string | number; // Price in USD
+    logo?: string;
   };
   slippageBps: number;
   platformFeeBps: number;
@@ -48,6 +50,7 @@ export async function saveSwapTransaction(
             decimals: swapDetails.inputToken.decimals,
             mint: swapDetails.inputToken.mint,
             price: swapDetails.inputToken.price || '0', // Include price in USD
+            logo: swapDetails.inputToken.logo || '',
           },
           outputToken: {
             symbol: swapDetails.outputToken.symbol,
@@ -55,6 +58,7 @@ export async function saveSwapTransaction(
             decimals: swapDetails.outputToken.decimals,
             mint: swapDetails.outputToken.mint,
             price: swapDetails.outputToken.price || '0', // Include price in USD
+            logo: swapDetails.outputToken.logo || '',
           },
           slippageBps: swapDetails.slippageBps,
           platformFeeBps: swapDetails.platformFeeBps,

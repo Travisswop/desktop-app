@@ -57,6 +57,7 @@ export default function GuestOrderInfos() {
 
     try {
       const data = await getGuestOrderById(orderId, email as string);
+
       setOrder(data);
 
       const nfts = data.mintedNfts.map((nft: any) => ({

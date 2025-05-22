@@ -24,7 +24,8 @@ export async function mockSwapTransaction(
       amount: 0.5, // Mock amount of SOL
       decimals: 9,
       mint: 'So11111111111111111111111111111111111111112', // SOL mint address
-      price: '20.45', // Mock SOL price in USD
+      price: '20.45', // Mock SOL price in USD,
+      logo: 'https://assets.coingecko.com/coins/images/1/large/bitcoin.png?1747030504',
     },
     outputToken: {
       symbol: 'USDC',
@@ -32,6 +33,7 @@ export async function mockSwapTransaction(
       decimals: 6,
       mint: 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v', // USDC mint address
       price: '1.00', // USDC price in USD
+      logo: 'https://assets.coingecko.com/coins/images/1/large/bitcoin.png?1747030504',
     },
     slippageBps: 50, // 0.5% slippage
     platformFeeBps: 50, // 0.5% platform fee

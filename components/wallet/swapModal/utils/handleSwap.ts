@@ -248,7 +248,8 @@ export async function handleSwap({
           amount: quote.inAmount / 10 ** (inputToken?.decimals || 6),
           decimals: inputToken?.decimals || 6,
           mint: quote.inputMint,
-          price: inputToken?.price || inputToken?.usdPrice || '0', // Include token price in USD
+          price: inputToken?.price || inputToken?.usdPrice || '0', // Include token price in USD'
+          logo: inputToken?.icon || inputToken?.symbol,
         },
         outputToken: {
           symbol: outputToken?.symbol || quote.outputMint,
@@ -257,6 +258,7 @@ export async function handleSwap({
           decimals: outputToken?.decimals || 6,
           mint: quote.outputMint,
           price: outputToken?.price || outputToken?.usdPrice || '0', // Include token price in USD
+          logo: outputToken?.icon || outputToken?.symbol,
         },
         slippageBps,
         platformFeeBps: platformFeeBps || 50,
