@@ -244,7 +244,7 @@ const Timeline = ({
             </div>
             <div className="flex-1">
               {/* User and Feed Information */}
-              <div className="flex items-start justify-between">
+              <div className="flex items-start justify-between w-full">
                 <div>
                   <button
                     onClick={() => router.push(`/feed/${feed._id}`)}
@@ -316,6 +316,47 @@ const Timeline = ({
                           ))}
                       </button>
                     )}
+
+                  {feed.postType === "swapTransaction" && (
+                    <button
+                      onClick={() => router.push(`/feed/${feed._id}`)}
+                      className="w-full mt-1"
+                    >
+                      <div className="flex items-center flex-wrap text-start gap-1 border rounded-xl py-2 px-2.5 justify-between">
+                        <div className="flex items-center">
+                          <Image
+                            src={feed.content.inputToken.tokenImg}
+                            alt="token"
+                            width={120}
+                            height={120}
+                            className="w-8 h-8 rounded-full"
+                          />
+                          <Image
+                            src={feed.content.outputToken.tokenImg}
+                            alt="token"
+                            width={120}
+                            height={120}
+                            className="w-8 h-8 rounded-full -translate-x-[20%]"
+                          />
+                        </div>
+                        <p className="font-medium">
+                          Swapped {feed.content.inputToken.symbol} to{" "}
+                          {feed.content.outputToken.symbol}
+                        </p>
+                        <div className="flex flex-col text-end gap-1 ml-2">
+                          <p className="text-green-600 font-medium">
+                            + {feed.content.outputToken.amount}{" "}
+                            {feed.content.outputToken.symbol}
+                          </p>
+                          <p className="text-red-600 font-medium">
+                            - {feed.content.inputToken.amount}{" "}
+                            {feed.content.inputToken.symbol}
+                          </p>
+                        </div>
+                      </div>
+                    </button>
+                  )}
+
                   {feed.postType === "repost" && feed.repostedPostDetails ? (
                     <IndividualFeedContent feed={feed} />
                   ) : (

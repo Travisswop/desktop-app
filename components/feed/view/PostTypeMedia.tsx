@@ -37,6 +37,7 @@ const PostTypeMedia = ({ mediaFiles, isFromRepost = false }: any) => {
                     onClick={() => handleOpenImage(mediaFiles[0].src)}
                     width={1600}
                     height={1600}
+                    priority
                     className={`object-contain ${
                       isFromRepost ? "max-h-[26rem]" : "max-h-[30rem]"
                     }  w-auto cursor-pointer`}
