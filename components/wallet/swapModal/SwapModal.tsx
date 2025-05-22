@@ -42,6 +42,7 @@ import PriceCard from './utils/PriceCard';
 import PriorityFeeSelector, {
   PriorityLevel,
 } from './utils/PriorityFeeSelector';
+import logger from '@/utils/logger';
 
 export default function SwapModal({
   open,
@@ -152,6 +153,7 @@ export default function SwapModal({
     [selectedOutputSymbol, userToken, tokenMetaData]
   );
 
+  logger.info('output token', outputToken);
   // Set input amount to half of balance
   const setHalfAmount = useCallback(() => {
     if (!inputToken || !inputToken.balance) return;

@@ -1,8 +1,13 @@
-"use client";
-import { MdOutlineFileDownload } from "react-icons/md";
-import { TbEdit } from "react-icons/tb";
-import React, { useEffect, useState } from "react";
-import { Modal, ModalContent, ModalBody, Spinner } from "@nextui-org/react";
+'use client';
+import { MdOutlineFileDownload } from 'react-icons/md';
+import { TbEdit } from 'react-icons/tb';
+import React, { useEffect, useState } from 'react';
+import {
+  Modal,
+  ModalContent,
+  ModalBody,
+  Spinner,
+} from '@nextui-org/react';
 import {
   FacebookShareButton,
   WhatsappShareButton,
@@ -14,13 +19,13 @@ import {
   LinkedinIcon,
   FacebookIcon,
   WhatsappIcon,
-} from "react-share";
-import { sendCloudinaryImage } from "@/lib/SendCloudinaryImage";
-import Image from "next/image";
-import { BsFillSendFill } from "react-icons/bs";
-import { IoCopyOutline } from "react-icons/io5";
-import { FcOk } from "react-icons/fc";
-import Link from "next/link";
+} from 'react-share';
+import { sendCloudinaryImage } from '@/lib/SendCloudinaryImage';
+import Image from 'next/image';
+import { BsFillSendFill } from 'react-icons/bs';
+import { IoCopyOutline } from 'react-icons/io5';
+import { FcOk } from 'react-icons/fc';
+import Link from 'next/link';
 
 export default function QRCodeShareModal({
   isOpen,
@@ -34,8 +39,6 @@ export default function QRCodeShareModal({
   const [loading, setLoading] = useState<any>(false);
   const [error, setError] = useState<any>(null);
 
-  console.log("imageUrl", imageUrl);
-
   useEffect(() => {
     setLoading(true);
     if (qrCodeUrl) {
@@ -45,17 +48,17 @@ export default function QRCodeShareModal({
           setLoading(false);
         })
         .catch((error) => {
-          console.error("Error uploading image:", error);
+          console.error('Error uploading image:', error);
           setLoading(false);
-          setError("Something went wrong! Please try again later.");
+          setError('Something went wrong! Please try again later.');
         });
     }
   }, [qrCodeUrl]);
 
   const handleExport = (url: any) => {
-    const link = document.createElement("a");
+    const link = document.createElement('a');
     link.href = url;
-    link.download = `${"qrcode"}.png`;
+    link.download = `${'qrcode'}.png`;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -89,7 +92,7 @@ export default function QRCodeShareModal({
             size="xl"
             isOpen={isOpen}
             onOpenChange={onOpenChange}
-            backdrop={"blur"}
+            backdrop={'blur'}
           >
             <ModalContent>
               <div className="w-[91%] mx-auto py-12">
@@ -127,19 +130,19 @@ export default function QRCodeShareModal({
                   {/* </div> */}
                   <div
                     style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: "10px",
-                      marginTop: "20px",
-                      flexDirection: "column",
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '10px',
+                      marginTop: '20px',
+                      flexDirection: 'column',
                     }}
                     className="w-full"
                   >
                     <div
                       style={{
-                        display: "flex",
-                        alignItems: "center",
-                        gap: "10px",
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '10px',
                       }}
                       className=" w-full px-10"
                     >
@@ -147,24 +150,24 @@ export default function QRCodeShareModal({
                         type="text"
                         value={imageUrl}
                         style={{
-                          fontSize: "16px",
-                          borderRadius: "20px",
-                          border: "1px solid #ccc",
-                          width: "full",
+                          fontSize: '16px',
+                          borderRadius: '20px',
+                          border: '1px solid #ccc',
+                          width: 'full',
                         }}
                         className="w-full rounded-full pl-4 pr-14 py-2 "
                       />
                       <button
                         onClick={handleCopy}
                         style={{
-                          padding: "8px 12px",
-                          fontSize: "16px",
+                          padding: '8px 12px',
+                          fontSize: '16px',
                           // Green color for the button
                           // backgroundColor: "#28a745",
-                          color: "#fff",
-                          cursor: "pointer",
-                          position: "absolute",
-                          overflow: "hidden",
+                          color: '#fff',
+                          cursor: 'pointer',
+                          position: 'absolute',
+                          overflow: 'hidden',
                         }}
                         className="right-[17%] border-l-2 border-gray-200"
                       >
@@ -180,17 +183,17 @@ export default function QRCodeShareModal({
                     {showNotification && (
                       <div
                         style={{
-                          position: "fixed",
-                          bottom: "20px",
-                          left: "50%",
-                          transform: "translateX(-50%)",
-                          backgroundColor: "#333",
-                          color: "#fff",
-                          padding: "10px 20px",
-                          borderRadius: "4px",
-                          boxShadow: "0 4px 6px rgba(0, 0, 0, 0.1)",
+                          position: 'fixed',
+                          bottom: '20px',
+                          left: '50%',
+                          transform: 'translateX(-50%)',
+                          backgroundColor: '#333',
+                          color: '#fff',
+                          padding: '10px 20px',
+                          borderRadius: '4px',
+                          boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)',
                           zIndex: 1000,
-                          transition: "opacity 0.3s ease-in-out",
+                          transition: 'opacity 0.3s ease-in-out',
                         }}
                       >
                         Copied to the clipboard!
@@ -198,8 +201,8 @@ export default function QRCodeShareModal({
                     )}
                   </div>
                   <p className="text-sm text-gray-500 my-3 font-medium">
-                    Select from our wide variety of links and contact info
-                    below.
+                    Select from our wide variety of links and contact
+                    info below.
                   </p>
                   <div className="flex items-center gap-4 justify-center">
                     <FacebookShareButton url={imageUrl}>
@@ -277,7 +280,7 @@ export default function QRCodeShareModal({
             size="xl"
             isOpen={isOpen}
             onOpenChange={onOpenChange}
-            backdrop={"blur"}
+            backdrop={'blur'}
           >
             <ModalContent>
               <div className="w-[91%] mx-auto py-12">
@@ -312,7 +315,7 @@ export default function QRCodeShareModal({
                       }}
                     >
                       <MdOutlineFileDownload size={22} />
-                    </button>{" "}
+                    </button>{' '}
                     <button
                       onClick={handleCopy}
                       type="button"
@@ -323,19 +326,19 @@ export default function QRCodeShareModal({
                   </div>
                   <div
                     style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: "10px",
-                      marginTop: "20px",
-                      flexDirection: "column",
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '10px',
+                      marginTop: '20px',
+                      flexDirection: 'column',
                     }}
                     className="w-full"
                   >
                     <div
                       style={{
-                        display: "flex",
-                        alignItems: "center",
-                        gap: "10px",
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '10px',
                       }}
                       className=" w-full px-10"
                     >
@@ -343,24 +346,24 @@ export default function QRCodeShareModal({
                         type="text"
                         value={imageUrl}
                         style={{
-                          fontSize: "16px",
-                          borderRadius: "20px",
-                          border: "1px solid #ccc",
-                          width: "full",
+                          fontSize: '16px',
+                          borderRadius: '20px',
+                          border: '1px solid #ccc',
+                          width: 'full',
                         }}
                         className="w-full rounded-full pl-4 pr-14 py-2 "
                       />
                       <button
                         onClick={handleCopy}
                         style={{
-                          padding: "8px 12px",
-                          fontSize: "16px",
+                          padding: '8px 12px',
+                          fontSize: '16px',
                           // Green color for the button
                           // backgroundColor: "#28a745",
-                          color: "#fff",
-                          cursor: "pointer",
-                          position: "absolute",
-                          overflow: "hidden",
+                          color: '#fff',
+                          cursor: 'pointer',
+                          position: 'absolute',
+                          overflow: 'hidden',
                         }}
                         className="right-[17%] border-l-2 border-gray-200"
                       >
@@ -376,17 +379,17 @@ export default function QRCodeShareModal({
                     {showNotification && (
                       <div
                         style={{
-                          position: "fixed",
-                          bottom: "20px",
-                          left: "50%",
-                          transform: "translateX(-50%)",
-                          backgroundColor: "#333",
-                          color: "#fff",
-                          padding: "10px 20px",
-                          borderRadius: "4px",
-                          boxShadow: "0 4px 6px rgba(0, 0, 0, 0.1)",
+                          position: 'fixed',
+                          bottom: '20px',
+                          left: '50%',
+                          transform: 'translateX(-50%)',
+                          backgroundColor: '#333',
+                          color: '#fff',
+                          padding: '10px 20px',
+                          borderRadius: '4px',
+                          boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)',
                           zIndex: 1000,
-                          transition: "opacity 0.3s ease-in-out",
+                          transition: 'opacity 0.3s ease-in-out',
                         }}
                       >
                         Copied to the clipboard!
@@ -394,8 +397,8 @@ export default function QRCodeShareModal({
                     )}
                   </div>
                   <p className="text-sm text-gray-500 my-3 font-medium">
-                    Select from our wide variety of links and contact info
-                    below.
+                    Select from our wide variety of links and contact
+                    info below.
                   </p>
                   <div className="flex items-center gap-4 justify-center">
                     <FacebookShareButton url={imageUrl}>

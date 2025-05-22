@@ -46,6 +46,7 @@ const logger = {
 
   error: (message: any, ...args: any[]) => {
     const formattedLog = formatLog('error', message, ...args);
+
     console.error(...formattedLog);
   },
 
