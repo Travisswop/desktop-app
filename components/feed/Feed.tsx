@@ -1,33 +1,28 @@
-'use client';
+"use client";
 
-import { getUserFeed } from '@/actions/postFeed';
-import Image from 'next/image';
-import React, {
-  useState,
-  useEffect,
-  useRef,
-  useCallback,
-} from 'react';
-import { GoDotFill } from 'react-icons/go';
-import dayjs from 'dayjs';
-import PostTypeMedia from './view/PostTypeMedia';
-import { HiDotsHorizontal } from 'react-icons/hi';
+import { getUserFeed } from "@/actions/postFeed";
+import Image from "next/image";
+import React, { useState, useEffect, useRef, useCallback } from "react";
+import { GoDotFill } from "react-icons/go";
+import dayjs from "dayjs";
+import PostTypeMedia from "./view/PostTypeMedia";
+import { HiDotsHorizontal } from "react-icons/hi";
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
   useDisclosure,
-} from '@nextui-org/react';
-import relativeTime from 'dayjs/plugin/relativeTime';
-import Reaction from './view/Reaction';
-import Link from 'next/link';
-import { FiPlusCircle } from 'react-icons/fi';
-import FeedLoading from '../loading/FeedLoading';
-import DeleteFeedModal from './DeleteFeedModal';
-import isUrl from '@/lib/isUrl';
-import RedeemClaimModal from '../modal/RedeemClaim';
-import { useRouter } from 'next/navigation';
-import IndividualFeedContent from './IndividualFeedContent';
+} from "@nextui-org/react";
+import relativeTime from "dayjs/plugin/relativeTime";
+import Reaction from "./view/Reaction";
+import Link from "next/link";
+import { FiPlusCircle } from "react-icons/fi";
+import FeedLoading from "../loading/FeedLoading";
+import DeleteFeedModal from "./DeleteFeedModal";
+import isUrl from "@/lib/isUrl";
+import RedeemClaimModal from "../modal/RedeemClaim";
+import { useRouter } from "next/navigation";
+import IndividualFeedContent from "./IndividualFeedContent";
 
 dayjs.extend(relativeTime);
 
@@ -79,19 +74,13 @@ const Feed = ({
           5
         )}...${receiver_wallet_address.slice(-5)}`;
 
-    if (transaction_type === 'nft') {
+    if (transaction_type === "nft") {
       return (
         <div>
           <p className="text-gray-600 text-sm">
-            Sent NFT{' '}
-            <span className="font-medium text-base">
-              {name || 'item'}
-            </span>{' '}
-            to{' '}
-            <span className="font-medium text-base">
-              {recipientDisplay}
-            </span>
-            .
+            Sent NFT{" "}
+            <span className="font-medium text-base">{name || "item"}</span> to{" "}
+            <span className="font-medium text-base">{recipientDisplay}</span>.
           </p>
           {image && (
             <div className="w-52">
@@ -103,33 +92,32 @@ const Feed = ({
                 className="w-full h-auto"
               />
               <p className="text-sm text-gray-600 font-medium mt-0.5 text-center">
-                {amount} {currency || 'NFT'}
+                {amount} {currency || "NFT"}
               </p>
             </div>
           )}
         </div>
       );
-    } else if (transaction_type === 'token') {
+    } else if (transaction_type === "token") {
       return (
         <p className="text-gray-600 text-sm">
-          Transferred{' '}
+          Transferred{" "}
           <span className="font-medium">
             {amount.toFixed(2)} {token}
-          </span>{' '}
+          </span>{" "}
           {tokenPrice && (
             <span className="text-sm text-gray-600 font-medium mt-0.5">
               (${Number(tokenPrice).toFixed(2)})
             </span>
-          )}{' '}
-          tokens to{' '}
-          <span className="font-medium">{recipientDisplay}</span> on
+          )}{" "}
+          tokens to <span className="font-medium">{recipientDisplay}</span> on
           the {chain}.
         </p>
       );
     } else {
       return (
         <p className="text-gray-600 text-sm">
-          Executed a {transaction_type} transaction involving {amount}{' '}
+          Executed a {transaction_type} transaction involving {amount}{" "}
           {currency}.
         </p>
       );
@@ -196,9 +184,7 @@ const Feed = ({
   useEffect(() => {
     if (!hasMore) return;
 
-    const observerCallback = (
-      entries: IntersectionObserverEntry[]
-    ) => {
+    const observerCallback = (entries: IntersectionObserverEntry[]) => {
       if (entries[0].isIntersecting && !isFetching.current) {
         fetchFeedData();
       }
@@ -206,7 +192,7 @@ const Feed = ({
 
     const observer = new IntersectionObserver(observerCallback, {
       root: null,
-      rootMargin: '0px',
+      rootMargin: "0px",
       threshold: 1.0,
     });
 
@@ -236,8 +222,7 @@ const Feed = ({
             <div className="w-10 xl:w-12 h-10 xl:h-12 bg-gray-400 border border-gray-300 rounded-full overflow-hidden flex items-center justify-center">
               {(() => {
                 const profilePic =
-                  feed?.smartsiteId?.profilePic ||
-                  feed?.smartsiteProfilePic;
+                  feed?.smartsiteId?.profilePic || feed?.smartsiteProfilePic;
                 return profilePic && isUrl(profilePic) ? (
                   <Image
                     alt="user image"
@@ -270,13 +255,13 @@ const Feed = ({
                     <p className="text-gray-700 font-semibold">
                       {feed?.smartsiteId?.name ||
                         feed?.smartsiteUserName ||
-                        'Anonymous'}
+                        "Anonymous"}
                     </p>
                     <GoDotFill size={10} />
                     <p className="text-gray-500 font-normal">
                       {feed?.smartsiteId?.ens ||
                         feed?.smartsiteEnsName ||
-                        'n/a'}
+                        "n/a"}
                     </p>
                     <GoDotFill size={10} />
                     <p className="text-gray-500 font-normal">
@@ -284,17 +269,14 @@ const Feed = ({
                     </p>
                   </button>
                   {/* Render Post Content */}
-                  {(feed.postType === 'post' ||
-                    feed.postType === 'repost') &&
+                  {(feed.postType === "post" || feed.postType === "repost") &&
                     feed.content.title && (
                       <button
-                        onClick={() =>
-                          router.push(`/feed/${feed._id}`)
-                        }
+                        onClick={() => router.push(`/feed/${feed._id}`)}
                         className="w-full text-start"
                       >
                         {feed.content.title
-                          .split('\n')
+                          .split("\n")
                           .map((line: string, index: number) => (
                             <p className="break-text" key={index}>
                               {line}
@@ -303,16 +285,14 @@ const Feed = ({
                       </button>
                     )}
 
-                  {feed.postType === 'swapTransaction' && (
-                    <div className="w-full flex justify-center">
+                  {feed.postType === "swapTransaction" && (
+                    <div className="w-full flex justify-start mt-1">
                       <button
-                        onClick={() =>
-                          router.push(`/feed/${feed._id}`)
-                        }
+                        onClick={() => router.push(`/feed/${feed._id}`)}
                         className="w-full max-w-xl"
                         style={{
-                          background: 'transparent',
-                          border: 'none',
+                          background: "transparent",
+                          border: "none",
                           padding: 0,
                         }}
                       >
@@ -323,31 +303,27 @@ const Feed = ({
                                 <Image
                                   src={
                                     feed.content.inputToken.tokenImg.startsWith(
-                                      'https'
+                                      "https"
                                     )
-                                      ? feed.content.inputToken
-                                          .tokenImg
-                                      : `/assets/crypto-icons/${feed.content.inputToken.symbol.toLowerCase()}.png`
+                                      ? feed.content.inputToken.tokenImg
+                                      : `/assets/crypto-icons/${feed.content.inputToken.symbol}.png`
                                   }
                                   alt={feed.content.inputToken.symbol}
-                                  width={40}
-                                  height={40}
+                                  width={120}
+                                  height={120}
                                   className="w-10 h-10 rounded-full border-2 border-white shadow-sm z-10"
                                 />
                                 <Image
                                   src={
                                     feed.content.outputToken.tokenImg.startsWith(
-                                      'https'
+                                      "https"
                                     )
-                                      ? feed.content.outputToken
-                                          .tokenImg
+                                      ? feed.content.outputToken.tokenImg
                                       : `/assets/crypto-icons/${feed.content.outputToken.symbol.toLowerCase()}.png`
                                   }
-                                  alt={
-                                    feed.content.outputToken.symbol
-                                  }
-                                  width={40}
-                                  height={40}
+                                  alt={feed.content.outputToken.symbol}
+                                  width={120}
+                                  height={120}
                                   className="w-10 h-10 rounded-full border-2 border-white shadow-sm -ml-4 z-20"
                                 />
                               </div>
@@ -358,7 +334,7 @@ const Feed = ({
                               </p>
                               <p className="text-xs text-gray-400">
                                 {dayjs(feed.createdAt).format(
-                                  'MMM D, YYYY h:mm A'
+                                  "MMM D, YYYY h:mm A"
                                 )}
                               </p>
                             </div>
@@ -366,13 +342,11 @@ const Feed = ({
 
                           <div className="flex items-center justify-between">
                             <div className="flex flex-col">
-                              <p className="text-sm text-gray-600">
-                                You sent
-                              </p>
+                              <p className="text-sm text-gray-600">You sent</p>
                               <p className="text-base font-semibold text-red-600">
-                                {Number(
-                                  feed.content.inputToken.amount
-                                ).toFixed(2)}{' '}
+                                {Number(feed.content.inputToken.amount).toFixed(
+                                  2
+                                )}{" "}
                                 {feed.content.inputToken.symbol}
                               </p>
                             </div>
@@ -396,7 +370,7 @@ const Feed = ({
                               <p className="text-base font-semibold text-green-600">
                                 {Number(
                                   feed.content.outputToken.amount
-                                ).toFixed(2)}{' '}
+                                ).toFixed(2)}{" "}
                                 {feed.content.outputToken.symbol}
                               </p>
                             </div>
@@ -404,6 +378,7 @@ const Feed = ({
                           {feed.content.signature && (
                             <div className="flex justify-end mt-2">
                               <a
+                                onClick={(e) => e.stopPropagation()}
                                 href={`https://solscan.io/tx/${feed.content.signature}`}
                                 target="_blank"
                                 rel="noopener noreferrer"
@@ -432,11 +407,10 @@ const Feed = ({
                     </div>
                   )}
 
-                  {feed.postType === 'repost' &&
-                  feed.repostedPostDetails ? (
+                  {feed.postType === "repost" && feed.repostedPostDetails ? (
                     <IndividualFeedContent feed={feed} />
                   ) : (
-                    feed.postType === 'repost' &&
+                    feed.postType === "repost" &&
                     !feed.repostedPostDetails && (
                       <div className="p-4 bg-blue-50 rounded-lg border border-blue-100 text-blue-800 text-sm mt-1">
                         <div className="flex items-start">
@@ -452,12 +426,9 @@ const Feed = ({
                             />
                           </svg>
                           <div>
-                            <p className="font-medium">
-                              Content Removed
-                            </p>
+                            <p className="font-medium">Content Removed</p>
                             <p className="mt-1 text-blue-700">
-                              The original poster has deleted this
-                              content
+                              The original poster has deleted this content
                             </p>
                           </div>
                         </div>
@@ -465,12 +436,12 @@ const Feed = ({
                     )
                   )}
                   {/* Render Redeem Content */}
-                  {feed.postType === 'redeem' && (
+                  {feed.postType === "redeem" && (
                     <div className="flex flex-col gap-2 text-gray-600 text-sm">
                       <div>
                         <p>
-                          Created a new {feed.content.redeemName}{' '}
-                          Redeemable Link -{' '}
+                          Created a new {feed.content.redeemName} Redeemable
+                          Link -{" "}
                           <button
                             onClick={(e) => {
                               e.stopPropagation();
@@ -494,30 +465,29 @@ const Feed = ({
                         <div className="font-semibold text-sm">
                           <p>{feed.content.network}</p>
                           <p>
-                            {feed.content.amount}{' '}
-                            {feed.content.symbol}
+                            {feed.content.amount} {feed.content.symbol}
                           </p>
                         </div>
                       </div>
                     </div>
                   )}
-                  {feed.postType === 'connection' && (
+                  {feed.postType === "connection" && (
                     <p className="text-gray-600 text-sm">
-                      Connected with{' '}
+                      Connected with{" "}
                       <span className="text-gray-700 font-medium text-base">
                         {feed.content.connectedSmartsiteName}
                       </span>
                     </p>
                   )}
-                  {feed.postType === 'ensClaim' && (
+                  {feed.postType === "ensClaim" && (
                     <p className="text-gray-600 text-sm">
-                      Claim a new ENS{' '}
+                      Claim a new ENS{" "}
                       <span className="text-gray-700 font-medium text-base">
                         {feed.content.claimEnsName}
                       </span>
                     </p>
                   )}
-                  {feed.postType === 'transaction' &&
+                  {feed.postType === "transaction" &&
                     renderTransactionContent(feed)}
                 </div>
                 {userId === feed.userId && (
@@ -550,13 +520,11 @@ const Feed = ({
                 )}
               </div>
               <div>
-                {feed.postType === 'post' &&
+                {feed.postType === "post" &&
                   feed.content.post_content.length > 0 && (
-                    <PostTypeMedia
-                      mediaFiles={feed.content.post_content}
-                    />
+                    <PostTypeMedia mediaFiles={feed.content.post_content} />
                   )}
-                {feed.postType === 'minting' && (
+                {feed.postType === "minting" && (
                   <div className="w-max">
                     <p>{feed.content.title}</p>
                     <div className="shadow-medium bg-white rounded-lg mt-2 p-2 relative">
