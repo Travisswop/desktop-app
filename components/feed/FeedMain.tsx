@@ -141,12 +141,10 @@ const FeedMain = ({ isFromHome = false }: { isFromHome?: boolean }) => {
             style={{ height: "calc(100vh - 108px)" }}
             className="flex-1 overflow-y-auto"
           >
-            {shouldRenderConnections ? (
+            {shouldRenderConnections && (
               <Suspense fallback={"loading..."}>
                 <Connections userId={user._id} accessToken={accessToken} />
               </Suspense>
-            ) : (
-              <Loader size={24} className="animate-spin" aria-hidden="true" />
             )}
           </div>
         </div>
