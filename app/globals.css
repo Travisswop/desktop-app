@@ -332,3 +332,26 @@ body {
     transform: rotate(360deg);
   }
 }
+/* 
+@keyframes progress {
+  0% {
+    width: 0%;
+    left: 0;
+    right: auto;
+  }
+  50% {
+    width: 100%;
+    left: 0;
+    right: auto;
+  }
+  51% {
+    width: 100%;
+    left: auto;
+    right: 0;
+  }
+  100% {
+    width: 0%;
+    left: auto;
+    right: 0;
+  }
+} */
