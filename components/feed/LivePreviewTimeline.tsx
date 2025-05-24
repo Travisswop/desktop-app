@@ -30,6 +30,8 @@ const LivePreviewTimeline = ({
   setIsPosting,
   isPosting,
   setIsPostLoading,
+  isFromPublicProfile = false,
+  micrositeId = "",
 }: {
   accessToken: string;
   userId: string;
@@ -37,6 +39,8 @@ const LivePreviewTimeline = ({
   isPosting: boolean;
   setIsPostLoading: (value: boolean) => void;
   isPostLoading: boolean;
+  isFromPublicProfile?: boolean;
+  micrositeId?: string;
 }) => {
   const [feedData, setFeedData] = useState<any[]>([]);
   const [hasMore, setHasMore] = useState(true);
@@ -135,7 +139,9 @@ const LivePreviewTimeline = ({
       isFetching.current = true;
 
       const currentPage = reset ? 1 : pageRef.current;
-      const url = `${process.env.NEXT_PUBLIC_API_URL}/api/v1/feed/smartsite/${smartsiteId}?page=${currentPage}&limit=5`;
+      const url = `${process.env.NEXT_PUBLIC_API_URL}/api/v1/feed/smartsite/${
+        micrositeId ? micrositeId : smartsiteId
+      }?page=${currentPage}&limit=5`;
       const newFeedData = await getSmartsiteFeed(url, accessToken);
 
       if (!newFeedData?.data) {
@@ -212,7 +218,13 @@ const LivePreviewTimeline = ({
   const router = useRouter();
 
   return (
-    <div className="flex flex-col gap-2 mt-5 mx-2 bg-white px-1 py-3 rounded-lg text-sm h-96 overflow-y-auto hide-scrollbar">
+    <div
+      className={`flex flex-col gap-2  mx-2 bg-white py-3  text-sm h-96 overflow-y-auto hide-scrollbar ${
+        isFromPublicProfile
+          ? "w-full px-3 shadow-medium rounded-xl mt-1"
+          : "px-1 rounded-lg mt-5"
+      }`}
+    >
       {feedData.map((feed, index) => (
         <div
           key={index}
@@ -243,10 +255,14 @@ const LivePreviewTimeline = ({
               );
             })()}
           </div>
-          <div className="">
+          <div className={`${isFromPublicProfile && "w-full"}`}>
             {/* User and Feed Information */}
-            <div className="flex items-start justify-between">
-              <div>
+            <div
+              className={`${
+                isFromPublicProfile && "w-full"
+              } flex items-start justify-between`}
+            >
+              <div className={`${isFromPublicProfile && "w-full"}`}>
                 <button
                   onClick={() => router.push(`/feed/${feed._id}`)}
                   className="flex flex-wrap gap-x-1 items-center"
