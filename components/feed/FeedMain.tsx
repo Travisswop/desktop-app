@@ -146,21 +146,7 @@ const FeedMain = ({ isFromHome = false }: { isFromHome?: boolean }) => {
                 <Connections userId={user._id} accessToken={accessToken} />
               </Suspense>
             ) : (
-              <div className="flex flex-col items-center justify-center w-full h-[77vh] gap-2">
-                <div className="flex items-center gap-2">
-                  <Loader
-                    size={24}
-                    className="animate-spin"
-                    aria-hidden="true"
-                  />
-                  <p className="text-lg font-medium text-gray-700 dark:text-gray-300">
-                    Loading content...
-                  </p>
-                </div>
-                <p className="text-sm text-gray-500 dark:text-gray-400">
-                  This will just take a moment
-                </p>
-              </div>
+              <Loader size={24} className="animate-spin" aria-hidden="true" />
             )}
           </div>
         </div>
