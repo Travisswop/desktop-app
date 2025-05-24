@@ -353,7 +353,7 @@ const LivePreviewTimeline = ({
                                     "https"
                                   )
                                     ? feed.content.outputToken.tokenImg
-                                    : `/assets/crypto-icons/${feed.content.outputToken.symbol.toLowerCase()}.png`
+                                    : `/assets/crypto-icons/${feed.content.outputToken.symbol}.png`
                                 }
                                 alt={feed.content.outputToken.symbol}
                                 width={120}
