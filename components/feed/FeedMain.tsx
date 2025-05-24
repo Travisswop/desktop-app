@@ -92,7 +92,7 @@ const FeedMain = ({ isFromHome = false }: { isFromHome?: boolean }) => {
   }, [tab, loading, accessToken, user, isPosting, isPostLoading]);
 
   // Don't render connections until we have a valid user ID
-  const shouldRenderConnections = !loading && user?._id;
+  const shouldRenderConnections = !loading && user?._id && accessToken;
 
   return (
     <div>
@@ -132,7 +132,9 @@ const FeedMain = ({ isFromHome = false }: { isFromHome?: boolean }) => {
             )}
             {/* Render the selected component based on the 'tab' query parameter */}
             <Suspense fallback={"loading..."}>
-              <section className="p-6">{ComponentToRender}</section>
+              <section className="p-6">
+                {!loading && user?._id && accessToken && ComponentToRender}
+              </section>
             </Suspense>
           </div>
           <div
@@ -144,7 +146,21 @@ const FeedMain = ({ isFromHome = false }: { isFromHome?: boolean }) => {
                 <Connections userId={user._id} accessToken={accessToken} />
               </Suspense>
             ) : (
-              <p>Loading connections...</p>
+              <div className="flex flex-col items-center justify-center w-full h-[77vh] gap-2">
+                <div className="flex items-center gap-2">
+                  <Loader
+                    size={24}
+                    className="animate-spin"
+                    aria-hidden="true"
+                  />
+                  <p className="text-lg font-medium text-gray-700 dark:text-gray-300">
+                    Loading content...
+                  </p>
+                </div>
+                <p className="text-sm text-gray-500 dark:text-gray-400">
+                  This will just take a moment
+                </p>
+              </div>
             )}
           </div>
         </div>
