@@ -30,6 +30,8 @@ const LivePreviewTimeline = ({
   setIsPosting,
   isPosting,
   setIsPostLoading,
+  isFromPublicProfile = false,
+  micrositeId = "",
 }: {
   accessToken: string;
   userId: string;
@@ -37,6 +39,8 @@ const LivePreviewTimeline = ({
   isPosting: boolean;
   setIsPostLoading: (value: boolean) => void;
   isPostLoading: boolean;
+  isFromPublicProfile?: boolean;
+  micrositeId?: string;
 }) => {
   const [feedData, setFeedData] = useState<any[]>([]);
   const [hasMore, setHasMore] = useState(true);
@@ -135,7 +139,9 @@ const LivePreviewTimeline = ({
       isFetching.current = true;
 
       const currentPage = reset ? 1 : pageRef.current;
-      const url = `${process.env.NEXT_PUBLIC_API_URL}/api/v1/feed/smartsite/${smartsiteId}?page=${currentPage}&limit=5`;
+      const url = `${process.env.NEXT_PUBLIC_API_URL}/api/v1/feed/smartsite/${
+        micrositeId ? micrositeId : smartsiteId
+      }?page=${currentPage}&limit=5`;
       const newFeedData = await getSmartsiteFeed(url, accessToken);
 
       if (!newFeedData?.data) {
@@ -212,7 +218,13 @@ const LivePreviewTimeline = ({
   const router = useRouter();
 
   return (
-    <div className="flex flex-col gap-2 mt-5 mx-2 bg-white px-1 py-3 rounded-lg text-sm h-96 overflow-y-auto hide-scrollbar">
+    <div
+      className={`flex flex-col gap-2  mx-2 bg-white py-3  text-sm h-96 overflow-y-auto hide-scrollbar ${
+        isFromPublicProfile
+          ? "w-full px-3 shadow-medium rounded-xl mt-1"
+          : "px-1 rounded-lg mt-5"
+      }`}
+    >
       {feedData.map((feed, index) => (
         <div
           key={index}
@@ -222,9 +234,6 @@ const LivePreviewTimeline = ({
             {(() => {
               const profilePic =
                 feed?.smartsiteId?.profilePic || feed?.smartsiteProfilePic;
-
-              console.log("profilePic  vvv", profilePic);
-
               return profilePic && isUrl(profilePic) ? (
                 <Image
                   alt="user image"
@@ -245,35 +254,29 @@ const LivePreviewTimeline = ({
                 />
               );
             })()}
-            {/* <div>
-              <Image
-                alt="user image"
-                src={`/images/user_avator/1.png`}
-                width={300}
-                height={300}
-                quality={100}
-                className="w-8 h-8 rounded-full"
-              />
-            </div> */}
           </div>
-          <div className="">
+          <div className={`${isFromPublicProfile && "w-full"}`}>
             {/* User and Feed Information */}
-            <div className="flex items-start justify-between">
-              <div>
+            <div
+              className={`${
+                isFromPublicProfile && "w-full"
+              } flex items-start justify-between`}
+            >
+              <div className={`${isFromPublicProfile && "w-full"}`}>
                 <button
                   onClick={() => router.push(`/feed/${feed._id}`)}
-                  className="flex flex-wrap items-center"
+                  className="flex flex-wrap gap-x-1 items-center"
                 >
                   <p className="text-gray-700 font-semibold">
                     {feed?.smartsiteId?.name ||
                       feed?.smartsiteUserName ||
                       "Anonymous"}
                   </p>
-                  <GoDotFill size={10} />
+                  <GoDotFill size={6} />
                   <p className="text-gray-500 font-normal">
                     {feed?.smartsiteId?.ens || feed?.smartsiteEnsName || "n/a"}
                   </p>
-                  <GoDotFill size={10} />
+                  <GoDotFill size={6} />
                   <p className="text-gray-500 font-normal">
                     {dayjs(feed.createdAt).fromNow()}
                   </p>
@@ -317,45 +320,125 @@ const LivePreviewTimeline = ({
                 )}
 
                 {feed.postType === "swapTransaction" && (
-                  <button
-                    onClick={() => router.push(`/feed/${feed._id}`)}
-                    className="mt-1"
-                  >
-                    <div className="flex items-center flex-wrap text-start gap-1 border rounded-xl py-2 px-2.5 justify-between">
-                      <div className="flex items-center gap-2">
-                        <div className="flex items-center">
-                          <Image
-                            src={feed.content.inputToken.tokenImg}
-                            alt="token"
-                            width={120}
-                            height={120}
-                            className="w-8 h-8 rounded-full"
-                          />
-                          <Image
-                            src={feed.content.outputToken.tokenImg}
-                            alt="token"
-                            width={120}
-                            height={120}
-                            className="w-8 h-8 rounded-full -translate-x-[20%]"
-                          />
+                  <div className="w-full flex justify-start mt-1">
+                    <button
+                      onClick={() => router.push(`/feed/${feed._id}`)}
+                      className="w-full max-w-xl"
+                      style={{
+                        background: "transparent",
+                        border: "none",
+                        padding: 0,
+                      }}
+                    >
+                      <div className="flex flex-col gap-3 border rounded-xl p-4 bg-white hover:bg-gray-50 transition-colors shadow-sm">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <div className="relative flex items-center">
+                              <Image
+                                src={
+                                  feed.content.inputToken.tokenImg.startsWith(
+                                    "https"
+                                  )
+                                    ? feed.content.inputToken.tokenImg
+                                    : `/assets/crypto-icons/${feed.content.inputToken.symbol}.png`
+                                }
+                                alt={feed.content.inputToken.symbol}
+                                width={120}
+                                height={120}
+                                className="w-10 h-10 rounded-full border-2 border-white shadow-sm z-10"
+                              />
+                              <Image
+                                src={
+                                  feed.content.outputToken.tokenImg.startsWith(
+                                    "https"
+                                  )
+                                    ? feed.content.outputToken.tokenImg
+                                    : `/assets/crypto-icons/${feed.content.outputToken.symbol}.png`
+                                }
+                                alt={feed.content.outputToken.symbol}
+                                width={120}
+                                height={120}
+                                className="w-10 h-10 rounded-full border-2 border-white shadow-sm -ml-4 z-20"
+                              />
+                            </div>
+                          </div>
+                          <div className="flex flex-col items-end">
+                            <p className="text-sm text-gray-500">
+                              Swap Transaction
+                            </p>
+                            <p className="text-xs text-gray-400">
+                              {dayjs(feed.createdAt).format(
+                                "MMM D, YYYY h:mm A"
+                              )}
+                            </p>
+                          </div>
                         </div>
-                        <p className="font-medium">
-                          Swapped {feed.content.inputToken.symbol} to{" "}
-                          {feed.content.outputToken.symbol}
-                        </p>
+
+                        <div className="flex items-center justify-between">
+                          <div className="flex flex-col">
+                            <p className="text-sm text-gray-600">You sent</p>
+                            <p className="text-base font-semibold text-red-600">
+                              {Number(feed.content.inputToken.amount).toFixed(
+                                2
+                              )}{" "}
+                              {feed.content.inputToken.symbol}
+                            </p>
+                          </div>
+                          <svg
+                            className="w-6 h-6 text-gray-400"
+                            fill="none"
+                            stroke="currentColor"
+                            viewBox="0 0 24 24"
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth="2"
+                              d="M17 8l4 4m0 0l-4 4m4-4H3"
+                            />
+                          </svg>
+                          <div className="flex flex-col items-end">
+                            <p className="text-sm text-gray-600">
+                              You received
+                            </p>
+                            <p className="text-base font-semibold text-green-600">
+                              {Number(feed.content.outputToken.amount).toFixed(
+                                2
+                              )}{" "}
+                              {feed.content.outputToken.symbol}
+                            </p>
+                          </div>
+                        </div>
+                        {feed.content.signature && (
+                          <div className="flex justify-end mt-2">
+                            <a
+                              onClick={(e) => e.stopPropagation()}
+                              href={`https://solscan.io/tx/${feed.content.signature}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="flex items-center gap-1 text-xs text-blue-600 hover:underline font-medium"
+                            >
+                              View on Solscan
+                              <svg
+                                xmlns="http://www.w3.org/2000/svg"
+                                className="h-3 w-3"
+                                fill="none"
+                                viewBox="0 0 24 24"
+                                stroke="currentColor"
+                              >
+                                <path
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                  strokeWidth={2}
+                                  d="M17 7h2a2 2 0 012 2v10a2 2 0 01-2 2H5a2 2 0 01-2-2V9a2 2 0 012-2h2m4-4h4m0 0v4m0-4L10 10"
+                                />
+                              </svg>
+                            </a>
+                          </div>
+                        )}
                       </div>
-                      <div className="flex gap-2 justify-start w-full">
-                        <p className="text-green-600 font-medium">
-                          + {feed.content.outputToken.amount}{" "}
-                          {feed.content.outputToken.symbol}
-                        </p>
-                        <p className="text-red-600 font-medium">
-                          - {feed.content.inputToken.amount}{" "}
-                          {feed.content.inputToken.symbol}
-                        </p>
-                      </div>
-                    </div>
-                  </button>
+                    </button>
+                  </div>
                 )}
                 {/* Post Content */}
                 {(feed.postType === "post" || feed.postType === "repost") &&

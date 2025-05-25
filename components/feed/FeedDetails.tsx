@@ -1,16 +1,16 @@
-'use client';
+"use client";
 
-import React from 'react';
-import dayjs from 'dayjs';
-import relativeTime from 'dayjs/plugin/relativeTime';
-import Image from 'next/image';
-import isUrl from '@/lib/isUrl';
-import { GoDotFill } from 'react-icons/go';
-import PostTypeMedia from './view/PostTypeMedia';
-import Link from 'next/link';
-import { FiPlusCircle } from 'react-icons/fi';
-import Reaction from './view/Reaction';
-import IndividualFeedContentForFeedDetails from './IndividualFeedContentForFeedDetails';
+import React from "react";
+import dayjs from "dayjs";
+import relativeTime from "dayjs/plugin/relativeTime";
+import Image from "next/image";
+import isUrl from "@/lib/isUrl";
+import { GoDotFill } from "react-icons/go";
+import PostTypeMedia from "./view/PostTypeMedia";
+import Link from "next/link";
+import { FiPlusCircle } from "react-icons/fi";
+import Reaction from "./view/Reaction";
+import IndividualFeedContentForFeedDetails from "./IndividualFeedContentForFeedDetails";
 
 dayjs.extend(relativeTime);
 
@@ -38,19 +38,13 @@ const FeedDetails = ({ feedData, feedDetails, accessToken }: any) => {
           5
         )}...${receiver_wallet_address.slice(-5)}`;
 
-    if (transaction_type === 'nft') {
+    if (transaction_type === "nft") {
       return (
         <div>
           <p className="text-gray-600 text-sm">
-            Sent NFT{' '}
-            <span className="font-medium text-base">
-              {name || 'item'}
-            </span>{' '}
-            to{' '}
-            <span className="font-medium text-base">
-              {recipientDisplay}
-            </span>
-            .
+            Sent NFT{" "}
+            <span className="font-medium text-base">{name || "item"}</span> to{" "}
+            <span className="font-medium text-base">{recipientDisplay}</span>.
           </p>
           {image && (
             <div className="w-52">
@@ -62,33 +56,32 @@ const FeedDetails = ({ feedData, feedDetails, accessToken }: any) => {
                 className="w-full h-auto"
               />
               <p className="text-sm text-gray-600 font-medium mt-0.5 text-center">
-                {amount} {currency || 'NFT'}
+                {amount} {currency || "NFT"}
               </p>
             </div>
           )}
         </div>
       );
-    } else if (transaction_type === 'token') {
+    } else if (transaction_type === "token") {
       return (
         <p className="text-gray-600 text-sm">
-          Transferred{' '}
+          Transferred{" "}
           <span className="font-medium">
             {amount.toFixed(2)} {token}
-          </span>{' '}
+          </span>{" "}
           {tokenPrice && (
             <span className="text-sm text-gray-600 font-medium mt-0.5">
               (${Number(tokenPrice).toFixed(2)})
             </span>
-          )}{' '}
-          tokens to{' '}
-          <span className="font-medium">{recipientDisplay}</span> on
+          )}{" "}
+          tokens to <span className="font-medium">{recipientDisplay}</span> on
           the {chain}.
         </p>
       );
     } else {
       return (
         <p className="text-gray-600 text-sm">
-          Executed a {transaction_type} transaction involving {amount}{' '}
+          Executed a {transaction_type} transaction involving {amount}{" "}
           {currency}.
         </p>
       );
@@ -133,13 +126,13 @@ const FeedDetails = ({ feedData, feedDetails, accessToken }: any) => {
                   <p className="text-gray-700 font-semibold">
                     {feedData?.smartsiteId?.name ||
                       feedData?.smartsiteUserName ||
-                      'Anonymous'}
+                      "Anonymous"}
                   </p>
                   <GoDotFill size={10} />
                   <p className="text-gray-500 font-normal">
                     {feedData?.smartsiteId?.ens ||
                       feedData?.smartsiteEnsName ||
-                      'n/a'}
+                      "n/a"}
                   </p>
                   <GoDotFill size={10} />
                   <p className="text-gray-500 font-normal">
@@ -147,12 +140,12 @@ const FeedDetails = ({ feedData, feedDetails, accessToken }: any) => {
                   </p>
                 </div>
                 {/* Render Post Content */}
-                {(feedData.postType === 'post' ||
-                  feedData.postType === 'repost') &&
+                {(feedData.postType === "post" ||
+                  feedData.postType === "repost") &&
                   feedData.content.title && (
                     <div>
                       {feedData.content.title
-                        .split('\n')
+                        .split("\n")
                         .map((line: string, index: number) => (
                           <p className="break-text" key={index}>
                             {line}
@@ -161,13 +154,11 @@ const FeedDetails = ({ feedData, feedDetails, accessToken }: any) => {
                     </div>
                   )}
 
-                {feedData.postType === 'repost' &&
+                {feedData.postType === "repost" &&
                 feedDetails.repostedPostDetails ? (
-                  <IndividualFeedContentForFeedDetails
-                    feed={feedDetails}
-                  />
+                  <IndividualFeedContentForFeedDetails feed={feedDetails} />
                 ) : (
-                  feedData.postType === 'repost' &&
+                  feedData.postType === "repost" &&
                   !feedDetails.repostedPostDetails && (
                     <div className="p-4 bg-blue-50 rounded-lg border border-blue-100 text-blue-800 text-sm mt-1">
                       <div className="flex items-start">
@@ -183,12 +174,9 @@ const FeedDetails = ({ feedData, feedDetails, accessToken }: any) => {
                           />
                         </svg>
                         <div>
-                          <p className="font-medium">
-                            Content Removed
-                          </p>
+                          <p className="font-medium">Content Removed</p>
                           <p className="mt-1 text-blue-700">
-                            The original poster has deleted this
-                            content
+                            The original poster has deleted this content
                           </p>
                         </div>
                       </div>
@@ -196,12 +184,12 @@ const FeedDetails = ({ feedData, feedDetails, accessToken }: any) => {
                   )
                 )}
                 {/* Render Redeem Content */}
-                {feedData.postType === 'redeem' && (
+                {feedData.postType === "redeem" && (
                   <div className="flex flex-col gap-2 text-gray-600 text-sm">
                     <div>
                       <p>
-                        Created a new {feedData.content.redeemName}{' '}
-                        Redeemable Link -{' '}
+                        Created a new {feedData.content.redeemName} Redeemable
+                        Link -{" "}
                         <button
                           // onClick={() => openRedeemModal(feedData.content)}
                           className="text-blue-500 underline"
@@ -222,31 +210,151 @@ const FeedDetails = ({ feedData, feedDetails, accessToken }: any) => {
                       <div className="font-semibold text-sm">
                         <p>{feedData.content.network}</p>
                         <p>
-                          {feedData.content.amount}{' '}
-                          {feedData.content.symbol}
+                          {feedData.content.amount} {feedData.content.symbol}
                         </p>
                       </div>
                     </div>
                   </div>
                 )}
-                {feedData.postType === 'connection' && (
+                {feedData.postType === "connection" && (
                   <p className="text-gray-600 text-sm">
-                    Connected with{' '}
+                    Connected with{" "}
                     <span className="text-gray-700 font-medium text-base">
                       {feedData.content.connectedSmartsiteName}
                     </span>
                   </p>
                 )}
-                {feedData.postType === 'ensClaim' && (
+                {feedData.postType === "ensClaim" && (
                   <p className="text-gray-600 text-sm">
-                    Claim a new ENS{' '}
+                    Claim a new ENS{" "}
                     <span className="text-gray-700 font-medium text-base">
                       {feedData.content.claimEnsName}
                     </span>
                   </p>
                 )}
-                {feedData.postType === 'transaction' &&
+                {feedData.postType === "transaction" &&
                   renderTransactionContent(feedData)}
+
+                {feedData.postType === "swapTransaction" && (
+                  <div className="flex justify-start mt-1">
+                    <button
+                      className="w-full max-w-xl"
+                      style={{
+                        background: "transparent",
+                        border: "none",
+                        padding: 0,
+                      }}
+                    >
+                      <div className="flex flex-col gap-3 border rounded-xl p-4 bg-white hover:bg-gray-50 transition-colors shadow-sm">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <div className="relative flex items-center">
+                              <Image
+                                src={
+                                  feedData.content.inputToken.tokenImg.startsWith(
+                                    "https"
+                                  )
+                                    ? feedData.content.inputToken.tokenImg
+                                    : `/assets/crypto-icons/${feedData.content.inputToken.symbol}.png`
+                                }
+                                alt={feedData.content.inputToken.symbol}
+                                width={120}
+                                height={120}
+                                className="w-10 h-10 rounded-full border-2 border-white shadow-sm z-10"
+                              />
+                              <Image
+                                src={
+                                  feedData.content.outputToken.tokenImg.startsWith(
+                                    "https"
+                                  )
+                                    ? feedData.content.outputToken.tokenImg
+                                    : `/assets/crypto-icons/${feedData.content.outputToken.symbol.toLowerCase()}.png`
+                                }
+                                alt={feedData.content.outputToken.symbol}
+                                width={120}
+                                height={120}
+                                className="w-10 h-10 rounded-full border-2 border-white shadow-sm -ml-4 z-20"
+                              />
+                            </div>
+                          </div>
+                          <div className="flex flex-col items-end">
+                            <p className="text-sm text-gray-500">
+                              Swap Transaction
+                            </p>
+                            <p className="text-xs text-gray-400">
+                              {dayjs(feedData.createdAt).format(
+                                "MMM D, YYYY h:mm A"
+                              )}
+                            </p>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center justify-between">
+                          <div className="flex flex-col">
+                            <p className="text-sm text-gray-600">You sent</p>
+                            <p className="text-base font-semibold text-red-600">
+                              {Number(
+                                feedData.content.inputToken.amount
+                              ).toFixed(2)}{" "}
+                              {feedData.content.inputToken.symbol}
+                            </p>
+                          </div>
+                          <svg
+                            className="w-6 h-6 text-gray-400"
+                            fill="none"
+                            stroke="currentColor"
+                            viewBox="0 0 24 24"
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth="2"
+                              d="M17 8l4 4m0 0l-4 4m4-4H3"
+                            />
+                          </svg>
+                          <div className="flex flex-col items-end">
+                            <p className="text-sm text-gray-600">
+                              You received
+                            </p>
+                            <p className="text-base font-semibold text-green-600">
+                              {Number(
+                                feedData.content.outputToken.amount
+                              ).toFixed(2)}{" "}
+                              {feedData.content.outputToken.symbol}
+                            </p>
+                          </div>
+                        </div>
+                        {feedData.content.signature && (
+                          <div className="flex justify-end mt-2">
+                            <a
+                              onClick={(e) => e.stopPropagation()}
+                              href={`https://solscan.io/tx/${feedData.content.signature}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="flex items-center gap-1 text-xs text-blue-600 hover:underline font-medium"
+                            >
+                              View on Solscan
+                              <svg
+                                xmlns="http://www.w3.org/2000/svg"
+                                className="h-3 w-3"
+                                fill="none"
+                                viewBox="0 0 24 24"
+                                stroke="currentColor"
+                              >
+                                <path
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                  strokeWidth={2}
+                                  d="M17 7h2a2 2 0 012 2v10a2 2 0 01-2 2H5a2 2 0 01-2-2V9a2 2 0 012-2h2m4-4h4m0 0v4m0-4L10 10"
+                                />
+                              </svg>
+                            </a>
+                          </div>
+                        )}
+                      </div>
+                    </button>
+                  </div>
+                )}
               </div>
               {/* {userId === feed.userId && (
                   <div>
@@ -275,21 +383,16 @@ const FeedDetails = ({ feedData, feedDetails, accessToken }: any) => {
                 )} */}
             </div>
             <div>
-              {feedData.postType === 'post' &&
+              {feedData.postType === "post" &&
                 feedData.content.post_content.length > 0 && (
-                  <PostTypeMedia
-                    mediaFiles={feedData.content.post_content}
-                  />
+                  <PostTypeMedia mediaFiles={feedData.content.post_content} />
                 )}
 
-              {feedData.postType === 'minting' && (
+              {feedData.postType === "minting" && (
                 <div className="w-max">
                   <p>{feedData.content.title}</p>
                   <div className="shadow-medium bg-white rounded-lg mt-2 p-2 relative">
-                    <Link
-                      href={feedData.content.link}
-                      className="w-max"
-                    >
+                    <Link href={feedData.content.link} className="w-max">
                       <Image
                         src={feedData.content.image}
                         alt="nft image"
