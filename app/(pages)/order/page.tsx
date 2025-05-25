@@ -1,14 +1,16 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useUser } from '@/lib/UserContext';
+import { useQueryClient } from '@tanstack/react-query';
 import { format } from 'date-fns';
 import {
   HiOutlineDownload,
   HiFilter,
   HiX,
   HiSearch,
+  HiRefresh,
 } from 'react-icons/hi';
 
 // UI Components
@@ -25,7 +27,11 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
-import { useUserOrders } from '@/lib/hooks/useUserOrder';
+import {
+  useOrderList,
+  OrderListFilters,
+  orderKeys,
+} from '@/lib/hooks/useOrderQueries';
 
 interface Summary {
   total: number;
@@ -57,19 +63,6 @@ interface Order {
   };
 }
 
-interface FilterOptions {
-  role: string;
-  status: string;
-  page: number;
-  limit: number;
-  sortBy: string;
-  sortOrder: string;
-  startDate: string;
-  endDate: string;
-  deadOrders: string;
-  search?: string;
-}
-
 interface Pagination {
   currentPage: number;
   totalPages: number;
@@ -79,6 +72,7 @@ interface Pagination {
 const OrderManagement = () => {
   const router = useRouter();
   const { accessToken } = useUser();
+  const queryClient = useQueryClient();
 
   // Changed initial activeTab to better match API data structure
   const [activeTab, setActiveTab] = useState('orders');
@@ -90,7 +84,7 @@ const OrderManagement = () => {
   });
 
   // Filter states with improved defaults
-  const [filters, setFilters] = useState<FilterOptions>({
+  const [filters, setFilters] = useState<OrderListFilters>({
     role: activeTab === 'orders' ? 'seller' : 'buyer', // Initialize based on tab
     status: '',
     page: 1,
@@ -101,11 +95,12 @@ const OrderManagement = () => {
     endDate: '',
     deadOrders: 'exclude',
     search: '',
+    refresh: false,
   });
 
   // Update role filter when tab changes
   useEffect(() => {
-    setFilters((prev) => ({
+    setFilters((prev: OrderListFilters) => ({
       ...prev,
       role: activeTab === 'orders' ? 'seller' : 'buyer',
       page: 1, // Reset page when switching tabs
@@ -130,17 +125,16 @@ const OrderManagement = () => {
     isError,
     error,
     isFetching, // for background fetching indicator
-  } = useUserOrders(accessToken, filters);
+    refetch,
+  } = useOrderList(filters, accessToken);
 
   // Update pagination state whenever data changes
   useEffect(() => {
     if (data?.pagination) {
       setPagination({
-        currentPage: data.pagination.page,
-        totalPages: Math.ceil(
-          data.pagination.total / data.pagination.perPage
-        ),
-        totalCount: data.pagination.total,
+        currentPage: data.pagination.currentPage,
+        totalPages: data.pagination.totalPages,
+        totalCount: data.pagination.totalCount,
       });
     }
   }, [data]);
@@ -149,7 +143,7 @@ const OrderManagement = () => {
     name: string,
     value: string | number
   ) => {
-    setFilters((prev) => ({
+    setFilters((prev: OrderListFilters) => ({
       ...prev,
       [name]: value,
       // Reset to page 1 when changing filters other than page
@@ -169,8 +163,35 @@ const OrderManagement = () => {
       endDate: '',
       deadOrders: 'exclude',
       search: '',
+      refresh: false,
     });
     setSearchInput('');
+  };
+
+  const handleRefresh = async () => {
+    try {
+      // Temporarily set refresh flag to add refresh=true to query parameters
+      setFilters((prev: OrderListFilters) => ({
+        ...prev,
+        refresh: true,
+      }));
+
+      // Invalidate all order list queries to ensure fresh data
+      await queryClient.invalidateQueries({
+        queryKey: orderKeys.lists(),
+      });
+
+      // Refetch the current query with refresh=true parameter
+      await refetch();
+    } catch (error) {
+      console.error('Refresh failed:', error);
+    } finally {
+      // Reset refresh flag after operation completes
+      setFilters((prev: OrderListFilters) => ({
+        ...prev,
+        refresh: false,
+      }));
+    }
   };
 
   // Format date with error handling
@@ -408,16 +429,33 @@ const OrderManagement = () => {
 
       {/* Action Bar */}
       <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 mb-6">
-        {/* Left Section - Export Button */}
-        <Button
-          variant="default"
-          className="bg-black hover:bg-gray-800 text-white flex items-center gap-2"
-        >
-          <span>Export Orders</span>
-          <div className="bg-white rounded-full p-1 w-6 h-6 flex items-center justify-center">
-            <HiOutlineDownload className="w-3 h-3 text-black" />
-          </div>
-        </Button>
+        {/* Left Section - Export Button and Refresh */}
+        <div className="flex items-center gap-2">
+          <Button
+            variant="default"
+            className="bg-black hover:bg-gray-800 text-white flex items-center gap-2"
+          >
+            <span>Export Orders</span>
+            <div className="bg-white rounded-full p-1 w-6 h-6 flex items-center justify-center">
+              <HiOutlineDownload className="w-3 h-3 text-black" />
+            </div>
+          </Button>
+
+          <Button
+            variant="outline"
+            onClick={handleRefresh}
+            disabled={isFetching}
+            className="flex items-center gap-2"
+            title="Refresh orders"
+          >
+            <HiRefresh
+              className={`w-4 h-4 ${
+                isFetching ? 'animate-spin' : ''
+              }`}
+            />
+            <span>Refresh</span>
+          </Button>
+        </div>
 
         {/* Middle Section - Tabs */}
         <div className="flex justify-center bg-gray-100 rounded-full">
@@ -756,9 +794,12 @@ const OrderManagement = () => {
             <div className="flex justify-between items-center mt-6">
               <div className="text-sm text-gray-500">
                 Showing{' '}
-                {(pagination.currentPage - 1) * filters.limit + 1} to{' '}
+                {(pagination.currentPage - 1) *
+                  (filters.limit || 10) +
+                  1}{' '}
+                to{' '}
                 {Math.min(
-                  pagination.currentPage * filters.limit,
+                  pagination.currentPage * (filters.limit || 10),
                   pagination.totalCount
                 )}{' '}
                 of {pagination.totalCount} orders

@@ -15,26 +15,47 @@ import {
   Chip,
   Divider,
 } from '@nextui-org/react';
-import { AlertCircle } from 'lucide-react';
+import {
+  AlertCircle,
+  RefreshCw,
+  Clock,
+  Database,
+} from 'lucide-react';
 import Image from 'next/image';
 import { useParams, useSearchParams } from 'next/navigation';
 import React, { useEffect, useState, useCallback } from 'react';
 import {
-  getGuestOrderById,
   confirmGuestOrderReceipt,
   createGuestOrderDispute,
 } from '@/actions/guestOrderActions';
+import {
+  useGuestOrder,
+  useRefreshOrder,
+} from '@/lib/hooks/useOrderQueries';
+import { Badge } from '@/components/ui/badge';
+import logger from '@/utils/logger';
 
 export default function GuestOrderInfos() {
-  const { id } = useParams();
+  const params = useParams();
   const searchParams = useSearchParams();
-  const email = searchParams.get('email');
-  const orderId = id as string;
+  const email = searchParams?.get('email');
+  const orderId = params?.id as string;
+
+  // Use the new hook for data fetching
+  const {
+    data: order,
+    isLoading,
+    error: fetchError,
+    isFetching,
+    refetch,
+  } = useGuestOrder(orderId, email || '', {
+    enabled: !!(orderId && email),
+  });
+
+  const refreshMutation = useRefreshOrder();
 
   // States
-  const [order, setOrder] = useState<any>(null);
   const [nfts, setNfts] = useState<any[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
   const [isError, setIsError] = useState<string | null>(null);
   const [processingStages, setProcessingStages] = useState<any[]>([]);
   const [isCompleted, setIsCompleted] = useState(false);
@@ -49,43 +70,43 @@ export default function GuestOrderInfos() {
     null
   );
 
-  const fetchOrderDetails = useCallback(async () => {
-    if (!orderId || !email) return;
-
-    setIsLoading(true);
-    setIsError(null);
-
-    try {
-      const data = await getGuestOrderById(orderId, email as string);
-
-      setOrder(data);
-
-      const nfts = data.mintedNfts.map((nft: any) => ({
-        ...nft.nftTemplateId,
-        quantity: nft.quantity,
-      }));
+  // Handle data when order is loaded
+  useEffect(() => {
+    if (order) {
+      const nfts =
+        order.mintedNfts?.map((nft: any) => ({
+          ...nft.nftTemplateId,
+          quantity: nft.quantity,
+        })) || [];
 
       setNfts(nfts);
+      setProcessingStages(order.processingStages || []);
 
-      setProcessingStages(data.processingStages || []);
-
-      const findCompleteStatus = data.processingStages?.find(
+      const findCompleteStatus = order.processingStages?.find(
         (item: any) =>
           item.stage === 'completed' && item.status === 'completed'
       );
 
       setIsCompleted(!!findCompleteStatus);
-    } catch (error: any) {
-      console.error('Fetch Error:', error);
-      setIsError(error.message || 'An unexpected error occurred.');
-    } finally {
-      setIsLoading(false);
     }
-  }, [orderId, email]);
+  }, [order]);
 
+  // Handle fetch errors
   useEffect(() => {
-    fetchOrderDetails();
-  }, [fetchOrderDetails]);
+    if (fetchError) {
+      setIsError(
+        fetchError.message || 'An unexpected error occurred.'
+      );
+    } else {
+      setIsError(null);
+    }
+  }, [fetchError]);
+
+  const handleRefresh = () => {
+    if (orderId) {
+      refreshMutation.mutate(orderId);
+    }
+  };
 
   const handleOrderConfirm = async () => {
     if (!orderId || !email) return;
@@ -112,7 +133,7 @@ export default function GuestOrderInfos() {
 
       // Refresh order details
       setTimeout(() => {
-        fetchOrderDetails();
+        refetch();
         setIsConfirmOrderModalOpen(false);
         setUpdateSuccess(null);
       }, 2000);
@@ -149,7 +170,7 @@ export default function GuestOrderInfos() {
 
       // Refresh order details
       setTimeout(() => {
-        fetchOrderDetails();
+        refetch();
         setIsDisputeModalOpen(false);
         setUpdateSuccess(null);
       }, 2000);
@@ -184,13 +205,30 @@ export default function GuestOrderInfos() {
             Error Loading Order
           </h2>
           <p className="text-gray-600 mb-4">{isError}</p>
-          <Button
-            color="primary"
-            onClick={fetchOrderDetails}
-            className="mx-auto"
-          >
-            Try Again
-          </Button>
+          <div className="flex gap-2 justify-center">
+            <Button
+              color="primary"
+              onClick={() => refetch()}
+              className="mx-auto"
+            >
+              Try Again
+            </Button>
+            <Button
+              color="secondary"
+              onClick={handleRefresh}
+              disabled={refreshMutation.isPending || isFetching}
+              className="mx-auto flex items-center gap-2"
+            >
+              <RefreshCw
+                className={`h-4 w-4 ${
+                  refreshMutation.isPending || isFetching
+                    ? 'animate-spin'
+                    : ''
+                }`}
+              />
+              Force Refresh
+            </Button>
+          </div>
         </div>
       </div>
     );
@@ -204,7 +242,7 @@ export default function GuestOrderInfos() {
             Order Not Found
           </h2>
           <p className="text-gray-600">
-            We couldn't find the order you're looking for.
+            We couldn&apos;t find the order you&apos;re looking for.
           </p>
         </div>
       </div>
@@ -235,6 +273,8 @@ export default function GuestOrderInfos() {
     order.status.delivery === 'Completed' &&
     !isCompleted;
 
+  logger.info(isCompleted);
+
   return (
     <div className="container mx-auto px-4 py-4 max-w-5xl">
       <div className="mb-8">
@@ -242,7 +282,10 @@ export default function GuestOrderInfos() {
           Order #{order.orderId}
         </h1>
         <p className="text-gray-500">
-          Placed on {formatDate(order.orderDate)}
+          Placed on{' '}
+          {order.orderDate
+            ? formatDate(order.orderDate)
+            : 'Unknown date'}
         </p>
       </div>
 
@@ -373,23 +416,28 @@ export default function GuestOrderInfos() {
                         {order.status.payment}
                       </Chip>
                     </div>
-                    <div className="flex justify-between">
-                      <span className="text-gray-600">Delivery</span>
-                      <Chip
-                        color={
-                          order.status.delivery === 'Completed'
-                            ? 'success'
-                            : order.status.delivery === 'In Progress'
-                            ? 'primary'
-                            : order.status.delivery ===
-                              'Not Initiated'
-                            ? 'warning'
-                            : 'danger'
-                        }
-                      >
-                        {order.status.delivery}
-                      </Chip>
-                    </div>
+                    {order.orderType !== 'non-phygitals' && (
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">
+                          Delivery
+                        </span>
+                        <Chip
+                          color={
+                            order.status.delivery === 'Completed'
+                              ? 'success'
+                              : order.status.delivery ===
+                                'In Progress'
+                              ? 'primary'
+                              : order.status.delivery ===
+                                'Not Initiated'
+                              ? 'warning'
+                              : 'danger'
+                          }
+                        >
+                          {order.status.delivery}
+                        </Chip>
+                      </div>
+                    )}
 
                     {/* Payment Information */}
                     {order.stripePayment && (
@@ -431,10 +479,12 @@ export default function GuestOrderInfos() {
                     <div className="flex justify-between">
                       <span className="text-gray-600">Subtotal</span>
                       <span className="font-medium">
-                        {formatCurrency(order.financial.subtotal)}
+                        {formatCurrency(
+                          order.financial.subtotal || 0
+                        )}
                       </span>
                     </div>
-                    {order.financial.discountRate > 0 && (
+                    {(order.financial.discountRate || 0) > 0 && (
                       <div className="flex justify-between">
                         <span className="text-gray-600">
                           Discount
@@ -442,8 +492,8 @@ export default function GuestOrderInfos() {
                         <span className="font-medium text-green-600">
                           -
                           {formatCurrency(
-                            order.financial.subtotal *
-                              order.financial.discountRate
+                            (order.financial.subtotal || 0) *
+                              (order.financial.discountRate || 0)
                           )}
                         </span>
                       </div>
@@ -451,7 +501,9 @@ export default function GuestOrderInfos() {
                     <div className="flex justify-between">
                       <span className="text-gray-600">Shipping</span>
                       <span className="font-medium">
-                        {formatCurrency(order.financial.shippingCost)}
+                        {formatCurrency(
+                          order.financial.shippingCost || 0
+                        )}
                       </span>
                     </div>
                     <Divider />
@@ -658,8 +710,9 @@ export default function GuestOrderInfos() {
               </div>
             )}
             <p className="mb-4">
-              Please describe the issue you're experiencing with this
-              order. Our team will review your report and contact you.
+              Please describe the issue you&apos;re experiencing with
+              this order. Our team will review your report and contact
+              you.
             </p>
             <textarea
               className="w-full border border-gray-300 rounded-md p-2"
