@@ -1,6 +1,6 @@
 "use client";
 
-import React, { Suspense, useEffect, useMemo, useState } from "react";
+import React, { Suspense, useEffect, useState } from "react";
 import Feed from "./Feed";
 import Timeline from "./Timeline";
 import Transaction from "./Transaction";
@@ -11,37 +11,51 @@ import Connections from "./Connections";
 import Cookies from "js-cookie";
 import { FeedHomepageLoading } from "../loading/TabSwitcherLoading";
 
+type AuthData = {
+  userId: string;
+  accessToken: string;
+};
+
 const FeedMain = ({ isFromHome = false }: { isFromHome?: boolean }) => {
   const [isPosting, setIsPosting] = useState(false);
   const [isPostLoading, setIsPostLoading] = useState(false);
-  const [userId, setUserId] = useState("");
-  const [accessToken, setAccessToken] = useState("");
   const [primaryMicrositeImg, setPrimaryMicrositeImg] = useState("");
+  const [authData, setAuthData] = useState<AuthData | null>(null);
 
-  // Get the access token from cookies once on mount.
+  // Combined auth data initialization
   useEffect(() => {
-    const token = Cookies.get("access-token");
-    if (token) {
-      setAccessToken(token);
-    }
+    const initializeAuth = () => {
+      const token = Cookies.get("access-token");
+      const userId = Cookies.get("user-id");
+      if (token && userId) {
+        setAuthData({ userId, accessToken: token });
+      }
+    };
+
+    // Try immediately
+    initializeAuth();
+
+    // Fallback: try again after a short delay if first attempt fails
+    const fallbackTimer = setTimeout(initializeAuth, 300);
+    return () => clearTimeout(fallbackTimer);
   }, []);
 
-  // Get the userId from cookies once on mount.
+  const { user, loading: userLoading } = useUser();
+
+  // Sync auth data with user context
   useEffect(() => {
-    const userId = Cookies.get("user-id");
-    if (userId) {
-      setUserId(userId);
+    if (user?._id && !authData?.userId) {
+      const token = Cookies.get("access-token");
+      if (token) {
+        setAuthData({ userId: user._id, accessToken: token });
+      }
     }
-  }, []);
+  }, [user, authData]);
 
-  const { user, loading } = useUser();
-
-  // Set the primary microsite image from the user's microsites.
+  // Set primary microsite image
   useEffect(() => {
-    if (user && Array.isArray(user.microsites) && user.microsites.length > 0) {
-      const smartsite = user.microsites.find(
-        (microsite: any) => microsite.primary
-      );
+    if (user?.microsites?.length > 0) {
+      const smartsite = user.microsites.find((m: any) => m.primary);
       if (smartsite) {
         setPrimaryMicrositeImg(smartsite.profilePic);
       }
@@ -49,16 +63,25 @@ const FeedMain = ({ isFromHome = false }: { isFromHome?: boolean }) => {
   }, [user]);
 
   const searchParams = useSearchParams();
-  const tab = searchParams ? searchParams.get("tab") : "feed";
+  const tab = searchParams?.get("tab") || "feed";
 
-  const ComponentToRender = useMemo(() => {
-    // if (loading || !user?._id) return null;
+  // Derived state for the effective user ID
+  const effectiveUserId = authData?.userId || user?._id;
+  const effectiveToken = authData?.accessToken;
+
+  // Don't render until we have all required data
+  if (!effectiveUserId || !effectiveToken || userLoading) {
+    return <FeedHomepageLoading />;
+  }
+
+  // Component render function (no longer memoized)
+  const renderComponent = () => {
     switch (tab) {
       case "feed":
         return (
           <Feed
-            accessToken={accessToken}
-            userId={userId || user?._id}
+            accessToken={effectiveToken}
+            userId={effectiveUserId}
             setIsPosting={setIsPosting}
             isPosting={isPosting}
             setIsPostLoading={setIsPostLoading}
@@ -68,8 +91,8 @@ const FeedMain = ({ isFromHome = false }: { isFromHome?: boolean }) => {
       case "timeline":
         return (
           <Timeline
-            accessToken={accessToken}
-            userId={userId || user?._id}
+            accessToken={effectiveToken}
+            userId={effectiveUserId}
             setIsPosting={setIsPosting}
             isPosting={isPosting}
             setIsPostLoading={setIsPostLoading}
@@ -79,8 +102,8 @@ const FeedMain = ({ isFromHome = false }: { isFromHome?: boolean }) => {
       case "transaction":
         return (
           <Transaction
-            accessToken={accessToken}
-            userId={userId || user?._id}
+            accessToken={effectiveToken}
+            userId={effectiveUserId}
             setIsPosting={setIsPosting}
             isPosting={isPosting}
             setIsPostLoading={setIsPostLoading}
@@ -89,8 +112,8 @@ const FeedMain = ({ isFromHome = false }: { isFromHome?: boolean }) => {
       default:
         return (
           <Feed
-            accessToken={accessToken}
-            userId={userId || user?._id}
+            accessToken={effectiveToken}
+            userId={effectiveUserId}
             setIsPosting={setIsPosting}
             isPosting={isPosting}
             setIsPostLoading={setIsPostLoading}
@@ -98,61 +121,40 @@ const FeedMain = ({ isFromHome = false }: { isFromHome?: boolean }) => {
           />
         );
     }
-  }, [tab, accessToken, userId, user?._id, isPosting, isPostLoading]);
-
-  // Don't render connections until we have a valid user ID
-  // const shouldRenderConnections = !loading && user?._id && accessToken;
-  const shouldRenderConnections = userId && accessToken;
+  };
 
   return (
-    <div>
-      {loading ? (
-        <FeedHomepageLoading />
-      ) : (
-        <div className="w-full flex relative">
-          <div
-            style={{ height: "calc(100vh - 108px)" }}
-            className={`${
-              isFromHome
-                ? "w-3/5 xl:w-2/3 2xl:w-[54%]"
-                : "w-3/5 xl:w-2/3 2xl:w-[54%]"
-            } overflow-y-auto`}
-          >
-            {(userId || user?._id) && (
-              <>
-                <PostFeed
-                  primaryMicrositeImg={primaryMicrositeImg}
-                  userId={userId || user?._id}
-                  token={accessToken}
-                  setIsPosting={setIsPosting}
-                  setIsPostLoading={setIsPostLoading}
-                />
-                <hr />
-              </>
-            )}
-            {/* Render the selected component based on the 'tab' query parameter */}
-            <Suspense fallback={"loading..."}>
-              <section className="p-6">
-                {userId && accessToken && ComponentToRender}
-              </section>
-            </Suspense>
-          </div>
-          <div
-            style={{ height: "calc(100vh - 108px)" }}
-            className="flex-1 overflow-y-auto"
-          >
-            {/* {shouldRenderConnections && ( */}
-            {/* <Suspense fallback={"loading..."}> */}
-            <Connections
-              userId={userId || user?._id}
-              accessToken={accessToken}
-            />
-            {/* </Suspense> */}
-            {/* )} */}
-          </div>
-        </div>
-      )}
+    <div className="w-full flex relative">
+      <div
+        style={{ height: "calc(100vh - 108px)" }}
+        className={`${
+          isFromHome
+            ? "w-3/5 xl:w-2/3 2xl:w-[54%]"
+            : "w-3/5 xl:w-2/3 2xl:w-[54%]"
+        } overflow-y-auto`}
+      >
+        <PostFeed
+          primaryMicrositeImg={primaryMicrositeImg}
+          userId={effectiveUserId}
+          token={effectiveToken}
+          setIsPosting={setIsPosting}
+          setIsPostLoading={setIsPostLoading}
+        />
+        <hr />
+
+        <Suspense fallback={<div>Loading feed...</div>}>
+          <section className="p-6">{renderComponent()}</section>
+        </Suspense>
+      </div>
+
+      <div
+        style={{ height: "calc(100vh - 108px)" }}
+        className="flex-1 overflow-y-auto"
+      >
+        <Connections userId={effectiveUserId} accessToken={effectiveToken} />
+      </div>
     </div>
   );
 };
+
 export default FeedMain;
