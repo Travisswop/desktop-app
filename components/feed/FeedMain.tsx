@@ -10,6 +10,7 @@ import { useSearchParams } from "next/navigation";
 import Connections from "./Connections";
 import Cookies from "js-cookie";
 import { Loader } from "lucide-react";
+import { FeedHomepageLoading } from "../loading/TabSwitcherLoading";
 
 const FeedMain = ({ isFromHome = false }: { isFromHome?: boolean }) => {
   const [isPosting, setIsPosting] = useState(false);
@@ -97,17 +98,7 @@ const FeedMain = ({ isFromHome = false }: { isFromHome?: boolean }) => {
   return (
     <div>
       {loading ? (
-        <div className="flex flex-col items-center justify-center w-full h-[77vh] gap-2">
-          <div className="flex items-center gap-2">
-            <Loader size={24} className="animate-spin" aria-hidden="true" />
-            <p className="text-lg font-medium text-gray-700 dark:text-gray-300">
-              Loading content...
-            </p>
-          </div>
-          <p className="text-sm text-gray-500 dark:text-gray-400">
-            This will just take a moment
-          </p>
-        </div>
+        <FeedHomepageLoading />
       ) : (
         <div className="w-full flex relative">
           <div

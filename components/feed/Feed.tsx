@@ -17,12 +17,13 @@ import relativeTime from "dayjs/plugin/relativeTime";
 import Reaction from "./view/Reaction";
 import Link from "next/link";
 import { FiPlusCircle } from "react-icons/fi";
-import FeedLoading from "../loading/FeedLoading";
 import DeleteFeedModal from "./DeleteFeedModal";
 import isUrl from "@/lib/isUrl";
 import RedeemClaimModal from "../modal/RedeemClaim";
 import { useRouter } from "next/navigation";
 import IndividualFeedContent from "./IndividualFeedContent";
+import { FeedMainContentDataLoading } from "../loading/TabSwitcherLoading";
+import FeedLoading from "../loading/FeedLoading";
 
 dayjs.extend(relativeTime);
 
@@ -49,6 +50,7 @@ const Feed = ({
   const { isOpen, onOpen, onOpenChange } = useDisclosure();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [redeemFeedData, setRedeemFeedData] = useState({});
+  const [initiaLoading, setInitialLoading] = useState(true);
 
   // Helper function to render transaction content
   const renderTransactionContent = (feed: any) => {
@@ -132,6 +134,12 @@ const Feed = ({
       const url = `${process.env.NEXT_PUBLIC_API_URL}/api/v1/feed/user/connect/${userId}?page=${currentPage}&limit=5`;
       const newFeedData = await getUserFeed(url, accessToken);
 
+      if (isFetching.current && currentPage == 1) {
+        console.log("loignfffffff true");
+      } else {
+        console.log("loignfffffff false");
+      }
+
       if (!newFeedData?.data) {
         setHasMore(false);
         setIsPostLoading(false);
@@ -158,6 +166,8 @@ const Feed = ({
           pageRef.current += 1;
         }
       }
+
+      setInitialLoading(false);
 
       isFetching.current = false;
     },
@@ -493,7 +503,7 @@ const Feed = ({
                 {userId === feed.userId && (
                   <div>
                     <Popover
-                      backdrop="opaque"
+                      backdrop="transparent"
                       placement="bottom-end"
                       showArrow
                       style={{ zIndex: 10 }}
@@ -564,8 +574,8 @@ const Feed = ({
           </div>
         ))}
         {hasMore && (
-          <div ref={observerRef} className="loading-spinner">
-            <FeedLoading />
+          <div ref={observerRef}>
+            {initiaLoading ? <FeedMainContentDataLoading /> : <FeedLoading />}
           </div>
         )}
       </div>

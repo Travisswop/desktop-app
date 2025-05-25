@@ -19,6 +19,7 @@ import isUrl from "@/lib/isUrl";
 import { useUser } from "@/lib/UserContext";
 import { useRouter } from "next/navigation";
 import IndividualFeedContent from "./IndividualFeedContent";
+import { FeedMainContentDataLoading } from "../loading/TabSwitcherLoading";
 
 dayjs.extend(relativeTime);
 
@@ -45,6 +46,7 @@ const Timeline = ({
   const isFetching = useRef(false);
   const pageRef = useRef(1);
   const [smartsiteId, setSmartsiteId] = useState("");
+  const [initiaLoading, setInitialLoading] = useState(true);
 
   const { user } = useUser();
 
@@ -143,6 +145,7 @@ const Timeline = ({
         setHasMore(false);
         setIsPostLoading(false);
         isFetching.current = false;
+        setInitialLoading(false);
         return;
       }
 
@@ -165,6 +168,7 @@ const Timeline = ({
           pageRef.current += 1;
         }
       }
+      setInitialLoading(false);
       isFetching.current = false;
     },
     [accessToken, smartsiteId, setIsPostLoading]
@@ -562,8 +566,8 @@ const Timeline = ({
           </div>
         ))}
         {hasMore && (
-          <div ref={observerRef} className="loading-spinner">
-            <FeedLoading />
+          <div ref={observerRef}>
+            {initiaLoading ? <FeedMainContentDataLoading /> : <FeedLoading />}
           </div>
         )}
       </div>
