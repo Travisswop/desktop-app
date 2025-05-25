@@ -9,12 +9,12 @@ import { useUser } from "@/lib/UserContext";
 import { useSearchParams } from "next/navigation";
 import Connections from "./Connections";
 import Cookies from "js-cookie";
-import { Loader } from "lucide-react";
 import { FeedHomepageLoading } from "../loading/TabSwitcherLoading";
 
 const FeedMain = ({ isFromHome = false }: { isFromHome?: boolean }) => {
   const [isPosting, setIsPosting] = useState(false);
   const [isPostLoading, setIsPostLoading] = useState(false);
+  const [userId, setUserId] = useState("");
   const [accessToken, setAccessToken] = useState("");
   const [primaryMicrositeImg, setPrimaryMicrositeImg] = useState("");
 
@@ -23,6 +23,14 @@ const FeedMain = ({ isFromHome = false }: { isFromHome?: boolean }) => {
     const token = Cookies.get("access-token");
     if (token) {
       setAccessToken(token);
+    }
+  }, []);
+
+  // Get the userId from cookies once on mount.
+  useEffect(() => {
+    const userId = Cookies.get("user-id");
+    if (userId) {
+      setUserId(userId);
     }
   }, []);
 
@@ -44,13 +52,13 @@ const FeedMain = ({ isFromHome = false }: { isFromHome?: boolean }) => {
   const tab = searchParams && searchParams.get("tab");
 
   const ComponentToRender = useMemo(() => {
-    if (loading || !user?._id) return null;
+    // if (loading || !user?._id) return null;
     switch (tab) {
       case "feed":
         return (
           <Feed
             accessToken={accessToken}
-            userId={user._id}
+            userId={userId || user?._id}
             setIsPosting={setIsPosting}
             isPosting={isPosting}
             setIsPostLoading={setIsPostLoading}
@@ -61,7 +69,7 @@ const FeedMain = ({ isFromHome = false }: { isFromHome?: boolean }) => {
         return (
           <Timeline
             accessToken={accessToken}
-            userId={user._id}
+            userId={userId || user?._id}
             setIsPosting={setIsPosting}
             isPosting={isPosting}
             setIsPostLoading={setIsPostLoading}
@@ -72,7 +80,7 @@ const FeedMain = ({ isFromHome = false }: { isFromHome?: boolean }) => {
         return (
           <Transaction
             accessToken={accessToken}
-            userId={user._id}
+            userId={userId || user?._id}
             setIsPosting={setIsPosting}
             isPosting={isPosting}
             setIsPostLoading={setIsPostLoading}
@@ -82,7 +90,7 @@ const FeedMain = ({ isFromHome = false }: { isFromHome?: boolean }) => {
         return (
           <Feed
             accessToken={accessToken}
-            userId={user._id}
+            userId={userId || user?._id}
             setIsPosting={setIsPosting}
             isPosting={isPosting}
             setIsPostLoading={setIsPostLoading}
@@ -90,10 +98,11 @@ const FeedMain = ({ isFromHome = false }: { isFromHome?: boolean }) => {
           />
         );
     }
-  }, [tab, loading, accessToken, user, isPosting, isPostLoading]);
+  }, [tab, accessToken, userId, user?._id, isPosting, isPostLoading]);
 
   // Don't render connections until we have a valid user ID
-  const shouldRenderConnections = !loading && user?._id && accessToken;
+  // const shouldRenderConnections = !loading && user?._id && accessToken;
+  const shouldRenderConnections = userId && accessToken;
 
   return (
     <div>
@@ -109,11 +118,11 @@ const FeedMain = ({ isFromHome = false }: { isFromHome?: boolean }) => {
                 : "w-3/5 xl:w-2/3 2xl:w-[54%]"
             } overflow-y-auto`}
           >
-            {user?._id && (
+            {(userId || user?._id) && (
               <>
                 <PostFeed
                   primaryMicrositeImg={primaryMicrositeImg}
-                  userId={user._id}
+                  userId={userId || user?._id}
                   token={accessToken}
                   setIsPosting={setIsPosting}
                   setIsPostLoading={setIsPostLoading}
@@ -124,7 +133,7 @@ const FeedMain = ({ isFromHome = false }: { isFromHome?: boolean }) => {
             {/* Render the selected component based on the 'tab' query parameter */}
             <Suspense fallback={"loading..."}>
               <section className="p-6">
-                {!loading && user?._id && accessToken && ComponentToRender}
+                {userId && accessToken && ComponentToRender}
               </section>
             </Suspense>
           </div>
@@ -134,7 +143,10 @@ const FeedMain = ({ isFromHome = false }: { isFromHome?: boolean }) => {
           >
             {shouldRenderConnections && (
               <Suspense fallback={"loading..."}>
-                <Connections userId={user._id} accessToken={accessToken} />
+                <Connections
+                  userId={userId || user?._id}
+                  accessToken={accessToken}
+                />
               </Suspense>
             )}
           </div>
