@@ -1,3 +1,4 @@
+import logger from '@/utils/logger';
 import { useQuery } from '@tanstack/react-query';
 import { useMemo } from 'react';
 
@@ -72,6 +73,8 @@ async function fetchUserOrders(
     }
   });
 
+  logger.info('access token', accessToken);
+
   const res = await fetch(
     `${
       process.env.NEXT_PUBLIC_API_URL
@@ -90,8 +93,9 @@ async function fetchUserOrders(
     );
   }
 
-  const json = await res.json();
-  return json.data;
+  const { data } = await res.json();
+  console.log('🚀 ~ json:', data);
+  return data;
 }
 
 export function useUserOrders(

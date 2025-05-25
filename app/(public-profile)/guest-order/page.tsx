@@ -35,20 +35,16 @@ export default function GuestOrderPage() {
     setError(null);
 
     try {
-      const API_URL = process.env.NEXT_PUBLIC_API_URL;
-      if (!API_URL) {
-        throw new Error('API base URL is not defined.');
-      }
-
-      // Call the verify endpoint to check if the order exists and belongs to this email
+      // Use the new API endpoint pattern from the guide
       const response = await fetch(
-        `${API_URL}/api/v5/guest-orders/verify`,
+        `/api/orders/guest/${orderId}?email=${encodeURIComponent(
+          email
+        )}`,
         {
-          method: 'POST',
+          method: 'GET',
           headers: {
             'Content-Type': 'application/json',
           },
-          body: JSON.stringify({ orderId, email }),
         }
       );
 
