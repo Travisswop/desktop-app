@@ -134,12 +134,6 @@ const Feed = ({
       const url = `${process.env.NEXT_PUBLIC_API_URL}/api/v1/feed/user/connect/${userId}?page=${currentPage}&limit=5`;
       const newFeedData = await getUserFeed(url, accessToken);
 
-      if (isFetching.current && currentPage == 1) {
-        console.log("loignfffffff true");
-      } else {
-        console.log("loignfffffff false");
-      }
-
       if (!newFeedData?.data) {
         setHasMore(false);
         setIsPostLoading(false);

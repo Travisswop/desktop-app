@@ -49,7 +49,7 @@ const FeedMain = ({ isFromHome = false }: { isFromHome?: boolean }) => {
   }, [user]);
 
   const searchParams = useSearchParams();
-  const tab = searchParams && searchParams.get("tab");
+  const tab = searchParams ? searchParams.get("tab") : "feed";
 
   const ComponentToRender = useMemo(() => {
     // if (loading || !user?._id) return null;
@@ -141,14 +141,14 @@ const FeedMain = ({ isFromHome = false }: { isFromHome?: boolean }) => {
             style={{ height: "calc(100vh - 108px)" }}
             className="flex-1 overflow-y-auto"
           >
-            {shouldRenderConnections && (
-              <Suspense fallback={"loading..."}>
-                <Connections
-                  userId={userId || user?._id}
-                  accessToken={accessToken}
-                />
-              </Suspense>
-            )}
+            {/* {shouldRenderConnections && ( */}
+            {/* <Suspense fallback={"loading..."}> */}
+            <Connections
+              userId={userId || user?._id}
+              accessToken={accessToken}
+            />
+            {/* </Suspense> */}
+            {/* )} */}
           </div>
         </div>
       )}
