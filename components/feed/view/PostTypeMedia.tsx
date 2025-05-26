@@ -1,16 +1,16 @@
-"use client";
+'use client';
 import {
   Modal,
   ModalBody,
   ModalContent,
   useDisclosure,
-} from "@nextui-org/react";
-import Image from "next/image";
-import React, { useState } from "react";
+} from '@nextui-org/react';
+import Image from 'next/image';
+import React, { useState } from 'react';
 
 const PostTypeMedia = ({ mediaFiles, isFromRepost = false }: any) => {
   const { isOpen, onOpen, onOpenChange } = useDisclosure();
-  const [image, setImage] = useState("");
+  const [image, setImage] = useState('');
   const [isLoading, setIsLoading] = useState(true);
 
   const handleOpenImage = (image: string) => {
@@ -19,17 +19,17 @@ const PostTypeMedia = ({ mediaFiles, isFromRepost = false }: any) => {
     onOpen();
   };
 
-  console.log("isFromRepost", isFromRepost);
-
   return (
     <div className="">
       {mediaFiles.length > 0 && (
         <div className="mt-2 w-full flex justify-center">
           {mediaFiles.length === 1 && (
-            <div className={`max-h-[30rem] overflow-hidden rounded-2xl w-max`}>
-              {mediaFiles[0].type === "image" ||
-              mediaFiles[0].type === "photo" ||
-              mediaFiles[0].type === "gif" ? (
+            <div
+              className={`max-h-[30rem] overflow-hidden rounded-2xl w-max`}
+            >
+              {mediaFiles[0].type === 'image' ||
+              mediaFiles[0].type === 'photo' ||
+              mediaFiles[0].type === 'gif' ? (
                 <div className="flex items-center justify-center h-full">
                   <Image
                     src={mediaFiles[0].src}
@@ -39,11 +39,11 @@ const PostTypeMedia = ({ mediaFiles, isFromRepost = false }: any) => {
                     height={1600}
                     priority
                     className={`object-contain ${
-                      isFromRepost ? "max-h-[26rem]" : "max-h-[30rem]"
+                      isFromRepost ? 'max-h-[26rem]' : 'max-h-[30rem]'
                     }  w-auto cursor-pointer`}
                     style={{
-                      maxWidth: "100%",
-                      height: "auto",
+                      maxWidth: '100%',
+                      height: 'auto',
                     }}
                   />
                 </div>
@@ -52,7 +52,7 @@ const PostTypeMedia = ({ mediaFiles, isFromRepost = false }: any) => {
                   src={mediaFiles[0].src}
                   controls
                   className={`w-full h-auto ${
-                    isFromRepost ? "max-h-[26rem]" : "max-h-[30rem]"
+                    isFromRepost ? 'max-h-[26rem]' : 'max-h-[30rem]'
                   } rounded-2xl`}
                 />
               )}
@@ -67,9 +67,9 @@ const PostTypeMedia = ({ mediaFiles, isFromRepost = false }: any) => {
                   key={index}
                   className="relative w-full h-full aspect-[4/3] overflow-hidden"
                 >
-                  {file.type === "image" ||
-                  mediaFiles[0].type === "photo" ||
-                  file.type === "gif" ? (
+                  {file.type === 'image' ||
+                  mediaFiles[0].type === 'photo' ||
+                  file.type === 'gif' ? (
                     <Image
                       src={file.src}
                       alt="media"
@@ -98,9 +98,9 @@ const PostTypeMedia = ({ mediaFiles, isFromRepost = false }: any) => {
                   key={index}
                   className="relative w-full h-full aspect-[4/3] overflow-hidden"
                 >
-                  {file.type === "image" ||
-                  mediaFiles[0].type === "photo" ||
-                  file.type === "gif" ? (
+                  {file.type === 'image' ||
+                  mediaFiles[0].type === 'photo' ||
+                  file.type === 'gif' ? (
                     <Image
                       src={file.src}
                       alt="media"
@@ -129,9 +129,9 @@ const PostTypeMedia = ({ mediaFiles, isFromRepost = false }: any) => {
                   key={index}
                   className="relative w-full h-full aspect-[4/3] overflow-hidden"
                 >
-                  {file.type === "image" ||
-                  mediaFiles[0].type === "photo" ||
-                  file.type === "gif" ? (
+                  {file.type === 'image' ||
+                  mediaFiles[0].type === 'photo' ||
+                  file.type === 'gif' ? (
                     <Image
                       src={file.src}
                       alt="media"
