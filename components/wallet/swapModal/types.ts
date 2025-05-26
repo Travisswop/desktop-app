@@ -1,4 +1,4 @@
-import { PublicKey } from '@solana/web3.js';
+import { PublicKey } from "@solana/web3.js";
 
 export interface TokenInfo {
   symbol: string;
@@ -38,4 +38,7 @@ export interface SwapModalProps {
   onOpenChange: (open: boolean) => void;
   userToken: TokenInfo[];
   accessToken: string;
+  initialInputToken?: string;
+  initialOutputToken?: string;
+  initialAmount?: string;
 }
