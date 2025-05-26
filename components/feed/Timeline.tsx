@@ -221,7 +221,10 @@ const Timeline = ({
       <div className="w-full flex flex-col gap-4">
         {feedData.map((feed, index) => (
           <div key={index} className="flex gap-2 border-b border-gray-200 pb-4">
-            <div className="w-10 xl:w-12 h-10 xl:h-12 bg-gray-400 border border-gray-300 rounded-full overflow-hidden flex items-center justify-center">
+            <Link
+              href={`/sp/${feed?.smartsiteId?.ens || feed?.smartsiteEnsName}`}
+              className="w-10 xl:w-12 h-10 xl:h-12 bg-gray-400 border border-gray-300 rounded-full overflow-hidden flex items-center justify-center"
+            >
               {(() => {
                 const profilePic =
                   feed?.smartsiteId?.profilePic || feed?.smartsiteProfilePic;
@@ -245,13 +248,13 @@ const Timeline = ({
                   />
                 );
               })()}
-            </div>
+            </Link>
             <div className="flex-1">
               {/* User and Feed Information */}
               <div className="flex items-start justify-between w-full">
                 <div className="w-full">
-                  <button
-                    onClick={() => router.push(`/feed/${feed._id}`)}
+                  <Link
+                    href={`/feed/${feed._id}`}
                     className="flex items-center gap-1"
                   >
                     <p className="text-gray-700 font-semibold">
@@ -269,7 +272,7 @@ const Timeline = ({
                     <p className="text-gray-500 font-normal">
                       {dayjs(feed.createdAt).fromNow()}
                     </p>
-                  </button>
+                  </Link>
                   {/* Redeem Content */}
                   {feed.postType === "redeem" && (
                     <button
@@ -500,7 +503,7 @@ const Timeline = ({
                 {/* {userId === feed.userId && ( */}
                 <div>
                   <Popover
-                    backdrop="opaque"
+                    // backdrop="opaque"
                     placement="bottom-end"
                     showArrow
                     style={{ zIndex: 10 }}

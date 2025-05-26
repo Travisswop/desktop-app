@@ -223,7 +223,10 @@ const Feed = ({
             key={feed._id}
             className="flex gap-2 border-b border-gray-200 pb-4"
           >
-            <div className="w-10 xl:w-12 h-10 xl:h-12 bg-gray-400 border border-gray-300 rounded-full overflow-hidden flex items-center justify-center">
+            <Link
+              href={`/sp/${feed?.smartsiteId?.ens || feed?.smartsiteEnsName}`}
+              className="w-10 xl:w-12 h-10 xl:h-12 bg-gray-400 border border-gray-300 rounded-full overflow-hidden flex items-center justify-center"
+            >
               {(() => {
                 const profilePic =
                   feed?.smartsiteId?.profilePic || feed?.smartsiteProfilePic;
@@ -247,13 +250,14 @@ const Feed = ({
                   />
                 );
               })()}
-            </div>
+            </Link>
             <div className="flex-1">
               {/* User and Feed Info */}
               <div className="w-full flex items-start justify-between">
                 <div className="w-full">
-                  <button
-                    onClick={() => router.push(`/feed/${feed._id}`)}
+                  <Link
+                    href={`/feed/${feed._id}`}
+                    // onClick={() => router.push(`/feed/${feed._id}`)}
                     className="flex items-center gap-1"
                   >
                     <p className="text-gray-700 font-semibold">
@@ -271,7 +275,7 @@ const Feed = ({
                     <p className="text-gray-500 font-normal">
                       {dayjs(feed.createdAt).fromNow()}
                     </p>
-                  </button>
+                  </Link>
                   {/* Render Post Content */}
                   {(feed.postType === "post" || feed.postType === "repost") &&
                     feed.content.title && (
