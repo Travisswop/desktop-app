@@ -410,7 +410,7 @@ const LivePreviewTimeline = ({
                           </div>
                         </div>
                         <div className="flex flex-wrap items-center justify-between mt-2">
-                          <button
+                          {/* <button
                             onClick={(e) => {
                               e.stopPropagation();
                               router.push(
@@ -420,7 +420,7 @@ const LivePreviewTimeline = ({
                             className="text-xs border border-gray-300 rounded px-3 py-0.5 font-medium hover:bg-gray-200"
                           >
                             Copy Trade
-                          </button>
+                          </button> */}
                           {feed.content.signature && (
                             <div className="flex justify-end">
                               <a
