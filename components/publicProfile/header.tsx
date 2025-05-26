@@ -1,17 +1,13 @@
-'use client';
-import { FC, useEffect, useState } from 'react';
-import Image from 'next/image';
-import {
-  Dialog,
-  DialogContent,
-  DialogTrigger,
-} from '@/components/ui/dialog';
-import Subscribe from './subscribe';
-import Connect from './connect';
-import { FaCartShopping } from 'react-icons/fa6';
-import { usePathname, useRouter } from 'next/navigation';
-import useAddToCardToggleStore from '@/zustandStore/addToCartToggle';
-import { useCart } from '@/app/(public-profile)/sp/[username]/cart/context/CartContext';
+"use client";
+import { FC, useEffect, useState } from "react";
+import Image from "next/image";
+import { Dialog, DialogContent, DialogTrigger } from "@/components/ui/dialog";
+import Subscribe from "./subscribe";
+import Connect from "./connect";
+import { FaCartShopping } from "react-icons/fa6";
+import { usePathname, useRouter } from "next/navigation";
+import useAddToCardToggleStore from "@/zustandStore/addToCartToggle";
+import { useCart } from "@/app/(public-profile)/sp/[username]/cart/context/CartContext";
 
 interface Props {
   avatar: string;
@@ -38,7 +34,7 @@ const Header: FC<Props> = ({
   const router = useRouter();
   const pathname = usePathname();
 
-  const coverPhoto = cover.includes('https')
+  const coverPhoto = cover.includes("https")
     ? cover
     : `/images/live-preview/coverphoto/${cover}.png`;
 
@@ -48,9 +44,7 @@ const Header: FC<Props> = ({
   };
 
   return (
-    <div
-      className={`relative w-full ${theme ? 'h-28' : 'h-52'} mt-4`}
-    >
+    <div className={`relative w-full ${theme ? "h-28" : "h-52"} mt-4`}>
       <div>
         {!theme && (
           <div className="overflow-hidden h-44 rounded-md border-[6px] border-white shadow-lg">
@@ -92,7 +86,7 @@ const Header: FC<Props> = ({
           onClick={handleRedirectIntoCartDetails}
           className="cursor-pointer absolute top-4 right-4 bg-white w-8 h-8 rounded-full flex items-center justify-center"
         >
-          <div className="bg-red-600 w-4 h-4 rounded-full flex items-center justify-center text-white absolute -top-0.5 -right-0.5 text-[10px] font-semibold">
+          <div className="bg-black w-4 h-4 rounded-full flex items-center justify-center text-white absolute -top-0.5 -right-0.5 text-[10px] font-semibold">
             {itemCount}
           </div>
           <FaCartShopping />
@@ -104,7 +98,7 @@ const Header: FC<Props> = ({
               <Image
                 className="object-fill w-full h-full rounded-full"
                 src={
-                  avatar.includes('https')
+                  avatar.includes("https")
                     ? avatar
                     : `/images/user_avator/${avatar}@3x.png`
                 }

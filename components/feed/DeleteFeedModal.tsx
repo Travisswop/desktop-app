@@ -91,7 +91,7 @@ export default function DeleteFeedModal({ postId, token, setIsPosting }: any) {
                     e.stopPropagation();
                     handlePostDelete();
                   }}
-                  className="bg-red-500 hover:bg-red-600 transition-colors ease-in rounded-lg text-white flex items-center px-4 justify-center gap-1 font-medium border-b p-1 text-sm w-20"
+                  className="bg-gray-800 hover:bg-black transition-colors ease-in rounded-lg text-white flex items-center px-4 justify-center gap-1 font-medium border-b p-1 text-sm w-20"
                 >
                   {deleteLoading ? (
                     <Spinner color="default" size="sm" />
