@@ -10,6 +10,7 @@ import { useSearchParams } from "next/navigation";
 import Connections from "./Connections";
 import Cookies from "js-cookie";
 import { FeedHomepageLoading } from "../loading/TabSwitcherLoading";
+import SpotlightMap from "./SpotlightMap";
 
 type AuthData = {
   userId: string;
@@ -151,6 +152,7 @@ const FeedMain = ({ isFromHome = false }: { isFromHome?: boolean }) => {
         style={{ height: "calc(100vh - 108px)" }}
         className="flex-1 overflow-y-auto"
       >
+        <SpotlightMap token={effectiveToken} />
         <Connections userId={effectiveUserId} accessToken={effectiveToken} />
       </div>
     </div>
