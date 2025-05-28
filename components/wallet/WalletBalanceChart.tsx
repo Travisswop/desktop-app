@@ -19,6 +19,7 @@ import { BsBank2, BsQrCodeScan } from "react-icons/bs";
 import { FaRegListAlt } from "react-icons/fa";
 import SwapModal from "./swapModal/SwapModal";
 import logger from "../../utils/logger";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
 let userToken: string[];
 
@@ -35,7 +36,47 @@ const BalanceChart = ({
   const [showPopup, setShowPopup] = useState(false);
   const [bankShow, setBankShow] = useState(false);
   const [openSwapModal, setOpenSwapModal] = useState(false);
-  const [showWalletPopup, setShowWalletPopup] = useState(false);
+
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const pathname = usePathname();
+
+  const inputTokenParam = searchParams?.get("inputToken");
+  const outputTokenParam = searchParams?.get("outputToken");
+  const amountParam = searchParams?.get("amount");
+  logger.log("params", inputTokenParam, outputTokenParam, amountParam);
+
+  // Open swap modal when URL params are present
+  useEffect(() => {
+    if (inputTokenParam || outputTokenParam || amountParam) {
+      setOpenSwapModal(true);
+    }
+  }, [amountParam, inputTokenParam, outputTokenParam]);
+
+  // Clean up URL params when modal closes
+  useEffect(() => {
+    if (
+      !openSwapModal &&
+      (inputTokenParam || outputTokenParam || amountParam)
+    ) {
+      // Create new URLSearchParams without the swap params
+      const newSearchParams = new URLSearchParams(searchParams as any);
+      newSearchParams.delete("inputToken");
+      newSearchParams.delete("outputToken");
+      newSearchParams.delete("amount");
+
+      // Update the URL without triggering navigation
+      router.replace(`${pathname}?${newSearchParams.toString()}`);
+    }
+  }, [
+    openSwapModal,
+    pathname,
+    router,
+    searchParams,
+    inputTokenParam,
+    outputTokenParam,
+    amountParam,
+  ]);
 
   const filteredData = useMemo(() => {
     const now = new Date();
@@ -161,8 +202,11 @@ const BalanceChart = ({
           <SwapModal
             open={openSwapModal}
             onOpenChange={setOpenSwapModal}
-            userToken={userToken}
+            userToken={userToken as any}
             accessToken={accessToken}
+            initialInputToken={inputTokenParam as string}
+            initialOutputToken={outputTokenParam as string}
+            initialAmount={amountParam as string}
           />
 
           {/* <Button

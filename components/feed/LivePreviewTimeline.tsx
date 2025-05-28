@@ -6,11 +6,11 @@ import React, { useState, useEffect, useRef, useCallback } from "react";
 // import { FaUser } from "react-icons/fa";
 import { GoDotFill } from "react-icons/go";
 import dayjs from "dayjs";
-import PostTypeMedia from "./view/PostTypeMedia";
+// import PostTypeMedia from "./view/PostTypeMedia";
 import { HiDotsHorizontal } from "react-icons/hi";
 import { Popover, PopoverContent, PopoverTrigger } from "@nextui-org/react";
 import relativeTime from "dayjs/plugin/relativeTime";
-import Reaction from "./view/Reaction";
+// import Reaction from "./view/Reaction";
 import Link from "next/link";
 import { FiPlusCircle } from "react-icons/fi";
 import FeedLoading from "../loading/FeedLoading";
@@ -18,7 +18,7 @@ import DeleteFeedModal from "./DeleteFeedModal";
 import isUrl from "@/lib/isUrl";
 import { useUser } from "@/lib/UserContext";
 import { useRouter } from "next/navigation";
-import IndividualFeedContent from "./IndividualFeedContent";
+// import IndividualFeedContent from "./IndividualFeedContent";
 import SmartsiteLivePreviewFeedMedia from "./view/SmartsiteLivePreviewFeedMedia";
 import SmartsiteLivePreviewRepostContent from "./SmartsiteLivePreviewRepostContent";
 
@@ -409,33 +409,46 @@ const LivePreviewTimeline = ({
                             </p>
                           </div>
                         </div>
-                        {feed.content.signature && (
-                          <div className="flex justify-end mt-2">
-                            <a
-                              onClick={(e) => e.stopPropagation()}
-                              href={`https://solscan.io/tx/${feed.content.signature}`}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="flex items-center gap-1 text-xs text-blue-600 hover:underline font-medium"
-                            >
-                              View on Solscan
-                              <svg
-                                xmlns="http://www.w3.org/2000/svg"
-                                className="h-3 w-3"
-                                fill="none"
-                                viewBox="0 0 24 24"
-                                stroke="currentColor"
+                        <div className="flex flex-wrap items-center justify-between mt-2">
+                          {/* <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              router.push(
+                                `/wallet?inputToken=${feed.content.inputToken.symbol}&outputToken=${feed.content.outputToken.symbol}&amount=${feed.content.inputToken.amount}`
+                              );
+                            }}
+                            className="text-xs border border-gray-300 rounded px-3 py-0.5 font-medium hover:bg-gray-200"
+                          >
+                            Copy Trade
+                          </button> */}
+                          {feed.content.signature && (
+                            <div className="flex justify-end">
+                              <a
+                                onClick={(e) => e.stopPropagation()}
+                                href={`https://solscan.io/tx/${feed.content.signature}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="flex items-center gap-1 text-xs text-blue-600 hover:underline font-medium"
                               >
-                                <path
-                                  strokeLinecap="round"
-                                  strokeLinejoin="round"
-                                  strokeWidth={2}
-                                  d="M17 7h2a2 2 0 012 2v10a2 2 0 01-2 2H5a2 2 0 01-2-2V9a2 2 0 012-2h2m4-4h4m0 0v4m0-4L10 10"
-                                />
-                              </svg>
-                            </a>
-                          </div>
-                        )}
+                                View on Solscan
+                                <svg
+                                  xmlns="http://www.w3.org/2000/svg"
+                                  className="h-3 w-3"
+                                  fill="none"
+                                  viewBox="0 0 24 24"
+                                  stroke="currentColor"
+                                >
+                                  <path
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                    strokeWidth={2}
+                                    d="M17 7h2a2 2 0 012 2v10a2 2 0 01-2 2H5a2 2 0 01-2-2V9a2 2 0 012-2h2m4-4h4m0 0v4m0-4L10 10"
+                                  />
+                                </svg>
+                              </a>
+                            </div>
+                          )}
+                        </div>
                       </div>
                     </button>
                   </div>

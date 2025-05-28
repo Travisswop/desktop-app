@@ -1,34 +1,30 @@
-'use client';
+"use client";
 
-import { getUserFeed } from '@/actions/postFeed';
-import Image from 'next/image';
-import React, {
-  useState,
-  useEffect,
-  useRef,
-  useCallback,
-} from 'react';
-import { GoDotFill } from 'react-icons/go';
-import dayjs from 'dayjs';
-import PostTypeMedia from './view/PostTypeMedia';
-import { HiDotsHorizontal } from 'react-icons/hi';
+import { getUserFeed } from "@/actions/postFeed";
+import Image from "next/image";
+import React, { useState, useEffect, useRef, useCallback } from "react";
+import { GoDotFill } from "react-icons/go";
+import dayjs from "dayjs";
+import PostTypeMedia from "./view/PostTypeMedia";
+import { HiDotsHorizontal } from "react-icons/hi";
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
   useDisclosure,
-} from '@nextui-org/react';
-import relativeTime from 'dayjs/plugin/relativeTime';
-import Reaction from './view/Reaction';
-import Link from 'next/link';
-import { FiPlusCircle } from 'react-icons/fi';
-import DeleteFeedModal from './DeleteFeedModal';
-import isUrl from '@/lib/isUrl';
-import RedeemClaimModal from '../modal/RedeemClaim';
-import { useRouter } from 'next/navigation';
-import IndividualFeedContent from './IndividualFeedContent';
-import { FeedMainContentDataLoading } from '../loading/TabSwitcherLoading';
-import FeedLoading from '../loading/FeedLoading';
+} from "@nextui-org/react";
+import relativeTime from "dayjs/plugin/relativeTime";
+import Reaction from "./view/Reaction";
+import Link from "next/link";
+import { FiPlusCircle } from "react-icons/fi";
+import DeleteFeedModal from "./DeleteFeedModal";
+import isUrl from "@/lib/isUrl";
+import RedeemClaimModal from "../modal/RedeemClaim";
+import { useRouter } from "next/navigation";
+import IndividualFeedContent from "./IndividualFeedContent";
+import { FeedMainContentDataLoading } from "../loading/TabSwitcherLoading";
+import FeedLoading from "../loading/FeedLoading";
+import logger from "@/utils/logger";
 
 dayjs.extend(relativeTime);
 
@@ -57,6 +53,8 @@ const Feed = ({
   const [redeemFeedData, setRedeemFeedData] = useState({});
   const [initiaLoading, setInitialLoading] = useState(true);
 
+  logger.log("feedData", feedData);
+
   // Helper function to render transaction content
   const renderTransactionContent = (feed: any) => {
     const {
@@ -81,19 +79,13 @@ const Feed = ({
           5
         )}...${receiver_wallet_address.slice(-5)}`;
 
-    if (transaction_type === 'nft') {
+    if (transaction_type === "nft") {
       return (
         <div>
           <p className="text-gray-600 text-sm">
-            Sent NFT{' '}
-            <span className="font-medium text-base">
-              {name || 'item'}
-            </span>{' '}
-            to{' '}
-            <span className="font-medium text-base">
-              {recipientDisplay}
-            </span>
-            .
+            Sent NFT{" "}
+            <span className="font-medium text-base">{name || "item"}</span> to{" "}
+            <span className="font-medium text-base">{recipientDisplay}</span>.
           </p>
           {image && (
             <div className="w-52">
@@ -105,33 +97,32 @@ const Feed = ({
                 className="w-full h-auto"
               />
               <p className="text-sm text-gray-600 font-medium mt-0.5 text-center">
-                {amount} {currency || 'NFT'}
+                {amount} {currency || "NFT"}
               </p>
             </div>
           )}
         </div>
       );
-    } else if (transaction_type === 'token') {
+    } else if (transaction_type === "token") {
       return (
         <p className="text-gray-600 text-sm">
-          Transferred{' '}
+          Transferred{" "}
           <span className="font-medium">
             {amount.toFixed(2)} {token}
-          </span>{' '}
+          </span>{" "}
           {tokenPrice && (
             <span className="text-sm text-gray-600 font-medium mt-0.5">
               (${Number(tokenPrice).toFixed(2)})
             </span>
-          )}{' '}
-          tokens to{' '}
-          <span className="font-medium">{recipientDisplay}</span> on
+          )}{" "}
+          tokens to <span className="font-medium">{recipientDisplay}</span> on
           the {chain}.
         </p>
       );
     } else {
       return (
         <p className="text-gray-600 text-sm">
-          Executed a {transaction_type} transaction involving {amount}{' '}
+          Executed a {transaction_type} transaction involving {amount}{" "}
           {currency}.
         </p>
       );
@@ -200,9 +191,7 @@ const Feed = ({
   useEffect(() => {
     if (!hasMore) return;
 
-    const observerCallback = (
-      entries: IntersectionObserverEntry[]
-    ) => {
+    const observerCallback = (entries: IntersectionObserverEntry[]) => {
       if (entries[0].isIntersecting && !isFetching.current) {
         fetchFeedData();
       }
@@ -210,7 +199,7 @@ const Feed = ({
 
     const observer = new IntersectionObserver(observerCallback, {
       root: null,
-      rootMargin: '0px',
+      rootMargin: "0px",
       threshold: 1.0,
     });
 
@@ -243,8 +232,7 @@ const Feed = ({
             >
               {(() => {
                 const profilePic =
-                  feed?.smartsiteId?.profilePic ||
-                  feed?.smartsiteProfilePic;
+                  feed?.smartsiteId?.profilePic || feed?.smartsiteProfilePic;
                 return profilePic && isUrl(profilePic) ? (
                   <Image
                     alt="user image"
@@ -278,13 +266,13 @@ const Feed = ({
                     <p className="text-gray-700 font-semibold">
                       {feed?.smartsiteId?.name ||
                         feed?.smartsiteUserName ||
-                        'Anonymous'}
+                        "Anonymous"}
                     </p>
                     <GoDotFill size={10} />
                     <p className="text-gray-500 font-normal">
                       {feed?.smartsiteId?.ens ||
                         feed?.smartsiteEnsName ||
-                        'n/a'}
+                        "n/a"}
                     </p>
                     <GoDotFill size={10} />
                     <p className="text-gray-500 font-normal">
@@ -292,17 +280,14 @@ const Feed = ({
                     </p>
                   </Link>
                   {/* Render Post Content */}
-                  {(feed.postType === 'post' ||
-                    feed.postType === 'repost') &&
+                  {(feed.postType === "post" || feed.postType === "repost") &&
                     feed.content.title && (
                       <button
-                        onClick={() =>
-                          router.push(`/feed/${feed._id}`)
-                        }
+                        onClick={() => router.push(`/feed/${feed._id}`)}
                         className="w-full text-start"
                       >
                         {feed.content.title
-                          .split('\n')
+                          .split("\n")
                           .map((line: string, index: number) => (
                             <p className="break-text" key={index}>
                               {line}
@@ -311,16 +296,14 @@ const Feed = ({
                       </button>
                     )}
 
-                  {feed.postType === 'swapTransaction' && (
+                  {feed.postType === "swapTransaction" && (
                     <div className="w-full flex justify-start mt-1">
                       <button
-                        onClick={() =>
-                          router.push(`/feed/${feed._id}`)
-                        }
+                        onClick={() => router.push(`/feed/${feed._id}`)}
                         className="w-full max-w-xl"
                         style={{
-                          background: 'transparent',
-                          border: 'none',
+                          background: "transparent",
+                          border: "none",
                           padding: 0,
                         }}
                       >
@@ -331,10 +314,9 @@ const Feed = ({
                                 <Image
                                   src={
                                     feed.content.inputToken.tokenImg.startsWith(
-                                      'https'
+                                      "https"
                                     )
-                                      ? feed.content.inputToken
-                                          .tokenImg
+                                      ? feed.content.inputToken.tokenImg
                                       : `/assets/crypto-icons/${feed.content.inputToken.symbol}.png`
                                   }
                                   alt={feed.content.inputToken.symbol}
@@ -345,15 +327,12 @@ const Feed = ({
                                 <Image
                                   src={
                                     feed.content.outputToken.tokenImg.startsWith(
-                                      'https'
+                                      "https"
                                     )
-                                      ? feed.content.outputToken
-                                          .tokenImg
+                                      ? feed.content.outputToken.tokenImg
                                       : `/assets/crypto-icons/${feed.content.outputToken.symbol}.png`
                                   }
-                                  alt={
-                                    feed.content.outputToken.symbol
-                                  }
+                                  alt={feed.content.outputToken.symbol}
                                   width={120}
                                   height={120}
                                   className="w-10 h-10 rounded-full border-2 border-white shadow-sm -ml-4 z-20"
@@ -366,7 +345,7 @@ const Feed = ({
                               </p>
                               <p className="text-xs text-gray-400">
                                 {dayjs(feed.createdAt).format(
-                                  'MMM D, YYYY h:mm A'
+                                  "MMM D, YYYY h:mm A"
                                 )}
                               </p>
                             </div>
@@ -374,13 +353,11 @@ const Feed = ({
 
                           <div className="flex items-center justify-between">
                             <div className="flex flex-col">
-                              <p className="text-sm text-gray-600">
-                                You sent
-                              </p>
+                              <p className="text-sm text-gray-600">You sent</p>
                               <p className="text-base font-semibold text-red-600">
-                                {Number(
-                                  feed.content.inputToken.amount
-                                ).toFixed(2)}{' '}
+                                {Number(feed.content.inputToken.amount).toFixed(
+                                  2
+                                )}{" "}
                                 {feed.content.inputToken.symbol}
                               </p>
                             </div>
@@ -404,48 +381,60 @@ const Feed = ({
                               <p className="text-base font-semibold text-green-600">
                                 {Number(
                                   feed.content.outputToken.amount
-                                ).toFixed(2)}{' '}
+                                ).toFixed(2)}{" "}
                                 {feed.content.outputToken.symbol}
                               </p>
                             </div>
                           </div>
-                          {feed.content.signature && (
-                            <div className="flex justify-end mt-2">
-                              <a
-                                onClick={(e) => e.stopPropagation()}
-                                href={`https://solscan.io/tx/${feed.content.signature}`}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="flex items-center gap-1 text-xs text-blue-600 hover:underline font-medium"
-                              >
-                                View on Solscan
-                                <svg
-                                  xmlns="http://www.w3.org/2000/svg"
-                                  className="h-3 w-3"
-                                  fill="none"
-                                  viewBox="0 0 24 24"
-                                  stroke="currentColor"
+                          <div className="flex items-center justify-between mt-2">
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                router.push(
+                                  `/wallet?inputToken=${feed.content.inputToken.symbol}&outputToken=${feed.content.outputToken.symbol}&amount=${feed.content.inputToken.amount}`
+                                );
+                              }}
+                              className="text-xs border border-gray-300 rounded px-3 py-0.5 font-medium hover:bg-gray-200"
+                            >
+                              Copy Trade
+                            </button>
+                            {feed.content.signature && (
+                              <div className="flex justify-end">
+                                <a
+                                  onClick={(e) => e.stopPropagation()}
+                                  href={`https://solscan.io/tx/${feed.content.signature}`}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="flex items-center gap-1 text-xs text-blue-600 hover:underline font-medium"
                                 >
-                                  <path
-                                    strokeLinecap="round"
-                                    strokeLinejoin="round"
-                                    strokeWidth={2}
-                                    d="M17 7h2a2 2 0 012 2v10a2 2 0 01-2 2H5a2 2 0 01-2-2V9a2 2 0 012-2h2m4-4h4m0 0v4m0-4L10 10"
-                                  />
-                                </svg>
-                              </a>
-                            </div>
-                          )}
+                                  View on Solscan
+                                  <svg
+                                    xmlns="http://www.w3.org/2000/svg"
+                                    className="h-3 w-3"
+                                    fill="none"
+                                    viewBox="0 0 24 24"
+                                    stroke="currentColor"
+                                  >
+                                    <path
+                                      strokeLinecap="round"
+                                      strokeLinejoin="round"
+                                      strokeWidth={2}
+                                      d="M17 7h2a2 2 0 012 2v10a2 2 0 01-2 2H5a2 2 0 01-2-2V9a2 2 0 012-2h2m4-4h4m0 0v4m0-4L10 10"
+                                    />
+                                  </svg>
+                                </a>
+                              </div>
+                            )}
+                          </div>
                         </div>
                       </button>
                     </div>
                   )}
 
-                  {feed.postType === 'repost' &&
-                  feed.repostedPostDetails ? (
+                  {feed.postType === "repost" && feed.repostedPostDetails ? (
                     <IndividualFeedContent feed={feed} />
                   ) : (
-                    feed.postType === 'repost' &&
+                    feed.postType === "repost" &&
                     !feed.repostedPostDetails && (
                       <div className="p-4 bg-blue-50 rounded-lg border border-blue-100 text-blue-800 text-sm mt-1">
                         <div className="flex items-start">
@@ -461,12 +450,9 @@ const Feed = ({
                             />
                           </svg>
                           <div>
-                            <p className="font-medium">
-                              Content Removed
-                            </p>
+                            <p className="font-medium">Content Removed</p>
                             <p className="mt-1 text-blue-700">
-                              The original poster has deleted this
-                              content
+                              The original poster has deleted this content
                             </p>
                           </div>
                         </div>
@@ -474,12 +460,12 @@ const Feed = ({
                     )
                   )}
                   {/* Render Redeem Content */}
-                  {feed.postType === 'redeem' && (
+                  {feed.postType === "redeem" && (
                     <div className="flex flex-col gap-2 text-gray-600 text-sm">
                       <div>
                         <p>
-                          Created a new {feed.content.redeemName}{' '}
-                          Redeemable Link -{' '}
+                          Created a new {feed.content.redeemName} Redeemable
+                          Link -{" "}
                           <button
                             onClick={(e) => {
                               e.stopPropagation();
@@ -503,30 +489,29 @@ const Feed = ({
                         <div className="font-semibold text-sm">
                           <p>{feed.content.network}</p>
                           <p>
-                            {feed.content.amount}{' '}
-                            {feed.content.symbol}
+                            {feed.content.amount} {feed.content.symbol}
                           </p>
                         </div>
                       </div>
                     </div>
                   )}
-                  {feed.postType === 'connection' && (
+                  {feed.postType === "connection" && (
                     <p className="text-gray-600 text-sm">
-                      Connected with{' '}
+                      Connected with{" "}
                       <span className="text-gray-700 font-medium text-base">
                         {feed.content.connectedSmartsiteName}
                       </span>
                     </p>
                   )}
-                  {feed.postType === 'ensClaim' && (
+                  {feed.postType === "ensClaim" && (
                     <p className="text-gray-600 text-sm">
-                      Claim a new ENS{' '}
+                      Claim a new ENS{" "}
                       <span className="text-gray-700 font-medium text-base">
                         {feed.content.claimEnsName}
                       </span>
                     </p>
                   )}
-                  {feed.postType === 'transaction' &&
+                  {feed.postType === "transaction" &&
                     renderTransactionContent(feed)}
                 </div>
                 {userId === feed.userId && (
@@ -559,13 +544,11 @@ const Feed = ({
                 )}
               </div>
               <div>
-                {feed.postType === 'post' &&
+                {feed.postType === "post" &&
                   feed.content.post_content.length > 0 && (
-                    <PostTypeMedia
-                      mediaFiles={feed.content.post_content}
-                    />
+                    <PostTypeMedia mediaFiles={feed.content.post_content} />
                   )}
-                {feed.postType === 'minting' && (
+                {feed.postType === "minting" && (
                   <div className="w-max">
                     <p>{feed.content.title}</p>
                     <div className="shadow-medium bg-white rounded-lg mt-2 p-2 relative">
@@ -606,11 +589,7 @@ const Feed = ({
         ))}
         {hasMore && (
           <div ref={observerRef}>
-            {initiaLoading ? (
-              <FeedMainContentDataLoading />
-            ) : (
-              <FeedLoading />
-            )}
+            {initiaLoading ? <FeedMainContentDataLoading /> : <FeedLoading />}
           </div>
         )}
       </div>
