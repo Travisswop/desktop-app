@@ -37,11 +37,13 @@ import logger from '@/utils/logger';
 interface RegistrationProps {
   user: PrivyUser;
   onComplete: (data: Partial<OnboardingData>) => void;
+  createPrivyWallets?: () => Promise<void>;
 }
 
 export default function Registration({
   user,
   onComplete,
+  createPrivyWallets,
 }: RegistrationProps) {
   const { toast } = useToast();
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -94,6 +96,38 @@ export default function Registration({
     }
   }, [privyUser, authenticated, ready]);
 
+  // Function to refresh wallet data
+  const refreshWalletData = () => {
+    if (authenticated && ready && privyUser) {
+      const linkedWallets = privyUser?.linkedAccounts
+        .map((item: any) => {
+          if (item.chainType === 'ethereum') {
+            return {
+              address: item.address,
+              isActive:
+                item.walletClientType === 'privy' ||
+                item.connectorType === 'embedded',
+              isEVM: true,
+              walletClientType: item.walletClientType,
+            };
+          } else if (item.chainType === 'solana') {
+            return {
+              address: item.address,
+              isActive:
+                item.walletClientType === 'privy' ||
+                item.connectorType === 'embedded',
+              isEVM: false,
+              walletClientType: item.walletClientType,
+            };
+          }
+          return null;
+        })
+        .filter(Boolean);
+
+      setWalletData(linkedWallets as WalletItem[]);
+    }
+  };
+
   const handleUserProfileModal = () => {
     onOpen();
     setIsUserProfileModalOpen(true);
@@ -136,6 +170,14 @@ export default function Registration({
     setIsSubmitting(true);
 
     try {
+      if (createPrivyWallets) {
+        await createPrivyWallets();
+
+        // Wait for Privy to update the user object and refresh wallet data
+        await new Promise((resolve) => setTimeout(resolve, 2000));
+        refreshWalletData();
+      }
+
       // Process profile image
       let avatarUrl = profileImage;
       if (profileImage && profileImage.startsWith('data:image')) {

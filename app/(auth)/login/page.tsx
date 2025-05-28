@@ -194,192 +194,222 @@ const Login: React.FC = () => {
 
   // Function to create both Ethereum and Solana wallets
   const createPrivyWallets = useCallback(async () => {
-    try {
-      logger.log('Starting wallet creation process...');
+    // Add a timeout wrapper to prevent hanging
+    const timeoutPromise = new Promise((_, reject) => {
+      setTimeout(
+        () => reject(new Error('Wallet creation timeout')),
+        30000
+      ); // 30 second timeout
+    });
 
-      // Add authentication checks
-      if (!authenticated) {
-        logger.error(
-          'User is not authenticated - cannot create wallets'
+    const walletCreationPromise = (async () => {
+      try {
+        logger.log('Starting wallet creation process...');
+
+        // Add authentication checks
+        if (!authenticated) {
+          logger.error(
+            'User is not authenticated - cannot create wallets'
+          );
+          return;
+        }
+
+        if (!ready) {
+          logger.error('Privy is not ready - cannot create wallets');
+          return;
+        }
+
+        if (!user) {
+          logger.error(
+            'User object is not available - cannot create wallets'
+          );
+          return;
+        }
+
+        logger.log(
+          `Authentication status: authenticated=${authenticated}, ready=${ready}, user=${!!user}`
         );
-        return;
-      }
 
-      if (!ready) {
-        logger.error('Privy is not ready - cannot create wallets');
-        return;
-      }
-
-      if (!user) {
-        logger.error(
-          'User object is not available - cannot create wallets'
+        // Add a small delay to ensure authentication is fully propagated
+        await new Promise((resolve) => setTimeout(resolve, 500));
+        logger.log(
+          'Authentication delay complete, proceeding with wallet creation...'
         );
-        return;
-      }
 
-      logger.log(
-        `Authentication status: authenticated=${authenticated}, ready=${ready}, user=${!!user}`
-      );
+        // Check if user already has wallets
+        const hasEthereumWallet = user?.linkedAccounts.some(
+          (account: any) =>
+            account.chainType === 'ethereum' &&
+            (account.walletClientType === 'privy' ||
+              account.connectorType === 'embedded')
+        );
 
-      // Add a small delay to ensure authentication is fully propagated
-      await new Promise((resolve) => setTimeout(resolve, 500));
-      logger.log(
-        'Authentication delay complete, proceeding with wallet creation...'
-      );
+        const hasSolanaWallet = user?.linkedAccounts.some(
+          (account: any) =>
+            account.chainType === 'solana' &&
+            (account.walletClientType === 'privy' ||
+              account.connectorType === 'embedded')
+        );
 
-      // Check if user already has wallets
-      const hasEthereumWallet = user?.linkedAccounts.some(
-        (account: any) =>
-          account.chainType === 'ethereum' &&
-          (account.walletClientType === 'privy' ||
-            account.connectorType === 'embedded')
-      );
+        logger.log('Wallet status:', {
+          hasEthereumWallet,
+          hasSolanaWallet,
+          walletsCreated,
+          userLinkedAccounts: user?.linkedAccounts?.length || 0,
+          userLinkedAccountsDetails:
+            user?.linkedAccounts?.map((acc: any) => ({
+              type: acc.type,
+              chainType: acc.chainType,
+              walletClientType: acc.walletClientType,
+              connectorType: acc.connectorType,
+            })) || [],
+        });
 
-      const hasSolanaWallet = user?.linkedAccounts.some(
-        (account: any) =>
-          account.chainType === 'solana' &&
-          (account.walletClientType === 'privy' ||
-            account.connectorType === 'embedded')
-      );
+        // Create Ethereum wallet if needed
+        if (!hasEthereumWallet && !walletsCreated.ethereum) {
+          try {
+            logger.log('Creating Ethereum wallet...');
 
-      logger.log('Wallet status:', {
-        hasEthereumWallet,
-        hasSolanaWallet,
-        walletsCreated,
-        userLinkedAccounts: user?.linkedAccounts?.length || 0,
-        userLinkedAccountsDetails:
-          user?.linkedAccounts?.map((acc: any) => ({
-            type: acc.type,
-            chainType: acc.chainType,
-            walletClientType: acc.walletClientType,
-            connectorType: acc.connectorType,
-          })) || [],
-      });
-
-      // Create Ethereum wallet if needed
-      if (!hasEthereumWallet && !walletsCreated.ethereum) {
-        try {
-          logger.log('Creating Ethereum wallet...');
-
-          // Double-check authentication before wallet creation
-          if (!authenticated || !ready || !user) {
-            logger.error(
-              'Authentication state changed during wallet creation - aborting Ethereum wallet creation'
-            );
-            return;
-          }
-
-          // Attempt to create the wallet with explicit error handling
-          const result = await createEthereumWallet().catch(
-            (error) => {
-              // Handle embedded_wallet_already_exists as a success case
-              if (
-                error === 'embedded_wallet_already_exists' ||
-                (error &&
-                  typeof error === 'object' &&
-                  'message' in error &&
-                  error.message === 'embedded_wallet_already_exists')
-              ) {
-                logger.log(
-                  'Ethereum wallet already exists, marking as created'
-                );
-                return { status: 'already_exists' };
-              }
-              // Log and rethrow other errors
+            // Double-check authentication before wallet creation
+            if (!authenticated || !ready || !user) {
               logger.error(
-                `Ethereum wallet creation error: ${JSON.stringify(
-                  error
-                )}`
+                'Authentication state changed during wallet creation - aborting Ethereum wallet creation'
               );
-              throw error;
+              return;
             }
-          );
 
-          logger.log('Ethereum wallet creation result:', result);
-          setWalletsCreated((prev) => ({ ...prev, ethereum: true }));
-          logger.log('Ethereum wallet creation complete');
-        } catch (err) {
-          logger.error('Ethereum wallet creation error:', err);
-          // Don't mark as created if there was a real error
-        }
-      } else {
-        logger.log(
-          'Skipping Ethereum wallet creation - already exists or already created'
-        );
-      }
-
-      // Create Solana wallet if needed
-      if (!hasSolanaWallet && !walletsCreated.solana) {
-        try {
-          logger.log('Creating Solana wallet...');
-
-          // Double-check authentication before wallet creation
-          if (!authenticated || !ready || !user) {
-            logger.error(
-              'Authentication state changed during wallet creation - aborting Solana wallet creation'
+            // Attempt to create the wallet with explicit error handling
+            const result = await createEthereumWallet().catch(
+              (error) => {
+                // Handle embedded_wallet_already_exists as a success case
+                if (
+                  error === 'embedded_wallet_already_exists' ||
+                  (error &&
+                    typeof error === 'object' &&
+                    'message' in error &&
+                    error.message ===
+                      'embedded_wallet_already_exists')
+                ) {
+                  logger.log(
+                    'Ethereum wallet already exists, marking as created'
+                  );
+                  return { status: 'already_exists' };
+                }
+                // Log and rethrow other errors
+                logger.error(
+                  `Ethereum wallet creation error: ${JSON.stringify(
+                    error
+                  )}`
+                );
+                throw error;
+              }
             );
-            return;
+
+            logger.log('Ethereum wallet creation result:', result);
+            setWalletsCreated((prev) => ({
+              ...prev,
+              ethereum: true,
+            }));
+            logger.log('Ethereum wallet creation complete');
+          } catch (err) {
+            logger.error('Ethereum wallet creation error:', err);
+            // Don't mark as created if there was a real error
           }
-
-          const result = await createSolanaWallet().catch((error) => {
-            if (
-              error === 'embedded_wallet_already_exists' ||
-              (error &&
-                typeof error === 'object' &&
-                'message' in error &&
-                error.message === 'embedded_wallet_already_exists')
-            ) {
-              logger.log(
-                'Solana wallet already exists, marking as created'
-              );
-              return { status: 'already_exists' };
-            }
-            logger.error(
-              `Solana wallet creation error: ${JSON.stringify(error)}`
-            );
-            throw error;
-          });
-
+        } else {
           logger.log(
-            `Solana wallet creation result: ${JSON.stringify(result)}`
+            'Skipping Ethereum wallet creation - already exists or already created'
           );
-          setWalletsCreated((prev) => ({ ...prev, solana: true }));
-          logger.log('Solana wallet creation complete');
-        } catch (err) {
-          logger.error('Solana wallet creation error:', err);
         }
-      } else {
-        logger.log(
-          'Skipping Solana wallet creation - already exists or already created'
-        );
-      }
 
-      // Final status check
-      logger.log('Final wallet creation status:', {
-        walletsCreated,
-        userLinkedAccountsAfter: user?.linkedAccounts?.length || 0,
-        finalEthereumWallet:
-          (
-            user?.linkedAccounts?.find(
-              (acc: any) =>
-                acc.chainType === 'ethereum' &&
-                (acc.walletClientType === 'privy' ||
-                  acc.connectorType === 'embedded')
-            ) as any
-          )?.address || 'none',
-        finalSolanaWallet:
-          (
-            user?.linkedAccounts?.find(
-              (acc: any) =>
-                acc.chainType === 'solana' &&
-                (acc.walletClientType === 'privy' ||
-                  acc.connectorType === 'embedded')
-            ) as any
-          )?.address || 'none',
-      });
+        // Create Solana wallet if needed
+        if (!hasSolanaWallet && !walletsCreated.solana) {
+          try {
+            logger.log('Creating Solana wallet...');
+
+            // Double-check authentication before wallet creation
+            if (!authenticated || !ready || !user) {
+              logger.error(
+                'Authentication state changed during wallet creation - aborting Solana wallet creation'
+              );
+              return;
+            }
+
+            const result = await createSolanaWallet().catch(
+              (error) => {
+                if (
+                  error === 'embedded_wallet_already_exists' ||
+                  (error &&
+                    typeof error === 'object' &&
+                    'message' in error &&
+                    error.message ===
+                      'embedded_wallet_already_exists')
+                ) {
+                  logger.log(
+                    'Solana wallet already exists, marking as created'
+                  );
+                  return { status: 'already_exists' };
+                }
+                logger.error(
+                  `Solana wallet creation error: ${JSON.stringify(
+                    error
+                  )}`
+                );
+                throw error;
+              }
+            );
+
+            logger.log(
+              `Solana wallet creation result: ${JSON.stringify(
+                result
+              )}`
+            );
+            setWalletsCreated((prev) => ({ ...prev, solana: true }));
+            logger.log('Solana wallet creation complete');
+          } catch (err) {
+            logger.error('Solana wallet creation error:', err);
+          }
+        } else {
+          logger.log(
+            'Skipping Solana wallet creation - already exists or already created'
+          );
+        }
+
+        // Final status check
+        logger.log('Final wallet creation status:', {
+          walletsCreated,
+          userLinkedAccountsAfter: user?.linkedAccounts?.length || 0,
+          finalEthereumWallet:
+            (
+              user?.linkedAccounts?.find(
+                (acc: any) =>
+                  acc.chainType === 'ethereum' &&
+                  (acc.walletClientType === 'privy' ||
+                    acc.connectorType === 'embedded')
+              ) as any
+            )?.address || 'none',
+          finalSolanaWallet:
+            (
+              user?.linkedAccounts?.find(
+                (acc: any) =>
+                  acc.chainType === 'solana' &&
+                  (acc.walletClientType === 'privy' ||
+                    acc.connectorType === 'embedded')
+              ) as any
+            )?.address || 'none',
+        });
+      } catch (error) {
+        logger.error('Error in wallet creation flow:', error);
+        // Still mark wallets as attempted to prevent infinite loops
+        setWalletsCreated({ ethereum: true, solana: true });
+      }
+    })();
+
+    // Race between wallet creation and timeout
+    try {
+      await Promise.race([walletCreationPromise, timeoutPromise]);
     } catch (error) {
-      logger.error('Error in wallet creation flow:', error);
-      // Still mark wallets as attempted to prevent infinite loops
+      logger.error('Wallet creation failed or timed out:', error);
+      // Mark as attempted to prevent retries
       setWalletsCreated({ ethereum: true, solana: true });
     }
   }, [
@@ -419,98 +449,86 @@ const Login: React.FC = () => {
           return;
         }
 
-        // Attempt to create wallets first, regardless of user verification outcome
-        logger.log('Creating wallets for user...');
-        try {
-          await createPrivyWallets();
-        } catch (error) {
-          logger.error('Error creating wallets:', error);
-          // Continue despite wallet creation errors
-        }
-
+        // First check if user exists in backend
         logger.log('Verifying user with API...');
         let response, data;
         try {
           response = await fetch(`${apiUrl}${email}`, {
             headers: { 'Content-Type': 'application/json' },
           });
+
+          if (!response.ok) {
+            if (response.status === 404) {
+              logger.log(
+                'User not found in backend, redirecting to onboard'
+              );
+              setIsLoading(false);
+              setIsRedirecting(true);
+              router.push('/onboard');
+              return;
+            }
+            throw new Error(`API error: ${response.status}`);
+          }
+
           data = await response.json();
         } catch (error) {
           logger.error('API connection error:', error);
-          setLoginError(
-            'Could not connect to our servers. Please try again later.'
-          );
+          // On API error, redirect to onboard to be safe
           setIsLoading(false);
-          loginInitiated.current = false;
+          setIsRedirecting(true);
+          router.push('/onboard');
           return;
         }
 
-        if (!response.ok) {
-          logger.log(
-            'User verification failed, redirecting to onboard'
-          );
-          setLoginError(
-            'Account verification failed. You need to complete the onboarding process.'
-          );
-          setIsLoading(false);
-          setTimeout(() => router.push('/onboard'), 2000);
-          return;
-        }
-
+        // User exists, proceed with wallet creation and login
         if (data?.user?._id) {
-          logger.log('Setting user ID cookie');
+          logger.log('User exists in backend, setting cookies');
           Cookies.set('user-id', data?.user?._id.toString());
+
+          // Create wallets in background (non-blocking)
+          logger.log('Creating wallets for existing user...');
+          createPrivyWallets().catch((error) => {
+            logger.error(
+              'Wallet creation error (non-blocking):',
+              error
+            );
+          });
+
+          // Prepare wallet data
+          const updatedWalletData = processWalletData(user);
+          setWalletData(updatedWalletData);
+
+          const payload = {
+            userId: data.user._id,
+            ethAddress: updatedWalletData?.find(
+              (wallet: any) => wallet?.isEVM
+            )?.address,
+            solanaAddress: updatedWalletData?.find(
+              (wallet: any) => !wallet?.isEVM
+            )?.address,
+          };
+
+          // Update wallet balances in background
+          createLoginWalletBalance(payload).catch((err) => {
+            logger.error('Error updating wallet balances:', err);
+          });
+
+          logger.log('Redirecting to home');
+          setIsRedirecting(true);
+          router.push('/');
         } else {
-          logger.error('No user ID found in API response');
-          setLoginError(
-            'Something went wrong while setting up your account.'
-          );
+          logger.error('Invalid user data from API');
           setIsLoading(false);
-          loginInitiated.current = false;
-          return;
+          setIsRedirecting(true);
+          router.push('/onboard');
         }
-
-        // Force wallet creation status to complete after 3 seconds
-        const forceCompleteWallets = setTimeout(() => {
-          setWalletsCreated({ ethereum: true, solana: true });
-        }, 3000);
-
-        // Use the wallet data we have at this point - don't wait forever
-        logger.log('Preparing wallet data for API...');
-        const updatedWalletData = processWalletData(user);
-        setWalletData(updatedWalletData);
-
-        const payload = {
-          userId: data.user._id,
-          ethAddress: updatedWalletData?.find(
-            (wallet: any) => wallet?.isEVM
-          )?.address,
-          solanaAddress: updatedWalletData?.find(
-            (wallet: any) => !wallet?.isEVM
-          )?.address,
-        };
-
-        logger.log(
-          'Updating wallet balances and redirecting to home'
-        );
-        setIsRedirecting(true);
-
-        try {
-          await createLoginWalletBalance(payload);
-        } catch (err) {
-          logger.error('Error updating wallet balances:', err);
-          // Continue with redirect even if wallet balance update fails
-        }
-
-        clearTimeout(forceCompleteWallets);
-        router.push('/');
       } catch (error) {
         logger.error('Error verifying user:', error);
-        setLoginError(
-          'An unexpected error occurred. Please try again.'
-        );
+        // On any error, redirect to onboard
         setIsLoading(false);
-        setIsRedirecting(false);
+        setIsRedirecting(true);
+        router.push('/onboard');
+      } finally {
         loginInitiated.current = false;
       }
     },
@@ -520,8 +538,6 @@ const Login: React.FC = () => {
       router,
       createPrivyWallets,
       processWalletData,
-      isLoading,
-      isRedirecting,
     ]
   );
 

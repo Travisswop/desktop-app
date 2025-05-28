@@ -25,6 +25,7 @@ const extractWalletInfo = (
 
 const Onboard: React.FC = () => {
   const { user, authenticated, ready } = usePrivy();
+  console.log('🚀 ~ user:', user);
   const [step, setStep] = useState(0);
   const [userData, setUserData] = useState({});
   const [isCreatingWallets, setIsCreatingWallets] = useState(false);
@@ -60,14 +61,11 @@ const Onboard: React.FC = () => {
     )?.email;
 
   // Function to create both Ethereum and Solana wallets
+  // Function to create both Ethereum and Solana wallets
   const createPrivyWallets = useCallback(async () => {
-    if (isCreatingWallets) return; // Prevent multiple simultaneous calls
-
     setIsCreatingWallets(true);
     try {
-      logger.log(
-        'Starting wallet creation process for onboarding...'
-      );
+      logger.log('Starting wallet creation process...');
 
       // Add authentication checks
       if (!authenticated) {
@@ -114,24 +112,10 @@ const Onboard: React.FC = () => {
             account.connectorType === 'embedded')
       );
 
-      logger.log('Wallet status:', {
-        hasEthereumWallet,
-        hasSolanaWallet,
-        walletsCreated,
-        userLinkedAccounts: user?.linkedAccounts?.length || 0,
-        userLinkedAccountsDetails:
-          user?.linkedAccounts?.map((acc: any) => ({
-            type: acc.type,
-            chainType: acc.chainType,
-            walletClientType: acc.walletClientType,
-            connectorType: acc.connectorType,
-          })) || [],
-      });
-
       // Create Ethereum wallet if needed
       if (!hasEthereumWallet && !walletsCreated.ethereum) {
         try {
-          logger.log('Creating Ethereum wallet...');
+          logger.log('Attempting to create Ethereum wallet...');
 
           // Double-check authentication before wallet creation
           if (!authenticated || !ready || !user) {
@@ -167,11 +151,17 @@ const Onboard: React.FC = () => {
             }
           );
 
-          logger.log('Ethereum wallet creation result:', result);
+          logger.log(
+            `Ethereum wallet creation result: ${JSON.stringify(
+              result
+            )}`
+          );
           setWalletsCreated((prev) => ({ ...prev, ethereum: true }));
           logger.log('Ethereum wallet creation complete');
         } catch (err) {
-          logger.error('Ethereum wallet creation error:', err);
+          logger.error(
+            `Ethereum wallet creation failed: ${JSON.stringify(err)}`
+          );
           // Don't mark as created if there was a real error
         }
       } else {
@@ -183,7 +173,7 @@ const Onboard: React.FC = () => {
       // Create Solana wallet if needed
       if (!hasSolanaWallet && !walletsCreated.solana) {
         try {
-          logger.log('Creating Solana wallet...');
+          logger.log('Attempting to create Solana wallet...');
 
           // Double-check authentication before wallet creation
           if (!authenticated || !ready || !user) {
@@ -218,7 +208,9 @@ const Onboard: React.FC = () => {
           setWalletsCreated((prev) => ({ ...prev, solana: true }));
           logger.log('Solana wallet creation complete');
         } catch (err) {
-          logger.error('Solana wallet creation error:', err);
+          logger.error(
+            `Solana wallet creation failed: ${JSON.stringify(err)}`
+          );
         }
       } else {
         logger.log(
@@ -227,57 +219,15 @@ const Onboard: React.FC = () => {
       }
 
       // Final status check
-      logger.log('Final wallet creation status:', {
-        walletsCreated,
-        userLinkedAccountsAfter: user?.linkedAccounts?.length || 0,
-        finalEthereumWallet:
-          (
-            user?.linkedAccounts?.find(
-              (acc: any) =>
-                acc.chainType === 'ethereum' &&
-                (acc.walletClientType === 'privy' ||
-                  acc.connectorType === 'embedded')
-            ) as any
-          )?.address || 'none',
-        finalSolanaWallet:
-          (
-            user?.linkedAccounts?.find(
-              (acc: any) =>
-                acc.chainType === 'solana' &&
-                (acc.walletClientType === 'privy' ||
-                  acc.connectorType === 'embedded')
-            ) as any
-          )?.address || 'none',
-      });
-
-      // Add a delay to allow Privy to update the user's linked accounts
-      await new Promise((resolve) => setTimeout(resolve, 1000));
-
-      // Re-check wallet status after delay
-      logger.log('Re-checking wallet status after delay...');
-      const updatedUser = user; // This should be the updated user from Privy
-
-      const finalEthereumWallet = updatedUser?.linkedAccounts?.find(
-        (acc: any) =>
-          acc.chainType === 'ethereum' &&
-          (acc.walletClientType === 'privy' ||
-            acc.connectorType === 'embedded')
+      logger.log(
+        `Final wallet creation status: ${JSON.stringify(
+          walletsCreated
+        )}`
       );
-
-      const finalSolanaWallet = updatedUser?.linkedAccounts?.find(
-        (acc: any) =>
-          acc.chainType === 'solana' &&
-          (acc.walletClientType === 'privy' ||
-            acc.connectorType === 'embedded')
-      );
-      logger.log('Final wallet check after delay:', {
-        ethereumWallet:
-          (finalEthereumWallet as any)?.address || 'none',
-        solanaWallet: (finalSolanaWallet as any)?.address || 'none',
-        totalLinkedAccounts: updatedUser?.linkedAccounts?.length || 0,
-      });
     } catch (error) {
-      logger.error('Error in wallet creation flow:', error);
+      logger.error(
+        `Error in wallet creation flow: ${JSON.stringify(error)}`
+      );
       // Still mark wallets as attempted to prevent infinite loops
       setWalletsCreated({ ethereum: true, solana: true });
     } finally {
@@ -290,7 +240,6 @@ const Onboard: React.FC = () => {
     createEthereumWallet,
     createSolanaWallet,
     walletsCreated,
-    isCreatingWallets,
   ]);
 
   // Check if user needs wallets and create them
@@ -311,27 +260,14 @@ const Onboard: React.FC = () => {
             account.connectorType === 'embedded')
       );
 
-      // If user doesn't have any wallets, create them
-      if (
-        (!hasEthereumWallet && !walletsCreated.ethereum) ||
-        (!hasSolanaWallet && !walletsCreated.solana)
-      ) {
-        logger.log(
-          'User missing wallets, initiating wallet creation...'
-        );
-        createPrivyWallets();
-      } else {
-        logger.log('User already has all required wallets');
-      }
+      // Log wallet status for debugging
+      logger.log('Wallet status check:', {
+        hasEthereumWallet,
+        hasSolanaWallet,
+        userLinkedAccounts: user?.linkedAccounts?.length || 0,
+      });
     }
-  }, [
-    authenticated,
-    ready,
-    user,
-    createPrivyWallets,
-    isCreatingWallets,
-    walletsCreated,
-  ]);
+  }, [authenticated, ready, user, isCreatingWallets]);
 
   const handleNextStep = (data: Partial<OnboardingData>) => {
     setUserData((prevData) => ({ ...prevData, ...data }));
@@ -371,6 +307,7 @@ const Onboard: React.FC = () => {
         step={step}
         onNextStep={handleNextStep}
         userData={userData}
+        createPrivyWallets={createPrivyWallets}
       />
     );
   }
@@ -381,10 +318,17 @@ const OnboardingFlow: React.FC<{
   step: number;
   onNextStep: (data: Partial<OnboardingData>) => void;
   userData: OnboardingData;
-}> = ({ user, step, onNextStep, userData }) => {
+  createPrivyWallets: () => Promise<void>;
+}> = ({ user, step, onNextStep, userData, createPrivyWallets }) => {
   switch (step) {
     case 0:
-      return <Registration user={user} onComplete={onNextStep} />;
+      return (
+        <Registration
+          user={user}
+          onComplete={onNextStep}
+          createPrivyWallets={createPrivyWallets}
+        />
+      );
     case 1:
       return (
         <SmartSiteInformation
