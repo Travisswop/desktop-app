@@ -1,13 +1,12 @@
 'use client';
 
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback } from 'react';
 import Registration from '@/components/onboard/Registration';
 import SmartSiteInformation from '@/components/onboard/SmartSiteInformation';
 import CreateSwopID from '@/components/onboard/CreateSwopID';
 import { OnboardingData, PrivyUser, WalletInfo } from '@/lib/types';
 import { usePrivy, useCreateWallet } from '@privy-io/react-auth';
 import { useSolanaWallets } from '@privy-io/react-auth/solana';
-import Loader from '@/components/loading/Loader';
 import logger from '@/utils/logger';
 
 // Helper function to safely extract wallet data
@@ -25,10 +24,9 @@ const extractWalletInfo = (
 
 const Onboard: React.FC = () => {
   const { user, authenticated, ready } = usePrivy();
-  console.log('🚀 ~ user:', user);
   const [step, setStep] = useState(0);
   const [userData, setUserData] = useState({});
-  const [isCreatingWallets, setIsCreatingWallets] = useState(false);
+
   const [walletsCreated, setWalletsCreated] = useState({
     ethereum: false,
     solana: false,
@@ -60,14 +58,10 @@ const Onboard: React.FC = () => {
       (account) => account.type === 'google_oauth'
     )?.email;
 
-  // Function to create both Ethereum and Solana wallets
-  // Function to create both Ethereum and Solana wallets
   const createPrivyWallets = useCallback(async () => {
-    setIsCreatingWallets(true);
     try {
       logger.log('Starting wallet creation process...');
 
-      // Add authentication checks
       if (!authenticated) {
         logger.error(
           'User is not authenticated - cannot create wallets'
@@ -89,12 +83,6 @@ const Onboard: React.FC = () => {
 
       logger.log(
         `Authentication status: authenticated=${authenticated}, ready=${ready}, user=${!!user}`
-      );
-
-      // Add a small delay to ensure authentication is fully propagated
-      await new Promise((resolve) => setTimeout(resolve, 500));
-      logger.log(
-        'Authentication delay complete, proceeding with wallet creation...'
       );
 
       // Check if user already has wallets
@@ -230,8 +218,6 @@ const Onboard: React.FC = () => {
       );
       // Still mark wallets as attempted to prevent infinite loops
       setWalletsCreated({ ethereum: true, solana: true });
-    } finally {
-      setIsCreatingWallets(false);
     }
   }, [
     authenticated,
@@ -242,49 +228,10 @@ const Onboard: React.FC = () => {
     walletsCreated,
   ]);
 
-  // Check if user needs wallets and create them
-  useEffect(() => {
-    if (authenticated && ready && user && !isCreatingWallets) {
-      // Check if user has any wallets
-      const hasEthereumWallet = user?.linkedAccounts.some(
-        (account: any) =>
-          account.chainType === 'ethereum' &&
-          (account.walletClientType === 'privy' ||
-            account.connectorType === 'embedded')
-      );
-
-      const hasSolanaWallet = user?.linkedAccounts.some(
-        (account: any) =>
-          account.chainType === 'solana' &&
-          (account.walletClientType === 'privy' ||
-            account.connectorType === 'embedded')
-      );
-
-      // Log wallet status for debugging
-      logger.log('Wallet status check:', {
-        hasEthereumWallet,
-        hasSolanaWallet,
-        userLinkedAccounts: user?.linkedAccounts?.length || 0,
-      });
-    }
-  }, [authenticated, ready, user, isCreatingWallets]);
-
   const handleNextStep = (data: Partial<OnboardingData>) => {
     setUserData((prevData) => ({ ...prevData, ...data }));
     setStep((prevStep) => prevStep + 1);
   };
-
-  // Show loading while creating wallets
-  if (isCreatingWallets) {
-    return (
-      <div className="flex flex-col items-center justify-center min-h-screen">
-        <Loader />
-        <p className="mt-4 text-sm text-gray-600">
-          Setting up your wallets...
-        </p>
-      </div>
-    );
-  }
 
   if (!user) {
     if (typeof window !== 'undefined') {

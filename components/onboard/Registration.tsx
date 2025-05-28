@@ -172,9 +172,6 @@ export default function Registration({
     try {
       if (createPrivyWallets) {
         await createPrivyWallets();
-
-        // Wait for Privy to update the user object and refresh wallet data
-        await new Promise((resolve) => setTimeout(resolve, 2000));
         refreshWalletData();
       }
 
