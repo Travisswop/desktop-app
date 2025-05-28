@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import Image from 'next/image';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -29,10 +29,11 @@ import editIcon from '@/public/images/websites/edit-icon.svg';
 import { useDisclosure } from '@nextui-org/react';
 import userProfileImages from '../util/data/userProfileImage';
 import SelectAvatorModal from '../modal/SelectAvatorModal';
-import { usePrivy } from '@privy-io/react-auth';
+import { useCreateWallet, usePrivy } from '@privy-io/react-auth';
 import { WalletItem } from '@/types/wallet';
 import { createWalletBalance } from '@/actions/createWallet';
 import logger from '@/utils/logger';
+import { useSolanaWallets } from '@privy-io/react-auth/solana';
 
 interface RegistrationProps {
   user: PrivyUser;
@@ -43,7 +44,6 @@ interface RegistrationProps {
 export default function Registration({
   user,
   onComplete,
-  createPrivyWallets,
 }: RegistrationProps) {
   const { toast } = useToast();
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -63,6 +63,20 @@ export default function Registration({
 
   const { isOpen, onOpen, onOpenChange } = useDisclosure();
   const { authenticated, ready, user: privyUser } = usePrivy();
+  const { wallets: solanaWallets, createWallet: createSolanaWallet } =
+    useSolanaWallets();
+  const { createWallet } = useCreateWallet({
+    onSuccess: ({ wallet }) => {
+      logger.info(
+        `Created wallet successfully: ${JSON.stringify(wallet)}`
+      );
+    },
+    onError: (error) => {
+      logger.error(
+        `Failed to create wallet with error: ${JSON.stringify(error)}`
+      );
+    },
+  });
 
   // Extract wallet data from Privy user
   useEffect(() => {
@@ -127,6 +141,126 @@ export default function Registration({
       setWalletData(linkedWallets as WalletItem[]);
     }
   };
+
+  const createPrivyWallets = useCallback(async () => {
+    try {
+      logger.info('Starting wallet creation process...');
+
+      // Add authentication checks
+      if (!authenticated) {
+        logger.error(
+          'User is not authenticated - cannot create wallets'
+        );
+        return;
+      }
+
+      if (!ready) {
+        logger.error('Privy is not ready - cannot create wallets');
+        return;
+      }
+
+      if (!user) {
+        logger.error(
+          'User object is not available - cannot create wallets'
+        );
+        return;
+      }
+
+      // Check if user already has wallets
+      const hasEthereumWallet = user?.linkedAccounts.some(
+        (account: any) =>
+          account.chainType === 'ethereum' &&
+          (account.walletClientType === 'privy' ||
+            account.connectorType === 'embedded')
+      );
+
+      const hasSolanaWallet = user?.linkedAccounts.some(
+        (account: any) =>
+          account.chainType === 'solana' &&
+          (account.walletClientType === 'privy' ||
+            account.connectorType === 'embedded')
+      );
+
+      // Create Ethereum wallet if needed
+      if (!hasEthereumWallet) {
+        try {
+          logger.info('Attempting to create Ethereum wallet...');
+
+          await createWallet().catch((error) => {
+            // Handle embedded_wallet_already_exists as a success case
+            if (
+              error === 'embedded_wallet_already_exists' ||
+              (error &&
+                typeof error === 'object' &&
+                'message' in error &&
+                error.message === 'embedded_wallet_already_exists')
+            ) {
+              logger.info(
+                'Ethereum wallet already exists, marking as created'
+              );
+              return { status: 'already_exists' };
+            }
+
+            throw error;
+          });
+
+          logger.info('Ethereum wallet creation complete');
+        } catch (err) {
+          logger.error(
+            `Ethereum wallet creation failed: ${JSON.stringify(err)}`
+          );
+          // Don't mark as created if there was a real error
+        }
+      } else {
+        logger.info(
+          'Skipping Ethereum wallet creation - already exists or already created'
+        );
+      }
+
+      // Create Solana wallet if needed
+      if (!hasSolanaWallet) {
+        try {
+          logger.info('Attempting to create Solana wallet...');
+
+          const result = await createSolanaWallet().catch((error) => {
+            if (
+              error === 'embedded_wallet_already_exists' ||
+              (error &&
+                typeof error === 'object' &&
+                'message' in error &&
+                error.message === 'embedded_wallet_already_exists')
+            ) {
+              logger.info(
+                'Solana wallet already exists, marking as created'
+              );
+              return { status: 'already_exists' };
+            }
+            logger.error(
+              `Solana wallet creation error: ${JSON.stringify(error)}`
+            );
+            throw error;
+          });
+
+          logger.info(
+            `Solana wallet creation result: ${JSON.stringify(result)}`
+          );
+          logger.info('Solana wallet creation complete');
+        } catch (err) {
+          logger.error(
+            `Solana wallet creation failed: ${JSON.stringify(err)}`
+          );
+        }
+      } else {
+        logger.info(
+          'Skipping Solana wallet creation - already exists or already created'
+        );
+      }
+    } catch (error) {
+      logger.error(
+        `Error in wallet creation flow: ${JSON.stringify(error)}`
+      );
+    }
+  }, [authenticated, ready, user, createWallet, createSolanaWallet]);
 
   const handleUserProfileModal = () => {
     onOpen();
