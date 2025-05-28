@@ -422,7 +422,7 @@ const Timeline = ({
                                   `/wallet?inputToken=${feed.content.inputToken.symbol}&outputToken=${feed.content.outputToken.symbol}&amount=${feed.content.inputToken.amount}`
                                 );
                               }}
-                              className="text-xs border border-gray-300 rounded px-3 py-0.5 font-medium hover:bg-gray-200"
+                              className="text-xs border border-gray-300 rounded px-3 py-1 font-medium hover:bg-gray-200"
                             >
                               Copy Trade
                             </button>
