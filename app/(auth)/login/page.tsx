@@ -181,56 +181,18 @@ const Login: React.FC = () => {
     []
   );
 
-  const { createWallet: createEthereumWallet } = useCreateWallet();
+  const { createWallet: createEthereumWallet } = useCreateWallet({
+    onSuccess: ({ wallet }) => {
+      logger.log('Ethereum wallet created:', wallet);
+    },
+    onError: (error) => {
+      throw error;
+    },
+  });
 
   // Use the specific hook for Solana wallets
-  const { wallets: solanaWallets, createWallet } = useSolanaWallets();
-
-  // Track createWallet function separately
-  const createSolanaWallet = useCallback(async () => {
-    try {
-      logger.log('Attempting to create Solana wallet');
-
-      // Check if there's already a Solana wallet
-      if (solanaWallets && solanaWallets.length > 0) {
-        logger.log(
-          'User already has a Solana wallet, skipping creation'
-        );
-        setWalletsCreated((prev) => ({ ...prev, solana: true }));
-        return;
-      }
-
-      // Attempt to create the wallet with explicit error handling
-      const result = await createWallet().catch((error) => {
-        // Handle embedded_wallet_already_exists as a success case
-        if (
-          error === 'embedded_wallet_already_exists' ||
-          (error &&
-            typeof error === 'object' &&
-            'message' in error &&
-            error.message === 'embedded_wallet_already_exists')
-        ) {
-          logger.log(
-            'Solana wallet already exists, marking as created'
-          );
-          return { status: 'already_exists' };
-        }
-        // Rethrow other errors
-        throw error;
-      });
-
-      logger.log('Solana wallet creation result:', result);
-      setWalletsCreated((prev) => ({ ...prev, solana: true }));
-    } catch (error) {
-      logger.error(
-        'Failed to create Solana wallet with error:',
-        error
-      );
-
-      // Don't mark as created if there was a real error
-      // This will allow the system to retry creation
-    }
-  }, [solanaWallets, createWallet]);
+  const { wallets: solanaWallets, createWallet: createSolanaWallet } =
+    useSolanaWallets();
 
   // Function to create both Ethereum and Solana wallets
   const createPrivyWallets = useCallback(async () => {
@@ -295,7 +257,18 @@ const Login: React.FC = () => {
       if (!hasSolanaWallet && !walletsCreated.solana) {
         try {
           logger.log('Creating Solana wallet...');
-          await createSolanaWallet();
+          await createSolanaWallet().catch((error) => {
+            if (
+              error === 'embedded_wallet_already_exists' ||
+              (error &&
+                typeof error === 'object' &&
+                'message' in error &&
+                error.message === 'embedded_wallet_already_exists')
+            ) {
+              return { status: 'already_exists' };
+            }
+            throw error;
+          });
 
           setWalletsCreated((prev) => ({ ...prev, solana: true }));
           logger.log('Solana wallet creation complete');
