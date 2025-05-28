@@ -321,12 +321,22 @@ class AuthMiddleware {
               // For onboard route, check if user exists in backend
               if (pathname === '/onboard') {
                 try {
+                  // Create abort controller for timeout
+                  const controller = new AbortController();
+                  const timeoutId = setTimeout(
+                    () => controller.abort(),
+                    5000
+                  );
+
                   const response = await fetch(
                     `${process.env.NEXT_PUBLIC_API_URL}/api/v2/desktop/user/getPrivyUser/${userId}`,
                     {
                       headers: { 'Content-Type': 'application/json' },
+                      signal: controller.signal,
                     }
                   );
+
+                  clearTimeout(timeoutId);
 
                   // If user exists in backend, redirect to home
                   if (response.ok) {
@@ -336,12 +346,21 @@ class AuthMiddleware {
                   else if (response.status === 404) {
                     return NextResponse.next();
                   }
+                  // For any other status code (500, 401, 403, etc.), allow them to stay on onboard
+                  // to prevent infinite redirects
+                  else {
+                    console.warn(
+                      `API returned status ${response.status} for user ${userId}, allowing onboard access`
+                    );
+                    return NextResponse.next();
+                  }
                 } catch (error) {
                   console.error(
                     'Error checking user in backend:',
                     error
                   );
-                  // On error, allow them to stay on onboard
+                  // On any error (network, timeout, etc.), allow them to stay on onboard
+                  // to prevent infinite redirects
                   return NextResponse.next();
                 }
               }

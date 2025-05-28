@@ -1,11 +1,13 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Registration from '@/components/onboard/Registration';
 import SmartSiteInformation from '@/components/onboard/SmartSiteInformation';
 import CreateSwopID from '@/components/onboard/CreateSwopID';
 import { OnboardingData, PrivyUser, WalletInfo } from '@/lib/types';
 import { usePrivy } from '@privy-io/react-auth';
+import { useRouter } from 'next/navigation';
+import Loader from '@/components/loading/Loader';
 
 // Helper function to safely extract wallet data
 const extractWalletInfo = (
@@ -21,7 +23,8 @@ const extractWalletInfo = (
 };
 
 const Onboard: React.FC = () => {
-  const { user } = usePrivy();
+  const { user, ready } = usePrivy();
+  const router = useRouter();
   const [step, setStep] = useState(0);
   const [userData, setUserData] = useState({});
 
@@ -39,30 +42,51 @@ const Onboard: React.FC = () => {
     setStep((prevStep) => prevStep + 1);
   };
 
-  if (!user) {
-    if (typeof window !== 'undefined') {
-      window.location.href = '/login'; // Redirect to login page if user is null
+  // Add effect to handle redirect after Privy is ready
+  useEffect(() => {
+    if (ready && !user) {
+      // Use Next.js router instead of window.location.href to prevent hard reload
+      router.push('/login');
     }
-    return null;
-  }
+  }, [ready, user, router]);
 
-  if (user) {
-    const privyUser: PrivyUser = {
-      ...user,
-      name: user?.google?.name || '',
-      email: email || '',
-      wallet: extractWalletInfo(user.wallet),
-    };
-
+  // Show loading while Privy is initializing
+  if (!ready) {
     return (
-      <OnboardingFlow
-        user={privyUser}
-        step={step}
-        onNextStep={handleNextStep}
-        userData={userData}
-      />
+      <div className="flex flex-col items-center justify-center min-h-screen">
+        <Loader />
+        <p className="mt-4 text-sm text-gray-600">Initializing...</p>
+      </div>
     );
   }
+
+  // Show loading while redirecting to login
+  if (!user) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-screen">
+        <Loader />
+        <p className="mt-4 text-sm text-gray-600">
+          Redirecting to login...
+        </p>
+      </div>
+    );
+  }
+
+  const privyUser: PrivyUser = {
+    ...user,
+    name: user?.google?.name || '',
+    email: email || '',
+    wallet: extractWalletInfo(user.wallet),
+  };
+
+  return (
+    <OnboardingFlow
+      user={privyUser}
+      step={step}
+      onNextStep={handleNextStep}
+      userData={userData}
+    />
+  );
 };
 
 const OnboardingFlow: React.FC<{

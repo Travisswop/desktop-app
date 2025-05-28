@@ -113,35 +113,39 @@ export function UserProvider({
 
   const fetchUserData = useCallback(
     async (userEmail: string) => {
-      if (
-        !userEmail ||
-        isFetchingRef.current ||
-        lastFetchedEmailRef.current === userEmail
-      ) {
+      if (isFetchingRef.current || !userEmail) {
         return;
       }
 
       isFetchingRef.current = true;
       lastFetchedEmailRef.current = userEmail;
+      setLoading(true);
+
+      // Set a timeout for the fetch request
+      const timeoutId = setTimeout(() => {
+        isFetchingRef.current = false;
+        setLoading(false);
+      }, 10000); // 10 seconds timeout
 
       try {
-        // Add timeout to prevent hanging requests
+        // Create abort controller for timeout
         const controller = new AbortController();
-        const timeoutId = setTimeout(
+        const abortTimeoutId = setTimeout(
           () => controller.abort(),
-          120000
-        ); // 120 seconds timeout
+          8000
+        );
 
         const response = await fetch(
           `${process.env.NEXT_PUBLIC_API_URL}/api/v2/desktop/user/${userEmail}`,
           {
-            signal: controller.signal,
             headers: {
               'Content-Type': 'application/json',
             },
+            signal: controller.signal,
           }
         );
 
+        clearTimeout(abortTimeoutId);
         clearTimeout(timeoutId);
 
         if (!response.ok) {
@@ -170,7 +174,10 @@ export function UserProvider({
             setUser(null);
             setAccessToken(null);
             await logout();
-            router.push('/login');
+            // Only redirect if not on onboard page to prevent conflicts
+            if (pathname !== '/onboard') {
+              router.push('/login');
+            }
             return;
           }
 
@@ -185,6 +192,9 @@ export function UserProvider({
               `Failed to fetch user data: ${response.statusText}`
             );
           }
+
+          // For excluded routes with non-404 errors, just return without throwing
+          return;
         }
 
         const data = await response.json();
@@ -225,6 +235,7 @@ export function UserProvider({
           setAccessToken(null);
         }
       } finally {
+        clearTimeout(timeoutId);
         setLoading(false);
         isFetchingRef.current = false;
       }
