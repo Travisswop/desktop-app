@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useMemo } from 'react';
 import { useUser } from '@/lib/UserContext';
 import {
   OrderData,
@@ -32,8 +32,11 @@ export const useOrderData = (orderId: string): UseOrderDataReturn => {
     ProcessingStage[]
   >([]);
 
+  // Memoize user ID to prevent unnecessary re-renders
+  const userId = useMemo(() => user?._id, [user?._id]);
+
   const fetchOrderDetails = useCallback(async () => {
-    if (!orderId || !accessToken || !user?._id) return;
+    if (!orderId || !accessToken || !userId) return;
 
     setIsLoading(true);
     setIsError(null);
@@ -62,6 +65,7 @@ export const useOrderData = (orderId: string): UseOrderDataReturn => {
 
       const { data } = await response.json();
       setOrder(data);
+      console.log('🚀 ~ fetchOrderDetails ~ data:', data);
 
       const nfts = data.mintedNfts.map((nft: any) => ({
         ...nft.nftTemplateId,
@@ -69,7 +73,7 @@ export const useOrderData = (orderId: string): UseOrderDataReturn => {
       }));
 
       setNfts(nfts);
-      setUserRole(user._id === data.seller.id ? 'seller' : 'buyer');
+      setUserRole(userId === data.seller.id ? 'seller' : 'buyer');
 
       const filterProcessing = data.processingStages.filter(
         (item: any) =>
@@ -90,20 +94,38 @@ export const useOrderData = (orderId: string): UseOrderDataReturn => {
     } finally {
       setIsLoading(false);
     }
-  }, [orderId, accessToken, user]);
+  }, [orderId, accessToken, userId]);
 
   useEffect(() => {
     fetchOrderDetails();
   }, [fetchOrderDetails]);
 
-  return {
-    order,
-    nfts,
-    userRole,
-    isLoading,
-    isError,
-    isCompleted,
-    processingStages,
-    refetchOrder: fetchOrderDetails,
-  };
+  // Memoize refetchOrder function to prevent unnecessary re-renders
+  const refetchOrder = useCallback(() => {
+    return fetchOrderDetails();
+  }, [fetchOrderDetails]);
+
+  // Memoize return value to prevent unnecessary re-renders
+  return useMemo(
+    () => ({
+      order,
+      nfts,
+      userRole,
+      isLoading,
+      isError,
+      isCompleted,
+      processingStages,
+      refetchOrder,
+    }),
+    [
+      order,
+      nfts,
+      userRole,
+      isLoading,
+      isError,
+      isCompleted,
+      processingStages,
+      refetchOrder,
+    ]
+  );
 };

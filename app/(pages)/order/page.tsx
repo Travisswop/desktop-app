@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { useUser } from '@/lib/UserContext';
 import { useQueryClient } from '@tanstack/react-query';
@@ -99,6 +99,22 @@ const OrderManagement = () => {
     refresh: false,
   });
 
+  // Debounce search input
+  const [searchInput, setSearchInput] = useState('');
+
+  // Memoize filter change handler
+  const handleFilterChange = useCallback(
+    (name: string, value: string | number) => {
+      setFilters((prev: OrderListFilters) => ({
+        ...prev,
+        [name]: value,
+        // Reset to page 1 when changing filters other than page
+        ...(name !== 'page' && { page: 1 }),
+      }));
+    },
+    []
+  );
+
   // Update role filter when tab changes
   useEffect(() => {
     setFilters((prev: OrderListFilters) => ({
@@ -108,8 +124,7 @@ const OrderManagement = () => {
     }));
   }, [activeTab]);
 
-  // Debounce search input
-  const [searchInput, setSearchInput] = useState('');
+  // Debounce search input with memoized handler
   useEffect(() => {
     const timer = setTimeout(() => {
       if (searchInput !== filters.search) {
@@ -118,7 +133,7 @@ const OrderManagement = () => {
     }, 500);
 
     return () => clearTimeout(timer);
-  }, [searchInput]);
+  }, [searchInput, filters.search, handleFilterChange]);
 
   const {
     data,
@@ -140,19 +155,8 @@ const OrderManagement = () => {
     }
   }, [data]);
 
-  const handleFilterChange = (
-    name: string,
-    value: string | number
-  ) => {
-    setFilters((prev: OrderListFilters) => ({
-      ...prev,
-      [name]: value,
-      // Reset to page 1 when changing filters other than page
-      ...(name !== 'page' && { page: 1 }),
-    }));
-  };
-
-  const resetFilters = () => {
+  // Memoize reset filters handler
+  const resetFilters = useCallback(() => {
     setFilters({
       role: activeTab === 'orders' ? 'seller' : 'buyer',
       status: '',
@@ -167,9 +171,10 @@ const OrderManagement = () => {
       refresh: false,
     });
     setSearchInput('');
-  };
+  }, [activeTab]);
 
-  const handleRefresh = async () => {
+  // Memoize refresh handler
+  const handleRefresh = useCallback(async () => {
     try {
       // Temporarily set refresh flag to add refresh=true to query parameters
       setFilters((prev: OrderListFilters) => ({
@@ -193,21 +198,22 @@ const OrderManagement = () => {
         refresh: false,
       }));
     }
-  };
+  }, [queryClient, refetch]);
 
-  // Format date with error handling
-  const formatDate = (dateString: string | number | Date): string => {
-    try {
-      return format(new Date(dateString), 'MMM dd, yyyy');
-    } catch (e) {
-      return String(dateString);
-    }
-  };
+  // Memoize format date function
+  const formatDate = useCallback(
+    (dateString: string | number | Date): string => {
+      try {
+        return format(new Date(dateString), 'MMM dd, yyyy');
+      } catch (e) {
+        return String(dateString);
+      }
+    },
+    []
+  );
 
-  /**
-   * Determine what to show in the "Order Status" column.
-   */
-  function getOrderStatus(order: Order) {
+  // Memoize order status function
+  const getOrderStatus = useCallback((order: Order) => {
     const {
       orderType,
       status: { payment, delivery, isDead },
@@ -246,42 +252,45 @@ const OrderManagement = () => {
       text: isDead ? 'Cancelled' : 'Active',
       variant: isDead ? 'destructive' : 'default',
     };
-  }
+  }, []);
 
-  // Status badge renderer
-  const StatusBadge = ({
-    status,
-    type,
-  }: {
-    status: string;
-    type: 'payment' | 'delivery';
-  }) => {
-    let colorClass = '';
-    const statusLower = status.toLowerCase();
+  // Memoize status badge component
+  const StatusBadge = useCallback(
+    ({
+      status,
+      type,
+    }: {
+      status: string;
+      type: 'payment' | 'delivery';
+    }) => {
+      let colorClass = '';
+      const statusLower = status.toLowerCase();
 
-    if (statusLower === 'completed') {
-      colorClass = 'bg-green-100 text-green-600';
-    } else if (
-      statusLower === 'pending' ||
-      statusLower === 'in progress'
-    ) {
-      colorClass = 'bg-yellow-100 text-yellow-600';
-    } else {
-      colorClass = 'bg-red-100 text-red-600';
-    }
+      if (statusLower === 'completed') {
+        colorClass = 'bg-green-100 text-green-600';
+      } else if (
+        statusLower === 'pending' ||
+        statusLower === 'in progress'
+      ) {
+        colorClass = 'bg-yellow-100 text-yellow-600';
+      } else {
+        colorClass = 'bg-red-100 text-red-600';
+      }
 
-    const displayStatus =
-      status.charAt(0).toUpperCase() + status.slice(1);
+      const displayStatus =
+        status.charAt(0).toUpperCase() + status.slice(1);
 
-    return (
-      <Badge
-        variant="outline"
-        className={`${colorClass} font-medium px-2 py-1`}
-      >
-        {displayStatus}
-      </Badge>
-    );
-  };
+      return (
+        <Badge
+          variant="outline"
+          className={`${colorClass} font-medium px-2 py-1`}
+        >
+          {displayStatus}
+        </Badge>
+      );
+    },
+    []
+  );
 
   const OrderSkeleton = () => (
     <div className="space-y-4 bg-white p-6 rounded-xl shadow animate-pulse">

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import { useUser } from '@/lib/UserContext';
 import { ShippingUpdateData } from '../types/order.types';
 
@@ -38,74 +38,88 @@ export const useShippingUpdate = (
       ...initialShippingData,
     });
 
-  const handleShippingUpdate = async (
-    orderId: string,
-    onSuccess?: () => void
-  ) => {
-    if (!orderId || !accessToken) return;
+  const handleShippingUpdate = useCallback(
+    async (orderId: string, onSuccess?: () => void) => {
+      if (!orderId || !accessToken) return;
 
-    setIsUpdating(true);
-    setUpdateError(null);
+      setIsUpdating(true);
+      setUpdateError(null);
 
-    try {
-      const API_URL = process.env.NEXT_PUBLIC_API_URL;
-      if (!API_URL) {
-        throw new Error('API base URL is not defined.');
-      }
-
-      const response = await fetch(
-        `${API_URL}/api/v5/orders/${orderId}/shipping`,
-        {
-          method: 'PUT',
-          headers: {
-            Authorization: `Bearer ${accessToken}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify(shippingData),
+      try {
+        const API_URL = process.env.NEXT_PUBLIC_API_URL;
+        if (!API_URL) {
+          throw new Error('API base URL is not defined.');
         }
-      );
 
-      const result = await response.json();
+        const response = await fetch(
+          `${API_URL}/api/v5/orders/${orderId}/shipping`,
+          {
+            method: 'PUT',
+            headers: {
+              Authorization: `Bearer ${accessToken}`,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(shippingData),
+          }
+        );
 
-      if (!response.ok) {
-        throw new Error(`${result.message}`);
+        const result = await response.json();
+
+        if (!response.ok) {
+          throw new Error(`${result.message}`);
+        }
+
+        setUpdateSuccess(
+          'Shipping information updated successfully!'
+        );
+
+        // Call success callback if provided
+        if (onSuccess) {
+          setTimeout(() => {
+            onSuccess();
+            setIsUpdateModalOpen(false);
+            setUpdateSuccess(null);
+          }, 2000);
+        }
+      } catch (error: any) {
+        console.error('Update Error:', error);
+        setUpdateError(
+          error.message || 'An unexpected error occurred.'
+        );
+      } finally {
+        setIsUpdating(false);
       }
+    },
+    [accessToken, shippingData]
+  );
 
-      setUpdateSuccess('Shipping information updated successfully!');
-
-      // Call success callback if provided
-      if (onSuccess) {
-        setTimeout(() => {
-          onSuccess();
-          setIsUpdateModalOpen(false);
-          setUpdateSuccess(null);
-        }, 2000);
-      }
-    } catch (error: any) {
-      console.error('Update Error:', error);
-      setUpdateError(
-        error.message || 'An unexpected error occurred.'
-      );
-    } finally {
-      setIsUpdating(false);
-    }
-  };
-
-  const resetUpdateState = () => {
+  const resetUpdateState = useCallback(() => {
     setUpdateError(null);
     setUpdateSuccess(null);
     setIsUpdating(false);
-  };
+  }, []);
 
-  return {
-    isUpdateModalOpen,
-    isUpdating,
-    updateError,
-    updateSuccess,
-    shippingData,
-    setIsUpdateModalOpen,
-    setShippingData,
-    handleShippingUpdate,
-    resetUpdateState,
-  };
+  // Memoize return value to prevent unnecessary re-renders
+  return useMemo(
+    () => ({
+      isUpdateModalOpen,
+      isUpdating,
+      updateError,
+      updateSuccess,
+      shippingData,
+      setIsUpdateModalOpen,
+      setShippingData,
+      handleShippingUpdate,
+      resetUpdateState,
+    }),
+    [
+      isUpdateModalOpen,
+      isUpdating,
+      updateError,
+      updateSuccess,
+      shippingData,
+      handleShippingUpdate,
+      resetUpdateState,
+    ]
+  );
 };
