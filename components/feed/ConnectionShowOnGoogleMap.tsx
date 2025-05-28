@@ -1,6 +1,7 @@
 "use client";
 
 import isUrl from "@/lib/isUrl";
+import { Popover, PopoverContent, PopoverTrigger } from "@nextui-org/react";
 import {
   Circle,
   GoogleMap,
@@ -9,6 +10,7 @@ import {
 } from "@react-google-maps/api";
 import clsx from "clsx";
 import Image from "next/image";
+import Link from "next/link";
 import { useEffect, useRef } from "react";
 
 interface Friend {
@@ -146,32 +148,69 @@ export default function ConnectionsShowOnGoogleMap({
                 mapPaneName={OverlayView.OVERLAY_MOUSE_TARGET}
               >
                 <div className="relative w-16 h-16">
-                  <div
-                    className={clsx(
-                      "rounded-full p-1 flex items-center justify-center shadow-lg border-4 transition-all duration-300 transform overflow-hidden",
-                      {
-                        "border-[#5E20FE] bg-blue-100 scale-110 z-50 absolute":
-                          isSelected,
-                        "border-purple-500 bg-purple-100":
-                          isNearby && !isSelected,
-                        "border-gray-300 bg-white": !isSelected && !isNearby,
-                      }
-                    )}
-                  >
-                    {connection?.childId?.profilePic && (
-                      <Image
-                        src={
-                          isUrl(connection?.childId?.profilePic)
-                            ? connection?.childId?.profilePic
-                            : `/images/user_avator/${connection?.childId?.profilePic}@3x.png`
-                        }
-                        alt="Profile"
-                        className="w-full h-full rounded-full object-cover"
-                        width={1200}
-                        height={700}
-                      />
-                    )}
-                  </div>
+                  <Popover placement="top" showArrow={true}>
+                    <PopoverTrigger>
+                      <div
+                        className={clsx(
+                          "rounded-full cursor-pointer p-1 flex items-center justify-center shadow-lg border-4 transition-all duration-300 transform overflow-hidden",
+                          {
+                            "border-[#5E20FE] bg-blue-100 scale-110 z-50 absolute":
+                              isSelected,
+                            "border-purple-500 bg-purple-100":
+                              isNearby && !isSelected,
+                            "border-gray-300 bg-white":
+                              !isSelected && !isNearby,
+                          }
+                        )}
+                      >
+                        {connection?.childId?.profilePic && (
+                          <Image
+                            src={
+                              isUrl(connection?.childId?.profilePic)
+                                ? connection?.childId?.profilePic
+                                : `/images/user_avator/${connection?.childId?.profilePic}@3x.png`
+                            }
+                            alt="Profile"
+                            className="w-full h-full rounded-full object-cover"
+                            width={1200}
+                            height={700}
+                          />
+                        )}
+                      </div>
+                    </PopoverTrigger>
+                    <PopoverContent>
+                      <div className="px-6 py-8 flex flex-col items-center gap-3">
+                        {connection?.childId?.profilePic && (
+                          <Image
+                            src={
+                              isUrl(connection?.childId?.profilePic)
+                                ? connection?.childId?.profilePic
+                                : `/images/user_avator/${connection?.childId?.profilePic}@3x.png`
+                            }
+                            alt="Profile"
+                            className="w-12 h-12 rounded-full "
+                            width={200}
+                            height={200}
+                          />
+                        )}
+                        <p className="text-base font-semibold">
+                          {connection?.childId?.name}
+                        </p>
+                        {connection?.childId?.ens ? (
+                          <Link
+                            href={`/sp/${connection.childId.ens}`}
+                            className="bg-gray-200 px-5 py-1.5 rounded font-semibold"
+                          >
+                            View
+                          </Link>
+                        ) : (
+                          <span className="bg-gray-200 px-5 py-1.5 rounded font-semibold text-gray-400 cursor-not-allowed">
+                            View
+                          </span>
+                        )}
+                      </div>
+                    </PopoverContent>
+                  </Popover>
 
                   {/* Glowing rings for spotlighted users */}
                   <div className="absolute inset-0 rounded-full animate-ping bg-indigo-500 opacity-30 z-[-1]" />
