@@ -101,6 +101,22 @@ export interface OrderData {
       country?: string;
     };
   };
+  // Payment information
+  paymentMethod?: 'stripe' | 'wallet';
+  stripePayment?: {
+    paymentIntentId?: string;
+    paymentMethod?: {
+      payment_type?: string;
+      brand?: string;
+      last4?: string;
+    };
+  };
+  walletPayment?: {
+    transactionHash?: string;
+    walletAddress?: string;
+    tokenSymbol?: string;
+    tokenAmount?: string;
+  };
 }
 
 export interface ShippingUpdateData {

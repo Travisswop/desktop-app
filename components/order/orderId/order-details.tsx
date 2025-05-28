@@ -1,33 +1,39 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, {
+  useState,
+  useEffect,
+  useCallback,
+  useMemo,
+} from 'react';
 import { useParams } from 'next/navigation';
 import { useUser } from '@/lib/UserContext';
-import { Card, CardBody } from '@nextui-org/react';
+import {
+  Card,
+  CardBody,
+  Modal,
+  ModalContent,
+  ModalHeader,
+  ModalBody,
+  ModalFooter,
+  Button,
+} from '@nextui-org/react';
 
 // Import modular components
 import { useOrderData } from './hooks/useOrderData';
 import { useShippingUpdate } from './hooks/useShippingUpdate';
+import { useDispute } from './hooks/useDispute';
+import { useOrderDisputes } from './hooks/useOrderDisputes';
 import { OrderHeader } from './components/OrderHeader';
 import { OrderItemsTable } from './components/OrderItemsTable';
 import { OrderTabs } from './components/OrderTabs';
 import { ShippingUpdateModal } from './components/ShippingUpdateModal';
+import { DisputeData } from './components/OrderDispute';
 import {
   LoadingState,
   ErrorState,
   NotFoundState,
 } from './components/LoadingState';
-
-/**
- * OrderPage Component - Modularized Order Details Page
- *
- * This component has been refactored to follow e-commerce best practices:
- * - Separated concerns into focused, reusable components
- * - Custom hooks for data fetching and state management
- * - Centralized types, constants, and utilities
- * - Improved performance with proper memoization
- * - Better error handling and loading states
- */
 
 export default function OrderPage() {
   const { accessToken } = useUser();
@@ -35,7 +41,11 @@ export default function OrderPage() {
   const orderId = params?.id as string;
 
   // State for selected tab
-  const [selectedTab, setSelectedTab] = useState('orderHistory');
+  const [selectedTab, setSelectedTab] = useState('paymentInfo');
+
+  // State for confirmation modal
+  const [isConfirmModalOpen, setIsConfirmModalOpen] = useState(false);
+  const [isConfirming, setIsConfirming] = useState(false);
 
   // Custom hooks for data and shipping management
   const {
@@ -49,6 +59,32 @@ export default function OrderPage() {
     refetchOrder,
   } = useOrderData(orderId);
 
+  // Dispute management hook
+  // const {
+  //   isSubmitting: isDisputeSubmitting,
+  //   error: disputeError,
+  //   success: disputeSuccess,
+  //   submitDispute,
+  //   resetState: resetDisputeState,
+  // } = useDispute();
+
+  // Disputes data hook for refund detection
+  const { disputes } = useOrderDisputes(orderId);
+
+  // Memoize initial shipping data to prevent unnecessary re-renders
+  const initialShippingData = useMemo(() => {
+    return order?.shipping
+      ? {
+          deliveryStatus: order.status.delivery,
+          trackingNumber: order.shipping.trackingNumber || '',
+          shippingProvider: order.shipping.provider || '',
+          estimatedDeliveryDate:
+            order.shipping.estimatedDeliveryDate || '',
+          additionalNotes: order.shipping.notes || '',
+        }
+      : undefined;
+  }, [order?.shipping, order?.status.delivery]);
+
   const {
     isUpdateModalOpen,
     isUpdating,
@@ -59,23 +95,18 @@ export default function OrderPage() {
     setShippingData,
     handleShippingUpdate,
     resetUpdateState,
-  } = useShippingUpdate(
-    order?.shipping
-      ? {
-          deliveryStatus: order.status.delivery,
-          trackingNumber: order.shipping.trackingNumber || '',
-          shippingProvider: order.shipping.provider || '',
-          estimatedDeliveryDate:
-            order.shipping.estimatedDeliveryDate || '',
-          additionalNotes: order.shipping.notes || '',
-        }
-      : undefined
-  );
+  } = useShippingUpdate(initialShippingData);
 
-  // Handle order completion
-  const handleOrderUpdate = async () => {
+  // Memoize callback functions to prevent unnecessary re-renders
+  const handleOrderUpdate = useCallback(() => {
+    setIsConfirmModalOpen(true);
+  }, []);
+
+  // Actual API call for order completion
+  const confirmOrderUpdate = useCallback(async () => {
     if (!orderId || !accessToken) return;
 
+    setIsConfirming(true);
     try {
       const API_URL = process.env.NEXT_PUBLIC_API_URL;
       if (!API_URL) {
@@ -100,19 +131,54 @@ export default function OrderPage() {
         throw new Error(`${result.message}`);
       }
 
-      // Refresh order details
+      // Close modal and refresh order details
+      setIsConfirmModalOpen(false);
       setTimeout(() => {
         refetchOrder();
       }, 2000);
     } catch (error: any) {
       console.error('Update Error:', error);
+    } finally {
+      setIsConfirming(false);
     }
-  };
+  }, [orderId, accessToken, refetchOrder]);
 
   // Handle shipping update with success callback
-  const handleShippingUpdateWithCallback = () => {
+  const handleShippingUpdateWithCallback = useCallback(() => {
     handleShippingUpdate(orderId, refetchOrder);
-  };
+  }, [handleShippingUpdate, orderId, refetchOrder]);
+
+  // Handle dispute submission
+  // const handleDisputeSubmit = useCallback(
+  //   async (disputeData: DisputeData) => {
+  //     try {
+  //       await submitDispute(orderId, disputeData);
+  //       // Refresh order data after successful dispute submission
+  //       setTimeout(() => {
+  //         refetchOrder();
+  //         resetDisputeState();
+  //       }, 2000);
+  //     } catch (error) {
+  //       // Error is already handled in the hook
+  //       console.error('Dispute submission failed:', error);
+  //     }
+  //   },
+  //   [submitDispute, orderId, refetchOrder, resetDisputeState]
+  // );
+
+  // Memoize modal close handlers
+  const handleConfirmModalClose = useCallback(() => {
+    setIsConfirmModalOpen(false);
+  }, []);
+
+  const handleUpdateModalClose = useCallback(() => {
+    setIsUpdateModalOpen(false);
+    resetUpdateState();
+  }, [setIsUpdateModalOpen, resetUpdateState]);
+
+  const handleUpdateShippingModalOpen = useCallback(() => {
+    setIsUpdateModalOpen(true);
+  }, [setIsUpdateModalOpen]);
 
   // Loading state
   if (isLoading) {
@@ -144,7 +210,8 @@ export default function OrderPage() {
           isCompleted={isCompleted}
           isUpdating={isUpdating}
           onMarkComplete={handleOrderUpdate}
-          onUpdateShipping={() => setIsUpdateModalOpen(true)}
+          onUpdateShipping={handleUpdateShippingModalOpen}
+          disputes={disputes}
         />
 
         <CardBody className="p-6">
@@ -152,14 +219,16 @@ export default function OrderPage() {
           <OrderItemsTable nfts={nfts} order={order} />
 
           {/* Tabs Section */}
-          <OrderTabs
+          {/* <OrderTabs
             order={order}
             nfts={nfts}
             processingStages={processingStages}
             userRole={userRole}
             selectedTab={selectedTab}
             onTabChange={setSelectedTab}
-          />
+            onDisputeSubmit={handleDisputeSubmit}
+            isDisputeSubmitting={isDisputeSubmitting}
+          /> */}
         </CardBody>
       </Card>
 
@@ -170,13 +239,96 @@ export default function OrderPage() {
         updateError={updateError}
         updateSuccess={updateSuccess}
         shippingData={shippingData}
-        onClose={() => {
-          setIsUpdateModalOpen(false);
-          resetUpdateState();
-        }}
+        onClose={handleUpdateModalClose}
         onUpdate={handleShippingUpdateWithCallback}
         onShippingDataChange={setShippingData}
       />
+
+      {/* Order Confirmation Modal */}
+      <Modal
+        isOpen={isConfirmModalOpen}
+        onOpenChange={setIsConfirmModalOpen}
+        backdrop="blur"
+      >
+        <ModalContent>
+          <ModalHeader>Confirm Order Receipt</ModalHeader>
+          <ModalBody>
+            <p>
+              By confirming receipt, you acknowledge that you have
+              received the order in satisfactory condition. This
+              action cannot be undone.
+            </p>
+          </ModalBody>
+          <ModalFooter>
+            <Button
+              color="danger"
+              variant="light"
+              onPress={handleConfirmModalClose}
+              disabled={isConfirming}
+            >
+              Cancel
+            </Button>
+            <Button
+              color="success"
+              onPress={confirmOrderUpdate}
+              isLoading={isConfirming}
+            >
+              Confirm Receipt
+            </Button>
+          </ModalFooter>
+        </ModalContent>
+      </Modal>
+
+      {/* Dispute Status Notifications */}
+      {/* {disputeSuccess && (
+        <Modal
+          isOpen={!!disputeSuccess}
+          onOpenChange={() => resetDisputeState()}
+          backdrop="blur"
+        >
+          <ModalContent>
+            <ModalHeader className="text-green-600">
+              Dispute Submitted Successfully
+            </ModalHeader>
+            <ModalBody>
+              <p>{disputeSuccess}</p>
+            </ModalBody>
+            <ModalFooter>
+              <Button
+                color="success"
+                onPress={() => resetDisputeState()}
+              >
+                OK
+              </Button>
+            </ModalFooter>
+          </ModalContent>
+        </Modal>
+      )}
+
+      {disputeError && (
+        <Modal
+          isOpen={!!disputeError}
+          onOpenChange={() => resetDisputeState()}
+          backdrop="blur"
+        >
+          <ModalContent>
+            <ModalHeader className="text-red-600">
+              Dispute Submission Failed
+            </ModalHeader>
+            <ModalBody>
+              <p>{disputeError}</p>
+            </ModalBody>
+            <ModalFooter>
+              <Button
+                color="danger"
+                onPress={() => resetDisputeState()}
+              >
+                OK
+              </Button>
+            </ModalFooter>
+          </ModalContent>
+        </Modal>
+      )} */}
     </div>
   );
 }

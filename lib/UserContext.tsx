@@ -7,6 +7,7 @@ import {
   useEffect,
   useCallback,
   useMemo,
+  useRef,
 } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { usePrivy } from '@privy-io/react-auth';
@@ -72,12 +73,17 @@ export function UserProvider({
 }) {
   const pathname = usePathname();
   const router = useRouter();
-  const { user: privyUser, ready, logout } = usePrivy(); // Added logout
+  const { user: privyUser, ready, logout } = usePrivy();
   const [user, setUser] = useState<UserData | null>(null);
   const [accessToken, setAccessToken] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
 
+  // Add refs to track fetch state and prevent infinite loops
+  const isFetchingRef = useRef(false);
+  const lastFetchedEmailRef = useRef<string | null>(null);
+
+  // Memoize email extraction to prevent re-renders
   const email = useMemo(() => {
     if (!privyUser) return null;
     return (
@@ -92,18 +98,24 @@ export function UserProvider({
     );
   }, [privyUser]);
 
+  // Memoize excluded routes to prevent re-creation
+  const excludedRoutes = useMemo(
+    () => ['/onboard', '/login', '/signup', '/welcome'],
+    []
+  );
+
   const fetchUserData = useCallback(
     async (userEmail: string) => {
-      if (!userEmail) return;
+      if (
+        !userEmail ||
+        isFetchingRef.current ||
+        lastFetchedEmailRef.current === userEmail
+      ) {
+        return;
+      }
 
-      // More comprehensive list of excluded routes
-      const excludedRoutes = [
-        '/onboard',
-        '/login',
-        '/signup',
-        '/welcome',
-        // Add any other signup/onboarding routes
-      ];
+      isFetchingRef.current = true;
+      lastFetchedEmailRef.current = userEmail;
 
       try {
         // Add timeout to prevent hanging requests
@@ -138,17 +150,23 @@ export function UserProvider({
             return;
           }
 
-          // Only handle redirection for specific error codes
-          // if (response.status === 401 || response.status === 403) {
-          //   // Clear user session and redirect to login
-          //   clearAllCookies();
-          //   await logout(); // Add logout from Privy
-          //   router.push('/login');
-          //   return;
-          // }
+          // Handle session expiration (401/403)
+          if (response.status === 401 || response.status === 403) {
+            console.log(
+              'Session expired, clearing user data and redirecting to login'
+            );
+            // Clear user session and redirect to login
+            clearAllCookies();
+            setUser(null);
+            setAccessToken(null);
+            await logout();
+            router.push('/login');
+            return;
+          }
 
           // For other non-excluded routes, throw an error
           if (
+            pathname &&
             !excludedRoutes.some((route) =>
               pathname.startsWith(route)
             )
@@ -187,6 +205,7 @@ export function UserProvider({
 
         // Only set error state if not on an excluded route
         if (
+          pathname &&
           !excludedRoutes.some((route) => pathname.startsWith(route))
         ) {
           setError(
@@ -197,36 +216,97 @@ export function UserProvider({
         }
       } finally {
         setLoading(false);
+        isFetchingRef.current = false;
       }
     },
-    [router, pathname] // Add logout to dependencies
+    [router, pathname, logout, excludedRoutes]
   );
+
+  // Memoize clearCache function to prevent re-renders
+  const clearCache = useCallback(() => {
+    setUser(null);
+    setAccessToken(null);
+    clearAllCookies();
+    lastFetchedEmailRef.current = null;
+    logout();
+  }, [logout]);
+
+  // Memoize refreshUser function to prevent re-renders
+  const refreshUser = useCallback(async () => {
+    if (email) {
+      lastFetchedEmailRef.current = null; // Reset to allow refetch
+      await fetchUserData(email);
+    }
+  }, [fetchUserData, email]);
 
   useEffect(() => {
     if (ready) {
-      if (email) {
+      if (email && email !== lastFetchedEmailRef.current) {
         fetchUserData(email);
-      } else {
+      } else if (!email) {
+        // If no email but we had a user before, the session might have expired
+        if (user) {
+          console.log(
+            'No email found but user exists, session may have expired'
+          );
+          setUser(null);
+          setAccessToken(null);
+          clearAllCookies();
+          lastFetchedEmailRef.current = null;
+          // Only redirect if not on excluded routes
+          if (
+            pathname &&
+            !excludedRoutes.some((route) =>
+              pathname.startsWith(route)
+            )
+          ) {
+            router.push('/login');
+          }
+        }
         setLoading(false);
       }
     }
-  }, [ready, email, fetchUserData]);
+  }, [
+    ready,
+    email,
+    fetchUserData,
+    user,
+    pathname,
+    router,
+    excludedRoutes,
+  ]);
 
+  // Add session validation effect
+  useEffect(() => {
+    // Check if user data exists but privyUser doesn't - this indicates session mismatch
+    if (ready && user && !privyUser) {
+      console.log(
+        'User data exists but Privy user is null, clearing session'
+      );
+      setUser(null);
+      setAccessToken(null);
+      clearAllCookies();
+      lastFetchedEmailRef.current = null;
+      if (
+        pathname &&
+        !excludedRoutes.some((route) => pathname.startsWith(route))
+      ) {
+        router.push('/login');
+      }
+    }
+  }, [ready, user, privyUser, pathname, router, excludedRoutes]);
+
+  // Memoize context value with stable references
   const contextValue = useMemo(
     () => ({
       user,
       loading,
       error,
-      refreshUser: () => fetchUserData(email || ''),
-      clearCache: () => {
-        setUser(null);
-        setAccessToken(null);
-        clearAllCookies();
-        logout(); // Add logout when clearing cache
-      },
+      refreshUser,
+      clearCache,
       accessToken,
     }),
-    [user, loading, error, fetchUserData, email, accessToken, logout]
+    [user, loading, error, refreshUser, clearCache, accessToken]
   );
 
   return (

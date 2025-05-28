@@ -440,18 +440,30 @@ export default function GuestOrderInfos() {
                     )}
 
                     {/* Payment Information */}
-                    {order.stripePayment && (
+                    {(order.stripePayment || order.paymentMethod) && (
                       <>
                         <Divider />
                         <div className="pt-2">
                           <h3 className="font-medium text-gray-800 mb-2">
                             Payment Information
                           </h3>
-                          {order.stripePayment.paymentMethod && (
+
+                          {/* Payment Method Type */}
+                          <div className="flex justify-between text-sm mb-2">
+                            <span className="text-gray-600">
+                              Payment Method
+                            </span>
+                            <span className="font-medium capitalize">
+                              {order.paymentMethod || 'Card'}
+                            </span>
+                          </div>
+
+                          {/* Stripe Payment Details */}
+                          {order.stripePayment?.paymentMethod && (
                             <>
                               <div className="flex justify-between text-sm">
                                 <span className="text-gray-600">
-                                  Payment Method
+                                  Card Type
                                 </span>
                                 <span className="font-medium capitalize">
                                   {order.stripePayment.paymentMethod
@@ -464,11 +476,66 @@ export default function GuestOrderInfos() {
                                     .brand || 'Card'}
                                 </span>
                                 <span className="font-medium">
-                                  ••••{' '}
+                                  •••• •••• ••••{' '}
                                   {order.stripePayment.paymentMethod
                                     ?.last4 || '****'}
                                 </span>
                               </div>
+                            </>
+                          )}
+
+                          {/* Payment Intent ID for Stripe */}
+                          {order.stripePayment?.paymentIntentId && (
+                            <div className="flex justify-between text-sm mt-1">
+                              <span className="text-gray-600">
+                                Payment ID
+                              </span>
+                              <span className="font-mono text-xs">
+                                {order.stripePayment.paymentIntentId.substring(
+                                  0,
+                                  15
+                                )}
+                                ...
+                              </span>
+                            </div>
+                          )}
+
+                          {/* Wallet Payment Details */}
+                          {order.walletPayment && (
+                            <>
+                              {order.walletPayment
+                                .transactionHash && (
+                                <div className="flex justify-between text-sm mt-1">
+                                  <span className="text-gray-600">
+                                    Transaction Hash
+                                  </span>
+                                  <span className="font-mono text-xs">
+                                    {order.walletPayment.transactionHash.substring(
+                                      0,
+                                      10
+                                    )}
+                                    ...
+                                  </span>
+                                </div>
+                              )}
+                              {order.walletPayment.tokenSymbol &&
+                                order.walletPayment.tokenAmount && (
+                                  <div className="flex justify-between text-sm mt-1">
+                                    <span className="text-gray-600">
+                                      Token Amount
+                                    </span>
+                                    <span className="font-medium">
+                                      {
+                                        order.walletPayment
+                                          .tokenAmount
+                                      }{' '}
+                                      {
+                                        order.walletPayment
+                                          .tokenSymbol
+                                      }
+                                    </span>
+                                  </div>
+                                )}
                             </>
                           )}
                         </div>

@@ -5,6 +5,10 @@ import {
   CreditCard as BillingIcon,
   MapPin,
   Truck,
+  User,
+  Wallet,
+  Mail,
+  Phone,
 } from 'lucide-react';
 import { OrderData, Customer } from '../types/order.types';
 import { formatAddress } from '../utils/order.utils';
@@ -41,7 +45,7 @@ const BillingDetailsSection: React.FC<BillingDetailsSectionProps> =
     const billingAddress = billing.address || {};
 
     return (
-      <Card className="w-full">
+      <Card className="w-full mt-4">
         <CardHeader className="pb-0">
           <div className="flex items-center">
             <BillingIcon className="mr-2" size={18} />
@@ -149,25 +153,32 @@ export const CustomerDetails: React.FC<CustomerDetailsProps> = memo(
     return (
       <>
         <Card className="w-full">
-          <CardBody className="p-6">
+          <CardHeader className="pb-3">
+            <h3 className="text-lg font-semibold">{title}</h3>
+          </CardHeader>
+          <CardBody className="pt-0">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <DetailItem
                 label="Customer Name"
                 value={customer?.name || 'Unknown Customer'}
+                icon={<User size={16} />}
               />
               {customer?.wallet?.ens && (
                 <DetailItem
                   label="Swop.ID"
                   value={customer.wallet.ens}
+                  icon={<Wallet size={16} />}
                 />
               )}
               <DetailItem
                 label="Email"
                 value={customer?.email || 'Unknown Email'}
+                icon={<Mail size={16} />}
               />
               <DetailItem
                 label="Phone Number"
                 value={customer?.phone || 'Not provided'}
+                icon={<Phone size={16} />}
               />
             </div>
           </CardBody>
