@@ -72,6 +72,7 @@ export function UserProvider({
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
+  console.log('🚀 ~ pathname:', pathname);
   const router = useRouter();
   const { user: privyUser, ready, logout } = usePrivy();
   const [user, setUser] = useState<UserData | null>(null);
@@ -100,7 +101,13 @@ export function UserProvider({
 
   // Memoize excluded routes to prevent re-creation
   const excludedRoutes = useMemo(
-    () => ['/onboard', '/login', '/signup', '/welcome'],
+    () => [
+      '/onboard',
+      '/login',
+      '/signup',
+      '/welcome',
+      '/debug-privy',
+    ],
     []
   );
 
@@ -241,6 +248,12 @@ export function UserProvider({
 
   useEffect(() => {
     if (ready) {
+      // Skip fetching user data if on debug-privy page
+      if (pathname && pathname.includes('/debug-privy')) {
+        setLoading(false);
+        return;
+      }
+
       if (email && email !== lastFetchedEmailRef.current) {
         fetchUserData(email);
       } else if (!email) {
