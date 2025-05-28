@@ -153,7 +153,10 @@ export function UserProvider({
           });
 
           if (response.status === 404) {
-            router.push('/onboard');
+            // Only redirect to onboard if not already on onboard or login page
+            if (pathname !== '/onboard' && pathname !== '/login') {
+              router.push('/onboard');
+            }
             return;
           }
 
@@ -254,7 +257,22 @@ export function UserProvider({
         return;
       }
 
+      // Skip fetching user data if on onboard page to prevent redirect loops
+      if (pathname === '/onboard') {
+        console.log(
+          'Skipping user data fetch on onboard page to prevent redirect loops'
+        );
+        setLoading(false);
+        return;
+      }
+
       if (email && email !== lastFetchedEmailRef.current) {
+        console.log(
+          'Fetching user data for email:',
+          email,
+          'on pathname:',
+          pathname
+        );
         fetchUserData(email);
       } else if (!email) {
         // If no email but we had a user before, the session might have expired

@@ -249,6 +249,33 @@ const Onboard: React.FC = () => {
             ) as any
           )?.address || 'none',
       });
+
+      // Add a delay to allow Privy to update the user's linked accounts
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+
+      // Re-check wallet status after delay
+      logger.log('Re-checking wallet status after delay...');
+      const updatedUser = user; // This should be the updated user from Privy
+
+      const finalEthereumWallet = updatedUser?.linkedAccounts?.find(
+        (acc: any) =>
+          acc.chainType === 'ethereum' &&
+          (acc.walletClientType === 'privy' ||
+            acc.connectorType === 'embedded')
+      );
+
+      const finalSolanaWallet = updatedUser?.linkedAccounts?.find(
+        (acc: any) =>
+          acc.chainType === 'solana' &&
+          (acc.walletClientType === 'privy' ||
+            acc.connectorType === 'embedded')
+      );
+      logger.log('Final wallet check after delay:', {
+        ethereumWallet:
+          (finalEthereumWallet as any)?.address || 'none',
+        solanaWallet: (finalSolanaWallet as any)?.address || 'none',
+        totalLinkedAccounts: updatedUser?.linkedAccounts?.length || 0,
+      });
     } catch (error) {
       logger.error('Error in wallet creation flow:', error);
       // Still mark wallets as attempted to prevent infinite loops

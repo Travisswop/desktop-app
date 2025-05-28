@@ -42,16 +42,8 @@ const Login: React.FC = () => {
 
   // Redirect authenticated users away from the login page
   useEffect(() => {
-    if (
-      authenticated &&
-      ready &&
-      user &&
-      !loginInitiated.current &&
-      !isLoading &&
-      !isRedirecting
-    ) {
-      router.push('/');
-    }
+    // Remove automatic redirect - let middleware handle this
+    // This prevents conflicts between login page and middleware routing
   }, [authenticated, ready, user, isLoading, isRedirecting, router]);
 
   const [walletData, setWalletData] = useState<WalletItem[] | null>(
