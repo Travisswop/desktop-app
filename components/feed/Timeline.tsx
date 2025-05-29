@@ -53,10 +53,10 @@ const Timeline = ({
   const { user } = useUser();
 
   useEffect(() => {
-    if (user) {
-      setSmartsiteId(user.primaryMicrosite);
+    if (user?.primaryMicrosite) {
+      setSmartsiteId(user?.primaryMicrosite || "");
     }
-  }, [user]);
+  }, [user?.primaryMicrosite]);
 
   /**
    * Helper function to render a transaction post
