@@ -292,6 +292,13 @@ export default function Registration({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    try {
+      await createWallet();
+    } catch (error) {
+      logger.info('error', error);
+    }
+    logger.info('user', user);
+    return;
     if (!name.trim()) {
       toast({
         variant: 'destructive',
@@ -304,8 +311,8 @@ export default function Registration({
     setIsSubmitting(true);
 
     try {
-      if (createPrivyWallets) {
-        await createPrivyWallets();
+      if (createWallet) {
+        await createWallet();
         refreshWalletData();
       }
 

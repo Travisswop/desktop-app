@@ -19,7 +19,6 @@ import swopLogo from '@/public/images/swop-logo.png';
 import { MdOutlineShoppingCart } from 'react-icons/md';
 import { useState, useMemo } from 'react';
 import { HiOutlineLogout } from 'react-icons/hi';
-import { usePrivy } from '@privy-io/react-auth';
 import { useUser } from '@/lib/UserContext';
 
 // First, create the base nav items without the Agent item
@@ -39,9 +38,9 @@ export default function Sidenav() {
   const [hideUpgradePlan, setHideUpgradePlan] = useState(true);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
 
-  const { user, clearCache } = useUser();
+  const { user } = useUser();
   const pathname = usePathname();
-  const { logout } = usePrivy();
+  const { logout } = useUser();
   const router = useRouter();
 
   // Create the final nav items array based on email
@@ -63,11 +62,11 @@ export default function Sidenav() {
 
     setIsLoggingOut(true);
     try {
-      // Clear user data first to prevent any state inconsistencies
-      clearCache();
+      // Use the logout function from UserContext which handles clearing user data
+      await logout();
 
-      // Perform logout and navigation in parallel for better performance
-      await Promise.all([logout(), router.replace('/login')]);
+      // Navigate to login page
+      router.replace('/login');
     } catch (error) {
       console.error('Logout failed:', error);
       // Revert loading state on error

@@ -40,315 +40,415 @@ export interface UserContextType {
   loading: boolean;
   error: Error | null;
   refreshUser: () => Promise<void>;
-  clearCache: () => void;
+  logout: () => Promise<void>;
+  isAuthenticated: boolean;
 }
 
-const UserContext = createContext<any>({
-  user: null,
-  accessToken: null,
-  loading: true,
-  error: null,
-  refreshUser: async () => {},
-  clearCache: () => {},
-});
+const UserContext = createContext<UserContextType | null>(null);
 
-const clearAllCookies = () => {
-  const cookies = [
+// Cookie management utilities
+const COOKIE_CONFIG = {
+  path: '/',
+  secure: process.env.NODE_ENV === 'production',
+  sameSite: 'strict' as const,
+  maxAge: 86400, // 24 hours
+};
+
+const setCookie = (
+  name: string,
+  value: string,
+  maxAge = COOKIE_CONFIG.maxAge
+) => {
+  const config = `${name}=${value}; path=${
+    COOKIE_CONFIG.path
+  }; max-age=${maxAge}; ${
+    COOKIE_CONFIG.secure ? 'secure; ' : ''
+  }samesite=${COOKIE_CONFIG.sameSite}`;
+  document.cookie = config;
+};
+
+const clearCookie = (name: string) => {
+  document.cookie = `${name}=; path=${
+    COOKIE_CONFIG.path
+  }; expires=Thu, 01 Jan 1970 00:00:00 GMT; ${
+    COOKIE_CONFIG.secure ? 'secure; ' : ''
+  }samesite=${COOKIE_CONFIG.sameSite}`;
+};
+
+const clearAllAuthCookies = () => {
+  const authCookies = [
     'privy-token',
     'privy-id-token',
     'privy-refresh-token',
     'access-token',
     'user-id',
   ];
-
-  cookies.forEach((cookie) => {
-    document.cookie = `${cookie}=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT; secure; samesite=strict`;
-  });
+  authCookies.forEach(clearCookie);
 };
+
+// Authentication states
+enum AuthState {
+  INITIALIZING = 'initializing',
+  CHECKING_BACKEND = 'checking_backend',
+  AUTHENTICATED = 'authenticated',
+  UNAUTHENTICATED = 'unauthenticated',
+  ERROR = 'error',
+}
 
 export function UserProvider({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  const pathname = usePathname();
-  console.log('🚀 ~ pathname:', pathname);
-  const router = useRouter();
-  const { user: privyUser, ready, logout } = usePrivy();
+  // State management
   const [user, setUser] = useState<UserData | null>(null);
   const [accessToken, setAccessToken] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
+  const [authState, setAuthState] = useState<AuthState>(
+    AuthState.INITIALIZING
+  );
 
-  // Add refs to track fetch state and prevent infinite loops
-  const isFetchingRef = useRef(false);
+  // Hooks
+  const router = useRouter();
+  const pathname = usePathname();
+  const {
+    user: privyUser,
+    ready,
+    logout: privyLogout,
+    authenticated,
+  } = usePrivy();
+
+  // Refs for preventing race conditions
+  const fetchInProgressRef = useRef(false);
+  const abortControllerRef = useRef<AbortController | null>(null);
   const lastFetchedEmailRef = useRef<string | null>(null);
 
-  // Memoize email extraction to prevent re-renders
-  const email = useMemo(() => {
-    if (!privyUser) return null;
-    return (
-      privyUser.google?.email ||
-      privyUser.email?.address ||
-      privyUser.linkedAccounts?.find(
-        (account) => account.type === 'email'
-      )?.address ||
-      privyUser.linkedAccounts?.find(
-        (account) => account.type === 'google_oauth'
-      )?.email
-    );
-  }, [privyUser]);
-
-  // Memoize excluded routes to prevent re-creation
-  const excludedRoutes = useMemo(
+  // Constants
+  const PUBLIC_ROUTES = useMemo(
     () => [
-      '/onboard',
       '/login',
       '/signup',
+      '/onboard',
       '/welcome',
       '/debug-privy',
     ],
     []
   );
 
+  const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL;
+
+  // Helper functions
+  const extractEmailFromPrivyUser = useCallback(
+    (privyUser: any): string | null => {
+      if (!privyUser) return null;
+
+      return (
+        privyUser.google?.email ||
+        privyUser.email?.address ||
+        privyUser.linkedAccounts?.find(
+          (acc: any) => acc.type === 'email'
+        )?.address ||
+        privyUser.linkedAccounts?.find(
+          (acc: any) => acc.type === 'google_oauth'
+        )?.email ||
+        null
+      );
+    },
+    []
+  );
+
+  const isPublicRoute = useCallback(
+    (path: string | null): boolean => {
+      if (!path) return false;
+      return PUBLIC_ROUTES.some((route) => path.startsWith(route));
+    },
+    [PUBLIC_ROUTES]
+  );
+
+  // Clear user session
+  const clearUserSession = useCallback(() => {
+    setUser(null);
+    setAccessToken(null);
+    setError(null);
+    clearAllAuthCookies();
+    lastFetchedEmailRef.current = null;
+    setAuthState(AuthState.UNAUTHENTICATED);
+  }, []);
+
+  // Fetch user data from backend
   const fetchUserData = useCallback(
-    async (userEmail: string) => {
-      if (isFetchingRef.current || !userEmail) {
-        return;
+    async (email: string): Promise<boolean> => {
+      if (!email || !API_BASE_URL) {
+        console.error('Missing email or API URL');
+        return false;
       }
 
-      isFetchingRef.current = true;
-      lastFetchedEmailRef.current = userEmail;
-      setLoading(true);
+      // Prevent concurrent requests
+      if (fetchInProgressRef.current) {
+        console.log('Fetch already in progress, skipping');
+        return false;
+      }
 
-      // Set a timeout for the fetch request
-      const timeoutId = setTimeout(() => {
-        isFetchingRef.current = false;
-        setLoading(false);
-      }, 10000); // 10 seconds timeout
+      // Skip if we already fetched for this email
+      if (lastFetchedEmailRef.current === email && user) {
+        console.log('User data already fetched for this email');
+        return true;
+      }
+
+      fetchInProgressRef.current = true;
+      setAuthState(AuthState.CHECKING_BACKEND);
 
       try {
-        // Create abort controller for timeout
-        const controller = new AbortController();
-        const abortTimeoutId = setTimeout(
-          () => controller.abort(),
-          8000
-        );
+        // Cancel any existing request
+        if (abortControllerRef.current) {
+          abortControllerRef.current.abort();
+        }
+
+        // Create new abort controller
+        abortControllerRef.current = new AbortController();
+        const timeoutId = setTimeout(() => {
+          abortControllerRef.current?.abort();
+        }, 10000); // 10 second timeout
 
         const response = await fetch(
-          `${process.env.NEXT_PUBLIC_API_URL}/api/v2/desktop/user/${userEmail}`,
+          `${API_BASE_URL}/api/v2/desktop/user/${email}`,
           {
             headers: {
               'Content-Type': 'application/json',
             },
-            signal: controller.signal,
+            signal: abortControllerRef.current.signal,
           }
         );
 
-        clearTimeout(abortTimeoutId);
         clearTimeout(timeoutId);
 
         if (!response.ok) {
-          // More detailed logging
-          console.error('Fetch user data response:', {
-            status: response.status,
-            statusText: response.statusText,
-            currentPathname: pathname,
-          });
-
           if (response.status === 404) {
-            // Only redirect to onboard if not already on onboard or login page
-            if (pathname !== '/onboard' && pathname !== '/login') {
+            console.log('User not found in backend');
+            clearUserSession();
+
+            // Only redirect if not already on public route
+            if (!isPublicRoute(pathname)) {
               router.push('/onboard');
             }
-            return;
+            return false;
           }
 
-          // Handle session expiration (401/403)
           if (response.status === 401 || response.status === 403) {
-            console.log(
-              'Session expired, clearing user data and redirecting to login'
-            );
-            // Clear user session and redirect to login
-            clearAllCookies();
-            setUser(null);
-            setAccessToken(null);
-            await logout();
-            // Only redirect if not on onboard page to prevent conflicts
-            if (pathname !== '/onboard') {
+            console.log('Authentication failed, clearing session');
+            clearUserSession();
+            await privyLogout();
+
+            if (!isPublicRoute(pathname)) {
               router.push('/login');
             }
-            return;
+            return false;
           }
 
-          // For other non-excluded routes, throw an error
-          if (
-            pathname &&
-            !excludedRoutes.some((route) =>
-              pathname.startsWith(route)
-            )
-          ) {
-            throw new Error(
-              `Failed to fetch user data: ${response.statusText}`
-            );
-          }
-
-          // For excluded routes with non-404 errors, just return without throwing
-          return;
+          throw new Error(
+            `HTTP ${response.status}: ${response.statusText}`
+          );
         }
 
         const data = await response.json();
-
         const { user: userData, token } = data;
 
         if (!userData || !token) {
-          throw new Error('Invalid response data');
+          throw new Error('Invalid response structure');
         }
 
+        // Update state
         setUser(userData);
         setAccessToken(token);
-
-        // More secure cookie setting
-        document.cookie = `access-token=${token}; path=/; secure; samesite=strict; max-age=86400`;
-        document.cookie = `user-id=${userData._id}; path=/; secure; samesite=strict; max-age=86400`;
-
         setError(null);
+        setAuthState(AuthState.AUTHENTICATED);
+        lastFetchedEmailRef.current = email;
+
+        // Set cookies
+        setCookie('access-token', token);
+        setCookie('user-id', userData._id);
+
+        console.log('User data fetched successfully');
+        return true;
       } catch (err) {
         console.error('Error fetching user data:', err);
 
-        // More granular error handling
+        // Handle specific errors
         if (err instanceof Error) {
           if (err.name === 'AbortError') {
-            console.error('Request timed out');
+            console.log('Request was cancelled');
+            return false;
           }
+          setError(err);
+        } else {
+          setError(new Error('Unknown error occurred'));
         }
 
-        // Only set error state if not on an excluded route
-        if (
-          pathname &&
-          !excludedRoutes.some((route) => pathname.startsWith(route))
-        ) {
-          setError(
-            err instanceof Error ? err : new Error('Unknown error')
-          );
-          setUser(null);
-          setAccessToken(null);
+        // Only clear session on actual errors, not on public routes
+        if (!isPublicRoute(pathname)) {
+          clearUserSession();
         }
+
+        return false;
       } finally {
-        clearTimeout(timeoutId);
-        setLoading(false);
-        isFetchingRef.current = false;
+        fetchInProgressRef.current = false;
+        abortControllerRef.current = null;
       }
     },
-    [router, pathname, logout, excludedRoutes]
+    [
+      API_BASE_URL,
+      user,
+      router,
+      pathname,
+      isPublicRoute,
+      clearUserSession,
+      privyLogout,
+    ]
   );
 
-  // Memoize clearCache function to prevent re-renders
-  const clearCache = useCallback(() => {
-    setUser(null);
-    setAccessToken(null);
-    clearAllCookies();
-    lastFetchedEmailRef.current = null;
-    logout();
-  }, [logout]);
+  // Logout function
+  const handleLogout = useCallback(async () => {
+    try {
+      // Cancel any ongoing requests
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
 
-  // Memoize refreshUser function to prevent re-renders
+      clearUserSession();
+      await privyLogout();
+      router.push('/login');
+    } catch (err) {
+      console.error('Error during logout:', err);
+      // Force clear even if logout fails
+      clearUserSession();
+      router.push('/login');
+    }
+  }, [clearUserSession, privyLogout, router]);
+
+  // Refresh user data
   const refreshUser = useCallback(async () => {
+    const email = extractEmailFromPrivyUser(privyUser);
     if (email) {
-      lastFetchedEmailRef.current = null; // Reset to allow refetch
+      lastFetchedEmailRef.current = null; // Reset to force refetch
       await fetchUserData(email);
     }
-  }, [fetchUserData, email]);
+  }, [privyUser, extractEmailFromPrivyUser, fetchUserData]);
 
+  // Main authentication effect
   useEffect(() => {
-    if (ready) {
-      // Skip fetching user data if on debug-privy page
-      if (pathname && pathname.includes('/debug-privy')) {
-        setLoading(false);
+    const handleAuthentication = async () => {
+      // Wait for Privy to be ready
+      if (!ready) {
+        setLoading(true);
         return;
       }
 
-      // Skip fetching user data if on onboard page to prevent redirect loops
-      if (pathname === '/onboard') {
-        console.log(
-          'Skipping user data fetch on onboard page to prevent redirect loops'
-        );
+      // Skip authentication on public routes
+      if (isPublicRoute(pathname)) {
         setLoading(false);
+        setAuthState(AuthState.UNAUTHENTICATED);
         return;
       }
 
-      if (email && email !== lastFetchedEmailRef.current) {
-        console.log(
-          'Fetching user data for email:',
-          email,
-          'on pathname:',
-          pathname
-        );
-        fetchUserData(email);
-      } else if (!email) {
-        // If no email but we had a user before, the session might have expired
-        if (user) {
-          console.log(
-            'No email found but user exists, session may have expired'
-          );
-          setUser(null);
-          setAccessToken(null);
-          clearAllCookies();
-          lastFetchedEmailRef.current = null;
-          // Only redirect if not on excluded routes
-          if (
-            pathname &&
-            !excludedRoutes.some((route) =>
-              pathname.startsWith(route)
-            )
-          ) {
-            router.push('/login');
-          }
+      // Check if user is authenticated with Privy
+      if (!authenticated || !privyUser) {
+        console.log('User not authenticated with Privy');
+        clearUserSession();
+        setLoading(false);
+        router.push('/login');
+        return;
+      }
+
+      // Extract email from Privy user
+      const email = extractEmailFromPrivyUser(privyUser);
+      if (!email) {
+        console.log('No email found in Privy user');
+        setError(new Error('No email found in account'));
+        setLoading(false);
+        router.push('/onboard');
+        return;
+      }
+
+      // Check if we need to fetch user data
+      if (lastFetchedEmailRef.current !== email || !user) {
+        console.log('Fetching user data for:', email);
+        const success = await fetchUserData(email);
+
+        if (success) {
+          setAuthState(AuthState.AUTHENTICATED);
         }
-        setLoading(false);
+      }
+
+      setLoading(false);
+    };
+
+    handleAuthentication();
+  }, [
+    ready,
+    authenticated,
+    privyUser,
+    pathname,
+    isPublicRoute,
+    extractEmailFromPrivyUser,
+    fetchUserData,
+    clearUserSession,
+    router,
+    user,
+  ]);
+
+  // Session validation effect
+  useEffect(() => {
+    // Validate session consistency
+    if (ready && user && !privyUser) {
+      console.log('Session mismatch detected, clearing user data');
+      clearUserSession();
+
+      if (!isPublicRoute(pathname)) {
+        router.push('/login');
       }
     }
   }, [
     ready,
-    email,
-    fetchUserData,
     user,
+    privyUser,
+    clearUserSession,
     pathname,
+    isPublicRoute,
     router,
-    excludedRoutes,
   ]);
 
-  // Add session validation effect
+  // Cleanup effect
   useEffect(() => {
-    // Check if user data exists but privyUser doesn't - this indicates session mismatch
-    if (ready && user && !privyUser) {
-      console.log(
-        'User data exists but Privy user is null, clearing session'
-      );
-      setUser(null);
-      setAccessToken(null);
-      clearAllCookies();
-      lastFetchedEmailRef.current = null;
-      if (
-        pathname &&
-        !excludedRoutes.some((route) => pathname.startsWith(route))
-      ) {
-        router.push('/login');
+    return () => {
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
       }
-    }
-  }, [ready, user, privyUser, pathname, router, excludedRoutes]);
+    };
+  }, []);
 
-  // Memoize context value with stable references
+  // Memoized context value
   const contextValue = useMemo(
     () => ({
       user,
+      accessToken,
       loading,
       error,
       refreshUser,
-      clearCache,
-      accessToken,
+      logout: handleLogout,
+      isAuthenticated:
+        authState === AuthState.AUTHENTICATED && !!user,
+      primaryMicrosite: user?.primaryMicrosite,
     }),
-    [user, loading, error, refreshUser, clearCache, accessToken]
+    [
+      user,
+      accessToken,
+      loading,
+      error,
+      refreshUser,
+      handleLogout,
+      authState,
+    ]
   );
 
   return (
