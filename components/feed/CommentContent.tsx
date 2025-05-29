@@ -67,7 +67,7 @@ const CommentContent = ({
 
   const { user, loading, error: userError }: any = useUser();
 
-  logger.log("user.primaryMicrosite", user.primaryMicrosite);
+  // logger.log("user?.primaryMicrosite", user?.primaryMicrosite);
   const MAX_LENGTH = 280;
 
   const handleCommentChange = (e: any) => {
@@ -86,7 +86,7 @@ const CommentContent = ({
 
   useEffect(() => {
     if (user) {
-      setSmartsiteId(user.primaryMicrosite);
+      setSmartsiteId(user?.primaryMicrosite);
     }
   }, [user]);
 
@@ -187,7 +187,7 @@ const CommentContent = ({
     };
     const payload = {
       postId,
-      smartsiteId: user.primaryMicrosite,
+      smartsiteId: user?.primaryMicrosite,
       commentText: commentPostContent,
       commentMedia: contentPayload,
     };
