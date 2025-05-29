@@ -60,13 +60,13 @@ export default function OrderPage() {
   } = useOrderData(orderId);
 
   // Dispute management hook
-  // const {
-  //   isSubmitting: isDisputeSubmitting,
-  //   error: disputeError,
-  //   success: disputeSuccess,
-  //   submitDispute,
-  //   resetState: resetDisputeState,
-  // } = useDispute();
+  const {
+    isSubmitting: isDisputeSubmitting,
+    error: disputeError,
+    success: disputeSuccess,
+    submitDispute,
+    resetState: resetDisputeState,
+  } = useDispute();
 
   // Disputes data hook for refund detection
   const { disputes } = useOrderDisputes(orderId);
@@ -149,22 +149,22 @@ export default function OrderPage() {
   }, [handleShippingUpdate, orderId, refetchOrder]);
 
   // Handle dispute submission
-  // const handleDisputeSubmit = useCallback(
-  //   async (disputeData: DisputeData) => {
-  //     try {
-  //       await submitDispute(orderId, disputeData);
-  //       // Refresh order data after successful dispute submission
-  //       setTimeout(() => {
-  //         refetchOrder();
-  //         resetDisputeState();
-  //       }, 2000);
-  //     } catch (error) {
-  //       // Error is already handled in the hook
-  //       console.error('Dispute submission failed:', error);
-  //     }
-  //   },
-  //   [submitDispute, orderId, refetchOrder, resetDisputeState]
-  // );
+  const handleDisputeSubmit = useCallback(
+    async (disputeData: DisputeData) => {
+      try {
+        await submitDispute(orderId, disputeData);
+        // Refresh order data after successful dispute submission
+        setTimeout(() => {
+          refetchOrder();
+          resetDisputeState();
+        }, 2000);
+      } catch (error) {
+        // Error is already handled in the hook
+        console.error('Dispute submission failed:', error);
+      }
+    },
+    [submitDispute, orderId, refetchOrder, resetDisputeState]
+  );
 
   // Memoize modal close handlers
   const handleConfirmModalClose = useCallback(() => {
@@ -219,7 +219,7 @@ export default function OrderPage() {
           <OrderItemsTable nfts={nfts} order={order} />
 
           {/* Tabs Section */}
-          {/* <OrderTabs
+          <OrderTabs
             order={order}
             nfts={nfts}
             processingStages={processingStages}
@@ -228,7 +228,7 @@ export default function OrderPage() {
             onTabChange={setSelectedTab}
             onDisputeSubmit={handleDisputeSubmit}
             isDisputeSubmitting={isDisputeSubmitting}
-          /> */}
+          />
         </CardBody>
       </Card>
 
@@ -280,7 +280,7 @@ export default function OrderPage() {
       </Modal>
 
       {/* Dispute Status Notifications */}
-      {/* {disputeSuccess && (
+      {disputeSuccess && (
         <Modal
           isOpen={!!disputeSuccess}
           onOpenChange={() => resetDisputeState()}
@@ -328,7 +328,7 @@ export default function OrderPage() {
             </ModalFooter>
           </ModalContent>
         </Modal>
-      )} */}
+      )}
     </div>
   );
 }

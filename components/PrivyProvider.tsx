@@ -7,10 +7,9 @@ export default function PrivyProvider({
 }: {
   children: React.ReactNode;
 }) {
-  const privyId = process.env.NEXT_PUBLIC_PRIVY_APP_ID;
   return (
     <Privy
-      appId={privyId as string}
+      appId={process.env.NEXT_PUBLIC_PRIVY_APP_ID as string}
       clientId={process.env.NEXT_PUBLIC_PRIVY_CLIENT_ID as string}
       config={{
         embeddedWallets: {
