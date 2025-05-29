@@ -1,5 +1,3 @@
-'use server';
-
 const API_URL = process.env.NEXT_PUBLIC_API_URL;
 
 export interface DisputeSubmissionData {
@@ -7,6 +5,7 @@ export interface DisputeSubmissionData {
   category: string;
   description: string;
   priority: 'low' | 'medium' | 'high';
+  documents?: File[];
 }
 
 export interface DisputeResponse {
@@ -102,30 +101,107 @@ export async function createOrderDispute(
   disputeData: DisputeSubmissionData,
   accessToken: string
 ): Promise<DisputeResponse> {
+  console.log('createOrderDispute called with:', {
+    orderId,
+    disputeData,
+    hasAccessToken: !!accessToken,
+  });
+
   try {
     if (!API_URL) {
+      console.error('API_URL is not defined');
       throw new Error('API base URL is not defined.');
     }
+
+    if (!orderId) {
+      console.error('orderId is missing');
+      throw new Error('Order ID is required.');
+    }
+
+    if (!accessToken) {
+      console.error('accessToken is missing');
+      throw new Error('Access token is required.');
+    }
+
+    if (!disputeData) {
+      console.error('disputeData is missing');
+      throw new Error('Dispute data is required.');
+    }
+
+    let requestBody: BodyInit;
+    const headers: Record<string, string> = {
+      Authorization: `Bearer ${accessToken}`,
+    };
+
+    // Check if files are present to determine request format
+    if (disputeData.documents && disputeData.documents.length > 0) {
+      console.log(
+        'Using FormData for file upload, files count:',
+        disputeData.documents.length
+      );
+      // Use FormData for file uploads
+      const formData = new FormData();
+      formData.append('reason', disputeData.reason);
+      formData.append('category', disputeData.category);
+      formData.append('description', disputeData.description);
+      formData.append('priority', disputeData.priority);
+
+      // Add documents
+      disputeData.documents.forEach((file, index) => {
+        console.log(
+          `Adding file ${index}:`,
+          file.name,
+          'size:',
+          file.size,
+          'type:',
+          file.type
+        );
+        formData.append('documents', file);
+      });
+
+      requestBody = formData;
+      // Don't set Content-Type for FormData - browser will set it with boundary
+    } else {
+      console.log('Using JSON format for text-only submission');
+      // Use JSON for text-only submissions
+      headers['Content-Type'] = 'application/json';
+      requestBody = JSON.stringify({
+        reason: disputeData.reason,
+        category: disputeData.category,
+        description: disputeData.description,
+        priority: disputeData.priority,
+      });
+    }
+
+    console.log(
+      'Making request to:',
+      `${API_URL}/api/v5/orders/${orderId}/dispute`
+    );
+    console.log('Request headers:', headers);
 
     const response = await fetch(
       `${API_URL}/api/v5/orders/${orderId}/dispute`,
       {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${accessToken}`,
-        },
-        body: JSON.stringify({
-          reason: disputeData.reason,
-          category: disputeData.category,
-          description: disputeData.description,
-          priority: disputeData.priority,
-        }),
+        headers,
+        body: requestBody,
       }
     );
 
+    console.log('Response status:', response.status);
+    console.log('Response ok:', response.ok);
+
     if (!response.ok) {
-      const errorData = await response.json();
+      let errorData;
+      try {
+        errorData = await response.json();
+        console.error('API error response:', errorData);
+      } catch (parseError) {
+        console.error('Failed to parse error response:', parseError);
+        errorData = {
+          message: `HTTP ${response.status}: ${response.statusText}`,
+        };
+      }
       return {
         success: false,
         message: errorData.message || 'Failed to submit dispute',
@@ -133,6 +209,8 @@ export async function createOrderDispute(
     }
 
     const result = await response.json();
+    console.log('Success response:', result);
+
     return {
       success: true,
       message:
@@ -142,10 +220,22 @@ export async function createOrderDispute(
     };
   } catch (error) {
     console.error('Error creating order dispute:', error);
-    return {
+    console.error(
+      'Error stack:',
+      error instanceof Error ? error.stack : 'No stack trace'
+    );
+
+    // Ensure we always return a proper response structure
+    const response: DisputeResponse = {
       success: false,
-      message: 'Failed to submit dispute. Please try again later.',
+      message:
+        error instanceof Error
+          ? error.message
+          : 'Failed to submit dispute. Please try again later.',
     };
+
+    console.log('Returning error response:', response);
+    return response;
   }
 }
 
@@ -185,6 +275,7 @@ export async function getOrderDisputes(
     }
 
     const result = await response.json();
+    console.log('🚀 ~ result:', result);
     return {
       success: true,
       disputes: result.data || [],

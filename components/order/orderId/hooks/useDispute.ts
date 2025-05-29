@@ -25,7 +25,13 @@ export const useDispute = (): UseDisputeReturn => {
       orderId: string,
       disputeData: DisputeData
     ): Promise<void> => {
+      console.log('submitDispute called with:', {
+        orderId,
+        disputeData,
+      });
+
       if (!accessToken) {
+        console.error('No access token available');
         throw new Error('Authentication required');
       }
 
@@ -34,28 +40,55 @@ export const useDispute = (): UseDisputeReturn => {
       setSuccess(null);
 
       try {
+        console.log('Calling createOrderDispute...');
         const result = await createOrderDispute(
           orderId,
           disputeData,
           accessToken
         );
 
-        console.log('result', result);
+        console.log('createOrderDispute result:', result);
 
-        if (!result.success) {
-          throw new Error(result.message);
+        // Check if result is undefined or null
+        if (!result) {
+          console.error('createOrderDispute returned undefined/null');
+          throw new Error(
+            'Failed to submit dispute - no response received'
+          );
         }
 
+        // Check if result has the expected structure
+        if (typeof result.success === 'undefined') {
+          console.error(
+            'createOrderDispute returned invalid structure:',
+            result
+          );
+          throw new Error(
+            'Failed to submit dispute - invalid response format'
+          );
+        }
+
+        if (!result.success) {
+          console.error('Dispute submission failed:', result.message);
+          throw new Error(
+            result.message || 'Failed to submit dispute'
+          );
+        }
+
+        console.log('Dispute submitted successfully');
         setSuccess(
           result.message ||
             'Dispute submitted successfully! Our team will review it and contact you soon.'
         );
       } catch (error: any) {
         console.error('Error submitting dispute:', error);
-        setError(
-          error.message ||
-            'Failed to submit dispute. Please try again later.'
-        );
+        console.error('Error type:', typeof error);
+        console.error('Error message:', error?.message);
+
+        const errorMessage =
+          error?.message ||
+          'Failed to submit dispute. Please try again later.';
+        setError(errorMessage);
         throw error;
       } finally {
         setIsSubmitting(false);

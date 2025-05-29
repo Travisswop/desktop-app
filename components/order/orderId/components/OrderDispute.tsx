@@ -198,6 +198,7 @@ export const OrderDispute: React.FC<OrderDisputeProps> = ({
           order.orderId,
           accessToken
         );
+        console.log('result', result);
         if (result.success && result.disputes) {
           setDisputes(result.disputes);
           // Show form only if no disputes exist
@@ -441,16 +442,6 @@ export const OrderDispute: React.FC<OrderDisputeProps> = ({
                   Your Disputes
                 </h3>
               </div>
-              {!showForm && (
-                <Button
-                  size="sm"
-                  color="primary"
-                  variant="light"
-                  onPress={() => setShowForm(true)}
-                >
-                  Submit New Dispute
-                </Button>
-              )}
             </div>
           </CardHeader>
           <CardBody className="pt-0 space-y-4">
