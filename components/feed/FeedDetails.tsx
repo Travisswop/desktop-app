@@ -11,10 +11,14 @@ import Link from "next/link";
 import { FiPlusCircle } from "react-icons/fi";
 import Reaction from "./view/Reaction";
 import IndividualFeedContentForFeedDetails from "./IndividualFeedContentForFeedDetails";
+import done from "@/public/images/done.png";
+import { IoMdSwap } from "react-icons/io";
+import { useRouter } from "next/navigation";
 
 dayjs.extend(relativeTime);
 
 const FeedDetails = ({ feedData, feedDetails, accessToken }: any) => {
+  const router = useRouter();
   const renderTransactionContent = (feed: any) => {
     const {
       transaction_type,
@@ -245,112 +249,112 @@ const FeedDetails = ({ feedData, feedDetails, accessToken }: any) => {
                         padding: 0,
                       }}
                     >
-                      <div className="flex flex-col gap-3 border rounded-xl p-4 bg-white hover:bg-gray-50 transition-colors shadow-sm">
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-2">
-                            <div className="relative flex items-center">
-                              <Image
-                                src={
-                                  feedData.content.inputToken.tokenImg.startsWith(
-                                    "https"
-                                  )
-                                    ? feedData.content.inputToken.tokenImg
-                                    : `/assets/crypto-icons/${feedData.content.inputToken.symbol}.png`
-                                }
-                                alt={feedData.content.inputToken.symbol}
-                                width={120}
-                                height={120}
-                                className="w-10 h-10 rounded-full border-2 border-white shadow-sm z-10"
-                              />
-                              <Image
-                                src={
-                                  feedData.content.outputToken.tokenImg.startsWith(
-                                    "https"
-                                  )
-                                    ? feedData.content.outputToken.tokenImg
-                                    : `/assets/crypto-icons/${feedData.content.outputToken.symbol.toLowerCase()}.png`
-                                }
-                                alt={feedData.content.outputToken.symbol}
-                                width={120}
-                                height={120}
-                                className="w-10 h-10 rounded-full border-2 border-white shadow-sm -ml-4 z-20"
-                              />
+                      <div className="flex flex-col items-center gap-3 p-4 bg-white hover:bg-gray-50 transition-colors shadow-small rounded-xl">
+                        <div className="flex flex-col items-center">
+                          <Image
+                            src={done}
+                            alt="done-image"
+                            unoptimized
+                            quality={100}
+                            className="w-24 h-24"
+                          />
+                          <div>
+                            <h3 className="font-semibold">Swapped!</h3>
+                            <div className="text-sm text-gray-700">
+                              <p>Transaction completed, you can</p>
+                              <p>
+                                see more details in{" "}
+                                <a
+                                  className="text-[#B396FF] font-medium"
+                                  onClick={(e) => e.stopPropagation()}
+                                  href={`https://solscan.io/tx/${feedData.content.signature}`}
+                                  target="_blank"
+                                >
+                                  Trade History
+                                </a>
+                              </p>
                             </div>
                           </div>
-                          <div className="flex flex-col items-end">
-                            <p className="text-sm text-gray-500">
-                              Swap Transaction
-                            </p>
-                            <p className="text-xs text-gray-400">
-                              {dayjs(feedData.createdAt).format(
-                                "MMM D, YYYY h:mm A"
-                              )}
-                            </p>
-                          </div>
                         </div>
-
-                        <div className="flex items-center justify-between">
-                          <div className="flex flex-col">
-                            <p className="text-sm text-gray-600">You sent</p>
-                            <p className="text-base font-semibold text-red-600">
-                              {Number(
-                                feedData.content.inputToken.amount
-                              ).toFixed(2)}{" "}
-                              {feedData.content.inputToken.symbol}
-                            </p>
-                          </div>
-                          <svg
-                            className="w-6 h-6 text-gray-400"
-                            fill="none"
-                            stroke="currentColor"
-                            viewBox="0 0 24 24"
-                          >
-                            <path
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                              strokeWidth="2"
-                              d="M17 8l4 4m0 0l-4 4m4-4H3"
+                        <div className="flex gap-6 items-center justify-between">
+                          <div className="flex items-center gap-1">
+                            <Image
+                              src={
+                                feedData.content.inputToken.tokenImg.startsWith(
+                                  "https"
+                                )
+                                  ? feedData.content.inputToken.tokenImg
+                                  : `/assets/crypto-icons/${feedData.content.inputToken.symbol}.png`
+                              }
+                              alt={feedData.content.inputToken.symbol}
+                              width={120}
+                              height={120}
+                              className="w-10 h-10 rounded-full border-2 border-white shadow-sm z-10"
                             />
-                          </svg>
-                          <div className="flex flex-col items-end">
-                            <p className="text-sm text-gray-600">
-                              You received
-                            </p>
-                            <p className="text-base font-semibold text-green-600">
-                              {Number(
-                                feedData.content.outputToken.amount
-                              ).toFixed(2)}{" "}
-                              {feedData.content.outputToken.symbol}
-                            </p>
+                            <div className="flex flex-col">
+                              <p className="text-xs text-gray-600 font-medium text-start">
+                                Send
+                              </p>
+                              <p className="text-base font-semibold text-red-600">
+                                {Number(
+                                  feedData.content.inputToken.amount
+                                ).toFixed(2)}{" "}
+                                {feedData.content.inputToken.symbol}
+                              </p>
+                            </div>
+                          </div>
+                          <IoMdSwap size={20} />
+                          <div className="flex items-center gap-1">
+                            <Image
+                              src={
+                                feedData.content.outputToken.tokenImg.startsWith(
+                                  "https"
+                                )
+                                  ? feedData.content.outputToken.tokenImg
+                                  : `/assets/crypto-icons/${feedData.content.outputToken.symbol}.png`
+                              }
+                              alt={feedData.content.outputToken.symbol}
+                              width={120}
+                              height={120}
+                              className="w-10 h-10 rounded-full border-2 border-white shadow-sm"
+                            />
+                            <div>
+                              <p className="text-xs text-gray-600 font-medium text-start">
+                                Received
+                              </p>
+                              <p className="text-base font-semibold text-green-600">
+                                {Number(
+                                  feedData.content.outputToken.amount
+                                ).toFixed(2)}{" "}
+                                {feedData.content.outputToken.symbol}
+                              </p>
+                            </div>
                           </div>
                         </div>
-                        {feedData.content.signature && (
-                          <div className="flex justify-end mt-2">
+                        <div className="flex items-center justify-between mt-2 gap-2 text-base">
+                          {feedData.content.signature && (
                             <a
                               onClick={(e) => e.stopPropagation()}
                               href={`https://solscan.io/tx/${feedData.content.signature}`}
                               target="_blank"
                               rel="noopener noreferrer"
-                              className="flex items-center gap-1 text-xs text-blue-600 hover:underline font-medium"
+                              className="text-sm text-black block bg-gray-200 px-4 py-2 rounded-full font-semibold"
                             >
-                              View on Solscan
-                              <svg
-                                xmlns="http://www.w3.org/2000/svg"
-                                className="h-3 w-3"
-                                fill="none"
-                                viewBox="0 0 24 24"
-                                stroke="currentColor"
-                              >
-                                <path
-                                  strokeLinecap="round"
-                                  strokeLinejoin="round"
-                                  strokeWidth={2}
-                                  d="M17 7h2a2 2 0 012 2v10a2 2 0 01-2 2H5a2 2 0 01-2-2V9a2 2 0 012-2h2m4-4h4m0 0v4m0-4L10 10"
-                                />
-                              </svg>
+                              View Details
                             </a>
-                          </div>
-                        )}
+                          )}
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              router.push(
+                                `/wallet?inputToken=${feedData.content.inputToken.symbol}&outputToken=${feedData.content.outputToken.symbol}&amount=${feedData.content.inputToken.amount}`
+                              );
+                            }}
+                            className="text-sm text-white block bg-black px-4 py-2 rounded-full font-semibold"
+                          >
+                            Copy Trade
+                          </button>
+                        </div>
                       </div>
                     </button>
                   </div>
