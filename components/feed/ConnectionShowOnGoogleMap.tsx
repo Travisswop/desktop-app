@@ -36,6 +36,8 @@ export default function ConnectionsShowOnGoogleMap({
 
   const mapRef = useRef<google.maps.Map | null>(null);
 
+  console.log("mapReady", mapReady);
+
   const mapStyles = [
     {
       featureType: "all",
@@ -79,6 +81,9 @@ export default function ConnectionsShowOnGoogleMap({
   //const [retryDelay, setRetryDelay] = useState(1000); // Start with 1 second
   const [retryCount, setRetryCount] = useState(0);
   const [maxRetries] = useState(1);
+
+  console.log("isLoaded", isLoaded);
+  console.log("loadError", loadError);
 
   useEffect(() => {
     if (isLoaded && !loadError) {
