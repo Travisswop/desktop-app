@@ -55,13 +55,13 @@ const FeedMain = ({ isFromHome = false }: { isFromHome?: boolean }) => {
 
   // Set primary microsite image
   useEffect(() => {
-    if (user?.microsites?.length > 0) {
-      const smartsite = user.microsites.find((m: any) => m.primary);
+    if (user?.microsites && user?.microsites?.length > 0) {
+      const smartsite = user?.microsites.find((m: any) => m.primary);
       if (smartsite) {
         setPrimaryMicrositeImg(smartsite.profilePic);
       }
     }
-  }, [user]);
+  }, [user?.microsites, user?.microsites?.length]);
 
   const searchParams = useSearchParams();
   const tab = searchParams?.get("tab") || "feed";

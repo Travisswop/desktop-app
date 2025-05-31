@@ -1,7 +1,6 @@
 "use client";
 
-import Image from "next/image";
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 
 // import Loader from "../ui/Loader";
 // import isUrl from "../util/isUrl";
@@ -10,8 +9,6 @@ import { useCallback, useEffect, useState } from "react";
 // import ConnectionsShowOnGoogleMap from "./ConnectionsShowOnGoogleMap";
 import { getDefaultConnection } from "@/actions/connection";
 import ConnectionsShowOnGoogleMap from "./ConnectionShowOnGoogleMap";
-import { Loader } from "lucide-react";
-import isUrl from "@/lib/isUrl";
 
 interface ConnectionsViewProps {
   token: string;

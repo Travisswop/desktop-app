@@ -1,4 +1,4 @@
-'use client';
+"use client";
 
 import {
   createContext,
@@ -8,9 +8,9 @@ import {
   useCallback,
   useMemo,
   useRef,
-} from 'react';
-import { useRouter, usePathname } from 'next/navigation';
-import { usePrivy } from '@privy-io/react-auth';
+} from "react";
+import { useRouter, usePathname } from "next/navigation";
+import { usePrivy } from "@privy-io/react-auth";
 
 export interface UserData {
   _id: string;
@@ -48,9 +48,9 @@ const UserContext = createContext<UserContextType | null>(null);
 
 // Cookie management utilities
 const COOKIE_CONFIG = {
-  path: '/',
-  secure: process.env.NODE_ENV === 'production',
-  sameSite: 'strict' as const,
+  path: "/",
+  secure: process.env.NODE_ENV === "production",
+  sameSite: "strict" as const,
   maxAge: 86400, // 24 hours
 };
 
@@ -61,9 +61,9 @@ const setCookie = (
 ) => {
   const config = `${name}=${value}; path=${
     COOKIE_CONFIG.path
-  }; max-age=${maxAge}; ${
-    COOKIE_CONFIG.secure ? 'secure; ' : ''
-  }samesite=${COOKIE_CONFIG.sameSite}`;
+  }; max-age=${maxAge}; ${COOKIE_CONFIG.secure ? "secure; " : ""}samesite=${
+    COOKIE_CONFIG.sameSite
+  }`;
   document.cookie = config;
 };
 
@@ -71,43 +71,37 @@ const clearCookie = (name: string) => {
   document.cookie = `${name}=; path=${
     COOKIE_CONFIG.path
   }; expires=Thu, 01 Jan 1970 00:00:00 GMT; ${
-    COOKIE_CONFIG.secure ? 'secure; ' : ''
+    COOKIE_CONFIG.secure ? "secure; " : ""
   }samesite=${COOKIE_CONFIG.sameSite}`;
 };
 
 const clearAllAuthCookies = () => {
   const authCookies = [
-    'privy-token',
-    'privy-id-token',
-    'privy-refresh-token',
-    'access-token',
-    'user-id',
+    "privy-token",
+    "privy-id-token",
+    "privy-refresh-token",
+    "access-token",
+    "user-id",
   ];
   authCookies.forEach(clearCookie);
 };
 
 // Authentication states
 enum AuthState {
-  INITIALIZING = 'initializing',
-  CHECKING_BACKEND = 'checking_backend',
-  AUTHENTICATED = 'authenticated',
-  UNAUTHENTICATED = 'unauthenticated',
-  ERROR = 'error',
+  INITIALIZING = "initializing",
+  CHECKING_BACKEND = "checking_backend",
+  AUTHENTICATED = "authenticated",
+  UNAUTHENTICATED = "unauthenticated",
+  ERROR = "error",
 }
 
-export function UserProvider({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+export function UserProvider({ children }: { children: React.ReactNode }) {
   // State management
   const [user, setUser] = useState<UserData | null>(null);
   const [accessToken, setAccessToken] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
-  const [authState, setAuthState] = useState<AuthState>(
-    AuthState.INITIALIZING
-  );
+  const [authState, setAuthState] = useState<AuthState>(AuthState.INITIALIZING);
 
   // Hooks
   const router = useRouter();
@@ -126,13 +120,7 @@ export function UserProvider({
 
   // Constants
   const PUBLIC_ROUTES = useMemo(
-    () => [
-      '/login',
-      '/signup',
-      '/onboard',
-      '/welcome',
-      '/debug-privy',
-    ],
+    () => ["/sp", "/login", "/signup", "/onboard", "/welcome", "/debug-privy"],
     []
   );
 
@@ -146,11 +134,10 @@ export function UserProvider({
       return (
         privyUser.google?.email ||
         privyUser.email?.address ||
+        privyUser.linkedAccounts?.find((acc: any) => acc.type === "email")
+          ?.address ||
         privyUser.linkedAccounts?.find(
-          (acc: any) => acc.type === 'email'
-        )?.address ||
-        privyUser.linkedAccounts?.find(
-          (acc: any) => acc.type === 'google_oauth'
+          (acc: any) => acc.type === "google_oauth"
         )?.email ||
         null
       );
@@ -180,19 +167,19 @@ export function UserProvider({
   const fetchUserData = useCallback(
     async (email: string): Promise<boolean> => {
       if (!email || !API_BASE_URL) {
-        console.error('Missing email or API URL');
+        console.error("Missing email or API URL");
         return false;
       }
 
       // Prevent concurrent requests
       if (fetchInProgressRef.current) {
-        console.log('Fetch already in progress, skipping');
+        console.log("Fetch already in progress, skipping");
         return false;
       }
 
       // Skip if we already fetched for this email
       if (lastFetchedEmailRef.current === email && user) {
-        console.log('User data already fetched for this email');
+        console.log("User data already fetched for this email");
         return true;
       }
 
@@ -215,7 +202,7 @@ export function UserProvider({
           `${API_BASE_URL}/api/v2/desktop/user/${email}`,
           {
             headers: {
-              'Content-Type': 'application/json',
+              "Content-Type": "application/json",
             },
             signal: abortControllerRef.current.signal,
           }
@@ -225,37 +212,35 @@ export function UserProvider({
 
         if (!response.ok) {
           if (response.status === 404) {
-            console.log('User not found in backend');
+            console.log("User not found in backend");
             clearUserSession();
 
             // Only redirect if not already on public route
             if (!isPublicRoute(pathname)) {
-              router.push('/onboard');
+              router.push("/onboard");
             }
             return false;
           }
 
           if (response.status === 401 || response.status === 403) {
-            console.log('Authentication failed, clearing session');
+            console.log("Authentication failed, clearing session");
             clearUserSession();
             await privyLogout();
 
             if (!isPublicRoute(pathname)) {
-              router.push('/login');
+              router.push("/login");
             }
             return false;
           }
 
-          throw new Error(
-            `HTTP ${response.status}: ${response.statusText}`
-          );
+          throw new Error(`HTTP ${response.status}: ${response.statusText}`);
         }
 
         const data = await response.json();
         const { user: userData, token } = data;
 
         if (!userData || !token) {
-          throw new Error('Invalid response structure');
+          throw new Error("Invalid response structure");
         }
 
         // Update state
@@ -266,23 +251,23 @@ export function UserProvider({
         lastFetchedEmailRef.current = email;
 
         // Set cookies
-        setCookie('access-token', token);
-        setCookie('user-id', userData._id);
+        setCookie("access-token", token);
+        setCookie("user-id", userData._id);
 
-        console.log('User data fetched successfully');
+        console.log("User data fetched successfully");
         return true;
       } catch (err) {
-        console.error('Error fetching user data:', err);
+        console.error("Error fetching user data:", err);
 
         // Handle specific errors
         if (err instanceof Error) {
-          if (err.name === 'AbortError') {
-            console.log('Request was cancelled');
+          if (err.name === "AbortError") {
+            console.log("Request was cancelled");
             return false;
           }
           setError(err);
         } else {
-          setError(new Error('Unknown error occurred'));
+          setError(new Error("Unknown error occurred"));
         }
 
         // Only clear session on actual errors, not on public routes
@@ -317,12 +302,12 @@ export function UserProvider({
 
       clearUserSession();
       await privyLogout();
-      router.push('/login');
+      router.push("/login");
     } catch (err) {
-      console.error('Error during logout:', err);
+      console.error("Error during logout:", err);
       // Force clear even if logout fails
       clearUserSession();
-      router.push('/login');
+      router.push("/login");
     }
   }, [clearUserSession, privyLogout, router]);
 
@@ -353,26 +338,26 @@ export function UserProvider({
 
       // Check if user is authenticated with Privy
       if (!authenticated || !privyUser) {
-        console.log('User not authenticated with Privy');
+        console.log("User not authenticated with Privy");
         clearUserSession();
         setLoading(false);
-        router.push('/login');
+        router.push("/login");
         return;
       }
 
       // Extract email from Privy user
       const email = extractEmailFromPrivyUser(privyUser);
       if (!email) {
-        console.log('No email found in Privy user');
-        setError(new Error('No email found in account'));
+        console.log("No email found in Privy user");
+        setError(new Error("No email found in account"));
         setLoading(false);
-        router.push('/onboard');
+        router.push("/onboard");
         return;
       }
 
       // Check if we need to fetch user data
       if (lastFetchedEmailRef.current !== email || !user) {
-        console.log('Fetching user data for:', email);
+        console.log("Fetching user data for:", email);
         const success = await fetchUserData(email);
 
         if (success) {
@@ -401,11 +386,11 @@ export function UserProvider({
   useEffect(() => {
     // Validate session consistency
     if (ready && user && !privyUser) {
-      console.log('Session mismatch detected, clearing user data');
+      console.log("Session mismatch detected, clearing user data");
       clearUserSession();
 
       if (!isPublicRoute(pathname)) {
-        router.push('/login');
+        router.push("/login");
       }
     }
   }, [
@@ -436,32 +421,21 @@ export function UserProvider({
       error,
       refreshUser,
       logout: handleLogout,
-      isAuthenticated:
-        authState === AuthState.AUTHENTICATED && !!user,
+      isAuthenticated: authState === AuthState.AUTHENTICATED && !!user,
       primaryMicrosite: user?.primaryMicrosite,
     }),
-    [
-      user,
-      accessToken,
-      loading,
-      error,
-      refreshUser,
-      handleLogout,
-      authState,
-    ]
+    [user, accessToken, loading, error, refreshUser, handleLogout, authState]
   );
 
   return (
-    <UserContext.Provider value={contextValue}>
-      {children}
-    </UserContext.Provider>
+    <UserContext.Provider value={contextValue}>{children}</UserContext.Provider>
   );
 }
 
 export const useUser = () => {
   const context = useContext(UserContext);
   if (!context) {
-    throw new Error('useUser must be used within a UserProvider');
+    throw new Error("useUser must be used within a UserProvider");
   }
   return context;
 };

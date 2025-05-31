@@ -11,7 +11,7 @@ import {
 import clsx from "clsx";
 import Image from "next/image";
 import Link from "next/link";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 
 interface Friend {
   _id: string;
@@ -28,13 +28,13 @@ export default function ConnectionsShowOnGoogleMap({
   connections,
   selectedFriend,
 }: ConnectionsShowOnGoogleMapProps) {
-  const { isLoaded } = useLoadScript({
+  const [mapReady, setMapReady] = useState(false);
+  const { isLoaded, loadError } = useLoadScript({
     googleMapsApiKey: process.env.NEXT_PUBLIC_GOOGLE_API_KEY || "",
     libraries: ["places", "geometry"],
   });
 
   const mapRef = useRef<google.maps.Map | null>(null);
-  const mapReady = false;
 
   const mapStyles = [
     {
@@ -76,7 +76,26 @@ export default function ConnectionsShowOnGoogleMap({
     }
   }, [mapReady, selectedConnection]);
 
-  if (!isLoaded) return <div>Loading Map...</div>;
+  useEffect(() => {
+    if (isLoaded && !loadError) {
+      setMapReady(true);
+    }
+  }, [isLoaded, loadError]);
+
+  if (!isLoaded) {
+    return (
+      <div className="w-full h-[600px] flex items-center justify-center bg-gray-100 rounded-lg">
+        <div className="text-center">
+          <p>Loading map...</p>
+          {loadError && (
+            <p className="text-red-500 mt-2">
+              Error loading Google Maps. Please refresh the page.
+            </p>
+          )}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="overflow-hidden transition-opacity duration-700 opacity-100">
