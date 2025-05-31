@@ -1,34 +1,37 @@
-"use client";
+'use client';
 
-import Header from "@/components/publicProfile/header";
-import Bio from "@/components/publicProfile/bio";
-import Blog from "@/components/publicProfile/blog";
-import SocialLarge from "@/components/publicProfile/socialLarge";
-import SocialSmall from "@/components/publicProfile/socialSmall";
-import Ens from "@/components/publicProfile/ens";
-import MP3 from "@/components/publicProfile/mp3";
-import Referral from "@/components/publicProfile/referral";
-import Redeem from "@/components/publicProfile/redeem";
-import EmbedVideo from "@/components/publicProfile/embedvideo";
-import Message from "@/components/publicProfile/message";
-import Contact from "@/components/publicProfile/contact";
-import InfoBar from "@/components/publicProfile/infoBar";
-import PaymentBar from "@/components/publicProfile/paymentBar";
-import Footer from "@/components/publicProfile/footer";
-import { redirect } from "next/navigation";
-import { Toaster } from "@/components/ui/toaster";
-import MarketPlace from "@/components/publicProfile/MarketPlace";
+import Header from '@/components/publicProfile/header';
+import Bio from '@/components/publicProfile/bio';
+import Blog from '@/components/publicProfile/blog';
+import SocialLarge from '@/components/publicProfile/socialLarge';
+import SocialSmall from '@/components/publicProfile/socialSmall';
+import Ens from '@/components/publicProfile/ens';
+import MP3 from '@/components/publicProfile/mp3';
+import Referral from '@/components/publicProfile/referral';
+import Redeem from '@/components/publicProfile/redeem';
+import EmbedVideo from '@/components/publicProfile/embedvideo';
+import Message from '@/components/publicProfile/message';
+import Contact from '@/components/publicProfile/contact';
+import InfoBar from '@/components/publicProfile/infoBar';
+import PaymentBar from '@/components/publicProfile/paymentBar';
+import Footer from '@/components/publicProfile/footer';
+import { redirect } from 'next/navigation';
+import { Toaster } from '@/components/ui/toaster';
+import MarketPlace from '@/components/publicProfile/MarketPlace';
 
-import { CartProvider } from "./cart/context/CartContext";
-import { useUser } from "@/lib/UserContext";
-import LivePreviewTimeline from "@/components/feed/LivePreviewTimeline";
+import { CartProvider } from './cart/context/CartContext';
+import { useUser } from '@/lib/UserContext';
+import LivePreviewTimeline from '@/components/feed/LivePreviewTimeline';
 
-export default function ClientProfile({ initialData, userName }: any) {
+export default function ClientProfile({
+  initialData,
+  userName,
+}: any) {
   if (initialData.redirect) {
     redirect(`/sp/${initialData.username}`);
   }
 
-  const { user, accessToken } = useUser();
+  const { user, accessToken, isPublicAccess } = useUser();
 
   const {
     _id,
@@ -57,14 +60,15 @@ export default function ClientProfile({ initialData, userName }: any) {
   const ensDomain = info.ensDomain[info.ensDomain.length - 1];
 
   const bg =
-    typeof backgroundImg === "string" && backgroundImg.startsWith("https")
+    typeof backgroundImg === 'string' &&
+    backgroundImg.startsWith('https')
       ? backgroundImg
       : `/images/smartsite-background/${backgroundImg}.png`;
   // background[backgroundImg as keyof typeof background];
 
   return (
     <div
-      style={{ backgroundImage: theme ? `url(${bg})` : "" }}
+      style={{ backgroundImage: theme ? `url(${bg})` : '' }}
       className="bg-cover bg-no-repeat h-screen overflow-y-auto"
     >
       {/* {theme && (
@@ -92,7 +96,7 @@ export default function ClientProfile({ initialData, userName }: any) {
             parentId={parentId}
             micrositeId={_id}
             theme={theme}
-            accessToken={accessToken ? accessToken : ""}
+            accessToken={accessToken ? accessToken : ''}
           />
           <div className="my-4">
             <Bio name={name} bio={bio} />
@@ -147,23 +151,25 @@ export default function ClientProfile({ initialData, userName }: any) {
 
           <div className="mt-4"></div>
 
-          {/* market place */}
-          {info?.marketPlace && info.marketPlace.length > 0 && (
-            <div className="w-full">
-              {info.marketPlace.map((marketPlace: any) => (
-                <MarketPlace
-                  key={marketPlace._id}
-                  data={marketPlace}
-                  socialType="redeemLink"
-                  parentId={parentId}
-                  userName={userName}
-                  number={0}
-                  userId={user?._id}
-                  accessToken={accessToken}
-                />
-              ))}
-            </div>
-          )}
+          {/* Market place - Only show for authenticated users or if explicitly allowed */}
+          {info?.marketPlace &&
+            info.marketPlace.length > 0 &&
+            (isPublicAccess || user) && (
+              <div className="w-full">
+                {info.marketPlace.map((marketPlace: any) => (
+                  <MarketPlace
+                    key={marketPlace._id}
+                    data={marketPlace}
+                    socialType="redeemLink"
+                    parentId={parentId}
+                    userName={userName}
+                    number={0}
+                    userId={user?._id}
+                    accessToken={accessToken}
+                  />
+                ))}
+              </div>
+            )}
 
           {/* Message */}
           {/* ENS */}
@@ -178,35 +184,39 @@ export default function ClientProfile({ initialData, userName }: any) {
               />
             </div>
           )}
-          {/* Redeem Link */}
-          {info?.redeemLink && info.redeemLink.length > 0 && (
-            <div className="w-full">
-              {info.redeemLink.map((social: any, index: number) => (
-                <Redeem
-                  number={index}
-                  key={social._id}
-                  data={social}
-                  socialType="redeemLink"
-                  parentId={parentId}
-                />
-              ))}
-            </div>
-          )}
+          {/* Redeem Link - Only show for authenticated users or if explicitly allowed */}
+          {info?.redeemLink &&
+            info.redeemLink.length > 0 &&
+            (isPublicAccess || user) && (
+              <div className="w-full">
+                {info.redeemLink.map((social: any, index: number) => (
+                  <Redeem
+                    number={index}
+                    key={social._id}
+                    data={social}
+                    socialType="redeemLink"
+                    parentId={parentId}
+                  />
+                ))}
+              </div>
+            )}
 
-          {/* Referral Code */}
-          {info.referral && info.referral.length > 0 && (
-            <div className="w-full">
-              {info.referral.map((social: any, index: number) => (
-                <Referral
-                  number={index}
-                  key={social._id}
-                  data={social}
-                  socialType="referral"
-                  parentId={parentId}
-                />
-              ))}
-            </div>
-          )}
+          {/* Referral Code - Only show for authenticated users or if explicitly allowed */}
+          {info.referral &&
+            info.referral.length > 0 &&
+            (isPublicAccess || user) && (
+              <div className="w-full">
+                {info.referral.map((social: any, index: number) => (
+                  <Referral
+                    number={index}
+                    key={social._id}
+                    data={social}
+                    socialType="referral"
+                    parentId={parentId}
+                  />
+                ))}
+              </div>
+            )}
 
           {/* ENS */}
           {info?.ensDomain && info.ensDomain.length > 0 && (
@@ -251,20 +261,22 @@ export default function ClientProfile({ initialData, userName }: any) {
             </div>
           )}
 
-          {/* Product Payment */}
-          {info?.product && info.product.length > 0 && (
-            <div className="w-full">
-              {info.product.map((social: any, index: number) => (
-                <PaymentBar
-                  number={index}
-                  key={social._id}
-                  data={social}
-                  socialType="product"
-                  parentId={parentId}
-                />
-              ))}
-            </div>
-          )}
+          {/* Product Payment - Only show for authenticated users or if explicitly allowed */}
+          {info?.product &&
+            info.product.length > 0 &&
+            (isPublicAccess || user) && (
+              <div className="w-full">
+                {info.product.map((social: any, index: number) => (
+                  <PaymentBar
+                    number={index}
+                    key={social._id}
+                    data={social}
+                    socialType="product"
+                    parentId={parentId}
+                  />
+                ))}
+              </div>
+            )}
 
           {/* Audio */}
           {info?.audio && info.audio.length > 0 && (

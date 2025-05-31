@@ -42,6 +42,7 @@ export interface UserContextType {
   refreshUser: () => Promise<void>;
   logout: () => Promise<void>;
   isAuthenticated: boolean;
+  isPublicAccess: boolean;
 }
 
 const UserContext = createContext<UserContextType | null>(null);
@@ -92,6 +93,7 @@ enum AuthState {
   CHECKING_BACKEND = 'checking_backend',
   AUTHENTICATED = 'authenticated',
   UNAUTHENTICATED = 'unauthenticated',
+  PUBLIC_ACCESS = 'public_access',
   ERROR = 'error',
 }
 
@@ -344,10 +346,10 @@ export function UserProvider({
         return;
       }
 
-      // Skip authentication on public routes
+      // Set public access state for public routes
       if (isPublicRoute(pathname)) {
         setLoading(false);
-        setAuthState(AuthState.UNAUTHENTICATED);
+        setAuthState(AuthState.PUBLIC_ACCESS);
         return;
       }
 
@@ -356,7 +358,9 @@ export function UserProvider({
         console.log('User not authenticated with Privy');
         clearUserSession();
         setLoading(false);
-        router.push('/login');
+        if (!isPublicRoute(pathname)) {
+          router.push('/login');
+        }
         return;
       }
 
@@ -366,7 +370,9 @@ export function UserProvider({
         console.log('No email found in Privy user');
         setError(new Error('No email found in account'));
         setLoading(false);
-        router.push('/onboard');
+        if (!isPublicRoute(pathname)) {
+          router.push('/onboard');
+        }
         return;
       }
 
@@ -438,6 +444,7 @@ export function UserProvider({
       logout: handleLogout,
       isAuthenticated:
         authState === AuthState.AUTHENTICATED && !!user,
+      isPublicAccess: authState === AuthState.PUBLIC_ACCESS,
       primaryMicrosite: user?.primaryMicrosite,
     }),
     [

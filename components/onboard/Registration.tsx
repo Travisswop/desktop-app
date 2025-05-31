@@ -65,16 +65,13 @@ export default function Registration({
   const { authenticated, ready, user: privyUser } = usePrivy();
   const { wallets: solanaWallets, createWallet: createSolanaWallet } =
     useSolanaWallets();
+
   const { createWallet } = useCreateWallet({
     onSuccess: ({ wallet }) => {
-      logger.info(
-        `Created wallet successfully: ${JSON.stringify(wallet)}`
-      );
+      logger.info('wallet', wallet);
     },
     onError: (error) => {
-      logger.error(
-        `Failed to create wallet with error: ${JSON.stringify(error)}`
-      );
+      logger.error('error', error);
     },
   });
 
@@ -260,7 +257,7 @@ export default function Registration({
         `Error in wallet creation flow: ${JSON.stringify(error)}`
       );
     }
-  }, [authenticated, ready, user, createWallet, createSolanaWallet]);
+  }, [authenticated, ready, user, createSolanaWallet]);
 
   const handleUserProfileModal = () => {
     onOpen();
@@ -292,13 +289,7 @@ export default function Registration({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    try {
-      await createWallet();
-    } catch (error) {
-      logger.info('error', error);
-    }
-    logger.info('user', user);
-    return;
+
     if (!name.trim()) {
       toast({
         variant: 'destructive',
@@ -311,8 +302,8 @@ export default function Registration({
     setIsSubmitting(true);
 
     try {
-      if (createWallet) {
-        await createWallet();
+      if (createPrivyWallets) {
+        await createPrivyWallets();
         refreshWalletData();
       }
 
