@@ -85,11 +85,10 @@ export default function ConnectionsShowOnGoogleMap({
       setMapReady(true);
     } else if (retryCount < maxRetries) {
       setRetryCount(retryCount + 1);
-      const delay = Math.min(2000 * Math.pow(2, retryCount), 8000);
       const timer = setTimeout(() => {
         console.log(`Reloading page (attempt ${retryCount + 1}/${maxRetries})`);
         window.location.reload();
-      }, delay);
+      }, 1000);
 
       return () => clearTimeout(timer);
     }
