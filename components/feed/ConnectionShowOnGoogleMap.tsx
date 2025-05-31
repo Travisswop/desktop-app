@@ -78,7 +78,7 @@ export default function ConnectionsShowOnGoogleMap({
 
   const [retryDelay, setRetryDelay] = useState(1000); // Start with 1 second
   const [retryCount, setRetryCount] = useState(0);
-  const [maxRetries] = useState(3);
+  const [maxRetries] = useState(10);
 
   useEffect(() => {
     if (isLoaded && !loadError) {
