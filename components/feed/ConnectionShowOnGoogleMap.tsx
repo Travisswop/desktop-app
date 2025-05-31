@@ -30,7 +30,9 @@ export default function ConnectionsShowOnGoogleMap({
 }: ConnectionsShowOnGoogleMapProps) {
   const [mapReady, setMapReady] = useState(false);
   const { isLoaded, loadError } = useLoadScript({
-    googleMapsApiKey: process.env.NEXT_PUBLIC_GOOGLE_API_KEY || "",
+    googleMapsApiKey:
+      process.env.NEXT_PUBLIC_GOOGLE_API_KEY ||
+      "AIzaSyDaERPmsWGDCk2MrKXsqkMfPkSu614Simk",
     libraries: ["places", "geometry"],
   });
 
@@ -88,13 +90,11 @@ export default function ConnectionsShowOnGoogleMap({
   useEffect(() => {
     if (isLoaded && !loadError) {
       setMapReady(true);
-    } else if (retryCount < maxRetries) {
-      setRetryCount(retryCount + 1);
+    } else {
       const timer = setTimeout(() => {
         console.log(`Reloading page (attempt ${retryCount + 1}/${maxRetries})`);
         window.location.reload();
       }, 1000);
-
       return () => clearTimeout(timer);
     }
   }, [isLoaded, loadError, retryCount, maxRetries]);
