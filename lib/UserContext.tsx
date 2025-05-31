@@ -42,7 +42,6 @@ export interface UserContextType {
   refreshUser: () => Promise<void>;
   logout: () => Promise<void>;
   isAuthenticated: boolean;
-  isPublicAccess: boolean;
 }
 
 const UserContext = createContext<UserContextType | null>(null);
@@ -93,7 +92,6 @@ enum AuthState {
   CHECKING_BACKEND = 'checking_backend',
   AUTHENTICATED = 'authenticated',
   UNAUTHENTICATED = 'unauthenticated',
-  PUBLIC_ACCESS = 'public_access',
   ERROR = 'error',
 }
 
@@ -129,6 +127,7 @@ export function UserProvider({
   // Constants
   const PUBLIC_ROUTES = useMemo(
     () => [
+      '/sp',
       '/login',
       '/signup',
       '/onboard',
@@ -346,13 +345,6 @@ export function UserProvider({
         return;
       }
 
-      // Set public access state for public routes
-      if (isPublicRoute(pathname)) {
-        setLoading(false);
-        setAuthState(AuthState.PUBLIC_ACCESS);
-        return;
-      }
-
       // Check if user is authenticated with Privy
       if (!authenticated || !privyUser) {
         console.log('User not authenticated with Privy');
@@ -444,7 +436,6 @@ export function UserProvider({
       logout: handleLogout,
       isAuthenticated:
         authState === AuthState.AUTHENTICATED && !!user,
-      isPublicAccess: authState === AuthState.PUBLIC_ACCESS,
       primaryMicrosite: user?.primaryMicrosite,
     }),
     [

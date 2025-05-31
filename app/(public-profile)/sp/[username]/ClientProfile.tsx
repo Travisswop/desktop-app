@@ -31,7 +31,8 @@ export default function ClientProfile({
     redirect(`/sp/${initialData.username}`);
   }
 
-  const { user, accessToken, isPublicAccess } = useUser();
+  const { user, accessToken } = useUser();
+  console.log('🚀 ~ user:', user);
 
   const {
     _id,
@@ -151,25 +152,23 @@ export default function ClientProfile({
 
           <div className="mt-4"></div>
 
-          {/* Market place - Only show for authenticated users or if explicitly allowed */}
-          {info?.marketPlace &&
-            info.marketPlace.length > 0 &&
-            (isPublicAccess || user) && (
-              <div className="w-full">
-                {info.marketPlace.map((marketPlace: any) => (
-                  <MarketPlace
-                    key={marketPlace._id}
-                    data={marketPlace}
-                    socialType="redeemLink"
-                    parentId={parentId}
-                    userName={userName}
-                    number={0}
-                    userId={user?._id}
-                    accessToken={accessToken}
-                  />
-                ))}
-              </div>
-            )}
+          {/* market place */}
+          {info?.marketPlace && info.marketPlace.length > 0 && (
+            <div className="w-full">
+              {info.marketPlace.map((marketPlace: any) => (
+                <MarketPlace
+                  key={marketPlace._id}
+                  data={marketPlace}
+                  socialType="redeemLink"
+                  parentId={parentId}
+                  userName={userName}
+                  number={0}
+                  userId={user?._id}
+                  accessToken={accessToken}
+                />
+              ))}
+            </div>
+          )}
 
           {/* Message */}
           {/* ENS */}
@@ -184,39 +183,35 @@ export default function ClientProfile({
               />
             </div>
           )}
-          {/* Redeem Link - Only show for authenticated users or if explicitly allowed */}
-          {info?.redeemLink &&
-            info.redeemLink.length > 0 &&
-            (isPublicAccess || user) && (
-              <div className="w-full">
-                {info.redeemLink.map((social: any, index: number) => (
-                  <Redeem
-                    number={index}
-                    key={social._id}
-                    data={social}
-                    socialType="redeemLink"
-                    parentId={parentId}
-                  />
-                ))}
-              </div>
-            )}
+          {/* Redeem Link */}
+          {info?.redeemLink && info.redeemLink.length > 0 && (
+            <div className="w-full">
+              {info.redeemLink.map((social: any, index: number) => (
+                <Redeem
+                  number={index}
+                  key={social._id}
+                  data={social}
+                  socialType="redeemLink"
+                  parentId={parentId}
+                />
+              ))}
+            </div>
+          )}
 
-          {/* Referral Code - Only show for authenticated users or if explicitly allowed */}
-          {info.referral &&
-            info.referral.length > 0 &&
-            (isPublicAccess || user) && (
-              <div className="w-full">
-                {info.referral.map((social: any, index: number) => (
-                  <Referral
-                    number={index}
-                    key={social._id}
-                    data={social}
-                    socialType="referral"
-                    parentId={parentId}
-                  />
-                ))}
-              </div>
-            )}
+          {/* Referral Code */}
+          {info.referral && info.referral.length > 0 && (
+            <div className="w-full">
+              {info.referral.map((social: any, index: number) => (
+                <Referral
+                  number={index}
+                  key={social._id}
+                  data={social}
+                  socialType="referral"
+                  parentId={parentId}
+                />
+              ))}
+            </div>
+          )}
 
           {/* ENS */}
           {info?.ensDomain && info.ensDomain.length > 0 && (
@@ -261,22 +256,20 @@ export default function ClientProfile({
             </div>
           )}
 
-          {/* Product Payment - Only show for authenticated users or if explicitly allowed */}
-          {info?.product &&
-            info.product.length > 0 &&
-            (isPublicAccess || user) && (
-              <div className="w-full">
-                {info.product.map((social: any, index: number) => (
-                  <PaymentBar
-                    number={index}
-                    key={social._id}
-                    data={social}
-                    socialType="product"
-                    parentId={parentId}
-                  />
-                ))}
-              </div>
-            )}
+          {/* Product Payment */}
+          {info?.product && info.product.length > 0 && (
+            <div className="w-full">
+              {info.product.map((social: any, index: number) => (
+                <PaymentBar
+                  number={index}
+                  key={social._id}
+                  data={social}
+                  socialType="product"
+                  parentId={parentId}
+                />
+              ))}
+            </div>
+          )}
 
           {/* Audio */}
           {info?.audio && info.audio.length > 0 && (
