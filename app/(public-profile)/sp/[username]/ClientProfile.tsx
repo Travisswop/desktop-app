@@ -1,34 +1,38 @@
-"use client";
+'use client';
 
-import Header from "@/components/publicProfile/header";
-import Bio from "@/components/publicProfile/bio";
-import Blog from "@/components/publicProfile/blog";
-import SocialLarge from "@/components/publicProfile/socialLarge";
-import SocialSmall from "@/components/publicProfile/socialSmall";
-import Ens from "@/components/publicProfile/ens";
-import MP3 from "@/components/publicProfile/mp3";
-import Referral from "@/components/publicProfile/referral";
-import Redeem from "@/components/publicProfile/redeem";
-import EmbedVideo from "@/components/publicProfile/embedvideo";
-import Message from "@/components/publicProfile/message";
-import Contact from "@/components/publicProfile/contact";
-import InfoBar from "@/components/publicProfile/infoBar";
-import PaymentBar from "@/components/publicProfile/paymentBar";
-import Footer from "@/components/publicProfile/footer";
-import { redirect } from "next/navigation";
-import { Toaster } from "@/components/ui/toaster";
-import MarketPlace from "@/components/publicProfile/MarketPlace";
+import Header from '@/components/publicProfile/header';
+import Bio from '@/components/publicProfile/bio';
+import Blog from '@/components/publicProfile/blog';
+import SocialLarge from '@/components/publicProfile/socialLarge';
+import SocialSmall from '@/components/publicProfile/socialSmall';
+import Ens from '@/components/publicProfile/ens';
+import MP3 from '@/components/publicProfile/mp3';
+import Referral from '@/components/publicProfile/referral';
+import Redeem from '@/components/publicProfile/redeem';
+import EmbedVideo from '@/components/publicProfile/embedvideo';
+import Message from '@/components/publicProfile/message';
+import Contact from '@/components/publicProfile/contact';
+import InfoBar from '@/components/publicProfile/infoBar';
+import PaymentBar from '@/components/publicProfile/paymentBar';
+import Footer from '@/components/publicProfile/footer';
+import { redirect } from 'next/navigation';
+import { Toaster } from '@/components/ui/toaster';
+import MarketPlace from '@/components/publicProfile/MarketPlace';
 
-import { CartProvider } from "./cart/context/CartContext";
-import { useUser } from "@/lib/UserContext";
-import LivePreviewTimeline from "@/components/feed/LivePreviewTimeline";
+import { CartProvider } from './cart/context/CartContext';
+import { useUser } from '@/lib/UserContext';
+import LivePreviewTimeline from '@/components/feed/LivePreviewTimeline';
 
-export default function ClientProfile({ initialData, userName }: any) {
+export default function ClientProfile({
+  initialData,
+  userName,
+}: any) {
   if (initialData.redirect) {
     redirect(`/sp/${initialData.username}`);
   }
 
   const { user, accessToken } = useUser();
+  console.log('🚀 ~ user:', user);
 
   const {
     _id,
@@ -57,14 +61,15 @@ export default function ClientProfile({ initialData, userName }: any) {
   const ensDomain = info.ensDomain[info.ensDomain.length - 1];
 
   const bg =
-    typeof backgroundImg === "string" && backgroundImg.startsWith("https")
+    typeof backgroundImg === 'string' &&
+    backgroundImg.startsWith('https')
       ? backgroundImg
       : `/images/smartsite-background/${backgroundImg}.png`;
   // background[backgroundImg as keyof typeof background];
 
   return (
     <div
-      style={{ backgroundImage: theme ? `url(${bg})` : "" }}
+      style={{ backgroundImage: theme ? `url(${bg})` : '' }}
       className="bg-cover bg-no-repeat h-screen overflow-y-auto"
     >
       {/* {theme && (
@@ -92,7 +97,7 @@ export default function ClientProfile({ initialData, userName }: any) {
             parentId={parentId}
             micrositeId={_id}
             theme={theme}
-            accessToken={accessToken ? accessToken : ""}
+            accessToken={accessToken ? accessToken : ''}
           />
           <div className="my-4">
             <Bio name={name} bio={bio} />

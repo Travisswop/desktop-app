@@ -16,9 +16,6 @@ interface Props {
     type: string;
     videoUrl: string;
   };
-  socialType: string;
-  parentId: string;
-  number: number;
 }
 
 const variants = {
@@ -36,7 +33,7 @@ const checkValidUrl = (url: string) => {
   }
 };
 
-const EmbedVideo: FC<Props> = async ({ data, number }) => {
+const EmbedVideo: FC<Props> = ({ data }) => {
   const { type, videoUrl } = data;
   const isValidUrl = checkValidUrl(videoUrl);
   let spotifyUrl;
