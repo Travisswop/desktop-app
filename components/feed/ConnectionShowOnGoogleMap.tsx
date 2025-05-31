@@ -76,11 +76,31 @@ export default function ConnectionsShowOnGoogleMap({
     }
   }, [mapReady, selectedConnection]);
 
+  //const [retryDelay, setRetryDelay] = useState(1000); // Start with 1 second
+  const [retryCount, setRetryCount] = useState(0);
+  const [maxRetries] = useState(1);
+
   useEffect(() => {
     if (isLoaded && !loadError) {
       setMapReady(true);
+    } else if (retryCount < maxRetries) {
+      setRetryCount(retryCount + 1);
+      const timer = setTimeout(() => {
+        console.log(`Reloading page (attempt ${retryCount + 1}/${maxRetries})`);
+        window.location.reload();
+      }, 1000);
+
+      return () => clearTimeout(timer);
     }
-  }, [isLoaded, loadError]);
+  }, [isLoaded, loadError, retryCount, maxRetries]);
+
+  // useEffect(() => {
+  //   if (isLoaded && !loadError) {
+  //     setMapReady(true);
+  //   }else{
+
+  //   }
+  // }, [isLoaded, loadError]);
 
   if (!isLoaded) {
     return (
