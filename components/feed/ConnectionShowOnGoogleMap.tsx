@@ -113,8 +113,8 @@ export default function ConnectionsShowOnGoogleMap({
         <div className="text-center">
           <p>Loading map...</p>
           {loadError && (
-            <p className="text-red-500 mt-2">
-              Error loading Google Maps. Please refresh the page.
+            <p className="text-black mt-2">
+              Error loading Google Maps. refreshing the page...
             </p>
           )}
         </div>

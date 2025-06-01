@@ -3,7 +3,6 @@
 import { getSmartsiteFeed } from "@/actions/postFeed";
 import Image from "next/image";
 import React, { useState, useEffect, useRef, useCallback } from "react";
-import { FaUser } from "react-icons/fa";
 import { GoDotFill } from "react-icons/go";
 import dayjs from "dayjs";
 import PostTypeMedia from "./view/PostTypeMedia";
@@ -20,18 +19,14 @@ import { useUser } from "@/lib/UserContext";
 import { useRouter } from "next/navigation";
 import IndividualFeedContent from "./IndividualFeedContent";
 import { FeedMainContentDataLoading } from "../loading/TabSwitcherLoading";
-import done from "@/public/images/done.png";
-import { IoMdSwap } from "react-icons/io";
 
 dayjs.extend(relativeTime);
 
 const Timeline = ({
   accessToken,
-  userId,
   setIsPosting,
   isPosting,
   setIsPostLoading,
-  isPostLoading,
   fromLivePreview = false,
 }: {
   accessToken: string;
