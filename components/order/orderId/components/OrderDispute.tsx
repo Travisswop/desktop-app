@@ -199,11 +199,13 @@ export const OrderDispute: React.FC<OrderDisputeProps> = ({
           accessToken
         );
         console.log('result', result);
-        if (result.success && result.disputes) {
-          setDisputes(result.disputes);
+        if (result.success && result.dispute) {
+          // Convert single dispute object to array for consistency with existing UI logic
+          setDisputes([result.dispute]);
           // Show form only if no disputes exist
-          setShowForm(result.disputes.length === 0);
+          setShowForm(false); // Don't show form when dispute exists
         } else {
+          setDisputes([]);
           setShowForm(true);
         }
       } catch (error) {
@@ -339,10 +341,15 @@ export const OrderDispute: React.FC<OrderDisputeProps> = ({
           order.orderId,
           accessToken
         );
-        if (result.success && result.disputes) {
-          setDisputes(result.disputes);
+        if (result.success && result.dispute) {
+          setDisputes([result.dispute]);
         }
       }
+
+      // Show success message to buyer
+      console.log(
+        'Dispute submitted successfully - seller will be notified'
+      );
     } catch (error) {
       console.error('Error submitting dispute:', error);
     }

@@ -247,7 +247,7 @@ export async function getOrderDisputes(
   accessToken: string
 ): Promise<{
   success: boolean;
-  disputes?: any[];
+  dispute?: any;
   message?: string;
 }> {
   try {
@@ -256,7 +256,7 @@ export async function getOrderDisputes(
     }
 
     const response = await fetch(
-      `${API_URL}/api/v5/orders/${orderId}/disputes`,
+      `${API_URL}/api/v5/orders/${orderId}/dispute`,
       {
         method: 'GET',
         headers: {
@@ -278,7 +278,7 @@ export async function getOrderDisputes(
     console.log('🚀 ~ result:', result);
     return {
       success: true,
-      disputes: result.data || [],
+      dispute: result.data,
     };
   } catch (error) {
     console.error('Error fetching order disputes:', error);
@@ -477,6 +477,63 @@ export async function getSellerDisputes(
     return {
       success: false,
       message: 'Failed to fetch disputes. Please try again later.',
+    };
+  }
+}
+
+/**
+ * Get notification count for seller (pending disputes, challenges, etc.)
+ */
+export async function getSellerNotificationCount(
+  accessToken: string
+): Promise<{
+  success: boolean;
+  counts?: {
+    pendingDisputes: number;
+    pendingChallenges: number;
+    totalNotifications: number;
+  };
+  message?: string;
+}> {
+  try {
+    if (!API_URL) {
+      throw new Error('API base URL is not defined.');
+    }
+
+    const response = await fetch(
+      `${API_URL}/api/v5/seller/notifications/count`,
+      {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${accessToken}`,
+        },
+      }
+    );
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      return {
+        success: false,
+        message:
+          errorData.message || 'Failed to fetch notification counts',
+      };
+    }
+
+    const result = await response.json();
+    return {
+      success: true,
+      counts: result.data || {
+        pendingDisputes: 0,
+        pendingChallenges: 0,
+        totalNotifications: 0,
+      },
+    };
+  } catch (error) {
+    console.error('Error fetching notification counts:', error);
+    return {
+      success: false,
+      message: 'Failed to fetch notification counts.',
     };
   }
 }
