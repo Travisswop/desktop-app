@@ -173,12 +173,6 @@ export async function createOrderDispute(
       });
     }
 
-    console.log(
-      'Making request to:',
-      `${API_URL}/api/v5/orders/${orderId}/dispute`
-    );
-    console.log('Request headers:', headers);
-
     const response = await fetch(
       `${API_URL}/api/v5/orders/${orderId}/dispute`,
       {
