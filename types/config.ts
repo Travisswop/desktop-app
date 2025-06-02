@@ -14,6 +14,11 @@ export const CHAIN_CONFIG = {
     network: 'base-mainnet',
     alchemyUrl: process.env.NEXT_PUBLIC_ALCHEMY_BASE_API_KEY,
   },
+  SEPOLIA: {
+    id: 11155111,
+    network: 'eth-sepolia',
+    alchemyUrl: process.env.NEXT_PUBLIC_ALCHEMY_SEPOLIA_API_KEY,
+  },
 } as const;
 
 export const CHAINS = {
@@ -49,6 +54,18 @@ export const CHAINS = {
       uuid: 'razxDUgYGNAdQ', // ETH on Base
       symbol: 'ETH',
       name: 'Ethereum',
+      decimals: 18,
+    },
+    type: 'evm',
+  },
+  SEPOLIA: {
+    transactionApiUrl: 'https://api-sepolia.etherscan.io',
+    accessToken: process.env.NEXT_PUBLIC_SEPOLIA_ETHERSCAN_API_KEY_TOKEN,
+    alchemyUrl: process.env.NEXT_PUBLIC_ALCHEMY_SEPOLIA_URL,
+    nativeToken: {
+      uuid: 'razxDUgYGNAdQ', // Using same ETH uuid for testnet
+      symbol: 'ETH',
+      name: 'Ethereum (Sepolia)',
       decimals: 18,
     },
     type: 'evm',

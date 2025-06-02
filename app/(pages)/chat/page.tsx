@@ -1,5 +1,11 @@
 'use client';
-import { BookUser, Loader, Search, Wallet } from 'lucide-react';
+import {
+  BookUser,
+  Loader,
+  Search,
+  Wallet,
+  ArrowLeft,
+} from 'lucide-react';
 import {
   useCallback,
   useEffect,
@@ -15,12 +21,14 @@ import {
 import Link from 'next/link';
 import { WalletItem } from '@/types/wallet';
 import { usePrivy } from '@privy-io/react-auth';
-import { useSearchParams } from 'next/navigation';
+import { useSearchParams, useRouter } from 'next/navigation';
 import WalletManager from '@/components/wallet/wallet-manager';
 import { useXmtpContext } from '@/lib/context/XmtpContext';
 import ChatBox from '@/components/wallet/chat/chat-box';
 import { useDebouncedCallback } from 'use-debounce';
 import { Skeleton } from '@/components/ui/skeleton';
+import { useSolanaWallets } from '@privy-io/react-auth';
+import { useWallets } from '@privy-io/react-auth';
 
 interface MessageProps {
   bio: string;
@@ -90,6 +98,7 @@ const ChatPageContent = () => {
   const { client: xmtpClient } = useXmtpContext();
   const { user: PrivyUser } = usePrivy();
   const searchParams = useSearchParams();
+  const router = useRouter();
 
   const [walletData, setWalletData] = useState<WalletItem[] | null>(
     null
@@ -115,6 +124,19 @@ const ChatPageContent = () => {
   const [recipientAddress, setRecipientAddress] = useState<
     string | null
   >(null);
+  const [tokenData, setTokenData] = useState<any>(null);
+
+  console.log('walletData with Address', walletData);
+
+  const { wallets: solanaWallets } = useSolanaWallets();
+  const { wallets: ethereumWallets } = useWallets();
+
+  console.log(
+    'here is the solana wallet',
+    solanaWallets,
+    'and here is the ethereum wallet',
+    ethereumWallets
+  );
 
   const fetchConversations = useCallback(async () => {
     if (!xmtpClient) return;
@@ -264,7 +286,29 @@ const ChatPageContent = () => {
 
   // Handle recipient from URL params
   useEffect(() => {
-    const recipient = searchParams.get('recipient');
+    const recipient = searchParams?.get('recipient');
+
+    // Get token data from sessionStorage instead of URL
+    if (typeof window !== 'undefined') {
+      try {
+        const storedTokenData =
+          sessionStorage.getItem('chatTokenData');
+        if (storedTokenData) {
+          const parsedTokenData = JSON.parse(storedTokenData);
+          console.log(
+            'Retrieved token data from sessionStorage:',
+            parsedTokenData
+          );
+          setTokenData(parsedTokenData);
+        }
+      } catch (error) {
+        console.error(
+          'Error retrieving token data from sessionStorage:',
+          error
+        );
+      }
+    }
+
     if (recipient) {
       setRecipientAddress(recipient);
       startConversation(recipient);
@@ -328,6 +372,10 @@ const ChatPageContent = () => {
     }
   };
 
+  const handleBackToWallet = () => {
+    router.push('/wallet');
+  };
+
   return (
     <div className="h-full">
       <div className="flex gap-7 items-start h-full">
@@ -347,6 +395,13 @@ const ChatPageContent = () => {
             <div className="w-full overflow-x-hidden h-full">
               <div className="flex items-center gap-3 justify-between border rounded-xl border-gray-300 bg-white px-4 py-2 sticky top-0 left-0 mb-2 shadow-sm">
                 <div className="flex items-center flex-1 gap-3">
+                  <button
+                    onClick={handleBackToWallet}
+                    className="w-10 h-10 rounded-full flex items-center justify-center bg-gray-100 hover:bg-gray-200 transition-colors"
+                    title="Back to Wallet"
+                  >
+                    <ArrowLeft className="w-5 h-5" />
+                  </button>
                   <Avatar>
                     <AvatarImage
                       src={getAvatarSrc(micrositeData.profilePic)}
@@ -392,6 +447,9 @@ const ChatPageContent = () => {
                     client={xmtpClient}
                     conversation={conversation}
                     messageHistory={messageHistory}
+                    tokenData={tokenData}
+                    recipientWalletData={walletData || []}
+                    recipientAddress={recipientAddress || ''}
                   />
                 )}
               </div>
@@ -436,6 +494,7 @@ const ChatPageContent = () => {
                 <MessageList
                   {...searchResult}
                   handleWalletClick={handleWalletClick}
+                  recipientAddress={recipientAddress}
                 />
               </div>
             )}
@@ -460,6 +519,7 @@ const ChatPageContent = () => {
                   key={chat.ethAddress}
                   {...chat}
                   handleWalletClick={handleWalletClick}
+                  recipientAddress={recipientAddress}
                 />
               ))
             )}
@@ -484,12 +544,14 @@ const MessageList = ({
   profilePic,
   ethAddress,
   handleWalletClick,
+  recipientAddress,
 }: {
   bio: string;
   name: string;
   profilePic: string;
   ethAddress: string;
   handleWalletClick: (ethAddress: string) => Promise<void>;
+  recipientAddress: string | null;
 }) => {
   return (
     <div

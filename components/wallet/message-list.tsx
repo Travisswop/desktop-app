@@ -18,9 +18,10 @@ interface MessageProps {
   name: string;
   profileUrl?: string;
   profilePic?: string;
+  tokens?: any;
 }
 
-const MessageList = () => {
+const MessageList = ({ tokens }: { tokens: any }) => {
   const { client: xmtpClient, isLoading: xmtpIsLoading } =
     useXmtpContext();
   const [peerAddressList, setPeerAddressList] = useState<string[]>(
@@ -39,7 +40,7 @@ const MessageList = () => {
 
     try {
       const conversations = await xmtpClient.conversations.list();
-      s;
+
       const peerList = conversations.map(
         (conversation) => conversation.peerAddress
       );
@@ -235,10 +236,14 @@ const MessageList = () => {
               </p>
             )}
           {searchResult ? (
-            <MessageCard {...searchResult} />
+            <MessageCard {...searchResult} tokens={tokens} />
           ) : (
             filteredPeerData.map((person: PeerData) => (
-              <MessageCard key={person.ethAddress} {...person} />
+              <MessageCard
+                key={person.ethAddress}
+                {...person}
+                tokens={tokens}
+              />
             ))
           )}
         </div>
@@ -252,12 +257,18 @@ const MessageCard = ({
   name,
   profilePic,
   ethAddress,
+  tokens,
 }: MessageProps) => {
   const router = useRouter();
 
   const handleWalletClick = useCallback(() => {
+    // Store token data in sessionStorage instead of passing it in URL
+    if (tokens && tokens.length > 0) {
+      sessionStorage.setItem('chatTokenData', JSON.stringify(tokens));
+    }
+    // Just pass the recipient in the URL
     router.push(`/chat?recipient=${ethAddress}`);
-  }, [router, ethAddress]);
+  }, [router, ethAddress, tokens]);
 
   const avatarSrc = useMemo(() => {
     if (!profilePic) return '/default-avatar.png';

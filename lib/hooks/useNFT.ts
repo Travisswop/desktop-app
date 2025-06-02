@@ -4,8 +4,7 @@ import { UseNFTResult } from '@/types/nft';
 import { useMemo } from 'react';
 import { CHAIN_CONFIG } from '@/types/config';
 import {
-  AlchemyService,
-  SolanaNFTService,
+  NFTService,
   processNFTCollections,
 } from '@/services/nft-service';
 
@@ -24,17 +23,26 @@ export const useNFT = (
       ...evmChains.map((chain) => ({
         queryKey: ['nfts', chain, evmWalletAddress],
         queryFn: () =>
-          AlchemyService.getNFTs(
+          NFTService.getNFTsForChain(
             CHAIN_CONFIG[chain].network,
-            CHAIN_CONFIG[chain].alchemyUrl || '',
-            evmWalletAddress!
+            evmWalletAddress!,
+            CHAIN_CONFIG[chain].alchemyUrl
           ),
         enabled: Boolean(evmWalletAddress),
+        retry: 2,
+        retryDelay: 1000,
+        staleTime: 5 * 60 * 1000, // 5 minutes
+        gcTime: 10 * 60 * 1000, // 10 minutes
       })),
       {
         queryKey: ['solanaNFTs', solWalletAddress],
-        queryFn: () => SolanaNFTService.getNFTs(solWalletAddress!),
+        queryFn: () =>
+          NFTService.getNFTsForChain('solana', solWalletAddress!),
         enabled: Boolean(solWalletAddress),
+        retry: 2,
+        retryDelay: 1000,
+        staleTime: 5 * 60 * 1000, // 5 minutes
+        gcTime: 10 * 60 * 1000, // 10 minutes
       },
     ],
   });
@@ -42,17 +50,23 @@ export const useNFT = (
   return useMemo(() => {
     const allNFTs = queries
       .flatMap((query) => query.data || [])
-      .filter((nft) => Boolean(nft?.name && !nft?.isSpam));
+      .filter((nft) =>
+        Boolean(nft?.name && nft?.image && !nft?.isSpam)
+      );
 
     const { collections, standaloneNFTs } =
       processNFTCollections(allNFTs);
+
+    const hasErrors = queries.some((query) => query.error);
+    const isLoading = queries.some((query) => query.isLoading);
+    const firstError = queries.find((query) => query.error)?.error;
 
     return {
       nfts: allNFTs,
       collections,
       standaloneNFTs,
-      loading: queries.some((query) => query.isLoading),
-      error: queries.find((query) => query.error)?.error || null,
+      loading: isLoading,
+      error: hasErrors ? (firstError as Error) : null,
       refetch: () => queries.forEach((query) => query.refetch()),
     };
   }, [queries]);

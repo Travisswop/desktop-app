@@ -1,4 +1,4 @@
-export type ChainType = 'ETHEREUM' | 'POLYGON' | 'BASE' | 'SOLANA';
+export type ChainType = 'ETHEREUM' | 'POLYGON' | 'BASE' | 'SOLANA' | 'SEPOLIA';
 export type EVMChain = Exclude<ChainType, 'SOLANA'>;
 
 export interface MarketData {

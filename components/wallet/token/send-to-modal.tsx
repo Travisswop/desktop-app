@@ -116,7 +116,7 @@ export default function SendToModal({
 
   const isValidAddress =
     searchQuery &&
-    ((['ETHEREUM', 'POLYGON', 'BASE'].includes(network) &&
+    ((['ETHEREUM', 'POLYGON', 'BASE', 'SEPOLIA'].includes(network) &&
       validateEthereumAddress(searchQuery)) ||
       (network === 'SOLANA' && validateSolanaAddress(searchQuery)));
 

@@ -270,6 +270,27 @@ export class TransactionService {
     hash: string;
     transaction: Transaction;
   }> {
+    console.log('EVM Transaction Debug:', {
+      network,
+      evmWallet,
+      sendFlow,
+      token: sendFlow.token,
+      tokenChain: sendFlow.token?.chain,
+    });
+
+    // Make sure we're explicitly on the right network
+    try {
+      // This ensures the wallet is on the correct chain before proceeding
+      if (network === 'SEPOLIA') {
+        console.log(
+          'Explicitly switching to Sepolia testnet (11155111)'
+        );
+        await evmWallet.switchChain(11155111); // Sepolia chain ID
+      }
+    } catch (error) {
+      console.error('Failed to switch chain:', error);
+    }
+
     const provider = await evmWallet.getEthereumProvider();
 
     if (!sendFlow.token?.address) {
@@ -278,6 +299,11 @@ export class TransactionService {
         to: sendFlow.recipient?.address,
         value: ethers.parseEther(sendFlow.amount),
       };
+
+      // Add chainId parameter explicitly for Sepolia
+      if (network === 'SEPOLIA') {
+        Object.assign(tx, { chainId: 11155111 });
+      }
 
       const txHash = await provider.request({
         method: 'eth_sendTransaction',

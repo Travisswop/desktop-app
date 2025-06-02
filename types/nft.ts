@@ -1,4 +1,4 @@
-export type ChainType = 'ETHEREUM' | 'POLYGON' | 'BASE' | 'SOLANA';
+export type ChainType = 'ETHEREUM' | 'POLYGON' | 'BASE' | 'SOLANA' | 'SEPOLIA';
 
 export interface NFT {
   name: string;

@@ -8,7 +8,7 @@ import TokenSelector from '@/app/(public-profile)/sp/[username]/cart/TokenSelect
 import PaymentShipping from '@/app/(public-profile)/sp/[username]/cart/Shipping';
 import { ChainType } from '@/types/nft';
 
-const chains: ChainType[] = ['ETHEREUM', 'POLYGON', 'BASE', 'SOLANA'];
+const chains: ChainType[] = ['ETHEREUM', 'POLYGON', 'BASE', 'SOLANA', 'SEPOLIA'];
 
 export default function NftPaymentModal({
   subtotal,
