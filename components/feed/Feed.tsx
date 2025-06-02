@@ -25,8 +25,6 @@ import IndividualFeedContent from "./IndividualFeedContent";
 import { FeedMainContentDataLoading } from "../loading/TabSwitcherLoading";
 import FeedLoading from "../loading/FeedLoading";
 import logger from "@/utils/logger";
-import done from "@/public/images/done.png";
-import { IoMdSwap } from "react-icons/io";
 
 dayjs.extend(relativeTime);
 
@@ -36,7 +34,6 @@ const Feed = ({
   setIsPosting,
   isPosting,
   setIsPostLoading,
-  isPostLoading,
 }: {
   accessToken: string;
   userId: string;
