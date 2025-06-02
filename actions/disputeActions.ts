@@ -182,9 +182,6 @@ export async function createOrderDispute(
       }
     );
 
-    console.log('Response status:', response.status);
-    console.log('Response ok:', response.ok);
-
     if (!response.ok) {
       let errorData;
       try {

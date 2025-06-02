@@ -270,7 +270,6 @@ export function UserProvider({
         setCookie('access-token', token);
         setCookie('user-id', userData._id);
 
-        console.log('User data fetched successfully');
         return true;
       } catch (err) {
         console.error('Error fetching user data:', err);

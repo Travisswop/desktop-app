@@ -126,18 +126,6 @@ const ChatPageContent = () => {
   >(null);
   const [tokenData, setTokenData] = useState<any>(null);
 
-  console.log('walletData with Address', walletData);
-
-  const { wallets: solanaWallets } = useSolanaWallets();
-  const { wallets: ethereumWallets } = useWallets();
-
-  console.log(
-    'here is the solana wallet',
-    solanaWallets,
-    'and here is the ethereum wallet',
-    ethereumWallets
-  );
-
   const fetchConversations = useCallback(async () => {
     if (!xmtpClient) return;
 

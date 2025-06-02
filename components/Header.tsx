@@ -32,7 +32,7 @@ import { MdOutlineEdit } from 'react-icons/md';
 
 export default function Header() {
   const { logout } = usePrivy();
-  const { user, loading, clearCache } = useUser();
+  const { user, loading, logout: userLogout } = useUser();
   const router = useRouter();
   const [isLoggingOut, setIsLoggingOut] = useState(false);
 
@@ -48,11 +48,8 @@ export default function Header() {
 
     setIsLoggingOut(true);
     try {
-      // Clear user data first to prevent any state inconsistencies
-      clearCache();
-
-      // Perform logout and navigation in parallel for better performance
-      await Promise.all([logout(), router.replace('/login')]);
+      // Use the UserContext logout function which already handles clearing session
+      await userLogout();
     } catch (error) {
       console.error('Logout failed:', error);
       // Revert loading state on error
@@ -61,6 +58,14 @@ export default function Header() {
     }
     // Only clear loading state on success to prevent UI flicker
     setIsLoggingOut(false);
+  };
+
+  const handleLoginWithPasskey = async () => {
+    try {
+      await loginWithPasskey();
+    } catch (error) {
+      console.error('Passkey login failed:', error);
+    }
   };
 
   if (loading) {
@@ -134,14 +139,10 @@ export default function Header() {
               Settings
             </DropdownMenuItem>
 
-            <DropdownMenuItem
-            // color="red"
-            // className="cursor-pointer"
-            // onSelect={() => {
-            //   router.push("/account-settings");
-            // }}
-            >
-              <button onClick={loginWithPasskey}>Passkey</button>
+            <DropdownMenuItem>
+              <button onClick={handleLoginWithPasskey}>
+                Passkey
+              </button>
               {/* <div className="flex items-start gap-4">
                 <div className="w-72 flex flex-col gap-3 bg-white rounded-xl shadow-medium p-4">
                   <div className="flex items-center gap-2 justify-between">
