@@ -1,16 +1,16 @@
-'use client';
+"use client";
 import {
   Modal,
   ModalBody,
   ModalContent,
   useDisclosure,
-} from '@nextui-org/react';
-import Image from 'next/image';
-import React, { useState } from 'react';
+} from "@nextui-org/react";
+import Image from "next/image";
+import React, { useState } from "react";
 
 const PostTypeMedia = ({ mediaFiles, isFromRepost = false }: any) => {
   const { isOpen, onOpen, onOpenChange } = useDisclosure();
-  const [image, setImage] = useState('');
+  const [image, setImage] = useState("");
   const [isLoading, setIsLoading] = useState(true);
 
   const handleOpenImage = (image: string) => {
@@ -20,31 +20,28 @@ const PostTypeMedia = ({ mediaFiles, isFromRepost = false }: any) => {
   };
 
   return (
-    <div className="">
+    <div className="w-full">
       {mediaFiles.length > 0 && (
         <div className="mt-2 w-full flex justify-center">
           {mediaFiles.length === 1 && (
-            <div
-              className={`max-h-[30rem] overflow-hidden rounded-2xl w-max`}
-            >
-              {mediaFiles[0].type === 'image' ||
-              mediaFiles[0].type === 'photo' ||
-              mediaFiles[0].type === 'gif' ? (
-                <div className="flex items-center justify-center h-full">
+            <div className={`max-h-[30rem] overflow-hidden rounded-2xl`}>
+              {mediaFiles[0].type === "image" ||
+              mediaFiles[0].type === "photo" ||
+              mediaFiles[0].type === "gif" ? (
+                <div className="relative flex items-center justify-center h-full">
                   <Image
-                    src={mediaFiles[0].src}
-                    alt="media"
+                    src={mediaFiles[0].src.replace(
+                      "/upload/",
+                      "/upload/f_auto/"
+                    )}
+                    alt="image"
                     onClick={() => handleOpenImage(mediaFiles[0].src)}
                     width={1600}
                     height={1600}
                     priority
                     className={`object-contain ${
-                      isFromRepost ? 'max-h-[26rem]' : 'max-h-[30rem]'
-                    }  w-auto cursor-pointer`}
-                    style={{
-                      maxWidth: '100%',
-                      height: 'auto',
-                    }}
+                      isFromRepost ? "max-h-[26rem]" : "max-h-[30rem]"
+                    } w-full max-w-full cursor-pointer rounded-xl`}
                   />
                 </div>
               ) : (
@@ -52,7 +49,7 @@ const PostTypeMedia = ({ mediaFiles, isFromRepost = false }: any) => {
                   src={mediaFiles[0].src}
                   controls
                   className={`w-full h-auto ${
-                    isFromRepost ? 'max-h-[26rem]' : 'max-h-[30rem]'
+                    isFromRepost ? "max-h-[26rem]" : "max-h-[30rem]"
                   } rounded-2xl`}
                 />
               )}
@@ -67,11 +64,11 @@ const PostTypeMedia = ({ mediaFiles, isFromRepost = false }: any) => {
                   key={index}
                   className="relative w-full h-full aspect-[4/3] overflow-hidden"
                 >
-                  {file.type === 'image' ||
-                  mediaFiles[0].type === 'photo' ||
-                  file.type === 'gif' ? (
+                  {file.type === "image" ||
+                  mediaFiles[0].type === "photo" ||
+                  file.type === "gif" ? (
                     <Image
-                      src={file.src}
+                      src={file.src.replace("/upload/", "/upload/f_auto/")}
                       alt="media"
                       fill
                       onClick={() => handleOpenImage(file.src)}
@@ -98,11 +95,11 @@ const PostTypeMedia = ({ mediaFiles, isFromRepost = false }: any) => {
                   key={index}
                   className="relative w-full h-full aspect-[4/3] overflow-hidden"
                 >
-                  {file.type === 'image' ||
-                  mediaFiles[0].type === 'photo' ||
-                  file.type === 'gif' ? (
+                  {file.type === "image" ||
+                  mediaFiles[0].type === "photo" ||
+                  file.type === "gif" ? (
                     <Image
-                      src={file.src}
+                      src={file.src.replace("/upload/", "/upload/f_auto/")}
                       alt="media"
                       fill
                       onClick={() => handleOpenImage(file.src)}
@@ -129,11 +126,11 @@ const PostTypeMedia = ({ mediaFiles, isFromRepost = false }: any) => {
                   key={index}
                   className="relative w-full h-full aspect-[4/3] overflow-hidden"
                 >
-                  {file.type === 'image' ||
-                  mediaFiles[0].type === 'photo' ||
-                  file.type === 'gif' ? (
+                  {file.type === "image" ||
+                  mediaFiles[0].type === "photo" ||
+                  file.type === "gif" ? (
                     <Image
-                      src={file.src}
+                      src={file.src.replace("/upload/", "/upload/f_auto/")}
                       alt="media"
                       fill
                       onClick={() => handleOpenImage(file.src)}
@@ -165,7 +162,7 @@ const PostTypeMedia = ({ mediaFiles, isFromRepost = false }: any) => {
                   </div>
                 )}
                 <Image
-                  src={image}
+                  src={image.replace("/upload/", "/upload/f_auto/")}
                   alt="feed image"
                   fill
                   // placeholder="blur"
