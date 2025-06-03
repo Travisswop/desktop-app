@@ -1,8 +1,9 @@
-import React, { Suspense } from "react";
-import TabSwitcher from "@/components/feed/TabSwitcher";
-import FeedMain from "@/components/feed/FeedMain";
+'use client';
+import React, { Suspense, memo } from 'react';
+import TabSwitcher from '@/components/feed/TabSwitcher';
+import FeedMain from '@/components/feed/FeedMain';
 
-const FeedPage = () => {
+const FeedPage = memo(() => {
   return (
     <div className="main-container mx-6">
       <div className="bg-white rounded-xl">
@@ -23,6 +24,8 @@ const FeedPage = () => {
       </div>
     </div>
   );
-};
+});
+
+FeedPage.displayName = 'FeedPage';
 
 export default FeedPage;

@@ -1,54 +1,67 @@
-"use client";
-import Link from "next/link";
-import React from "react";
-import DynamicPrimaryBtn from "../ui/Button/DynamicPrimaryBtn";
-import AnimateButton from "../ui/Button/AnimateButton";
-import { useSearchParams } from "next/navigation";
+'use client';
+import Link from 'next/link';
+import React, { memo, useMemo } from 'react';
+import DynamicPrimaryBtn from '../ui/Button/DynamicPrimaryBtn';
+import AnimateButton from '../ui/Button/AnimateButton';
+import { useSearchParams } from 'next/navigation';
 
-const TabSwitcher = () => {
+// Cache the app URL to avoid reading from process.env on each render
+const APP_URL = process.env.NEXT_PUBLIC_APP_URL;
+
+const TabSwitcher = memo(() => {
   const searchParams = useSearchParams();
 
-  const tab = searchParams.get("tab");
+  const tab = useMemo(() => searchParams.get('tab'), [searchParams]);
+
+  const tabs = useMemo(
+    () => [
+      {
+        key: 'feed',
+        label: 'Feed',
+        width: 'w-28',
+        href: `${APP_URL}?tab=feed`,
+        isActive: tab === 'feed' || !tab,
+      },
+      {
+        key: 'timeline',
+        label: 'Timeline',
+        width: 'w-28',
+        href: `${APP_URL}?tab=timeline`,
+        isActive: tab === 'timeline',
+      },
+      {
+        key: 'transaction',
+        label: 'Transaction',
+        width: 'w-32',
+        href: `${APP_URL}?tab=transaction`,
+        isActive: tab === 'transaction',
+      },
+    ],
+    [tab]
+  );
+
   return (
     <div className="flex items-center gap-2">
-      <Link href={`${process.env.NEXT_PUBLIC_APP_URL}?tab=feed`}>
-        {tab === "feed" || !tab ? (
-          <DynamicPrimaryBtn
-            enableGradient={false}
-            className="!rounded w-28 hover:!bg-black"
-          >
-            Feed
-          </DynamicPrimaryBtn>
-        ) : (
-          <AnimateButton width="w-28" className="!rounded">
-            Feed
-          </AnimateButton>
-        )}
-      </Link>
-      <Link href={`${process.env.NEXT_PUBLIC_APP_URL}?tab=timeline`}>
-        {tab === "timeline" ? (
-          <DynamicPrimaryBtn enableGradient={false} className="!rounded w-28">
-            Timeline
-          </DynamicPrimaryBtn>
-        ) : (
-          <AnimateButton width="w-28" className="!rounded">
-            Timeline
-          </AnimateButton>
-        )}
-      </Link>
-      <Link href={`${process.env.NEXT_PUBLIC_APP_URL}?tab=transaction`}>
-        {tab === "transaction" ? (
-          <DynamicPrimaryBtn enableGradient={false} className="!rounded w-32">
-            Transaction
-          </DynamicPrimaryBtn>
-        ) : (
-          <AnimateButton width="w-32" className="!rounded">
-            Transaction
-          </AnimateButton>
-        )}
-      </Link>
+      {tabs.map(({ key, label, width, href, isActive }) => (
+        <Link key={key} href={href}>
+          {isActive ? (
+            <DynamicPrimaryBtn
+              enableGradient={false}
+              className={`!rounded ${width} hover:!bg-black`}
+            >
+              {label}
+            </DynamicPrimaryBtn>
+          ) : (
+            <AnimateButton width={width} className="!rounded">
+              {label}
+            </AnimateButton>
+          )}
+        </Link>
+      ))}
     </div>
   );
-};
+});
+
+TabSwitcher.displayName = 'TabSwitcher';
 
 export default TabSwitcher;
