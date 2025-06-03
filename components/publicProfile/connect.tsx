@@ -41,6 +41,8 @@ const Connect: FC<Props> = ({ data, handler }) => {
     lng: 0,
   });
 
+  console.log("datahh", data);
+
   // const router = useRouter();
 
   useEffect(() => {
@@ -86,29 +88,38 @@ const Connect: FC<Props> = ({ data, handler }) => {
       return;
     }
     setLoader(true);
-    const payload = {
-      pId: connectInfo.pId,
-      cId: connectInfo.cId,
-      userId: userId,
-      lat: connectInfo.lat.toString(),
-      lng: connectInfo.lng.toString(),
-    };
-    const res = await postConnectSmartsite(payload, accessToken);
-    console.log("response", res);
+    try {
+      const payload = {
+        pId: connectInfo.pId,
+        cId: connectInfo.cId,
+        userId: userId,
+        lat: connectInfo.lat.toString(),
+        lng: connectInfo.lng.toString(),
+      };
 
-    if (res.state === "success") {
-      setLoader(false);
-      setSuccess(true);
-      await addSwopPoint({
-        userId: userId || data.parentId,
-        pointType: "Gaining a Follower",
-        actionKey: "launch-swop",
-      });
-      wait().then(() => handler(true));
-    } else {
+      const res = await postConnectSmartsite(payload, accessToken);
+
+      // console.log("response", res);
+
+      if (res?.state === "success") {
+        setLoader(false);
+        setSuccess(true);
+        await addSwopPoint({
+          userId: userId || data.parentId,
+          pointType: "Gaining a Follower",
+          actionKey: "launch-swop",
+        });
+        wait().then(() => handler(true));
+      } else {
+        throw new Error(res?.message || "Failed to connect");
+      }
+    } catch (error: any) {
+      // console.log("error occur", error);
       setLoader(false);
       toast({
-        title: "Something went wrong!",
+        title: "Connection failed",
+        description: error.message || "Please try again later",
+        variant: "destructive",
       });
     }
   };
@@ -156,7 +167,7 @@ const Connect: FC<Props> = ({ data, handler }) => {
             src={
               data.avatar.includes("https")
                 ? data.avatar
-                : `/images/avatar/${data.avatar}.png`
+                : `/images/user_avator/${data.avatar}.png`
             }
             alt={data.name}
             fill
