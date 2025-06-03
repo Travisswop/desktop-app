@@ -70,7 +70,7 @@ const Connect: FC<Props> = ({ data, handler }) => {
         });
       });
     }
-  }, []);
+  }, []); //not add connect as dependency
 
   const handleRedirect = () => {
     setRedirecting(true);
@@ -85,7 +85,6 @@ const Connect: FC<Props> = ({ data, handler }) => {
       handleRedirect();
       return;
     }
-
     setLoader(true);
     const payload = {
       pId: connectInfo.pId,
@@ -95,14 +94,16 @@ const Connect: FC<Props> = ({ data, handler }) => {
       lng: connectInfo.lng.toString(),
     };
     const res = await postConnectSmartsite(payload, accessToken);
+    console.log("response", res);
+
     if (res.state === "success") {
+      setLoader(false);
+      setSuccess(true);
       await addSwopPoint({
         userId: userId || data.parentId,
         pointType: "Gaining a Follower",
         actionKey: "launch-swop",
       });
-      setLoader(false);
-      setSuccess(true);
       wait().then(() => handler(true));
     } else {
       setLoader(false);
