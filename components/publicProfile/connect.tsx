@@ -41,6 +41,8 @@ const Connect: FC<Props> = ({ data, handler }) => {
     lng: 0,
   });
 
+  console.log("datahh", data);
+
   // const router = useRouter();
 
   useEffect(() => {
@@ -165,7 +167,7 @@ const Connect: FC<Props> = ({ data, handler }) => {
             src={
               data.avatar.includes("https")
                 ? data.avatar
-                : `/images/avatar/${data.avatar}.png`
+                : `/images/user_avator/${data.avatar}.png`
             }
             alt={data.name}
             fill
