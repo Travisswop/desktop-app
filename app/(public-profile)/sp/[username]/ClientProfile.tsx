@@ -308,13 +308,7 @@ export default function ClientProfile({
           {info?.videoUrl && info.videoUrl.length > 0 && (
             <div className="w-full">
               {info.videoUrl.map((social: any, index: number) => (
-                <EmbedVideo
-                  number={index}
-                  key={social._id}
-                  data={social}
-                  socialType="videoUrl"
-                  parentId={parentId}
-                />
+                <EmbedVideo key={social._id} data={social} />
               ))}
             </div>
           )}

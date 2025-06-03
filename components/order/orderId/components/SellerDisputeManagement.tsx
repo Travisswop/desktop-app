@@ -95,7 +95,7 @@ export const SellerDisputeManagement: React.FC<
 
     try {
       const result = await getOrderDisputes(orderId, accessToken);
-      console.log('🚀 ~ result:', result);
+
       if (result.success && result.dispute) {
         // Handle dispute as a single object
         const disputeData: any = result.dispute;

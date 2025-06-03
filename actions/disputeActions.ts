@@ -315,7 +315,7 @@ export async function createSellerChallenge(
     });
 
     const response = await fetch(
-      `${API_URL}/api/v5/disputes/${disputeId}/challenge`,
+      `${API_URL}/api/v5/seller/disputes/${disputeId}/challenge`,
       {
         method: 'POST',
         headers: {

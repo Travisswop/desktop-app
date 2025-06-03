@@ -174,7 +174,6 @@ export default function SellerDisputeDashboard() {
 
   // Handle challenge dispute
   const handleChallengeDispute = (disputeId: string) => {
-    setChallengingDisputeId(disputeId);
     setShowChallengeModal(true);
   };
 
