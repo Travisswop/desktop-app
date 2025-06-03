@@ -97,7 +97,7 @@ const Connect: FC<Props> = ({ data, handler }) => {
 
       const res = await postConnectSmartsite(payload, accessToken);
 
-      console.log("response", res);
+      // console.log("response", res);
 
       if (res?.state === "success") {
         setLoader(false);
@@ -112,7 +112,7 @@ const Connect: FC<Props> = ({ data, handler }) => {
         throw new Error(res?.message || "Failed to connect");
       }
     } catch (error: any) {
-      console.log("error occur", error);
+      // console.log("error occur", error);
       setLoader(false);
       toast({
         title: "Connection failed",
