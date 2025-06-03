@@ -1,12 +1,11 @@
 "use client";
-import { FC, useEffect, useState } from "react";
+import { FC, useState } from "react";
 import Image from "next/image";
 import { Dialog, DialogContent, DialogTrigger } from "@/components/ui/dialog";
 import Subscribe from "./subscribe";
 import Connect from "./connect";
 import { FaCartShopping } from "react-icons/fa6";
 import { usePathname, useRouter } from "next/navigation";
-import useAddToCardToggleStore from "@/zustandStore/addToCartToggle";
 import { useCart } from "@/app/(public-profile)/sp/[username]/cart/context/CartContext";
 
 interface Props {
@@ -26,11 +25,10 @@ const Header: FC<Props> = ({
   parentId,
   micrositeId,
   theme,
-  accessToken,
 }) => {
   const [open, setOpen] = useState(false);
   const [openDC, setOpenDC] = useState(false);
-  const { itemCount, state } = useCart();
+  const { itemCount } = useCart();
   const router = useRouter();
   const pathname = usePathname();
 
