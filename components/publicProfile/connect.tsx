@@ -1,20 +1,19 @@
 "use client";
 import { FC, useState, useEffect } from "react";
 import Image from "next/image";
-import { CheckCircle, Loader } from "lucide-react";
+import { CheckCircle, Link2, Loader } from "lucide-react";
 import { Toaster } from "@/components/ui/toaster";
 import { useToast } from "@/components/ui/use-toast";
 import {
   DialogHeader,
   DialogTitle,
-  DialogFooter,
+  DialogDescription,
 } from "@/components/ui/dialog";
-import { Label } from "@/components/ui/label";
-import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
 import { addSwopPoint } from "@/actions/addPoint";
-// import { addSwopPoint } from '@/app/actions/addPoint';
+import Cookies from "js-cookie";
+import { postConnectSmartsite } from "@/actions/connectMicrosite";
+// import { useRouter } from "next/navigation";
 const wait = () => new Promise((resolve) => setTimeout(resolve, 2500));
 interface Props {
   data: {
@@ -28,8 +27,11 @@ interface Props {
 
 const Connect: FC<Props> = ({ data, handler }) => {
   const { toast } = useToast();
+  const [userId, setUserId] = useState("");
+  const [accessToken, setAccessToken] = useState("");
   const [success, setSuccess] = useState(false);
   const [loader, setLoader] = useState(false);
+  const [redirecting, setRedirecting] = useState(false);
   const [connectInfo, setConnectInfo] = useState({
     pId: data.parentId,
     cId: data.micrositeId,
@@ -38,6 +40,24 @@ const Connect: FC<Props> = ({ data, handler }) => {
     lat: 0,
     lng: 0,
   });
+
+  // const router = useRouter();
+
+  useEffect(() => {
+    if (window !== undefined) {
+      const getUserId = async () => {
+        const id = Cookies.get("user-id");
+        setUserId(id || "");
+      };
+      getUserId();
+
+      const getAccessToken = async () => {
+        const token = Cookies.get("access-token");
+        setAccessToken(token || "");
+      };
+      getAccessToken();
+    }
+  }, []);
 
   useEffect(() => {
     if ("geolocation" in navigator) {
@@ -52,20 +72,32 @@ const Connect: FC<Props> = ({ data, handler }) => {
     }
   }, []);
 
-  const submitData = async () => {
-    const option = {
-      method: "POST",
-      body: JSON.stringify(connectInfo),
-      headers: {
-        "Content-Type": "application/json",
-      },
-    };
-    const response = await fetch("https://app.apiswop.co/web/connect", option);
-    const res = await response.json();
+  const handleRedirect = () => {
+    setRedirecting(true);
+    setTimeout(() => {
+      window.location.href =
+        "https://apps.apple.com/us/app/swop-connecting-the-world/id1593201322";
+    }, 3000);
+  };
 
+  const submitData = async () => {
+    if (!accessToken || !userId) {
+      handleRedirect();
+      return;
+    }
+
+    setLoader(true);
+    const payload = {
+      pId: connectInfo.pId,
+      cId: connectInfo.cId,
+      userId: userId,
+      lat: connectInfo.lat.toString(),
+      lng: connectInfo.lng.toString(),
+    };
+    const res = await postConnectSmartsite(payload, accessToken);
     if (res.state === "success") {
-      addSwopPoint({
-        userId: data.parentId,
+      await addSwopPoint({
+        userId: userId || data.parentId,
         pointType: "Gaining a Follower",
         actionKey: "launch-swop",
       });
@@ -75,106 +107,105 @@ const Connect: FC<Props> = ({ data, handler }) => {
     } else {
       setLoader(false);
       toast({
-        title: "User not found with this email",
+        title: "Something went wrong!",
       });
     }
   };
 
-  const connect = () => {
-    if (!connectInfo.name) {
-      toast({
-        title: "Enter your name",
-      });
-      return;
-    }
-    if (!connectInfo.email) {
-      toast({
-        title: "Enter your email",
-      });
-      return;
-    }
-    setLoader(true);
-    submitData();
-  };
+  if (redirecting) {
+    return (
+      <div className="flex flex-col items-center gap-y-6 p-6 text-center">
+        <div className="relative w-24 h-24 rounded-full border-4 border-white shadow-lg">
+          <Image
+            className="object-cover rounded-full"
+            src={
+              data.avatar.includes("https")
+                ? data.avatar
+                : `/images/avatar/${data.avatar}.png`
+            }
+            alt={data.name}
+            fill
+            priority
+          />
+        </div>
+
+        <DialogHeader className="text-center space-y-2">
+          <DialogTitle className="text-xl font-semibold text-gray-800">
+            {`You're not authenticated with Swop`}
+          </DialogTitle>
+          <DialogDescription className="text-gray-500 text-center">
+            Redirecting to Swop App...
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="flex items-center justify-center">
+          <Loader className="mr-2 h-4 w-4 animate-spin" />
+          <span>Please wait</span>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <>
-      <div className="border-4 w-24 rounded-full border-white shadow-lg mx-auto">
-        <Image
-          className="object-fill w-full h-full rounded-full"
-          src={
-            data.avatar.includes("https")
-              ? data.avatar
-              : `/images/avatar/${data.avatar}.png`
-          }
-          alt={data.name}
-          width={120}
-          height={120}
-          priority
-        />
-      </div>
-      <DialogHeader>
-        <DialogTitle className="text-center">
-          Share your info to Connect with {data.name}
-        </DialogTitle>
-      </DialogHeader>
-      <Card>
-        <CardContent>
-          <div className="grid gap-4 ">
-            <div className="grid grid-cols-4 items-center gap-4 pt-6">
-              <Label htmlFor="name" className="text-right">
-                Name*
-              </Label>
-              <Input
-                id="name"
-                value={connectInfo.name}
-                placeholder="John Doe"
-                className="col-span-3"
-                onChange={(e) =>
-                  setConnectInfo({
-                    ...connectInfo,
-                    name: e.target.value,
-                  })
-                }
-              />
-            </div>
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="email" className="text-right">
-                Email*
-              </Label>
-              <Input
-                id="email"
-                value={connectInfo.email}
-                type="email"
-                placeholder="john@gmail.com"
-                className="col-span-3"
-                onChange={(e) =>
-                  setConnectInfo({
-                    ...connectInfo,
-                    email: e.target.value,
-                  })
-                }
-              />
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+      <div className="flex flex-col items-center gap-y-6">
+        <div className="relative w-24 h-24 rounded-full border-4 border-white shadow-lg">
+          <Image
+            className="object-cover rounded-full"
+            src={
+              data.avatar.includes("https")
+                ? data.avatar
+                : `/images/avatar/${data.avatar}.png`
+            }
+            alt={data.name}
+            fill
+            priority
+          />
+        </div>
 
-      <DialogFooter>
-        <Button
-          onClick={connect}
-          className={success ? "text-lime-600" : "text-gray-50"}
-        >
-          <span className={success ? "text-lime-600" : "text-gray-50"}>
-            Connect
-          </span>
-          {success && <CheckCircle className=" ml-2 h-5 w-5" />}
-          {loader && <Loader className=" ml-2 h-5 w-5 animate-spin " />}
-        </Button>
-        <Toaster />
-      </DialogFooter>
+        <DialogHeader className="text-center space-y-2">
+          <DialogTitle className="text-xl font-semibold text-gray-800">
+            Connect with {data.name}
+          </DialogTitle>
+          <DialogDescription className="text-gray-500">
+            Click below to establish your connection
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="w-full flex flex-col items-center space-y-4">
+          <Button
+            onClick={submitData}
+            disabled={loader || success}
+            size="lg"
+            className={`w-full max-w-xs ${
+              success ? "bg-emerald-100 hover:bg-emerald-100" : ""
+            }`}
+          >
+            {loader ? (
+              <>
+                <Loader className="mr-2 h-4 w-4 animate-spin" />
+                Connecting...
+              </>
+            ) : success ? (
+              <>
+                <CheckCircle className="mr-2 h-4 w-4 text-emerald-600" />
+                <span className="text-emerald-600">Connected</span>
+              </>
+            ) : (
+              <>
+                <Link2 className="mr-2 h-4 w-4" />
+                Connect Now
+              </>
+            )}
+          </Button>
+        </div>
+
+        <div className="text-xs text-gray-400 text-center">
+          By connecting, you agree to our Terms of Service
+        </div>
+      </div>
+      <Toaster />
     </>
   );
 };
-
 export default Connect;
