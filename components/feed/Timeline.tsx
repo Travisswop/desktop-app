@@ -1,24 +1,34 @@
-"use client";
+'use client';
 
-import { getSmartsiteFeed } from "@/actions/postFeed";
-import Image from "next/image";
-import React, { useState, useEffect, useRef, useCallback } from "react";
-import { GoDotFill } from "react-icons/go";
-import dayjs from "dayjs";
-import PostTypeMedia from "./view/PostTypeMedia";
-import { HiDotsHorizontal } from "react-icons/hi";
-import { Popover, PopoverContent, PopoverTrigger } from "@nextui-org/react";
-import relativeTime from "dayjs/plugin/relativeTime";
-import Reaction from "./view/Reaction";
-import Link from "next/link";
-import { FiPlusCircle } from "react-icons/fi";
-import FeedLoading from "../loading/FeedLoading";
-import DeleteFeedModal from "./DeleteFeedModal";
-import isUrl from "@/lib/isUrl";
-import { useUser } from "@/lib/UserContext";
-import { useRouter } from "next/navigation";
-import IndividualFeedContent from "./IndividualFeedContent";
-import { FeedMainContentDataLoading } from "../loading/TabSwitcherLoading";
+import { getSmartsiteFeed } from '@/actions/postFeed';
+import Image from 'next/image';
+import React, {
+  useState,
+  useEffect,
+  useRef,
+  useCallback,
+} from 'react';
+import { GoDotFill } from 'react-icons/go';
+import dayjs from 'dayjs';
+import PostTypeMedia from './view/PostTypeMedia';
+import { HiDotsHorizontal } from 'react-icons/hi';
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@nextui-org/react';
+import relativeTime from 'dayjs/plugin/relativeTime';
+import Reaction from './view/Reaction';
+import Link from 'next/link';
+import { FiPlusCircle } from 'react-icons/fi';
+import FeedLoading from '../loading/FeedLoading';
+import DeleteFeedModal from './DeleteFeedModal';
+import isUrl from '@/lib/isUrl';
+import { useUser } from '@/lib/UserContext';
+import { useRouter } from 'next/navigation';
+import IndividualFeedContent from './IndividualFeedContent';
+import { FeedMainContentDataLoading } from '../loading/TabSwitcherLoading';
+import SwapTransactionCard from './SwapTransactionCard';
 
 dayjs.extend(relativeTime);
 
@@ -42,14 +52,14 @@ const Timeline = ({
   const observerRef = useRef<HTMLDivElement>(null);
   const isFetching = useRef(false);
   const pageRef = useRef(1);
-  const [smartsiteId, setSmartsiteId] = useState("");
+  const [smartsiteId, setSmartsiteId] = useState('');
   const [initiaLoading, setInitialLoading] = useState(true);
 
   const { user } = useUser();
 
   useEffect(() => {
     if (user?.primaryMicrosite) {
-      setSmartsiteId(user?.primaryMicrosite || "");
+      setSmartsiteId(user?.primaryMicrosite || '');
     }
   }, [user?.primaryMicrosite]);
 
@@ -79,13 +89,19 @@ const Timeline = ({
           5
         )}...${receiver_wallet_address.slice(-5)}`;
 
-    if (transaction_type === "nft") {
+    if (transaction_type === 'nft') {
       return (
         <div>
           <p className="text-gray-600 text-sm">
-            Sent NFT{" "}
-            <span className="font-medium text-base">{name || "item"}</span> to{" "}
-            <span className="font-medium text-base">{recipientDisplay}</span>.
+            Sent NFT{' '}
+            <span className="font-medium text-base">
+              {name || 'item'}
+            </span>{' '}
+            to{' '}
+            <span className="font-medium text-base">
+              {recipientDisplay}
+            </span>
+            .
           </p>
           {image && (
             <div className="w-52">
@@ -97,32 +113,33 @@ const Timeline = ({
                 className="w-full h-auto"
               />
               <p className="text-sm text-gray-600 font-medium mt-0.5 text-center">
-                {amount} {currency || "NFT"}
+                {amount} {currency || 'NFT'}
               </p>
             </div>
           )}
         </div>
       );
-    } else if (transaction_type === "token") {
+    } else if (transaction_type === 'token') {
       return (
         <p className="text-gray-600 text-sm">
-          Transferred{" "}
+          Transferred{' '}
           <span className="font-medium">
             {amount.toFixed(2)} {token}
-          </span>{" "}
+          </span>{' '}
           {tokenPrice && (
             <span className="text-sm text-gray-600 font-medium mt-0.5">
               (${Number(tokenPrice).toFixed(2)})
             </span>
-          )}{" "}
-          tokens to <span className="font-medium">{recipientDisplay}</span> on
+          )}{' '}
+          tokens to{' '}
+          <span className="font-medium">{recipientDisplay}</span> on
           the {chain}.
         </p>
       );
     } else {
       return (
         <p className="text-gray-600 text-sm">
-          Executed a {transaction_type} transaction involving {amount}{" "}
+          Executed a {transaction_type} transaction involving {amount}{' '}
           {currency}.
         </p>
       );
@@ -193,7 +210,9 @@ const Timeline = ({
   useEffect(() => {
     if (!hasMore) return;
 
-    const observerCallback = (entries: IntersectionObserverEntry[]) => {
+    const observerCallback = (
+      entries: IntersectionObserverEntry[]
+    ) => {
       if (entries[0].isIntersecting && !isFetching.current) {
         fetchFeedData();
       }
@@ -201,7 +220,7 @@ const Timeline = ({
 
     const observer = new IntersectionObserver(observerCallback, {
       root: null,
-      rootMargin: "0px",
+      rootMargin: '0px',
       threshold: 1.0,
     });
 
@@ -214,17 +233,25 @@ const Timeline = ({
   const router = useRouter();
 
   return (
-    <div className={`w-full flex gap-10 ${fromLivePreview && "mt-3"}`}>
+    <div
+      className={`w-full flex gap-10 ${fromLivePreview && 'mt-3'}`}
+    >
       <div className="w-full flex flex-col gap-4">
         {feedData.map((feed, index) => (
-          <div key={index} className="flex gap-2 border-b border-gray-200 pb-4">
+          <div
+            key={index}
+            className="flex gap-2 border-b border-gray-200 pb-4"
+          >
             <Link
-              href={`/sp/${feed?.smartsiteId?.ens || feed?.smartsiteEnsName}`}
+              href={`/sp/${
+                feed?.smartsiteId?.ens || feed?.smartsiteEnsName
+              }`}
               className="w-10 xl:w-12 h-10 xl:h-12 bg-gray-400 border border-gray-300 rounded-full overflow-hidden flex items-center justify-center"
             >
               {(() => {
                 const profilePic =
-                  feed?.smartsiteId?.profilePic || feed?.smartsiteProfilePic;
+                  feed?.smartsiteId?.profilePic ||
+                  feed?.smartsiteProfilePic;
                 return profilePic && isUrl(profilePic) ? (
                   <Image
                     alt="user image"
@@ -257,13 +284,13 @@ const Timeline = ({
                     <p className="text-gray-700 font-semibold">
                       {feed?.smartsiteId?.name ||
                         feed?.smartsiteUserName ||
-                        "Anonymous"}
+                        'Anonymous'}
                     </p>
                     <GoDotFill size={10} />
                     <p className="text-gray-500 font-normal">
                       {feed?.smartsiteId?.ens ||
                         feed?.smartsiteEnsName ||
-                        "n/a"}
+                        'n/a'}
                     </p>
                     <GoDotFill size={10} />
                     <p className="text-gray-500 font-normal">
@@ -271,15 +298,15 @@ const Timeline = ({
                     </p>
                   </Link>
                   {/* Redeem Content */}
-                  {feed.postType === "redeem" && (
+                  {feed.postType === 'redeem' && (
                     <button
                       onClick={() => router.push(`/feed/${feed._id}`)}
                       className="flex flex-col gap-2 text-gray-600 text-sm"
                     >
                       <div>
                         <p>
-                          Created a new {feed.content.redeemName} Redeemable
-                          Link -{" "}
+                          Created a new {feed.content.redeemName}{' '}
+                          Redeemable Link -{' '}
                           <a
                             href={feed.content.link}
                             target="_blank"
@@ -301,18 +328,24 @@ const Timeline = ({
                         <div className="font-semibold text-sm">
                           <p>{feed.content.network}</p>
                           <p>
-                            {feed.content.amount} {feed.content.symbol}
+                            {feed.content.amount}{' '}
+                            {feed.content.symbol}
                           </p>
                         </div>
                       </div>
                     </button>
                   )}
                   {/* Post Content */}
-                  {(feed.postType === "post" || feed.postType === "repost") &&
+                  {(feed.postType === 'post' ||
+                    feed.postType === 'repost') &&
                     feed.content.title && (
-                      <button onClick={() => router.push(`/feed/${feed._id}`)}>
+                      <button
+                        onClick={() =>
+                          router.push(`/feed/${feed._id}`)
+                        }
+                      >
                         {feed.content.title
-                          .split("\n")
+                          .split('\n')
                           .map((line: any, index: number) => (
                             <p className="break-text" key={index}>
                               {line}
@@ -321,264 +354,23 @@ const Timeline = ({
                       </button>
                     )}
 
-                  {feed.postType === "swapTransaction" && (
-                    // <div className="flex justify-start mt-1">
-                    //   <button
-                    //     onClick={() => router.push(`/feed/${feed._id}`)}
-                    //     className="w-full max-w-xl"
-                    //     style={{
-                    //       background: "transparent",
-                    //       border: "none",
-                    //       padding: 0,
-                    //     }}
-                    //   >
-                    //     <div className="flex flex-col items-center gap-3 p-4 bg-white hover:bg-gray-50 transition-colors shadow-small rounded-xl">
-                    //       <div className="flex flex-col items-center">
-                    //         <Image
-                    //           src={done}
-                    //           alt="done-image"
-                    //           unoptimized
-                    //           quality={100}
-                    //           className="w-24 h-24"
-                    //         />
-                    //         <div>
-                    //           <h3 className="font-semibold">Swapped!</h3>
-                    //           <div className="text-sm text-gray-700">
-                    //             <p>Transaction completed, you can</p>
-                    //             <p>
-                    //               see more details in{" "}
-                    //               <a
-                    //                 className="text-[#B396FF] font-medium"
-                    //                 onClick={(e) => e.stopPropagation()}
-                    //                 href={`https://solscan.io/tx/${feed.content.signature}`}
-                    //                 target="_blank"
-                    //               >
-                    //                 Trade History
-                    //               </a>
-                    //             </p>
-                    //           </div>
-                    //         </div>
-                    //       </div>
-                    //       <div className="flex gap-6 items-center justify-between">
-                    //         <div className="flex items-center gap-1">
-                    //           <Image
-                    //             src={
-                    //               feed.content.inputToken.tokenImg.startsWith(
-                    //                 "https"
-                    //               )
-                    //                 ? feed.content.inputToken.tokenImg
-                    //                 : `/assets/crypto-icons/${feed.content.inputToken.symbol}.png`
-                    //             }
-                    //             alt={feed.content.inputToken.symbol}
-                    //             width={120}
-                    //             height={120}
-                    //             className="w-10 h-10 rounded-full border-2 border-white shadow-sm z-10"
-                    //           />
-                    //           <div className="flex flex-col">
-                    //             <p className="text-xs text-gray-600 font-medium text-start">
-                    //               Send
-                    //             </p>
-                    //             <p className="text-base font-semibold text-red-600">
-                    //               {Number(
-                    //                 feed.content.inputToken.amount
-                    //               ).toFixed(2)}{" "}
-                    //               {feed.content.inputToken.symbol}
-                    //             </p>
-                    //           </div>
-                    //         </div>
-                    //         <IoMdSwap size={20} />
-                    //         <div className="flex items-center gap-1">
-                    //           <Image
-                    //             src={
-                    //               feed.content.outputToken.tokenImg.startsWith(
-                    //                 "https"
-                    //               )
-                    //                 ? feed.content.outputToken.tokenImg
-                    //                 : `/assets/crypto-icons/${feed.content.outputToken.symbol}.png`
-                    //             }
-                    //             alt={feed.content.outputToken.symbol}
-                    //             width={120}
-                    //             height={120}
-                    //             className="w-10 h-10 rounded-full border-2 border-white shadow-sm"
-                    //           />
-                    //           <div>
-                    //             <p className="text-xs text-gray-600 font-medium text-start">
-                    //               Received
-                    //             </p>
-                    //             <p className="text-base font-semibold text-green-600">
-                    //               {Number(
-                    //                 feed.content.outputToken.amount
-                    //               ).toFixed(2)}{" "}
-                    //               {feed.content.outputToken.symbol}
-                    //             </p>
-                    //           </div>
-                    //         </div>
-                    //       </div>
-                    //       <div className="flex items-center justify-between mt-2 gap-2 text-base">
-                    //         {feed.content.signature && (
-                    //           <a
-                    //             onClick={(e) => e.stopPropagation()}
-                    //             href={`https://solscan.io/tx/${feed.content.signature}`}
-                    //             target="_blank"
-                    //             rel="noopener noreferrer"
-                    //             className="text-sm text-black block bg-gray-200 px-4 py-2 rounded-full font-semibold"
-                    //           >
-                    //             View Details
-                    //           </a>
-                    //         )}
-                    //         <button
-                    //           onClick={(e) => {
-                    //             e.stopPropagation();
-                    //             router.push(
-                    //               `/wallet?inputToken=${feed.content.inputToken.symbol}&outputToken=${feed.content.outputToken.symbol}&amount=${feed.content.inputToken.amount}`
-                    //             );
-                    //           }}
-                    //           className="text-sm text-white block bg-black px-4 py-2 rounded-full font-semibold"
-                    //         >
-                    //           Copy Trade
-                    //         </button>
-                    //       </div>
-                    //     </div>
-                    //   </button>
-                    // </div>
-                    <div className="w-full flex justify-start mt-1">
-                      <button
-                        onClick={() => router.push(`/feed/${feed._id}`)}
-                        className="w-full max-w-xl"
-                        style={{
-                          background: "transparent",
-                          border: "none",
-                          padding: 0,
-                        }}
-                      >
-                        <div className="flex flex-col gap-3 border rounded-xl p-4 bg-white hover:bg-gray-50 transition-colors shadow-sm">
-                          <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-2">
-                              <div className="relative flex items-center">
-                                <Image
-                                  src={
-                                    feed.content.inputToken.tokenImg.startsWith(
-                                      "https"
-                                    )
-                                      ? feed.content.inputToken.tokenImg
-                                      : `/assets/crypto-icons/${feed.content.inputToken.symbol}.png`
-                                  }
-                                  alt={feed.content.inputToken.symbol}
-                                  width={120}
-                                  height={120}
-                                  className="w-10 h-10 rounded-full border-2 border-white shadow-sm z-10"
-                                />
-                                <Image
-                                  src={
-                                    feed.content.outputToken.tokenImg.startsWith(
-                                      "https"
-                                    )
-                                      ? feed.content.outputToken.tokenImg
-                                      : `/assets/crypto-icons/${feed.content.outputToken.symbol}.png`
-                                  }
-                                  alt={feed.content.outputToken.symbol}
-                                  width={120}
-                                  height={120}
-                                  className="w-10 h-10 rounded-full border-2 border-white shadow-sm -ml-4 z-20"
-                                />
-                              </div>
-                            </div>
-                            <div className="flex flex-col items-end">
-                              <p className="text-sm text-gray-500">
-                                Swap Transaction
-                              </p>
-                              <p className="text-xs text-gray-400">
-                                {dayjs(feed.createdAt).format(
-                                  "MMM D, YYYY h:mm A"
-                                )}
-                              </p>
-                            </div>
-                          </div>
-
-                          <div className="flex items-center justify-between">
-                            <div className="flex flex-col">
-                              <p className="text-sm text-gray-600">You sent</p>
-                              <p className="text-base font-semibold text-red-600">
-                                {Number(feed.content.inputToken.amount).toFixed(
-                                  2
-                                )}{" "}
-                                {feed.content.inputToken.symbol}
-                              </p>
-                            </div>
-                            <svg
-                              className="w-6 h-6 text-gray-400"
-                              fill="none"
-                              stroke="currentColor"
-                              viewBox="0 0 24 24"
-                            >
-                              <path
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                                strokeWidth="2"
-                                d="M17 8l4 4m0 0l-4 4m4-4H3"
-                              />
-                            </svg>
-                            <div className="flex flex-col items-end">
-                              <p className="text-sm text-gray-600">
-                                You received
-                              </p>
-                              <p className="text-base font-semibold text-green-600">
-                                {Number(
-                                  feed.content.outputToken.amount
-                                ).toFixed(2)}{" "}
-                                {feed.content.outputToken.symbol}
-                              </p>
-                            </div>
-                          </div>
-                          <div className="flex items-center justify-between mt-2">
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                router.push(
-                                  `/wallet?inputToken=${feed.content.inputToken.symbol}&outputToken=${feed.content.outputToken.symbol}&amount=${feed.content.inputToken.amount}`
-                                );
-                              }}
-                              className="text-xs border border-gray-300 rounded px-3 py-1 font-medium hover:bg-gray-200"
-                            >
-                              Copy Trade
-                            </button>
-                            {feed.content.signature && (
-                              <div className="flex justify-end">
-                                <a
-                                  onClick={(e) => e.stopPropagation()}
-                                  href={`https://solscan.io/tx/${feed.content.signature}`}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="flex items-center gap-1 text-xs text-blue-600 hover:underline font-medium"
-                                >
-                                  View on Solscan
-                                  <svg
-                                    xmlns="http://www.w3.org/2000/svg"
-                                    className="h-3 w-3"
-                                    fill="none"
-                                    viewBox="0 0 24 24"
-                                    stroke="currentColor"
-                                  >
-                                    <path
-                                      strokeLinecap="round"
-                                      strokeLinejoin="round"
-                                      strokeWidth={2}
-                                      d="M17 7h2a2 2 0 012 2v10a2 2 0 01-2 2H5a2 2 0 01-2-2V9a2 2 0 012-2h2m4-4h4m0 0v4m0-4L10 10"
-                                    />
-                                  </svg>
-                                </a>
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      </button>
-                    </div>
+                  {feed.postType === 'swapTransaction' && (
+                    <SwapTransactionCard
+                      feed={feed}
+                      showAmountDetails={true}
+                      showCopyTrade={true}
+                      showSolscanLink={true}
+                      onFeedClick={() =>
+                        router.push(`/feed/${feed._id}`)
+                      }
+                    />
                   )}
 
-                  {feed.postType === "repost" && feed.repostedPostDetails ? (
+                  {feed.postType === 'repost' &&
+                  feed.repostedPostDetails ? (
                     <IndividualFeedContent feed={feed} />
                   ) : (
-                    feed.postType === "repost" &&
+                    feed.postType === 'repost' &&
                     !feed.repostedPostDetails && (
                       <div className="p-4 bg-blue-50 rounded-lg border border-blue-100 text-blue-800 text-sm mt-1">
                         <div className="flex items-start">
@@ -594,9 +386,12 @@ const Timeline = ({
                             />
                           </svg>
                           <div>
-                            <p className="font-medium">Content Removed</p>
+                            <p className="font-medium">
+                              Content Removed
+                            </p>
                             <p className="mt-1 text-blue-700">
-                              The original poster has deleted this content
+                              The original poster has deleted this
+                              content
                             </p>
                           </div>
                         </div>
@@ -604,29 +399,29 @@ const Timeline = ({
                     )
                   )}
                   {/* Additional Post Types */}
-                  {feed.postType === "connection" && (
+                  {feed.postType === 'connection' && (
                     <button
                       onClick={() => router.push(`/feed/${feed._id}`)}
                       className="text-gray-600 text-sm"
                     >
-                      Connected with{" "}
+                      Connected with{' '}
                       <span className="text-gray-700 font-medium text-base">
                         {feed.content.connectedSmartsiteName}
                       </span>
                     </button>
                   )}
-                  {feed.postType === "ensClaim" && (
+                  {feed.postType === 'ensClaim' && (
                     <button
                       onClick={() => router.push(`/feed/${feed._id}`)}
                       className="text-gray-600 text-sm"
                     >
-                      Claim a new ENS{" "}
+                      Claim a new ENS{' '}
                       <span className="text-gray-700 font-medium text-base">
                         {feed.content.claimEnsName}
                       </span>
                     </button>
                   )}
-                  {feed.postType === "transaction" &&
+                  {feed.postType === 'transaction' &&
                     renderTransactionContent(feed)}
                 </div>
                 {/* {userId === feed.userId && ( */}
@@ -657,15 +452,20 @@ const Timeline = ({
               </div>
               <div>
                 {/* Post Media */}
-                {feed.postType === "post" &&
+                {feed.postType === 'post' &&
                   feed.content.post_content.length > 0 && (
-                    <PostTypeMedia mediaFiles={feed.content.post_content} />
+                    <PostTypeMedia
+                      mediaFiles={feed.content.post_content}
+                    />
                   )}
-                {feed.postType === "minting" && (
+                {feed.postType === 'minting' && (
                   <div className="w-max">
                     <p>{feed.content.title}</p>
                     <div className="shadow-medium bg-white rounded-lg mt-2 p-2 relative">
-                      <Link href={feed.content.link} className="w-max">
+                      <Link
+                        href={feed.content.link}
+                        className="w-max"
+                      >
                         <Image
                           src={feed.content.image}
                           alt="nft image"
@@ -699,7 +499,11 @@ const Timeline = ({
         ))}
         {hasMore && (
           <div ref={observerRef}>
-            {initiaLoading ? <FeedMainContentDataLoading /> : <FeedLoading />}
+            {initiaLoading ? (
+              <FeedMainContentDataLoading />
+            ) : (
+              <FeedLoading />
+            )}
           </div>
         )}
       </div>

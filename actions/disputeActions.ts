@@ -266,7 +266,6 @@ export async function getOrderDisputes(
     }
 
     const result = await response.json();
-    console.log('🚀 ~ result:', result);
     return {
       success: true,
       dispute: result.data,
