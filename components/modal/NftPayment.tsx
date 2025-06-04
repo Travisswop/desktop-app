@@ -28,10 +28,54 @@ export default function NftPaymentModal({
   const [walletData, setWalletData] = useState<any>(null);
   const [amontOfToken, setAmontOfToken] = useState<any>(null);
   const [selectedToken, setSelectedToken] = useState<any>(null);
+  // Preserve the initial payment data to prevent issues when cart is cleared
+  const [paymentData, setPaymentData] = useState<{
+    subtotal: number;
+    customerInfo: any;
+    cartItems: any[];
+    orderId: string | null;
+  } | null>(null);
+
   const { createWallet } = useSolanaWalletContext();
   const { authenticated, ready, user: PrivyUser } = usePrivy();
   const [solWalletAddress, setSolWalletAddress] = useState('');
   const [evmWalletAddress, setEvmWalletAddress] = useState('');
+
+  // Store payment data when modal opens and subtotal is valid
+  useEffect(() => {
+    if (isOpen && subtotal > 0 && !paymentData) {
+      setPaymentData({
+        subtotal,
+        customerInfo,
+        cartItems,
+        orderId,
+      });
+    }
+  }, [
+    isOpen,
+    subtotal,
+    customerInfo,
+    cartItems,
+    orderId,
+    paymentData,
+  ]);
+
+  // Clear payment data when modal closes
+  useEffect(() => {
+    if (!isOpen) {
+      setPaymentData(null);
+      setSelectedToken(null);
+      setAmontOfToken(null);
+    }
+  }, [isOpen]);
+
+  // Use stored payment data or fallback to props
+  const currentSubtotal = paymentData?.subtotal || subtotal;
+  const currentCustomerInfo =
+    paymentData?.customerInfo || customerInfo;
+  const currentCartItems = paymentData?.cartItems || cartItems;
+  const currentOrderId = paymentData?.orderId || orderId;
+
   // Effects
   useEffect(() => {
     if (authenticated && ready && PrivyUser) {
@@ -102,11 +146,14 @@ export default function NftPaymentModal({
       const price = parseFloat(selectedToken.marketData.price);
       return (usdAmount / price).toFixed(4);
     };
-    if (selectedToken) {
-      const amontOfToken = convertUSDToToken(subtotal);
+    if (selectedToken && currentSubtotal > 0) {
+      const amontOfToken = convertUSDToToken(currentSubtotal);
       setAmontOfToken(amontOfToken);
     }
-  }, [selectedToken, subtotal]);
+  }, [selectedToken, currentSubtotal]);
+
+  console.log('subtotal (original):', subtotal);
+  console.log('currentSubtotal (preserved):', currentSubtotal);
 
   return (
     <>
@@ -118,14 +165,14 @@ export default function NftPaymentModal({
                 <ModalBody className="text-center">
                   {selectedToken ? (
                     <PaymentShipping
-                      subtotal={subtotal}
+                      subtotal={currentSubtotal}
                       selectedToken={selectedToken}
                       setSelectedToken={setSelectedToken}
                       amontOfToken={amontOfToken}
                       walletData={walletData}
-                      customerInfo={customerInfo}
-                      cartItems={cartItems}
-                      orderId={orderId}
+                      customerInfo={currentCustomerInfo}
+                      cartItems={currentCartItems}
+                      orderId={currentOrderId}
                     />
                   ) : (
                     <TokenSelector

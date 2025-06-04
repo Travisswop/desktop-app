@@ -56,6 +56,7 @@ const PaymentShipping: React.FC<{
   cartItems,
   orderId: existingOrderId,
 }) => {
+  console.log('subtotal', subtotal);
   const { accessToken } = useUser();
   const { dispatch } = useCart();
   const [transactionStage, setTransactionStage] = useState(
@@ -67,7 +68,15 @@ const PaymentShipping: React.FC<{
   const { solanaWallets } = useSolanaWalletContext();
   const params = useParams();
   const router = useRouter();
-  const name = params.username;
+
+  // Handle username potentially being string or string[]
+  let username: string | undefined;
+  const usernameParam = params?.username;
+  if (Array.isArray(usernameParam)) {
+    username = usernameParam[0]; // Take the first element if it's an array
+  } else {
+    username = usernameParam;
+  }
 
   // Loading state derived from transaction stage
   const isLoading =
@@ -87,16 +96,23 @@ const PaymentShipping: React.FC<{
     if (transactionStage === TRANSACTION_STAGES.COMPLETED) {
       // Clear the cart when transaction is completed
       dispatch({ type: 'CLEAR_CART' });
-      clearCartFromLocalStorage(name as string);
+      if (username) {
+        // Check if username is defined (now it should be string | undefined)
+        clearCartFromLocalStorage(username);
+      }
 
       redirectTimer = setTimeout(() => {
-        router.push(
-          `/payment-success?orderId=${orderId}&username=${name}`
-        );
+        const query = new URLSearchParams();
+        if (orderId) query.set('orderId', orderId);
+        if (username) {
+          // Check if username is defined before adding to URL
+          query.set('username', username);
+        }
+        router.push(`/payment-success?${query.toString()}`);
       }, 3000); // Give user time to see success message
     }
     return () => clearTimeout(redirectTimer);
-  }, [transactionStage, router, name, orderId, dispatch]);
+  }, [transactionStage, router, username, orderId, dispatch]); // Ensure username is in dependency array
 
   const getStageMessage = () => {
     switch (transactionStage) {
@@ -177,7 +193,7 @@ const PaymentShipping: React.FC<{
             orderId,
             {
               transactionHash: hash,
-              status: 'completed' as Status,
+              status: 'completed',
             },
             accessToken
           );

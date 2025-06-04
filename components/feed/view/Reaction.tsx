@@ -211,7 +211,6 @@ const Reaction = memo(
     };
 
     const { user, loading, error: userError }: any = useUser();
-    console.log('user', user);
 
     useEffect(() => {
       if (user) {

@@ -32,6 +32,7 @@ import {
   CustomerInfo,
   PaymentMethod,
   Status,
+  CartItem,
 } from './components/types';
 import { createOrder } from '@/actions/orderActions';
 import {
@@ -65,6 +66,7 @@ const CartCheckout = () => {
   const { user, accessToken } = useUser();
   const { solanaWallets } = useSolanaWalletContext();
   const { state, dispatch, subtotal, sellerId } = useCart();
+  console.log('🚀 ~ CartCheckout ~ subtotal:', subtotal);
   const params = useParams();
   const name = params.username as string;
   const orderIdRef = React.useRef<string | null>(null);
@@ -136,6 +138,12 @@ const CartCheckout = () => {
   const [walletOrderId, setWalletOrderId] = React.useState<
     string | null
   >(null);
+  // Preserve original cart data for wallet payment
+  const [originalCartData, setOriginalCartData] = React.useState<{
+    subtotal: number;
+    cartItems: CartItem[];
+    customerInfo: CustomerInfo;
+  } | null>(null);
 
   // Check if any product requires physical shipping
   const hasPhygitalProducts = useMemo(() => {
@@ -174,7 +182,6 @@ const CartCheckout = () => {
             ? err.message
             : 'Could not initialize payment. Please try again later.';
         setError(errorMessage);
-        toast.error(errorMessage);
       } finally {
         setLoading(false);
       }
@@ -462,6 +469,12 @@ const CartCheckout = () => {
       const orderId = await createOrderForPayment('wallet');
       if (orderId) {
         setWalletOrderId(orderId);
+        // Preserve the original cart data before clearing
+        setOriginalCartData({
+          subtotal: subtotal,
+          cartItems: [...(state.items || [])],
+          customerInfo: { ...customerInfo },
+        });
         // Clear the cart when an order is successfully created
         dispatch({ type: 'CLEAR_CART' });
         // Clear from localStorage
@@ -476,7 +489,15 @@ const CartCheckout = () => {
       setErrorMessage(errorMessage);
       toast.error(errorMessage);
     }
-  }, [createOrderForPayment, onOpen, dispatch, name]);
+  }, [
+    createOrderForPayment,
+    onOpen,
+    dispatch,
+    name,
+    subtotal,
+    state.items,
+    customerInfo,
+  ]);
 
   const handleOpenPaymentSheet = useCallback(async () => {
     try {
@@ -547,7 +568,7 @@ const CartCheckout = () => {
         onRemove={handleRemoveItem}
       />
 
-      {subtotal > 0 && hasItems ? (
+      {subtotal > 0 && hasItems && (
         <CheckoutCard
           user={user}
           customerInfo={customerInfo}
@@ -561,16 +582,22 @@ const CartCheckout = () => {
           subtotal={subtotal}
           hasPhygitalProducts={hasPhygitalProducts}
         />
-      ) : error ? (
-        <ErrorDisplay error={error} />
-      ) : null}
+      )}
 
       <NftPaymentModal
-        subtotal={subtotal}
+        subtotal={originalCartData?.subtotal || subtotal}
         isOpen={isOpen}
-        onOpenChange={onOpenChange}
-        customerInfo={customerInfo}
-        cartItems={cartItems}
+        onOpenChange={(open) => {
+          if (open) {
+            onOpen();
+          } else {
+            onOpenChange();
+            // Clear original cart data when modal is closed
+            setOriginalCartData(null);
+          }
+        }}
+        customerInfo={originalCartData?.customerInfo || customerInfo}
+        cartItems={originalCartData?.cartItems || cartItems}
         orderId={walletOrderId}
       />
 
