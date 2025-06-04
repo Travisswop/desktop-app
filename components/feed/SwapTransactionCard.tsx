@@ -1,8 +1,8 @@
-'use client';
-import React from 'react';
-import Image from 'next/image';
-import dayjs from 'dayjs';
-import { useRouter } from 'next/navigation';
+"use client";
+import React from "react";
+import Image from "next/image";
+import dayjs from "dayjs";
+import { useRouter } from "next/navigation";
 
 interface SwapTransactionCardProps {
   feed: any;
@@ -32,12 +32,12 @@ const SwapTransactionCard: React.FC<SwapTransactionCardProps> = ({
 
   return (
     <div className="w-full flex justify-start mt-1">
-      <button
+      <div
         onClick={handleClick}
         className="w-full max-w-xl"
         style={{
-          background: 'transparent',
-          border: 'none',
+          background: "transparent",
+          border: "none",
           padding: 0,
         }}
       >
@@ -47,9 +47,7 @@ const SwapTransactionCard: React.FC<SwapTransactionCardProps> = ({
               <div className="relative flex items-center">
                 <Image
                   src={
-                    feed.content.inputToken.tokenImg.startsWith(
-                      'https'
-                    )
+                    feed.content.inputToken.tokenImg.startsWith("https")
                       ? feed.content.inputToken.tokenImg
                       : `/assets/crypto-icons/${feed.content.inputToken.symbol}.png`
                   }
@@ -60,9 +58,7 @@ const SwapTransactionCard: React.FC<SwapTransactionCardProps> = ({
                 />
                 <Image
                   src={
-                    feed.content.outputToken.tokenImg.startsWith(
-                      'https'
-                    )
+                    feed.content.outputToken.tokenImg.startsWith("https")
                       ? feed.content.outputToken.tokenImg
                       : `/assets/crypto-icons/${feed.content.outputToken.symbol}.png`
                   }
@@ -74,11 +70,9 @@ const SwapTransactionCard: React.FC<SwapTransactionCardProps> = ({
               </div>
             </div>
             <div className="flex flex-col items-end">
-              <p className="text-sm text-gray-500">
-                Swap Transaction
-              </p>
+              <p className="text-sm text-gray-500">Swap Transaction</p>
               <p className="text-xs text-gray-400">
-                {dayjs(feed.createdAt).format('MMM D, YYYY h:mm A')}
+                {dayjs(feed.createdAt).format("MMM D, YYYY h:mm A")}
               </p>
             </div>
           </div>
@@ -87,7 +81,7 @@ const SwapTransactionCard: React.FC<SwapTransactionCardProps> = ({
             <div className="flex flex-col">
               <p className="text-sm text-gray-600">You sent</p>
               <p className="text-base font-semibold text-red-600">
-                {Number(feed.content.inputToken.amount).toFixed(2)}{' '}
+                {Number(feed.content.inputToken.amount).toFixed(2)}{" "}
                 {feed.content.inputToken.symbol}
               </p>
             </div>
@@ -107,7 +101,7 @@ const SwapTransactionCard: React.FC<SwapTransactionCardProps> = ({
             <div className="flex flex-col items-end">
               <p className="text-sm text-gray-600">You received</p>
               <p className="text-base font-semibold text-green-600">
-                {Number(feed.content.outputToken.amount).toFixed(2)}{' '}
+                {Number(feed.content.outputToken.amount).toFixed(2)}{" "}
                 {feed.content.outputToken.symbol}
               </p>
             </div>
@@ -149,7 +143,7 @@ const SwapTransactionCard: React.FC<SwapTransactionCardProps> = ({
             )}
           </div>
         </div>
-      </button>
+      </div>
     </div>
   );
 };
