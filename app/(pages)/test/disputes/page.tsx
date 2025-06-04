@@ -1,7 +1,7 @@
-'use client';
+"use client";
 
-import React from 'react';
-import { MockSellerDisputeManagement } from '@/components/mock/MockSellerDisputeManagement';
+import React from "react";
+import { MockSellerDisputeManagement } from "@/components/mock/MockSellerDisputeManagement";
 
 export default function TestDisputesPage() {
   return (
