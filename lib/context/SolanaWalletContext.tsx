@@ -31,7 +31,6 @@ export const SolanaWalletProvider: React.FC<{
   useEffect(() => {
     if (wallets) {
       setStoredWallets(wallets);
-      logger.log('Solana wallets updated:', wallets);
     }
   }, [wallets]);
 

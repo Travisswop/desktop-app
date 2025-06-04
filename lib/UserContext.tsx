@@ -188,13 +188,11 @@ export function UserProvider({
 
       // Prevent concurrent requests
       if (fetchInProgressRef.current) {
-        console.log('Fetch already in progress, skipping');
         return false;
       }
 
       // Skip if we already fetched for this email
       if (lastFetchedEmailRef.current === email && user) {
-        console.log('User data already fetched for this email');
         return true;
       }
 
@@ -227,7 +225,6 @@ export function UserProvider({
 
         if (!response.ok) {
           if (response.status === 404) {
-            console.log('User not found in backend');
             clearUserSession();
 
             // Only redirect if not already on public route
@@ -238,7 +235,6 @@ export function UserProvider({
           }
 
           if (response.status === 401 || response.status === 403) {
-            console.log('Authentication failed, clearing session');
             clearUserSession();
             await privyLogout();
 
@@ -278,7 +274,6 @@ export function UserProvider({
         // Handle specific errors
         if (err instanceof Error) {
           if (err.name === 'AbortError') {
-            console.log('Request was cancelled');
             return false;
           }
           setError(err);
@@ -347,7 +342,6 @@ export function UserProvider({
 
       // Check if user is authenticated with Privy
       if (!authenticated || !privyUser) {
-        console.log('User not authenticated with Privy');
         clearUserSession();
         setLoading(false);
         if (!isPublicRoute(pathname)) {
@@ -359,7 +353,6 @@ export function UserProvider({
       // Extract email from Privy user
       const email = extractEmailFromPrivyUser(privyUser);
       if (!email) {
-        console.log('No email found in Privy user');
         setError(new Error('No email found in account'));
         setLoading(false);
         if (!isPublicRoute(pathname)) {
@@ -370,7 +363,6 @@ export function UserProvider({
 
       // Check if we need to fetch user data
       if (lastFetchedEmailRef.current !== email || !user) {
-        console.log('Fetching user data for:', email);
         const success = await fetchUserData(email);
 
         if (success) {
@@ -399,7 +391,6 @@ export function UserProvider({
   useEffect(() => {
     // Validate session consistency
     if (ready && user && !privyUser) {
-      console.log('Session mismatch detected, clearing user data');
       clearUserSession();
 
       if (!isPublicRoute(pathname)) {

@@ -1,54 +1,54 @@
-import Image from "next/image";
-import React, { useEffect, useState } from "react";
-import swop from "@/public/images/live-preview/swop.svg";
-import useSmartsiteFormStore from "@/zustandStore/EditSmartsiteInfo";
+import Image from 'next/image';
+import React, { useEffect, useState } from 'react';
+import swop from '@/public/images/live-preview/swop.svg';
+import useSmartsiteFormStore from '@/zustandStore/EditSmartsiteInfo';
 // import isUrl from "@/util/isUrl";
 // import { tintStyle } from "@/util/IconTintStyle";
-import useUpdateSmartIcon from "@/zustandStore/UpdateSmartIcon";
-import useSmallIconToggleStore from "@/zustandStore/SmallIconModalToggle";
+import useUpdateSmartIcon from '@/zustandStore/UpdateSmartIcon';
+import useSmallIconToggleStore from '@/zustandStore/SmallIconModalToggle';
 // import getSmallIconImage from "@/util/retriveIconImage/getSmallIconImage";
 // import getAppIconImage from "@/util/retriveIconImage/getAppIconImage";
-import { FaEdit, FaPause, FaPlay } from "react-icons/fa";
-import useSideBarToggleStore from "@/zustandStore/SideBarToggleStore";
+import { FaEdit, FaPause, FaPlay } from 'react-icons/fa';
+import useSideBarToggleStore from '@/zustandStore/SideBarToggleStore';
 // import AnimateButton from "./Button/AnimateButton";
-import AudioPlayer from "react-h5-audio-player";
+import AudioPlayer from 'react-h5-audio-player';
 // import EmbedPlayer from "./livePreviewSmartsitesIcons/renderEmbedPlayer";
 // import businessCard from "@/public/images/IconShop/outline-icons/dark/business-card-outline@3x.png";
-import referral from "@/public/images/websites/referral.jpeg";
-import ethereum from "@/public/images/social-icon/ethereum.png";
-import card from "@/public/images/social-icon/card.png";
-import message from "@/public/images/social-icon/message.png";
+import referral from '@/public/images/websites/referral.jpeg';
+import ethereum from '@/public/images/social-icon/ethereum.png';
+import card from '@/public/images/social-icon/card.png';
+import message from '@/public/images/social-icon/message.png';
 // import location from "@/public/images/social-icon/location.png";
 // import getAllSmartsitesIcon from "@/util/retriveIconImage/getAllSmartsiteIcon";
-import isUrl from "@/lib/isUrl";
-import { tintStyle } from "../util/IconTintStyle";
-import getSmallIconImage from "./retriveIconImage/getSmallIconImage";
-import EmbedPlayer from "./embed/renderEmbedPlayer";
-import getAllSmartsitesIcon from "./retriveIconImage/getAllSmartsiteIcon";
+import isUrl from '@/lib/isUrl';
+import { tintStyle } from '../util/IconTintStyle';
+import getSmallIconImage from './retriveIconImage/getSmallIconImage';
+import EmbedPlayer from './embed/renderEmbedPlayer';
+import getAllSmartsitesIcon from './retriveIconImage/getAllSmartsiteIcon';
 // import mockupBtn from "@/public/images/mockup-bottom-button.png";
 // import DynamicPrimaryBtn from "../ui/Button/DynamicPrimaryBtn";
-import { LiaFileMedicalSolid } from "react-icons/lia";
+import { LiaFileMedicalSolid } from 'react-icons/lia';
 import {
   Modal,
   ModalBody,
   ModalContent,
   Switch,
   useDisclosure,
-} from "@nextui-org/react";
-import { IoIosSend } from "react-icons/io";
-import Link from "next/link";
-import { handleSmartSiteUpdate } from "@/actions/update";
-import { useRouter } from "next/navigation";
-import toast from "react-hot-toast";
-import AnimateButton from "../ui/Button/AnimateButton";
-import SmartsiteSocialShare from "./socialShare/SmartsiteSocialShare";
-import { fontMap } from "@/lib/fonts";
-import Cookies from "js-cookie";
-import { MdDelete, MdDeleteForever } from "react-icons/md";
-import { handleDeleteMarketPlace } from "@/actions/handleMarketPlace";
-import { RiDeleteBinFill } from "react-icons/ri";
-import Timeline from "../feed/Timeline";
-import LivePreviewTimeline from "../feed/LivePreviewTimeline";
+} from '@nextui-org/react';
+import { IoIosSend } from 'react-icons/io';
+import Link from 'next/link';
+import { handleSmartSiteUpdate } from '@/actions/update';
+import { useRouter } from 'next/navigation';
+import toast from 'react-hot-toast';
+import AnimateButton from '../ui/Button/AnimateButton';
+import SmartsiteSocialShare from './socialShare/SmartsiteSocialShare';
+import { fontMap } from '@/lib/fonts';
+import Cookies from 'js-cookie';
+import { MdDelete, MdDeleteForever } from 'react-icons/md';
+import { handleDeleteMarketPlace } from '@/actions/handleMarketPlace';
+import { RiDeleteBinFill } from 'react-icons/ri';
+import Timeline from '../feed/Timeline';
+import LivePreviewTimeline from '../feed/LivePreviewTimeline';
 // import { access } from "fs";
 // import mobileMockup from "@/public/images/mobile-mockup.png";
 // import { TbEdit } from "react-icons/tb";
@@ -60,10 +60,13 @@ const SmartsiteIconLivePreview = ({
   isEditDetailsLivePreview?: boolean;
   data?: any;
 }) => {
-  const setSmartSiteData = useUpdateSmartIcon((state: any) => state.setState);
+  const setSmartSiteData = useUpdateSmartIcon(
+    (state: any) => state.setState
+  );
   const { toggle } = useSideBarToggleStore();
 
-  const [isPrimaryMicrosite, setIsPrimaryMicrosite] = useState<boolean>(false);
+  const [isPrimaryMicrosite, setIsPrimaryMicrosite] =
+    useState<boolean>(false);
   const [isLeadCapture, setIsLeadCapture] = useState<boolean>(false);
 
   const [isPublishedLoading, setIsPublishedLoading] = useState(false);
@@ -71,20 +74,15 @@ const SmartsiteIconLivePreview = ({
   // console.log("data form live", data.info.socialLarge);
   const { formData, setFormData } = useSmartsiteFormStore();
 
-  console.log("formData1", formData);
-  console.log("datae", data);
-
   // console.log("form data from live preview data", data.info.socialLarge);
 
   const { setOn }: any = useSmallIconToggleStore();
 
-  const [accessToken, setAccessToken] = useState("");
-
-  console.log("data hola", data);
+  const [accessToken, setAccessToken] = useState('');
 
   useEffect(() => {
     const getAccessToken = async () => {
-      const token = Cookies.get("access-token");
+      const token = Cookies.get('access-token');
       if (token) {
         setAccessToken(token);
       }
@@ -117,14 +115,14 @@ const SmartsiteIconLivePreview = ({
 
   useEffect(() => {
     if (data) {
-      setFormData("theme", data.theme);
-      setFormData("fontType", data.fontFamily);
-      setFormData("fontColor", data.fontColor);
-      setFormData("secondaryFontColor", data.secondaryFontColor);
-      setFormData("templateColor", data.themeColor);
-      setFormData("backgroundColor", data.backgroundColor);
-      setFormData("backgroundImg", data.backgroundImg);
-      setFormData("profileImg", data.profilePic);
+      setFormData('theme', data.theme);
+      setFormData('fontType', data.fontFamily);
+      setFormData('fontColor', data.fontColor);
+      setFormData('secondaryFontColor', data.secondaryFontColor);
+      setFormData('templateColor', data.themeColor);
+      setFormData('backgroundColor', data.backgroundColor);
+      setFormData('backgroundImg', data.backgroundImg);
+      setFormData('profileImg', data.profilePic);
     }
   }, [data, setFormData]);
 
@@ -139,20 +137,24 @@ const SmartsiteIconLivePreview = ({
     };
 
     try {
-      const response = await handleSmartSiteUpdate(smartSiteInfo, accessToken);
-      console.log("response", response);
+      const response = await handleSmartSiteUpdate(
+        smartSiteInfo,
+        accessToken
+      );
+      console.log('response', response);
 
-      if (response.state === "success") {
-        router.push("/smartsite");
-        toast.success("Smartsite published successfully");
-      } else if (response.state === "fail") {
+      if (response.state === 'success') {
+        router.push('/smartsite');
+        toast.success('Smartsite published successfully');
+      } else if (response.state === 'fail') {
         toast.error(
-          response.message || "At least one primary smartsite required"
+          response.message ||
+            'At least one primary smartsite required'
         );
       }
     } catch (error: any) {
-      toast.error("Something went wrong!");
-      console.log("error", error);
+      toast.error('Something went wrong!');
+      console.log('error', error);
     } finally {
       setIsPublishedLoading(false);
     }
@@ -162,19 +164,22 @@ const SmartsiteIconLivePreview = ({
     e.stopPropagation();
     handleTriggerUpdate({
       data: item,
-      categoryForTrigger: "showBlog",
+      categoryForTrigger: 'showBlog',
     });
   };
 
   const { isOpen, onOpen, onOpenChange } = useDisclosure();
   const [marketPlaceDeleteInfo, setMarketPlaceDeleteInfo] = useState({
-    id: "",
-    micrositeId: "",
+    id: '',
+    micrositeId: '',
   });
   const [isMarketPlaceDeleteLoading, setIsMarketPlaceDeleteLoading] =
     useState(false);
 
-  const handleMarketPlaceDelete = async (id: string, micrositeId: string) => {
+  const handleMarketPlaceDelete = async (
+    id: string,
+    micrositeId: string
+  ) => {
     onOpen();
     setMarketPlaceDeleteInfo({
       id,
@@ -189,13 +194,16 @@ const SmartsiteIconLivePreview = ({
         _id: marketPlaceDeleteInfo?.id,
         micrositeId: marketPlaceDeleteInfo?.micrositeId,
       };
-      const response = await handleDeleteMarketPlace(payload, accessToken);
-      console.log("response", response);
-      toast.success("Market Place Deleted");
+      const response = await handleDeleteMarketPlace(
+        payload,
+        accessToken
+      );
+
+      toast.success('Market Place Deleted');
       setIsMarketPlaceDeleteLoading(false);
       onOpenChange();
     } catch (error) {
-      toast.error("Something Went Wrong!");
+      toast.error('Something Went Wrong!');
       console.log(error);
       setIsMarketPlaceDeleteLoading(false);
     }
@@ -276,11 +284,12 @@ const SmartsiteIconLivePreview = ({
           style={{
             backgroundImage: formData.theme
               ? `url(/images/smartsite-background/${formData.backgroundImg}.png)`
-              : "",
-            height: "100%",
+              : '',
+            height: '100%',
           }}
           className={`overflow-y-auto shadow-medium bg-white bg-cover hide-scrollbar rounded-3xl ${
-            formData.fontType && fontMap[formData.fontType.toLowerCase()]
+            formData.fontType &&
+            fontMap[formData.fontType.toLowerCase()]
           }`}
         >
           {/* <p className="text-sm text-gray-500 mb-2">Preview</p> */}
@@ -303,8 +312,8 @@ const SmartsiteIconLivePreview = ({
                 <div
                   className={` ${
                     !formData.theme
-                      ? "absolute top-full -translate-y-1/2 left-1/2 -translate-x-1/2"
-                      : "flex justify-center pt-10"
+                      ? 'absolute top-full -translate-y-1/2 left-1/2 -translate-x-1/2'
+                      : 'flex justify-center pt-10'
                   } `}
                 >
                   {formData.profileImg && (
@@ -352,7 +361,7 @@ const SmartsiteIconLivePreview = ({
               </div>
               <div
                 className={`${
-                  !formData.theme ? "mt-14" : "mt-2"
+                  !formData.theme ? 'mt-14' : 'mt-2'
                 }  flex flex-col gap-3 h-full justify-start`}
               >
                 <div
@@ -371,7 +380,9 @@ const SmartsiteIconLivePreview = ({
                   </p>
                   <p
                     style={{
-                      color: formData.fontColor ? formData.fontColor : "gray",
+                      color: formData.fontColor
+                        ? formData.fontColor
+                        : 'gray',
                     }}
                     className={`font-medium text-xs text-gray-500`}
                   >
@@ -391,22 +402,28 @@ const SmartsiteIconLivePreview = ({
                         onClick={() =>
                           handleTriggerUpdate({
                             data: item,
-                            categoryForTrigger: "socialTop",
+                            categoryForTrigger: 'socialTop',
                           })
                         }
                       >
                         <Image
-                          src={getSmallIconImage(item.name, item.group) as any}
+                          src={
+                            getSmallIconImage(
+                              item.name,
+                              item.group
+                            ) as any
+                          }
                           alt="icon"
                           style={
-                            formData.templateColor === "#ffffff" ||
-                            formData.templateColor === "#FFFFFF"
-                              ? { filter: "brightness(0) invert(1)" }
-                              : formData.templateColor === "#D3D3D3" ||
-                                formData.templateColor === "#808080"
+                            formData.templateColor === '#ffffff' ||
+                            formData.templateColor === '#FFFFFF'
+                              ? { filter: 'brightness(0) invert(1)' }
+                              : formData.templateColor ===
+                                  '#D3D3D3' ||
+                                formData.templateColor === '#808080'
                               ? {
                                   filter:
-                                    "brightness(0) saturate(0%) opacity(0.5)",
+                                    'brightness(0) saturate(0%) opacity(0.5)',
                                 }
                               : tintStyle
                           }
@@ -422,55 +439,56 @@ const SmartsiteIconLivePreview = ({
                 {/* blog display here start */}
                 {data.info.blog.length > 0 && (
                   <div className="flex flex-col gap-y-3 px-3">
-                    {data.info.blog.map((item: any, index: number) => (
-                      <div
-                        key={index}
-                        onClick={() =>
-                          handleTriggerUpdate({
-                            data: item,
-                            categoryForTrigger: "blog",
-                          })
-                        }
-                        style={{
-                          backgroundColor: formData.templateColor
-                            ? formData.templateColor
-                            : "white",
-                        }}
-                        className="shadow-small hover:shadow-medium p-2 2xl:p-3 rounded-lg cursor-pointer"
-                      >
-                        <div>
+                    {data.info.blog.map(
+                      (item: any, index: number) => (
+                        <div
+                          key={index}
+                          onClick={() =>
+                            handleTriggerUpdate({
+                              data: item,
+                              categoryForTrigger: 'blog',
+                            })
+                          }
+                          style={{
+                            backgroundColor: formData.templateColor
+                              ? formData.templateColor
+                              : 'white',
+                          }}
+                          className="shadow-small hover:shadow-medium p-2 2xl:p-3 rounded-lg cursor-pointer"
+                        >
                           <div>
-                            <div className="relative">
-                              <Image
-                                src={item.image}
-                                alt={item.title}
-                                width={600}
-                                height={400}
-                                className="w-full h-24 2xl:h-28 object-cover rounded-lg"
-                              />
-                            </div>
-                            <div
-                              style={{
-                                color: formData.secondaryFontColor
-                                  ? formData.secondaryFontColor
-                                  : "black",
-                              }}
-                            >
-                              {item?.title && (
-                                <p className="text-sm font-medium mt-1">
-                                  {item.title}
-                                </p>
-                              )}
-                              {item?.headline && (
-                                <p className="text-xs truncate">
-                                  {item.headline}
-                                </p>
-                              )}
+                            <div>
+                              <div className="relative">
+                                <Image
+                                  src={item.image}
+                                  alt={item.title}
+                                  width={600}
+                                  height={400}
+                                  className="w-full h-24 2xl:h-28 object-cover rounded-lg"
+                                />
+                              </div>
+                              <div
+                                style={{
+                                  color: formData.secondaryFontColor
+                                    ? formData.secondaryFontColor
+                                    : 'black',
+                                }}
+                              >
+                                {item?.title && (
+                                  <p className="text-sm font-medium mt-1">
+                                    {item.title}
+                                  </p>
+                                )}
+                                {item?.headline && (
+                                  <p className="text-xs truncate">
+                                    {item.headline}
+                                  </p>
+                                )}
+                              </div>
                             </div>
                           </div>
-                        </div>
-                        <div className="flex flex-wrap justify-end items-center mt-3 gap-2">
-                          {/* <button
+                          <div className="flex flex-wrap justify-end items-center mt-3 gap-2">
+                            {/* <button
                               type="button"
                               onClick={() =>
                                 handleTriggerUpdate({
@@ -489,21 +507,25 @@ const SmartsiteIconLivePreview = ({
                               <FaEdit /> Edit
                             </button> */}
 
-                          <button
-                            type="button"
-                            onClick={(e) => showReadMoreForBlog(e, item)}
-                            style={{
-                              backgroundColor: formData.secondaryFontColor
-                                ? formData.secondaryFontColor
-                                : "black",
-                            }}
-                            className="rounded-full text-white flex items-center gap-1 px-3 py-0.5 text-[12px] font-medium"
-                          >
-                            Read More
-                          </button>
+                            <button
+                              type="button"
+                              onClick={(e) =>
+                                showReadMoreForBlog(e, item)
+                              }
+                              style={{
+                                backgroundColor:
+                                  formData.secondaryFontColor
+                                    ? formData.secondaryFontColor
+                                    : 'black',
+                              }}
+                              className="rounded-full text-white flex items-center gap-1 px-3 py-0.5 text-[12px] font-medium"
+                            >
+                              Read More
+                            </button>
+                          </div>
                         </div>
-                      </div>
-                    ))}
+                      )
+                    )}
                   </div>
                 )}
                 {/* blog display here end */}
@@ -511,53 +533,59 @@ const SmartsiteIconLivePreview = ({
                 {/* app icon display here start */}
                 {data.info.socialLarge.length > 0 && (
                   <div className="flex flex-wrap gap-x-1 gap-y-3 justify-center items-start px-3">
-                    {data.info.socialLarge.map((data: any, index: number) => (
-                      <div
-                        className={`w-[32%] flex flex-col items-center justify-between gap-1`}
-                        key={index}
-                      >
-                        <button
-                          onClick={() =>
-                            handleTriggerUpdate({
-                              data,
-                              categoryForTrigger: "socialLarge",
-                            })
-                          }
+                    {data.info.socialLarge.map(
+                      (data: any, index: number) => (
+                        <div
+                          className={`w-[32%] flex flex-col items-center justify-between gap-1`}
+                          key={index}
                         >
-                          {isUrl(data.iconName) ? (
-                            <div className="relative w-[4.2rem] h-[4.2rem] rounded-lg">
-                              <Image
-                                src={data.iconName}
-                                alt="icon"
-                                className="rounded-lg object-cover"
-                                quality={100}
-                                fill
-                              />
-                            </div>
-                          ) : (
-                            <div className="relative w-[4.2rem] h-[4.2rem] rounded-lg">
-                              <Image
-                                src={getAllSmartsitesIcon(data.iconName) as any}
-                                alt="icon"
-                                // style={tintStyle}
-                                className="rounded-lg object-cover"
-                                quality={100}
-                              />
-                            </div>
-                          )}
-                        </button>
-                        <p
-                          style={{
-                            color: formData.fontColor
-                              ? formData.fontColor
-                              : "black",
-                          }}
-                          className="text-xs text-center"
-                        >
-                          {data.name}
-                        </p>
-                      </div>
-                    ))}
+                          <button
+                            onClick={() =>
+                              handleTriggerUpdate({
+                                data,
+                                categoryForTrigger: 'socialLarge',
+                              })
+                            }
+                          >
+                            {isUrl(data.iconName) ? (
+                              <div className="relative w-[4.2rem] h-[4.2rem] rounded-lg">
+                                <Image
+                                  src={data.iconName}
+                                  alt="icon"
+                                  className="rounded-lg object-cover"
+                                  quality={100}
+                                  fill
+                                />
+                              </div>
+                            ) : (
+                              <div className="relative w-[4.2rem] h-[4.2rem] rounded-lg">
+                                <Image
+                                  src={
+                                    getAllSmartsitesIcon(
+                                      data.iconName
+                                    ) as any
+                                  }
+                                  alt="icon"
+                                  // style={tintStyle}
+                                  className="rounded-lg object-cover"
+                                  quality={100}
+                                />
+                              </div>
+                            )}
+                          </button>
+                          <p
+                            style={{
+                              color: formData.fontColor
+                                ? formData.fontColor
+                                : 'black',
+                            }}
+                            className="text-xs text-center"
+                          >
+                            {data.name}
+                          </p>
+                        </div>
+                      )
+                    )}
                   </div>
                 )}
                 {/* app icon display here end */}
@@ -571,13 +599,13 @@ const SmartsiteIconLivePreview = ({
                         onClick={() =>
                           handleTriggerUpdate({
                             data,
-                            categoryForTrigger: "referral",
+                            categoryForTrigger: 'referral',
                           })
                         }
                         style={{
                           backgroundColor: formData.templateColor
                             ? formData.templateColor
-                            : "white",
+                            : 'white',
                         }}
                         className="flex items-center gap-2 py-2 px-3 rounded-lg shadow-medium"
                       >
@@ -587,13 +615,15 @@ const SmartsiteIconLivePreview = ({
                           quality={100}
                           className="w-8 h-8 rounded-lg"
                           style={
-                            formData.secondaryFontColor === "#ffffff"
-                              ? { filter: "brightness(0) invert(1)" }
-                              : formData.secondaryFontColor === "#D3D3D3" ||
-                                formData.secondaryFontColor === "#808080"
+                            formData.secondaryFontColor === '#ffffff'
+                              ? { filter: 'brightness(0) invert(1)' }
+                              : formData.secondaryFontColor ===
+                                  '#D3D3D3' ||
+                                formData.secondaryFontColor ===
+                                  '#808080'
                               ? {
                                   filter:
-                                    "brightness(0) saturate(0%) opacity(0.5)",
+                                    'brightness(0) saturate(0%) opacity(0.5)',
                                 }
                               : tintStyle
                           }
@@ -602,14 +632,15 @@ const SmartsiteIconLivePreview = ({
                           style={{
                             color: formData.secondaryFontColor
                               ? formData.secondaryFontColor
-                              : "black",
+                              : 'black',
                           }}
                           className="flex flex-col items-start gap-0.5 text-start"
                         >
                           <p className="text-sm">{data.buttonName}</p>
                           <p
                             className={`text-xs ${
-                              !formData.secondaryFontColor && "text-gray-400"
+                              !formData.secondaryFontColor &&
+                              'text-gray-400'
                             }`}
                           >
                             {data.description}
@@ -634,26 +665,28 @@ const SmartsiteIconLivePreview = ({
                             data: data.info.ensDomain[
                               data.info.ensDomain.length - 1
                             ],
-                            categoryForTrigger: "ens",
+                            categoryForTrigger: 'ens',
                           })
                         }
                         style={{
                           backgroundColor: formData.templateColor
                             ? formData.templateColor
-                            : "white",
+                            : 'white',
                         }}
                         className="flex items-center gap-2 py-2 px-3 rounded-lg shadow-medium"
                       >
                         <Image
                           src={message}
                           style={
-                            formData.secondaryFontColor === "#ffffff"
-                              ? { filter: "brightness(0) invert(1)" }
-                              : formData.secondaryFontColor === "#D3D3D3" ||
-                                formData.secondaryFontColor === "#808080"
+                            formData.secondaryFontColor === '#ffffff'
+                              ? { filter: 'brightness(0) invert(1)' }
+                              : formData.secondaryFontColor ===
+                                  '#D3D3D3' ||
+                                formData.secondaryFontColor ===
+                                  '#808080'
                               ? {
                                   filter:
-                                    "brightness(0) saturate(0%) opacity(0.5)",
+                                    'brightness(0) saturate(0%) opacity(0.5)',
                                 }
                               : tintStyle
                           }
@@ -665,14 +698,15 @@ const SmartsiteIconLivePreview = ({
                           style={{
                             color: formData.secondaryFontColor
                               ? formData.secondaryFontColor
-                              : "black",
+                              : 'black',
                           }}
                           className="flex flex-col items-start gap-0.5 text-start"
                         >
                           <p className="text-sm">Message Me</p>
                           <p
                             className={`text-xs ${
-                              !formData.secondaryFontColor && "text-gray-400"
+                              !formData.secondaryFontColor &&
+                              'text-gray-400'
                             }`}
                           >
                             Message me using the Swop wallet
@@ -691,13 +725,13 @@ const SmartsiteIconLivePreview = ({
                           onClick={() =>
                             handleTriggerUpdate({
                               data,
-                              categoryForTrigger: "redeemLink",
+                              categoryForTrigger: 'redeemLink',
                             })
                           }
                           style={{
                             backgroundColor: formData.templateColor
                               ? formData.templateColor
-                              : "white",
+                              : 'white',
                           }}
                           className="flex items-center gap-2 py-2 px-3 rounded-lg shadow-medium"
                         >
@@ -724,14 +758,15 @@ const SmartsiteIconLivePreview = ({
                             style={{
                               color: formData.secondaryFontColor
                                 ? formData.secondaryFontColor
-                                : "black",
+                                : 'black',
                             }}
                             className="flex flex-col items-start gap-0.5 text-start"
                           >
                             <p className="text-sm">{data.mintName}</p>
                             <p
                               className={`text-xs ${
-                                !formData.secondaryFontColor && "text-gray-400"
+                                !formData.secondaryFontColor &&
+                                'text-gray-400'
                               }`}
                             >
                               {data.description}
@@ -751,13 +786,13 @@ const SmartsiteIconLivePreview = ({
                           onClick={() =>
                             handleTriggerUpdate({
                               data,
-                              categoryForTrigger: "contactCard",
+                              categoryForTrigger: 'contactCard',
                             })
                           }
                           style={{
                             backgroundColor: formData.templateColor
                               ? formData.templateColor
-                              : "white",
+                              : 'white',
                           }}
                           className="flex items-center gap-2 py-2 px-3 rounded-lg shadow-medium"
                         >
@@ -767,15 +802,18 @@ const SmartsiteIconLivePreview = ({
                             quality={100}
                             className="w-8 h-8"
                             style={
-                              formData.secondaryFontColor === "#ffffff"
+                              formData.secondaryFontColor ===
+                              '#ffffff'
                                 ? {
-                                    filter: "brightness(0) invert(1)",
+                                    filter: 'brightness(0) invert(1)',
                                   }
-                                : formData.secondaryFontColor === "#D3D3D3" ||
-                                  formData.secondaryFontColor === "#808080"
+                                : formData.secondaryFontColor ===
+                                    '#D3D3D3' ||
+                                  formData.secondaryFontColor ===
+                                    '#808080'
                                 ? {
                                     filter:
-                                      "brightness(0) saturate(0%) opacity(0.5)",
+                                      'brightness(0) saturate(0%) opacity(0.5)',
                                   }
                                 : tintStyle
                             }
@@ -784,14 +822,15 @@ const SmartsiteIconLivePreview = ({
                             style={{
                               color: formData.secondaryFontColor
                                 ? formData.secondaryFontColor
-                                : "black",
+                                : 'black',
                             }}
                             className="flex flex-col items-start gap-0.5 text-start"
                           >
                             <p className="text-sm">{data.name}</p>
                             <p
                               className={`text-xs ${
-                                !formData.secondaryFontColor && "text-gray-400"
+                                !formData.secondaryFontColor &&
+                                'text-gray-400'
                               }`}
                             >
                               {data.mobileNo}
@@ -843,26 +882,28 @@ const SmartsiteIconLivePreview = ({
                             data: data.info.ensDomain[
                               data.info.ensDomain.length - 1
                             ],
-                            categoryForTrigger: "ens",
+                            categoryForTrigger: 'ens',
                           })
                         }
                         style={{
                           backgroundColor: formData.templateColor
                             ? formData.templateColor
-                            : "white",
+                            : 'white',
                         }}
                         className="flex items-center gap-2 py-2 px-3 rounded-lg shadow-medium"
                       >
                         <Image
                           src={ethereum}
                           style={
-                            formData.secondaryFontColor === "#ffffff"
-                              ? { filter: "brightness(0) invert(1)" }
-                              : formData.secondaryFontColor === "#D3D3D3" ||
-                                formData.secondaryFontColor === "#808080"
+                            formData.secondaryFontColor === '#ffffff'
+                              ? { filter: 'brightness(0) invert(1)' }
+                              : formData.secondaryFontColor ===
+                                  '#D3D3D3' ||
+                                formData.secondaryFontColor ===
+                                  '#808080'
                               ? {
                                   filter:
-                                    "brightness(0) saturate(0%) opacity(0.5)",
+                                    'brightness(0) saturate(0%) opacity(0.5)',
                                 }
                               : tintStyle
                           }
@@ -874,7 +915,7 @@ const SmartsiteIconLivePreview = ({
                           style={{
                             color: formData.secondaryFontColor
                               ? formData.secondaryFontColor
-                              : "black",
+                              : 'black',
                           }}
                           className="flex flex-col items-start gap-0.5 text-start"
                         >
@@ -887,7 +928,8 @@ const SmartsiteIconLivePreview = ({
                           </p>
                           <p
                             className={`text-xs ${
-                              !formData.secondaryFontColor && "text-gray-400"
+                              !formData.secondaryFontColor &&
+                              'text-gray-400'
                             }`}
                           >
                             Pay me using my Swop.ID
@@ -907,14 +949,14 @@ const SmartsiteIconLivePreview = ({
                           onClick={() =>
                             handleTriggerUpdate({
                               data,
-                              categoryForTrigger: "infoBar",
+                              categoryForTrigger: 'infoBar',
                             })
                           }
                           // disabled={isUrl(data.iconName)}
                           style={{
                             backgroundColor: formData.templateColor
                               ? formData.templateColor
-                              : "white",
+                              : 'white',
                           }}
                           className={`flex items-center gap-2 py-2 px-3 rounded-lg shadow-medium`}
                         >
@@ -930,7 +972,11 @@ const SmartsiteIconLivePreview = ({
                             />
                           ) : (
                             <Image
-                              src={getAllSmartsitesIcon(data.iconName) as any}
+                              src={
+                                getAllSmartsitesIcon(
+                                  data.iconName
+                                ) as any
+                              }
                               alt="icon"
                               quality={100}
                               className="w-8 h-8"
@@ -941,7 +987,7 @@ const SmartsiteIconLivePreview = ({
                             style={{
                               color: formData.secondaryFontColor
                                 ? formData.secondaryFontColor
-                                : "black",
+                                : 'black',
                             }}
                             className="flex flex-col items-start gap-0.5 text-start"
                           >
@@ -952,7 +998,8 @@ const SmartsiteIconLivePreview = ({
                             </p>
                             <p
                               className={`text-xs ${
-                                !formData.secondaryFontColor && "text-gray-400"
+                                !formData.secondaryFontColor &&
+                                'text-gray-400'
                               }`}
                             >
                               {data.description}
@@ -976,11 +1023,11 @@ const SmartsiteIconLivePreview = ({
                             style={{
                               color: formData.secondaryFontColor
                                 ? formData.secondaryFontColor
-                                : "black",
+                                : 'black',
 
                               backgroundColor: formData.templateColor
                                 ? formData.templateColor
-                                : "white",
+                                : 'white',
                             }}
                             className={`w-full h-full py-2 px-3 rounded-lg shadow-medium`}
                           >
@@ -988,7 +1035,7 @@ const SmartsiteIconLivePreview = ({
                               onClick={() =>
                                 handleTriggerUpdate({
                                   data: data,
-                                  categoryForTrigger: "swopPay",
+                                  categoryForTrigger: 'swopPay',
                                 })
                               }
                               className="flex items-center justify-between gap-3 w-full"
@@ -1005,8 +1052,12 @@ const SmartsiteIconLivePreview = ({
                                   />
                                 </div>
                                 <div className="text-start">
-                                  <p className="text-sm mb-0.5">{data.title}</p>
-                                  <p className="text-xs">{data.description}</p>
+                                  <p className="text-sm mb-0.5">
+                                    {data.title}
+                                  </p>
+                                  <p className="text-xs">
+                                    {data.description}
+                                  </p>
                                 </div>
                               </div>
                               <div className="custom-audio text-sm">
@@ -1045,7 +1096,7 @@ const SmartsiteIconLivePreview = ({
                             style={{
                               backgroundColor: formData.templateColor
                                 ? formData.templateColor
-                                : "white",
+                                : 'white',
                             }}
                             className={`w-full h-full py-2 px-3 rounded-lg shadow-medium`}
                           >
@@ -1054,12 +1105,12 @@ const SmartsiteIconLivePreview = ({
                                 style={{
                                   color: formData.secondaryFontColor
                                     ? formData.secondaryFontColor
-                                    : "black",
+                                    : 'black',
                                 }}
                                 onClick={() =>
                                   handleTriggerUpdate({
                                     data: audioData,
-                                    categoryForTrigger: "audio",
+                                    categoryForTrigger: 'audio',
                                   })
                                 }
                                 className="flex items-center gap-2"
@@ -1078,14 +1129,16 @@ const SmartsiteIconLivePreview = ({
                                     {audioData.name}
                                   </p>
                                   <p className="text-xs">
-                                    Tap play button to listen the audio
+                                    Tap play button to listen the
+                                    audio
                                   </p>
                                 </div>
                               </button>
                               <div className="custom-audio">
                                 <AudioPlayer
                                   style={{
-                                    backgroundColor: formData.templateColor,
+                                    backgroundColor:
+                                      formData.templateColor,
                                   }}
                                   key={audioData.fileUrl}
                                   autoPlay={false}
@@ -1099,7 +1152,8 @@ const SmartsiteIconLivePreview = ({
                                     play: (
                                       <FaPlay
                                         style={{
-                                          color: formData.secondaryFontColor,
+                                          color:
+                                            formData.secondaryFontColor,
                                         }}
                                         className="text-xl"
                                       />
@@ -1107,7 +1161,8 @@ const SmartsiteIconLivePreview = ({
                                     pause: (
                                       <FaPause
                                         style={{
-                                          color: formData.secondaryFontColor,
+                                          color:
+                                            formData.secondaryFontColor,
                                         }}
                                         className="text-xl"
                                       />
@@ -1148,11 +1203,12 @@ const SmartsiteIconLivePreview = ({
                               style={{
                                 color: formData.secondaryFontColor
                                   ? formData.secondaryFontColor
-                                  : "black",
+                                  : 'black',
 
-                                backgroundColor: formData.templateColor
-                                  ? formData.templateColor
-                                  : "white",
+                                backgroundColor:
+                                  formData.templateColor
+                                    ? formData.templateColor
+                                    : 'white',
                               }}
                               className={`w-full h-full py-2 px-3 rounded-lg shadow-medium`}
                             >
@@ -1222,7 +1278,10 @@ const SmartsiteIconLivePreview = ({
                 </div>
                 {/* video display here start */}
                 {data.info.video.length > 0 && (
-                  <div key={"video"} className="flex flex-col gap-y-3 px-3">
+                  <div
+                    key={'video'}
+                    className="flex flex-col gap-y-3 px-3"
+                  >
                     {data.info.video.map((videoData: any) => (
                       <div
                         key={videoData._id}
@@ -1236,14 +1295,18 @@ const SmartsiteIconLivePreview = ({
                             className="w-full h-auto"
                             controls
                           >
-                            <source src={videoData.link} type="video/mp4" />
+                            <source
+                              src={videoData.link}
+                              type="video/mp4"
+                            />
                             <track
                               src={videoData.link}
                               kind="subtitles"
                               srcLang="en"
                               label="English"
                             />
-                            Your browser does not support the video tag.
+                            Your browser does not support the video
+                            tag.
                           </video>
                         </div>
                         <div className="w-[4%]">
@@ -1251,7 +1314,7 @@ const SmartsiteIconLivePreview = ({
                             onClick={() =>
                               handleTriggerUpdate({
                                 data: videoData,
-                                categoryForTrigger: "video",
+                                categoryForTrigger: 'video',
                               })
                             }
                             className="translate-x-1"
@@ -1268,7 +1331,7 @@ const SmartsiteIconLivePreview = ({
                 {/* embed link display here start */}
                 {data.info.videoUrl && (
                   <div
-                    key={"embed"}
+                    key={'embed'}
                     className="flex flex-col gap-y-3 px-3 w-full hide-scrollbar"
                   >
                     <EmbedPlayer
@@ -1308,7 +1371,9 @@ const SmartsiteIconLivePreview = ({
 
       {!isEditDetailsLivePreview && (
         <div className="flex flex-col gap-2 mt-4 pb-4">
-          <p className="text-gray-600 font-medium text-center">Live Preview</p>
+          <p className="text-gray-600 font-medium text-center">
+            Live Preview
+          </p>
           <div className="flex flex-wrap items-center justify-center gap-2">
             <Link href={`/smartsite/qr-code/${data?._id}`}>
               <button
@@ -1387,7 +1452,9 @@ const SmartsiteIconLivePreview = ({
           <div className="w-[91%] mx-auto py-6">
             <ModalBody className="text-center">
               <div className="text-center flex flex-col items-center ">
-                <p className="text-lg font-bold">Do you want to delete your</p>
+                <p className="text-lg font-bold">
+                  Do you want to delete your
+                </p>
                 <p className="text-lg font-bold">Market place?</p>
                 <RiDeleteBinFill size={40} className="my-3" />
                 <AnimateButton
@@ -1395,7 +1462,7 @@ const SmartsiteIconLivePreview = ({
                   type="button"
                   onClick={deleteMarketPlace}
                   isLoading={isMarketPlaceDeleteLoading}
-                  width={"w-28"}
+                  width={'w-28'}
                   className="bg-black text-white py-2 !border-0"
                 >
                   <MdDelete size={20} /> Delete

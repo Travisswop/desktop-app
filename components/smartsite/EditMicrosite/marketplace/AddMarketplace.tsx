@@ -103,7 +103,7 @@ const AddMarketplace = ({ handleRemoveIcon }: any) => {
         throw new Error('Something went wrong');
       }
       const { data } = await response.json();
-      console.log('data from action', data);
+
       setNftList(data);
     } catch (error) {
       console.error('Error fetching template details:', error);

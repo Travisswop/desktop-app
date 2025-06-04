@@ -130,9 +130,6 @@ const Feed = memo(
     const [redeemFeedData, setRedeemFeedData] = useState({});
     const [initiaLoading, setInitialLoading] = useState(true);
 
-    console.log('accessToken', accessToken);
-    logger.log('feedData', feedData);
-
     // Memoized callbacks to prevent unnecessary re-renders
     const openRedeemModal = useCallback(
       (data: any) => {

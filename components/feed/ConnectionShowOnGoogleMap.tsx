@@ -1,17 +1,21 @@
-"use client";
+'use client';
 
-import isUrl from "@/lib/isUrl";
-import { Popover, PopoverContent, PopoverTrigger } from "@nextui-org/react";
+import isUrl from '@/lib/isUrl';
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@nextui-org/react';
 import {
   Circle,
   GoogleMap,
   OverlayView,
   useLoadScript,
-} from "@react-google-maps/api";
-import clsx from "clsx";
-import Image from "next/image";
-import Link from "next/link";
-import { useEffect, useRef, useState } from "react";
+} from '@react-google-maps/api';
+import clsx from 'clsx';
+import Image from 'next/image';
+import Link from 'next/link';
+import { useEffect, useRef, useState } from 'react';
 
 interface Friend {
   _id: string;
@@ -32,18 +36,16 @@ export default function ConnectionsShowOnGoogleMap({
   const { isLoaded, loadError } = useLoadScript({
     googleMapsApiKey:
       process.env.NEXT_PUBLIC_GOOGLE_API_KEY ||
-      "AIzaSyDaERPmsWGDCk2MrKXsqkMfPkSu614Simk",
-    libraries: ["places", "geometry"],
+      'AIzaSyDaERPmsWGDCk2MrKXsqkMfPkSu614Simk',
+    libraries: ['places', 'geometry'],
   });
 
   const mapRef = useRef<google.maps.Map | null>(null);
 
-  console.log("mapReady", mapReady);
-
   const mapStyles = [
     {
-      featureType: "all",
-      elementType: "all",
+      featureType: 'all',
+      elementType: 'all',
       stylers: [{ saturation: -100 }, { gamma: 0.8 }],
     },
   ];
@@ -84,15 +86,14 @@ export default function ConnectionsShowOnGoogleMap({
   const [retryCount, setRetryCount] = useState(0);
   const [maxRetries] = useState(1);
 
-  console.log("isLoaded", isLoaded);
-  console.log("loadError", loadError);
-
   useEffect(() => {
     if (isLoaded && !loadError) {
       setMapReady(true);
     } else {
       const timer = setTimeout(() => {
-        console.log(`Reloading page (attempt ${retryCount + 1}/${maxRetries})`);
+        console.log(
+          `Reloading page (attempt ${retryCount + 1}/${maxRetries})`
+        );
         window.location.reload();
       }, 1000);
       return () => clearTimeout(timer);
@@ -126,14 +127,17 @@ export default function ConnectionsShowOnGoogleMap({
     <div className="overflow-hidden transition-opacity duration-700 opacity-100">
       <GoogleMap
         mapContainerStyle={{
-          width: "100%",
-          height: "600px",
-          overflow: "hidden",
-          borderRadius: "10px",
+          width: '100%',
+          height: '600px',
+          overflow: 'hidden',
+          borderRadius: '10px',
         }}
         center={
           selectedConnection
-            ? { lat: selectedConnection?.lat, lng: selectedConnection?.lng }
+            ? {
+                lat: selectedConnection?.lat,
+                lng: selectedConnection?.lng,
+              }
             : { lat: 40.7128, lng: -74.006 }
         }
         zoom={6}
@@ -147,9 +151,9 @@ export default function ConnectionsShowOnGoogleMap({
           mapTypeControl: false,
           streetViewControl: false,
           fullscreenControl: false,
-          gestureHandling: "greedy",
+          gestureHandling: 'greedy',
           clickableIcons: false,
-          backgroundColor: "#f9fafb",
+          backgroundColor: '#f9fafb',
         }}
       >
         {selectedConnection?.lat && selectedConnection?.lng && (
@@ -160,10 +164,10 @@ export default function ConnectionsShowOnGoogleMap({
             }}
             radius={5000}
             options={{
-              strokeColor: "#4F46E5",
+              strokeColor: '#4F46E5',
               strokeOpacity: 0.8,
               strokeWeight: 2,
-              fillColor: "#4F46E5",
+              fillColor: '#4F46E5',
               fillOpacity: 0.35,
             }}
           />
@@ -172,10 +176,11 @@ export default function ConnectionsShowOnGoogleMap({
         {/* Markers for spotlight users */}
         {connections
           ?.filter(({ connectionType }: any) =>
-            connectionType?.includes("spotlight")
+            connectionType?.includes('spotlight')
           )
           ?.map((connection: any) => {
-            const isSelected = selectedFriend?._id === connection?._id;
+            const isSelected =
+              selectedFriend?._id === connection?._id;
             const isNearby =
               selectedFriend &&
               getDistance(
@@ -188,7 +193,10 @@ export default function ConnectionsShowOnGoogleMap({
             return (
               <OverlayView
                 key={connection._id}
-                position={{ lat: connection.lat, lng: connection.lng }}
+                position={{
+                  lat: connection.lat,
+                  lng: connection.lng,
+                }}
                 mapPaneName={OverlayView.OVERLAY_MOUSE_TARGET}
               >
                 <div className="relative w-16 h-16">
@@ -196,13 +204,13 @@ export default function ConnectionsShowOnGoogleMap({
                     <PopoverTrigger>
                       <div
                         className={clsx(
-                          "rounded-full cursor-pointer p-1 flex items-center justify-center shadow-lg border-4 transition-all duration-300 transform overflow-hidden",
+                          'rounded-full cursor-pointer p-1 flex items-center justify-center shadow-lg border-4 transition-all duration-300 transform overflow-hidden',
                           {
-                            "border-[#5E20FE] bg-blue-100 scale-110 z-50 absolute":
+                            'border-[#5E20FE] bg-blue-100 scale-110 z-50 absolute':
                               isSelected,
-                            "border-purple-500 bg-purple-100":
+                            'border-purple-500 bg-purple-100':
                               isNearby && !isSelected,
-                            "border-gray-300 bg-white":
+                            'border-gray-300 bg-white':
                               !isSelected && !isNearby,
                           }
                         )}
