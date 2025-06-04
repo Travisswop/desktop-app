@@ -262,10 +262,9 @@ const Reaction = memo(
           title: postContent,
         },
       };
-      console.log('payload', payload);
+
       try {
         const data = await postFeed(payload, accessToken);
-        console.log('feed post response', data);
 
         if (data?.state === 'success') {
           toast.success('You reposted successfully!');

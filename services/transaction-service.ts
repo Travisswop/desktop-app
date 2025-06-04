@@ -118,6 +118,7 @@ export class TransactionService {
       tx.feePayer = new PublicKey(solanaWallet.address);
 
       const signedTx = await solanaWallet.signTransaction(tx);
+
       return await connection.sendRawTransaction(
         signedTx.serialize()
       );
@@ -161,8 +162,9 @@ export class TransactionService {
       );
 
       if (
-        sendFlow.token?.address === USDC_ADDRESS ||
-        sendFlow.token?.address === SWOP_ADDRESS
+        !sendFlow.isOrder &&
+        (sendFlow.token?.address === USDC_ADDRESS ||
+          sendFlow.token?.address === SWOP_ADDRESS)
       ) {
         const serializedTransaction =
           await this.prepareSponsoredTransaction(
@@ -270,14 +272,6 @@ export class TransactionService {
     hash: string;
     transaction: Transaction;
   }> {
-    console.log('EVM Transaction Debug:', {
-      network,
-      evmWallet,
-      sendFlow,
-      token: sendFlow.token,
-      tokenChain: sendFlow.token?.chain,
-    });
-
     // Make sure we're explicitly on the right network
     try {
       // This ensures the wallet is on the correct chain before proceeding

@@ -2,7 +2,12 @@ import { TokenData } from '@/types/token';
 import { NFT } from '@/types/nft';
 import { ReceiverData } from '@/types/wallet';
 
-export type Network = 'ETHEREUM' | 'POLYGON' | 'BASE' | 'SOLANA' | 'SEPOLIA';
+export type Network =
+  | 'ETHEREUM'
+  | 'POLYGON'
+  | 'BASE'
+  | 'SOLANA'
+  | 'SEPOLIA';
 
 export const CHAIN_ID = {
   ETHEREUM: 1,
@@ -14,17 +19,17 @@ export const CHAIN_ID = {
 
 export interface SendFlowState {
   step:
-  | 'amount'
-  | 'recipient'
-  | 'confirm'
-  | 'success'
-  | 'assets'
-  | 'select-method'
-  | 'bank-assets'
-  | 'bank-amount'
-  | 'bank-recipient'
-  | 'bank-confirm'
-  | null;
+    | 'amount'
+    | 'recipient'
+    | 'confirm'
+    | 'success'
+    | 'assets'
+    | 'select-method'
+    | 'bank-assets'
+    | 'bank-amount'
+    | 'bank-recipient'
+    | 'bank-confirm'
+    | null;
   token: TokenData | null;
   amount: string;
   isUSD: boolean;
@@ -33,4 +38,5 @@ export interface SendFlowState {
   networkFee?: string;
   network: Network;
   hash?: string;
+  isOrder?: boolean;
 }

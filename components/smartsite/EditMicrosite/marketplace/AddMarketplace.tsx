@@ -94,7 +94,7 @@ const AddMarketplace = ({ handleRemoveIcon }: any) => {
             authorization: `Bearer ${accessToken}`,
           },
           body: JSON.stringify({
-            userId: user._id,
+            userId: user?._id || '',
             collectionId: collectionId,
           }),
         }
@@ -151,7 +151,10 @@ const AddMarketplace = ({ handleRemoveIcon }: any) => {
         },
       };
 
-      const response = await createMarketPlace(payload, accessToken);
+      const response = await createMarketPlace(
+        payload,
+        accessToken || ''
+      );
       if (!response) {
         throw new Error('Marketplace creating failed');
       }
@@ -321,7 +324,10 @@ const AddMarketplace = ({ handleRemoveIcon }: any) => {
                     </DropdownItem>
                   ))
                 ) : (
-                  <DropdownItem className="text-gray-500 text-center py-4">
+                  <DropdownItem
+                    key="no-collections"
+                    className="text-gray-500 text-center py-4"
+                  >
                     No collections available
                   </DropdownItem>
                 )}
@@ -397,7 +403,10 @@ const AddMarketplace = ({ handleRemoveIcon }: any) => {
                     </DropdownItem>
                   ))
                 ) : (
-                  <DropdownItem className="text-gray-500 text-center py-4">
+                  <DropdownItem
+                    key="no-nfts"
+                    className="text-gray-500 text-center py-4"
+                  >
                     No NFTs available
                   </DropdownItem>
                 )}

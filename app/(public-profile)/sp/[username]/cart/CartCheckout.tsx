@@ -66,9 +66,8 @@ const CartCheckout = () => {
   const { user, accessToken } = useUser();
   const { solanaWallets } = useSolanaWalletContext();
   const { state, dispatch, subtotal, sellerId } = useCart();
-  console.log('🚀 ~ CartCheckout ~ subtotal:', subtotal);
   const params = useParams();
-  const name = params.username as string;
+  const name = params?.username as string;
   const orderIdRef = React.useRef<string | null>(null);
 
   // Ensure we have a parentId to use for the order even if sellerId is missing
@@ -433,7 +432,10 @@ const CartCheckout = () => {
           sellerId: sellerId || localParentId, // Use the local parentId as fallback
         };
 
-        const { orderId } = await createOrder(orderInfo, accessToken);
+        const { orderId } = await createOrder(
+          orderInfo,
+          accessToken || ''
+        );
 
         if (!orderId) {
           throw new Error(
@@ -635,7 +637,7 @@ const CartCheckout = () => {
                 setErrorMessage={setErrorMessage}
                 customerInfo={customerInfo}
                 cartItems={cartItems}
-                accessToken={accessToken}
+                accessToken={accessToken || ''}
                 orderId={orderIdRef.current}
                 clientSecret={clientSecret}
               />

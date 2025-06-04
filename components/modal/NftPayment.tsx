@@ -152,9 +152,6 @@ export default function NftPaymentModal({
     }
   }, [selectedToken, currentSubtotal]);
 
-  console.log('subtotal (original):', subtotal);
-  console.log('currentSubtotal (preserved):', currentSubtotal);
-
   return (
     <>
       {isOpen && (

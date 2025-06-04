@@ -56,7 +56,6 @@ const PaymentShipping: React.FC<{
   cartItems,
   orderId: existingOrderId,
 }) => {
-  console.log('subtotal', subtotal);
   const { accessToken } = useUser();
   const { dispatch } = useCart();
   const [transactionStage, setTransactionStage] = useState(
@@ -159,6 +158,7 @@ const PaymentShipping: React.FC<{
         nft: null,
         network: 'SOLANA' as Network,
         step: null,
+        isOrder: true,
       };
 
       // Connection setup

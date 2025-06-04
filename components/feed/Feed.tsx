@@ -144,7 +144,6 @@ const Feed = memo(
     const handleRepostSuccess = useCallback(() => {
       // We can optionally update repost counts here without full refresh
       // For now, we'll just show success without refreshing the entire feed
-      console.log('Repost successful');
     }, []);
 
     // Callback for delete success that triggers refresh

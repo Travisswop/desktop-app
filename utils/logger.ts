@@ -7,8 +7,8 @@
 type LogLevel = 'info' | 'warn' | 'error' | 'debug' | 'log';
 
 // Determine if we're in development mode
-// const isDev = process.env.NODE_ENV !== 'production';
-const isDev = true;
+const isDev = process.env.NODE_ENV !== 'production';
+// const isDev = true;
 // ANSI color codes for terminal output in development
 const colors = {
   info: '\x1b[36m', // Cyan
