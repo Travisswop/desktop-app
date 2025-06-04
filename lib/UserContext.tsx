@@ -133,6 +133,7 @@ export function UserProvider({
       '/onboard',
       '/welcome',
       '/debug-privy',
+      '/guest-order',
     ],
     []
   );

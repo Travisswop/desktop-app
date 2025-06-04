@@ -464,7 +464,6 @@ export class NFTService {
       'eth-mainnet': 'eth',
       'polygon-mainnet': 'polygon',
       'base-mainnet': 'base',
-      'eth-sepolia': 'sepolia',
     };
     return networkMap[network] || 'eth';
   }

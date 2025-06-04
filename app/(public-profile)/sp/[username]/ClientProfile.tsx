@@ -32,7 +32,6 @@ export default function ClientProfile({
   }
 
   const { user, accessToken } = useUser();
-  console.log('🚀 ~ user:', user);
 
   const {
     _id,

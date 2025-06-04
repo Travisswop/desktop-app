@@ -73,10 +73,6 @@ export const OrderTabs: React.FC<OrderTabsProps> = memo(
       return onDisputeSubmit || (() => Promise.resolve());
     }, [onDisputeSubmit]);
 
-    console.log('canDispute', canDispute);
-    console.log('userRole', userRole);
-    console.log('order.orderType', order.orderType);
-
     return (
       <div className="mt-8">
         <Tabs

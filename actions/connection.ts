@@ -1,15 +1,15 @@
 export async function getDefaultConnection(token: string) {
   try {
     const response = await fetch(
-      `${process.env.NEXT_PUBLIC_API_URL}/api/v1/admin/connections/app`,
+      `${process.env.NEXT_PUBLIC_API_URL}/api/v1/admin/connections/app?page=1&limit=20&search=spotlight`,
       {
-        method: "GET",
+        method: 'GET',
         headers: {
-          "Content-Type": "application/json",
+          'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`,
         },
         next: {
-          tags: ["deleteDefaultConnection", "addDefaultConnection"],
+          tags: ['deleteDefaultConnection', 'addDefaultConnection'],
         },
       }
     );
@@ -30,10 +30,10 @@ export async function getDefaultConnection(token: string) {
       data: result.data,
     };
   } catch (error: any) {
-    console.error("Error fetching connections:", error);
+    console.error('Error fetching connections:', error);
     return {
       success: false,
-      message: error.message || "Failed to fetch connections.",
+      message: error.message || 'Failed to fetch connections.',
       data: [],
     };
   }

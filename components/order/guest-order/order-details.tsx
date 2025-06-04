@@ -20,6 +20,7 @@ import {
   RefreshCw,
   Clock,
   Database,
+  AlertTriangle,
 } from 'lucide-react';
 import Image from 'next/image';
 import { useParams, useSearchParams } from 'next/navigation';
@@ -33,6 +34,10 @@ import {
   useRefreshOrder,
 } from '@/lib/hooks/useOrderQueries';
 import { Badge } from '@/components/ui/badge';
+import {
+  GuestOrderDispute,
+  type GuestDisputeData,
+} from './GuestOrderDispute';
 import logger from '@/utils/logger';
 
 export default function GuestOrderInfos() {
@@ -62,13 +67,13 @@ export default function GuestOrderInfos() {
   const [activeTab, setActiveTab] = useState('details');
   const [isConfirmOrderModalOpen, setIsConfirmOrderModalOpen] =
     useState(false);
-  const [isDisputeModalOpen, setIsDisputeModalOpen] = useState(false);
-  const [disputeReason, setDisputeReason] = useState('');
   const [isUpdating, setIsUpdating] = useState(false);
   const [updateError, setUpdateError] = useState<string | null>(null);
   const [updateSuccess, setUpdateSuccess] = useState<string | null>(
     null
   );
+  const [isSubmittingDispute, setIsSubmittingDispute] =
+    useState(false);
 
   // Handle data when order is loaded
   useEffect(() => {
@@ -147,17 +152,22 @@ export default function GuestOrderInfos() {
     }
   };
 
-  const handleDisputeSubmit = async () => {
-    if (!orderId || !email || !disputeReason.trim()) return;
+  const handleDisputeSubmit = async (
+    disputeData: GuestDisputeData
+  ) => {
+    if (!orderId || !email) return;
 
-    setIsUpdating(true);
+    setIsSubmittingDispute(true);
     setUpdateError(null);
 
     try {
       const result = await createGuestOrderDispute({
         orderId,
         email: email as string,
-        reason: disputeReason,
+        reason: disputeData.reason,
+        category: disputeData.category,
+        description: disputeData.description,
+        priority: disputeData.priority,
       });
 
       if (!result.success) {
@@ -168,19 +178,18 @@ export default function GuestOrderInfos() {
         result.message || 'Dispute submitted successfully!'
       );
 
-      // Refresh order details
+      // Refresh order details after short delay
       setTimeout(() => {
         refetch();
-        setIsDisputeModalOpen(false);
         setUpdateSuccess(null);
       }, 2000);
     } catch (error: any) {
-      console.error('Update Error:', error);
+      console.error('Dispute Error:', error);
       setUpdateError(
         error.message || 'An unexpected error occurred.'
       );
     } finally {
-      setIsUpdating(false);
+      setIsSubmittingDispute(false);
     }
   };
 
@@ -273,6 +282,8 @@ export default function GuestOrderInfos() {
     order.status.delivery === 'Completed' &&
     !isCompleted;
 
+  const canDispute = order.orderType !== 'non-phygitals';
+
   logger.info(isCompleted);
 
   return (
@@ -288,6 +299,25 @@ export default function GuestOrderInfos() {
             : 'Unknown date'}
         </p>
       </div>
+
+      {/* Success/Error Messages */}
+      {updateSuccess && (
+        <div className="mb-6 p-4 bg-green-50 border border-green-200 rounded-lg">
+          <div className="flex items-center gap-2 text-green-700">
+            <AlertCircle className="w-5 h-5" />
+            <span className="font-medium">{updateSuccess}</span>
+          </div>
+        </div>
+      )}
+
+      {updateError && (
+        <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg">
+          <div className="flex items-center gap-2 text-red-700">
+            <AlertTriangle className="w-5 h-5" />
+            <span className="font-medium">{updateError}</span>
+          </div>
+        </div>
+      )}
 
       <Tabs
         selectedKey={activeTab}
@@ -363,13 +393,15 @@ export default function GuestOrderInfos() {
                         Confirm Order Receipt
                       </Button>
                     )}
-                    <Button
-                      color="danger"
-                      variant="flat"
-                      onClick={() => setIsDisputeModalOpen(true)}
-                    >
-                      Report an Issue
-                    </Button>
+                    {canDispute && (
+                      <Button
+                        color="primary"
+                        variant="flat"
+                        onClick={() => setActiveTab('dispute')}
+                      >
+                        View Dispute Options
+                      </Button>
+                    )}
                   </CardBody>
                 </Card>
               )}
@@ -717,6 +749,19 @@ export default function GuestOrderInfos() {
             </div>
           </div>
         </Tab>
+
+        {/* Dispute Tab - Only show if disputes are available for this order type */}
+        {canDispute && (
+          <Tab key="dispute" title="Dispute">
+            <GuestOrderDispute
+              orderId={orderId}
+              email={email || ''}
+              order={order}
+              onDisputeSubmit={handleDisputeSubmit}
+              isSubmitting={isSubmittingDispute}
+            />
+          </Tab>
+        )}
       </Tabs>
 
       {/* Confirm Order Modal */}
@@ -727,14 +772,6 @@ export default function GuestOrderInfos() {
         <ModalContent>
           <ModalHeader>Confirm Order Receipt</ModalHeader>
           <ModalBody>
-            {updateError && (
-              <div className="text-red-500 mb-4">{updateError}</div>
-            )}
-            {updateSuccess && (
-              <div className="text-green-500 mb-4">
-                {updateSuccess}
-              </div>
-            )}
             <p>
               By confirming receipt, you acknowledge that you have
               received the order in satisfactory condition. This
@@ -755,55 +792,6 @@ export default function GuestOrderInfos() {
               isLoading={isUpdating}
             >
               Confirm Receipt
-            </Button>
-          </ModalFooter>
-        </ModalContent>
-      </Modal>
-
-      {/* Dispute Modal */}
-      <Modal
-        isOpen={isDisputeModalOpen}
-        onOpenChange={setIsDisputeModalOpen}
-      >
-        <ModalContent>
-          <ModalHeader>Report an Issue</ModalHeader>
-          <ModalBody>
-            {updateError && (
-              <div className="text-red-500 mb-4">{updateError}</div>
-            )}
-            {updateSuccess && (
-              <div className="text-green-500 mb-4">
-                {updateSuccess}
-              </div>
-            )}
-            <p className="mb-4">
-              Please describe the issue you&apos;re experiencing with
-              this order. Our team will review your report and contact
-              you.
-            </p>
-            <textarea
-              className="w-full border border-gray-300 rounded-md p-2"
-              placeholder="Please describe the issue in detail"
-              value={disputeReason}
-              onChange={(e) => setDisputeReason(e.target.value)}
-              rows={3}
-            />
-          </ModalBody>
-          <ModalFooter>
-            <Button
-              color="danger"
-              variant="light"
-              onPress={() => setIsDisputeModalOpen(false)}
-            >
-              Cancel
-            </Button>
-            <Button
-              color="primary"
-              onPress={handleDisputeSubmit}
-              isLoading={isUpdating}
-              isDisabled={!disputeReason.trim()}
-            >
-              Submit
             </Button>
           </ModalFooter>
         </ModalContent>

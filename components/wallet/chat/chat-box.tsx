@@ -105,10 +105,6 @@ export default function ChatBox({
   const { wallets: ethWallets } = useWallets();
   const { wallets: solanaWallets } = useSolanaWallets();
 
-  // Network configuration
-  const ETHEREUM_RPC_URL =
-    process.env.NEXT_PUBLIC_ALCHEMY_SEPOLIA_URL ||
-    'https://eth-sepolia.g.alchemy.com/v2/GIGzKPGbo2k_FJH72PzS4mS6buC_PbBo';
   const SOLANA_RPC_URL =
     process.env.NEXT_PUBLIC_SOLANA_RPC_URL ||
     'https://api.mainnet-beta.solana.com';

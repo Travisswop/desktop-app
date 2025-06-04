@@ -206,8 +206,6 @@ export default function SendConfirmation({
                       ? 'ETH'
                       : token.chain === 'POLYGON'
                       ? 'MATIC'
-                      : token.chain === 'SEPOLIA'
-                      ? 'SepoliaETH'
                       : 'BASE'}
                   </div>
                   <div className="text-sm text-gray-500">

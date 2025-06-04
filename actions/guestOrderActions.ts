@@ -18,6 +18,9 @@ interface GuestOrderDisputeParams {
   orderId: string;
   email: string;
   reason: string;
+  category?: string;
+  description?: string;
+  priority?: 'low' | 'medium' | 'high';
 }
 
 /**
@@ -142,15 +145,19 @@ export async function confirmGuestOrderReceipt({
 }
 
 /**
- * Creates a dispute for a guest order
+ * Creates a dispute for a guest order with enhanced data
  */
 export async function createGuestOrderDispute({
   orderId,
   email,
   reason,
+  category = 'other',
+  description = '',
+  priority = 'medium',
 }: GuestOrderDisputeParams): Promise<{
   success: boolean;
   message?: string;
+  disputeId?: string;
 }> {
   try {
     const response = await fetch(
@@ -161,7 +168,12 @@ export async function createGuestOrderDispute({
           'Content-Type': 'application/json',
           'X-Guest-Email': email,
         },
-        body: JSON.stringify({ reason }),
+        body: JSON.stringify({
+          reason,
+          category,
+          description,
+          priority,
+        }),
       }
     );
 
@@ -173,16 +185,64 @@ export async function createGuestOrderDispute({
       };
     }
 
+    const result = await response.json();
     return {
       success: true,
       message:
+        result.message ||
         'Dispute submitted successfully! Our team will contact you soon.',
+      disputeId: result.disputeId,
     };
   } catch (error) {
     console.error('Error creating guest order dispute:', error);
     return {
       success: false,
       message: 'Failed to submit dispute. Please try again later.',
+    };
+  }
+}
+
+/**
+ * Gets guest order disputes by ID and email
+ */
+export async function getGuestOrderDisputes(
+  orderId: string,
+  email: string
+): Promise<{
+  success: boolean;
+  dispute?: any;
+  message?: string;
+}> {
+  try {
+    const response = await fetch(
+      `${API_URL}/api/v5/guest-orders/${orderId}/dispute`,
+      {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Guest-Email': email,
+        },
+      }
+    );
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      return {
+        success: false,
+        message: errorData.message || 'Failed to fetch disputes',
+      };
+    }
+
+    const result = await response.json();
+    return {
+      success: true,
+      dispute: result.data,
+    };
+  } catch (error) {
+    console.error('Error fetching guest order disputes:', error);
+    return {
+      success: false,
+      message: 'Failed to fetch disputes. Please try again later.',
     };
   }
 }
