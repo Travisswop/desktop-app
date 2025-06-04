@@ -83,7 +83,6 @@ export async function postFeed(payload: any, token: string) {
         body: JSON.stringify(payload),
       }
     );
-    revalidatePath(`/feed`);
     const data = await response.json();
     return data;
   } catch (error) {
@@ -126,7 +125,6 @@ export async function deleteFeedComment(
         },
       }
     );
-    revalidatePath(`/feed`);
     const data = await response.json();
     return data;
   } catch (error) {
@@ -146,7 +144,6 @@ export async function deleteFeed(postId: string, token: string) {
         },
       }
     );
-    revalidatePath(`/feed`);
     const data = await response.json();
     return data;
   } catch (error) {
