@@ -43,13 +43,25 @@ import { sendCloudinaryImage } from '@/lib/SendCloudinaryImage';
 import toast from 'react-hot-toast';
 import logger from '@/utils/logger';
 
+interface CommentContentProps {
+  postId: string;
+  accessToken: string;
+  latestCommentCount: number;
+  setLatestCommentCount: (
+    count: number | ((prevCount: number) => number)
+  ) => void;
+  onCommentSubmitted?: (newTotalCommentCount: number) => void;
+  [key: string]: any;
+}
+
 const CommentContent = memo(
   ({
     postId,
     accessToken,
     latestCommentCount,
     setLatestCommentCount,
-  }: any) => {
+    onCommentSubmitted,
+  }: CommentContentProps) => {
     const { postContent, setPostContent } = useCommentContentStore();
     const [postComments, setPostComments] = useState<any>([]);
     const [isNewCommentPost, setIsNewCommentPost] = useState(false);
@@ -190,7 +202,11 @@ const CommentContent = memo(
         isLoading ||
         !accessToken
       ) {
-        toast.error('something went wrong!');
+        setIsLoading(false);
+        toast.error(
+          'Cannot post empty comment or exceeds character limit.'
+        );
+        return;
       }
       const contentPayload = {
         postContent: [
@@ -219,7 +235,9 @@ const CommentContent = memo(
 
       await postComment(payload, accessToken);
       setPostContent([]);
-      setLatestCommentCount(latestCommentCount + 1);
+      const newTotalCommentCount = latestCommentCount + 1;
+      setLatestCommentCount(newTotalCommentCount);
+      onCommentSubmitted?.(newTotalCommentCount);
       setCommentPostContent('');
       setIsLoading(false);
       setIsNewCommentPost(true);

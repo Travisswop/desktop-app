@@ -103,7 +103,6 @@ export async function postComment(payload: any, token: string) {
         body: JSON.stringify(payload),
       }
     );
-    revalidatePath(`/feed`);
     const data = await response.json();
 
     return data;
@@ -169,7 +168,6 @@ export async function postFeedLike(payload: any, token: string) {
         body: JSON.stringify(payload),
       }
     );
-    revalidatePath(`/feed`);
     const data = await response.json();
     return data;
   } catch (error) {
@@ -211,7 +209,6 @@ export async function removeFeedLike(payload: any, token: string) {
         body: JSON.stringify(payload),
       }
     );
-    revalidatePath(`/feed`);
     const data = await response.json();
     return data;
   } catch (error) {

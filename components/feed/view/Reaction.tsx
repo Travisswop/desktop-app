@@ -40,6 +40,15 @@ import EmojiPicker from 'emoji-picker-react';
 import { BsEmojiSmile } from 'react-icons/bs';
 import { Loader } from 'lucide-react';
 
+// Assuming FeedItemType is available or defined elsewhere
+interface FeedItemType {
+  _id: string;
+  likeCount?: number;
+  commentCount?: number;
+  isLiked?: boolean;
+  [key: string]: any;
+}
+
 interface ReactionProps {
   postId: string;
   likeCount: number;
@@ -51,6 +60,10 @@ interface ReactionProps {
   isLiked?: boolean;
   isFromFeedDetails?: boolean;
   onRepostSuccess?: () => void;
+  onPostInteraction?: (
+    postId: string,
+    updates: Partial<FeedItemType>
+  ) => void;
 }
 
 const Reaction = memo(
@@ -65,8 +78,9 @@ const Reaction = memo(
     isLiked = false,
     isFromFeedDetails = false,
     onRepostSuccess,
+    onPostInteraction,
   }: ReactionProps) => {
-    const [liked, setLiked] = useState(false);
+    const [liked, setLiked] = useState(isLiked);
     const [likeCount, setLikeCount] = useState(initialLikeCount);
     const [animate, setAnimate] = useState(false); // Trigger for the animation
     const [smartsiteId, setSmartsiteId] = useState(''); // Trigger for the animation
@@ -147,25 +161,26 @@ const Reaction = memo(
       if (!accessToken) {
         return toast.error('Please Login to Continue.');
       }
-      // Optimistically update the like state
-      setLiked(!liked);
-      setLikeCount((prevCount) => {
-        if (liked) {
-          // If already liked and count is 0, return 0
-          return prevCount > 0 ? prevCount - 1 : 0;
-        } else {
-          // If not liked, increment the count
-          return prevCount + 1;
-        }
-      });
 
-      if (!liked) {
+      const originalLiked = liked;
+      const originalLikeCount = likeCount;
+
+      // Optimistically update the like state
+      const newLikedState = !liked;
+      const newLikeCountState = newLikedState
+        ? likeCount + 1
+        : Math.max(0, likeCount - 1);
+
+      setLiked(newLikedState);
+      setLikeCount(newLikeCountState);
+
+      if (newLikedState) {
         setAnimate(true); // Start animation
         setTimeout(() => setAnimate(false), 500); // Stop animation after 500ms
       }
 
       try {
-        if (!liked) {
+        if (newLikedState) {
           await postFeedLike({ postId, smartsiteId }, accessToken);
           //add points for feed like
           if (user?._id) {
@@ -175,29 +190,23 @@ const Reaction = memo(
               actionKey: 'launch-swop', //use same value
               feedPostId: postId,
             };
-
-            const response = await addFeedLikePoints(
-              payloadForPoints,
-              accessToken
-            );
+            await addFeedLikePoints(payloadForPoints, accessToken);
           }
         } else {
           const payload = { postId, smartsiteId, commentId, replyId };
           await removeFeedLike(payload, accessToken);
         }
+        // If API call is successful, call the callback to update parent state
+        onPostInteraction?.(postId, {
+          likeCount: newLikeCountState,
+          isLiked: newLikedState,
+        });
       } catch (error) {
         console.error('Error updating like status:', error);
         // Revert the like state if the API call fails
-        setLiked(liked); // Reset to previous state
-        setLikeCount((prevCount) => {
-          if (liked) {
-            // If already liked and count is 0, return 0
-            return prevCount > 0 ? prevCount - 1 : 0;
-          } else {
-            // If not liked, increment the count
-            return prevCount + 1;
-          }
-        });
+        setLiked(originalLiked);
+        setLikeCount(originalLikeCount);
+        toast.error('Failed to update like status.'); // Notify user
       }
     };
 
@@ -212,7 +221,7 @@ const Reaction = memo(
 
     useEffect(() => {
       setLiked(isLiked);
-    }, []); //don't change
+    }, [isLiked]); // Depend on isLiked prop for initialization and external changes
 
     // console.log("commentPostContent", commentPostContent);
 
@@ -466,6 +475,11 @@ const Reaction = memo(
             accessToken={accessToken}
             latestCommentCount={latestCommentCount}
             setLatestCommentCount={setLatestCommentCount}
+            onCommentSubmitted={(newTotalCommentCount: number) => {
+              onPostInteraction?.(postId, {
+                commentCount: newTotalCommentCount,
+              });
+            }}
           />
         )}
         <Modal

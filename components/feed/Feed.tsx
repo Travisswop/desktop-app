@@ -36,6 +36,17 @@ import FeedItem from './FeedItem';
 
 dayjs.extend(relativeTime);
 
+// Define a basic type for FeedItem. Ideally, this should be more comprehensive
+// and possibly imported from a central types definition file.
+interface FeedItemType {
+  _id: string;
+  likeCount?: number;
+  commentCount?: number;
+  isLiked?: boolean;
+  // Add other properties that a feed item might have
+  [key: string]: any; // Allow other properties
+}
+
 interface FeedProps {
   accessToken: string;
   userId: string;
@@ -57,6 +68,7 @@ const MemoizedFeedItem = memo(
     onRepostSuccess,
     onDeleteSuccess,
     renderTransactionContent,
+    onPostInteraction,
   }: {
     feed: any;
     userId: string;
@@ -65,6 +77,10 @@ const MemoizedFeedItem = memo(
     onRepostSuccess: () => void;
     onDeleteSuccess: () => void;
     renderTransactionContent: (feed: any) => JSX.Element;
+    onPostInteraction: (
+      postId: string,
+      updates: Partial<FeedItemType>
+    ) => void;
   }) => {
     return (
       <FeedItem
@@ -76,6 +92,7 @@ const MemoizedFeedItem = memo(
         onRepostSuccess={onRepostSuccess}
         onDeleteSuccess={onDeleteSuccess}
         renderTransactionContent={renderTransactionContent}
+        onPostInteraction={onPostInteraction}
       />
     );
   },
@@ -103,7 +120,7 @@ const Feed = memo(
     isPosting,
     setIsPostLoading,
   }: FeedProps) => {
-    const [feedData, setFeedData] = useState<any[]>([]);
+    const [feedData, setFeedData] = useState<FeedItemType[]>([]);
     const [hasMore, setHasMore] = useState(true);
     const observerRef = useRef<HTMLDivElement>(null);
     const isFetching = useRef(false);
@@ -137,6 +154,17 @@ const Feed = memo(
     const handleDeleteSuccess = useCallback(() => {
       setIsPosting(true);
     }, [setIsPosting]);
+
+    const handlePostInteraction = useCallback(
+      (postId: string, updates: Partial<FeedItemType>) => {
+        setFeedData((currentFeedData) =>
+          currentFeedData.map((item) =>
+            item._id === postId ? { ...item, ...updates } : item
+          )
+        );
+      },
+      []
+    );
 
     const router = useRouter();
 
@@ -319,6 +347,7 @@ const Feed = memo(
           onRepostSuccess={handleRepostSuccess}
           onDeleteSuccess={handleDeleteSuccess}
           renderTransactionContent={renderTransactionContent}
+          onPostInteraction={handlePostInteraction}
         />
       ));
     }, [
@@ -329,6 +358,7 @@ const Feed = memo(
       handleRepostSuccess,
       handleDeleteSuccess,
       renderTransactionContent,
+      handlePostInteraction,
     ]);
 
     return (

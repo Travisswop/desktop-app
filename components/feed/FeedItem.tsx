@@ -19,6 +19,17 @@ import IndividualFeedContent from './IndividualFeedContent';
 import SwapTransactionCard from './SwapTransactionCard';
 import isUrl from '@/lib/isUrl';
 
+// Assuming FeedItemType is (or will be) available globally or can be imported.
+// For now, using 'any' as a placeholder if FeedItemType is not directly accessible here.
+// Ideally, import FeedItemType from where it's defined (e.g., Feed.tsx or a types file).
+interface FeedItemType {
+  _id: string;
+  likeCount?: number;
+  commentCount?: number;
+  isLiked?: boolean;
+  [key: string]: any;
+}
+
 interface FeedItemProps {
   feed: any;
   userId: string;
@@ -27,6 +38,10 @@ interface FeedItemProps {
   onRepostSuccess: () => void;
   onDeleteSuccess: () => void;
   renderTransactionContent: (feed: any) => JSX.Element;
+  onPostInteraction?: (
+    postId: string,
+    updates: Partial<FeedItemType>
+  ) => void;
 }
 
 const FeedItem = memo(
@@ -38,6 +53,7 @@ const FeedItem = memo(
     onRepostSuccess,
     onDeleteSuccess,
     renderTransactionContent,
+    onPostInteraction,
   }: FeedItemProps) => {
     const router = useRouter();
 
@@ -302,6 +318,7 @@ const FeedItem = memo(
             repostCount={feed.repostCount}
             viewsCount={feed.viewsCount}
             onRepostSuccess={onRepostSuccess}
+            onPostInteraction={onPostInteraction}
           />
         </div>
       </div>
