@@ -200,7 +200,6 @@ export async function createOrderDispute(
     }
 
     const result = await response.json();
-    console.log('Success response:', result);
 
     return {
       success: true,

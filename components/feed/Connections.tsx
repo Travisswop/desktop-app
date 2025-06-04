@@ -71,8 +71,6 @@ const Connections: React.FC<ConnectionsProps> = ({
           accessToken
         );
 
-        console.log('connections', response);
-
         if (response?.data && Array.isArray(response.data)) {
           setConnectionData(response.data);
         } else {

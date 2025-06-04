@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, memo } from 'react';
 
 // import Loader from "../ui/Loader";
 // import isUrl from "../util/isUrl";
@@ -45,7 +45,7 @@ interface SpotlightMapProps {
  *
  * @param token - Authentication token for API requests
  */
-const SpotlightMap = ({ token }: SpotlightMapProps) => {
+const SpotlightMap = memo(({ token }: SpotlightMapProps) => {
   // State management with proper typing
   const [connections, setConnections] = useState<Connection[]>([]);
   const [selectedFriend, setSelectedFriend] = useState<Friend | null>(
@@ -132,6 +132,8 @@ const SpotlightMap = ({ token }: SpotlightMapProps) => {
       />
     </div>
   );
-};
+});
+
+SpotlightMap.displayName = 'SpotlightMap';
 
 export default SpotlightMap;

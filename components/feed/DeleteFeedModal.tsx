@@ -1,5 +1,5 @@
-import { deleteFeed } from "@/actions/postFeed";
-import { useToast } from "@/hooks/use-toast";
+import { deleteFeed } from '@/actions/postFeed';
+import { useToast } from '@/hooks/use-toast';
 import {
   Modal,
   ModalContent,
@@ -9,11 +9,21 @@ import {
   Button,
   useDisclosure,
   Spinner,
-} from "@nextui-org/react";
-import { useState } from "react";
-import { MdDeleteForever } from "react-icons/md";
+} from '@nextui-org/react';
+import { useState } from 'react';
+import { MdDeleteForever } from 'react-icons/md';
 
-export default function DeleteFeedModal({ postId, token, setIsPosting }: any) {
+interface DeleteFeedModalProps {
+  postId: string;
+  token: string;
+  onDeleteSuccess: () => void;
+}
+
+export default function DeleteFeedModal({
+  postId,
+  token,
+  onDeleteSuccess,
+}: DeleteFeedModalProps) {
   const { isOpen, onOpen, onOpenChange, onClose } = useDisclosure();
   const [deleteLoading, setDeleteLoading] = useState(false);
   const { toast } = useToast();
@@ -21,13 +31,13 @@ export default function DeleteFeedModal({ postId, token, setIsPosting }: any) {
   const handlePostDelete = async () => {
     setDeleteLoading(true);
     const deletePost = await deleteFeed(postId, token);
-    if (deletePost.state === "success") {
+    if (deletePost.state === 'success') {
       setDeleteLoading(false);
       toast({
-        title: "Success",
-        description: "post deleted successfully!",
+        title: 'Success',
+        description: 'post deleted successfully!',
       });
-      setIsPosting(true);
+      onDeleteSuccess();
     }
     onClose();
   };
@@ -74,7 +84,10 @@ export default function DeleteFeedModal({ postId, token, setIsPosting }: any) {
                 Delete Post?
               </ModalHeader>
               <ModalBody className="text-slate-600 font-normal">
-                <p>This can’t be undone and it will be removed permanently.</p>
+                <p>
+                  This can&apos;t be undone and it will be removed
+                  permanently.
+                </p>
               </ModalBody>
               <ModalFooter className="pt-2">
                 <Button
@@ -96,7 +109,7 @@ export default function DeleteFeedModal({ postId, token, setIsPosting }: any) {
                   {deleteLoading ? (
                     <Spinner color="default" size="sm" />
                   ) : (
-                    "Delete"
+                    'Delete'
                   )}
                 </button>
               </ModalFooter>

@@ -24,7 +24,8 @@ interface FeedItemProps {
   userId: string;
   accessToken: string;
   onRedeemModalOpen: (data: any) => void;
-  setIsPosting: (value: boolean) => void;
+  onRepostSuccess: () => void;
+  onDeleteSuccess: () => void;
   renderTransactionContent: (feed: any) => JSX.Element;
 }
 
@@ -34,7 +35,8 @@ const FeedItem = memo(
     userId,
     accessToken,
     onRedeemModalOpen,
-    setIsPosting,
+    onRepostSuccess,
+    onDeleteSuccess,
     renderTransactionContent,
   }: FeedItemProps) => {
     const router = useRouter();
@@ -246,7 +248,7 @@ const FeedItem = memo(
                       <DeleteFeedModal
                         postId={feed._id}
                         token={accessToken}
-                        setIsPosting={setIsPosting}
+                        onDeleteSuccess={onDeleteSuccess}
                       />
                     </div>
                   </PopoverContent>
@@ -299,7 +301,7 @@ const FeedItem = memo(
             commentCount={feed.commentCount}
             repostCount={feed.repostCount}
             viewsCount={feed.viewsCount}
-            setIsPosting={setIsPosting}
+            onRepostSuccess={onRepostSuccess}
           />
         </div>
       </div>

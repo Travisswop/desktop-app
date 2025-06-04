@@ -50,7 +50,7 @@ interface ReactionProps {
   replyId?: string | null;
   isLiked?: boolean;
   isFromFeedDetails?: boolean;
-  setIsPosting: any;
+  onRepostSuccess?: () => void;
 }
 
 const Reaction = memo(
@@ -64,7 +64,7 @@ const Reaction = memo(
     replyId = null,
     isLiked = false,
     isFromFeedDetails = false,
-    setIsPosting,
+    onRepostSuccess,
   }: ReactionProps) => {
     const [liked, setLiked] = useState(false);
     const [likeCount, setLikeCount] = useState(initialLikeCount);
@@ -264,7 +264,7 @@ const Reaction = memo(
           if (isRepostModalOpen) {
             onRepostModalChange();
           }
-          setIsPosting(true);
+          onRepostSuccess?.();
           setIsRepostPopOpen(false);
         }
         if (data?.state === 'not-allowed') {
@@ -567,6 +567,20 @@ const Reaction = memo(
           </ModalContent>
         </Modal>
       </div>
+    );
+  },
+  (prevProps, nextProps) => {
+    // Custom comparison to prevent rerenders when only unrelated props change
+    return (
+      prevProps.postId === nextProps.postId &&
+      prevProps.likeCount === nextProps.likeCount &&
+      prevProps.commentCount === nextProps.commentCount &&
+      prevProps.repostCount === nextProps.repostCount &&
+      prevProps.viewsCount === nextProps.viewsCount &&
+      prevProps.isLiked === nextProps.isLiked &&
+      prevProps.isFromFeedDetails === nextProps.isFromFeedDetails &&
+      prevProps.commentId === nextProps.commentId &&
+      prevProps.replyId === nextProps.replyId
     );
   }
 );

@@ -25,11 +25,6 @@ export const useDispute = (): UseDisputeReturn => {
       orderId: string,
       disputeData: DisputeData
     ): Promise<void> => {
-      console.log('submitDispute called with:', {
-        orderId,
-        disputeData,
-      });
-
       if (!accessToken) {
         console.error('No access token available');
         throw new Error('Authentication required');
@@ -40,14 +35,11 @@ export const useDispute = (): UseDisputeReturn => {
       setSuccess(null);
 
       try {
-        console.log('Calling createOrderDispute...');
         const result = await createOrderDispute(
           orderId,
           disputeData,
           accessToken
         );
-
-        console.log('createOrderDispute result:', result);
 
         // Check if result is undefined or null
         if (!result) {
@@ -74,8 +66,6 @@ export const useDispute = (): UseDisputeReturn => {
             result.message || 'Failed to submit dispute'
           );
         }
-
-        console.log('Dispute submitted successfully');
         setSuccess(
           result.message ||
             'Dispute submitted successfully! Our team will review it and contact you soon.'

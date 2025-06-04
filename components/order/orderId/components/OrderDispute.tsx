@@ -198,7 +198,7 @@ export const OrderDispute: React.FC<OrderDisputeProps> = ({
           order.orderId,
           accessToken
         );
-        console.log('result', result);
+
         if (result.success && result.dispute) {
           // Convert single dispute object to array for consistency with existing UI logic
           setDisputes([result.dispute]);
@@ -345,11 +345,6 @@ export const OrderDispute: React.FC<OrderDisputeProps> = ({
           setDisputes([result.dispute]);
         }
       }
-
-      // Show success message to buyer
-      console.log(
-        'Dispute submitted successfully - seller will be notified'
-      );
     } catch (error) {
       console.error('Error submitting dispute:', error);
     }

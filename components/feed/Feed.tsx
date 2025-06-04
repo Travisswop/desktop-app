@@ -47,6 +47,54 @@ interface FeedProps {
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL;
 
+// Memoized FeedItem wrapper to prevent unnecessary rerenders
+const MemoizedFeedItem = memo(
+  ({
+    feed,
+    userId,
+    accessToken,
+    onRedeemModalOpen,
+    onRepostSuccess,
+    onDeleteSuccess,
+    renderTransactionContent,
+  }: {
+    feed: any;
+    userId: string;
+    accessToken: string;
+    onRedeemModalOpen: (data: any) => void;
+    onRepostSuccess: () => void;
+    onDeleteSuccess: () => void;
+    renderTransactionContent: (feed: any) => JSX.Element;
+  }) => {
+    return (
+      <FeedItem
+        key={feed._id}
+        feed={feed}
+        userId={userId}
+        accessToken={accessToken}
+        onRedeemModalOpen={onRedeemModalOpen}
+        onRepostSuccess={onRepostSuccess}
+        onDeleteSuccess={onDeleteSuccess}
+        renderTransactionContent={renderTransactionContent}
+      />
+    );
+  },
+  (prevProps, nextProps) => {
+    // Custom comparison to prevent rerenders when only unrelated props change
+    return (
+      prevProps.feed._id === nextProps.feed._id &&
+      prevProps.feed.likeCount === nextProps.feed.likeCount &&
+      prevProps.feed.commentCount === nextProps.feed.commentCount &&
+      prevProps.feed.repostCount === nextProps.feed.repostCount &&
+      prevProps.feed.isLiked === nextProps.feed.isLiked &&
+      prevProps.userId === nextProps.userId &&
+      prevProps.accessToken === nextProps.accessToken
+    );
+  }
+);
+
+MemoizedFeedItem.displayName = 'MemoizedFeedItem';
+
 const Feed = memo(
   ({
     accessToken,
@@ -77,6 +125,18 @@ const Feed = memo(
       },
       [onOpen]
     );
+
+    // Separate callback for repost success that doesn't trigger full refresh
+    const handleRepostSuccess = useCallback(() => {
+      // We can optionally update repost counts here without full refresh
+      // For now, we'll just show success without refreshing the entire feed
+      console.log('Repost successful');
+    }, []);
+
+    // Callback for delete success that triggers refresh
+    const handleDeleteSuccess = useCallback(() => {
+      setIsPosting(true);
+    }, [setIsPosting]);
 
     const router = useRouter();
 
@@ -161,6 +221,7 @@ const Feed = memo(
       }
     }, []);
 
+    // Stable fetchFeedData that doesn't depend on setIsPostLoading
     const fetchFeedData = useCallback(
       async (reset = false) => {
         if (isFetching.current) return;
@@ -246,20 +307,34 @@ const Feed = memo(
       return () => observer.disconnect();
     }, [hasMore, fetchFeedData]);
 
+    // Memoized feed items to prevent unnecessary re-renders
+    const memoizedFeedItems = useMemo(() => {
+      return feedData.map((feed) => (
+        <MemoizedFeedItem
+          key={feed._id}
+          feed={feed}
+          userId={userId}
+          accessToken={accessToken}
+          onRedeemModalOpen={openRedeemModal}
+          onRepostSuccess={handleRepostSuccess}
+          onDeleteSuccess={handleDeleteSuccess}
+          renderTransactionContent={renderTransactionContent}
+        />
+      ));
+    }, [
+      feedData,
+      userId,
+      accessToken,
+      openRedeemModal,
+      handleRepostSuccess,
+      handleDeleteSuccess,
+      renderTransactionContent,
+    ]);
+
     return (
       <div className="w-full flex gap-10">
         <div className="w-full flex flex-col gap-4">
-          {feedData.map((feed) => (
-            <FeedItem
-              key={feed._id}
-              feed={feed}
-              userId={userId}
-              accessToken={accessToken}
-              onRedeemModalOpen={openRedeemModal}
-              setIsPosting={setIsPosting}
-              renderTransactionContent={renderTransactionContent}
-            />
-          ))}
+          {memoizedFeedItems}
           {hasMore && (
             <div ref={observerRef}>
               {initiaLoading ? (

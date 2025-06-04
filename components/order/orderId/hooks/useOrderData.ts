@@ -65,7 +65,6 @@ export const useOrderData = (orderId: string): UseOrderDataReturn => {
 
       const { data } = await response.json();
       setOrder(data);
-      console.log('🚀 ~ fetchOrderDetails ~ data:', data);
 
       const nfts = data.mintedNfts.map((nft: any) => ({
         ...nft.nftTemplateId,

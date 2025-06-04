@@ -98,10 +98,238 @@ const usePrimaryMicrositeImg = (microsites?: any[]) => {
   }, [microsites]);
 };
 
-const FeedMain = memo(({ isFromHome = false }: FeedMainProps) => {
-  const [isPosting, setIsPosting] = useState(false);
-  const [isPostLoading, setIsPostLoading] = useState(false);
+// Memoized right sidebar component to prevent unnecessary rerenders
+const RightSidebar = memo(
+  ({
+    accessToken,
+    userId,
+  }: {
+    accessToken: string;
+    userId: string;
+  }) => {
+    // Create stable props for Connections to prevent re-renders
+    const connectionsProps = useMemo(
+      () => ({
+        userId,
+        accessToken,
+      }),
+      [userId, accessToken]
+    );
 
+    // Create stable token prop for SpotlightMap
+    const spotlightMapToken = useMemo(
+      () => accessToken,
+      [accessToken]
+    );
+
+    return (
+      <div
+        style={{ height: CONTAINER_HEIGHT }}
+        className="flex-1 overflow-y-auto"
+      >
+        <SpotlightMap token={spotlightMapToken} />
+        <Connections {...connectionsProps} />
+      </div>
+    );
+  }
+);
+
+RightSidebar.displayName = 'RightSidebar';
+
+// Separate container for posting state to isolate re-renders
+const PostingStateProvider = memo(
+  ({
+    children,
+    onPostingStateChange,
+  }: {
+    children: (postingState: {
+      isPosting: boolean;
+      setIsPosting: React.Dispatch<React.SetStateAction<boolean>>;
+      isPostLoading: boolean;
+      setIsPostLoading: React.Dispatch<React.SetStateAction<boolean>>;
+    }) => React.ReactNode;
+    onPostingStateChange?: (isPosting: boolean) => void;
+  }) => {
+    const [isPosting, setIsPosting] = useState(false);
+    const [isPostLoading, setIsPostLoading] = useState(false);
+
+    // Notify parent of posting state changes if needed
+    useEffect(() => {
+      onPostingStateChange?.(isPosting);
+    }, [isPosting, onPostingStateChange]);
+
+    const stableSetIsPosting = useCallback(
+      (value: boolean | ((prev: boolean) => boolean)) => {
+        setIsPosting(value);
+      },
+      []
+    );
+
+    const stableSetIsPostLoading = useCallback(
+      (value: boolean | ((prev: boolean) => boolean)) => {
+        setIsPostLoading(value);
+      },
+      []
+    );
+
+    return (
+      <>
+        {children({
+          isPosting,
+          setIsPosting: stableSetIsPosting,
+          isPostLoading,
+          setIsPostLoading: stableSetIsPostLoading,
+        })}
+      </>
+    );
+  }
+);
+
+PostingStateProvider.displayName = 'PostingStateProvider';
+
+// Memoized main content area with isolated posting state
+const MainContent = memo(
+  ({
+    userId,
+    accessToken,
+    primaryMicrositeImg,
+    tab,
+  }: {
+    userId: string;
+    accessToken: string;
+    primaryMicrositeImg: string;
+    tab: string;
+  }) => {
+    // Component mapping for tab switching - keep static
+    const tabComponents = useMemo(
+      () => ({
+        feed: Feed,
+        timeline: Timeline,
+        transaction: Transaction,
+      }),
+      []
+    );
+
+    // Stable props that don't change with posting state
+    const stableProps = useMemo(
+      () => ({
+        accessToken,
+        userId,
+      }),
+      [accessToken, userId]
+    );
+
+    const stablePostFeedProps = useMemo(
+      () => ({
+        primaryMicrositeImg,
+        userId,
+        token: accessToken,
+      }),
+      [primaryMicrositeImg, userId, accessToken]
+    );
+
+    return (
+      <PostingStateProvider>
+        {({
+          isPosting,
+          setIsPosting,
+          isPostLoading,
+          setIsPostLoading,
+        }) => (
+          <MainContentInner
+            stableProps={stableProps}
+            stablePostFeedProps={stablePostFeedProps}
+            tabComponents={tabComponents}
+            tab={tab}
+            isPosting={isPosting}
+            setIsPosting={setIsPosting}
+            isPostLoading={isPostLoading}
+            setIsPostLoading={setIsPostLoading}
+          />
+        )}
+      </PostingStateProvider>
+    );
+  }
+);
+
+MainContent.displayName = 'MainContent';
+
+// Separate inner component to handle the posting state props
+const MainContentInner = memo(
+  ({
+    stableProps,
+    stablePostFeedProps,
+    tabComponents,
+    tab,
+    isPosting,
+    setIsPosting,
+    isPostLoading,
+    setIsPostLoading,
+  }: {
+    stableProps: { accessToken: string; userId: string };
+    stablePostFeedProps: {
+      primaryMicrositeImg: string;
+      userId: string;
+      token: string;
+    };
+    tabComponents: { feed: any; timeline: any; transaction: any };
+    tab: string;
+    isPosting: boolean;
+    setIsPosting: React.Dispatch<React.SetStateAction<boolean>>;
+    isPostLoading: boolean;
+    setIsPostLoading: React.Dispatch<React.SetStateAction<boolean>>;
+  }) => {
+    const feedComponentProps = useMemo(
+      () => ({
+        ...stableProps,
+        setIsPosting,
+        isPosting,
+        setIsPostLoading,
+        isPostLoading,
+      }),
+      [
+        stableProps,
+        setIsPosting,
+        isPosting,
+        setIsPostLoading,
+        isPostLoading,
+      ]
+    );
+
+    const postFeedProps = useMemo(
+      () => ({
+        ...stablePostFeedProps,
+        setIsPosting,
+        setIsPostLoading,
+      }),
+      [stablePostFeedProps, setIsPosting, setIsPostLoading]
+    );
+
+    const renderComponent = useMemo(() => {
+      const Component =
+        tabComponents[tab as keyof typeof tabComponents] || Feed;
+      return <Component {...feedComponentProps} />;
+    }, [tab, tabComponents, feedComponentProps]);
+
+    return (
+      <div
+        style={{ height: CONTAINER_HEIGHT }}
+        className={`${CONTAINER_WIDTH} overflow-y-auto`}
+      >
+        <PostFeed {...postFeedProps} />
+        <hr />
+
+        <Suspense fallback={<div>Loading feed...</div>}>
+          <section className="p-6">{renderComponent}</section>
+        </Suspense>
+      </div>
+    );
+  }
+);
+
+MainContentInner.displayName = 'MainContentInner';
+
+const FeedMain = memo(({ isFromHome = false }: FeedMainProps) => {
   const { user, loading: userLoading } = useUser();
   const searchParams = useSearchParams();
   const authData = useAuthData(user?._id);
@@ -115,80 +343,35 @@ const FeedMain = memo(({ isFromHome = false }: FeedMainProps) => {
     [searchParams]
   );
 
-  // Centralized props for feed components
-  const feedComponentProps = useMemo(
+  // Stable props for RightSidebar to prevent re-renders
+  const rightSidebarProps = useMemo(
     () => ({
-      accessToken: accessToken!,
-      userId: userId!,
-      setIsPosting,
-      isPosting,
-      setIsPostLoading,
-      isPostLoading,
+      accessToken: accessToken as string,
+      userId: userId as string,
     }),
-    [accessToken, userId, isPosting, isPostLoading]
+    [accessToken, userId]
   );
 
-  const postFeedProps = useMemo(
+  // Stable props for MainContent
+  const mainContentProps = useMemo(
     () => ({
-      primaryMicrositeImg,
-      userId: userId!,
-      token: accessToken!,
-      setIsPosting,
-      setIsPostLoading,
+      userId: userId as string,
+      accessToken: accessToken as string,
+      primaryMicrositeImg: primaryMicrositeImg || '',
+      tab,
     }),
-    [primaryMicrositeImg, userId, accessToken]
+    [userId, accessToken, primaryMicrositeImg, tab]
   );
 
-  const connectionsProps = useMemo(
-    () => ({
-      userId: userId!,
-      accessToken: accessToken!,
-    }),
-    [userId, accessToken]
-  );
-
-  // Component mapping for tab switching
-  const tabComponents = useMemo(
-    () => ({
-      feed: Feed,
-      timeline: Timeline,
-      transaction: Transaction,
-    }),
-    []
-  );
-
-  const renderComponent = useMemo(() => {
-    const Component =
-      tabComponents[tab as keyof typeof tabComponents] || Feed;
-    return <Component {...feedComponentProps} />;
-  }, [tab, tabComponents, feedComponentProps]);
-
-  // Early return with loading state
+  // Early return with loading state - after all hooks
   if (!userId || !accessToken || userLoading) {
     return <FeedHomepageLoading />;
   }
 
   return (
     <div className="w-full flex relative">
-      <div
-        style={{ height: CONTAINER_HEIGHT }}
-        className={`${CONTAINER_WIDTH} overflow-y-auto`}
-      >
-        <PostFeed {...postFeedProps} />
-        <hr />
-
-        <Suspense fallback={<div>Loading feed...</div>}>
-          <section className="p-6">{renderComponent}</section>
-        </Suspense>
-      </div>
-
-      <div
-        style={{ height: CONTAINER_HEIGHT }}
-        className="flex-1 overflow-y-auto"
-      >
-        <SpotlightMap token={accessToken} />
-        <Connections {...connectionsProps} />
-      </div>
+      <MainContent {...mainContentProps} />
+      <RightSidebar {...rightSidebarProps} />
     </div>
   );
 });
