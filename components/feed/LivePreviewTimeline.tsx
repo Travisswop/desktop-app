@@ -222,7 +222,7 @@ const LivePreviewTimeline = ({
       className={`flex flex-col gap-2  mx-2 bg-white py-3  text-sm h-96 overflow-y-auto hide-scrollbar ${
         isFromPublicProfile
           ? "w-full px-3 shadow-medium rounded-xl mt-1"
-          : "px-1 rounded-lg mt-5"
+          : "px-1 rounded-lg mt-2"
       }`}
     >
       {feedData.map((feed, index) => (
