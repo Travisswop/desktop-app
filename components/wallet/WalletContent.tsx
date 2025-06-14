@@ -77,6 +77,7 @@ const WalletContentInner = () => {
 
   // Hooks
   const { authenticated, ready, user: PrivyUser } = usePrivy();
+  console.log('🚀 ~ WalletContentInner ~ PrivyUser:', PrivyUser);
   const { wallets: ethWallets } = useWallets();
   const { createWallet, solanaWallets } = useSolanaWalletContext();
   const { toast } = useToast();

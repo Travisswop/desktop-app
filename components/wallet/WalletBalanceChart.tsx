@@ -1,6 +1,11 @@
-import { useUser } from "@/lib/UserContext";
-import { ArrowLeftRight, Wallet } from "lucide-react";
-import React, { useState, useMemo, useEffect } from "react";
+import { useUser } from '@/lib/UserContext';
+import { ArrowLeftRight, Wallet } from 'lucide-react';
+import React, {
+  useState,
+  useMemo,
+  useEffect,
+  useCallback,
+} from 'react';
 import {
   AreaChart,
   Area,
@@ -9,30 +14,74 @@ import {
   CartesianGrid,
   Tooltip,
   ResponsiveContainer,
-} from "recharts";
-import AddBankModal from "./bank/AddBankModal";
-import WalletAddressPopup from "./wallet-address-popup";
-import { Skeleton } from "../ui/skeleton";
-import WalletChartButton from "../Button/WalletChartButton";
-import { IoIosSend } from "react-icons/io";
-import { BsBank2, BsQrCodeScan } from "react-icons/bs";
-import { FaRegListAlt } from "react-icons/fa";
-import SwapModal from "./swapModal/SwapModal";
-import logger from "../../utils/logger";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
+} from 'recharts';
+import AddBankModal from './bank/AddBankModal';
+import WalletAddressPopup from './wallet-address-popup';
+import { Skeleton } from '../ui/skeleton';
+import WalletChartButton from '../Button/WalletChartButton';
+import { IoIosSend } from 'react-icons/io';
+import { BsBank2, BsQrCodeScan } from 'react-icons/bs';
+import { FaRegListAlt } from 'react-icons/fa';
+import SwapModal from './swapModal/SwapModal';
+import logger from '../../utils/logger';
+import {
+  usePathname,
+  useRouter,
+  useSearchParams,
+} from 'next/navigation';
+import { WalletItem } from '@/types/wallet';
 
-let userToken: string[];
+// Types
+interface BalanceHistoryEntry {
+  createdAt: string;
+  amount: number;
+}
 
-const BalanceChart = ({
+interface Token {
+  symbol: string;
+  balance: string; // Changed from number to string to match TokenInfo
+  // Add other token properties
+}
+
+interface BalanceChartProps {
+  balanceHistory: BalanceHistoryEntry[];
+  onSelectAsset: () => void;
+  walletData: WalletItem[];
+  totalTokensValue: number;
+  accessToken: string;
+  tokens: Token[];
+}
+
+interface WalletBalanceChartForWalletPageProps {
+  walletData: WalletItem[];
+  tokens: Token[];
+  totalBalance: number;
+  onSelectAsset: () => void;
+  onQRClick: () => void;
+}
+
+// Constants
+const TIME_RANGES = {
+  ONE_DAY: '1day',
+  SEVEN_DAYS: '7days',
+  ONE_MONTH: '1month',
+  SIX_MONTHS: '6months',
+  ONE_YEAR: '1year',
+} as const;
+
+type TimeRange = (typeof TIME_RANGES)[keyof typeof TIME_RANGES];
+
+const BalanceChart: React.FC<BalanceChartProps> = ({
   balanceHistory,
-  // walletList,
   onSelectAsset,
-  // onQRClick,
   walletData,
   totalTokensValue,
   accessToken,
-}: any) => {
-  const [timeRange, setTimeRange] = useState("1month");
+  tokens,
+}) => {
+  const [timeRange, setTimeRange] = useState<TimeRange>(
+    TIME_RANGES.ONE_MONTH
+  );
   const [showPopup, setShowPopup] = useState(false);
   const [bankShow, setBankShow] = useState(false);
   const [openSwapModal, setOpenSwapModal] = useState(false);
@@ -41,10 +90,9 @@ const BalanceChart = ({
   const router = useRouter();
   const pathname = usePathname();
 
-  const inputTokenParam = searchParams?.get("inputToken");
-  const outputTokenParam = searchParams?.get("outputToken");
-  const amountParam = searchParams?.get("amount");
-  logger.log("params", inputTokenParam, outputTokenParam, amountParam);
+  const inputTokenParam = searchParams?.get('inputToken');
+  const outputTokenParam = searchParams?.get('outputToken');
+  const amountParam = searchParams?.get('amount');
 
   // Open swap modal when URL params are present
   useEffect(() => {
@@ -54,18 +102,17 @@ const BalanceChart = ({
   }, [amountParam, inputTokenParam, outputTokenParam]);
 
   // Clean up URL params when modal closes
-  useEffect(() => {
+  const cleanupUrlParams = useCallback(() => {
     if (
       !openSwapModal &&
       (inputTokenParam || outputTokenParam || amountParam)
     ) {
-      // Create new URLSearchParams without the swap params
-      const newSearchParams = new URLSearchParams(searchParams as any);
-      newSearchParams.delete("inputToken");
-      newSearchParams.delete("outputToken");
-      newSearchParams.delete("amount");
-
-      // Update the URL without triggering navigation
+      const newSearchParams = new URLSearchParams(
+        searchParams as any
+      );
+      newSearchParams.delete('inputToken');
+      newSearchParams.delete('outputToken');
+      newSearchParams.delete('amount');
       router.replace(`${pathname}?${newSearchParams.toString()}`);
     }
   }, [
@@ -78,58 +125,64 @@ const BalanceChart = ({
     amountParam,
   ]);
 
+  useEffect(() => {
+    cleanupUrlParams();
+  }, [cleanupUrlParams]);
+
   const filteredData = useMemo(() => {
     const now = new Date();
     let startDate = new Date(now.getTime());
 
     switch (timeRange) {
-      case "1day":
+      case TIME_RANGES.ONE_DAY:
         startDate.setTime(now.getTime() - 24 * 60 * 60 * 1000);
         break;
-      case "7days":
+      case TIME_RANGES.SEVEN_DAYS:
         startDate.setTime(now.getTime() - 7 * 24 * 60 * 60 * 1000);
         break;
-      case "1month":
+      case TIME_RANGES.ONE_MONTH:
         startDate.setMonth(startDate.getMonth() - 1);
         break;
-      case "6months":
+      case TIME_RANGES.SIX_MONTHS:
         startDate.setMonth(startDate.getMonth() - 6);
         break;
-      case "1year":
+      case TIME_RANGES.ONE_YEAR:
         startDate.setFullYear(startDate.getFullYear() - 1);
         break;
       default:
         startDate = new Date(0);
     }
 
-    const filtered = balanceHistory.filter((entry: any) => {
+    const filtered = balanceHistory.filter((entry) => {
       return new Date(entry.createdAt) >= startDate;
     });
 
-    if (timeRange === "1day") {
-      // Use raw data for 1 day: multiple points, full timestamps
+    if (timeRange === TIME_RANGES.ONE_DAY) {
       return filtered.sort(
-        (a: any, b: any) =>
-          new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+        (a, b) =>
+          new Date(a.createdAt).getTime() -
+          new Date(b.createdAt).getTime()
       );
     }
 
-    // For longer ranges: reduce to latest entry per date
-    const dateAmountMap = filtered.reduce((acc: any, entry: any) => {
-      const dateStr = new Date(entry.createdAt).toISOString().split("T")[0];
-      const existing = acc[dateStr];
-      if (
-        !existing ||
-        new Date(entry.createdAt) > new Date(existing.createdAt)
-      ) {
-        acc[dateStr] = entry;
-      }
-      return acc;
-    }, {});
+    const dateAmountMap = filtered.reduce(
+      (acc: Record<string, BalanceHistoryEntry>, entry) => {
+        const dateStr = new Date(entry.createdAt)
+          .toISOString()
+          .split('T')[0];
+        const existing = acc[dateStr];
+        if (
+          !existing ||
+          new Date(entry.createdAt) > new Date(existing.createdAt)
+        ) {
+          acc[dateStr] = entry;
+        }
+        return acc;
+      },
+      {}
+    );
 
-    logger.log("dateamountmap", dateAmountMap);
-
-    const result: { createdAt: string; amount: number }[] = [];
+    const result: BalanceHistoryEntry[] = [];
     const currentDate = new Date(startDate);
     currentDate.setUTCHours(0, 0, 0, 0);
     const endDate = new Date(now);
@@ -137,7 +190,7 @@ const BalanceChart = ({
 
     let lastKnownAmount = 0;
     while (currentDate <= endDate) {
-      const dateStr = currentDate.toISOString().split("T")[0];
+      const dateStr = currentDate.toISOString().split('T')[0];
       if (dateAmountMap[dateStr]) {
         lastKnownAmount = dateAmountMap[dateStr].amount;
       }
@@ -153,8 +206,8 @@ const BalanceChart = ({
     return result;
   }, [balanceHistory, timeRange]);
 
-  const calculateGrowthPercentage = () => {
-    const nonZeroData = filteredData.filter((d: any) => d.amount > 0);
+  const calculateGrowthPercentage = useCallback(() => {
+    const nonZeroData = filteredData.filter((d) => d.amount > 0);
 
     if (nonZeroData.length < 2) return 0;
 
@@ -165,15 +218,28 @@ const BalanceChart = ({
 
     const growth = ((latestValue - oldestValue) / oldestValue) * 100;
     return Number(growth.toFixed(2));
-  };
+  }, [filteredData]);
 
-  const growthPercentage: any = calculateGrowthPercentage();
+  const growthPercentage = calculateGrowthPercentage();
+
+  const formatDate = useCallback(
+    (date: string) => {
+      return timeRange === TIME_RANGES.ONE_DAY
+        ? new Date(date).toLocaleTimeString([], {
+            hour: '2-digit',
+            minute: '2-digit',
+          })
+        : new Date(date).toLocaleDateString();
+    },
+    [timeRange]
+  );
+
   return (
     <div className="bg-white p-5 rounded-xl shadow-sm relative">
       <div className="flex justify-between items-center">
         <div>
           <h2 className="font-bold text-xl text-gray-700">Balance</h2>
-          <p className="font-bold text-xl text-gray-700 ">
+          <p className="font-bold text-xl text-gray-700">
             $
             {totalTokensValue.toLocaleString(undefined, {
               minimumFractionDigits: 2,
@@ -183,13 +249,7 @@ const BalanceChart = ({
         </div>
 
         <div className="flex items-center gap-3">
-          <WalletChartButton
-            // variant="black"
-            // size="icon"
-            // className={totalBalance === 0 ? "cursor-not-allowed" : ""}
-            // disabled={totalTokensValue === 0}
-            onClick={onSelectAsset}
-          >
+          <WalletChartButton onClick={onSelectAsset}>
             <IoIosSend color="black" size={18} /> Send
           </WalletChartButton>
           <WalletChartButton onClick={() => setShowPopup(!showPopup)}>
@@ -202,36 +262,39 @@ const BalanceChart = ({
           <SwapModal
             open={openSwapModal}
             onOpenChange={setOpenSwapModal}
-            userToken={userToken as any}
-            accessToken={accessToken}
-            initialInputToken={inputTokenParam as string}
-            initialOutputToken={outputTokenParam as string}
-            initialAmount={amountParam as string}
+            userToken={tokens}
+            accessToken={accessToken || ''}
+            initialInputToken={inputTokenParam || ''}
+            initialOutputToken={outputTokenParam || ''}
+            initialAmount={amountParam || ''}
           />
-
-          {/* <Button
-            variant="black"
-            size="icon"
-            onClick={() => setShowPopup(!showPopup)}
-          >
-            <Wallet />
-          </Button>
-          <Button variant="black" size="icon" className="cursor-not-allowed">
-            <ArrowLeftRight />
-          </Button>
-          <Button variant="black" size="icon" onClick={onQRClick}>
-            <QrCode />
-          </Button> */}
         </div>
       </div>
+
       <ResponsiveContainer width="100%" height={400}>
         <AreaChart data={filteredData}>
           <defs>
-            <linearGradient id="colorValue" x1="0" y1="0" x2="0" y2="1">
+            <linearGradient
+              id="colorValue"
+              x1="0"
+              y1="0"
+              x2="0"
+              y2="1"
+            >
               <stop offset="0%" stopColor="#CFFAD6" stopOpacity={1} />
-              <stop offset="100%" stopColor="#EFFDF1" stopOpacity={1} />
+              <stop
+                offset="100%"
+                stopColor="#EFFDF1"
+                stopOpacity={1}
+              />
             </linearGradient>
-            <linearGradient id="strokeGradient" x1="0" y1="0" x2="1" y2="0">
+            <linearGradient
+              id="strokeGradient"
+              x1="0"
+              y1="0"
+              x2="1"
+              y2="0"
+            >
               <stop offset="0%" stopColor="#A2EFB9" />
               <stop offset="100%" stopColor="#A1C7E9" />
             </linearGradient>
@@ -242,30 +305,23 @@ const BalanceChart = ({
             tickLine={false}
             tick={false}
             axisLine={false}
-            tickFormatter={(str) =>
-              timeRange === "1day"
-                ? new Date(str).toLocaleTimeString([], {
-                    hour: "2-digit",
-                    minute: "2-digit",
-                  })
-                : new Date(str).toLocaleDateString()
-            }
+            tickFormatter={formatDate}
           />
           <YAxis
             axisLine={false}
             tick={false}
             tickLine={false}
-            domain={["auto", "auto"]}
+            domain={['auto', 'auto']}
           />
           <Tooltip
             labelFormatter={(str) =>
-              timeRange === "1day"
+              timeRange === TIME_RANGES.ONE_DAY
                 ? new Date(str).toLocaleString()
                 : new Date(str).toLocaleDateString()
             }
             formatter={(value: number) => [
               `$${value.toLocaleString()}`,
-              "Balance",
+              'Balance',
             ]}
           />
           <Area
@@ -277,29 +333,35 @@ const BalanceChart = ({
           />
         </AreaChart>
       </ResponsiveContainer>
+
       <div className="flex items-center gap-6 justify-between">
-        <div className="flex items-center" style={{ marginBottom: "20px" }}>
+        <div
+          className="flex items-center"
+          style={{ marginBottom: '20px' }}
+        >
           <p
             className={`font-semibold p-2 rounded-lg mr-2 ${
               Number(growthPercentage) >= 0
-                ? "text-[#00E725] bg-[#7AE38B33]"
-                : "text-red-500 bg-red-100"
+                ? 'text-[#00E725] bg-[#7AE38B33]'
+                : 'text-red-500 bg-red-100'
             }`}
           >
-            {growthPercentage > 0 ? "+" : ""}
+            {growthPercentage > 0 ? '+' : ''}
             {growthPercentage}%
           </p>
           <label>In the last</label>
           <select
             value={timeRange}
-            onChange={(e) => setTimeRange(e.target.value)}
+            onChange={(e) =>
+              setTimeRange(e.target.value as TimeRange)
+            }
             className="text-[#8A2BE2] ml-2"
           >
-            <option value="1day">1 Day</option>
-            <option value="7days">7 Days</option>
-            <option value="1month">1 Month</option>
-            <option value="6months">6 Months</option>
-            <option value="1year">1 Year</option>
+            <option value={TIME_RANGES.ONE_DAY}>1 Day</option>
+            <option value={TIME_RANGES.SEVEN_DAYS}>7 Days</option>
+            <option value={TIME_RANGES.ONE_MONTH}>1 Month</option>
+            <option value={TIME_RANGES.SIX_MONTHS}>6 Months</option>
+            <option value={TIME_RANGES.ONE_YEAR}>1 Year</option>
           </select>
         </div>
         <div className="flex items-center gap-4">
@@ -314,6 +376,7 @@ const BalanceChart = ({
           </button>
         </div>
       </div>
+
       <WalletAddressPopup
         walletData={walletData}
         show={showPopup}
@@ -326,7 +389,7 @@ const BalanceChart = ({
   );
 };
 
-const SkeletonBalanceChart = () => (
+const SkeletonBalanceChart: React.FC = () => (
   <div className="bg-white my-4 p-5 rounded-xl">
     <div className="flex justify-between">
       <div>
@@ -350,64 +413,74 @@ const SkeletonBalanceChart = () => (
   </div>
 );
 
-// Example usage with the provided data
-const WalletBalanceChartForWalletPage = ({
+const WalletBalanceChartForWalletPage: React.FC<
+  WalletBalanceChartForWalletPageProps
+> = ({
   walletData,
   tokens,
   totalBalance,
   onSelectAsset,
   onQRClick,
-}: any) => {
+}) => {
   const { user, accessToken } = useUser();
-  const [balanceData, setBalanceData] = useState([]);
+  const [balanceData, setBalanceData] = useState<
+    BalanceHistoryEntry[]
+  >([]);
   const [totalTokensValue, setTotalTokensValue] = useState(0);
-  const [walletList, setWalletList] = useState({});
-
-  userToken = tokens;
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    logger.log("useEffect ran. user._id:", user?._id); // ← debug log
     const fetchData = async () => {
+      if (!user?._id) return;
+
+      setIsLoading(true);
+
       try {
         const response = await fetch(
           `${process.env.NEXT_PUBLIC_API_URL}/api/v5/wallet/getBalance/${user._id}`
         );
 
         if (!response.ok) {
-          throw new Error("Network response was not ok");
+          throw new Error(`HTTP error! status: ${response.status}`);
         }
+
         const result = await response.json();
 
-        setWalletList(result.balanceData.wallet);
-        setBalanceData(result.balanceData.balanceHistory);
-        setTotalTokensValue(result.totalTokensValue);
+        // Safely handle the response data
+        if (result?.balanceData?.balanceHistory) {
+          setBalanceData(result.balanceData.balanceHistory);
+          setTotalTokensValue(result.totalTokensValue || 0);
+        } else {
+          // If data is not in expected format, set empty data
+          setBalanceData([]);
+          setTotalTokensValue(0);
+        }
       } catch (error) {
-        // setError(error);
-        logger.error("error while fetching data");
-        logger.error("error", error);
+        // Silently handle errors and set empty data
+        setBalanceData([]);
+        setTotalTokensValue(0);
+        logger.error('Error fetching balance data:', error);
+      } finally {
+        setIsLoading(false);
       }
     };
-    if (user?._id) {
-      fetchData();
-    }
+
+    fetchData();
   }, [user?._id]);
 
+  if (isLoading) {
+    return <SkeletonBalanceChart />;
+  }
+
   return (
-    <>
-      {balanceData.length > 0 ? (
-        <BalanceChart
-          balanceHistory={balanceData}
-          walletList={walletList}
-          onSelectAsset={onSelectAsset}
-          onQRClick={onQRClick}
-          walletData={walletData}
-          totalTokensValue={totalTokensValue}
-          accessToken={accessToken}
-        />
-      ) : (
-        <SkeletonBalanceChart /> // Render Skeleton while loading
-      )}
-    </>
+    <BalanceChart
+      balanceHistory={balanceData}
+      onSelectAsset={onSelectAsset}
+      walletData={walletData}
+      totalTokensValue={totalTokensValue}
+      accessToken={accessToken || ''}
+      tokens={tokens}
+    />
   );
 };
 
