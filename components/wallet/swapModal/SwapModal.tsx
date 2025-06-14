@@ -213,15 +213,55 @@ export default function SwapModal({
     const inputAmount = parseFloat(amount);
     const userBalance = parseFloat(inputToken.balance);
 
+    // Add minimum amount check for SOL
+    if (selectedInputSymbol === 'SOL' && inputAmount < 0.01) {
+      return true;
+    }
+
     return inputAmount > userBalance;
-  }, [inputToken, amount]);
+  }, [inputToken, amount, selectedInputSymbol]);
+
+  // Add minimum amount validation message
+  const getAmountError = useMemo(() => {
+    if (!amount) return null;
+    const inputAmount = parseFloat(amount);
+
+    if (selectedInputSymbol === 'SOL' && inputAmount < 0.01) {
+      return 'Minimum swap amount is 0.01 SOL';
+    }
+
+    return null;
+  }, [amount, selectedInputSymbol]);
 
   // Fetch token metadata once on component mount
   useEffect(() => {
     const fetchTokenMetadata = async () => {
       try {
-        const mintList = Object.values(TOKEN_ADDRESSES);
-        const queryParam = encodeURIComponent(mintList.join(','));
+        // Only fetch metadata for input and output tokens
+        const tokensToFetch = [
+          TOKEN_ADDRESSES[
+            selectedInputSymbol as keyof typeof TOKEN_ADDRESSES
+          ],
+          TOKEN_ADDRESSES[
+            selectedOutputSymbol as keyof typeof TOKEN_ADDRESSES
+          ],
+        ].filter(Boolean); // Remove any undefined values
+
+        if (tokensToFetch.length === 0) return;
+
+        // Check if we already have metadata for these tokens
+        const tokensNeeded = tokensToFetch.filter(
+          (mint) =>
+            !tokenMetaData.some(
+              (t) =>
+                t.address?.toString() === mint ||
+                t.id?.toString() === mint
+            )
+        );
+
+        if (tokensNeeded.length === 0) return;
+
+        const queryParam = encodeURIComponent(tokensNeeded.join(','));
         const url = `https://datapi.jup.ag/v1/assets/search?query=${queryParam}`;
 
         const res = await fetch(url);
@@ -231,20 +271,16 @@ export default function SwapModal({
 
         const json = await res.json();
         if (Array.isArray(json)) {
-          setTokenMetaData(json);
-        } else {
-          console.error('Expected array but got:', typeof json);
-          setTokenMetaData([]);
+          setTokenMetaData((prev) => [...prev, ...json]);
         }
       } catch (err) {
         console.error('Error fetching metadata:', err);
         setError('Error fetching token metadata');
-        setTokenMetaData([]);
       }
     };
 
     fetchTokenMetadata();
-  }, []);
+  }, [selectedInputSymbol, selectedOutputSymbol, tokenMetaData]);
 
   // Update mints when tokens change
   useEffect(() => {
@@ -386,9 +422,10 @@ export default function SwapModal({
       }
 
       try {
-        const url = `https://datapi.jup.ag/v1/assets/search?query=${encodeURIComponent(
-          searchQuery
-        )}`;
+        // Use a more specific search query
+        const searchParam = encodeURIComponent(searchQuery.trim());
+        const url = `https://datapi.jup.ag/v1/assets/search?query=${searchParam}&limit=20`;
+
         const response = await fetch(url);
 
         if (!response.ok) {
@@ -893,7 +930,8 @@ export default function SwapModal({
             !quote ||
             !selectedInputSymbol ||
             loading ||
-            hasInsufficientFunds
+            hasInsufficientFunds ||
+            getAmountError !== null
           }
         >
           {swapLoading
@@ -902,6 +940,8 @@ export default function SwapModal({
             ? 'Loading...'
             : hasInsufficientFunds
             ? `Insufficient ${inputToken?.symbol}`
+            : getAmountError
+            ? getAmountError
             : selectedInputSymbol
             ? 'Swap'
             : 'Select input token'}
