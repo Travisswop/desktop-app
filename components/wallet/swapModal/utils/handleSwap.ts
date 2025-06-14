@@ -115,11 +115,12 @@ export async function handleSwap({
     }
 
     // Prepare the swap request body
-    const swapRequestBody: any = {
+    const swapRequestBody = {
       quoteResponse: quote,
       userPublicKey: solanaAddress,
       wrapUnwrapSOL: true,
       dynamicComputeUnitLimit: true,
+      asLegacyTransaction: false,
     };
 
     // Add priority fee if selected
