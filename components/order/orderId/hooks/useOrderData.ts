@@ -65,10 +65,6 @@ export const useOrderData = (orderId: string): UseOrderDataReturn => {
 
       const { data } = await response.json();
       setOrder(data);
-      console.log(
-        '🚀 ~ fetchOrderDetails ~ data:',
-        data.processingStages
-      );
 
       const nfts = data.mintedNfts.map((nft: any) => ({
         ...nft.nftTemplateId,
@@ -82,7 +78,6 @@ export const useOrderData = (orderId: string): UseOrderDataReturn => {
         (item: any) =>
           Object.keys(stageDisplayNames).includes(item.stage)
       );
-      console.log('🚀 ~ fetchOrderDetails ~ data:', filterProcessing);
 
       setProcessingStages(filterProcessing);
 
