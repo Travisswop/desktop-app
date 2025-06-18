@@ -53,7 +53,7 @@ const LivePreviewTimeline = ({
 
   useEffect(() => {
     if (user) {
-      setSmartsiteId(user.primaryMicrosite);
+      setSmartsiteId(user.primaryMicrosite || "");
     }
   }, [user]);
 
@@ -542,7 +542,8 @@ const LivePreviewTimeline = ({
                         <DeleteFeedModal
                           postId={feed._id}
                           token={accessToken}
-                          setIsPosting={setIsPosting}
+                          onDeleteSuccess={() => {}}
+                          // setIsPosting={setIsPosting}
                         />
                       </div>
                     </PopoverContent>
