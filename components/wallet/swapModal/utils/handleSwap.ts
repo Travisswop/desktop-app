@@ -109,6 +109,7 @@ export async function handleSwap({
         `${process.env.NEXT_PUBLIC_API_URL}/api/v5/wallet/tokenAccount/${inputMint}`
       );
       const data = await response.json();
+      console.log('🚀 ~ data:', data);
       feeAccount = data.tokenAccount;
     } catch (error: any) {
       logger.log('Error setting up fee account:', error);
@@ -131,7 +132,7 @@ export async function handleSwap({
 
     // Add fee account if available
     if (feeAccount) {
-      swapRequestBody.feeAccount = feeAccount.toString();
+      swapRequestBody.feeAccount = feeAccount;
       logger.log(
         'Fee collection enabled with account:',
         feeAccount.toString()

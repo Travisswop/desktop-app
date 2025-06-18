@@ -209,7 +209,7 @@ export function UserProvider({
         abortControllerRef.current = new AbortController();
         const timeoutId = setTimeout(() => {
           abortControllerRef.current?.abort();
-        }, 10000); // 10 second timeout
+        }, 20000); // 20 second timeout
 
         const response = await fetch(
           `${API_BASE_URL}/api/v2/desktop/user/${email}`,

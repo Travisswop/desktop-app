@@ -64,29 +64,54 @@ export const useOrderData = (orderId: string): UseOrderDataReturn => {
       }
 
       const { data } = await response.json();
+      console.log('🚀 ~ fetchOrderDetails ~ data:', data);
+
+      // Validate data before setting state
+      if (!data) {
+        throw new Error('No data received from the server');
+      }
+
       setOrder(data);
 
-      const nfts = data.mintedNfts.map((nft: any) => ({
-        ...nft.nftTemplateId,
-        quantity: nft.quantity,
-      }));
+      // Safely handle case where mintedNfts may be undefined or not an array
+      const nfts = Array.isArray(data.mintedNfts)
+        ? data.mintedNfts.map((nft: any) => ({
+            ...nft?.nftTemplateId,
+            quantity: nft?.quantity ?? 0,
+          }))
+        : [];
 
       setNfts(nfts);
-      setUserRole(userId === data.seller.id ? 'seller' : 'buyer');
 
-      const filterProcessing = data.processingStages.filter(
+      // Safely check if seller exists and has an id before comparing
+      setUserRole(
+        data.seller?.id
+          ? userId === data.seller.id
+            ? 'seller'
+            : 'buyer'
+          : 'buyer'
+      );
+
+      // Safely handle processing stages
+      const processingStages = Array.isArray(data.processingStages)
+        ? data.processingStages
+        : [];
+
+      const filterProcessing = processingStages.filter(
         (item: any) =>
+          item?.stage &&
           Object.keys(stageDisplayNames).includes(item.stage)
       );
 
       setProcessingStages(filterProcessing);
 
-      const findCompleteStatus = data.processingStages.find(
+      // Safely check for completed status
+      const findCompleteStatus = processingStages.find(
         (item: any) =>
-          item.stage === 'completed' && item.status === 'completed'
+          item?.stage === 'completed' && item?.status === 'completed'
       );
 
-      setIsCompleted(!!findCompleteStatus);
+      setIsCompleted(Boolean(findCompleteStatus));
     } catch (error: any) {
       console.error('Fetch Error:', error);
       setIsError(error.message || 'An unexpected error occurred.');
