@@ -63,7 +63,7 @@ import twitchIcon from "@/public/images/IconShop/twich.png";
 import mediumIcon from "@/public/images/IconShop/medium.png";
 import calendlyIcon from "@/public/images/IconShop/calendly@3x.png";
 import gumroadIcon from "@/public/images/IconShop/gumroad@3x.png";
-import bookMeIcon from "@/public/images/IconShop/Business/bookMe@3x.png";
+import bookMeIcon from "@/public/images/IconShop/Business/bookme@3x.png";
 import calendarIcon from "@/public/images/IconShop/Business/calendar@3x.png";
 import couponIcon from "@/public/images/IconShop/Business/cupon@3x.png";
 import gpsIcon from "@/public/images/IconShop/Business/gPS@3x.png";
