@@ -81,7 +81,7 @@ import appIconDiscord from "@/public/images/IconShop/discord@3x.png";
 import appIconSlack from "@/public/images/IconShop/slack@3x.png";
 import appIconGroupme from "@/public/images/IconShop/groupMe@3x.png";
 import appIconCalendar from "@/public/images/IconShop/calendar@3x.png";
-import appIconBookMe from "@/public/images/IconShop/Business/bookme@3x.png";
+import appIconBookMe from "@/public/images/IconShop/Business/booksme@3x.png";
 import appIconReviews from "@/public/images/IconShop/Business/reviews@3x.png";
 import appIconGPS from "@/public/images/IconShop/Business/gPS@3x.png";
 import appIconCupon from "@/public/images/IconShop/Business/cupon@3x.png";
