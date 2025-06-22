@@ -47,7 +47,7 @@ import copyIcon from "@/public/images/IconShop/copy@3x.png";
 import sendCryptoIcon from "@/public/images/IconShop/sendCrypto@3x.png";
 import fileIcon from "@/public/images/IconShop/file@3x.png";
 import downloadIcon from "@/public/images/IconShop/download@3x.png";
-import uploadIcon from "../../public/images/IconShop/upload.svg";
+import uploadIcon from "@/public/images/IconShop/upload.png";
 import linktreeIcon from "@/public/images/IconShop/linktree@3x.png";
 import googlePlayIcon from "@/public/images/IconShop/googlePlay@3x.png";
 import appStoreIcon from "@/public/images/IconShop/appStore@3x.png";

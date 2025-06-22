@@ -18,7 +18,8 @@ import { isEmptyObject } from "@/components/util/checkIsEmptyObject";
 import AnimateButton from "@/components/ui/Button/AnimateButton";
 import toast from "react-hot-toast";
 import Cookies from "js-cookie";
-import CustomImg from "../../../../public/images/IconShop/upload.svg";
+import cusImg from "@/public/images/IconShop/upload.png";
+
 import CustomFileInput from "@/components/CustomFileInput";
 import isUrl from "@/lib/isUrl";
 import { sendCloudinaryImage } from "@/lib/SendCloudinaryImage";
@@ -255,7 +256,7 @@ const UpdateAppIcon = ({ iconDataObj, isOn, setOff }: any) => {
   const iconMap: any = {
     Link: icon.Custom_link1,
     "Call To Action": icon.ChatlinkType,
-    custom: CustomImg,
+    custom: cusImg,
   };
 
   return (

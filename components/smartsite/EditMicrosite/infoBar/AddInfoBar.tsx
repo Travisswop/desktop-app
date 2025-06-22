@@ -28,7 +28,7 @@ import contactCardImg from "@/public/images/IconShop/appIconContactCard.png";
 import productImg from "@/public/images/smartsite_icon/embeed.png";
 import toast from "react-hot-toast";
 import Cookies from "js-cookie";
-import customImg from "../../../../public/images/IconShop/upload.svg";
+import cusImg from "@/public/images/IconShop/upload.png";
 import CustomFileInput from "@/components/CustomFileInput";
 import { sendCloudinaryImage } from "@/lib/SendCloudinaryImage";
 
@@ -197,7 +197,7 @@ const AddInfoBar = ({ handleRemoveIcon, handleToggleIcon }: any) => {
     "Call To Action": icon.ChatlinkType,
     "Product Link": productImg,
     "Contact Card": contactCardImg,
-    "Upload Custom Image": customImg,
+    "Upload Custom Image": cusImg,
   };
 
   return (
