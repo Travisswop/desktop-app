@@ -93,7 +93,7 @@ import appIconInvoice from "@/public/images/IconShop/paymentSection/invoice@3x.p
 import appIconGoogleReview from "@/public/images/IconShop/googleReview@3x.png";
 import appIconFile from "@/public/images/IconShop/file@3x.png";
 import appIconDownload from "@/public/images/IconShop/download@3x.png";
-import appIconUpload from "@/public/images/IconShop/upload@2x.png";
+import appIconUpload from "../../../public/images/IconShop/upload@3x.png";
 import appIconPolygon from "@/public/images/IconShop/polygon@3x.png";
 import appIconBTC from "@/public/images/IconShop/bTC@3x.png";
 import appIconETH from "@/public/images/IconShop/eTH@3x.png";

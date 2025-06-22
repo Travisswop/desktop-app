@@ -18,7 +18,7 @@ import { isEmptyObject } from "@/components/util/checkIsEmptyObject";
 import AnimateButton from "@/components/ui/Button/AnimateButton";
 import toast from "react-hot-toast";
 import Cookies from "js-cookie";
-import CustomImg from "@/public/images/IconShop/upload@2x.png";
+import CustomImg from "../../../../public/images/IconShop/upload@3x.png";
 import CustomFileInput from "@/components/CustomFileInput";
 import isUrl from "@/lib/isUrl";
 import { sendCloudinaryImage } from "@/lib/SendCloudinaryImage";
