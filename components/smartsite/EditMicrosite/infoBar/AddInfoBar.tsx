@@ -28,7 +28,7 @@ import contactCardImg from "@/public/images/IconShop/appIconContactCard.png";
 import productImg from "@/public/images/smartsite_icon/embeed.png";
 import toast from "react-hot-toast";
 import Cookies from "js-cookie";
-import customImg from "@/public/images/IconShop/Upload@3x.png";
+import customImg from "@/public/images/IconShop/upload@3x.png";
 import CustomFileInput from "@/components/CustomFileInput";
 import { sendCloudinaryImage } from "@/lib/SendCloudinaryImage";
 

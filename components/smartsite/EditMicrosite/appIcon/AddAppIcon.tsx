@@ -19,7 +19,7 @@ import { MdInfoOutline } from "react-icons/md";
 import { AppIconMap, AppSelectedIconType } from "@/types/smallIcon";
 import toast from "react-hot-toast";
 import { useUser } from "@/lib/UserContext";
-import customImg from "@/public/images/IconShop/Upload@3x.png";
+import customImg from "@/public/images/IconShop/upload@3x.png";
 import CustomFileInput from "@/components/CustomFileInput";
 import { sendCloudinaryImage } from "@/lib/SendCloudinaryImage";
 
