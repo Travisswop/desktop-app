@@ -50,7 +50,9 @@ export default function MintAlertModal({
                 id="mint-result-modal"
                 className="font-bold text-lg mt-4"
               >
-                {modelInfo.nftType} NFT Template Created
+                {modelInfo.nftType.charAt(0).toUpperCase() +
+                  modelInfo.nftType.slice(1)}{' '}
+                NFT Template Created
               </h2>
             ) : (
               <div className="mt-4">

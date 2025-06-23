@@ -28,19 +28,41 @@ const OrderHeaderComponent: React.FC<OrderHeaderProps> = memo(
     onUpdateShipping,
     disputes = [],
   }) => {
+    const isPhygitalOrderComplete = useMemo(() => {
+      return (
+        order?.orderType !== 'non-phygitals' &&
+        order.status.delivery === 'Completed' &&
+        order.status.payment === 'completed'
+      );
+    }, [
+      order?.orderType,
+      order.status.delivery,
+      order.status.payment,
+    ]);
+
     // Memoize status chip color calculation
     const statusChipColor = useMemo(() => {
       if (order?.orderType !== 'non-phygitals') {
-        switch (order.status.delivery) {
-          case 'Completed':
-            return 'success';
-          case 'In Progress':
-            return 'primary';
-          case 'Cancelled':
-            return 'danger';
-          default:
-            return 'warning';
+        if (
+          order.status.delivery === 'Completed' &&
+          order.status.payment === 'completed'
+        ) {
+          return 'success';
         }
+        if (
+          order.status.delivery === 'Cancelled' ||
+          order.status.payment === 'cancelled' ||
+          order.status.payment === 'failed'
+        ) {
+          return 'danger';
+        }
+        if (
+          order.status.delivery === 'In Progress' ||
+          order.status.payment === 'processing'
+        ) {
+          return 'primary';
+        }
+        return 'warning';
       } else {
         switch (order.status.payment) {
           case 'completed':
@@ -63,6 +85,18 @@ const OrderHeaderComponent: React.FC<OrderHeaderProps> = memo(
     // Memoize status text calculation
     const statusText = useMemo(() => {
       if (order?.orderType !== 'non-phygitals') {
+        if (
+          order.status.delivery === 'Completed' &&
+          order.status.payment === 'completed'
+        ) {
+          return 'Completed';
+        }
+        if (order.status.delivery !== 'Completed') {
+          return order.status.delivery;
+        }
+        if (order.status.payment !== 'completed') {
+          return order.status.payment;
+        }
         return order.status.delivery;
       } else {
         return order.status.payment;
@@ -97,7 +131,7 @@ const OrderHeaderComponent: React.FC<OrderHeaderProps> = memo(
       if (order?.orderType === 'non-phygitals') return null;
 
       if (userRole === 'buyer') {
-        return isCompleted ? (
+        return isPhygitalOrderComplete ? (
           <Chip
             color="success"
             variant="flat"
@@ -114,12 +148,15 @@ const OrderHeaderComponent: React.FC<OrderHeaderProps> = memo(
             size="default"
             onClick={onMarkComplete}
             disabled={
-              isUpdating || order.status.delivery !== 'Completed'
+              isUpdating ||
+              order.status.delivery !== 'Completed' ||
+              order.status.payment !== 'completed'
             }
             className="flex items-center gap-2"
             title={
-              order.status.delivery !== 'Completed'
-                ? 'Order must be delivered before it can be completed'
+              order.status.delivery !== 'Completed' ||
+              order.status.payment !== 'completed'
+                ? 'Order must be delivered and paid before it can be completed'
                 : ''
             }
           >
@@ -131,8 +168,9 @@ const OrderHeaderComponent: React.FC<OrderHeaderProps> = memo(
             ) : (
               <>
                 <CheckCircle size={16} />
-                {order.status.delivery !== 'Completed'
-                  ? 'Waiting for Delivery'
+                {order.status.delivery !== 'Completed' ||
+                order.status.payment !== 'completed'
+                  ? 'Waiting for Delivery & Payment'
                   : 'Mark as Complete'}
               </>
             )}
@@ -142,9 +180,16 @@ const OrderHeaderComponent: React.FC<OrderHeaderProps> = memo(
 
       if (userRole === 'seller') {
         return order.status.delivery === 'Completed' ? (
-          <Chip color="success" variant="flat" size="lg">
-            <Truck size={16} className="mr-1" />
-            Shipped
+          <Chip
+            color="success"
+            variant="flat"
+            size="lg"
+            className="px-4 py-1.5 font-semibold"
+          >
+            <span className="flex items-center gap-2">
+              <Truck size={16} />
+              Shipped
+            </span>
           </Chip>
         ) : (
           <Button
@@ -163,11 +208,13 @@ const OrderHeaderComponent: React.FC<OrderHeaderProps> = memo(
     }, [
       order?.orderType,
       order.status.delivery,
+      order.status.payment,
       userRole,
       isCompleted,
       isUpdating,
       onMarkComplete,
       onUpdateShipping,
+      isPhygitalOrderComplete,
     ]);
 
     return (

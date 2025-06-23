@@ -1,5 +1,10 @@
 import Image from 'next/image';
-import React, { useCallback, useEffect, useState } from 'react';
+import React, {
+  useCallback,
+  useEffect,
+  useState,
+  useMemo,
+} from 'react';
 import { useUser } from '@/lib/UserContext';
 import {
   Dropdown,
@@ -24,23 +29,60 @@ interface Collection {
   mint_address: string;
   image: string;
 }
-const capitalizeFirstLetter = (str: string) =>
+
+interface NFT {
+  _id: string;
+  name: string;
+  image: string;
+  description?: string;
+  price?: number;
+  currency?: string;
+  mintLimit?: number;
+  collectionId?: string;
+  nftType?: string;
+}
+
+interface AddMarketplaceProps {
+  handleRemoveIcon: (iconType: string) => void;
+}
+
+const capitalizeFirstLetter = (str: string): string =>
   str.charAt(0).toUpperCase() + str.slice(1);
 
-const AddMarketplace = ({ handleRemoveIcon }: any) => {
-  const state: any = useSmartSiteApiDataStore((state) => state);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<Error | null>(null);
+const API_ENDPOINTS = {
+  NFT_LIST: `${process.env.NEXT_PUBLIC_API_URL}/api/v1/desktop/nft/getNFTListByCollectionAndUser`,
+} as const;
 
-  const [selectedTemplate, setSelectedTemplate] = useState<any>(null);
-  const [isLoading, setIsLoading] = useState(false);
-  const [nftList, setNftList] = useState([]);
-  const [selectedCollection, setSelectedCollection] = useState('');
-  const [collections, setCollections] = useState<Collection[]>([]);
+const AddMarketplace: React.FC<AddMarketplaceProps> = ({
+  handleRemoveIcon,
+}) => {
+  const smartsiteData = useSmartSiteApiDataStore(
+    (state: any) => state.data
+  );
 
   const { accessToken, user } = useUser();
 
-  const fetchData = useCallback(async () => {
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<Error | null>(null);
+  const [selectedTemplate, setSelectedTemplate] =
+    useState<NFT | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const [nftList, setNftList] = useState<NFT[]>([]);
+  const [selectedCollection, setSelectedCollection] =
+    useState<Collection | null>(null);
+  const [collections, setCollections] = useState<Collection[]>([]);
+
+  const isFormValid = useMemo(
+    () => !!selectedTemplate,
+    [selectedTemplate]
+  );
+  const hasCollections = useMemo(
+    () => collections.length > 0,
+    [collections]
+  );
+  const hasNfts = useMemo(() => nftList.length > 0, [nftList]);
+
+  const fetchCollections = useCallback(async () => {
     if (!accessToken) {
       setError(new Error('Access token is required.'));
       setLoading(false);
@@ -51,19 +93,123 @@ const AddMarketplace = ({ handleRemoveIcon }: any) => {
       const { data } = await getCollectionData(accessToken);
       setCollections(data);
     } catch (err) {
-      setError(
+      const errorMessage =
         err instanceof Error
-          ? err
-          : new Error('An unexpected error occurred.')
-      );
+          ? err.message
+          : 'An unexpected error occurred.';
+      setError(new Error(errorMessage));
+      toast.error(errorMessage);
     } finally {
       setLoading(false);
     }
   }, [accessToken]);
 
+  const fetchNFTsForCollection = useCallback(
+    async (collection: Collection) => {
+      if (!accessToken || !user?._id) {
+        toast.error('Authentication required');
+        return;
+      }
+
+      try {
+        const response = await fetch(API_ENDPOINTS.NFT_LIST, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            authorization: `Bearer ${accessToken}`,
+          },
+          body: JSON.stringify({
+            userId: user._id,
+            collectionId: collection._id,
+          }),
+        });
+
+        if (!response.ok) {
+          throw new Error('Failed to fetch NFTs');
+        }
+
+        const { data } = await response.json();
+        setNftList(data);
+      } catch (error) {
+        console.error('Error fetching NFTs:', error);
+        toast.error('Error fetching NFTs');
+      }
+    },
+    [accessToken, user?._id]
+  );
+
+  const handleSelectCollection = useCallback(
+    async (collection: Collection) => {
+      setSelectedTemplate(null);
+      setNftList([]);
+      setSelectedCollection(collection);
+      await fetchNFTsForCollection(collection);
+    },
+    [fetchNFTsForCollection]
+  );
+
+  const handleSelectNFT = useCallback((nft: NFT) => {
+    setSelectedTemplate(nft);
+  }, []);
+
+  const handleCreateMarket = useCallback(
+    async (e: React.FormEvent) => {
+      e.preventDefault();
+
+      if (!selectedTemplate) {
+        toast.error('Please select an NFT');
+        return;
+      }
+
+      if (!smartsiteData?._id) {
+        toast.error('SmartSite data not available');
+        return;
+      }
+
+      try {
+        setIsLoading(true);
+
+        const payload = {
+          micrositeId: smartsiteData._id,
+          template: {
+            templateId: selectedTemplate._id,
+            ...selectedTemplate,
+          },
+        };
+
+        const response = await createMarketPlace(
+          payload,
+          accessToken || ''
+        );
+
+        if (!response) {
+          throw new Error('Marketplace creation failed');
+        }
+
+        toast.success('Marketplace created successfully');
+        handleRemoveIcon('Marketplace');
+      } catch (error: any) {
+        console.error('Marketplace creation error:', error);
+        toast.error(error.message || 'Failed to create marketplace');
+      } finally {
+        setIsLoading(false);
+      }
+    },
+    [
+      selectedTemplate,
+      smartsiteData?._id,
+      accessToken,
+      handleRemoveIcon,
+    ]
+  );
+
+  const handleClose = useCallback(() => {
+    handleRemoveIcon('Marketplace');
+  }, [handleRemoveIcon]);
+
   useEffect(() => {
     if (accessToken) {
-      fetchData();
+      fetchCollections();
     } else {
       const timeoutId = setTimeout(() => {
         if (!accessToken) {
@@ -74,103 +220,37 @@ const AddMarketplace = ({ handleRemoveIcon }: any) => {
 
       return () => clearTimeout(timeoutId);
     }
-  }, [accessToken, fetchData]);
+  }, [accessToken, fetchCollections]);
 
-  const handleSelectTemplate = async (
-    collectionId: string,
-    collectionName: string
-  ) => {
-    // setIsLoading(true);
-    setSelectedTemplate(null);
-    setNftList([]);
-    setSelectedCollection(collectionName);
-    try {
-      const response = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL}/api/v1/desktop/nft/getNFTListByCollectionAndUser`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            authorization: `Bearer ${accessToken}`,
-          },
-          body: JSON.stringify({
-            userId: user?._id || '',
-            collectionId: collectionId,
-          }),
-        }
-      );
-      if (!response.ok) {
-        throw new Error('Something went wrong');
-      }
-      const { data } = await response.json();
+  if (loading) {
+    return (
+      <div className="relative bg-white rounded-xl shadow-small p-6 flex flex-col gap-4">
+        <div className="flex items-center justify-center h-32">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
+        </div>
+      </div>
+    );
+  }
 
-      setNftList(data);
-    } catch (error) {
-      console.error('Error fetching template details:', error);
-      toast.error('Error fetching template details.');
-    } finally {
-      // setIsLoading(false);
-    }
-  };
-
-  const handleCreateMarket = async (e: React.FormEvent) => {
-    if (!selectedTemplate) {
-      toast.error('Please select a NFT');
-      return;
-    }
-
-    try {
-      // const response = await fetch(
-      //   `${process.env.NEXT_PUBLIC_API_URL}/api/v4/microsite/createMarketPlace`,
-      //   {
-      //     method: 'POST',
-      //     headers: {
-      //       'Content-Type': 'application/json',
-      //       authorization: `Bearer ${accessToken}`,
-      //     },
-      //     body: JSON.stringify({
-      //       micrositeId: state.data._id,
-      //       collectionId: selectedTemplate.collectionId,
-      //       templateId: selectedTemplate._id,
-      //       itemName: selectedTemplate.name,
-      //       itemImageUrl: selectedTemplate.image,
-      //       itemDescription: selectedTemplate.description,
-      //       itemPrice: selectedTemplate.price,
-      //       itemCategory: selectedTemplate.nftType,
-      //     }),
-      //   }
-      // );
-
-      setIsLoading(true);
-
-      const payload = {
-        micrositeId: state.data._id,
-        template: {
-          templateId: selectedTemplate._id,
-          ...selectedTemplate,
-        },
-      };
-
-      const response = await createMarketPlace(
-        payload,
-        accessToken || ''
-      );
-      if (!response) {
-        throw new Error('Marketplace creating failed');
-      }
-      toast.success('Marketplace created successfully');
-      handleRemoveIcon('Marketplace');
-    } catch (error: any) {
-      console.error(error);
-      toast.error(error.message);
-    } finally {
-      setIsLoading(false);
-    }
-  };
+  if (error) {
+    return (
+      <div className="relative bg-white rounded-xl shadow-small p-6 flex flex-col gap-4">
+        <div className="flex items-center justify-center h-32">
+          <p className="text-red-500 text-center">{error.message}</p>
+        </div>
+        <button
+          className="absolute top-3 right-3"
+          type="button"
+          onClick={handleClose}
+        >
+          <FaTimes size={18} />
+        </button>
+      </div>
+    );
+  }
 
   return (
     <div className="relative bg-white rounded-xl shadow-small p-6 flex flex-col gap-4">
-      {/* Top Section */}
       <div className="flex items-end gap-1 justify-center">
         <h2 className="font-semibold text-gray-700 text-xl text-center">
           Marketplace
@@ -187,21 +267,22 @@ const AddMarketplace = ({ handleRemoveIcon }: any) => {
             }
             className="max-w-40 h-auto"
           >
-            <button>
+            <button type="button">
               <MdInfoOutline />
             </button>
           </Tooltip>
         </div>
       </div>
+
       <button
         className="absolute top-3 right-3"
         type="button"
-        onClick={() => handleRemoveIcon('Marketplace')}
+        onClick={handleClose}
+        aria-label="Close marketplace modal"
       >
         <FaTimes size={18} />
       </button>
 
-      {/* Product Rendering Section */}
       <div className="flex flex-col gap-2 mt-4 px-10 2xl:px-[10%]">
         <div className="w-full rounded-xl border border-gray-300 p-3">
           <div className="w-full flex flex-col gap-3">
@@ -209,26 +290,28 @@ const AddMarketplace = ({ handleRemoveIcon }: any) => {
               <>
                 <div className="flex justify-center">
                   <Image
-                    src={selectedTemplate.image}
+                    src={selectedTemplate.image || productImg}
                     width={300}
                     height={400}
-                    alt={selectedTemplate.name}
+                    alt={selectedTemplate.name || 'NFT'}
                     className="w-48 h-auto rounded-full"
+                    priority
                   />
                 </div>
-                <div className="px-10 flex flex-col  gap-2">
+                <div className="px-10 flex flex-col gap-2">
                   <p className="text-gray-700 font-semibold text-center">
-                    {selectedTemplate.name}
+                    {selectedTemplate.name || 'Unnamed NFT'}
                   </p>
                   <p className="text-gray-600 font-normal text-sm text-center">
-                    {selectedTemplate.description}
+                    {selectedTemplate.description ||
+                      'No description available'}
                   </p>
                   <div className="flex justify-between items-center my-4">
                     <div>
                       <p className="text-sm text-gray-500">Price</p>
                       <p className="font-bold uppercase">
-                        {selectedTemplate.price}{' '}
-                        {selectedTemplate.currency}
+                        {selectedTemplate.price || 0}{' '}
+                        {selectedTemplate.currency || 'SOL'}
                       </p>
                     </div>
                     {selectedTemplate.mintLimit && (
@@ -252,15 +335,11 @@ const AddMarketplace = ({ handleRemoveIcon }: any) => {
           </div>
         </div>
 
-        {/* Dropdown Section */}
         <div className="flex items-center justify-between mt-6">
           <div className="flex flex-col w-full gap-2">
-            <div className="flex items-center gap-2">
-              <h3 className="font-semibold text-gray-700">
-                Select Collection
-              </h3>
-            </div>
-
+            <h3 className="font-semibold text-gray-700">
+              Select Collection
+            </h3>
             <Dropdown
               className="w-full rounded-lg"
               placement="bottom-start"
@@ -271,14 +350,16 @@ const AddMarketplace = ({ handleRemoveIcon }: any) => {
                     {selectedCollection ? (
                       <>
                         <Image
-                          src={`/assets/collections/${selectedCollection}.png`}
-                          alt={selectedCollection}
+                          src={selectedCollection.image}
+                          alt={selectedCollection.name}
                           width={24}
                           height={24}
                           className="rounded-full object-cover"
                         />
                         <span className="truncate">
-                          {capitalizeFirstLetter(selectedCollection)}
+                          {capitalizeFirstLetter(
+                            selectedCollection.name
+                          )}
                         </span>
                       </>
                     ) : (
@@ -294,18 +375,15 @@ const AddMarketplace = ({ handleRemoveIcon }: any) => {
                 </button>
               </DropdownTrigger>
               <DropdownMenu
-                aria-label="Select Template"
+                aria-label="Select Collection"
                 className="w-full max-h-[300px] overflow-y-auto"
               >
-                {collections.length > 0 ? (
-                  collections.map((collection: any) => (
+                {hasCollections ? (
+                  collections.map((collection) => (
                     <DropdownItem
                       key={collection._id}
                       onClick={() =>
-                        handleSelectTemplate(
-                          collection._id,
-                          collection.name
-                        )
+                        handleSelectCollection(collection)
                       }
                       className="py-2 px-4 hover:bg-gray-50"
                     >
@@ -336,15 +414,11 @@ const AddMarketplace = ({ handleRemoveIcon }: any) => {
           </div>
         </div>
 
-        {/* NFT List Dropdown Section */}
         <div className="flex items-center justify-between mt-2 mb-2">
           <div className="flex flex-col w-full gap-2">
-            <div className="flex items-center gap-2">
-              <h3 className="font-semibold text-gray-700">
-                Select NFT
-              </h3>
-            </div>
-
+            <h3 className="font-semibold text-gray-700">
+              Select NFT
+            </h3>
             <Dropdown
               className="w-full rounded-lg"
               placement="bottom-start"
@@ -356,13 +430,13 @@ const AddMarketplace = ({ handleRemoveIcon }: any) => {
                       <>
                         <Image
                           src={selectedTemplate.image || productImg}
-                          alt={selectedTemplate.name}
+                          alt={selectedTemplate.name || 'NFT'}
                           width={24}
                           height={24}
                           className="rounded-full object-cover"
                         />
                         <span className="truncate">
-                          {selectedTemplate.name}
+                          {selectedTemplate.name || 'Unnamed NFT'}
                         </span>
                       </>
                     ) : (
@@ -378,20 +452,20 @@ const AddMarketplace = ({ handleRemoveIcon }: any) => {
                 </button>
               </DropdownTrigger>
               <DropdownMenu
-                aria-label="Select Template"
+                aria-label="Select NFT"
                 className="w-full max-h-[300px] overflow-y-auto"
               >
-                {nftList.length > 0 ? (
-                  nftList.map((nft: any) => (
+                {hasNfts ? (
+                  nftList.map((nft) => (
                     <DropdownItem
                       key={nft._id}
-                      onClick={() => setSelectedTemplate(nft)}
+                      onClick={() => handleSelectNFT(nft)}
                       className="py-2 px-4 hover:bg-gray-50"
                     >
                       <div className="flex items-center gap-3">
                         <Image
                           src={nft.image || productImg}
-                          alt={nft.name}
+                          alt={nft.name || 'NFT'}
                           width={24}
                           height={24}
                           className="rounded-full object-cover"
@@ -415,7 +489,6 @@ const AddMarketplace = ({ handleRemoveIcon }: any) => {
           </div>
         </div>
 
-        {/* Category Input Section */}
         <div>
           <div className="flex justify-center">
             <AnimateButton
@@ -423,7 +496,7 @@ const AddMarketplace = ({ handleRemoveIcon }: any) => {
               className="bg-black text-white py-2 !border-0"
               isLoading={isLoading}
               width="w-52"
-              isDisabled={!selectedTemplate}
+              isDisabled={!isFormValid}
               onClick={handleCreateMarket}
             >
               <LiaFileMedicalSolid size={20} />

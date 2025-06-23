@@ -28,12 +28,25 @@ interface OrderTimelineProps {
 
 const stageIcons = {
   order_created: <ShoppingCart size={20} />,
-  payment_verified: <CreditCard size={20} />,
+  payment_completed: <CreditCard size={20} />,
   nft_minted: <Package size={20} />,
-  shipping_prepared: <Truck size={20} />,
-  completed: <CheckCircle size={20} />,
-  stripe_payment: <CreditCard size={20} />,
-  guest_receipt: <CreditCard size={20} />,
+  nft_minting_started: <Package size={20} />,
+  token_swapped: <Package size={20} />,
+  funds_processing: <Package size={20} />,
+  fulfillment_started: <Package size={20} />,
+  items_picked: <Package size={20} />,
+  packed: <Package size={20} />,
+  shipped: <Package size={20} />,
+  out_for_delivery: <Package size={20} />,
+  delivered: <Package size={20} />,
+  order_completed: <CheckCircle size={20} />,
+  order_failed: <Package size={20} />,
+  funds_released: <Package size={20} />,
+  cancelled: <Package size={20} />,
+  refunded: <Package size={20} />,
+  dispute_raised: <Package size={20} />,
+  dispute_resolved: <Package size={20} />,
+  dispute_closed: <Package size={20} />,
 };
 
 export const OrderTimeline: React.FC<OrderTimelineProps> = memo(

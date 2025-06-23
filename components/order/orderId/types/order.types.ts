@@ -134,12 +134,25 @@ export interface ShippingUpdateData {
 export type UserRole = 'buyer' | 'seller';
 export type StageKey =
   | 'order_created'
-  | 'payment_verified'
+  | 'payment_completed'
   | 'nft_minted'
-  | 'shipping_prepared'
-  | 'completed'
-  | 'stripe_payment'
-  | 'guest_receipt';
+  | 'nft_minting_started'
+  | 'token_swapped'
+  | 'funds_processing'
+  | 'fulfillment_started'
+  | 'items_picked'
+  | 'packed'
+  | 'shipped'
+  | 'out_for_delivery'
+  | 'delivered'
+  | 'order_completed'
+  | 'order_failed'
+  | 'funds_released'
+  | 'cancelled'
+  | 'refunded'
+  | 'dispute_raised'
+  | 'dispute_resolved'
+  | 'dispute_closed';
 export type StatusKey =
   | 'pending'
   | 'in_progress'

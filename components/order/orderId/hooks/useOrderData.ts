@@ -64,7 +64,6 @@ export const useOrderData = (orderId: string): UseOrderDataReturn => {
       }
 
       const { data } = await response.json();
-      console.log('🚀 ~ fetchOrderDetails ~ data:', data);
 
       // Validate data before setting state
       if (!data) {

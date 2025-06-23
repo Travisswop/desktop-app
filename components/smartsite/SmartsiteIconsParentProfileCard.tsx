@@ -1,18 +1,16 @@
-"use client";
+'use client';
 
-import isUrl from "@/lib/isUrl";
-import { useUser } from "@/lib/UserContext";
-import { Skeleton } from "@nextui-org/react";
-import Image from "next/image";
-import Link from "next/link";
-import { useState } from "react";
-import { TbEdit } from "react-icons/tb";
+import isUrl from '@/lib/isUrl';
+import { useUser } from '@/lib/UserContext';
+import { Skeleton } from '@nextui-org/react';
+import Image from 'next/image';
+import Link from 'next/link';
+import { useState } from 'react';
+import { TbEdit } from 'react-icons/tb';
 
 const SmartsiteIconsParentProfileCard = ({ data }: any) => {
   const [loading, setLoading] = useState(false);
   //   const { user, loading }: any = useUser();
-
-  console.log("datag", data);
 
   return (
     <div className="flex items-center justify-between gap-6 bg-white p-6 rounded-lg">
@@ -36,7 +34,7 @@ const SmartsiteIconsParentProfileCard = ({ data }: any) => {
             {isUrl(data?.profilePic) ? (
               <Image
                 src={data?.profilePic}
-                alt={"user image"}
+                alt={'user image'}
                 width={80}
                 height={80}
                 className="rounded-full w-16 h-16"
@@ -44,7 +42,7 @@ const SmartsiteIconsParentProfileCard = ({ data }: any) => {
             ) : (
               <Image
                 src={`/images/user_avator/${data?.profilePic}.png`}
-                alt={"user image"}
+                alt={'user image'}
                 width={80}
                 height={80}
                 className="rounded-full w-16 h-16"
@@ -66,9 +64,13 @@ const SmartsiteIconsParentProfileCard = ({ data }: any) => {
             </div>
 
             {data?.address ? (
-              <p className="text-sm text-muted-foreground">{data?.address}</p>
+              <p className="text-sm text-muted-foreground">
+                {data?.address}
+              </p>
             ) : (
-              <p className="text-sm text-muted-foreground">{data?.bio}</p>
+              <p className="text-sm text-muted-foreground">
+                {data?.bio}
+              </p>
             )}
           </div>
         </div>

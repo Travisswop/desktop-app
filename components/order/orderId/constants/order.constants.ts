@@ -3,12 +3,25 @@ import { StageKey, StatusKey } from '../types/order.types';
 // Stage display names mapping
 export const stageDisplayNames: Record<StageKey, string> = {
   order_created: 'Order Created',
-  payment_verified: 'Payment Verified',
+  payment_completed: 'Payment Completed',
   nft_minted: 'NFT Minted',
-  shipping_prepared: 'Shipping',
-  completed: 'Order Completed',
-  stripe_payment: 'Stripe Payment',
-  guest_receipt: 'Guest Receipt',
+  nft_minting_started: 'NFT Minting Started',
+  token_swapped: 'Token Swapped',
+  funds_processing: 'Funds Processing',
+  fulfillment_started: 'Fulfillment Started',
+  items_picked: 'Items Picked',
+  packed: 'Packed',
+  shipped: 'Shipped',
+  out_for_delivery: 'Out for Delivery',
+  delivered: 'Delivered',
+  order_completed: 'Order Completed',
+  order_failed: 'Order Failed',
+  funds_released: 'Funds Released',
+  cancelled: 'Cancelled',
+  refunded: 'Refunded',
+  dispute_raised: 'Dispute Raised',
+  dispute_resolved: 'Dispute Resolved',
+  dispute_closed: 'Dispute Closed',
 };
 
 // Status display names mapping
