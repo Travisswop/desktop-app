@@ -448,6 +448,7 @@ const WalletContentInner = () => {
             nfts={nfts}
             loading={nftLoading}
             error={nftError}
+            refetch={refetchNFTs}
           />
 
           {selectedNFT && (

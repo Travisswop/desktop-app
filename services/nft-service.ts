@@ -23,6 +23,7 @@ interface MetaplexAsset {
     links?: {
       image?: string;
     };
+    json_uri?: string;
   };
   interface?: {
     royalty?: {
@@ -243,13 +244,24 @@ class SolanaNFTServiceClass {
       () => this.getNFTsFromQuickNode(ownerAddress),
     ];
 
-    for (const provider of providers) {
+    for (const [index, provider] of providers.entries()) {
+      const providerName = index === 0 ? 'Helius' : 'QuickNode';
+
       try {
         const nfts = await provider();
+
         if (nfts && nfts.length > 0) {
           return nfts;
+        } else {
+          console.log(
+            `⚠️ [Solana NFT Service] ${providerName} returned empty results`
+          );
         }
       } catch (error) {
+        console.error(
+          `❌ [Solana NFT Service] ${providerName} failed:`,
+          error
+        );
         logger.warn(
           'Solana NFT provider failed, trying next:',
           error
@@ -258,6 +270,7 @@ class SolanaNFTServiceClass {
       }
     }
 
+    console.error('💥 [Solana NFT Service] All providers failed');
     logger.error('All Solana NFT providers failed');
     return [];
   }
@@ -310,7 +323,11 @@ class SolanaNFTServiceClass {
       }
 
       const assets = data.result?.items || [];
-      return this.transformMetaplexNFTs(assets);
+      console.log('🚀 ~ SolanaNFTServiceClass ~ assets:', assets);
+
+      const transformedNFTs = this.transformMetaplexNFTs(assets);
+
+      return transformedNFTs;
     } catch (error) {
       logger.error('Error fetching Solana NFTs from Helius:', error);
       throw error;
@@ -361,19 +378,21 @@ class SolanaNFTServiceClass {
         );
       }
 
-      return (
-        data.result?.assets?.map((asset: any) => ({
-          contract: asset.mintAddress,
-          description: asset.description || '',
-          name: asset.name || 'Unnamed NFT',
-          image: asset.imageUrl || '',
-          network: 'solana',
-          tokenId: asset.mintAddress,
-          tokenType: 'SPL Token',
-          balance: '1',
-          isSpam: false,
-        })) || []
-      );
+      const assets = data.result?.assets || [];
+
+      const transformedNFTs = assets.map((asset: any) => ({
+        contract: asset.mintAddress,
+        description: asset.description || '',
+        name: asset.name || 'Unnamed NFT',
+        image: asset.imageUrl || '',
+        network: 'solana',
+        tokenId: asset.mintAddress,
+        tokenType: 'SPL Token',
+        balance: '1',
+        isSpam: false,
+      }));
+
+      return transformedNFTs;
     } catch (error) {
       logger.error(
         'Error fetching Solana NFTs from QuickNode:',
@@ -386,26 +405,26 @@ class SolanaNFTServiceClass {
   private static transformMetaplexNFTs(
     assets: MetaplexAsset[]
   ): NFT[] {
-    return assets
-      .filter((asset) => asset && !asset.burnt)
-      .map((asset) => {
-        const imageUrl =
-          asset.content?.files?.[0]?.uri ||
-          asset.content?.links?.image;
+    const mappedNFTs = assets.map((asset) => {
+      const imageUrl =
+        asset.content?.files?.[0]?.uri ||
+        asset.content?.links?.image ||
+        asset.content?.json_uri;
 
-        return {
-          contract: asset.id,
-          description: asset.content?.metadata?.description || '',
-          name: asset.content?.metadata?.name || 'Unnamed NFT',
-          image: imageUrl || '',
-          network: 'solana',
-          tokenId: asset.id,
-          tokenType: 'Metaplex NFT',
-          balance: '1',
-          isSpam: false,
-        };
-      })
-      .filter((nft) => !!nft.image && !!nft.name);
+      return {
+        contract: asset.id,
+        description: asset.content?.metadata?.description || '',
+        name: asset.content?.metadata?.name || 'Unnamed NFT',
+        image: imageUrl || '',
+        network: 'solana',
+        tokenId: asset.id,
+        tokenType: 'Metaplex NFT',
+        balance: '1',
+        isSpam: false,
+      };
+    });
+
+    return mappedNFTs;
   }
 }
 
