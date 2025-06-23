@@ -11,6 +11,7 @@ import {
   ResponsiveContainer,
 } from "recharts";
 import { Skeleton } from "../ui/skeleton";
+import { Eye, EyeOff } from "lucide-react";
 
 const SkeletonBalanceChart = () => (
   <div className="bg-white my-4 p-5 rounded-xl">
@@ -30,6 +31,7 @@ const SkeletonBalanceChart = () => (
 
 const BalanceChart = ({ balanceHistory, totalTokensValue }: any) => {
   const [timeRange, setTimeRange] = useState("1month");
+  const [showBalance, setShowBalance] = useState(false);
 
   const filteredData = useMemo(() => {
     // First, sort all data by date (newest first)
@@ -146,13 +148,73 @@ const BalanceChart = ({ balanceHistory, totalTokensValue }: any) => {
     <div className="bg-white my-4 p-5 rounded-xl">
       <div>
         <h2 className="font-bold text-xl text-gray-700">Cashflow</h2>
-        <p className="font-bold text-xl text-gray-700">
-          $
-          {totalTokensValue.toLocaleString(undefined, {
-            minimumFractionDigits: 2,
-            maximumFractionDigits: 2,
-          })}
-        </p>
+        {/* <div className="flex items-center justify-center mt-1"> */}
+        <button
+          onClick={() => setShowBalance((prev) => !prev)}
+          className="mt-1 group relative flex items-center gap-0 px-3 py-1 rounded-xl bg-gradient-to-r from-slate-50 to-gray-50 border border-gray-200 hover:border-gray-300 hover:shadow-md transition-all duration-300 focus:outline-none"
+          aria-label={showBalance ? "Hide balance" : "Show balance"}
+        >
+          <span className={`text-gray-600 ${showBalance && "mr-2"}`}>$</span>
+          {/* Balance Display */}
+          <div className="relative">
+            <div className="font-bold text-gray-900 tracking-tight min-w-[70px] text-left">
+              <span
+                className={`inline-block transition-all duration-700 ease-out ${
+                  showBalance
+                    ? "opacity-100 transform translate-y-0"
+                    : "opacity-0 transform translate-y-1"
+                }`}
+              >
+                {totalTokensValue.toLocaleString(undefined, {
+                  minimumFractionDigits: 2,
+                  maximumFractionDigits: 2,
+                })}
+              </span>
+            </div>
+
+            {/* Hidden State Overlay */}
+            <div
+              className={`absolute inset-0 flex items-center justify-center transition-all duration-700 ease-out w-full ${
+                !showBalance
+                  ? "opacity-100 transform translate-y-0"
+                  : "opacity-0 transform -translate-y-1 pointer-events-none"
+              }`}
+            >
+              <div className="flex items-center gap-2 text-gray-500">
+                <div className="flex gap-1">
+                  {[...Array(4)].map((_, i) => (
+                    <div
+                      key={i}
+                      className="w-2 h-2 bg-gray-400 rounded-full animate-pulse"
+                      style={{ animationDelay: `${i * 0.1}s` }}
+                    />
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Toggle Icon */}
+          <div className="flex items-center justify-center w-7 h-7 rounded-full bg-white border border-gray-200 group-hover:border-gray-300 group-hover:shadow-sm transition-all duration-300">
+            <div className="relative w-4 h-4">
+              <Eye
+                className={`absolute inset-0 w-4 h-4 text-gray-600 transition-all duration-500 ${
+                  showBalance
+                    ? "opacity-100 rotate-0 scale-100"
+                    : "opacity-0 rotate-180 scale-75"
+                }`}
+              />
+              <EyeOff
+                className={`absolute inset-0 w-4 h-4 text-gray-600 transition-all duration-500 ${
+                  !showBalance
+                    ? "opacity-100 rotate-0 scale-100"
+                    : "opacity-0 rotate-180 scale-75"
+                }`}
+              />
+            </div>
+          </div>
+        </button>
+        {/* </div> */}
       </div>
       <ResponsiveContainer width="100%" height={400}>
         <AreaChart data={filteredData}>

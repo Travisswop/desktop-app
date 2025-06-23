@@ -19,7 +19,7 @@ import { MdInfoOutline } from "react-icons/md";
 import { AppIconMap, AppSelectedIconType } from "@/types/smallIcon";
 import toast from "react-hot-toast";
 import { useUser } from "@/lib/UserContext";
-import customImg from "@/public/images/IconShop/Upload@3x.png";
+import cusImg from "@/public/images/IconShop/download@3x.png";
 import CustomFileInput from "@/components/CustomFileInput";
 import { sendCloudinaryImage } from "@/lib/SendCloudinaryImage";
 
@@ -129,7 +129,7 @@ const AddAppIcon = ({ handleRemoveIcon }: any) => {
   const iconMap: AppIconMap = {
     Link: icon.Custom_link1,
     "Call To Action": icon.ChatlinkType,
-    "Custom Image": customImg,
+    "Custom Image": cusImg,
   };
 
   const handleFileChange = (event: any) => {
@@ -256,6 +256,7 @@ const AddAppIcon = ({ handleRemoveIcon }: any) => {
                     <Image
                       alt="app-icon"
                       src={iconMap[selectedIconType]}
+                      priority
                       className={`w-5 h-5 ${
                         selectedIconType === "Link" && "rounded-full"
                       }`}
