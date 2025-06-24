@@ -226,25 +226,32 @@ export class MoralisService {
 class SolanaNFTServiceClass {
   private static readonly HELIUS_API_ENDPOINT =
     'https://mainnet.helius-rpc.com';
+  // Note: QuickNode endpoint requires DAS (Digital Asset Standard) API add-on
   private static readonly QUICKNODE_API_ENDPOINT =
-    'https://solana-mainnet.core.chainstack.com';
+    process.env.NEXT_PUBLIC_QUICKNODE_SOLANA_ENDPOINT;
 
   static async getNFTs(ownerAddress: string): Promise<NFT[]> {
     // Try multiple providers in order
     const providers = [
-      () => this.getNFTsFromHelius(ownerAddress),
       () => this.getNFTsFromQuickNode(ownerAddress),
+      () => this.getNFTsFromHelius(ownerAddress),
     ];
-
     for (const [index, provider] of providers.entries()) {
       try {
         const nfts = await provider();
 
         if (nfts && nfts.length > 0) {
+          logger.info(
+            `Successfully fetched ${nfts.length} NFTs from provider ${
+              index + 1
+            }`
+          );
           return nfts;
         } else {
+          logger.warn(`Provider ${index + 1} returned no NFTs`);
         }
       } catch (error) {
+        logger.error(`Provider ${index + 1} failed:`, error);
         continue;
       }
     }
@@ -315,61 +322,148 @@ class SolanaNFTServiceClass {
     ownerAddress: string
   ): Promise<NFT[]> {
     try {
-      const apiKey = process.env.NEXT_PUBLIC_QUICKNODE_API_KEY;
-      if (!apiKey) {
-        throw new Error('QuickNode API key not provided');
-      }
+      let allNFTs: NFT[] = [];
+      let page = 1;
+      let pagesFetched = 0;
+      let hasMoreResults = true;
+      const limit = 1000; // Increased to match Helius
+      const maxPages = 10; // Safety limit to prevent infinite loops
 
-      const requestBody = {
-        jsonrpc: '2.0',
-        id: 1,
-        method: 'qn_fetchNFTs',
-        params: {
-          wallet: ownerAddress,
-          omitFields: ['provenance', 'traits'],
-          page: 1,
-          perPage: 40,
-        },
-      };
-
-      const response = await fetch(
-        `${this.QUICKNODE_API_ENDPOINT}/${apiKey}/`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
+      while (hasMoreResults && page <= maxPages) {
+        const requestBody = {
+          jsonrpc: '2.0',
+          id: 1,
+          method: 'getAssetsByOwner',
+          params: {
+            ownerAddress: ownerAddress,
+            limit: limit,
+            page: page,
+            displayOptions: {
+              showFungible: false,
+              showUnverifiedCollections: true,
+              showCollectionMetadata: true,
+            },
           },
-          body: JSON.stringify(requestBody),
-        }
-      );
+        };
 
-      if (!response.ok) {
-        throw new Error(`QuickNode API error: ${response.status}`);
-      }
-
-      const data = await response.json();
-
-      if (data.error) {
-        throw new Error(
-          `QuickNode API error: ${JSON.stringify(data.error)}`
+        const response = await fetch(
+          `${this.QUICKNODE_API_ENDPOINT}`,
+          {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(requestBody),
+          }
         );
+
+        if (!response.ok) {
+          throw new Error(`QuickNode API error: ${response.status}`);
+        }
+
+        const data = await response.json();
+
+        if (data.error) {
+          throw new Error(
+            `QuickNode API error: ${JSON.stringify(data.error)}`
+          );
+        }
+
+        const assets = data.result?.items || [];
+        const total = data.result?.total || 0;
+
+        // Log the full response structure for debugging
+        logger.info(
+          `QuickNode: Response structure - items: ${assets.length}, total: ${total}, page: ${data.result?.page}, limit: ${data.result?.limit}`
+        );
+
+        // Log detailed information for debugging
+        logger.info(
+          `QuickNode: Page ${page} - Assets: ${assets.length}, Total: ${total}, Limit: ${limit}`
+        );
+        logger.info(
+          `QuickNode: Current total fetched: ${
+            allNFTs.length
+          }, Has more: ${
+            assets.length === limit && assets.length > 0
+          }`
+        );
+
+        // Transform the assets
+        const transformedNFTs = assets.map((asset: any) => {
+          // Extract image URL with proper priority
+          const imageUrl =
+            asset.content?.links?.image ||
+            asset.content?.files?.[0]?.uri ||
+            asset.content?.json_uri ||
+            '';
+
+          // Extract collection information from grouping
+          const collectionInfo = asset.grouping?.find(
+            (group: any) => group.group_key === 'collection'
+          );
+
+          return {
+            contract: asset.id,
+            description: asset.content?.metadata?.description || '',
+            name: asset.content?.metadata?.name || 'Unnamed NFT',
+            image: imageUrl,
+            network: 'solana',
+            tokenId: asset.id,
+            tokenType: asset.interface || 'DAS Asset',
+            balance: '1',
+            collection: collectionInfo
+              ? {
+                  collectionName:
+                    asset.content?.metadata?.symbol ||
+                    'Unknown Collection',
+                  collectionId: collectionInfo.group_value,
+                }
+              : undefined,
+            isSpam: false,
+            // Additional DAS-specific properties
+            isCompressed: asset.compression?.compressed || false,
+            owner: asset.ownership?.owner,
+            creators: asset.creators || [],
+            attributes: asset.content?.metadata?.attributes || [],
+          };
+        });
+
+        allNFTs = allNFTs.concat(transformedNFTs);
+
+        // Log progress
+        logger.info(
+          `QuickNode: Fetched page ${page}, got ${assets.length} NFTs. Total so far: ${allNFTs.length}/${total}`
+        );
+
+        // Check if we need to fetch more pages
+        if (assets.length === 0) {
+          // No more assets to fetch
+          hasMoreResults = false;
+        } else if (assets.length < limit) {
+          // If we got fewer items than the limit, we've reached the end
+          hasMoreResults = false;
+        } else if (total > 0 && allNFTs.length >= total) {
+          // If we've reached the total and total is known, we're done
+          hasMoreResults = false;
+        } else {
+          // Continue to next page
+          page++;
+        }
+
+        // Increment pages fetched counter
+        pagesFetched++;
+
+        // Add a small delay to avoid rate limiting
+        if (hasMoreResults) {
+          await new Promise((resolve) => setTimeout(resolve, 100));
+        }
       }
 
-      const assets = data.result?.assets || [];
-
-      const transformedNFTs = assets.map((asset: any) => ({
-        contract: asset.mintAddress,
-        description: asset.description || '',
-        name: asset.name || 'Unnamed NFT',
-        image: asset.imageUrl || '',
-        network: 'solana',
-        tokenId: asset.mintAddress,
-        tokenType: 'SPL Token',
-        balance: '1',
-        isSpam: false,
-      }));
-
-      return transformedNFTs;
+      logger.info(
+        `QuickNode: Completed fetching. Total NFTs: ${allNFTs.length}, Pages fetched: ${pagesFetched}`
+      );
+      return allNFTs;
     } catch (error) {
       logger.error(
         'Error fetching Solana NFTs from QuickNode:',

@@ -314,7 +314,7 @@ export default function SwapModal({
       const url = `https://quote-api.jup.ag/v6/quote?inputMint=${inputMint.toString()}&outputMint=${outputMint.toString()}&amount=${amountInSmallestUnit}&slippageBps=${slippageBps}&restrictIntermediateTokens=true&platformFeeBps=${PLATFORM_FEE_BPS}`;
 
       const res = await fetch(url);
-      console.log('🚀 ~ fetchQuote ~ res:', res);
+
       if (!res.ok) {
         throw new Error(`Failed to fetch quote: ${res.status}`);
       }

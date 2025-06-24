@@ -1,4 +1,9 @@
-export type ChainType = 'ETHEREUM' | 'POLYGON' | 'BASE' | 'SOLANA' | 'SEPOLIA';
+export type ChainType =
+  | 'ETHEREUM'
+  | 'POLYGON'
+  | 'BASE'
+  | 'SOLANA'
+  | 'SEPOLIA';
 
 export interface NFT {
   name: string;
@@ -12,6 +17,11 @@ export interface NFT {
   collection?: NFTCollection;
   isSpam?: boolean;
   network?: string;
+  // DAS-specific properties
+  isCompressed?: boolean;
+  owner?: string;
+  creators?: NFTCreator[];
+  attributes?: NFTAttribute[];
 }
 
 export interface AlchemyNftData {
@@ -66,6 +76,7 @@ export interface NFTMetadata {
 
 export interface NFTCollection {
   collectionName?: string;
+  collectionId?: string;
   floorPrice?: number;
   openSeaVerificationStatus?: string;
 }
@@ -82,4 +93,15 @@ export interface UseNFTResult {
   loading: boolean;
   error: Error | null;
   refetch: () => void;
+}
+
+export interface NFTCreator {
+  address: string;
+  share: number;
+  verified: boolean;
+}
+
+export interface NFTAttribute {
+  trait_type: string;
+  value: string | number;
 }
