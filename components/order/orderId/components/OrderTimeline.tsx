@@ -4,9 +4,10 @@ import {
   CheckCircle,
   Clock,
   Package,
-  Truck,
   CreditCard,
   ShoppingCart,
+  ImageIcon,
+  Truck,
 } from 'lucide-react';
 import {
   ProcessingStage,
@@ -29,7 +30,7 @@ interface OrderTimelineProps {
 const stageIcons = {
   order_created: <ShoppingCart size={20} />,
   payment_completed: <CreditCard size={20} />,
-  nft_minted: <Package size={20} />,
+  nft_minted: <ImageIcon size={20} />,
   nft_minting_started: <Package size={20} />,
   token_swapped: <Package size={20} />,
   funds_processing: <Package size={20} />,
@@ -37,8 +38,8 @@ const stageIcons = {
   items_picked: <Package size={20} />,
   packed: <Package size={20} />,
   shipped: <Package size={20} />,
-  out_for_delivery: <Package size={20} />,
-  delivered: <Package size={20} />,
+  out_for_delivery: <Truck size={20} />,
+  delivered: <Truck size={20} />,
   order_completed: <CheckCircle size={20} />,
   order_failed: <Package size={20} />,
   funds_released: <Package size={20} />,

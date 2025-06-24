@@ -107,7 +107,8 @@ export const useOrderData = (orderId: string): UseOrderDataReturn => {
       // Safely check for completed status
       const findCompleteStatus = processingStages.find(
         (item: any) =>
-          item?.stage === 'completed' && item?.status === 'completed'
+          item?.stage === 'order_completed' &&
+          item?.status === 'completed'
       );
 
       setIsCompleted(Boolean(findCompleteStatus));
