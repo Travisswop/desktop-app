@@ -28,18 +28,6 @@ const OrderHeaderComponent: React.FC<OrderHeaderProps> = memo(
     onUpdateShipping,
     disputes = [],
   }) => {
-    const isPhygitalOrderComplete = useMemo(() => {
-      return (
-        order?.orderType !== 'non-phygitals' &&
-        order.status.delivery === 'Completed' &&
-        order.status.payment === 'completed'
-      );
-    }, [
-      order?.orderType,
-      order.status.delivery,
-      order.status.payment,
-    ]);
-
     // Memoize status chip color calculation
     const statusChipColor = useMemo(() => {
       if (order?.orderType !== 'non-phygitals') {
@@ -131,7 +119,7 @@ const OrderHeaderComponent: React.FC<OrderHeaderProps> = memo(
       if (order?.orderType === 'non-phygitals') return null;
 
       if (userRole === 'buyer') {
-        return isPhygitalOrderComplete ? (
+        return isCompleted ? (
           <Chip
             color="success"
             variant="flat"
@@ -214,7 +202,6 @@ const OrderHeaderComponent: React.FC<OrderHeaderProps> = memo(
       isUpdating,
       onMarkComplete,
       onUpdateShipping,
-      isPhygitalOrderComplete,
     ]);
 
     return (
