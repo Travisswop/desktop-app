@@ -1,12 +1,4 @@
-import {
-  NFT,
-  NFTCollectionGroup,
-  AssociatedToken,
-  NFTMintData,
-  NFTMetadata,
-  AlchemyNftData,
-} from '@/types/nft';
-import { APIUtils } from '@/utils/api';
+import { NFT, NFTCollectionGroup, AlchemyNftData } from '@/types/nft';
 import logger from '../utils/logger';
 
 interface MetaplexAsset {
@@ -245,32 +237,18 @@ class SolanaNFTServiceClass {
     ];
 
     for (const [index, provider] of providers.entries()) {
-      const providerName = index === 0 ? 'Helius' : 'QuickNode';
-
       try {
         const nfts = await provider();
 
         if (nfts && nfts.length > 0) {
           return nfts;
         } else {
-          console.log(
-            `⚠️ [Solana NFT Service] ${providerName} returned empty results`
-          );
         }
       } catch (error) {
-        console.error(
-          `❌ [Solana NFT Service] ${providerName} failed:`,
-          error
-        );
-        logger.warn(
-          'Solana NFT provider failed, trying next:',
-          error
-        );
         continue;
       }
     }
 
-    console.error('💥 [Solana NFT Service] All providers failed');
     logger.error('All Solana NFT providers failed');
     return [];
   }
@@ -323,7 +301,6 @@ class SolanaNFTServiceClass {
       }
 
       const assets = data.result?.items || [];
-      console.log('🚀 ~ SolanaNFTServiceClass ~ assets:', assets);
 
       const transformedNFTs = this.transformMetaplexNFTs(assets);
 
