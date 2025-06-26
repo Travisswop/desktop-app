@@ -17,6 +17,7 @@ export interface NFT {
   collection?: NFTCollection;
   isSpam?: boolean;
   network?: string;
+  createdAt?: string; // ISO string timestamp for creation date
   // DAS-specific properties
   isCompressed?: boolean;
   owner?: string;

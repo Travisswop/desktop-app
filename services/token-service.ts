@@ -328,6 +328,8 @@ export class SolanaService {
 
       let tokens = [...validTokenData];
 
+      // Handle SWOP token separately with custom price fetching
+      // (filtered out from getTokenAccountsData to prevent duplicates)
       const swopTokenBalance = await this.getSwopTokenBalance(
         walletAddress
       );
@@ -412,7 +414,9 @@ export class SolanaService {
             return null;
           }
         })
-        .filter(Boolean);
+        .filter(Boolean)
+        // Filter out SWOP token to prevent duplicate processing
+        .filter((token) => token?.address !== SWOP_TOKEN.address);
 
       const tokenDataPromises = tokens.map(async (token) => {
         if (!token) return null;

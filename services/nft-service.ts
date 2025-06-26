@@ -32,6 +32,9 @@ interface MetaplexAsset {
   };
   mutable?: boolean;
   burnt?: boolean;
+  created_at?: string;
+  updated_at?: string;
+  mint_timestamp?: number;
 }
 
 interface MetaplexResponse {
@@ -231,38 +234,94 @@ class SolanaNFTServiceClass {
     process.env.NEXT_PUBLIC_QUICKNODE_SOLANA_ENDPOINT;
 
   static async getNFTs(ownerAddress: string): Promise<NFT[]> {
+    logger.info(
+      `🔍 Starting Solana NFT fetch for address: ${ownerAddress}`
+    );
+
     // Try multiple providers in order
     const providers = [
       () => this.getNFTsFromQuickNode(ownerAddress),
       () => this.getNFTsFromHelius(ownerAddress),
     ];
+
     for (const [index, provider] of providers.entries()) {
+      const providerName = index === 0 ? 'QuickNode' : 'Helius';
+      logger.info(
+        `📡 Attempting to fetch NFTs from ${providerName} (provider ${
+          index + 1
+        })`
+      );
+
       try {
+        const startTime = Date.now();
         const nfts = await provider();
+        const endTime = Date.now();
+        const duration = endTime - startTime;
 
         if (nfts && nfts.length > 0) {
           logger.info(
-            `Successfully fetched ${nfts.length} NFTs from provider ${
-              index + 1
-            }`
+            `✅ Successfully fetched ${nfts.length} NFTs from ${providerName} in ${duration}ms`
           );
-          return nfts;
+
+          // Sort NFTs by creation date (most recent first)
+          const sortedNFTs = this.sortNFTsByDate(nfts);
+
+          // Log recent NFTs (last 10)
+          this.logRecentNFTs(sortedNFTs);
+
+          return sortedNFTs;
         } else {
-          logger.warn(`Provider ${index + 1} returned no NFTs`);
+          logger.warn(`⚠️ ${providerName} returned no NFTs`);
         }
       } catch (error) {
-        logger.error(`Provider ${index + 1} failed:`, error);
+        logger.error(`❌ ${providerName} failed:`, error);
         continue;
       }
     }
 
-    logger.error('All Solana NFT providers failed');
+    logger.error('❌ All Solana NFT providers failed');
     return [];
+  }
+
+  private static sortNFTsByDate(nfts: NFT[]): NFT[] {
+    logger.info(`🔄 Sorting ${nfts.length} NFTs by creation date...`);
+
+    return nfts.sort((a, b) => {
+      const dateA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+      const dateB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+
+      // Sort by most recent first
+      return dateB - dateA;
+    });
+  }
+
+  private static logRecentNFTs(nfts: NFT[]): void {
+    const recentCount = Math.min(10, nfts.length);
+    logger.info(`📊 Recent NFTs (last ${recentCount}):`);
+
+    nfts.slice(0, recentCount).forEach((nft, index) => {
+      const date = nft.createdAt
+        ? new Date(nft.createdAt).toISOString()
+        : 'Unknown date';
+      logger.info(
+        `  ${index + 1}. ${nft.name} (${
+          nft.tokenId
+        }) - Created: ${date}`
+      );
+    });
+
+    if (nfts.length > recentCount) {
+      logger.info(`  ... and ${nfts.length - recentCount} more NFTs`);
+    }
   }
 
   private static async getNFTsFromHelius(
     ownerAddress: string
   ): Promise<NFT[]> {
+    logger.info(
+      `🌐 Fetching NFTs from Helius for address: ${ownerAddress}`
+    );
+
     try {
       const apiKey = process.env.NEXT_PUBLIC_HELIUS_API_KEY;
       if (!apiKey) {
@@ -283,6 +342,8 @@ class SolanaNFTServiceClass {
           },
         },
       };
+
+      logger.info(`📤 Sending Helius request with limit: 1000`);
 
       const response = await fetch(
         `${this.HELIUS_API_ENDPOINT}/?api-key=${apiKey}`,
@@ -308,12 +369,19 @@ class SolanaNFTServiceClass {
       }
 
       const assets = data.result?.items || [];
+      logger.info(`📥 Helius returned ${assets.length} assets`);
 
       const transformedNFTs = this.transformMetaplexNFTs(assets);
+      logger.info(
+        `🔄 Transformed ${transformedNFTs.length} NFTs from Helius`
+      );
 
       return transformedNFTs;
     } catch (error) {
-      logger.error('Error fetching Solana NFTs from Helius:', error);
+      logger.error(
+        '❌ Error fetching Solana NFTs from Helius:',
+        error
+      );
       throw error;
     }
   }
@@ -321,6 +389,10 @@ class SolanaNFTServiceClass {
   private static async getNFTsFromQuickNode(
     ownerAddress: string
   ): Promise<NFT[]> {
+    logger.info(
+      `🌐 Fetching NFTs from QuickNode for address: ${ownerAddress}`
+    );
+
     try {
       let allNFTs: NFT[] = [];
       let page = 1;
@@ -329,7 +401,13 @@ class SolanaNFTServiceClass {
       const limit = 1000; // Increased to match Helius
       const maxPages = 10; // Safety limit to prevent infinite loops
 
+      logger.info(
+        `📋 Starting paginated fetch with limit: ${limit}, max pages: ${maxPages}`
+      );
+
       while (hasMoreResults && page <= maxPages) {
+        const pageStartTime = Date.now();
+
         const requestBody = {
           jsonrpc: '2.0',
           id: 1,
@@ -370,24 +448,8 @@ class SolanaNFTServiceClass {
         }
 
         const assets = data.result?.items || [];
+        console.log('🚀 ~ getNFTsFromQuickNode ~ assets:', assets);
         const total = data.result?.total || 0;
-
-        // Log the full response structure for debugging
-        logger.info(
-          `QuickNode: Response structure - items: ${assets.length}, total: ${total}, page: ${data.result?.page}, limit: ${data.result?.limit}`
-        );
-
-        // Log detailed information for debugging
-        logger.info(
-          `QuickNode: Page ${page} - Assets: ${assets.length}, Total: ${total}, Limit: ${limit}`
-        );
-        logger.info(
-          `QuickNode: Current total fetched: ${
-            allNFTs.length
-          }, Has more: ${
-            assets.length === limit && assets.length > 0
-          }`
-        );
 
         // Transform the assets
         const transformedNFTs = assets.map((asset: any) => {
@@ -403,6 +465,13 @@ class SolanaNFTServiceClass {
             (group: any) => group.group_key === 'collection'
           );
 
+          // Extract creation timestamp
+          const createdAt =
+            asset.created_at ||
+            (asset.mint_timestamp
+              ? new Date(asset.mint_timestamp * 1000).toISOString()
+              : undefined);
+
           return {
             contract: asset.id,
             description: asset.content?.metadata?.description || '',
@@ -412,6 +481,7 @@ class SolanaNFTServiceClass {
             tokenId: asset.id,
             tokenType: asset.interface || 'DAS Asset',
             balance: '1',
+            createdAt: createdAt,
             collection: collectionInfo
               ? {
                   collectionName:
@@ -433,22 +503,32 @@ class SolanaNFTServiceClass {
 
         // Log progress
         logger.info(
-          `QuickNode: Fetched page ${page}, got ${assets.length} NFTs. Total so far: ${allNFTs.length}/${total}`
+          `✅ QuickNode page ${page}: Fetched ${assets.length} NFTs. Total so far: ${allNFTs.length}/${total}`
         );
 
         // Check if we need to fetch more pages
         if (assets.length === 0) {
           // No more assets to fetch
           hasMoreResults = false;
+          logger.info(
+            `🏁 QuickNode: No more assets found on page ${page}`
+          );
         } else if (assets.length < limit) {
           // If we got fewer items than the limit, we've reached the end
           hasMoreResults = false;
+          logger.info(
+            `🏁 QuickNode: Reached end of results (${assets.length} < ${limit})`
+          );
         } else if (total > 0 && allNFTs.length >= total) {
           // If we've reached the total and total is known, we're done
           hasMoreResults = false;
+          logger.info(
+            `🏁 QuickNode: Reached total count (${allNFTs.length}/${total})`
+          );
         } else {
           // Continue to next page
           page++;
+          logger.info(`➡️ QuickNode: Continuing to page ${page}`);
         }
 
         // Increment pages fetched counter
@@ -456,17 +536,36 @@ class SolanaNFTServiceClass {
 
         // Add a small delay to avoid rate limiting
         if (hasMoreResults) {
+          logger.info(
+            `⏳ QuickNode: Waiting 100ms before next page...`
+          );
           await new Promise((resolve) => setTimeout(resolve, 100));
         }
       }
 
       logger.info(
-        `QuickNode: Completed fetching. Total NFTs: ${allNFTs.length}, Pages fetched: ${pagesFetched}`
+        `🎉 QuickNode: Completed fetching. Total NFTs: ${allNFTs.length}, Pages fetched: ${pagesFetched}`
       );
+
+      // Log some sample NFTs for debugging
+      if (allNFTs.length > 0) {
+        logger.info(`📋 Sample NFTs from QuickNode:`);
+        allNFTs.slice(0, 3).forEach((nft, index) => {
+          const date = nft.createdAt
+            ? new Date(nft.createdAt).toISOString()
+            : 'Unknown';
+          logger.info(
+            `  ${index + 1}. ${nft.name} (${
+              nft.tokenId
+            }) - Created: ${date}`
+          );
+        });
+      }
+
       return allNFTs;
     } catch (error) {
       logger.error(
-        'Error fetching Solana NFTs from QuickNode:',
+        '❌ Error fetching Solana NFTs from QuickNode:',
         error
       );
       throw error;
@@ -476,11 +575,22 @@ class SolanaNFTServiceClass {
   private static transformMetaplexNFTs(
     assets: MetaplexAsset[]
   ): NFT[] {
+    logger.info(
+      `🔄 Transforming ${assets.length} Metaplex assets to NFTs`
+    );
+
     const mappedNFTs = assets.map((asset) => {
       const imageUrl =
         asset.content?.files?.[0]?.uri ||
         asset.content?.links?.image ||
         asset.content?.json_uri;
+
+      // Extract creation timestamp
+      const createdAt =
+        asset.created_at ||
+        (asset.mint_timestamp
+          ? new Date(asset.mint_timestamp * 1000).toISOString()
+          : undefined);
 
       return {
         contract: asset.id,
@@ -491,10 +601,14 @@ class SolanaNFTServiceClass {
         tokenId: asset.id,
         tokenType: 'Metaplex NFT',
         balance: '1',
+        createdAt: createdAt,
         isSpam: false,
       };
     });
 
+    logger.info(
+      `✅ Transformed ${mappedNFTs.length} Metaplex assets`
+    );
     return mappedNFTs;
   }
 }
@@ -608,3 +722,165 @@ export const processNFTCollections = (
 // Export for backward compatibility
 export const AlchemyService = AlchemyServiceClass;
 export const SolanaNFTService = SolanaNFTServiceClass;
+
+// Utility functions for NFT analysis
+export class NFTAnalysisUtils {
+  static analyzeNFTs(nfts: NFT[]): {
+    totalCount: number;
+    recentNFTs: NFT[];
+    oldestNFTs: NFT[];
+    collections: Map<string, number>;
+    creationDateRange: {
+      earliest: string | null;
+      latest: string | null;
+    };
+  } {
+    logger.info(`📊 Analyzing ${nfts.length} NFTs...`);
+
+    // Filter NFTs with creation dates
+    const nftsWithDates = nfts.filter((nft) => nft.createdAt);
+    const nftsWithoutDates = nfts.filter((nft) => !nft.createdAt);
+
+    logger.info(
+      `📅 NFTs with creation dates: ${nftsWithDates.length}`
+    );
+    logger.info(
+      `❓ NFTs without creation dates: ${nftsWithoutDates.length}`
+    );
+
+    // Sort by creation date
+    const sortedByDate = nftsWithDates.sort((a, b) => {
+      const dateA = new Date(a.createdAt!).getTime();
+      const dateB = new Date(b.createdAt!).getTime();
+      return dateB - dateA; // Most recent first
+    });
+
+    // Get recent NFTs (last 10)
+    const recentNFTs = sortedByDate.slice(0, 10);
+
+    // Get oldest NFTs (first 10 after reverse sort)
+    const oldestNFTs = sortedByDate.slice(-10).reverse();
+
+    // Analyze collections
+    const collections = new Map<string, number>();
+    nfts.forEach((nft) => {
+      const collectionName =
+        nft.collection?.collectionName || 'Unknown Collection';
+      collections.set(
+        collectionName,
+        (collections.get(collectionName) || 0) + 1
+      );
+    });
+
+    // Get creation date range
+    const dates = nftsWithDates.map(
+      (nft) => new Date(nft.createdAt!)
+    );
+    const earliest =
+      dates.length > 0
+        ? new Date(
+            Math.min(...dates.map((d) => d.getTime()))
+          ).toISOString()
+        : null;
+    const latest =
+      dates.length > 0
+        ? new Date(
+            Math.max(...dates.map((d) => d.getTime()))
+          ).toISOString()
+        : null;
+
+    const analysis = {
+      totalCount: nfts.length,
+      recentNFTs,
+      oldestNFTs,
+      collections,
+      creationDateRange: { earliest, latest },
+    };
+
+    // Log analysis results
+    logger.info(`📈 NFT Analysis Results:`);
+    logger.info(`  Total NFTs: ${analysis.totalCount}`);
+    logger.info(
+      `  Date range: ${analysis.creationDateRange.earliest} to ${analysis.creationDateRange.latest}`
+    );
+    logger.info(`  Collections found: ${analysis.collections.size}`);
+
+    // Log top collections
+    const topCollections = Array.from(analysis.collections.entries())
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 5);
+
+    logger.info(`  Top collections:`);
+    topCollections.forEach(([name, count], index) => {
+      logger.info(`    ${index + 1}. ${name}: ${count} NFTs`);
+    });
+
+    return analysis;
+  }
+
+  static getNFTsByDateRange(
+    nfts: NFT[],
+    startDate: Date,
+    endDate: Date
+  ): NFT[] {
+    return nfts.filter((nft) => {
+      if (!nft.createdAt) return false;
+      const nftDate = new Date(nft.createdAt);
+      return nftDate >= startDate && nftDate <= endDate;
+    });
+  }
+
+  static getNFTsFromLastDays(nfts: NFT[], days: number): NFT[] {
+    const cutoffDate = new Date();
+    cutoffDate.setDate(cutoffDate.getDate() - days);
+    return this.getNFTsByDateRange(nfts, cutoffDate, new Date());
+  }
+
+  static logNFTTimeline(nfts: NFT[]): void {
+    const nftsWithDates = nfts
+      .filter((nft) => nft.createdAt)
+      .sort((a, b) => {
+        const dateA = new Date(a.createdAt!).getTime();
+        const dateB = new Date(b.createdAt!).getTime();
+        return dateA - dateB; // Chronological order
+      });
+
+    logger.info(
+      `📅 NFT Timeline (${nftsWithDates.length} NFTs with dates):`
+    );
+
+    // Group by month for better visualization
+    const monthlyGroups = new Map<string, NFT[]>();
+
+    nftsWithDates.forEach((nft) => {
+      const date = new Date(nft.createdAt!);
+      const monthKey = `${date.getFullYear()}-${String(
+        date.getMonth() + 1
+      ).padStart(2, '0')}`;
+
+      if (!monthlyGroups.has(monthKey)) {
+        monthlyGroups.set(monthKey, []);
+      }
+      monthlyGroups.get(monthKey)!.push(nft);
+    });
+
+    // Log monthly breakdown
+    Array.from(monthlyGroups.entries())
+      .sort((a, b) => a[0].localeCompare(b[0]))
+      .forEach(([month, monthNFTs]) => {
+        logger.info(`  ${month}: ${monthNFTs.length} NFTs`);
+
+        // Log a few examples from each month
+        monthNFTs.slice(0, 3).forEach((nft) => {
+          const date = new Date(nft.createdAt!)
+            .toISOString()
+            .split('T')[0];
+          logger.info(`    - ${nft.name} (${date})`);
+        });
+
+        if (monthNFTs.length > 3) {
+          logger.info(`    ... and ${monthNFTs.length - 3} more`);
+        }
+      });
+  }
+}
