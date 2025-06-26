@@ -119,7 +119,7 @@ export default function ViewerAnalytics({ viewersData }: any) {
       {/* Viewers List */}
       <Card>
         <CardHeader>
-          <CardTitle className="text-lg font-medium">List of Viewers</CardTitle>
+          <CardTitle className="text-lg font-bold underline">List of Viewers</CardTitle>
         </CardHeader>
         <CardContent>
           {viewersData?.length ? (
