@@ -87,45 +87,7 @@ export const XmtpProvider: React.FC<{
         const walletAddress =
           linkedEthereumWallet.address.toLowerCase();
 
-        // Check for stored XMTP keys with a more secure key format
-        const storedKeysData = localStorage.getItem(
-          `xmtp-keys-${walletAddress}`
-        );
-
-        if (storedKeysData) {
-          try {
-            const { keys, address } = JSON.parse(storedKeysData);
-
-            // Verify the stored keys belong to the current wallet
-            if (address.toLowerCase() === walletAddress) {
-              const client = await Client.create(null, {
-                env: 'production',
-                privateKeyOverride: new Uint8Array(keys),
-              });
-
-              // Double check the created client matches the wallet address
-              if (client.address.toLowerCase() === walletAddress) {
-                setXmtpClient(client);
-                xmtpClientRef.current = client;
-                return;
-              }
-            }
-
-            // If validation fails, remove the invalid keys
-            console.warn(
-              'Stored XMTP keys do not match current wallet'
-            );
-            localStorage.removeItem(`xmtp-keys-${walletAddress}`);
-          } catch (err) {
-            console.error(
-              'Failed to create client with stored keys:',
-              err
-            );
-            localStorage.removeItem(`xmtp-keys-${walletAddress}`);
-          }
-        }
-
-        // Create new client if no valid stored keys
+        // Always create a fresh client on sign in
         const wallet =
           wallets.find(
             (wallet) =>
@@ -153,27 +115,9 @@ export const XmtpProvider: React.FC<{
             }
           },
         };
-
-        // Get keys first (requires one signature)
-        const keys = await Client.getKeys(signer, {
+        const client = await Client.create(signer, {
           env: 'production',
         });
-
-        // Create client using the keys (no signature needed)
-        const client = await Client.create(null, {
-          env: 'production',
-          privateKeyOverride: keys,
-        });
-
-        // Store keys with wallet address for validation
-        localStorage.setItem(
-          `xmtp-keys-${walletAddress}`,
-          JSON.stringify({
-            keys: Array.from(keys),
-            address: walletAddress,
-            timestamp: Date.now(), // Add timestamp for potential key rotation
-          })
-        );
 
         setXmtpClient(client);
         xmtpClientRef.current = client;
