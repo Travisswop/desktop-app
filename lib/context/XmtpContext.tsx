@@ -117,6 +117,7 @@ export const XmtpProvider: React.FC<{
         };
         const client = await Client.create(signer, {
           env: 'production',
+          version: 'v3',
         });
 
         setXmtpClient(client);
