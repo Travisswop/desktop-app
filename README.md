@@ -34,7 +34,12 @@ Each feature has its own documentation in its respective directory.
 
 ## Feature Documentation
 
-- [**Swap Modal**](/components/wallet/swapModal/README.md) - Swap tokens on the Solana blockchain with Jupiter integration
+ - [**Swap Modal**](/components/wallet/swapModal/README.md) - Swap tokens on the Solana blockchain with Jupiter integration
+
+## Messaging
+
+The chat features use [XMTP](https://xmtp.org). The project now targets **XMTP V3** using `@xmtp/xmtp-js` and `@xmtp/browser-sdk`.
+`Client.getKeys` and `Client.create` are configured with `env: 'production'` and `release: 'v3'` in `lib/context/XmtpContext.tsx`.
 
 ## Learn More
 
