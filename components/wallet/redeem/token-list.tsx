@@ -32,6 +32,7 @@ export interface RedemptionPool {
   total_redemptions: number;
   total_redeemed_amount: number;
   redeemLink: string;
+  wallet_address: string;
 }
 
 export function fromTokenLamports(
@@ -138,6 +139,7 @@ export default function RedeemTokenList() {
             <TableHeader>
               <TableRow>
                 <TableHead>Token Mint</TableHead>
+                <TableHead>Wallet Address</TableHead>
                 <TableHead>Total Amount</TableHead>
                 <TableHead>Remaining</TableHead>
                 <TableHead>Tokens Per Wallet</TableHead>
@@ -169,6 +171,7 @@ export default function RedeemTokenList() {
                           </div>
                         </div>
                       </TableCell>
+                      <TableCell>{pool.wallet_address}</TableCell>
                       <TableCell>
                         {pool.total_amount} {pool.token_symbol}
                       </TableCell>

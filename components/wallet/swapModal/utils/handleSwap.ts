@@ -28,6 +28,26 @@ async function simulateTransaction(
 
     if (simulation.value.err) {
       logger.error('Simulation error:', simulation.value.err);
+
+      // Enhanced error logging for debugging
+      if (simulation.value.logs) {
+        logger.error('Simulation logs:', simulation.value.logs);
+      }
+
+      // Check for specific error types
+      const errorStr = JSON.stringify(simulation.value.err);
+      if (errorStr.includes('ProgramFailedToComplete')) {
+        logger.error(
+          'Program failed to complete - this usually indicates:'
+        );
+        logger.error('1. Insufficient SOL for transaction fees');
+        logger.error("2. Token account doesn't exist");
+        logger.error(
+          '3. Quote has expired or price moved significantly'
+        );
+        logger.error('4. Insufficient token balance');
+      }
+
       throw new Error(
         `Simulation failed: ${JSON.stringify(simulation.value.err)}`
       );
@@ -102,6 +122,49 @@ export async function handleSwap({
       );
     }
 
+    // Check SOL balance for transaction fees (if swapping SOL, account for the swap amount too)
+    try {
+      const solBalance = await connection.getBalance(
+        new PublicKey(solanaAddress)
+      );
+
+      console.log('🚀 ~ solBalance:', solBalance);
+      const minSolForFees = 0.002 * 1e9; // 0.002 SOL for fees - covers transaction fee + rent + buffer
+      console.log('🚀 ~ minSolForFees:', minSolForFees);
+      console.log('🚀 ~ inputMint:', quote.inAmount.toString());
+      if (
+        inputMint.toString() ===
+        'So11111111111111111111111111111111111111112'
+      ) {
+        // If swapping SOL, ensure we have enough for both swap and fees
+        // Convert inAmount to number to ensure proper addition
+        const inAmountNum = Number(quote.inAmount);
+        console.log('🚀 ~ inAmountNum:', inAmountNum);
+        const requiredSol = inAmountNum + minSolForFees;
+        console.log('🚀 ~ requiredSol:', requiredSol);
+        if (solBalance < requiredSol) {
+          throw new Error(
+            `Insufficient SOL. Need ${(requiredSol / 1e9).toFixed(
+              3
+            )} SOL (${(quote.inAmount / 1e9).toFixed(
+              3
+            )} SOL for swap + 0.002 SOL for fees)`
+          );
+        }
+      } else {
+        // If swapping other tokens, just check for fee SOL
+        if (solBalance < minSolForFees) {
+          throw new Error(
+            'Insufficient SOL for transaction fees. Need at least 0.002 SOL.'
+          );
+        }
+      }
+      logger.log(`SOL balance: ${solBalance / 1e9} SOL`);
+    } catch (balanceError) {
+      logger.error('Error checking SOL balance:', balanceError);
+      throw balanceError;
+    }
+
     let feeAccount: PublicKey | undefined;
 
     try {
@@ -116,7 +179,17 @@ export async function handleSwap({
     }
 
     // Prepare the swap request body
-    const swapRequestBody = {
+    const swapRequestBody: {
+      quoteResponse: any;
+      userPublicKey: string;
+      wrapUnwrapSOL: boolean;
+      dynamicComputeUnitLimit: boolean;
+      asLegacyTransaction: boolean;
+      prioritizationFeeLamports?: string;
+      priorityLevel?: PriorityLevel;
+      feeAccount?: PublicKey;
+      slippageBps?: number;
+    } = {
       quoteResponse: quote,
       userPublicKey: solanaAddress,
       wrapUnwrapSOL: true,
@@ -179,27 +252,90 @@ export async function handleSwap({
 
     const txBase64 = swapResponse.swapTransaction;
     const txBuffer = Buffer.from(txBase64, 'base64');
-    const transaction = VersionedTransaction.deserialize(txBuffer);
+    let transaction = VersionedTransaction.deserialize(txBuffer);
 
     // Simulate transaction before sending
     if (onStatusUpdate) {
       onStatusUpdate('Simulating transaction...');
     }
 
-    try {
-      await simulateTransaction(
-        connection,
-        transaction,
-        solanaAddress
-      );
-      logger.log('Transaction simulation successful');
-    } catch (simError) {
-      logger.error('Transaction simulation failed:', simError);
-      throw new Error(
-        `Transaction simulation failed: ${
-          (simError as Error).message
-        }`
-      );
+    let simulationSuccess = false;
+    let retryCount = 0;
+    const maxRetries = 2;
+
+    while (!simulationSuccess && retryCount <= maxRetries) {
+      try {
+        await simulateTransaction(
+          connection,
+          transaction,
+          solanaAddress
+        );
+        logger.log('Transaction simulation successful');
+        simulationSuccess = true;
+      } catch (simError) {
+        retryCount++;
+        logger.error(
+          `Transaction simulation failed (attempt ${retryCount}):`,
+          simError
+        );
+
+        if (retryCount <= maxRetries) {
+          logger.log('Fetching fresh quote and retrying...');
+          if (onStatusUpdate) {
+            onStatusUpdate('Fetching fresh quote...');
+          }
+
+          try {
+            // Fetch a fresh quote
+            const freshQuoteUrl = `https://quote-api.jup.ag/v6/quote?inputMint=${quote.inputMint}&outputMint=${quote.outputMint}&amount=${quote.inAmount}&slippageBps=${slippageBps}&restrictIntermediateTokens=true&platformFeeBps=${platformFeeBps}`;
+            const freshQuoteRes = await fetch(freshQuoteUrl);
+
+            if (freshQuoteRes.ok) {
+              const freshQuote = await freshQuoteRes.json();
+
+              // Update the swap request with fresh quote
+              swapRequestBody.quoteResponse = freshQuote;
+
+              // Get fresh transaction
+              const freshRes = await fetch(
+                'https://lite-api.jup.ag/swap/v1/swap',
+                {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify(swapRequestBody),
+                }
+              );
+
+              if (freshRes.ok) {
+                const freshSwapResponse = await freshRes.json();
+                if (freshSwapResponse.swapTransaction) {
+                  const freshTxBase64 =
+                    freshSwapResponse.swapTransaction;
+                  const freshTxBuffer = Buffer.from(
+                    freshTxBase64,
+                    'base64'
+                  );
+                  transaction =
+                    VersionedTransaction.deserialize(freshTxBuffer);
+                  logger.log(
+                    'Fresh transaction created, retrying simulation...'
+                  );
+                  continue;
+                }
+              }
+            }
+          } catch (retryError) {
+            logger.error('Error fetching fresh quote:', retryError);
+          }
+        }
+
+        // If we've exhausted retries or failed to get fresh quote, throw the error
+        throw new Error(
+          `Transaction simulation failed after ${retryCount} attempts: ${
+            (simError as Error).message
+          }`
+        );
+      }
     }
 
     if (onStatusUpdate) {
@@ -298,8 +434,22 @@ export async function handleSwap({
 
     // Generate appropriate error message based on error type
     if (err.message && err.message.includes('simulation failed')) {
-      errorMessage =
-        'Transaction failed simulation. Please try again with different parameters.';
+      const errorStr = err.message;
+      if (errorStr.includes('ProgramFailedToComplete')) {
+        errorMessage =
+          'Transaction failed due to insufficient funds or expired quote. Please check your balance and try again.';
+      } else if (errorStr.includes('InsufficientFundsForRent')) {
+        errorMessage =
+          'Insufficient SOL for account rent. Please ensure you have at least 0.01 SOL for fees.';
+      } else if (errorStr.includes('TokenAccountNotFoundError')) {
+        errorMessage =
+          'Token account not found. Please try refreshing your wallet connection.';
+      } else if (errorStr.includes('InsufficientFunds')) {
+        errorMessage = 'Insufficient token balance for this swap.';
+      } else {
+        errorMessage =
+          'Transaction simulation failed. Please try again with different parameters.';
+      }
     } else if (err.message && err.message.includes('Custom')) {
       errorMessage =
         'Swap failed due to price movement. Try increasing slippage tolerance.';
@@ -317,6 +467,17 @@ export async function handleSwap({
     ) {
       errorMessage =
         'Transaction is too large. Try a smaller swap amount.';
+    } else if (
+      err.message &&
+      err.message.includes('Quote has expired')
+    ) {
+      errorMessage =
+        'Quote has expired. Please refresh and try again.';
+    } else if (
+      err.message &&
+      err.message.includes('Insufficient SOL')
+    ) {
+      errorMessage = err.message; // Use the specific SOL balance error message
     } else if (err.message) {
       errorMessage = err.message;
     }
