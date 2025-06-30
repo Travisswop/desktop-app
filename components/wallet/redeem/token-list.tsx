@@ -12,7 +12,7 @@ import {
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import toast from 'react-hot-toast';
-import { RefreshCw } from 'lucide-react';
+import { RefreshCw, Copy } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import Image from 'next/image';
 import { usePrivy } from '@privy-io/react-auth';
@@ -125,7 +125,7 @@ export default function RedeemTokenList() {
 
   const truncateAddress = (address: string) => {
     if (!address) return '';
-    return `${address.slice(0, 4)}...${address.slice(-4)}`;
+    return `${address.slice(0, 6)}...${address.slice(-6)}`;
   };
 
   const handleRefresh = async () => {
@@ -192,10 +192,11 @@ export default function RedeemTokenList() {
                               pool.wallet_address
                             )
                           }
-                          className="text-left hover:text-blue-600 transition-colors cursor-pointer"
+                          className="text-left hover:text-blue-600 transition-colors cursor-pointer flex items-center gap-1"
                           title="Click to copy full address"
                         >
                           {truncateAddress(pool.wallet_address)}
+                          <Copy className="h-3 w-3 opacity-60" />
                         </button>
                       </TableCell>
                       <TableCell>
