@@ -14,6 +14,9 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
+  DropdownMenuSub,
+  DropdownMenuSubTrigger,
+  DropdownMenuSubContent,
 } from '@/components/ui/dropdown-menu';
 import { useUser } from '@/lib/UserContext';
 import { Skeleton } from './ui/skeleton';
@@ -21,24 +24,44 @@ import { useRouter } from 'next/navigation';
 import isUrl from '@/lib/isUrl';
 import { useState } from 'react';
 import logo from '@/public/logo.png';
-// import { LiaFileMedicalSolid } from "react-icons/lia";
-// import filePlus from "@/public/images/file-plus.png";
 import bellIcon from '@/public/images/bell-icon.png';
 import { BiMessageSquareDots } from 'react-icons/bi';
-import { IoKeyOutline, IoLockClosedOutline } from 'react-icons/io5';
-import DynamicPrimaryBtn from './ui/Button/DynamicPrimaryBtn';
-import { LuPlus } from 'react-icons/lu';
-import { MdOutlineEdit } from 'react-icons/md';
+import { useSolanaWallets } from '@privy-io/react-auth/solana';
 
 export default function Header() {
-  const { logout } = usePrivy();
   const { user, loading, logout: userLogout } = useUser();
   const router = useRouter();
   const [isLoggingOut, setIsLoggingOut] = useState(false);
 
-  const { user: privyUser } = usePrivy();
   const { showMfaEnrollmentModal } = useMfaEnrollment();
   const { state, loginWithPasskey } = useLoginWithPasskey();
+
+  const {
+    ready,
+    authenticated,
+    user: privyUser,
+    exportWallet,
+  } = usePrivy();
+  const { exportWallet: exportSolanaWallet } = useSolanaWallets();
+
+  // Check that your user is authenticated
+  const isAuthenticated = ready && authenticated;
+
+  // Check that your user has an embedded wallet
+  const hasEmbeddedWallet = !!privyUser?.linkedAccounts.find(
+    (account) =>
+      account.type === 'wallet' &&
+      account.walletClientType === 'privy' &&
+      account.chainType === 'ethereum'
+  );
+
+  // Check for Solana wallet
+  const hasSolanaWallet = !!privyUser?.linkedAccounts.find(
+    (account) =>
+      account.type === 'wallet' &&
+      account.walletClientType === 'privy' &&
+      account.chainType === 'solana'
+  );
 
   const handleLogout = async () => {
     // Prevent multiple logout attempts
@@ -65,6 +88,22 @@ export default function Header() {
       await loginWithPasskey();
     } catch (error) {
       console.error('Passkey login failed:', error);
+    }
+  };
+
+  const handleExportEVMWallet = async () => {
+    try {
+      await exportWallet();
+    } catch (error) {
+      console.error('EVM wallet export failed:', error);
+    }
+  };
+
+  const handleExportSolanaWallet = async () => {
+    try {
+      await exportSolanaWallet();
+    } catch (error) {
+      console.error('Solana wallet export failed:', error);
     }
   };
 
@@ -197,6 +236,33 @@ export default function Header() {
                 </DynamicPrimaryBtn>
               </div> */}
             </DropdownMenuItem>
+
+            {/* Export Wallet Sub-menu */}
+            {(hasEmbeddedWallet || hasSolanaWallet) && (
+              <DropdownMenuSub>
+                <DropdownMenuSubTrigger>
+                  Export Wallet
+                </DropdownMenuSubTrigger>
+                <DropdownMenuSubContent>
+                  {hasEmbeddedWallet && (
+                    <DropdownMenuItem
+                      onClick={handleExportEVMWallet}
+                      disabled={!isAuthenticated}
+                    >
+                      Export EVM Wallet
+                    </DropdownMenuItem>
+                  )}
+                  {hasSolanaWallet && (
+                    <DropdownMenuItem
+                      onClick={handleExportSolanaWallet}
+                      disabled={!isAuthenticated}
+                    >
+                      Export Solana Wallet
+                    </DropdownMenuItem>
+                  )}
+                </DropdownMenuSubContent>
+              </DropdownMenuSub>
+            )}
 
             <DropdownMenuItem
               className="cursor-pointer"
