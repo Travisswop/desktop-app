@@ -114,6 +114,20 @@ export default function RedeemTokenList() {
     }
   };
 
+  const copyAddressToClipboard = async (address: string) => {
+    try {
+      await navigator.clipboard.writeText(address);
+      toast.success('Address copied to clipboard!');
+    } catch (error) {
+      toast.error('Failed to copy address');
+    }
+  };
+
+  const truncateAddress = (address: string) => {
+    if (!address) return '';
+    return `${address.slice(0, 4)}...${address.slice(-4)}`;
+  };
+
   const handleRefresh = async () => {
     setLoading(true);
     await fetchPools();
@@ -171,7 +185,19 @@ export default function RedeemTokenList() {
                           </div>
                         </div>
                       </TableCell>
-                      <TableCell>{pool.wallet_address}</TableCell>
+                      <TableCell>
+                        <button
+                          onClick={() =>
+                            copyAddressToClipboard(
+                              pool.wallet_address
+                            )
+                          }
+                          className="text-left hover:text-blue-600 transition-colors cursor-pointer"
+                          title="Click to copy full address"
+                        >
+                          {truncateAddress(pool.wallet_address)}
+                        </button>
+                      </TableCell>
                       <TableCell>
                         {pool.total_amount} {pool.token_symbol}
                       </TableCell>
