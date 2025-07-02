@@ -42,6 +42,7 @@ import PriceCard from './utils/PriceCard';
 import PriorityFeeSelector, {
   PriorityLevel,
 } from './utils/PriorityFeeSelector';
+import TokenImage from './TokenImage';
 
 export default function SwapModal({
   open,
@@ -664,6 +665,8 @@ export default function SwapModal({
     return (quote.outAmount / 10 ** outputToken.decimals).toString();
   }, [quote?.outAmount, outputToken?.decimals]);
 
+  console.log('input token', inputToken);
+
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent className="max-w-md w-full rounded-2xl p-6 gap-2">
@@ -728,14 +731,13 @@ export default function SwapModal({
             >
               {selectedInputSymbol ? (
                 <>
-                  <img
+                  <TokenImage
                     src={inputToken?.icon || inputToken?.logoURI}
-                    alt={inputToken?.symbol}
+                    alt={inputToken?.symbol || 'Input Token'}
+                    width={20}
+                    height={20}
                     className="w-5 h-5 mr-2 rounded-full"
-                    onError={(e) => {
-                      (e.target as HTMLImageElement).src =
-                        'https://raw.githubusercontent.com/solana-labs/token-list/main/assets/mainnet/So11111111111111111111111111111111111111112/logo.png';
-                    }}
+                    fallbackSrc={inputToken.marketData?.iconUrl}
                   />
                   <span className="font-medium">
                     {inputToken?.symbol}
@@ -809,14 +811,13 @@ export default function SwapModal({
               className="flex items-center bg-white px-5 py-1 gap-0 rounded-full shadow"
               onClick={() => openTokenList(false)}
             >
-              <img
+              <TokenImage
                 src={outputToken?.icon || outputToken?.logoURI}
-                alt={outputToken?.symbol}
+                alt={outputToken?.symbol || 'Output Token'}
+                width={20}
+                height={20}
                 className="w-5 h-5 mr-2 rounded-full"
-                onError={(e) => {
-                  (e.target as HTMLImageElement).src =
-                    'https://raw.githubusercontent.com/solana-labs/token-list/main/assets/mainnet/EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v/logo.png';
-                }}
+                fallbackSrc={outputToken.marketData?.iconUrl}
               />
               <span className="font-medium">
                 {outputToken?.symbol}
@@ -1020,14 +1021,13 @@ export default function SwapModal({
                       }
                       className="flex items-center justify-start w-full gap-3 text-left hover:bg-gray-100 px-3 py-2 rounded-lg h-auto"
                     >
-                      <img
+                      <TokenImage
                         src={token?.icon || token?.logoURI}
                         alt={token.symbol}
+                        width={32}
+                        height={32}
                         className="w-8 h-8 rounded-full"
-                        onError={(e) => {
-                          (e.target as HTMLImageElement).src =
-                            'https://raw.githubusercontent.com/solana-labs/token-list/main/assets/mainnet/So11111111111111111111111111111111111111112/logo.png';
-                        }}
+                        fallbackSrc={token.marketData?.iconUrl}
                       />
                       <div className="flex flex-col text-sm">
                         <span className="font-medium">

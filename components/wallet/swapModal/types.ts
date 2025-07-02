@@ -12,6 +12,7 @@ export interface TokenInfo {
   usdPrice?: string;
   marketData?: {
     price?: string;
+    iconUrl?: string;
   };
   name?: string;
 }
