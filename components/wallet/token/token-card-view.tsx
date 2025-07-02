@@ -2,8 +2,8 @@ import React from 'react';
 
 import { Card } from '@/components/ui/card';
 import { Area, AreaChart, ResponsiveContainer } from 'recharts';
-import Image from 'next/image';
 import { TokenData } from '@/types/token';
+import TokenImage from './token-image';
 
 interface TokenCardProps {
   token: TokenData;
@@ -21,9 +21,8 @@ export default function TokenCardView({
     >
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center space-x-3">
-          <Image
-            src={token.logoURI}
-            alt={token.symbol}
+          <TokenImage
+            token={token}
             width={32}
             height={32}
             className="rounded-full"

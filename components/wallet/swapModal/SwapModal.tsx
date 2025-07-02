@@ -51,6 +51,7 @@ export default function SwapModal({
   initialInputToken,
   initialOutputToken,
   initialAmount,
+  onTokenRefresh,
 }: SwapModalProps) {
   // State management
   // Initialize state with initial values if provided
@@ -580,6 +581,11 @@ export default function SwapModal({
             'Swap transaction added to your activity feed!'
           );
         }
+
+        // Refresh token list after successful swap
+        if (onTokenRefresh) {
+          onTokenRefresh();
+        }
       },
       onError: (errorMessage) => {
         setError(errorMessage);
@@ -607,6 +613,7 @@ export default function SwapModal({
     inputToken,
     outputToken,
     accessToken,
+    onTokenRefresh,
   ]);
 
   const openTokenList = useCallback((isInput: boolean) => {

@@ -1,8 +1,8 @@
 import React from 'react';
 
 import { Card } from '@/components/ui/card';
-import Image from 'next/image';
 import { TokenData } from '@/types/token';
+import TokenImage from './token-image';
 
 interface TokenCardProps {
   token: TokenData;
@@ -68,18 +68,18 @@ export default function TokenListView({
             : ' text-red-700'
         }`}
       >
-        {parseFloat(token.marketData.change) >= 0 ? '+' : ''}
-        {parseFloat(token.marketData.change)}%
+        {token.marketData.change ? (
+          <>
+            {parseFloat(token.marketData.change) >= 0 ? '+' : ''}
+            {parseFloat(token.marketData.change)}%
+          </>
+        ) : (
+          <div className="text-gray-500">No data available</div>
+        )}
       </div>
       <div className="flex items-center gap-3">
         <div className="mt-2">
-          <Image
-            src={token.logoURI}
-            alt={token.symbol}
-            width={40}
-            height={40}
-            className="rounded-full"
-          />
+          <TokenImage token={token} />
         </div>
         <div>
           <h3 className="font-medium">{token.name}</h3>

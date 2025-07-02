@@ -7,8 +7,8 @@ import {
   DialogContent,
   DialogTitle,
 } from '@/components/ui/dialog';
-import Image from 'next/image';
 import { NFT } from '@/types/nft';
+import NFTImage from './nft-image';
 
 interface NFTDetailProps {
   isOpen: boolean;
@@ -36,7 +36,7 @@ export default function NFTDetailView({
         </button>
 
         <div className="relative aspect-square w-full">
-          <Image
+          <NFTImage
             src={nft.image}
             alt={nft.name}
             fill

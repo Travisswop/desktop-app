@@ -396,7 +396,7 @@ class SolanaNFTServiceClass {
     try {
       let allNFTs: NFT[] = [];
       let page = 1;
-      let pagesFetched = 0;
+
       let hasMoreResults = true;
       const limit = 1000; // Increased to match Helius
       const maxPages = 10; // Safety limit to prevent infinite loops
@@ -448,7 +448,7 @@ class SolanaNFTServiceClass {
         }
 
         const assets = data.result?.items || [];
-        console.log('🚀 ~ getNFTsFromQuickNode ~ assets:', assets);
+
         const total = data.result?.total || 0;
 
         // Transform the assets
@@ -531,9 +531,6 @@ class SolanaNFTServiceClass {
           logger.info(`➡️ QuickNode: Continuing to page ${page}`);
         }
 
-        // Increment pages fetched counter
-        pagesFetched++;
-
         // Add a small delay to avoid rate limiting
         if (hasMoreResults) {
           logger.info(
@@ -541,25 +538,6 @@ class SolanaNFTServiceClass {
           );
           await new Promise((resolve) => setTimeout(resolve, 100));
         }
-      }
-
-      logger.info(
-        `🎉 QuickNode: Completed fetching. Total NFTs: ${allNFTs.length}, Pages fetched: ${pagesFetched}`
-      );
-
-      // Log some sample NFTs for debugging
-      if (allNFTs.length > 0) {
-        logger.info(`📋 Sample NFTs from QuickNode:`);
-        allNFTs.slice(0, 3).forEach((nft, index) => {
-          const date = nft.createdAt
-            ? new Date(nft.createdAt).toISOString()
-            : 'Unknown';
-          logger.info(
-            `  ${index + 1}. ${nft.name} (${
-              nft.tokenId
-            }) - Created: ${date}`
-          );
-        });
       }
 
       return allNFTs;

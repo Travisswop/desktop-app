@@ -14,8 +14,8 @@ import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Send, Wallet } from 'lucide-react';
-import Image from 'next/image';
 import { TimeSeriesData, TokenData } from '@/types/token';
+import TokenImage from './token-image';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import {
   TooltipContent,
@@ -122,9 +122,8 @@ export default function TokenDetails({
         <CardHeader>
           <div className="flex items-center gap-2 mb-2">
             <div className="w-8 h-8 rounded-full">
-              <Image
-                src={token.logoURI}
-                alt={token.name}
+              <TokenImage
+                token={token}
                 width={32}
                 height={32}
                 className="rounded-full"
@@ -138,19 +137,21 @@ export default function TokenDetails({
                 {token.name}
               </p>
             </div>
-            <div
-              className={`text-sm ${
-                parseFloat(changePercentage) > 0
-                  ? 'text-green-500'
-                  : 'text-red-500'
-              }`}
-            >
-              <span className="font-medium">
-                {parseFloat(changePercentage) > 0 ? '+' : ''}
-                {parseFloat(changePercentage).toFixed(2)}%
-              </span>
-              <div className="text-xs">{selectedPeriod}</div>
-            </div>
+            {changePercentage && (
+              <div
+                className={`text-sm ${
+                  parseFloat(changePercentage) > 0
+                    ? 'text-green-500'
+                    : 'text-red-500'
+                }`}
+              >
+                <span className="font-medium">
+                  {parseFloat(changePercentage) > 0 ? '+' : ''}
+                  {parseFloat(changePercentage).toFixed(2)}%
+                </span>
+                <div className="text-xs">{selectedPeriod}</div>
+              </div>
+            )}
           </div>
         </CardHeader>
         <CardContent>
@@ -278,9 +279,8 @@ export default function TokenDetails({
           <div className="flex justify-between items-center mb-6">
             <div className="flex items-center gap-2">
               <div className="w-6 h-6 rounded-full">
-                <Image
-                  src={token.logoURI}
-                  alt={token.name}
+                <TokenImage
+                  token={token}
                   width={24}
                   height={24}
                   className="rounded-full"

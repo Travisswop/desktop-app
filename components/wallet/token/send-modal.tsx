@@ -3,10 +3,10 @@
 import { useState } from 'react';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import Image from 'next/image';
 import { DialogTitle } from '@radix-ui/react-dialog';
 import { TokenData } from '@/types/token';
 import { ArrowUpDown } from 'lucide-react';
+import TokenImage from './token-image';
 
 interface SendTokenModalProps {
   open: boolean;
@@ -197,13 +197,7 @@ export default function SendTokenModal({
         <div className="flex items-center justify-between p-4 bg-gray-50 rounded-xl mb-6 shadow-xl">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-full">
-              <Image
-                src={token.logoURI}
-                alt={token.name}
-                width={52}
-                height={52}
-                className="rounded-full"
-              />
+              <TokenImage token={token} />
             </div>
             <div>
               <div className="font-medium">{token.name}</div>

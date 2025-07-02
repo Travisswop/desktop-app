@@ -1,4 +1,4 @@
-import { useUser } from "@/lib/UserContext";
+import { useUser } from '@/lib/UserContext';
 import {
   ArrowLeftRight,
   Eye,
@@ -6,8 +6,13 @@ import {
   EyeOff,
   EyeOffIcon,
   Wallet,
-} from "lucide-react";
-import React, { useState, useMemo, useEffect, useCallback } from "react";
+} from 'lucide-react';
+import React, {
+  useState,
+  useMemo,
+  useEffect,
+  useCallback,
+} from 'react';
 import {
   AreaChart,
   Area,
@@ -16,19 +21,23 @@ import {
   CartesianGrid,
   Tooltip,
   ResponsiveContainer,
-} from "recharts";
-import AddBankModal from "./bank/AddBankModal";
-import WalletAddressPopup from "./wallet-address-popup";
-import { Skeleton } from "../ui/skeleton";
-import WalletChartButton from "../Button/WalletChartButton";
-import { IoIosSend } from "react-icons/io";
-import { BsBank2, BsQrCodeScan } from "react-icons/bs";
-import { FaRegListAlt } from "react-icons/fa";
-import SwapModal from "./swapModal/SwapModal";
-import logger from "../../utils/logger";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { WalletItem } from "@/types/wallet";
-import clsx from "clsx";
+} from 'recharts';
+import AddBankModal from './bank/AddBankModal';
+import WalletAddressPopup from './wallet-address-popup';
+import { Skeleton } from '../ui/skeleton';
+import WalletChartButton from '../Button/WalletChartButton';
+import { IoIosSend } from 'react-icons/io';
+import { BsBank2, BsQrCodeScan } from 'react-icons/bs';
+import { FaRegListAlt } from 'react-icons/fa';
+import SwapModal from './swapModal/SwapModal';
+import logger from '../../utils/logger';
+import {
+  usePathname,
+  useRouter,
+  useSearchParams,
+} from 'next/navigation';
+import { WalletItem } from '@/types/wallet';
+import clsx from 'clsx';
 
 // Types
 interface BalanceHistoryEntry {
@@ -49,6 +58,7 @@ interface BalanceChartProps {
   totalTokensValue: number;
   accessToken: string;
   tokens: Token[];
+  onTokenRefresh?: () => void;
 }
 
 interface WalletBalanceChartForWalletPageProps {
@@ -57,15 +67,16 @@ interface WalletBalanceChartForWalletPageProps {
   totalBalance: number;
   onSelectAsset: () => void;
   onQRClick: () => void;
+  onTokenRefresh?: () => void;
 }
 
 // Constants
 const TIME_RANGES = {
-  ONE_DAY: "1day",
-  SEVEN_DAYS: "7days",
-  ONE_MONTH: "1month",
-  SIX_MONTHS: "6months",
-  ONE_YEAR: "1year",
+  ONE_DAY: '1day',
+  SEVEN_DAYS: '7days',
+  ONE_MONTH: '1month',
+  SIX_MONTHS: '6months',
+  ONE_YEAR: '1year',
 } as const;
 
 type TimeRange = (typeof TIME_RANGES)[keyof typeof TIME_RANGES];
@@ -77,8 +88,11 @@ const BalanceChart: React.FC<BalanceChartProps> = ({
   totalTokensValue,
   accessToken,
   tokens,
+  onTokenRefresh,
 }) => {
-  const [timeRange, setTimeRange] = useState<TimeRange>(TIME_RANGES.ONE_MONTH);
+  const [timeRange, setTimeRange] = useState<TimeRange>(
+    TIME_RANGES.ONE_MONTH
+  );
   const [showPopup, setShowPopup] = useState(false);
   const [bankShow, setBankShow] = useState(false);
   const [openSwapModal, setOpenSwapModal] = useState(false);
@@ -88,9 +102,9 @@ const BalanceChart: React.FC<BalanceChartProps> = ({
   const router = useRouter();
   const pathname = usePathname();
 
-  const inputTokenParam = searchParams?.get("inputToken");
-  const outputTokenParam = searchParams?.get("outputToken");
-  const amountParam = searchParams?.get("amount");
+  const inputTokenParam = searchParams?.get('inputToken');
+  const outputTokenParam = searchParams?.get('outputToken');
+  const amountParam = searchParams?.get('amount');
 
   // Auto-hide balance after 3 seconds
   useEffect(() => {
@@ -115,10 +129,12 @@ const BalanceChart: React.FC<BalanceChartProps> = ({
       !openSwapModal &&
       (inputTokenParam || outputTokenParam || amountParam)
     ) {
-      const newSearchParams = new URLSearchParams(searchParams as any);
-      newSearchParams.delete("inputToken");
-      newSearchParams.delete("outputToken");
-      newSearchParams.delete("amount");
+      const newSearchParams = new URLSearchParams(
+        searchParams as any
+      );
+      newSearchParams.delete('inputToken');
+      newSearchParams.delete('outputToken');
+      newSearchParams.delete('amount');
       router.replace(`${pathname}?${newSearchParams.toString()}`);
     }
   }, [
@@ -166,13 +182,16 @@ const BalanceChart: React.FC<BalanceChartProps> = ({
     if (timeRange === TIME_RANGES.ONE_DAY) {
       return filtered.sort(
         (a, b) =>
-          new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+          new Date(a.createdAt).getTime() -
+          new Date(b.createdAt).getTime()
       );
     }
 
     const dateAmountMap = filtered.reduce(
       (acc: Record<string, BalanceHistoryEntry>, entry) => {
-        const dateStr = new Date(entry.createdAt).toISOString().split("T")[0];
+        const dateStr = new Date(entry.createdAt)
+          .toISOString()
+          .split('T')[0];
         const existing = acc[dateStr];
         if (
           !existing ||
@@ -193,7 +212,7 @@ const BalanceChart: React.FC<BalanceChartProps> = ({
 
     let lastKnownAmount = 0;
     while (currentDate <= endDate) {
-      const dateStr = currentDate.toISOString().split("T")[0];
+      const dateStr = currentDate.toISOString().split('T')[0];
       if (dateAmountMap[dateStr]) {
         lastKnownAmount = dateAmountMap[dateStr].amount;
       }
@@ -229,8 +248,8 @@ const BalanceChart: React.FC<BalanceChartProps> = ({
     (date: string) => {
       return timeRange === TIME_RANGES.ONE_DAY
         ? new Date(date).toLocaleTimeString([], {
-            hour: "2-digit",
-            minute: "2-digit",
+            hour: '2-digit',
+            minute: '2-digit',
           })
         : new Date(date).toLocaleDateString();
     },
@@ -246,9 +265,13 @@ const BalanceChart: React.FC<BalanceChartProps> = ({
             <button
               onClick={() => setShowBalance((prev) => !prev)}
               className="group relative flex items-center gap-0 px-3 py-1 rounded-xl bg-gradient-to-r from-slate-50 to-gray-50 border border-gray-200 hover:border-gray-300 hover:shadow-md transition-all duration-300 focus:outline-none"
-              aria-label={showBalance ? "Hide balance" : "Show balance"}
+              aria-label={
+                showBalance ? 'Hide balance' : 'Show balance'
+              }
             >
-              <span className={`text-gray-600 ${showBalance && "mr-2"}`}>
+              <span
+                className={`text-gray-600 ${showBalance && 'mr-2'}`}
+              >
                 $
               </span>
               {/* Balance Display */}
@@ -257,8 +280,8 @@ const BalanceChart: React.FC<BalanceChartProps> = ({
                   <span
                     className={`inline-block transition-all duration-700 ease-out ${
                       showBalance
-                        ? "opacity-100 transform translate-y-0"
-                        : "opacity-0 transform translate-y-1"
+                        ? 'opacity-100 transform translate-y-0'
+                        : 'opacity-0 transform translate-y-1'
                     }`}
                   >
                     {totalTokensValue.toLocaleString(undefined, {
@@ -272,8 +295,8 @@ const BalanceChart: React.FC<BalanceChartProps> = ({
                 <div
                   className={`absolute inset-0 flex items-center justify-center transition-all duration-700 ease-out w-full ${
                     !showBalance
-                      ? "opacity-100 transform translate-y-0"
-                      : "opacity-0 transform -translate-y-1 pointer-events-none"
+                      ? 'opacity-100 transform translate-y-0'
+                      : 'opacity-0 transform -translate-y-1 pointer-events-none'
                   }`}
                 >
                   <div className="flex items-center gap-2 text-gray-500">
@@ -296,15 +319,15 @@ const BalanceChart: React.FC<BalanceChartProps> = ({
                   <Eye
                     className={`absolute inset-0 w-4 h-4 text-gray-600 transition-all duration-500 ${
                       showBalance
-                        ? "opacity-100 rotate-0 scale-100"
-                        : "opacity-0 rotate-180 scale-75"
+                        ? 'opacity-100 rotate-0 scale-100'
+                        : 'opacity-0 rotate-180 scale-75'
                     }`}
                   />
                   <EyeOff
                     className={`absolute inset-0 w-4 h-4 text-gray-600 transition-all duration-500 ${
                       !showBalance
-                        ? "opacity-100 rotate-0 scale-100"
-                        : "opacity-0 rotate-180 scale-75"
+                        ? 'opacity-100 rotate-0 scale-100'
+                        : 'opacity-0 rotate-180 scale-75'
                     }`}
                   />
                 </div>
@@ -328,10 +351,11 @@ const BalanceChart: React.FC<BalanceChartProps> = ({
             open={openSwapModal}
             onOpenChange={setOpenSwapModal}
             userToken={tokens}
-            accessToken={accessToken || ""}
-            initialInputToken={inputTokenParam || ""}
-            initialOutputToken={outputTokenParam || ""}
-            initialAmount={amountParam || ""}
+            accessToken={accessToken || ''}
+            initialInputToken={inputTokenParam || ''}
+            initialOutputToken={outputTokenParam || ''}
+            initialAmount={amountParam || ''}
+            onTokenRefresh={onTokenRefresh}
           />
         </div>
       </div>
@@ -339,11 +363,27 @@ const BalanceChart: React.FC<BalanceChartProps> = ({
       <ResponsiveContainer width="100%" height={400}>
         <AreaChart data={filteredData}>
           <defs>
-            <linearGradient id="colorValue" x1="0" y1="0" x2="0" y2="1">
+            <linearGradient
+              id="colorValue"
+              x1="0"
+              y1="0"
+              x2="0"
+              y2="1"
+            >
               <stop offset="0%" stopColor="#CFFAD6" stopOpacity={1} />
-              <stop offset="100%" stopColor="#EFFDF1" stopOpacity={1} />
+              <stop
+                offset="100%"
+                stopColor="#EFFDF1"
+                stopOpacity={1}
+              />
             </linearGradient>
-            <linearGradient id="strokeGradient" x1="0" y1="0" x2="1" y2="0">
+            <linearGradient
+              id="strokeGradient"
+              x1="0"
+              y1="0"
+              x2="1"
+              y2="0"
+            >
               <stop offset="0%" stopColor="#A2EFB9" />
               <stop offset="100%" stopColor="#A1C7E9" />
             </linearGradient>
@@ -360,7 +400,7 @@ const BalanceChart: React.FC<BalanceChartProps> = ({
             axisLine={false}
             tick={false}
             tickLine={false}
-            domain={["auto", "auto"]}
+            domain={['auto', 'auto']}
           />
           <Tooltip
             labelFormatter={(str) =>
@@ -370,7 +410,7 @@ const BalanceChart: React.FC<BalanceChartProps> = ({
             }
             formatter={(value: number) => [
               `$${value.toLocaleString()}`,
-              "Balance",
+              'Balance',
             ]}
           />
           <Area
@@ -384,21 +424,26 @@ const BalanceChart: React.FC<BalanceChartProps> = ({
       </ResponsiveContainer>
 
       <div className="flex items-center gap-6 justify-between">
-        <div className="flex items-center" style={{ marginBottom: "20px" }}>
+        <div
+          className="flex items-center"
+          style={{ marginBottom: '20px' }}
+        >
           <p
             className={`font-semibold p-2 rounded-lg mr-2 ${
               Number(growthPercentage) >= 0
-                ? "text-[#00E725] bg-[#7AE38B33]"
-                : "text-red-500 bg-red-100"
+                ? 'text-[#00E725] bg-[#7AE38B33]'
+                : 'text-red-500 bg-red-100'
             }`}
           >
-            {growthPercentage > 0 ? "+" : ""}
+            {growthPercentage > 0 ? '+' : ''}
             {growthPercentage}%
           </p>
           <label>In the last</label>
           <select
             value={timeRange}
-            onChange={(e) => setTimeRange(e.target.value as TimeRange)}
+            onChange={(e) =>
+              setTimeRange(e.target.value as TimeRange)
+            }
             className="text-[#8A2BE2] ml-2"
           >
             <option value={TIME_RANGES.ONE_DAY}>1 Day</option>
@@ -459,9 +504,18 @@ const SkeletonBalanceChart: React.FC = () => (
 
 const WalletBalanceChartForWalletPage: React.FC<
   WalletBalanceChartForWalletPageProps
-> = ({ walletData, tokens, totalBalance, onSelectAsset, onQRClick }) => {
+> = ({
+  walletData,
+  tokens,
+  totalBalance,
+  onSelectAsset,
+  onQRClick,
+  onTokenRefresh,
+}) => {
   const { user, accessToken } = useUser();
-  const [balanceData, setBalanceData] = useState<BalanceHistoryEntry[]>([]);
+  const [balanceData, setBalanceData] = useState<
+    BalanceHistoryEntry[]
+  >([]);
   const [totalTokensValue, setTotalTokensValue] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -495,7 +549,7 @@ const WalletBalanceChartForWalletPage: React.FC<
         // Silently handle errors and set empty data
         setBalanceData([]);
         setTotalTokensValue(0);
-        logger.error("Error fetching balance data:", error);
+        logger.error('Error fetching balance data:', error);
       } finally {
         setIsLoading(false);
       }
@@ -514,8 +568,9 @@ const WalletBalanceChartForWalletPage: React.FC<
       onSelectAsset={onSelectAsset}
       walletData={walletData}
       totalTokensValue={totalTokensValue}
-      accessToken={accessToken || ""}
+      accessToken={accessToken || ''}
       tokens={tokens}
+      onTokenRefresh={onTokenRefresh}
     />
   );
 };

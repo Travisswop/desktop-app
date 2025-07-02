@@ -9,6 +9,96 @@ import { saveSwapTransaction } from '@/actions/saveTransactionData';
 import logger from '@/utils/logger';
 
 /**
+ * Jupiter Error Code 6014 (0x177e) - Common Solutions:
+ *
+ * This error typically occurs when:
+ * 1. Insufficient liquidity in the trading pair
+ * 2. Price impact is too high for the swap amount
+ * 3. The token pair has low trading volume
+ * 4. The swap amount is too large relative to available liquidity
+ *
+ * Solutions to try:
+ * 1. Reduce the swap amount
+ * 2. Try a different token pair
+ * 3. Increase slippage tolerance (but be careful with this)
+ * 4. Wait for better market conditions
+ * 5. Check if the token has sufficient liquidity on Jupiter
+ */
+
+/**
+ * Maps Jupiter error codes to user-friendly messages
+ * @param errorCode The Jupiter error code (decimal)
+ * @returns User-friendly error message
+ */
+function getJupiterErrorMessage(errorCode: number): string {
+  const errorMessages: Record<number, string> = {
+    6001: 'Swap failed due to insufficient output amount. Try increasing slippage tolerance.',
+    6002: 'Swap failed due to excessive slippage. Try reducing the swap amount.',
+    6003: 'Swap failed due to invalid route. Please try a different token pair.',
+    6004: 'Swap failed due to quote expiration. Please refresh and try again.',
+    6005: 'Swap failed due to insufficient input amount. Please check your balance.',
+    6006: 'Swap failed due to token account not found. Please refresh your wallet connection.',
+    6007: 'Swap failed due to invalid token mint. Please try a different token.',
+    6008: 'Swap failed due to route not found. Please try a different amount or token pair.',
+    6009: 'Swap failed due to price impact too high. Try a smaller amount.',
+    6010: 'Swap failed due to insufficient SOL for fees. Please ensure you have at least 0.002 SOL.',
+    6011: 'Swap failed due to token account already exists. Please try again.',
+    6012: 'Swap failed due to invalid fee account. Please try again.',
+    6013: 'Swap failed due to fee calculation error. Please try again.',
+    6014: 'Swap failed due to insufficient liquidity or price impact too high. Try a smaller amount or different token pair.',
+    6015: 'Swap failed due to route optimization error. Please try again.',
+    6016: 'Swap failed due to invalid platform fee configuration. Please try again.',
+    6017: 'Swap failed due to fee account creation error. Please try again.',
+    6018: 'Swap failed due to token transfer error. Please check your balance and try again.',
+    6019: 'Swap failed due to route validation error. Please try a different token pair.',
+    6020: 'Swap failed due to price validation error. Please try again.',
+  };
+
+  return (
+    errorMessages[errorCode] ||
+    'Swap failed due to an unknown error. Please try again.'
+  );
+}
+
+/**
+ * Gets specific suggestions for Jupiter error codes
+ * @param errorCode The Jupiter error code (decimal)
+ * @returns Array of suggested actions
+ */
+function getJupiterErrorSuggestions(errorCode: number): string[] {
+  const suggestions: Record<number, string[]> = {
+    6014: [
+      'Try reducing the swap amount by 50% or more',
+      'Check if the token has sufficient liquidity on Jupiter',
+      'Consider swapping to a more liquid token first (like USDC)',
+      'Wait for better market conditions',
+      'Try a different token pair with higher volume',
+    ],
+    6001: [
+      'Increase slippage tolerance to 1-2%',
+      'Try a smaller swap amount',
+      'Check if the quote is still valid',
+    ],
+    6009: [
+      'Reduce the swap amount significantly',
+      'Try breaking the swap into smaller chunks',
+      'Check the price impact before confirming',
+    ],
+    6004: [
+      'Refresh the quote and try again',
+      'The market may have moved significantly',
+      'Try again in a few minutes',
+    ],
+  };
+
+  return (
+    suggestions[errorCode] || [
+      'Please try again with different parameters',
+    ]
+  );
+}
+
+/**
  * Simulates a transaction to catch errors before sending
  * @param connection Solana connection
  * @param transaction The transaction to simulate
@@ -36,6 +126,29 @@ async function simulateTransaction(
 
       // Check for specific error types
       const errorStr = JSON.stringify(simulation.value.err);
+
+      // Log Jupiter-specific error codes for debugging
+      if (errorStr.includes('"Custom":')) {
+        const customErrorMatch = errorStr.match(/"Custom":(\d+)/);
+        if (customErrorMatch) {
+          const errorCode = parseInt(customErrorMatch[1]);
+          const hexCode = '0x' + errorCode.toString(16);
+          logger.error(
+            `Jupiter custom error detected: ${errorCode} (${hexCode})`
+          );
+          logger.error('Error details:', simulation.value.err);
+
+          // Log suggestions for common errors
+          const suggestions = getJupiterErrorSuggestions(errorCode);
+          if (suggestions.length > 0) {
+            logger.error('Suggested solutions:');
+            suggestions.forEach((suggestion, index) => {
+              logger.error(`${index + 1}. ${suggestion}`);
+            });
+          }
+        }
+      }
+
       if (errorStr.includes('ProgramFailedToComplete')) {
         logger.error(
           'Program failed to complete - this usually indicates:'
@@ -74,7 +187,7 @@ export async function handleSwap({
   onBalanceRefresh,
   inputToken,
   outputToken,
-  platformFeeBps = 50, // Default to 0.5%
+  platformFeeBps = 100, // Default to 1%
   accessToken,
 }: {
   quote: any;
@@ -171,11 +284,40 @@ export async function handleSwap({
       const response = await fetch(
         `${process.env.NEXT_PUBLIC_API_URL}/api/v5/wallet/tokenAccount/${inputMint}`
       );
-      const data = await response.json();
-      console.log('🚀 ~ data:', data);
-      feeAccount = data.tokenAccount;
+
+      if (!response.ok) {
+        logger.warn(
+          `Fee account API returned ${response.status}, continuing without fees`
+        );
+        feeAccount = undefined;
+      } else {
+        const data = await response.json();
+        console.log('🚀 ~ data:', data);
+
+        // Convert the fee account string to a PublicKey object
+        if (data.tokenAccount) {
+          try {
+            feeAccount = new PublicKey(data.tokenAccount);
+            logger.log(
+              'Fee account converted to PublicKey:',
+              feeAccount.toString()
+            );
+          } catch (pubKeyError) {
+            logger.error('Invalid fee account format:', pubKeyError);
+            feeAccount = undefined;
+          }
+        } else {
+          logger.warn(
+            'No token account returned from API, continuing without fees'
+          );
+        }
+      }
     } catch (error: any) {
-      logger.log('Error setting up fee account:', error);
+      logger.warn(
+        'Error setting up fee account, continuing without fees:',
+        error
+      );
+      feeAccount = undefined;
     }
 
     // Prepare the swap request body
@@ -187,7 +329,7 @@ export async function handleSwap({
       asLegacyTransaction: boolean;
       prioritizationFeeLamports?: string;
       priorityLevel?: PriorityLevel;
-      feeAccount?: PublicKey;
+      feeAccount?: string;
       slippageBps?: number;
     } = {
       quoteResponse: quote,
@@ -205,11 +347,23 @@ export async function handleSwap({
 
     // Add fee account if available
     if (feeAccount) {
-      swapRequestBody.feeAccount = feeAccount;
-      logger.log(
-        'Fee collection enabled with account:',
-        feeAccount.toString()
-      );
+      try {
+        // Validate the fee account one more time before adding
+        const validatedFeeAccount = new PublicKey(
+          feeAccount.toString()
+        );
+        swapRequestBody.feeAccount = validatedFeeAccount.toString();
+        logger.log(
+          'Fee collection enabled with account:',
+          validatedFeeAccount.toString()
+        );
+      } catch (validationError) {
+        logger.error(
+          'Fee account validation failed, disabling fee collection:',
+          validationError
+        );
+        // Don't add fee account to request body
+      }
     } else {
       logger.log('Fee collection disabled - continuing without fees');
     }
@@ -217,6 +371,23 @@ export async function handleSwap({
     // Set custom slippage if provided
     if (slippageBps !== 200) {
       swapRequestBody.slippageBps = slippageBps;
+    }
+
+    // Validate fee account format if present
+    if (swapRequestBody.feeAccount) {
+      try {
+        new PublicKey(swapRequestBody.feeAccount);
+        logger.log(
+          'Fee account validation passed:',
+          swapRequestBody.feeAccount
+        );
+      } catch (validationError) {
+        logger.error(
+          'Invalid fee account format, removing from request:',
+          validationError
+        );
+        delete swapRequestBody.feeAccount;
+      }
     }
 
     // Log the swap request
@@ -435,7 +606,13 @@ export async function handleSwap({
     // Generate appropriate error message based on error type
     if (err.message && err.message.includes('simulation failed')) {
       const errorStr = err.message;
-      if (errorStr.includes('ProgramFailedToComplete')) {
+
+      // Check for Jupiter-specific error codes
+      const customErrorMatch = errorStr.match(/"Custom":(\d+)/);
+      if (customErrorMatch) {
+        const errorCode = parseInt(customErrorMatch[1]);
+        errorMessage = getJupiterErrorMessage(errorCode);
+      } else if (errorStr.includes('ProgramFailedToComplete')) {
         errorMessage =
           'Transaction failed due to insufficient funds or expired quote. Please check your balance and try again.';
       } else if (errorStr.includes('InsufficientFundsForRent')) {
@@ -446,13 +623,14 @@ export async function handleSwap({
           'Token account not found. Please try refreshing your wallet connection.';
       } else if (errorStr.includes('InsufficientFunds')) {
         errorMessage = 'Insufficient token balance for this swap.';
+      } else if (errorStr.includes('Custom')) {
+        // Generic custom error handling
+        errorMessage =
+          'Swap failed due to price movement or insufficient liquidity. Try increasing slippage tolerance or reducing the amount.';
       } else {
         errorMessage =
           'Transaction simulation failed. Please try again with different parameters.';
       }
-    } else if (err.message && err.message.includes('Custom')) {
-      errorMessage =
-        'Swap failed due to price movement. Try increasing slippage tolerance.';
     } else if (err.message && err.message.includes('Blockhash')) {
       errorMessage = 'Transaction expired. Please try again.';
     } else if (

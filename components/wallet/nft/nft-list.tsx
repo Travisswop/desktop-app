@@ -1,8 +1,8 @@
 'use client';
 
 import * as React from 'react';
-import Image from 'next/image';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
+import NFTImage from './nft-image';
 import {
   Carousel,
   CarouselContent,
@@ -216,16 +216,12 @@ export default function NFTSlider({
             >
               <CardContent className="p-4 space-y-3">
                 <div className="relative aspect-square overflow-hidden rounded-lg">
-                  <Image
+                  <NFTImage
                     src={nfts[0].image}
                     alt={nfts[0].name}
                     fill
                     className="object-cover"
                     sizes="(max-width: 768px) 100vw, 300px"
-                    onError={(e) => {
-                      const target = e.target as HTMLImageElement;
-                      target.src = '/images/placeholder-nft.png';
-                    }}
                   />
                 </div>
                 <div>
@@ -263,18 +259,12 @@ export default function NFTSlider({
                   >
                     <CardContent className="p-0">
                       <div className="relative aspect-square overflow-hidden rounded-t-lg">
-                        <Image
+                        <NFTImage
                           src={nft.image}
                           alt={nft.name}
                           fill
                           className="object-cover"
                           sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
-                          onError={(e) => {
-                            const target =
-                              e.target as HTMLImageElement;
-                            target.src =
-                              '/images/placeholder-nft.png';
-                          }}
                         />
                       </div>
                       <div className="p-4">

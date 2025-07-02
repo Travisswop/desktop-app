@@ -7,6 +7,8 @@ import {
 import {
   getAccount,
   getAssociatedTokenAddress,
+  TOKEN_PROGRAM_ID,
+  TOKEN_2022_PROGRAM_ID,
 } from '@solana/spl-token';
 import {
   ChainType,
@@ -274,13 +276,20 @@ export class TokenContractService {
 
 export class SolanaService {
   static async getSplTokens(walletAddress: string) {
-    if (!walletAddress) return [];
+    logger.info('Starting getSplTokens for wallet:', walletAddress);
+
+    if (!walletAddress) {
+      logger.warn('No wallet address provided to getSplTokens');
+      return [];
+    }
 
     try {
       const connection = new Connection(
         process.env.NEXT_PUBLIC_QUICKNODE_SOLANA_URL!,
         'confirmed'
       );
+      logger.info('Solana connection established');
+
       // const connection = new Connection(clusterApiUrl('devnet'));
       const publicKey = new PublicKey(walletAddress);
 
@@ -289,15 +298,42 @@ export class SolanaService {
         logger.error('Invalid wallet address:', walletAddress);
         return [];
       }
+      logger.info('Valid public key created:', publicKey.toString());
 
-      const [balance, tokenAccounts] = await Promise.all([
-        connection.getBalance(publicKey),
-        connection.getParsedTokenAccountsByOwner(publicKey, {
-          programId: new PublicKey(
-            'TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA'
-          ),
-        }),
-      ]);
+      const [balance, tokenAccounts, token2022Accounts] =
+        await Promise.all([
+          connection.getBalance(publicKey),
+          connection.getParsedTokenAccountsByOwner(publicKey, {
+            programId: TOKEN_PROGRAM_ID,
+          }),
+          connection.getParsedTokenAccountsByOwner(publicKey, {
+            programId: TOKEN_2022_PROGRAM_ID,
+          }),
+        ]);
+
+      console.log(
+        '🚀 ~ getSplTokens ~ token2022Accounts:',
+        token2022Accounts
+      );
+
+      logger.info('Raw SOL balance:', balance);
+      logger.info(
+        'Number of regular token accounts found:',
+        tokenAccounts.value.length
+      );
+      logger.info(
+        'Number of Token-2022 accounts found:',
+        token2022Accounts.value.length
+      );
+
+      console.log(
+        '🚀 ~ getSplTokens ~ tokenAccounts:',
+        tokenAccounts
+      );
+      console.log(
+        '🚀 ~ getSplTokens ~ token2022Accounts:',
+        token2022Accounts
+      );
 
       // Check if tokenAccounts is in the expected format
       if (!Array.isArray(tokenAccounts.value)) {
@@ -308,28 +344,72 @@ export class SolanaService {
         return [];
       }
 
+      // Check if token2022Accounts is in the expected format
+      if (!Array.isArray(token2022Accounts.value)) {
+        logger.error(
+          'Unexpected Token-2022 accounts format:',
+          token2022Accounts
+        );
+        return [];
+      }
+
       let solToken;
       if (balance > 0) {
+        logger.info(
+          'Processing native SOL token with balance:',
+          balance
+        );
         const nativeToken = await this.getNativeSolToken();
         solToken = {
           ...nativeToken,
           balance: (balance / Math.pow(10, 9)).toString(),
           address: '',
         };
+        logger.info('Native SOL token processed:', {
+          symbol: solToken.symbol,
+          balance: solToken.balance,
+          name: solToken.name,
+        });
+      } else {
+        logger.info('No SOL balance found, skipping native token');
       }
 
-      const tokenData = await this.getTokenAccountsData(
-        tokenAccounts.value
+      // Process regular token accounts
+      const regularTokenData = await this.getTokenAccountsData(
+        tokenAccounts.value,
+        'regular'
       );
 
-      const validTokenData = tokenData.filter(
+      // Process Token-2022 accounts
+      const token2022Data = await this.getTokenAccountsData(
+        token2022Accounts.value,
+        'token2022'
+      );
+
+      logger.info(
+        'Regular token accounts data processed, valid tokens:',
+        regularTokenData.filter((token) => token !== null).length
+      );
+      logger.info(
+        'Token-2022 accounts data processed, valid tokens:',
+        token2022Data.filter((token) => token !== null).length
+      );
+
+      const validRegularTokenData = regularTokenData.filter(
+        (token) => token !== null
+      );
+      const validToken2022Data = token2022Data.filter(
         (token) => token !== null
       );
 
-      let tokens = [...validTokenData];
+      const tokens = [
+        ...validRegularTokenData,
+        ...validToken2022Data,
+      ];
 
       // Handle SWOP token separately with custom price fetching
       // (filtered out from getTokenAccountsData to prevent duplicates)
+      logger.info('Processing SWOP token separately');
       const swopTokenBalance = await this.getSwopTokenBalance(
         walletAddress
       );
@@ -338,12 +418,18 @@ export class SolanaService {
         SWOP_TOKEN.address || ''
       );
 
+      logger.info('SWOP token details:', {
+        balance: swopTokenBalance,
+        price: swopTokenPrice,
+        address: SWOP_TOKEN.address,
+      });
+
       const swopTokenMarketData = {
         ...SWOP_TOKEN.marketData,
         price: swopTokenPrice,
       };
 
-      tokens = [
+      const finalTokens = [
         {
           ...SWOP_TOKEN,
           balance: (
@@ -353,10 +439,20 @@ export class SolanaService {
           marketData: swopTokenMarketData,
         },
         solToken,
-        ...validTokenData,
-      ];
+        ...tokens,
+      ].filter(Boolean); // Remove any null/undefined tokens
 
-      return tokens;
+      logger.info('Final tokens array assembled:', {
+        totalTokens: finalTokens.length,
+        tokenSymbols: finalTokens.map(
+          (token) => token?.symbol || 'unknown'
+        ),
+        tokenBalances: finalTokens.map(
+          (token) => token?.balance || '0'
+        ),
+      });
+
+      return finalTokens;
     } catch (error) {
       logger.error('Error fetching Solana tokens:', error);
       return [];
@@ -366,6 +462,7 @@ export class SolanaService {
   private static async getNativeSolToken() {
     try {
       const nativeSol = CHAINS.SOLANA.nativeToken;
+
       const marketData = await TokenAPIService.getMarketData({
         uuid: nativeSol.uuid,
       });
@@ -379,7 +476,7 @@ export class SolanaService {
         marketData.uuid
       );
 
-      return {
+      const nativeToken = {
         symbol: nativeSol.symbol,
         name: nativeSol.name,
         decimals: nativeSol.decimals,
@@ -389,6 +486,8 @@ export class SolanaService {
         sparklineData: processSparklineData(timeSeriesData),
         isNative: true,
       };
+
+      return nativeToken;
     } catch (error) {
       logger.error('Error fetching native SOL token:', error);
       return null;
@@ -396,60 +495,152 @@ export class SolanaService {
   }
 
   private static async getTokenAccountsData(
-    tokenAccounts: TokenAccount[]
+    tokenAccounts: TokenAccount[],
+    tokenType: 'regular' | 'token2022' = 'regular'
   ) {
+    logger.info(
+      `Starting getTokenAccountsData for ${tokenType} tokens with`,
+      tokenAccounts.length,
+      'token accounts'
+    );
+
     try {
       const tokens = tokenAccounts
-        .map((token: TokenAccount) => {
+        .map((token: TokenAccount, index: number) => {
           try {
             const { tokenAmount, mint } =
               token.account.data.parsed.info;
+
+            logger.info(
+              `Processing ${tokenType} token account ${index + 1}:`,
+              {
+                mint,
+                decimals: tokenAmount.decimals,
+                balance: tokenAmount.uiAmountString,
+                pubkey: token.pubkey.toString(),
+                tokenType,
+              }
+            );
+
             return {
               decimals: tokenAmount.decimals,
               balance: tokenAmount.uiAmountString,
               address: mint,
             };
           } catch (error) {
-            logger.error('Error parsing token account:', error);
+            logger.error(
+              `Error parsing ${tokenType} token account ${
+                index + 1
+              }:`,
+              error
+            );
             return null;
           }
         })
         .filter(Boolean)
         // Filter out SWOP token to prevent duplicate processing
-        .filter((token) => token?.address !== SWOP_TOKEN.address);
+        .filter((token) => {
+          const isSwopToken = token?.address === SWOP_TOKEN.address;
+          if (isSwopToken) {
+            logger.info(
+              'Filtering out SWOP token to prevent duplicate processing'
+            );
+          }
+          return !isSwopToken;
+        });
 
-      const tokenDataPromises = tokens.map(async (token) => {
+      logger.info('Parsed tokens after filtering:', tokens.length);
+
+      const tokenDataPromises = tokens.map(async (token, index) => {
         if (!token) return null;
+
+        logger.info(
+          `Fetching market data for ${tokenType} token ${index + 1}:`,
+          {
+            address: token.address,
+            balance: token.balance,
+            decimals: token.decimals,
+            tokenType,
+          }
+        );
 
         try {
           const marketData = await TokenAPIService.getMarketData({
             address: token.address,
           });
 
-          if (!marketData) {
-            logger.error(
-              `No market data found for
-              token: ${token.address}`
+          // If no market data price is null, try fetching price directly
+          if (marketData && !marketData.price) {
+            logger.warn(
+              `No market data or price found for token: ${token.address}, trying direct price fetch`
             );
-            return null;
+
+            try {
+              const directPrice = await this.fetchTokenPrice(
+                token.address
+              );
+              logger.info(
+                `Direct price fetch for ${token.address}:`,
+                directPrice
+              );
+
+              if (directPrice && directPrice !== '0') {
+                // Create a basic market data object with the fetched price
+                marketData.price = directPrice;
+              } else {
+                logger.warn(
+                  `Direct price fetch also failed for token: ${token.address}`
+                );
+                return null;
+              }
+            } catch (directPriceError) {
+              logger.error(
+                `Error in direct price fetch for ${token.address}:`,
+                directPriceError
+              );
+              return null;
+            }
           }
 
-          const timeSeriesData =
-            await TokenAPIService.getTimeSeriesData(marketData.uuid);
+          let timeSeriesData = null;
+          // Only fetch time series data if we have a valid UUID from the API
+          if (
+            marketData &&
+            marketData.uuid &&
+            !marketData.uuid.startsWith('direct-')
+          ) {
+            timeSeriesData = await TokenAPIService.getTimeSeriesData(
+              marketData.uuid
+            );
+          }
 
-          return {
+          const processedToken = {
             ...token,
             chain: 'SOLANA',
-            name: marketData.name,
-            symbol: marketData.symbol,
+            name: marketData?.name || 'Unknown Token',
+            symbol: marketData?.symbol || 'UNKNOWN',
             marketData,
-            sparklineData: processSparklineData(timeSeriesData),
+            sparklineData: timeSeriesData
+              ? processSparklineData(timeSeriesData)
+              : [],
             isNative: false,
           };
+
+          logger.info(
+            `${tokenType} token ${index + 1} processed successfully:`,
+            {
+              symbol: processedToken.symbol,
+              name: processedToken.name,
+              balance: processedToken.balance,
+              price: processedToken.marketData?.price,
+              tokenType,
+            }
+          );
+
+          return processedToken;
         } catch (error) {
           logger.error(
-            `Error fetching token data for $
-            {token.address}:`,
+            `Error fetching ${tokenType} token data for ${token.address}:`,
             error
           );
           return null;
@@ -457,7 +648,19 @@ export class SolanaService {
       });
 
       const results = await Promise.all(tokenDataPromises);
-      return results.filter(Boolean);
+      const validResults = results.filter(Boolean);
+
+      logger.info(
+        `${tokenType} token accounts data processing complete:`,
+        {
+          totalProcessed: tokens.length,
+          successfulTokens: validResults.length,
+          failedTokens: tokens.length - validResults.length,
+          tokenType,
+        }
+      );
+
+      return validResults;
     } catch (error) {
       logger.error('Error processing token accounts:', error);
       return [];
@@ -465,6 +668,11 @@ export class SolanaService {
   }
 
   private static async getSwopTokenBalance(walletAddress: string) {
+    logger.info(
+      'Starting getSwopTokenBalance for wallet:',
+      walletAddress
+    );
+
     const connection = new Connection(
       process.env.NEXT_PUBLIC_QUICKNODE_SOLANA_URL!,
       'confirmed'
@@ -472,10 +680,20 @@ export class SolanaService {
     const publicKey = new PublicKey(walletAddress);
     const swopToken = new PublicKey(SWOP_TOKEN.address || '');
 
+    logger.info('SWOP token details:', {
+      swopTokenAddress: swopToken.toString(),
+      walletAddress: publicKey.toString(),
+    });
+
     try {
       const associatedTokenAddress = await getAssociatedTokenAddress(
         swopToken,
         publicKey
+      );
+
+      logger.info(
+        'Associated token address calculated:',
+        associatedTokenAddress.toString()
       );
 
       // Check if the associated token address is valid
@@ -493,22 +711,40 @@ export class SolanaService {
 
       // Check if the token account is valid
       if (!tokenAccount) {
-        logger.error(
+        logger.warn(
           'Token account not found for associated address:',
           associatedTokenAddress.toString()
         );
-        return null;
+        return '0'; // Return 0 instead of null for consistency
       }
+
+      logger.info('SWOP token account found:', {
+        amount: tokenAccount.amount,
+        mint: tokenAccount.mint.toString(),
+      });
 
       return tokenAccount.amount;
     } catch (error) {
       logger.error('Error fetching SWOP token balance:', error);
-      return null;
+      return '0'; // Return 0 instead of null for consistency
     }
   }
 
   private static async fetchTokenPrice(mint: string) {
-    return fetchPrice(new PublicKey(mint));
+    logger.info('Fetching token price for mint:', mint);
+
+    try {
+      const price = await fetchPrice(new PublicKey(mint));
+      logger.info('Token price fetched:', { mint, price });
+      return price;
+    } catch (error) {
+      logger.error(
+        'Error fetching token price for mint:',
+        mint,
+        error
+      );
+      return '0';
+    }
   }
 }
 

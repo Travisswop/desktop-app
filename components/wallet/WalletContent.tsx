@@ -129,6 +129,7 @@ const WalletContentInner = () => {
     tokens,
     loading: tokenLoading,
     error: tokenError,
+    refetch: refetchTokens,
   } = useMultiChainTokenData(
     solWalletAddress,
     evmWalletAddress,
@@ -421,6 +422,7 @@ const WalletContentInner = () => {
           totalBalance={totalBalance}
           onSelectAsset={handleAssetSelect}
           onQRClick={handleQRClick}
+          onTokenRefresh={refetchTokens}
         />
 
         {selectedToken ? (
