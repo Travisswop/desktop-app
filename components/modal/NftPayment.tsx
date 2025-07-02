@@ -142,7 +142,7 @@ export default function NftPaymentModal({
 
   useEffect(() => {
     const convertUSDToToken = (usdAmount: number) => {
-      if (!selectedToken?.marketData.price) return '0';
+      if (!selectedToken?.marketData?.price) return '0';
       const price = parseFloat(selectedToken.marketData.price);
       return (usdAmount / price).toFixed(4);
     };

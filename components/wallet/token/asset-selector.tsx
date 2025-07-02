@@ -73,8 +73,10 @@ export default function AssetSelector({
         </div>
         <div className="text-right">
           <div className="font-medium">
-            {asset.marketData?.price && (
+            {asset.marketData?.price ? (
               <>${parseFloat(asset.marketData.price).toFixed(4)}</>
+            ) : (
+              <span className="text-gray-500">Price unavailable</span>
             )}
           </div>
           <div className="text-sm text-gray-500">

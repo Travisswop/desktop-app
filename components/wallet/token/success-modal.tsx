@@ -80,14 +80,16 @@ export default function TransactionSuccess({
                 <div className="space-y-2">
                   <p className="text-3xl font-bold text-green-600">
                     {isUSD
-                      ? (
-                          parseFloat(amount) /
-                          parseFloat(token.marketData.price)
-                        ).toFixed(2)
+                      ? token.marketData?.price
+                        ? (
+                            parseFloat(amount) /
+                            parseFloat(token.marketData.price)
+                          ).toFixed(2)
+                        : '0.00'
                       : parseFloat(amount).toFixed(2)}{' '}
                     {token.symbol}
                   </p>
-                  {token.marketData.price && (
+                  {token.marketData?.price && (
                     <p className="text-gray-500">
                       ≈ $
                       {isUSD

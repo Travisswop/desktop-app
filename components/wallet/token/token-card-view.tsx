@@ -74,9 +74,11 @@ export default function TokenCardView({
       <div className="flex items-end justify-between">
         <div>
           <p className="text-lg font-semibold">
-            $
-            {token.marketData.price &&
-              parseFloat(token.marketData.price).toFixed(4)}
+            {token.marketData?.price ? (
+              `$${parseFloat(token.marketData.price).toFixed(4)}`
+            ) : (
+              <span className="text-gray-500">Price unavailable</span>
+            )}
           </p>
           <p className="text-sm text-muted-foreground">
             {parseFloat(token.balance).toFixed(4)} {token.symbol}
@@ -84,13 +86,20 @@ export default function TokenCardView({
         </div>
         <div
           className={`text-sm ${
+            token.marketData?.change &&
             parseFloat(token.marketData.change) > 0
               ? 'text-green-500'
               : 'text-red-500'
           }`}
         >
-          {parseFloat(token.marketData.change) > 0 ? '+' : ''}
-          {parseFloat(token.marketData.change)}%
+          {token.marketData?.change ? (
+            <>
+              {parseFloat(token.marketData.change) > 0 ? '+' : ''}
+              {parseFloat(token.marketData.change)}%
+            </>
+          ) : (
+            <span className="text-gray-500">No data</span>
+          )}
         </div>
       </div>
     </Card>

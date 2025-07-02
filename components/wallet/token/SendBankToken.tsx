@@ -141,17 +141,19 @@ export default function SendBankToken({
       ? '0.00'
       : (
           parseFloat(token.balance) *
-          parseFloat(token.marketData.price)
+          (token.marketData?.price
+            ? parseFloat(token.marketData.price)
+            : 0)
         ).toFixed(2);
 
   const convertUSDToToken = (usdAmount: number) => {
-    if (!token?.marketData.price || !hasPrice) return '0';
+    if (!token?.marketData?.price || !hasPrice) return '0';
     const price = parseFloat(token.marketData.price);
     return (usdAmount / price).toFixed(4);
   };
 
   const convertTokenToUSD = (tokenAmount: number) => {
-    if (!token?.marketData.price || !hasPrice) return '0';
+    if (!token?.marketData?.price || !hasPrice) return '0';
     return (tokenAmount * parseFloat(token.marketData.price)).toFixed(
       2
     );

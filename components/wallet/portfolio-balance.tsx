@@ -25,7 +25,9 @@ export default function PortfolioBalance({
     const portfolioValue = tokens.reduce((total, token) => {
       const value =
         parseFloat(token.balance) *
-        parseFloat(token.marketData.price);
+        (token.marketData?.price
+          ? parseFloat(token.marketData.price)
+          : 0);
       return total + value;
     }, 0);
 
@@ -33,9 +35,17 @@ export default function PortfolioBalance({
     const weightedChange = tokens.reduce((total, token) => {
       const value =
         parseFloat(token.balance) *
-        parseFloat(token.marketData.price);
+        (token.marketData?.price
+          ? parseFloat(token.marketData.price)
+          : 0);
       const weight = value / portfolioValue;
-      return total + parseFloat(token.marketData.change) * weight;
+      return (
+        total +
+        (token.marketData?.change
+          ? parseFloat(token.marketData.change)
+          : 0) *
+          weight
+      );
     }, 0);
 
     // Calculate token shares
@@ -43,12 +53,14 @@ export default function PortfolioBalance({
       .map((token) => {
         const value =
           parseFloat(token.balance) *
-          parseFloat(token.marketData.price);
+          (token.marketData?.price
+            ? parseFloat(token.marketData.price)
+            : 0);
         const percentage = (value / portfolioValue) * 100;
         return {
           symbol: token.symbol,
           percentage: percentage,
-          color: token.marketData.color || '#808080', // Default color if not found
+          color: token.marketData?.color || '#808080', // Default color if not found
         };
       })
       // Filter out tokens with less than 1% share and sort by percentage

@@ -131,7 +131,11 @@ export default function TokenDetails({
             </div>
             <div className="flex-1">
               <h1 className="text-2xl font-bold">
-                ${parseFloat(token.marketData.price).toFixed(4)}
+                {token.marketData?.price
+                  ? `$${parseFloat(token.marketData.price).toFixed(
+                      4
+                    )}`
+                  : 'Price unavailable'}
               </h1>
               <p className="text-sm text-muted-foreground">
                 {token.name}
@@ -291,11 +295,12 @@ export default function TokenDetails({
               </span>
             </div>
             <span>
-              $
-              {(
-                parseFloat(token.balance) *
-                parseFloat(token.marketData.price)
-              ).toFixed(2)}
+              {token.marketData?.price
+                ? `$${(
+                    parseFloat(token.balance) *
+                    parseFloat(token.marketData.price)
+                  ).toFixed(2)}`
+                : 'Value unavailable'}
             </span>
           </div>
 

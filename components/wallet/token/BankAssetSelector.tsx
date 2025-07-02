@@ -1,19 +1,19 @@
-"use client";
+'use client';
 
-import { useState } from "react";
+import { useState } from 'react';
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
-} from "@/components/ui/dialog";
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Input } from "@/components/ui/input";
-import { Search } from "lucide-react";
-import Image from "next/image";
-import { TokenData } from "@/types/token";
-import { NFT } from "@/types/nft";
-import toast from "react-hot-toast";
+} from '@/components/ui/dialog';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Input } from '@/components/ui/input';
+import { Search } from 'lucide-react';
+import Image from 'next/image';
+import { TokenData } from '@/types/token';
+import { NFT } from '@/types/nft';
+import toast from 'react-hot-toast';
 
 interface AssetSelectorProps {
   open: boolean;
@@ -34,8 +34,8 @@ export default function BankAssetSelector({
   setSendFlow,
   onNFTNext,
 }: AssetSelectorProps) {
-  const [search, setSearch] = useState("");
-  const [tab, setTab] = useState("crypto");
+  const [search, setSearch] = useState('');
+  const [tab, setTab] = useState('crypto');
 
   // Memoize filtered results to avoid unnecessary re-renders
   const filteredAssets =
@@ -55,11 +55,11 @@ export default function BankAssetSelector({
     ) || [];
 
   const handleAssetSelect = (asset: any) => {
-    if (asset.name === "USDC") {
+    if (asset.name === 'USDC') {
       onNext(asset);
-      setSendFlow((prev: any) => ({ ...prev, step: "bank-amount" }));
+      setSendFlow((prev: any) => ({ ...prev, step: 'bank-amount' }));
     } else {
-      toast.error("Swop and Solana not accepted!");
+      toast.error('Swop and Solana not accepted!');
     }
   };
 
@@ -76,7 +76,7 @@ export default function BankAssetSelector({
           {asset.logoURI && (
             <Image
               src={asset.logoURI}
-              alt={asset.symbol || ""}
+              alt={asset.symbol || ''}
               width={40}
               height={40}
               className="rounded-full"
@@ -86,8 +86,10 @@ export default function BankAssetSelector({
         </div>
         <div className="text-right">
           <div className="font-medium">
-            {asset.marketData?.price && (
+            {asset.marketData?.price ? (
               <>${parseFloat(asset.marketData.price).toFixed(4)}</>
+            ) : (
+              <span className="text-gray-500">Price unavailable</span>
             )}
           </div>
           <div className="text-sm text-gray-500">
@@ -114,7 +116,7 @@ export default function BankAssetSelector({
           {nft.image && (
             <Image
               src={nft.image}
-              alt={nft.name || ""}
+              alt={nft.name || ''}
               width={40}
               height={40}
               className="rounded-lg"
@@ -163,18 +165,20 @@ export default function BankAssetSelector({
         </DialogHeader>
 
         <div className="mt-4 space-y-2 max-h-[400px] overflow-y-auto">
-          {tab === "crypto" && filteredAssets.length > 0 ? (
+          {tab === 'crypto' && filteredAssets.length > 0 ? (
             filteredAssets.map(renderAssetItem)
-          ) : tab === "crypto" ? (
+          ) : tab === 'crypto' ? (
             <div className="text-center text-gray-500 py-4">
               No crypto assets found
             </div>
           ) : null}
 
-          {tab === "nft" && filteredNfts.length > 0 ? (
+          {tab === 'nft' && filteredNfts.length > 0 ? (
             filteredNfts.map(renderNFTItem)
-          ) : tab === "nft" ? (
-            <div className="text-center text-gray-500 py-4">No NFTs found</div>
+          ) : tab === 'nft' ? (
+            <div className="text-center text-gray-500 py-4">
+              No NFTs found
+            </div>
           ) : null}
         </div>
       </DialogContent>

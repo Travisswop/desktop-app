@@ -241,10 +241,8 @@ export async function handleSwap({
         new PublicKey(solanaAddress)
       );
 
-      console.log('🚀 ~ solBalance:', solBalance);
       const minSolForFees = 0.002 * 1e9; // 0.002 SOL for fees - covers transaction fee + rent + buffer
-      console.log('🚀 ~ minSolForFees:', minSolForFees);
-      console.log('🚀 ~ inputMint:', quote.inAmount.toString());
+
       if (
         inputMint.toString() ===
         'So11111111111111111111111111111111111111112'
@@ -252,9 +250,9 @@ export async function handleSwap({
         // If swapping SOL, ensure we have enough for both swap and fees
         // Convert inAmount to number to ensure proper addition
         const inAmountNum = Number(quote.inAmount);
-        console.log('🚀 ~ inAmountNum:', inAmountNum);
+
         const requiredSol = inAmountNum + minSolForFees;
-        console.log('🚀 ~ requiredSol:', requiredSol);
+
         if (solBalance < requiredSol) {
           throw new Error(
             `Insufficient SOL. Need ${(requiredSol / 1e9).toFixed(
@@ -292,7 +290,6 @@ export async function handleSwap({
         feeAccount = undefined;
       } else {
         const data = await response.json();
-        console.log('🚀 ~ data:', data);
 
         // Convert the fee account string to a PublicKey object
         if (data.tokenAccount) {

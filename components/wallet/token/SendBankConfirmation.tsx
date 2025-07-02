@@ -124,14 +124,16 @@ export default function SendBankConfirmation({
                     <div className="text-center space-y-2">
                       <div className="text-3xl font-bold text-gray-700">
                         {isUSD
-                          ? (
-                              parseFloat(amount) /
-                              parseFloat(token.marketData.price)
-                            ).toFixed(2)
+                          ? token.marketData?.price
+                            ? (
+                                parseFloat(amount) /
+                                parseFloat(token.marketData.price)
+                              ).toFixed(2)
+                            : '0.00'
                           : parseFloat(amount).toFixed(2)}{' '}
                         {token.symbol}
                       </div>
-                      {token.marketData.price && (
+                      {token.marketData?.price && (
                         <p className="text-gray-500">
                           ≈ $
                           {isUSD

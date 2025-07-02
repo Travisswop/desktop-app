@@ -135,13 +135,17 @@ export default function TransactionList({
         if (!fromToken || !toToken) return false;
 
         if (tx.swapped) {
-          tx.swapped.from.price = parseFloat(
-            fromToken.marketData.price
-          );
-          tx.swapped.to.price = parseFloat(toToken.marketData.price);
+          tx.swapped.from.price = fromToken.marketData?.price
+            ? parseFloat(fromToken.marketData.price)
+            : 0;
+          tx.swapped.to.price = toToken.marketData?.price
+            ? parseFloat(toToken.marketData.price)
+            : 0;
         }
       } else {
-        tx.currentPrice = parseFloat(token.marketData.price);
+        tx.currentPrice = token.marketData?.price
+          ? parseFloat(token.marketData.price)
+          : 0;
       }
 
       return true;

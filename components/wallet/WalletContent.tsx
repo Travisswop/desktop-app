@@ -148,14 +148,17 @@ const WalletContentInner = () => {
     return tokens.reduce((total, token) => {
       const value =
         parseFloat(token.balance) *
-        parseFloat(token.marketData.price);
+        (token.marketData?.price
+          ? parseFloat(token.marketData.price)
+          : 0);
       return isNaN(value) ? total : total + value;
     }, 0);
   }, [tokens]);
 
   const nativeTokenPrice = useMemo(
     () =>
-      tokens.find((token) => token.isNative)?.marketData.price || '0',
+      tokens.find((token) => token.isNative)?.marketData?.price ||
+      '0',
     [tokens]
   );
 

@@ -506,7 +506,7 @@ export default function SendToModal({
           tokenLogo={selectedToken.logoURI}
           tokenSymbol={selectedToken.symbol}
           tokenDecimals={selectedToken.decimals}
-          tokenPrice={selectedToken.marketData.price}
+          tokenPrice={selectedToken.marketData?.price || '0'}
           isUSD={isUSD}
         />
       )}

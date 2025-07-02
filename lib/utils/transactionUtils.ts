@@ -26,7 +26,9 @@ export function createTransactionPayload({
       tokenPrice: sendFlow.isUSD
         ? sendFlow.amount
         : Number(sendFlow.amount) *
-          Number(sendFlow.token?.marketData.price),
+          (sendFlow.token?.marketData?.price
+            ? Number(sendFlow.token.marketData.price)
+            : 0),
       transaction_hash: hash,
     },
   };

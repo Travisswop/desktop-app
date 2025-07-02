@@ -665,8 +665,6 @@ export default function SwapModal({
     return (quote.outAmount / 10 ** outputToken.decimals).toString();
   }, [quote?.outAmount, outputToken?.decimals]);
 
-  console.log('input token', inputToken);
-
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent className="max-w-md w-full rounded-2xl p-6 gap-2">

@@ -50,8 +50,10 @@ export default function TokenSelector({
         </div>
         <div className="text-right">
           <div className="font-medium">
-            {asset.marketData?.price && (
+            {asset.marketData?.price ? (
               <>${parseFloat(asset.marketData.price).toFixed(4)}</>
+            ) : (
+              <span className="text-gray-500">Price unavailable</span>
             )}
           </div>
           <div className="text-sm text-gray-500">
@@ -78,12 +80,15 @@ export default function TokenSelector({
               <span className="sr-only">Close</span>
             </button> */}
         </div>
-        
+
         {/* Order Confirmation */}
         <div className="bg-gray-50 p-3 rounded-md mb-4">
-          <p className="text-sm font-medium mb-2">Order Confirmation</p>
+          <p className="text-sm font-medium mb-2">
+            Order Confirmation
+          </p>
           <p className="text-xs text-gray-600">
-            Your order has been created. Please select a token to complete your payment.
+            Your order has been created. Please select a token to
+            complete your payment.
           </p>
         </div>
 

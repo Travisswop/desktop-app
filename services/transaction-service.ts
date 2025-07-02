@@ -96,7 +96,7 @@ export class TransactionService {
 
     let amount = parseFloat(sendFlow.amount);
 
-    if (sendFlow.isUSD) {
+    if (sendFlow.isUSD && sendFlow.token?.marketData?.price) {
       amount = amount / parseFloat(sendFlow.token.marketData.price);
     }
 
@@ -381,7 +381,9 @@ export class TransactionService {
         tokenSymbol: sendFlow.token.symbol,
         tokenDecimal: decimals,
         network: sendFlow.token.chain,
-        currentPrice: parseFloat(sendFlow.token.marketData.price),
+        currentPrice: sendFlow.token?.marketData?.price
+          ? parseFloat(sendFlow.token.marketData.price)
+          : 0,
         isSwapped: false,
         nativeTokenPrice: 0,
         isNew: true,

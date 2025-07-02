@@ -63,12 +63,13 @@ export default function TokenListView({
     >
       <div
         className={`absolute top-1 left-1 p-1 text-xs ${
+          token.marketData?.change &&
           parseFloat(token.marketData.change) >= 0
             ? ' text-green-700'
             : ' text-red-700'
         }`}
       >
-        {token.marketData.change ? (
+        {token.marketData?.change ? (
           <>
             {parseFloat(token.marketData.change) >= 0 ? '+' : ''}
             {parseFloat(token.marketData.change)}%
@@ -92,7 +93,11 @@ export default function TokenListView({
       <div className="flex items-center gap-4">
         <div className="text-right">
           <p className="font-bold">
-            ${parseFloat(token.marketData.price).toFixed(4)}
+            {token.marketData?.price ? (
+              `$${parseFloat(token.marketData.price).toFixed(4)}`
+            ) : (
+              <span className="text-gray-500">Price unavailable</span>
+            )}
           </p>
           <p className="text-sm text-gray-600">
             {parseFloat(token.balance).toFixed(4)} {token.symbol}
