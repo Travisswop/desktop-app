@@ -22,18 +22,25 @@ const OrderHeaderComponent: React.FC<OrderHeaderProps> = memo(
   ({
     order,
     userRole,
-    isCompleted,
     isUpdating,
     onMarkComplete,
     onUpdateShipping,
     disputes = [],
   }) => {
+    const findCompleteStatus = order.processingStages?.find(
+      (item: any) =>
+        item.stage === 'order_completed' &&
+        item.status === 'completed'
+    );
+
+    const isCompleted = !!findCompleteStatus;
     // Memoize status chip color calculation
     const statusChipColor = useMemo(() => {
       if (order?.orderType !== 'non-phygitals') {
         if (
           order.status.delivery === 'Completed' &&
-          order.status.payment === 'completed'
+          order.status.payment === 'completed' &&
+          isCompleted
         ) {
           return 'success';
         }
@@ -75,17 +82,16 @@ const OrderHeaderComponent: React.FC<OrderHeaderProps> = memo(
       if (order?.orderType !== 'non-phygitals') {
         if (
           order.status.delivery === 'Completed' &&
-          order.status.payment === 'completed'
+          order.status.payment === 'completed' &&
+          isCompleted
         ) {
           return 'Completed';
-        }
-        if (order.status.delivery !== 'Completed') {
+        } else if (order.status.delivery !== 'Completed') {
           return order.status.delivery;
-        }
-        if (order.status.payment !== 'completed') {
+        } else if (order.status.payment !== 'completed') {
           return order.status.payment;
         }
-        return order.status.delivery;
+        return 'In Progress';
       } else {
         return order.status.payment;
       }
@@ -93,6 +99,7 @@ const OrderHeaderComponent: React.FC<OrderHeaderProps> = memo(
       order?.orderType,
       order.status.delivery,
       order.status.payment,
+      isCompleted,
     ]);
 
     // Memoize refunded tag visibility
