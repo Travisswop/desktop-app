@@ -311,11 +311,6 @@ export class SolanaService {
           }),
         ]);
 
-      console.log(
-        '🚀 ~ getSplTokens ~ token2022Accounts:',
-        token2022Accounts
-      );
-
       logger.info('Raw SOL balance:', balance);
       logger.info(
         'Number of regular token accounts found:',
@@ -324,15 +319,6 @@ export class SolanaService {
       logger.info(
         'Number of Token-2022 accounts found:',
         token2022Accounts.value.length
-      );
-
-      console.log(
-        '🚀 ~ getSplTokens ~ tokenAccounts:',
-        tokenAccounts
-      );
-      console.log(
-        '🚀 ~ getSplTokens ~ token2022Accounts:',
-        token2022Accounts
       );
 
       // Check if tokenAccounts is in the expected format

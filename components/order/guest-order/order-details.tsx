@@ -89,7 +89,8 @@ export default function GuestOrderInfos() {
 
       const findCompleteStatus = order.processingStages?.find(
         (item: any) =>
-          item.stage === 'completed' && item.status === 'completed'
+          item.stage === 'order_completed' &&
+          item.status === 'completed'
       );
 
       setIsCompleted(!!findCompleteStatus);
@@ -282,9 +283,8 @@ export default function GuestOrderInfos() {
     order.status.delivery === 'Completed' &&
     !isCompleted;
 
-  const canDispute = order.orderType !== 'non-phygitals';
-
-  logger.info(isCompleted);
+  const canDispute =
+    order.orderType !== 'non-phygitals' && !isCompleted;
 
   return (
     <div className="container mx-auto px-4 py-4 max-w-5xl">
@@ -514,22 +514,6 @@ export default function GuestOrderInfos() {
                                 </span>
                               </div>
                             </>
-                          )}
-
-                          {/* Payment Intent ID for Stripe */}
-                          {order.stripePayment?.paymentIntentId && (
-                            <div className="flex justify-between text-sm mt-1">
-                              <span className="text-gray-600">
-                                Payment ID
-                              </span>
-                              <span className="font-mono text-xs">
-                                {order.stripePayment.paymentIntentId.substring(
-                                  0,
-                                  15
-                                )}
-                                ...
-                              </span>
-                            </div>
                           )}
 
                           {/* Wallet Payment Details */}
