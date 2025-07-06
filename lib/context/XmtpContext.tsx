@@ -100,6 +100,7 @@ export const XmtpProvider: React.FC<{
             if (address.toLowerCase() === walletAddress) {
               const client = await Client.create(null, {
                 env: 'production',
+                release: 'v3',
                 privateKeyOverride: new Uint8Array(keys),
               });
 
@@ -157,11 +158,13 @@ export const XmtpProvider: React.FC<{
         // Get keys first (requires one signature)
         const keys = await Client.getKeys(signer, {
           env: 'production',
+          release: 'v3',
         });
 
         // Create client using the keys (no signature needed)
         const client = await Client.create(null, {
           env: 'production',
+          release: 'v3',
           privateKeyOverride: keys,
         });
 
