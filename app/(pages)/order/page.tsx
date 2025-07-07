@@ -61,6 +61,10 @@ interface Order {
     delivery: string;
     isDead: boolean;
   };
+  payout?: {
+    status: string;
+    txHash: string;
+  };
 }
 
 interface Pagination {
@@ -142,7 +146,7 @@ const OrderManagement = () => {
     error,
     isFetching, // for background fetching indicator
     refetch,
-  } = useOrderList(filters, accessToken);
+  } = useOrderList(filters, accessToken || '');
 
   // Update pagination state whenever data changes
   useEffect(() => {
@@ -312,6 +316,8 @@ const OrderManagement = () => {
     activeTab === 'orders'
       ? data?.orders || []
       : data?.purchases || [];
+
+  console.log('currentOrders', currentOrders);
 
   // Determine if we have no data to show
   const noOrders = !isLoading && currentOrders.length === 0;
@@ -713,6 +719,16 @@ const OrderManagement = () => {
                       <TableHead className="font-semibold">
                         Payment Status
                       </TableHead>
+                      {activeTab === 'orders' && (
+                        <>
+                          <TableHead className="font-semibold">
+                            Payout Status
+                          </TableHead>
+                          <TableHead className="font-semibold">
+                            Payout Transaction
+                          </TableHead>
+                        </>
+                      )}
                       <TableHead className="font-semibold">
                         Delivery Status
                       </TableHead>
@@ -763,6 +779,38 @@ const OrderManagement = () => {
                             type="payment"
                           />
                         </TableCell>
+                        {activeTab === 'orders' && (
+                          <>
+                            <TableCell>
+                              <StatusBadge
+                                status={
+                                  order.payout?.status ||
+                                  'Not Initiated'
+                                }
+                                type="payment"
+                              />
+                            </TableCell>
+                            <TableCell>
+                              {order.payout?.status === 'completed' &&
+                              order.payout?.txHash ? (
+                                <a
+                                  href={`https://solscan.io/tx/${order.payout.txHash}`}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  onClick={(e) => e.stopPropagation()}
+                                  className="text-blue-600 hover:text-blue-800 underline"
+                                >
+                                  {order.payout.txHash.slice(0, 8)}
+                                  ...
+                                </a>
+                              ) : (
+                                <span className="text-gray-500">
+                                  -
+                                </span>
+                              )}
+                            </TableCell>
+                          </>
+                        )}
                         <TableCell>
                           {order.orderType === 'non-phygitals' ? (
                             <span className="text-gray-500 text-sm">

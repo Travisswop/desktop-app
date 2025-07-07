@@ -134,6 +134,10 @@ interface Order {
     delivery: string;
     isDead: boolean;
   };
+  payout?: {
+    status: string;
+    txHash: string;
+  };
 }
 
 interface OrderQueryOptions {
