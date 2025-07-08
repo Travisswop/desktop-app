@@ -12,6 +12,7 @@ import {
   Newspaper,
   LayoutGrid,
   Bot,
+  ScanQrCode,
 } from "lucide-react";
 import { usePathname, useRouter } from "next/navigation";
 import swopLogo from "@/public/images/swop-logo.png";
@@ -33,14 +34,14 @@ import {
 } from "./ui/sidebar";
 import { UpgradePlanNavbar } from "./UpgradePlanNavbar";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
-import { DropdownMenuTrigger } from "./ui/dropdown-menu";
+import { ChartNoAxesColumn } from "lucide-react";
 
 // First, create the base nav items without the Agent item
 const baseNavItems = [
   { href: "/", label: "Feed", icon: Newspaper },
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/smartsite", label: "Smartsites", icon: LayoutGrid },
-  { href: "/qr-code", label: "QR Code", icon: QrCode },
+  { href: "/smartsite", label: "Smartsites", icon: ChartNoAxesColumn },
+  { href: "/qr-code", label: "QR Code", icon: ScanQrCode },
   { href: "/wallet", label: "Wallet", icon: Wallet },
   { href: "/analytics", label: "Analytics", icon: BarChart2 },
   { href: "/mint", label: "Mint", icon: ImageIcon },
