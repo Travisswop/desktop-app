@@ -14,7 +14,6 @@ import {
   Bot,
 } from "lucide-react";
 import { usePathname, useRouter } from "next/navigation";
-import { cn } from "@/lib/utils";
 import swopLogo from "@/public/images/swop-logo.png";
 import swopCollapseLogo from "@/public/images/swop-collapse-logo.png";
 import { MdOutlineShoppingCart } from "react-icons/md";
@@ -32,6 +31,9 @@ import {
   SidebarMenuItem,
   useSidebar,
 } from "./ui/sidebar";
+import { UpgradePlanNavbar } from "./UpgradePlanNavbar";
+import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
+import { DropdownMenuTrigger } from "./ui/dropdown-menu";
 
 // First, create the base nav items without the Agent item
 const baseNavItems = [
@@ -50,15 +52,7 @@ export default function Sidenav() {
   const [hideUpgradePlan, setHideUpgradePlan] = useState(true);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
 
-  const {
-    state,
-    open,
-    setOpen,
-    openMobile,
-    setOpenMobile,
-    isMobile,
-    toggleSidebar,
-  } = useSidebar();
+  const { open } = useSidebar();
 
   console.log("sidebar open", open);
 
@@ -105,7 +99,11 @@ export default function Sidenav() {
           <SidebarGroupContent>
             {/* <aside className="fixed left-0 top-0 z-40 h-screen w-64 border-r bg-white overflow-x-hidden"> */}
             <div className="flex h-full flex-col !p-0">
-              <SidebarHeader className="h-[89px] flex border-b">
+              <SidebarHeader
+                className={`${open ? "h-[92px]" : "h-[90px]"} flex border-b ${
+                  !open && "flex items-center justify-center"
+                }`}
+              >
                 {open ? (
                   <Link
                     href="/"
@@ -121,10 +119,10 @@ export default function Sidenav() {
                 ) : (
                   <Link
                     href="/"
-                    className="h-full flex justify-start items-center translate-x-3"
+                    className=" flex justify-start items-center w-9 h-full"
                   >
                     <Image
-                      className="w-10 h-auto"
+                      className="w-9 h-auto"
                       src={swopCollapseLogo}
                       quality={100}
                       alt="SWOP"
@@ -132,8 +130,12 @@ export default function Sidenav() {
                   </Link>
                 )}
               </SidebarHeader>
-              <div className="h-full flex flex-col justify-between overflow-y-auto">
-                <SidebarMenu className="py-6 px-3 flex flex-col gap-2">
+              <div className="h-full flex flex-col justify-between overflow-y-auto overflow-x-hidden">
+                <SidebarMenu
+                  className={`py-6 flex flex-col ${
+                    open ? "justify-start px-3" : "justify-center items-center"
+                  } gap-2`}
+                >
                   {navItems.map((item) => {
                     const Icon = item.icon;
 
@@ -145,6 +147,7 @@ export default function Sidenav() {
                     return (
                       <SidebarMenuItem key={item.href}>
                         <SidebarMenuButton
+                          tooltip={item.label}
                           asChild
                           className={`text-base ${
                             isActive
@@ -154,7 +157,7 @@ export default function Sidenav() {
                         >
                           <Link
                             href={item.href}
-                            className="flex items-center gap-3 rounded-lg px-3 py-2 text-[#424651]"
+                            className="w-full flex items-center gap-3 rounded-lg px-3 py-2 text-[#424651]"
                           >
                             <Icon className="h-4 w-4" />
                             {item.label}
@@ -163,6 +166,30 @@ export default function Sidenav() {
                       </SidebarMenuItem>
                     );
                   })}
+                  {!open && (
+                    <>
+                      <div className="mt-8 border-t w-full flex justify-center pt-2">
+                        <UpgradePlanNavbar
+                          hideUpgradePlan={hideUpgradePlan}
+                          setHideUpgradePlan={setHideUpgradePlan}
+                        />
+                      </div>
+
+                      <div className="w-full flex justify-center pt-2">
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <button
+                              onClick={handleLogout}
+                              className="flex items-center gap-1 font-medium hover:bg-[#efeff7] p-1.5 rounded"
+                            >
+                              <HiOutlineLogout size={18} />
+                            </button>
+                          </TooltipTrigger>
+                          <TooltipContent side="right">Logout</TooltipContent>
+                        </Tooltip>
+                      </div>
+                    </>
+                  )}
                 </SidebarMenu>
                 {/* <div className="border-t p-4 text-[#454547] text-base h-full flex flex-col justify-end">
                   {hideUpgradePlan && (
