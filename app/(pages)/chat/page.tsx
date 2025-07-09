@@ -27,8 +27,9 @@ import { useXmtpContext } from '@/lib/context/XmtpContext';
 import ChatBox from '@/components/wallet/chat/chat-box';
 import { useDebouncedCallback } from 'use-debounce';
 import { Skeleton } from '@/components/ui/skeleton';
-import { useSolanaWallets } from '@privy-io/react-auth';
-import { useWallets } from '@privy-io/react-auth';
+import { AnyConversation } from '@/lib/xmtp';
+import { safeGetPeerAddress } from '@/lib/xmtp-safe';
+
 
 interface MessageProps {
   bio: string;
@@ -95,7 +96,14 @@ const getPeerData = async (peerAddresses: string[]) => {
 };
 
 const ChatPageContent = () => {
-  const { client: xmtpClient } = useXmtpContext();
+  const {
+    client: xmtpClient,
+    conversations,
+    conversationRequests,
+    newConversation,
+    canMessage,
+    refreshConversations,
+  } = useXmtpContext();
   const { user: PrivyUser } = usePrivy();
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -110,81 +118,288 @@ const ChatPageContent = () => {
   const [searchResult, setSearchResult] = useState<PeerData | null>(
     null
   );
-  const [conversation, setConversation] = useState<any>(null);
   const [peerData, setPeerData] = useState<PeerData[]>([]);
-  const [messageHistory, setMessageHistory] = useState<any[]>([]);
-  const [peerAddressList, setPeerAddressList] = useState<string[]>(
-    []
-  );
   const [isLoadingPeerData, setIsLoadingPeerData] = useState(false);
   const [changeConversationLoading, setChangeConversationLoading] =
     useState(false);
   const [micrositeData, setMicrositeData] =
     useState<MessageProps | null>(null);
-  const [recipientAddress, setRecipientAddress] = useState<
-    string | null
-  >(null);
   const [tokenData, setTokenData] = useState<any>(null);
+  const [selectedConversation, setSelectedConversation] =
+    useState<AnyConversation | null>(null);
+  const [xmtpError, setXmtpError] = useState<string | null>(null);
 
-  const fetchConversations = useCallback(async () => {
-    if (!xmtpClient) return;
+  const peerAddresses = useMemo(() => {
+    if (!conversations) return [];
+    // We'll need to extract peer addresses asynchronously, so this will be handled differently
+    // For now, return empty array and handle peer address extraction in useEffect
+    return [];
+  }, [conversations]);
 
-    try {
-      const conversations = await xmtpClient.conversations.list();
-      const peerList = conversations.map(
-        (conversation: any) => conversation.peerAddress
-      );
-      setPeerAddressList(peerList);
-    } catch (error) {
-      console.error('Failed to fetch conversations:', error);
-    }
-  }, [xmtpClient]);
+  // Add useEffect to extract peer addresses properly
+  useEffect(() => {
+    const extractPeerAddresses = async () => {
+      if (!conversations || !conversations.length) return;
 
-  const startConversation = useCallback(
+      const addresses: string[] = [];
+      for (const convo of conversations) {
+        try {
+          // Use the same logic as working version
+          const dm = convo as unknown as { peerAddress?: string; topic?: string };
+          const peerAddress: string = dm.peerAddress || "";
+          const topic: string = dm.topic || "";
+          const displayAddress = peerAddress || topic || "";
+
+          if (displayAddress) {
+            addresses.push(displayAddress);
+          }
+        } catch (error) {
+          console.error('Error extracting peer address:', error);
+        }
+      }
+
+      // Update your state that uses peer addresses here
+      console.log('📝 [ChatPage] Extracted peer addresses:', addresses);
+    };
+
+    extractPeerAddresses();
+  }, [conversations]);
+
+  const handleSelectConversation = useCallback(
     async (recipientAddress: string) => {
-      if (!recipientAddress || !xmtpClient) return;
+      if (!recipientAddress || !xmtpClient) {
+        console.log('⚠️ [ChatPage] Cannot select conversation:', {
+          hasRecipientAddress: !!recipientAddress,
+          hasXmtpClient: !!xmtpClient,
+          recipientAddress
+        });
+        return;
+      }
+
+      console.log('🎯 [ChatPage] Selecting conversation with:', recipientAddress);
+      console.log('📋 [ChatPage] Current conversations count:', conversations.length);
 
       try {
         setChangeConversationLoading(true);
+        setSelectedConversation(null);
+        setXmtpError(null);
 
-        // Clear existing conversation and messages
-        setConversation(null);
-        setMessageHistory([]);
+        // Check for existing conversation in both allowed and requests
+        let existingConvo = null;
 
-        const conversation =
-          await xmtpClient.conversations.newConversation(
-            recipientAddress
-          );
+        // Check conversations with proper peer address extraction (matching working version)
+        for (const convo of conversations) {
+          try {
+            // Use the same logic as working version
+            const dm = convo as unknown as { peerAddress?: string; topic?: string };
+            const peerAddress: string = dm.peerAddress || "";
+            const topic: string = dm.topic || "";
+            const displayAddress = peerAddress || topic || "";
 
-        const messages = await conversation.messages();
+            console.log('🔍 [ChatPage] Checking conversation:', {
+              id: (convo as any).id,
+              peerAddress: peerAddress || 'null',
+              topic: topic || 'null',
+              displayAddress: displayAddress || 'null',
+              targetAddress: recipientAddress
+            });
 
-        setConversation(conversation);
-        setMessageHistory(messages);
+            // Check if this conversation matches the recipient
+            if (displayAddress && displayAddress.toLowerCase() === recipientAddress.toLowerCase()) {
+              existingConvo = convo;
+              console.log('✅ [ChatPage] Found conversation by displayAddress match');
+              break;
+            }
 
-        // Update micrositeData based on search result or peer data
+            // Also check if peerAddress specifically matches (direct match)
+            if (peerAddress && peerAddress.toLowerCase() === recipientAddress.toLowerCase()) {
+              existingConvo = convo;
+              console.log('✅ [ChatPage] Found conversation by peerAddress match');
+              break;
+            }
+          } catch (error) {
+            console.error('Error checking conversation:', error);
+          }
+        }
+
+        // If not found in allowed conversations, check conversation requests
+        if (!existingConvo) {
+          for (const convo of conversationRequests) {
+            try {
+              // Use the same logic as working version
+              const dm = convo as unknown as { peerAddress?: string; topic?: string };
+              const peerAddress: string = dm.peerAddress || "";
+              const topic: string = dm.topic || "";
+              const displayAddress = peerAddress || topic || "";
+
+              console.log('🔍 [ChatPage] Checking conversation request:', {
+                id: (convo as any).id,
+                peerAddress: peerAddress || 'null',
+                topic: topic || 'null',
+                displayAddress: displayAddress || 'null',
+                targetAddress: recipientAddress
+              });
+
+              // Check if this conversation matches the recipient
+              if (displayAddress && displayAddress.toLowerCase() === recipientAddress.toLowerCase()) {
+                existingConvo = convo;
+                console.log('✅ [ChatPage] Found conversation in requests by displayAddress match');
+                break;
+              }
+
+              // Also check if peerAddress specifically matches
+              if (peerAddress && peerAddress.toLowerCase() === recipientAddress.toLowerCase()) {
+                existingConvo = convo;
+                console.log('✅ [ChatPage] Found conversation in requests by peerAddress match');
+                break;
+              }
+            } catch (error) {
+              console.error('Error checking conversation request:', error);
+            }
+          }
+          console.log('🔍 [ChatPage] Checked conversation requests, found:', !!existingConvo);
+        }
+
+        // If still not found, try alternative matching methods
+        if (!existingConvo) {
+          console.log('🔍 [ChatPage] Trying alternative conversation matching methods...');
+
+          // Try checking all conversations for any that might match this peer
+          const allConversations = [...conversations, ...conversationRequests];
+          for (const convo of allConversations) {
+            console.log('🔍 [ChatPage] Checking conversation:', {
+              id: (convo as any).id,
+              peerAddress: (convo as any).peerAddress,
+              members: (convo as any).members,
+              allKeys: Object.keys(convo as any)
+            });
+
+            // Try different ways to match the peer
+            if ((convo as any).peerAddress?.toLowerCase() === recipientAddress.toLowerCase()) {
+              existingConvo = convo;
+              console.log('✅ [ChatPage] Found conversation by peerAddress (case insensitive)');
+              break;
+            }
+
+            // Check if this conversation has the target address as a member
+            try {
+              const members = await (convo as any).members?.();
+              if (members && Array.isArray(members)) {
+                const memberAddresses = members.map((m: any) => m.accountAddresses || m.addresses || m.address).flat();
+                if (memberAddresses.some((addr: string) => addr?.toLowerCase() === recipientAddress.toLowerCase())) {
+                  existingConvo = convo;
+                  console.log('✅ [ChatPage] Found conversation by member address');
+                  break;
+                }
+              }
+            } catch (memberError) {
+              console.log('⚠️ [ChatPage] Could not check members for conversation:', memberError);
+            }
+          }
+        }
+
+        if (existingConvo) {
+          console.log('✅ [ChatPage] Found existing conversation:', {
+            conversationId: (existingConvo as any).id,
+            peerAddress: (existingConvo as any).peerAddress
+          });
+
+          // Check if the conversation needs to be allowed
+          try {
+            const consentState = (existingConvo as any).consentState;
+            console.log('🔍 [ChatPage] Conversation consent state:', consentState);
+
+            if (typeof consentState === 'function') {
+              const currentState = await consentState();
+              console.log('🔍 [ChatPage] Current consent state:', currentState);
+
+              if (currentState !== 'allowed') {
+                console.log('🔄 [ChatPage] Auto-allowing conversation for seamless messaging...');
+                // @ts-ignore
+                await existingConvo.updateConsentState?.('allowed');
+                console.log('✅ [ChatPage] Existing conversation auto-allowed successfully');
+
+                // Refresh conversations to update the state
+                console.log('🔄 [ChatPage] Refreshing conversations after allowing...');
+                // We'll need to get the updated conversation list
+                setTimeout(async () => {
+                  await refreshConversations?.();
+                }, 100);
+              }
+            } else if (consentState !== 'allowed') {
+              console.log('🔄 [ChatPage] Auto-allowing conversation (direct state)...');
+              // @ts-ignore
+              await existingConvo.updateConsentState?.('allowed');
+              console.log('✅ [ChatPage] Existing conversation auto-allowed successfully');
+            }
+          } catch (consentError) {
+            console.warn('⚠️ [ChatPage] Could not check/update consent state:', consentError);
+          }
+
+          setSelectedConversation(existingConvo);
+        } else {
+          console.log('🔍 [ChatPage] No existing conversation found, checking if user can receive messages...');
+
+          // First check if the address can receive XMTP messages
+          const canMessageUser = await canMessage(recipientAddress);
+          console.log('🔍 [ChatPage] Can message user result:', canMessageUser);
+
+          if (!canMessageUser) {
+            // The user doesn't have XMTP enabled
+            console.log('❌ [ChatPage] User cannot receive XMTP messages:', recipientAddress);
+            setXmtpError(
+              `This address hasn't enabled XMTP messaging yet. They need to set up XMTP to receive messages.`
+            );
+            console.warn(`Cannot message ${recipientAddress}: XMTP not enabled`);
+            return;
+          }
+
+          console.log('✅ [ChatPage] User can receive messages, creating new conversation...');
+          // If they can receive messages, proceed with creating the conversation
+          const convo = await newConversation(recipientAddress);
+          console.log('🆕 [ChatPage] New conversation result:', {
+            success: !!convo,
+            conversationId: convo ? (convo as any).id : null,
+            peerAddress: recipientAddress
+          });
+
+          if (convo) {
+            setSelectedConversation(convo);
+            console.log('✅ [ChatPage] New conversation set as selected');
+          } else {
+            setXmtpError('Could not start a new conversation. Please try again.');
+            console.error('❌ [ChatPage] Could not start a new conversation.');
+          }
+        }
+
+        // Set microsite data
         if (searchResult?.ethAddress === recipientAddress) {
+          console.log('📄 [ChatPage] Using search result for microsite data');
           setMicrositeData(searchResult);
         } else {
-          const micrositeData = peerData.find(
+          const micrositeInfo = peerData.find(
             (peer) => peer.ethAddress === recipientAddress
           );
-          setMicrositeData(micrositeData || null);
+          console.log('📄 [ChatPage] Using peer data for microsite data:', !!micrositeInfo);
+          setMicrositeData(micrositeInfo || null);
         }
       } catch (error) {
-        console.error('Failed to start conversation:', error);
+        console.error('❌ [ChatPage] Failed to select conversation:', error);
+        setXmtpError('Failed to load conversation. Please try again.');
       } finally {
         setChangeConversationLoading(false);
+        console.log('🏁 [ChatPage] Conversation selection completed');
       }
     },
-    [xmtpClient, peerData, searchResult]
+    [xmtpClient, conversations, conversationRequests, newConversation, canMessage, peerData, searchResult, refreshConversations]
   );
 
   const fetchPeerData = useCallback(async () => {
-    if (!peerAddressList.length) return;
+    if (!peerAddresses.length) return;
 
     try {
       setIsLoadingPeerData(true);
-      const response = await getPeerData(peerAddressList);
+      const response = await getPeerData(peerAddresses);
       if (response.data) {
         setPeerData(response.data);
       }
@@ -193,7 +408,7 @@ const ChatPageContent = () => {
     } finally {
       setIsLoadingPeerData(false);
     }
-  }, [peerAddressList]);
+  }, [peerAddresses]);
 
   const debouncedFetchEnsData = useDebouncedCallback(
     async (searchTerm: string) => {
@@ -276,17 +491,12 @@ const ChatPageContent = () => {
   useEffect(() => {
     const recipient = searchParams?.get('recipient');
 
-    // Get token data from sessionStorage instead of URL
     if (typeof window !== 'undefined') {
       try {
         const storedTokenData =
           sessionStorage.getItem('chatTokenData');
         if (storedTokenData) {
           const parsedTokenData = JSON.parse(storedTokenData);
-          console.log(
-            'Retrieved token data from sessionStorage:',
-            parsedTokenData
-          );
           setTokenData(parsedTokenData);
         }
       } catch (error) {
@@ -298,53 +508,19 @@ const ChatPageContent = () => {
     }
 
     if (recipient) {
-      setRecipientAddress(recipient);
-      startConversation(recipient);
+      handleSelectConversation(recipient);
     }
-  }, [searchParams, startConversation]);
-
-  // Fetch initial conversations
-  useEffect(() => {
-    if (xmtpClient) {
-      fetchConversations();
-    }
-  }, [fetchConversations, xmtpClient]);
+  }, [searchParams, handleSelectConversation]);
 
   // Fetch peer data when address list changes
   useEffect(() => {
-    if (peerAddressList.length) {
+    if (peerAddresses.length) {
       fetchPeerData();
     }
-  }, [peerAddressList, fetchPeerData]);
-
-  useEffect(() => {
-    if (!conversation) return;
-
-    let isMounted = true;
-
-    const streamMessages = async () => {
-      try {
-        for await (const message of await conversation.streamMessages()) {
-          if (!isMounted) break;
-          setMessageHistory((prevMessages) => [
-            ...prevMessages,
-            message,
-          ]);
-        }
-      } catch (error) {
-        console.error('Error streaming messages:', error);
-      }
-    };
-
-    streamMessages();
-
-    return () => {
-      isMounted = false;
-    };
-  }, [conversation]);
+  }, [peerAddresses, fetchPeerData]);
 
   const handleWalletClick = async (ethAddress: string) => {
-    await startConversation(ethAddress);
+    await handleSelectConversation(ethAddress);
   };
 
   const handleSearchInputChange = (
@@ -366,6 +542,7 @@ const ChatPageContent = () => {
 
   return (
     <div className="h-full">
+
       <div className="flex gap-7 items-start h-full">
         <div
           style={{ height: 'calc(100vh - 150px)' }}
@@ -374,6 +551,33 @@ const ChatPageContent = () => {
           {changeConversationLoading ? (
             <div className="w-full h-full flex items-center justify-center">
               <Loader className="animate-spin" />
+            </div>
+          ) : xmtpError ? (
+            <div className="w-full h-full flex flex-col items-center justify-center text-center px-8">
+              <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-6 max-w-md">
+                <div className="text-yellow-600 text-lg font-semibold mb-2">
+                  ⚠️ XMTP Not Enabled
+                </div>
+                <p className="text-yellow-700 text-sm mb-4">
+                  {xmtpError}
+                </p>
+                <div className="text-xs text-yellow-600">
+                  <p className="mb-2">
+                    To enable messaging, the recipient needs to:
+                  </p>
+                  <ul className="text-left list-disc list-inside space-y-1">
+                    <li>Connect their wallet to an XMTP-enabled app</li>
+                    <li>Sign the XMTP identity message</li>
+                    <li>Enable messaging in their wallet</li>
+                  </ul>
+                </div>
+                <button
+                  onClick={() => setXmtpError(null)}
+                  className="mt-4 px-4 py-2 bg-yellow-600 text-white rounded-md text-sm hover:bg-yellow-700 transition-colors"
+                >
+                  Dismiss
+                </button>
+              </div>
             </div>
           ) : !micrositeData ? (
             <div className="w-full h-full flex items-center justify-center text-gray-500">
@@ -420,7 +624,7 @@ const ChatPageContent = () => {
                   <Link
                     href={
                       micrositeData.profileUrl ||
-                      `${micrositeData.ens}`
+                      `/${micrositeData.ens}`
                     }
                     target="_blank"
                     className="w-10 h-10 rounded-full flex items-center justify-center bg-gray-100 hover:bg-gray-200 transition-colors"
@@ -430,16 +634,13 @@ const ChatPageContent = () => {
                 </div>
               </div>
               <div className="h-full overflow-y-auto">
-                {xmtpClient && (
+                {xmtpClient && selectedConversation ? (
                   <ChatBox
-                    client={xmtpClient}
-                    conversation={conversation}
-                    messageHistory={messageHistory}
+                    conversation={selectedConversation}
                     tokenData={tokenData}
                     recipientWalletData={walletData || []}
-                    recipientAddress={recipientAddress || ''}
                   />
-                )}
+                ) : null}
               </div>
             </div>
           )}
@@ -482,7 +683,7 @@ const ChatPageContent = () => {
                 <MessageList
                   {...searchResult}
                   handleWalletClick={handleWalletClick}
-                  recipientAddress={recipientAddress}
+                  recipientAddress={micrositeData?.ethAddress ?? null}
                 />
               </div>
             )}
@@ -507,7 +708,7 @@ const ChatPageContent = () => {
                   key={chat.ethAddress}
                   {...chat}
                   handleWalletClick={handleWalletClick}
-                  recipientAddress={recipientAddress}
+                  recipientAddress={micrositeData?.ethAddress ?? null}
                 />
               ))
             )}

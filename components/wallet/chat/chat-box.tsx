@@ -43,13 +43,10 @@ import {
   Transaction,
 } from '@solana/web3.js';
 import { ethers } from 'ethers';
-
-interface Message {
-  id: string;
-  content: string;
-  sent: Date;
-  senderAddress: string;
-}
+import { DecodedMessage } from '@xmtp/browser-sdk';
+import { useXmtpContext } from '@/lib/context/XmtpContext';
+import { AnyConversation } from '@/lib/xmtp';
+import { safeGetPeerAddress } from '@/lib/xmtp-safe';
 
 interface TokenData {
   symbol: string;
@@ -69,27 +66,18 @@ interface WalletData {
 }
 
 interface ChatProps {
-  client: {
-    address: string;
-  };
-  conversation: {
-    send: (message: string) => Promise<void>;
-    peerAddress: string;
-  };
-  messageHistory: Message[];
+  conversation: AnyConversation;
   tokenData?: TokenData[];
   recipientWalletData?: WalletData[];
-  recipientAddress: string;
 }
 
 export default function ChatBox({
-  client,
   conversation,
-  messageHistory,
   tokenData,
   recipientWalletData,
-  recipientAddress: recipientUserAddress,
 }: ChatProps) {
+  const { client, sendText } = useXmtpContext();
+  const [messages, setMessages] = useState<DecodedMessage[]>([]);
   const [inputMessage, setInputMessage] = useState('');
   const [isSendModalOpen, setIsSendModalOpen] = useState(false);
   const [selectedToken, setSelectedToken] =
@@ -100,6 +88,7 @@ export default function ChatBox({
   const [selectedChain, setSelectedChain] = useState<
     'ETHEREUM' | 'SOLANA'
   >('ETHEREUM');
+  const [recipientUserAddress, setRecipientUserAddress] = useState<string | null>(null);
   const lastMessageRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
   const { wallets: ethWallets } = useWallets();
@@ -109,16 +98,38 @@ export default function ChatBox({
     process.env.NEXT_PUBLIC_SOLANA_RPC_URL ||
     'https://api.mainnet-beta.solana.com';
 
+  // Extract peer address properly
   useEffect(() => {
-    console.log(
-      'Recipient address passed to ChatBox:',
-      recipientUserAddress
-    );
-  }, [recipientUserAddress]);
+    const extractPeerAddress = async () => {
+      if (conversation) {
+        try {
+          // Use the same logic as working version
+          const dm = conversation as unknown as { peerAddress?: string; topic?: string };
+          const peerAddress: string = dm.peerAddress || "";
+          const topic: string = dm.topic || "";
+          const displayAddress = peerAddress || topic || "";
 
+          console.log('✅ [ChatBox] Extracted peer info:', {
+            conversationId: (conversation as any).id,
+            peerAddress: peerAddress || 'null',
+            topic: topic || 'null',
+            displayAddress: displayAddress || 'null'
+          });
+
+          setRecipientUserAddress(displayAddress || null);
+        } catch (error) {
+          console.error('❌ [ChatBox] Error extracting peer address:', error);
+        }
+      }
+    };
+
+    extractPeerAddress();
+  }, [conversation]);
+
+  // Set recipient address based on chain and extracted peer address
   useEffect(() => {
-    // Set recipient address from the prop for Ethereum transactions
-    if (selectedChain === 'ETHEREUM') {
+    // Set recipient address from the extracted peer address for Ethereum transactions
+    if (selectedChain === 'ETHEREUM' && recipientUserAddress) {
       setRecipientAddress(recipientUserAddress);
     }
     // Only use wallet data for Solana since we don't have a direct Solana address
@@ -136,10 +147,95 @@ export default function ChatBox({
     }
   }, [recipientWalletData, selectedChain, recipientUserAddress]);
 
-  console.log(
-    'recipientAddress from the chat box',
-    recipientUserAddress
-  );
+  useEffect(() => {
+    const loadMessages = async () => {
+      if (!conversation) return;
+      console.log('🔄 [ChatBox] Loading initial messages for conversation:', conversation);
+      try {
+        // Sync conversation first to get latest messages
+        console.log('🔄 [ChatBox] Syncing conversation before loading messages...');
+        await (conversation as any).sync?.();
+        console.log('✅ [ChatBox] Conversation sync complete');
+
+        const initialMessages = await conversation.messages();
+        console.log('✅ [ChatBox] Initial messages loaded:', initialMessages.length, 'messages');
+        console.log('📝 [ChatBox] Initial messages:', initialMessages);
+        setMessages(initialMessages);
+      } catch (error) {
+        console.error('❌ [ChatBox] Error loading messages:', error);
+      }
+    };
+    loadMessages();
+  }, [conversation]);
+
+  useEffect(() => {
+    if (!conversation) return;
+    console.log('🎧 [ChatBox] Setting up message stream for conversation:', conversation);
+
+    let isMounted = true;
+    let stream: any;
+
+    const streamMessages = async () => {
+      try {
+        console.log('🔄 [ChatBox] Starting message stream...');
+
+        // Sync conversation before starting stream to catch any missed messages
+        await (conversation as any).sync?.();
+
+        // Use the stream() API to listen for new messages
+        stream = await (conversation as any).stream();
+        console.log('✅ [ChatBox] Message stream established');
+
+        for await (const message of stream) {
+          console.log('📨 [ChatBox] New message received from stream:', message);
+          console.log('📨 [ChatBox] Message details:', {
+            id: (message as any).id,
+            content: (message as any).content,
+            senderAddress: (message as any).senderAddress,
+            sent: (message as any).sent
+          });
+
+          if (isMounted) {
+            console.log('✅ [ChatBox] Adding message to state');
+            setMessages((prevMessages) => {
+              // Check if message already exists to avoid duplicates
+              const messageExists = prevMessages.some(
+                (prevMsg) => (prevMsg as any).id === (message as any).id
+              );
+
+              if (!messageExists) {
+                const updatedMessages = [...prevMessages, message];
+                console.log('📝 [ChatBox] Updated messages count:', updatedMessages.length);
+                return updatedMessages;
+              } else {
+                console.log('⚠️ [ChatBox] Message already exists, skipping duplicate');
+                return prevMessages;
+              }
+            });
+          } else {
+            console.log('⚠️ [ChatBox] Component unmounted, not adding message');
+          }
+        }
+      } catch (error) {
+        console.error('❌ [ChatBox] Error in message stream:', error);
+      }
+    };
+
+    streamMessages();
+
+    return () => {
+      console.log('🧹 [ChatBox] Cleaning up message stream');
+      isMounted = false;
+      if (stream) {
+        try {
+          stream.return();
+          console.log('✅ [ChatBox] Stream cleanup completed');
+        } catch (error) {
+          console.error('❌ [ChatBox] Error during stream cleanup:', error);
+        }
+      }
+    };
+  }, [conversation]);
 
   // Make the filteredTokens a memoized value based on selectedChain and tokenData
   const filteredTokens = useMemo(() => {
@@ -158,13 +254,39 @@ export default function ChatBox({
     if (lastMessageRef.current) {
       lastMessageRef.current.scrollIntoView({ behavior: 'smooth' });
     }
-  }, [messageHistory]);
+  }, [messages]);
 
-  const onSendMessage = async (e: React.FormEvent) => {
+  const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (inputMessage.trim()) {
-      await conversation.send(inputMessage);
-      setInputMessage('');
+    if (inputMessage.trim() && conversation) {
+      console.log('📤 [ChatBox] Attempting to send message:', inputMessage);
+      console.log('📤 [ChatBox] Conversation details:', conversation);
+      console.log('📤 [ChatBox] Conversation ID:', (conversation as any).id);
+      console.log('📤 [ChatBox] Peer Address:', recipientUserAddress);
+
+      try {
+        console.log('🔄 [ChatBox] Calling sendText function...');
+        await sendText(conversation, inputMessage);
+        console.log('✅ [ChatBox] Message sent successfully');
+        setInputMessage('');
+      } catch (error) {
+        console.error('❌ [ChatBox] Error sending message:', error);
+        console.error('❌ [ChatBox] Error details:', {
+          message: error instanceof Error ? error.message : 'Unknown error',
+          stack: error instanceof Error ? error.stack : undefined
+        });
+        toast({
+          title: 'Error',
+          description: 'Failed to send message.',
+          variant: 'destructive',
+        });
+      }
+    } else {
+      console.log('⚠️ [ChatBox] Cannot send message:', {
+        hasInputMessage: !!inputMessage.trim(),
+        hasConversation: !!conversation,
+        inputMessage: inputMessage
+      });
     }
   };
 
@@ -173,7 +295,7 @@ export default function ChatBox({
   ) => {
     if (event.key === 'Enter' && !event.shiftKey) {
       event.preventDefault(); // Prevent the default new line behavior
-      onSendMessage(event as any); // Trigger form submit
+      handleSendMessage(event as any); // Trigger form submit
     }
   };
 
@@ -222,7 +344,7 @@ export default function ChatBox({
     // Update recipient address based on new chain
     if (chain === 'ETHEREUM') {
       // For Ethereum, use the direct recipient address passed to the component
-      setRecipientAddress(recipientUserAddress);
+      setRecipientAddress(recipientUserAddress || '');
       console.log(
         `Set Ethereum recipient address: ${recipientUserAddress}`
       );
@@ -556,9 +678,27 @@ export default function ChatBox({
       });
 
       // Send just a simple message about the transfer (no transaction details)
-      await conversation.send(
-        `I've sent you ${amount} ${selectedToken.symbol} on ${selectedChain}.`
-      );
+      if (recipientUserAddress && client?.inboxId) {
+        try {
+          const messageResponse = await fetch('http://localhost:1212/api/xmtp/messages/send', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              senderAddress: client?.inboxId,
+              recipientInboxId: (conversation as any).id, // Assuming conversation.id is the inboxId
+              message: `I've sent you ${amount} ${selectedToken.symbol} on ${selectedChain}.`,
+            }),
+          });
+
+          if (!messageResponse.ok) {
+            console.error('Failed to send notification message');
+          }
+        } catch (messageError) {
+          console.error('Error sending notification message:', messageError);
+        }
+      }
 
       // Close modal and reset
       setIsSendModalOpen(false);
@@ -582,54 +722,91 @@ export default function ChatBox({
     }
   };
 
-  const MessageList = ({ messages }: { messages: Message[] }) => {
+  // Helper function to safely render message content
+  const renderMessageContent = (content: any) => {
+    // If content is a string, render it directly
+    if (typeof content === 'string') {
+      return content;
+    }
+
+    // If content is an object, handle different types of system messages
+    if (typeof content === 'object' && content !== null) {
+      // Handle XMTP system messages (like member additions/removals)
+      if (content.initiatedByInboxId) {
+        const { addedInboxes = [], removedInboxes = [] } = content;
+
+        if (addedInboxes.length > 0) {
+          return `🎉 ${addedInboxes.length === 1 ? 'New member' : 'New members'} joined the conversation`;
+        }
+
+        if (removedInboxes.length > 0) {
+          return `👋 ${removedInboxes.length === 1 ? 'Member' : 'Members'} left the conversation`;
+        }
+
+        return '📢 Group membership updated';
+      }
+
+      // Handle other object types by converting to JSON string
+      return `System message: ${JSON.stringify(content)}`;
+    }
+
+    // Fallback for any other types
+    return String(content);
+  };
+
+  const MessageList = ({ messages }: { messages: DecodedMessage[] }) => {
     const uniqueMessages = messages.filter(
-      (v, i, a) => a.findIndex((t) => t.id === v.id) === i
+      (v, i, a) => a.findIndex((t) => (t as any).id === (v as any).id) === i
     );
 
     return (
       <div className="px-4 md:px-8 h-full pb-24">
-        {uniqueMessages.map((message, index) => (
-          <div
-            key={message.id}
-            ref={
-              index === uniqueMessages.length - 1
-                ? lastMessageRef
-                : null
-            }
-            className={`mb-4 ${
-              message.senderAddress === client.address
+        {uniqueMessages.map((message, index) => {
+          const senderAddress = (message as any).senderAddress;
+          const sent = (message as any).sent;
+          const content = (message as any).content;
+          const id = (message as any).id;
+
+          return (
+            <div
+              key={id}
+              ref={
+                index === uniqueMessages.length - 1
+                  ? lastMessageRef
+                  : null
+              }
+              className={`mb-4 ${senderAddress === client?.inboxId
                 ? 'text-right'
                 : 'text-left'
-            }`}
-          >
-            <div
-              className={`inline-block px-3 py-2 rounded-lg ${
-                message.senderAddress === client.address
+                }`}
+            >
+              <div
+                className={`inline-block px-3 py-2 rounded-lg ${senderAddress === client?.inboxId
                   ? 'bg-primary text-primary-foreground'
                   : 'bg-secondary text-secondary-foreground'
-              }`}
-            >
-              {message.content}
+                  }`}
+              >
+                {renderMessageContent(content)}
+              </div>
+              <div className="text-xs mt-1 text-muted-foreground">
+                {new Date(sent).toLocaleTimeString('en-US', {
+                  hour: 'numeric',
+                  minute: 'numeric',
+                  hour12: true,
+                })}
+              </div>
             </div>
-            <div className="text-xs mt-1 text-muted-foreground">
-              {message.sent.toLocaleTimeString('en-US', {
-                hour: 'numeric',
-                minute: 'numeric',
-                hour12: true,
-              })}
-            </div>
-          </div>
-        ))}
+          )
+        })}
       </div>
     );
   };
 
   return (
     <div className="pt-4 w-full overflow-x-hidden h-full">
-      <MessageList messages={messageHistory} />
+      <MessageList messages={messages} />
       <div className="absolute bottom-0 bg-white py-4 w-full">
-        <form onSubmit={onSendMessage} className="">
+        <form onSubmit={handleSendMessage} className="">
           <div className="w-full px-4 md:px-8">
             <div className="flex justify-center items-center gap-2">
               {/* {tokenData && tokenData.length > 0 && (
