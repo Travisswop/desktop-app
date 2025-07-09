@@ -106,10 +106,12 @@ export default function Header() {
   if (loading) {
     return (
       <header className="bg-white p-6 flex justify-between items-center h-20 border-b">
-        <Link href="/dashboard" className="h-20">
-          <Image src={logo} alt="Logo" width={120} height={50} />
-        </Link>
-        <Skeleton className="h-14 w-48 rounded-full" />
+        <Skeleton className="h-7 w-7 rounded" />
+        <div className="flex items-center gap-2">
+          <Skeleton className="h-12 w-12 rounded-full" />
+          <Skeleton className="h-12 w-12 rounded-full" />
+          <Skeleton className="h-14 w-48 rounded-full" />
+        </div>
       </header>
     );
   }
