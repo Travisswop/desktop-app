@@ -20,6 +20,8 @@ export function UpgradePlanNavbar({
 }: any) {
   const { isMobile } = useSidebar();
 
+  // console.log("hideUpgradePlan", hideUpgradePlan);
+
   return (
     <SidebarMenu>
       <SidebarMenuItem className="flex justify-center">
@@ -27,7 +29,10 @@ export function UpgradePlanNavbar({
           <Tooltip>
             <TooltipTrigger asChild>
               <DropdownMenuTrigger asChild>
-                <button className="hover:bg-[#efeff7] p-1.5 rounded">
+                <button
+                  onClick={() => setHideUpgradePlan(true)}
+                  className="hover:bg-[#efeff7] p-1.5 rounded"
+                >
                   <MdOutlineShoppingCart color="#454547" size={18} />
                 </button>
               </DropdownMenuTrigger>
@@ -36,7 +41,7 @@ export function UpgradePlanNavbar({
               <p>Upgrade Plan</p>
             </TooltipContent>
           </Tooltip>
-          {!hideUpgradePlan && (
+          {hideUpgradePlan && (
             <DropdownMenuContent
               className="w-(--radix-dropdown-menu-trigger-width) min-w-56 rounded-lg bg-white"
               side={isMobile ? "bottom" : "right"}

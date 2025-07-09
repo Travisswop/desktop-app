@@ -51,6 +51,7 @@ const baseNavItems = [
 
 export default function Sidenav() {
   const [hideUpgradePlan, setHideUpgradePlan] = useState(true);
+  const [collapseHideUpgradePlan, setCollapseHideUpgradePlan] = useState(true);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
 
   const { open } = useSidebar();
@@ -171,8 +172,8 @@ export default function Sidenav() {
                     <>
                       <div className="mt-8 border-t w-full flex justify-center pt-2">
                         <UpgradePlanNavbar
-                          hideUpgradePlan={hideUpgradePlan}
-                          setHideUpgradePlan={setHideUpgradePlan}
+                          hideUpgradePlan={collapseHideUpgradePlan}
+                          setHideUpgradePlan={setCollapseHideUpgradePlan}
                         />
                       </div>
 
