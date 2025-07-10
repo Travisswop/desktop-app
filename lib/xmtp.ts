@@ -3,6 +3,7 @@
 import { Conversation, Dm, Group, ConsentState, Identifier, Signer as XmtpSigner } from '@xmtp/browser-sdk';
 import { ethers } from 'ethers';
 import { createClient, loadXmtp } from './xmtp-browser';
+import type { Client } from '@xmtp/browser-sdk';
 
 export type AnyConversation = Conversation<unknown> | Dm<unknown> | Group<unknown>;
 
@@ -31,20 +32,43 @@ export const buildXmtpSigner = async (privyEthWallet: any): Promise<XmtpSigner> 
             return ethers.getBytes(signature);
         },
     };
+
+    // Add address property for easier access
+    (xmtpSigner as any).address = address;
+
     return xmtpSigner;
 };
 
 /**
  * Create (or load) an XMTP client using a Privy embedded wallet.
  */
-export const getClient = async (privyEthWallet: any) => {
+export const getClient = async (privyEthWallet: any): Promise<Client | null> => {
     if (typeof window === 'undefined') return null;
 
     try {
+        console.log('🔄 [XMTP] Building XMTP signer from Privy wallet...');
+
+        // Build the XMTP signer
         const xmtpSigner = await buildXmtpSigner(privyEthWallet);
-        return await createClient(xmtpSigner);
+
+        console.log('✅ [XMTP] XMTP signer built successfully:', {
+            address: (xmtpSigner as any).address,
+            type: xmtpSigner.type
+        });
+
+        // Use the enhanced createClient that handles localStorage and client lifecycle
+        const client = await createClient(xmtpSigner);
+
+        if (client) {
+            console.log('✅ [XMTP] XMTP client ready:', {
+                inboxId: client.inboxId,
+                address: (xmtpSigner as any).address
+            });
+        }
+
+        return client;
     } catch (e) {
-        console.error('Error creating XMTP client:', e);
+        console.error('❌ [XMTP] Error creating XMTP client:', e);
         return null;
     }
 };
@@ -52,7 +76,7 @@ export const getClient = async (privyEthWallet: any) => {
 /** Check if the target address can be messaged */
 export const canMessage = async (
     address: string,
-    client: any, // Changed from Client to any as Client is no longer imported
+    client: Client | null, // Updated type annotation
 ): Promise<boolean> => {
     if (!address || !client) return false;
     try {
@@ -71,7 +95,7 @@ export const canMessage = async (
 
 /** Start (or fetch) a direct DM */
 export const startNewConversation = async (
-    client: any, // Changed from Client to any as Client is no longer imported
+    client: Client | null, // Updated type annotation
     peerAddress: string,
 ): Promise<AnyConversation | null> => {
     if (!client) return null;
@@ -93,7 +117,7 @@ export const startNewConversation = async (
     }
 };
 
-export const listConversations = async (client: any): Promise<AnyConversation[]> => { // Changed from Client to any as Client is no longer imported
+export const listConversations = async (client: Client | null): Promise<AnyConversation[]> => { // Updated type annotation
     if (!client) return [];
     try {
         const convos = await client.conversations.list();
@@ -104,7 +128,7 @@ export const listConversations = async (client: any): Promise<AnyConversation[]>
     }
 };
 
-export const getMessages = async (convo: AnyConversation | null) => {
+export const getMessages = async (convo: AnyConversation | null): Promise<any[]> => {
     if (!convo) return [];
     try {
         return await convo.messages();
@@ -114,7 +138,7 @@ export const getMessages = async (convo: AnyConversation | null) => {
     }
 };
 
-export const syncConversations = async (client: any) => {
+export const syncConversations = async (client: Client | null): Promise<void> => {
     if (!client) return;
     try {
         console.debug('[XMTP] Syncing conversations from network...');

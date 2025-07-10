@@ -20,12 +20,13 @@ import {
   safeSyncConversations,
   safeGetPeerAddress,
 } from '@/lib/xmtp-safe';
-import { loadXmtp } from '@/lib/xmtp-browser';
+import { loadXmtp, clearXmtpClientData } from '@/lib/xmtp-browser';
+import type { Client } from '@xmtp/browser-sdk';
 
 // We'll initialize XMTP in useEffect
 
 interface XmtpContextValue {
-  client: any | null;
+  client: Client | null;
   isConnected: boolean;
   conversations: AnyConversation[];
   conversationRequests: AnyConversation[];
@@ -37,23 +38,28 @@ interface XmtpContextValue {
   allowConversation: (convo: AnyConversation) => Promise<void>;
   canMessage: (address: string) => Promise<boolean>;
   getMessages: (convo: AnyConversation) => Promise<any[]>;
+  clearClientData: () => void;
 }
 
 const XmtpContext = createContext<XmtpContextValue | null>(null);
 
-export const useXmtpContext = () => {
+export const useXmtpContext = (): XmtpContextValue => {
   const ctx = useContext(XmtpContext);
   if (!ctx) throw new Error('useXmtpContext must be used within XmtpProvider');
   return ctx;
 };
 
-export const XmtpProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+interface XmtpProviderProps {
+  children: React.ReactNode;
+}
+
+export const XmtpProvider: React.FC<XmtpProviderProps> = ({ children }) => {
   const { wallets } = useWallets();
-  const [client, setClient] = useState<any | null>(null);
-  const [isConnected, setIsConnected] = useState(false);
+  const [client, setClient] = useState<Client | null>(null);
+  const [isConnected, setIsConnected] = useState<boolean>(false);
   const [conversations, setConversations] = useState<AnyConversation[]>([]);
   const [conversationRequests, setConversationRequests] = useState<AnyConversation[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<Error | null>(null);
 
   // Initialize XMTP
@@ -62,8 +68,9 @@ export const XmtpProvider: React.FC<{ children: React.ReactNode }> = ({ children
       try {
         // Preload XMTP module
         await loadXmtp();
+        console.log('✅ [XmtpContext] XMTP module loaded successfully');
       } catch (err) {
-        console.error('Failed to initialize XMTP:', err);
+        console.error('❌ [XmtpContext] Failed to initialize XMTP:', err);
       }
     };
 
@@ -78,6 +85,18 @@ export const XmtpProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return wallets.find((w) => w?.type === 'ethereum') || wallets[0];
   }, [wallets]);
 
+  // Function to clear client data (for logout)
+  const clearClientData = useCallback(() => {
+    console.log('🧹 [XmtpContext] Clearing client data...');
+    setClient(null);
+    setIsConnected(false);
+    setConversations([]);
+    setConversationRequests([]);
+    setError(null);
+    clearXmtpClientData();
+    console.log('✅ [XmtpContext] Client data cleared');
+  }, []);
+
   // Initialise XMTP client when wallet becomes available
   useEffect(() => {
     if (!privyEthWallet) {
@@ -91,10 +110,14 @@ export const XmtpProvider: React.FC<{ children: React.ReactNode }> = ({ children
     });
 
     let mounted = true;
+    let syncInterval: NodeJS.Timeout | null = null;
+    let conversationStream: any = null;
+
     (async () => {
       try {
         setLoading(true);
-        console.log('🔄 [XmtpContext] Getting XMTP client...');
+        setError(null);
+        console.log('🔄 [XmtpContext] Getting XMTP client with enhanced lifecycle management...');
 
         const newClient = await safeGetClient(privyEthWallet);
         console.log('✅ [XmtpContext] XMTP client result:', {
@@ -110,7 +133,7 @@ export const XmtpProvider: React.FC<{ children: React.ReactNode }> = ({ children
         if (newClient) {
           setClient(newClient);
           setIsConnected(true);
-          console.log('✅ [XmtpContext] XMTP client connected successfully');
+          console.log('✅ [XmtpContext] XMTP client connected successfully with localStorage caching');
 
           // Sync with network before loading conversations
           console.log('🔄 [XmtpContext] Syncing conversations from network...');
@@ -191,7 +214,7 @@ export const XmtpProvider: React.FC<{ children: React.ReactNode }> = ({ children
           console.log('🎧 [XmtpContext] Setting up global auto-allow system...');
           try {
             // Stream all conversations to auto-allow new ones
-            const conversationStream = await (newClient as any).conversations.stream();
+            conversationStream = await (newClient as any).conversations.stream();
             console.log('✅ [XmtpContext] Global conversation stream established');
 
             (async () => {
@@ -231,9 +254,9 @@ export const XmtpProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
           // Set up periodic sync to ensure we don't miss messages
           console.log('⏰ [XmtpContext] Setting up periodic sync system...');
-          const syncInterval = setInterval(async () => {
+          syncInterval = setInterval(async () => {
             if (!mounted) {
-              clearInterval(syncInterval);
+              if (syncInterval) clearInterval(syncInterval);
               return;
             }
 
@@ -246,19 +269,21 @@ export const XmtpProvider: React.FC<{ children: React.ReactNode }> = ({ children
             }
           }, 10000); // Sync every 10 seconds
 
-          // Clean up interval when component unmounts
-          return () => {
-            clearInterval(syncInterval);
-          };
-
           console.log('🚀 [XmtpContext] Comprehensive auto-allow system fully activated for seamless messaging!');
 
         } else {
           console.log('❌ [XmtpContext] Failed to get XMTP client');
+          setError(new Error('Failed to initialize XMTP client. This might be due to installation limits.'));
         }
       } catch (err: any) {
         console.error('❌ [XmtpContext] Error during XMTP initialization:', err);
-        if (mounted) setError(err as Error);
+
+        // Handle specific installation limit error
+        if (err.message && err.message.includes('has already registered 5/5 installations')) {
+          setError(new Error('XMTP installation limit reached. The system attempted to manage installations automatically. Please try refreshing the page.'));
+        } else {
+          setError(err as Error);
+        }
       } finally {
         if (mounted) {
           setLoading(false);
@@ -270,6 +295,20 @@ export const XmtpProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return () => {
       console.log('🧹 [XmtpContext] Cleaning up XMTP initialization');
       mounted = false;
+
+      // Clean up interval
+      if (syncInterval) {
+        clearInterval(syncInterval);
+      }
+
+      // Clean up conversation stream
+      if (conversationStream) {
+        try {
+          conversationStream.return?.();
+        } catch (error) {
+          console.warn('⚠️ [XmtpContext] Error closing conversation stream:', error);
+        }
+      }
     };
   }, [privyEthWallet]);
 
@@ -391,7 +430,7 @@ export const XmtpProvider: React.FC<{ children: React.ReactNode }> = ({ children
     [client, refreshConversations],
   );
 
-  const sendMessage = useCallback(async (convo: AnyConversation, text: string) => {
+  const sendMessage = useCallback(async (convo: AnyConversation, text: string): Promise<void> => {
     console.log('📤 [XmtpContext] sendMessage called with:', {
       conversation: convo,
       conversationId: (convo as any).id,
@@ -427,7 +466,7 @@ export const XmtpProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   }, [client, refreshConversations]);
 
-  const allowConversation = useCallback(async (convo: AnyConversation) => {
+  const allowConversation = useCallback(async (convo: AnyConversation): Promise<void> => {
     try {
       // @ts-ignore
       await convo.updateConsentState?.('allowed');
@@ -451,8 +490,9 @@ export const XmtpProvider: React.FC<{ children: React.ReactNode }> = ({ children
       allowConversation,
       canMessage: async (addr: string) => safeCanMessage(addr, client),
       getMessages: (c) => safeGetMessages(c),
+      clearClientData,
     }),
-    [client, isConnected, conversations, conversationRequests, loading, error, refreshConversations, newConversation, sendMessage, allowConversation],
+    [client, isConnected, conversations, conversationRequests, loading, error, refreshConversations, newConversation, sendMessage, allowConversation, clearClientData],
   );
 
   return <XmtpContext.Provider value={ctxValue}>{children}</XmtpContext.Provider>;

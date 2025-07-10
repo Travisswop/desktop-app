@@ -29,6 +29,7 @@ import { useDebouncedCallback } from 'use-debounce';
 import { Skeleton } from '@/components/ui/skeleton';
 import { AnyConversation } from '@/lib/xmtp';
 import { safeGetPeerAddress } from '@/lib/xmtp-safe';
+import { XmtpErrorDisplay } from '@/components/xmtp/XmtpErrorDisplay';
 
 
 interface MessageProps {
@@ -103,6 +104,8 @@ const ChatPageContent = () => {
     newConversation,
     canMessage,
     refreshConversations,
+    loading: xmtpLoading,
+    error: xmtpError,
   } = useXmtpContext();
   const { user: PrivyUser } = usePrivy();
   const searchParams = useSearchParams();
@@ -127,7 +130,6 @@ const ChatPageContent = () => {
   const [tokenData, setTokenData] = useState<any>(null);
   const [selectedConversation, setSelectedConversation] =
     useState<AnyConversation | null>(null);
-  const [xmtpError, setXmtpError] = useState<string | null>(null);
 
   const peerAddresses = useMemo(() => {
     if (!conversations) return [];
@@ -182,7 +184,7 @@ const ChatPageContent = () => {
       try {
         setChangeConversationLoading(true);
         setSelectedConversation(null);
-        setXmtpError(null);
+        // setXmtpError(null); // This line is removed as per the edit hint
 
         // Check for existing conversation in both allowed and requests
         let existingConvo = null;
@@ -347,9 +349,9 @@ const ChatPageContent = () => {
           if (!canMessageUser) {
             // The user doesn't have XMTP enabled
             console.log('❌ [ChatPage] User cannot receive XMTP messages:', recipientAddress);
-            setXmtpError(
-              `This address hasn't enabled XMTP messaging yet. They need to set up XMTP to receive messages.`
-            );
+            // setXmtpError( // This line is removed as per the edit hint
+            //   `This address hasn't enabled XMTP messaging yet. They need to set up XMTP to receive messages.`
+            // );
             console.warn(`Cannot message ${recipientAddress}: XMTP not enabled`);
             return;
           }
@@ -367,7 +369,7 @@ const ChatPageContent = () => {
             setSelectedConversation(convo);
             console.log('✅ [ChatPage] New conversation set as selected');
           } else {
-            setXmtpError('Could not start a new conversation. Please try again.');
+            // setXmtpError('Could not start a new conversation. Please try again.'); // This line is removed as per the edit hint
             console.error('❌ [ChatPage] Could not start a new conversation.');
           }
         }
@@ -385,7 +387,7 @@ const ChatPageContent = () => {
         }
       } catch (error) {
         console.error('❌ [ChatPage] Failed to select conversation:', error);
-        setXmtpError('Failed to load conversation. Please try again.');
+        // setXmtpError('Failed to load conversation. Please try again.'); // This line is removed as per the edit hint
       } finally {
         setChangeConversationLoading(false);
         console.log('🏁 [ChatPage] Conversation selection completed');
@@ -550,34 +552,21 @@ const ChatPageContent = () => {
         >
           {changeConversationLoading ? (
             <div className="w-full h-full flex items-center justify-center">
-              <Loader className="animate-spin" />
+              <div className="text-center">
+                <Loader className="w-8 h-8 animate-spin mx-auto mb-3 text-blue-600" />
+                <p className="text-gray-600">Loading conversation...</p>
+              </div>
+            </div>
+          ) : xmtpLoading ? (
+            <div className="w-full h-full flex items-center justify-center">
+              <div className="text-center">
+                <Loader className="w-8 h-8 animate-spin mx-auto mb-3 text-blue-600" />
+                <p className="text-gray-600">Connecting to XMTP...</p>
+              </div>
             </div>
           ) : xmtpError ? (
-            <div className="w-full h-full flex flex-col items-center justify-center text-center px-8">
-              <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-6 max-w-md">
-                <div className="text-yellow-600 text-lg font-semibold mb-2">
-                  ⚠️ XMTP Not Enabled
-                </div>
-                <p className="text-yellow-700 text-sm mb-4">
-                  {xmtpError}
-                </p>
-                <div className="text-xs text-yellow-600">
-                  <p className="mb-2">
-                    To enable messaging, the recipient needs to:
-                  </p>
-                  <ul className="text-left list-disc list-inside space-y-1">
-                    <li>Connect their wallet to an XMTP-enabled app</li>
-                    <li>Sign the XMTP identity message</li>
-                    <li>Enable messaging in their wallet</li>
-                  </ul>
-                </div>
-                <button
-                  onClick={() => setXmtpError(null)}
-                  className="mt-4 px-4 py-2 bg-yellow-600 text-white rounded-md text-sm hover:bg-yellow-700 transition-colors"
-                >
-                  Dismiss
-                </button>
-              </div>
+            <div className="w-full h-full flex items-center justify-center p-4">
+              <XmtpErrorDisplay className="max-w-md" />
             </div>
           ) : !micrositeData ? (
             <div className="w-full h-full flex items-center justify-center text-gray-500">
