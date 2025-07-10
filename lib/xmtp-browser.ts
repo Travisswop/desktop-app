@@ -147,7 +147,7 @@ async function tryBuildExistingClient(
         };
 
         const client = await xmtp.Client.build(identifier, {
-            env: 'dev',
+            env: 'production',
             structuredLogging: true,
             loggingLevel: 'info'
         } as CreateClientOptions);
@@ -227,7 +227,7 @@ async function revokeInstallationsStatic(
                 console.log('🔄 [XMTP] Attempting static revocation for inbox ID:', inboxId);
 
                 // Use the proper static revocation API from XMTP docs
-                const inboxStates = await (xmtp.Client as any).inboxStateFromInboxIds([inboxId], 'dev');
+                const inboxStates = await (xmtp.Client as any).inboxStateFromInboxIds([inboxId], process.env.NODE_ENV === 'development' ? 'dev' : 'production');
 
                 if (inboxStates && inboxStates.length > 0 && inboxStates[0].installations) {
                     const installations = inboxStates[0].installations;
@@ -246,7 +246,7 @@ async function revokeInstallationsStatic(
                             wallet,
                             inboxId,
                             toRevokeInstallationBytes,
-                            'dev' // environment
+                            process.env.NODE_ENV === 'development' ? 'dev' : 'production'
                         );
 
                         console.log('✅ [XMTP] Static revocation completed successfully');
@@ -367,7 +367,7 @@ export async function createClient(wallet: Signer): Promise<Client | null> {
 
         try {
             const client = await xmtp.Client.create(wallet, {
-                env: 'dev',
+                env: 'production',
                 structuredLogging: true,
                 loggingLevel: 'info'
             } as CreateClientOptions);
@@ -414,7 +414,7 @@ export async function createClient(wallet: Signer): Promise<Client | null> {
                 console.log('🔄 [XMTP] Retrying client creation after static revocation...');
                 try {
                     const client = await xmtp.Client.create(wallet, {
-                        env: 'dev',
+                        env: 'production',
                         structuredLogging: true,
                         loggingLevel: 'info'
                     } as CreateClientOptions);
