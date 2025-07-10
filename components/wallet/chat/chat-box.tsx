@@ -98,7 +98,8 @@ export default function ChatBox({
     process.env.NEXT_PUBLIC_SOLANA_RPC_URL ||
     'https://api.mainnet-beta.solana.com';
 
-  // Extract peer address properly
+
+
   useEffect(() => {
     const extractPeerAddress = async () => {
       if (conversation) {
@@ -943,12 +944,6 @@ export default function ChatBox({
       (v, i, a) => a.findIndex((t) => (t as any).id === (v as any).id) === i
     );
 
-    console.log('🎨 [ChatBox] Rendering messages:', {
-      totalMessages: messages.length,
-      uniqueMessages: uniqueMessages.length,
-      clientInboxId: client?.inboxId,
-      clientAddress: client?.address
-    });
 
     return (
       <div className="px-4 md:px-8 h-full pb-24">
@@ -966,20 +961,9 @@ export default function ChatBox({
 
             // Try multiple ways to determine if this is our message
             const isOurMessage =
-              senderAddress === client?.address ||
-              senderInboxId === client?.inboxId ||
-              senderAddress === client?.inboxId;
+              (senderInboxId && client?.inboxId && senderInboxId === client.inboxId);
 
-            console.log(`🎨 [ChatBox] Rendering message ${index + 1}:`, {
-              id,
-              senderAddress,
-              senderInboxId,
-              clientAddress: client?.address,
-              clientInboxId: client?.inboxId,
-              isOurMessage,
-              content: typeof content === 'string' ? content : JSON.stringify(content),
-              sent
-            });
+
 
             return (
               <div
@@ -1011,6 +995,9 @@ export default function ChatBox({
                   {/* Debug info - remove in production */}
                   <span className="ml-2 opacity-60">
                     {isOurMessage ? '(You)' : '(Them)'}
+                    {/* Show the identification method used */}
+                    {senderInboxId && ` [InboxId: ${senderInboxId.slice(0, 8)}...]`}
+                    {!senderInboxId && senderAddress && ` [Addr: ${senderAddress.slice(0, 8)}...]`}
                   </span>
                 </div>
               </div>
