@@ -1,16 +1,29 @@
 'use client';
 
-import { Conversation, Dm, Group, ConsentState, Identifier, Signer as XmtpSigner } from '@xmtp/browser-sdk';
 import { ethers } from 'ethers';
 import { createClient, loadXmtp } from './xmtp-browser';
-import type { Client } from '@xmtp/browser-sdk';
 
-export type AnyConversation = Conversation<unknown> | Dm<unknown> | Group<unknown>;
+// Use dynamic type imports to avoid server-side issues
+type Client = any; // Will be properly typed at runtime
+type AnyConversation = any; // Will be properly typed at runtime
+type Identifier = any; // Will be properly typed at runtime
+type XmtpSigner = any; // Will be properly typed at runtime
+
+export type { AnyConversation };
+
+// Dynamic function to get XMTP types and classes
+const getXmtpModule = async () => {
+    if (typeof window === 'undefined') return null;
+    return await loadXmtp();
+};
 
 /**
  * Build an XMTP-compatible signer from a Privy embedded wallet
  */
 export const buildXmtpSigner = async (privyEthWallet: any): Promise<XmtpSigner> => {
+    const xmtp = await getXmtpModule();
+    if (!xmtp) throw new Error('XMTP module not available');
+
     // Get EIP-1193 provider from Privy
     const eip1193 = await privyEthWallet.getEthereumProvider();
     // Wrap with ethers provider
@@ -76,9 +89,10 @@ export const getClient = async (privyEthWallet: any): Promise<Client | null> => 
 /** Check if the target address can be messaged */
 export const canMessage = async (
     address: string,
-    client: Client | null, // Updated type annotation
+    client: Client | null,
 ): Promise<boolean> => {
-    if (!address || !client) return false;
+    if (!address || !client || typeof window === 'undefined') return false;
+
     try {
         const result = await client.canMessage([
             {
@@ -95,21 +109,28 @@ export const canMessage = async (
 
 /** Start (or fetch) a direct DM */
 export const startNewConversation = async (
-    client: Client | null, // Updated type annotation
+    client: Client | null,
     peerAddress: string,
 ): Promise<AnyConversation | null> => {
-    if (!client) return null;
+    if (!client || typeof window === 'undefined') return null;
+
     try {
+        const xmtp = await getXmtpModule();
+        if (!xmtp) return null;
+
         const identifier: Identifier = {
             identifier: peerAddress.toLowerCase(),
             identifierKind: 'Ethereum',
         } as const;
+
         const convo = await client.conversations.newDmWithIdentifier(identifier);
+
         // Immediately allow the conversation if it's pending
         try {
-            // @ts-ignore – the consent API is still typed loosely
-            await convo.updateConsentState?.(ConsentState.Allowed);
+            // Use string instead of ConsentState enum to avoid import issues
+            await convo.updateConsentState?.('allowed');
         } catch (_) { }
+
         return convo as AnyConversation;
     } catch (e) {
         console.error('Error starting conversation:', e);
@@ -117,8 +138,9 @@ export const startNewConversation = async (
     }
 };
 
-export const listConversations = async (client: Client | null): Promise<AnyConversation[]> => { // Updated type annotation
-    if (!client) return [];
+export const listConversations = async (client: Client | null): Promise<AnyConversation[]> => {
+    if (!client || typeof window === 'undefined') return [];
+
     try {
         const convos = await client.conversations.list();
         return convos as AnyConversation[];
@@ -129,7 +151,8 @@ export const listConversations = async (client: Client | null): Promise<AnyConve
 };
 
 export const getMessages = async (convo: AnyConversation | null): Promise<any[]> => {
-    if (!convo) return [];
+    if (!convo || typeof window === 'undefined') return [];
+
     try {
         return await convo.messages();
     } catch (e) {
@@ -139,7 +162,8 @@ export const getMessages = async (convo: AnyConversation | null): Promise<any[]>
 };
 
 export const syncConversations = async (client: Client | null): Promise<void> => {
-    if (!client) return;
+    if (!client || typeof window === 'undefined') return;
+
     try {
         console.debug('[XMTP] Syncing conversations from network...');
         await client.conversations.sync();
@@ -155,7 +179,7 @@ export const syncConversations = async (client: Client | null): Promise<void> =>
  * Based on the working xmtp-app implementation
  */
 export const getPeerAddress = async (conversation: any): Promise<string | null> => {
-    if (!conversation) return null;
+    if (!conversation || typeof window === 'undefined') return null;
 
     try {
         // Cast conversation to match working version structure
@@ -203,15 +227,16 @@ export const getPeerAddress = async (conversation: any): Promise<string | null> 
                         }
                     }
                 }
-            } catch (memberError) {
-                console.warn('⚠️ [getPeerAddress] Error getting members:', memberError);
+            } catch (membersError) {
+                console.warn('🔍 [getPeerAddress] Error getting members:', membersError);
             }
         }
 
-        console.warn('⚠️ [getPeerAddress] Could not extract peer address from conversation');
+        console.warn('🔍 [getPeerAddress] Could not extract peer address');
         return null;
+
     } catch (error) {
-        console.error('❌ [getPeerAddress] Error extracting peer address:', error);
+        console.error('🔍 [getPeerAddress] Error extracting peer address:', error);
         return null;
     }
 }; 

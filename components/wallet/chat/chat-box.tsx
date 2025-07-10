@@ -103,22 +103,95 @@ export default function ChatBox({
     const extractPeerAddress = async () => {
       if (conversation) {
         try {
-          // Use the same logic as working version
-          const dm = conversation as unknown as { peerAddress?: string; topic?: string };
-          const peerAddress: string = dm.peerAddress || "";
-          const topic: string = dm.topic || "";
-          const displayAddress = peerAddress || topic || "";
+          console.log('🔍 [ChatBox] Extracting peer address from conversation object...');
+          console.log('🔍 [ChatBox] Conversation object keys:', Object.keys(conversation as any));
+          console.log('🔍 [ChatBox] Conversation object:', conversation);
 
-          console.log('✅ [ChatBox] Extracted peer info:', {
+          // Try multiple methods to extract peer address
+          let peerAddress = '';
+          let topic = '';
+          let displayAddress = '';
+
+          // Method 1: Direct properties (v3 SDK style)
+          const dm = conversation as unknown as { peerAddress?: string; topic?: string };
+          if (dm.peerAddress) {
+            peerAddress = dm.peerAddress;
+            console.log('✅ [ChatBox] Found peerAddress via direct property:', peerAddress);
+          }
+          if (dm.topic) {
+            topic = dm.topic;
+            console.log('✅ [ChatBox] Found topic via direct property:', topic);
+          }
+
+          // Method 2: Check for members method (v3 Group conversations)
+          if (!peerAddress && typeof (conversation as any).members === 'function') {
+            try {
+              const members = await (conversation as any).members();
+              console.log('🔍 [ChatBox] Conversation members:', members);
+              if (members && Array.isArray(members) && members.length > 0) {
+                // Find the member that's not the current user
+                const currentUserAddress = await (conversation as any).client?.address;
+                const otherMember = members.find((member: any) => {
+                  const memberAddr = member.accountAddresses?.[0] || member.addresses?.[0] || member.address;
+                  return memberAddr && memberAddr.toLowerCase() !== currentUserAddress?.toLowerCase();
+                });
+                if (otherMember) {
+                  peerAddress = otherMember.accountAddresses?.[0] || otherMember.addresses?.[0] || otherMember.address || '';
+                  console.log('✅ [ChatBox] Found peerAddress via members:', peerAddress);
+                }
+              }
+            } catch (membersError) {
+              console.log('⚠️ [ChatBox] Could not get members:', membersError);
+            }
+          }
+
+          // Method 3: Check conversation metadata/state
+          if (!peerAddress && (conversation as any).metadata) {
+            const metadata = (conversation as any).metadata;
+            console.log('🔍 [ChatBox] Checking metadata:', metadata);
+            if (metadata.peerAddress) {
+              peerAddress = metadata.peerAddress;
+              console.log('✅ [ChatBox] Found peerAddress via metadata:', peerAddress);
+            }
+          }
+
+          // Method 4: Check if conversation has participants
+          if (!peerAddress && (conversation as any).participants) {
+            const participants = (conversation as any).participants;
+            console.log('🔍 [ChatBox] Checking participants:', participants);
+            if (Array.isArray(participants) && participants.length > 0) {
+              const otherParticipant = participants.find((p: any) => p !== (conversation as any).client?.address);
+              if (otherParticipant) {
+                peerAddress = otherParticipant;
+                console.log('✅ [ChatBox] Found peerAddress via participants:', peerAddress);
+              }
+            }
+          }
+
+          // Method 5: Check conversation ID for embedded address
+          if (!peerAddress && (conversation as any).id) {
+            const conversationId = (conversation as any).id;
+            console.log('🔍 [ChatBox] Checking conversation ID for address patterns:', conversationId);
+            // Sometimes the conversation ID contains the peer address
+            // This is a fallback method and might not always work
+            topic = conversationId;
+          }
+
+          // Determine the display address
+          displayAddress = peerAddress || topic || "";
+
+          console.log('✅ [ChatBox] Final extracted peer info:', {
             conversationId: (conversation as any).id,
             peerAddress: peerAddress || 'null',
             topic: topic || 'null',
-            displayAddress: displayAddress || 'null'
+            displayAddress: displayAddress || 'null',
+            conversationType: (conversation as any).version || 'unknown'
           });
 
           setRecipientUserAddress(displayAddress || null);
         } catch (error) {
           console.error('❌ [ChatBox] Error extracting peer address:', error);
+          console.error('❌ [ChatBox] Conversation object that failed:', conversation);
         }
       }
     };
@@ -154,15 +227,71 @@ export default function ChatBox({
       try {
         // Sync conversation first to get latest messages
         console.log('🔄 [ChatBox] Syncing conversation before loading messages...');
-        await (conversation as any).sync?.();
-        console.log('✅ [ChatBox] Conversation sync complete');
+
+        // Handle the misleading XMTP sync "error"
+        try {
+          await (conversation as any).sync?.();
+          console.log('✅ [ChatBox] Conversation sync complete');
+        } catch (syncError: any) {
+          // Check if this is the misleading "successful sync" error from XMTP SDK
+          if (syncError.message &&
+            syncError.message.includes('synced') &&
+            syncError.message.includes('succeeded') &&
+            (syncError.message.includes('0 failed') || !syncError.message.includes('failed'))) {
+
+            console.log('🔄 [ChatBox] Detected successful sync reported as error, treating as success:', syncError.message);
+          } else {
+            // This is a real sync error, re-throw it
+            throw syncError;
+          }
+        }
 
         const initialMessages = await conversation.messages();
         console.log('✅ [ChatBox] Initial messages loaded:', initialMessages.length, 'messages');
         console.log('📝 [ChatBox] Initial messages:', initialMessages);
+
+        // Add detailed logging for each message
+        initialMessages.forEach((msg: any, index: number) => {
+          console.log(`📝 [ChatBox] Message ${index + 1}:`, {
+            id: msg.id,
+            content: msg.content,
+            senderAddress: msg.senderAddress,
+            sent: msg.sent,
+            contentType: msg.contentType
+          });
+        });
+
         setMessages(initialMessages);
+        console.log('✅ [ChatBox] Messages state updated with', initialMessages.length, 'messages');
+
+        // If no messages initially, try refreshing after a short delay
+        if (initialMessages.length === 0) {
+          console.log('🔄 [ChatBox] No initial messages found, will retry in 2 seconds...');
+          setTimeout(async () => {
+            try {
+              const retryMessages = await conversation.messages();
+              console.log('🔄 [ChatBox] Retry messages loaded:', retryMessages.length, 'messages');
+              if (retryMessages.length > 0) {
+                setMessages(retryMessages);
+                console.log('✅ [ChatBox] Retry successful, messages updated');
+              }
+            } catch (retryError) {
+              console.log('⚠️ [ChatBox] Retry failed:', retryError);
+            }
+          }, 2000);
+        }
       } catch (error) {
         console.error('❌ [ChatBox] Error loading messages:', error);
+
+        // Fallback: try to load messages without sync
+        try {
+          console.log('🔄 [ChatBox] Attempting fallback message loading without sync...');
+          const fallbackMessages = await conversation.messages();
+          setMessages(fallbackMessages);
+          console.log('✅ [ChatBox] Fallback message loading successful:', fallbackMessages.length, 'messages');
+        } catch (fallbackError) {
+          console.error('❌ [ChatBox] Fallback message loading also failed:', fallbackError);
+        }
       }
     };
     loadMessages();
@@ -180,7 +309,23 @@ export default function ChatBox({
         console.log('🔄 [ChatBox] Starting message stream...');
 
         // Sync conversation before starting stream to catch any missed messages
-        await (conversation as any).sync?.();
+        // Handle the misleading XMTP sync "error"
+        try {
+          await (conversation as any).sync?.();
+          console.log('✅ [ChatBox] Conversation sync complete before streaming');
+        } catch (syncError: any) {
+          // Check if this is the misleading "successful sync" error from XMTP SDK
+          if (syncError.message &&
+            syncError.message.includes('synced') &&
+            syncError.message.includes('succeeded') &&
+            (syncError.message.includes('0 failed') || !syncError.message.includes('failed'))) {
+
+            console.log('🔄 [ChatBox] Detected successful sync reported as error, treating as success:', syncError.message);
+          } else {
+            // This is a real sync error, re-throw it
+            throw syncError;
+          }
+        }
 
         // Use the stream() API to listen for new messages
         stream = await (conversation as any).stream();
@@ -216,8 +361,19 @@ export default function ChatBox({
             console.log('⚠️ [ChatBox] Component unmounted, not adding message');
           }
         }
-      } catch (error) {
-        console.error('❌ [ChatBox] Error in message stream:', error);
+      } catch (error: any) {
+        // Check if this is the misleading "successful sync" error from XMTP SDK
+        if (error.message &&
+          error.message.includes('synced') &&
+          error.message.includes('succeeded') &&
+          (error.message.includes('0 failed') || !error.message.includes('failed'))) {
+
+          console.log('🔄 [ChatBox] Detected successful sync reported as error in stream, treating as success:', error.message);
+          // Don't log as error, continue operation
+        } else {
+          // This is a real streaming error
+          console.error('❌ [ChatBox] Error in message stream:', error);
+        }
       }
     };
 
@@ -256,6 +412,21 @@ export default function ChatBox({
     }
   }, [messages]);
 
+  // Add debugging for messages state changes
+  useEffect(() => {
+    console.log('🔄 [ChatBox] Messages state changed:', {
+      messageCount: messages.length,
+      hasMessages: messages.length > 0,
+      messages: messages.map((msg: any, index: number) => ({
+        index,
+        id: msg.id,
+        content: typeof msg.content === 'string' ? msg.content : JSON.stringify(msg.content),
+        senderAddress: msg.senderAddress,
+        sent: msg.sent
+      }))
+    });
+  }, [messages]);
+
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
     if (inputMessage.trim() && conversation) {
@@ -269,7 +440,20 @@ export default function ChatBox({
         await sendText(conversation, inputMessage);
         console.log('✅ [ChatBox] Message sent successfully');
         setInputMessage('');
-      } catch (error) {
+      } catch (error: any) {
+        // Check if this is the misleading "successful sync" error from XMTP SDK
+        if (error.message &&
+          error.message.includes('synced') &&
+          error.message.includes('succeeded') &&
+          (error.message.includes('0 failed') || !error.message.includes('failed'))) {
+
+          console.log('🔄 [ChatBox] Detected successful sync reported as error, treating as success:', error.message);
+          console.log('✅ [ChatBox] Message sent successfully (despite misleading error)');
+          setInputMessage('');
+          return; // Treat as success
+        }
+
+        // This is a real error
         console.error('❌ [ChatBox] Error sending message:', error);
         console.error('❌ [ChatBox] Error details:', {
           message: error instanceof Error ? error.message : 'Unknown error',
@@ -759,45 +943,80 @@ export default function ChatBox({
       (v, i, a) => a.findIndex((t) => (t as any).id === (v as any).id) === i
     );
 
+    console.log('🎨 [ChatBox] Rendering messages:', {
+      totalMessages: messages.length,
+      uniqueMessages: uniqueMessages.length,
+      clientInboxId: client?.inboxId,
+      clientAddress: client?.address
+    });
+
     return (
       <div className="px-4 md:px-8 h-full pb-24">
-        {uniqueMessages.map((message, index) => {
-          const senderAddress = (message as any).senderAddress;
-          const sent = (message as any).sent;
-          const content = (message as any).content;
-          const id = (message as any).id;
+        {uniqueMessages.length === 0 ? (
+          <div className="flex items-center justify-center h-full text-muted-foreground">
+            <p>No messages yet. Start the conversation!</p>
+          </div>
+        ) : (
+          uniqueMessages.map((message, index) => {
+            const senderAddress = (message as any).senderAddress;
+            const senderInboxId = (message as any).senderInboxId;
+            const sent = (message as any).sent;
+            const content = (message as any).content;
+            const id = (message as any).id;
 
-          return (
-            <div
-              key={id}
-              ref={
-                index === uniqueMessages.length - 1
-                  ? lastMessageRef
-                  : null
-              }
-              className={`mb-4 ${senderAddress === client?.inboxId
-                ? 'text-right'
-                : 'text-left'
-                }`}
-            >
+            // Try multiple ways to determine if this is our message
+            const isOurMessage =
+              senderAddress === client?.address ||
+              senderInboxId === client?.inboxId ||
+              senderAddress === client?.inboxId;
+
+            console.log(`🎨 [ChatBox] Rendering message ${index + 1}:`, {
+              id,
+              senderAddress,
+              senderInboxId,
+              clientAddress: client?.address,
+              clientInboxId: client?.inboxId,
+              isOurMessage,
+              content: typeof content === 'string' ? content : JSON.stringify(content),
+              sent
+            });
+
+            return (
               <div
-                className={`inline-block px-3 py-2 rounded-lg ${senderAddress === client?.inboxId
-                  ? 'bg-primary text-primary-foreground'
-                  : 'bg-secondary text-secondary-foreground'
+                key={id}
+                ref={
+                  index === uniqueMessages.length - 1
+                    ? lastMessageRef
+                    : null
+                }
+                className={`mb-4 ${isOurMessage
+                  ? 'text-right'
+                  : 'text-left'
                   }`}
               >
-                {renderMessageContent(content)}
+                <div
+                  className={`inline-block px-3 py-2 rounded-lg max-w-xs lg:max-w-md ${isOurMessage
+                    ? 'bg-primary text-primary-foreground'
+                    : 'bg-secondary text-secondary-foreground'
+                    }`}
+                >
+                  {renderMessageContent(content)}
+                </div>
+                <div className="text-xs mt-1 text-muted-foreground">
+                  {new Date(sent).toLocaleTimeString('en-US', {
+                    hour: 'numeric',
+                    minute: 'numeric',
+                    hour12: true,
+                  })}
+                  {/* Debug info - remove in production */}
+                  <span className="ml-2 opacity-60">
+                    {isOurMessage ? '(You)' : '(Them)'}
+                  </span>
+                </div>
               </div>
-              <div className="text-xs mt-1 text-muted-foreground">
-                {new Date(sent).toLocaleTimeString('en-US', {
-                  hour: 'numeric',
-                  minute: 'numeric',
-                  hour12: true,
-                })}
-              </div>
-            </div>
-          )
-        })}
+            );
+          })
+        )}
       </div>
     );
   };

@@ -18,6 +18,13 @@ const nextConfig: NextConfig = {
         crypto: require.resolve('crypto-browserify'),
         stream: require.resolve('stream-browserify'),
         buffer: require.resolve('buffer'),
+        // Add additional fallbacks for XMTP
+        path: false,
+        os: false,
+        http: false,
+        https: false,
+        zlib: false,
+        url: false,
       };
     }
 
@@ -39,10 +46,14 @@ const nextConfig: NextConfig = {
       const originalExternals = config.externals || [];
       config.externals = [
         ...originalExternals,
-        // XMTP packages
+        // XMTP packages - prevent server-side execution
         '@xmtp/browser-sdk',
         '@xmtp/wasm-bindings',
         '@xmtp/proto',
+        '@xmtp/user-preferences-bindings-wasm',
+        '@xmtp/content-type-primitives',
+        '@xmtp/content-type-text',
+        '@xmtp/content-type-reaction',
         // Other problematic client-only packages
         'crypto-browserify',
         'stream-browserify',
@@ -55,6 +66,12 @@ const nextConfig: NextConfig = {
       ...config.resolve.alias,
       'wbg': false,
     };
+
+    // Additional optimization for XMTP WASM handling
+    config.module.rules.push({
+      test: /node_modules\/@xmtp\/.*\.js$/,
+      type: 'javascript/auto',
+    });
 
     return config;
   },
@@ -98,7 +115,12 @@ const nextConfig: NextConfig = {
       },
     ],
   },
-  serverExternalPackages: ['@xmtp/user-preferences-bindings-wasm'],
+  serverExternalPackages: [
+    '@xmtp/user-preferences-bindings-wasm',
+    '@xmtp/browser-sdk',
+    '@xmtp/wasm-bindings',
+    '@xmtp/proto',
+  ],
 };
 
 export default nextConfig; 

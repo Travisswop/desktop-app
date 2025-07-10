@@ -1,32 +1,21 @@
 'use client';
 
-import React, {
-  createContext,
-  useState,
-  useContext,
-  useEffect,
-  useCallback,
-  useMemo,
-} from 'react';
-
+import React, { createContext, useContext, useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import { useWallets } from '@privy-io/react-auth';
+import type { AnyConversation } from '../xmtp-safe';
+import { getClient } from '../xmtp';
 import {
-  safeGetClient,
+  safeSyncConversations,
   safeListConversations,
   safeStartNewConversation,
-  AnyConversation,
   safeCanMessage,
-  safeGetMessages,
-  safeSyncConversations,
-  safeGetPeerAddress,
-} from '@/lib/xmtp-safe';
-import { loadXmtp, clearXmtpClientData } from '@/lib/xmtp-browser';
-import type { Client } from '@xmtp/browser-sdk';
+  safeGetMessages
+} from '../xmtp-safe';
+import { loadXmtp, clearXmtpClientData } from '../xmtp-browser';
 
-// We'll initialize XMTP in useEffect
-
+// Define conversation type with proper typing
 interface XmtpContextValue {
-  client: Client | null;
+  client: any | null; // Use any type to avoid SSR issues with XMTP types
   isConnected: boolean;
   conversations: AnyConversation[];
   conversationRequests: AnyConversation[];
@@ -55,12 +44,20 @@ interface XmtpProviderProps {
 
 export const XmtpProvider: React.FC<XmtpProviderProps> = ({ children }) => {
   const { wallets } = useWallets();
-  const [client, setClient] = useState<Client | null>(null);
+  const [client, setClient] = useState<any | null>(null); // Use any type to avoid SSR issues with XMTP types
   const [isConnected, setIsConnected] = useState<boolean>(false);
   const [conversations, setConversations] = useState<AnyConversation[]>([]);
   const [conversationRequests, setConversationRequests] = useState<AnyConversation[]>([]);
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<Error | null>(null);
+
+  // Use ref to maintain stable client reference across re-renders
+  const clientRef = useRef<any | null>(null); // Use any type to avoid SSR issues with XMTP types
+
+  // Keep client ref in sync with client state
+  useEffect(() => {
+    clientRef.current = client;
+  }, [client]);
 
   // Initialize XMTP
   useEffect(() => {
@@ -89,6 +86,7 @@ export const XmtpProvider: React.FC<XmtpProviderProps> = ({ children }) => {
   const clearClientData = useCallback(() => {
     console.log('🧹 [XmtpContext] Clearing client data...');
     setClient(null);
+    clientRef.current = null; // Also clear the ref
     setIsConnected(false);
     setConversations([]);
     setConversationRequests([]);
@@ -119,7 +117,7 @@ export const XmtpProvider: React.FC<XmtpProviderProps> = ({ children }) => {
         setError(null);
         console.log('🔄 [XmtpContext] Getting XMTP client with enhanced lifecycle management...');
 
-        const newClient = await safeGetClient(privyEthWallet);
+        const newClient = await getClient(privyEthWallet);
         console.log('✅ [XmtpContext] XMTP client result:', {
           clientExists: !!newClient,
           clientInboxId: newClient ? newClient.inboxId : null
@@ -239,7 +237,7 @@ export const XmtpProvider: React.FC<XmtpProviderProps> = ({ children }) => {
                 // Refresh conversations to include the new one
                 console.log('🔄 [XmtpContext] Refreshing conversations after new conversation...');
                 setTimeout(async () => {
-                  if (mounted) {
+                  if (mounted && clientRef.current) {
                     await refreshConversations();
                   }
                 }, 500);
@@ -262,8 +260,14 @@ export const XmtpProvider: React.FC<XmtpProviderProps> = ({ children }) => {
 
             try {
               console.log('🔄 [XmtpContext] Running periodic sync...');
-              await safeSyncConversations(newClient);
-              await refreshConversations();
+              // Use clientRef.current instead of stale state
+              const currentClient = clientRef.current;
+              if (currentClient) {
+                await safeSyncConversations(currentClient);
+                await refreshConversations();
+              } else {
+                console.log('⚠️ [XmtpContext] Skipping periodic sync - no current client');
+              }
             } catch (error) {
               console.warn('⚠️ [XmtpContext] Error in periodic sync:', error);
             }
@@ -296,6 +300,9 @@ export const XmtpProvider: React.FC<XmtpProviderProps> = ({ children }) => {
       console.log('🧹 [XmtpContext] Cleaning up XMTP initialization');
       mounted = false;
 
+      // Clear client ref to prevent stale references
+      clientRef.current = null;
+
       // Clean up interval
       if (syncInterval) {
         clearInterval(syncInterval);
@@ -313,17 +320,19 @@ export const XmtpProvider: React.FC<XmtpProviderProps> = ({ children }) => {
   }, [privyEthWallet]);
 
   const refreshConversations = useCallback(async () => {
-    if (!client) {
-      console.log('⚠️ [XmtpContext] Cannot refresh conversations - no client');
+    // Use current client ref instead of potentially stale state
+    const currentClient = clientRef.current;
+    if (!currentClient) {
+      console.log('⚠️ [XmtpContext] Cannot refresh conversations - no current client');
       return;
     }
 
     console.log('🔄 [XmtpContext] Refreshing conversations...');
     try {
       // Sync with network first to get latest conversations
-      await safeSyncConversations(client);
+      await safeSyncConversations(currentClient);
 
-      const convos = await safeListConversations(client);
+      const convos = await safeListConversations(currentClient);
       console.log('✅ [XmtpContext] Retrieved conversations:', convos.length, 'total');
 
       const allowed: AnyConversation[] = [];
@@ -387,18 +396,20 @@ export const XmtpProvider: React.FC<XmtpProviderProps> = ({ children }) => {
     } catch (error) {
       console.error('❌ [XmtpContext] Error refreshing conversations:', error);
     }
-  }, [client]);
+  }, []); // Remove client dependency since we use clientRef.current
 
   const newConversation = useCallback(
     async (peer: string) => {
-      if (!client) {
-        console.log('⚠️ [XmtpContext] Cannot create conversation - no client');
+      // Use current client ref instead of potentially stale state
+      const currentClient = clientRef.current;
+      if (!currentClient) {
+        console.log('⚠️ [XmtpContext] Cannot create conversation - no current client');
         return null;
       }
 
       console.log('🆕 [XmtpContext] Creating new conversation with peer:', peer);
       try {
-        const convo = await safeStartNewConversation(client, peer);
+        const convo = await safeStartNewConversation(currentClient, peer);
         console.log('✅ [XmtpContext] New conversation created:', {
           conversation: convo,
           conversationId: convo ? (convo as any).id : null,
@@ -427,7 +438,7 @@ export const XmtpProvider: React.FC<XmtpProviderProps> = ({ children }) => {
         return null;
       }
     },
-    [client, refreshConversations],
+    [refreshConversations], // Remove client dependency
   );
 
   const sendMessage = useCallback(async (convo: AnyConversation, text: string): Promise<void> => {
@@ -447,14 +458,45 @@ export const XmtpProvider: React.FC<XmtpProviderProps> = ({ children }) => {
 
       // Sync conversations to ensure message appears everywhere
       console.log('🔄 [XmtpContext] Syncing after send...');
-      await safeSyncConversations(client);
+      // Use current client ref instead of potentially stale state
+      const currentClient = clientRef.current;
+      if (currentClient) {
+        await safeSyncConversations(currentClient);
+      }
 
       // Trigger a refresh of conversations to ensure the message appears
       console.log('🔄 [XmtpContext] Refreshing conversations after send...');
       await refreshConversations();
       console.log('✅ [XmtpContext] Conversations refreshed after send');
 
-    } catch (err) {
+    } catch (err: any) {
+      // Check if this is the misleading "successful sync" error from XMTP SDK
+      if (err.message &&
+        err.message.includes('synced') &&
+        err.message.includes('succeeded') &&
+        (err.message.includes('0 failed') || !err.message.includes('failed'))) {
+
+        console.log('🔄 [XmtpContext] Detected successful sync reported as error, treating as success:', err.message);
+
+        // This is actually a successful message send, continue with sync
+        try {
+          console.log('🔄 [XmtpContext] Syncing after successful send...');
+          const currentClient = clientRef.current;
+          if (currentClient) {
+            await safeSyncConversations(currentClient);
+          }
+
+          console.log('🔄 [XmtpContext] Refreshing conversations after successful send...');
+          await refreshConversations();
+          console.log('✅ [XmtpContext] Message sent successfully (despite misleading error)');
+          return; // Treat as success
+        } catch (syncError) {
+          console.warn('⚠️ [XmtpContext] Error during post-send sync, but message was sent:', syncError);
+          return; // Still treat as success since message was sent
+        }
+      }
+
+      // This is a real error
       console.error('❌ [XmtpContext] XMTP send error:', err);
       console.error('❌ [XmtpContext] Error details:', {
         message: err instanceof Error ? err.message : 'Unknown error',
@@ -464,7 +506,7 @@ export const XmtpProvider: React.FC<XmtpProviderProps> = ({ children }) => {
       });
       throw err; // Re-throw so the UI can handle it
     }
-  }, [client, refreshConversations]);
+  }, [refreshConversations]); // Remove client dependency
 
   const allowConversation = useCallback(async (convo: AnyConversation): Promise<void> => {
     try {
@@ -488,11 +530,23 @@ export const XmtpProvider: React.FC<XmtpProviderProps> = ({ children }) => {
       newConversation,
       sendText: sendMessage,
       allowConversation,
-      canMessage: async (addr: string) => safeCanMessage(addr, client),
+      canMessage: async (addr: string) => safeCanMessage(addr, clientRef.current),
       getMessages: (c) => safeGetMessages(c),
       clearClientData,
     }),
-    [client, isConnected, conversations, conversationRequests, loading, error, refreshConversations, newConversation, sendMessage, allowConversation, clearClientData],
+    [
+      client,
+      isConnected,
+      conversations,
+      conversationRequests,
+      loading,
+      error,
+      refreshConversations,
+      newConversation,
+      sendMessage,
+      allowConversation,
+      clearClientData,
+    ],
   );
 
   return <XmtpContext.Provider value={ctxValue}>{children}</XmtpContext.Provider>;
