@@ -30,6 +30,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { AnyConversation } from '@/lib/xmtp';
 import { safeGetPeerAddress, safeFindExistingDm, safeResolveInboxId } from '@/lib/xmtp-safe';
 import { XmtpErrorDisplay } from '@/components/xmtp/XmtpErrorDisplay';
+import { useToast } from '@/hooks/use-toast';
 
 
 interface MessageProps {
@@ -106,10 +107,13 @@ const ChatPageContent = () => {
     refreshConversations,
     loading: xmtpLoading,
     error: xmtpError,
+    isConnected,
+    initClient,
   } = useXmtpContext();
   const { user: PrivyUser } = usePrivy();
   const searchParams = useSearchParams();
   const router = useRouter();
+  const { toast } = useToast();
 
   const [walletData, setWalletData] = useState<WalletItem[] | null>(
     null
@@ -130,6 +134,39 @@ const ChatPageContent = () => {
   const [tokenData, setTokenData] = useState<any>(null);
   const [selectedConversation, setSelectedConversation] =
     useState<AnyConversation | null>(null);
+
+  // Debug XMTP state
+  useEffect(() => {
+    console.log('🔍 [ChatPage] XMTP State:', {
+      hasClient: !!xmtpClient,
+      isConnected,
+      isLoading: xmtpLoading,
+      hasError: !!xmtpError,
+      errorMessage: xmtpError?.message,
+      conversationCount: conversations?.length || 0,
+      hasPrivyUser: !!PrivyUser,
+      privyWallets: PrivyUser?.linkedAccounts?.filter(a => a.type === 'wallet')?.length || 0
+    });
+  }, [xmtpClient, isConnected, xmtpLoading, xmtpError, conversations, PrivyUser]);
+
+  // Manual retry function
+  const handleRetryXMTP = async () => {
+    console.log('🔄 [ChatPage] Manual XMTP retry requested');
+    try {
+      await initClient();
+      toast({
+        title: 'Success',
+        description: 'XMTP client initialized successfully!',
+      });
+    } catch (error) {
+      console.error('❌ [ChatPage] Manual retry failed:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to initialize XMTP. Please check console for details.',
+        variant: 'destructive',
+      });
+    }
+  };
 
   const peerAddresses = useMemo(() => {
     if (!conversations) return [];
@@ -179,51 +216,79 @@ const ChatPageContent = () => {
         setChangeConversationLoading(true);
         setSelectedConversation(null);
 
-        // Use v3 API to find existing DM by Ethereum address
-        console.log('🔍 [ChatPage] Looking for existing DM with address:', recipientAddress);
-        const existingDm = await safeFindExistingDm(xmtpClient, recipientAddress);
+        // Use simplified approach: try to find existing conversation or create new one
+        console.log('🔍 [ChatPage] Looking for existing conversation...');
+        console.log('🔍 [ChatPage] Available conversations:', {
+          count: conversations?.length || 0,
+          conversations: conversations?.map(c => ({
+            id: (c as any).id,
+            type: (c as any).conversationType || 'unknown',
+            hasMembers: !!(c as any).members,
+            memberCount: (c as any).members?.length || 0
+          }))
+        });
 
-        if (existingDm) {
-          console.log('✅ [ChatPage] Found existing DM:', (existingDm as any).id);
+        // First, check if we have any existing conversations with this address
+        let existingConversation = null;
+        if (conversations && conversations.length > 0) {
+          for (const conv of conversations) {
+            const convAny = conv as any;
+            console.log('🔍 [ChatPage] Checking conversation:', {
+              id: convAny.id,
+              members: convAny.members?.map((m: any) => ({
+                inboxId: m.inboxId,
+                accountAddresses: m.accountAddresses
+              }))
+            });
 
-          // Ensure the conversation is allowed for seamless messaging
-          try {
-            const consentState = (existingDm as any).consentState;
-            if (typeof consentState === 'function') {
-              const currentState = await consentState();
-              if (currentState !== 'allowed') {
-                console.log('🔄 [ChatPage] Auto-allowing existing DM...');
-                await (existingDm as any).updateConsentState?.('allowed');
-                setTimeout(async () => {
-                  await refreshConversations?.();
-                }, 100);
+            // Check if this conversation involves the target address
+            if (convAny.members && Array.isArray(convAny.members)) {
+              const hasPeerAddress = convAny.members.some((member: any) =>
+                member.accountAddresses?.some((addr: string) =>
+                  addr.toLowerCase() === recipientAddress.toLowerCase()
+                )
+              );
+
+              if (hasPeerAddress) {
+                console.log('✅ [ChatPage] Found existing conversation with peer:', convAny.id);
+                existingConversation = conv;
+                break;
               }
-            } else if (consentState !== 'allowed') {
-              console.log('🔄 [ChatPage] Auto-allowing existing DM...');
-              await (existingDm as any).updateConsentState?.('allowed');
             }
-          } catch (consentError) {
-            console.warn('⚠️ [ChatPage] Could not check/update consent state:', consentError);
-          }
 
-          setSelectedConversation(existingDm);
+            // Also check direct peer address properties
+            if (convAny.peerAddress === recipientAddress.toLowerCase() ||
+              convAny.peer === recipientAddress.toLowerCase()) {
+              console.log('✅ [ChatPage] Found existing conversation via direct peer match:', convAny.id);
+              existingConversation = conv;
+              break;
+            }
+          }
+        }
+
+        if (existingConversation) {
+          console.log('✅ [ChatPage] Found existing conversation:', (existingConversation as any).id);
+          setSelectedConversation(existingConversation);
         } else {
-          console.log('🔍 [ChatPage] No existing DM found, creating new one...');
-
-          // First check if the address can receive XMTP messages
-          const canMessageUser = await canMessage(recipientAddress);
-          if (!canMessageUser) {
-            console.log('❌ [ChatPage] User cannot receive XMTP messages');
-            return;
-          }
-
-          // Create new conversation - this will now use the v3 API with inbox ID resolution
-          const convo = await newConversation(recipientAddress);
-          if (convo) {
-            console.log('✅ [ChatPage] Created new conversation:', (convo as any).id);
-            setSelectedConversation(convo);
+          console.log('🆕 [ChatPage] Creating new conversation with:', recipientAddress);
+          const newConvo = await newConversation(recipientAddress);
+          if (newConvo) {
+            console.log('✅ [ChatPage] New conversation created:', {
+              id: (newConvo as any).id,
+              type: (newConvo as any).conversationType || 'unknown',
+              members: (newConvo as any).members?.map((m: any) => ({
+                inboxId: m.inboxId,
+                accountAddresses: m.accountAddresses
+              }))
+            });
+            setSelectedConversation(newConvo);
           } else {
-            console.error('❌ [ChatPage] Could not create conversation');
+            console.error('❌ [ChatPage] Failed to create new conversation');
+            toast({
+              title: 'Error',
+              description: 'Failed to start conversation',
+              variant: 'destructive',
+            });
           }
         }
 
@@ -237,12 +302,17 @@ const ChatPageContent = () => {
           setMicrositeData(micrositeInfo || null);
         }
       } catch (error) {
-        console.error('❌ [ChatPage] Failed to select conversation:', error);
+        console.error('❌ [ChatPage] Error selecting conversation:', error);
+        toast({
+          title: 'Error',
+          description: 'Failed to start conversation',
+          variant: 'destructive',
+        });
       } finally {
         setChangeConversationLoading(false);
       }
     },
-    [xmtpClient, newConversation, canMessage, peerData, searchResult, refreshConversations]
+    [xmtpClient, conversations, newConversation, toast, searchResult, peerData],
   );
 
   const fetchPeerData = useCallback(async () => {
@@ -336,6 +406,11 @@ const ChatPageContent = () => {
       .filter(Boolean) as WalletItem[];
 
     setWalletData(linkWallet);
+
+    console.log('🔍 [ChatPage] Privy wallet data:', {
+      totalAccounts: PrivyUser.linkedAccounts.length,
+      wallets: linkWallet
+    });
   }, [PrivyUser]);
 
   // Handle recipient from URL params
@@ -411,15 +486,43 @@ const ChatPageContent = () => {
               <div className="text-center">
                 <Loader className="w-8 h-8 animate-spin mx-auto mb-3 text-blue-600" />
                 <p className="text-gray-600">Connecting to XMTP...</p>
+                <p className="text-xs text-gray-400 mt-2">
+                  Check browser console for detailed logs
+                </p>
               </div>
             </div>
           ) : xmtpError ? (
             <div className="w-full h-full flex items-center justify-center p-4">
-              <XmtpErrorDisplay className="max-w-md" />
+              <div className="text-center max-w-md">
+                <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-4">
+                  <h3 className="font-semibold text-red-800 mb-2">XMTP Connection Error</h3>
+                  <p className="text-red-600 text-sm mb-4">{xmtpError.message}</p>
+                  <button
+                    onClick={handleRetryXMTP}
+                    className="bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700 transition-colors"
+                  >
+                    Retry Connection
+                  </button>
+                </div>
+                <div className="text-xs text-gray-500">
+                  <p>Check browser console for detailed error logs</p>
+                  <p>Make sure your wallet is connected and try again</p>
+                </div>
+              </div>
             </div>
           ) : !micrositeData ? (
             <div className="w-full h-full flex items-center justify-center text-gray-500">
-              Select a conversation to start chatting
+              <div className="text-center">
+                <p className="mb-2">Select a conversation to start chatting</p>
+                {!isConnected && (
+                  <button
+                    onClick={handleRetryXMTP}
+                    className="text-blue-600 hover:text-blue-700 text-sm underline"
+                  >
+                    Initialize XMTP
+                  </button>
+                )}
+              </div>
             </div>
           ) : (
             <div className="w-full overflow-x-hidden h-full">
