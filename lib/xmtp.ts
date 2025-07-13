@@ -269,6 +269,7 @@ export const resolveInboxId = async (client: Client | null, ethAddress: string):
 };
 
 /** Start (or fetch) a direct DM using v3 API */
+/** Start (or fetch) a direct DM using simplified approach */
 export const startNewConversation = async (
     client: Client | null,
     peerAddress: string,
@@ -277,74 +278,46 @@ export const startNewConversation = async (
 
     try {
         console.log('🚀 [startNewConversation] Starting conversation with:', peerAddress);
-
-        // First, resolve the Ethereum address to inbox ID
-        const peerInboxId = await resolveInboxId(client, peerAddress);
-        if (!peerInboxId) {
-            console.log('❌ [startNewConversation] Could not resolve inbox ID for address:', peerAddress);
+        
+        // First, check if we can message this address
+        const identifiers = [{
+            identifier: peerAddress.toLowerCase(),
+            identifierKind: 'Ethereum'
+        }];
+        
+        const canMessageResult = await client.canMessage(identifiers);
+        if (!canMessageResult.get(peerAddress.toLowerCase())) {
+            console.log('❌ [startNewConversation] Address cannot receive messages:', peerAddress);
             return null;
         }
 
-        console.log('✅ [startNewConversation] Resolved inbox ID:', peerInboxId);
-
-        // Check if a DM already exists with this inbox ID
-        // This is important because resolveInboxId might have created a conversation
-        try {
-            const existingDm = await client.conversations.getDmByInboxId(peerInboxId);
-            if (existingDm) {
-                console.log('✅ [startNewConversation] Found existing DM (possibly from resolution):', existingDm.id);
-
-                // Ensure the conversation is allowed
-                try {
-                    await existingDm.updateConsentState?.('allowed');
-                } catch (_) { }
-
-                return existingDm as AnyConversation;
-            }
-        } catch (error) {
-            console.log('🔍 [startNewConversation] No existing DM found, will create new one');
-        }
-
-        // Create new DM using inbox ID (v3 API)
-        try {
-            const convo = await client.conversations.newDm(peerInboxId);
-            console.log('✅ [startNewConversation] Created new DM using v3 API:', convo.id);
-
-            // Immediately allow the conversation
-            try {
-                await convo.updateConsentState?.('allowed');
-            } catch (_) { }
-
-            return convo as AnyConversation;
-        } catch (newDmError) {
-            console.warn('⚠️ [startNewConversation] v3 newDm failed, trying fallback:', newDmError);
-
-            // Fallback: if newDm fails, try to find any existing conversation with this peer
-            // This might happen if the conversation was created during resolution
-            const conversations = await client.conversations.list();
-            for (const conv of conversations) {
-                try {
-                    if (conv.peerInboxId && typeof conv.peerInboxId === 'function') {
-                        const convPeerInboxId = await conv.peerInboxId();
-                        if (convPeerInboxId === peerInboxId) {
-                            console.log('✅ [startNewConversation] Found conversation via fallback search:', conv.id);
-
-                            // Ensure the conversation is allowed
-                            try {
-                                await conv.updateConsentState?.('allowed');
-                            } catch (_) { }
-
-                            return conv as AnyConversation;
-                        }
-                    }
-                } catch (error) {
-                    console.warn('⚠️ [startNewConversation] Error checking conversation in fallback:', error);
-                }
-            }
-
-            console.error('❌ [startNewConversation] All methods failed to create/find conversation');
+        // Use the old API to create/find conversation directly
+        const xmtp = await getXmtpModule();
+        if (!xmtp) {
+            console.log('❌ [startNewConversation] XMTP module not available');
             return null;
         }
+
+        const identifier = {
+            identifier: peerAddress.toLowerCase(),
+            identifierKind: 'Ethereum'
+        };
+
+        // Create conversation using the identifier method - this will find existing or create new
+        const convo = await client.conversations.newDmWithIdentifier(identifier);
+        if (!convo) {
+            console.log('❌ [startNewConversation] Could not create conversation');
+            return null;
+        }
+
+        console.log('✅ [startNewConversation] Got conversation:', convo.id);
+
+        // Immediately allow the conversation
+        try {
+            await convo.updateConsentState?.('allowed');
+        } catch (_) { }
+
+        return convo as AnyConversation;
     } catch (e) {
         console.error('❌ [startNewConversation] Error starting conversation:', e);
         return null;
@@ -352,81 +325,51 @@ export const startNewConversation = async (
 };
 
 /**
- * Find existing DM by Ethereum address
- * This uses the v3 API method getDmByInboxId
+ * Find existing DM by Ethereum address using simplified approach
  */
 export const findExistingDm = async (client: Client | null, ethAddress: string): Promise<AnyConversation | null> => {
     if (!client || typeof window === 'undefined') return null;
 
     try {
         console.log('🔍 [findExistingDm] Looking for existing DM with address:', ethAddress);
-
-        // Method 1: Try to find inbox ID from existing conversations first (faster)
+        
+        // Get all conversations
         const conversations = await client.conversations.list();
-
+        
+        // Look for conversation with this peer
         for (const conv of conversations) {
             try {
-                if (conv.members && typeof conv.members === 'function') {
-                    const members = await conv.members();
-                    if (Array.isArray(members)) {
-                        for (const member of members) {
-                            const addresses = [
-                                ...(member.accountAddresses || []),
-                                ...(member.addresses || []),
-                                member.address
-                            ].filter(Boolean);
-
-                            if (addresses.some(addr => addr.toLowerCase() === ethAddress.toLowerCase())) {
-                                console.log('✅ [findExistingDm] Found existing DM in conversation list:', conv.id);
-                                return conv as AnyConversation;
+                // Try to get the peer inbox ID
+                if (conv.peerInboxId && typeof conv.peerInboxId === 'function') {
+                    const peerInboxId = await conv.peerInboxId();
+                    console.log('🔍 [findExistingDm] Checking conversation:', conv.id, 'with peer inbox ID:', peerInboxId);
+                    
+                    // Check if this conversation has members with the target address
+                    if (conv.members && typeof conv.members === 'function') {
+                        const members = await conv.members();
+                        if (Array.isArray(members)) {
+                            for (const member of members) {
+                                // Check if member has the target address (through various fields)
+                                const addresses = [
+                                    ...(member.accountAddresses || []),
+                                    ...(member.addresses || []),
+                                    member.address
+                                ].filter(Boolean);
+                                
+                                if (addresses.some(addr => addr.toLowerCase() === ethAddress.toLowerCase())) {
+                                    console.log('✅ [findExistingDm] Found existing DM:', conv.id);
+                                    return conv as AnyConversation;
+                                }
                             }
                         }
                     }
                 }
             } catch (error) {
-                console.warn('⚠️ [findExistingDm] Error checking conversation member:', error);
+                console.warn('⚠️ [findExistingDm] Error checking conversation:', error);
             }
         }
 
-        // Method 2: If not found in existing conversations, try to resolve inbox ID
-        const peerInboxId = await resolveInboxId(client, ethAddress);
-        if (!peerInboxId) {
-            console.log('❌ [findExistingDm] Could not resolve inbox ID for address:', ethAddress);
-            return null;
-        }
-
-        console.log('✅ [findExistingDm] Resolved inbox ID:', peerInboxId);
-
-        // Method 3: Use the v3 API method to get DM by inbox ID
-        try {
-            const existingDm = await client.conversations.getDmByInboxId(peerInboxId);
-            if (existingDm) {
-                console.log('✅ [findExistingDm] Found existing DM via getDmByInboxId:', existingDm.id);
-                return existingDm as AnyConversation;
-            }
-        } catch (error) {
-            console.log('🔍 [findExistingDm] getDmByInboxId failed or no DM found:', error);
-        }
-
-        // Method 4: Fallback - check if resolveInboxId created a conversation
-        // Re-list conversations to catch any that might have been created during resolution
-        const updatedConversations = await client.conversations.list();
-
-        for (const conv of updatedConversations) {
-            try {
-                if (conv.peerInboxId && typeof conv.peerInboxId === 'function') {
-                    const convPeerInboxId = await conv.peerInboxId();
-                    if (convPeerInboxId === peerInboxId) {
-                        console.log('✅ [findExistingDm] Found DM created during resolution:', conv.id);
-                        return conv as AnyConversation;
-                    }
-                }
-            } catch (error) {
-                console.warn('⚠️ [findExistingDm] Error checking peerInboxId:', error);
-            }
-        }
-
-        console.log('🔍 [findExistingDm] No existing DM found for address:', ethAddress);
+        console.log('🔍 [findExistingDm] No existing DM found');
         return null;
     } catch (error) {
         console.error('❌ [findExistingDm] Error finding existing DM:', error);
