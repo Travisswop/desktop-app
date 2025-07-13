@@ -107,7 +107,168 @@ export const canMessage = async (
     }
 };
 
-/** Start (or fetch) a direct DM */
+/**
+ * Resolve an Ethereum address to an inbox ID
+ * This is needed for v3 API conversation creation
+ */
+export const resolveInboxId = async (client: Client | null, ethAddress: string): Promise<string | null> => {
+    if (!client || typeof window === 'undefined') return null;
+
+    try {
+        console.log('🔍 [resolveInboxId] Resolving Ethereum address to inbox ID:', ethAddress);
+
+        // First, verify the address can receive messages
+        const identifiers = [{
+            identifier: ethAddress.toLowerCase(),
+            identifierKind: 'Ethereum'
+        }];
+
+        const canMessageResult = await client.canMessage(identifiers);
+        console.log('✅ [resolveInboxId] canMessage result:', canMessageResult);
+
+        if (!canMessageResult.get(ethAddress.toLowerCase())) {
+            console.log('❌ [resolveInboxId] Address cannot receive messages:', ethAddress);
+            return null;
+        }
+
+        // Method 1: Check if client has methods to resolve address to inbox ID
+        try {
+            // Try different potential methods the client might have
+            const potentialMethods = ['resolveInboxId', 'getInboxId', 'addressToInboxId'];
+
+            for (const methodName of potentialMethods) {
+                if (client[methodName] && typeof client[methodName] === 'function') {
+                    try {
+                        const result = await client[methodName](ethAddress);
+                        if (result) {
+                            console.log(`✅ [resolveInboxId] Found inbox ID using ${methodName}:`, result);
+                            return result;
+                        }
+                    } catch (error) {
+                        console.log(`⚠️ [resolveInboxId] Method ${methodName} failed:`, error);
+                    }
+                }
+            }
+        } catch (error) {
+            console.log('⚠️ [resolveInboxId] Error trying direct methods:', error);
+        }
+
+        // Method 2: Try to find inbox ID from existing conversations
+        try {
+            const conversations = await client.conversations.list();
+
+            for (const conv of conversations) {
+                try {
+                    if (conv.members && typeof conv.members === 'function') {
+                        const members = await conv.members();
+                        if (Array.isArray(members)) {
+                            for (const member of members) {
+                                const addresses = [
+                                    ...(member.accountAddresses || []),
+                                    ...(member.addresses || []),
+                                    member.address
+                                ].filter(Boolean);
+
+                                if (addresses.some(addr => addr.toLowerCase() === ethAddress.toLowerCase())) {
+                                    console.log('✅ [resolveInboxId] Found inbox ID in existing conversation:', member.inboxId);
+                                    return member.inboxId;
+                                }
+                            }
+                        }
+                    }
+                } catch (error) {
+                    console.warn('⚠️ [resolveInboxId] Error checking conversation member:', error);
+                }
+            }
+        } catch (error) {
+            console.warn('⚠️ [resolveInboxId] Error checking existing conversations:', error);
+        }
+
+        // Method 3: Create a minimal conversation to extract inbox ID
+        // This approach creates a conversation using the old method to get the inbox ID
+        try {
+            console.log('🔄 [resolveInboxId] Creating conversation to extract inbox ID...');
+
+            const xmtp = await getXmtpModule();
+            if (!xmtp) {
+                console.log('❌ [resolveInboxId] XMTP module not available');
+                return null;
+            }
+
+            const identifier = {
+                identifier: ethAddress.toLowerCase(),
+                identifierKind: 'Ethereum'
+            };
+
+            // Create conversation using the identifier method
+            const tempConvo = await client.conversations.newDmWithIdentifier(identifier);
+            if (!tempConvo) {
+                console.log('❌ [resolveInboxId] Could not create temporary conversation');
+                return null;
+            }
+
+            console.log('✅ [resolveInboxId] Created conversation for inbox ID extraction:', tempConvo.id);
+
+            // Try to get the peer inbox ID using the peerInboxId method
+            if (tempConvo.peerInboxId && typeof tempConvo.peerInboxId === 'function') {
+                try {
+                    const peerInboxId = await tempConvo.peerInboxId();
+                    if (peerInboxId) {
+                        console.log('✅ [resolveInboxId] Got peer inbox ID from conversation:', peerInboxId);
+                        return peerInboxId;
+                    }
+                } catch (error) {
+                    console.warn('⚠️ [resolveInboxId] Could not get peer inbox ID:', error);
+                }
+            }
+
+            // Fallback: try to extract from members
+            if (tempConvo.members && typeof tempConvo.members === 'function') {
+                const members = await tempConvo.members();
+                if (Array.isArray(members)) {
+                    // Get current client inbox ID to identify the peer
+                    const currentInboxId = client.inboxId;
+
+                    for (const member of members) {
+                        // Skip the current user
+                        if (currentInboxId && member.inboxId === currentInboxId) {
+                            continue;
+                        }
+
+                        const addresses = [
+                            ...(member.accountAddresses || []),
+                            ...(member.addresses || []),
+                            member.address
+                        ].filter(Boolean);
+
+                        if (addresses.some(addr => addr.toLowerCase() === ethAddress.toLowerCase())) {
+                            console.log('✅ [resolveInboxId] Extracted inbox ID from conversation members:', member.inboxId);
+                            return member.inboxId;
+                        }
+
+                        // If we can't match by address but have only 2 members, this is likely the peer
+                        if (members.length === 2 && member.inboxId) {
+                            console.log('✅ [resolveInboxId] Assuming peer inbox ID in 2-member conversation:', member.inboxId);
+                            return member.inboxId;
+                        }
+                    }
+                }
+            }
+
+            console.log('⚠️ [resolveInboxId] Could not extract inbox ID from conversation');
+        } catch (error) {
+            console.warn('⚠️ [resolveInboxId] Temporary conversation approach failed:', error);
+        }
+
+        console.log('❌ [resolveInboxId] Could not resolve inbox ID for address:', ethAddress);
+        return null;
+    } catch (error) {
+        console.error('❌ [resolveInboxId] Error resolving inbox ID:', error);
+        return null;
+    }
+};
+
+/** Start (or fetch) a direct DM using v3 API */
 export const startNewConversation = async (
     client: Client | null,
     peerAddress: string,
@@ -115,25 +276,160 @@ export const startNewConversation = async (
     if (!client || typeof window === 'undefined') return null;
 
     try {
-        const xmtp = await getXmtpModule();
-        if (!xmtp) return null;
+        console.log('🚀 [startNewConversation] Starting conversation with:', peerAddress);
 
-        const identifier: Identifier = {
-            identifier: peerAddress.toLowerCase(),
-            identifierKind: 'Ethereum',
-        } as const;
+        // First, resolve the Ethereum address to inbox ID
+        const peerInboxId = await resolveInboxId(client, peerAddress);
+        if (!peerInboxId) {
+            console.log('❌ [startNewConversation] Could not resolve inbox ID for address:', peerAddress);
+            return null;
+        }
 
-        const convo = await client.conversations.newDmWithIdentifier(identifier);
+        console.log('✅ [startNewConversation] Resolved inbox ID:', peerInboxId);
 
-        // Immediately allow the conversation if it's pending
+        // Check if a DM already exists with this inbox ID
+        // This is important because resolveInboxId might have created a conversation
         try {
-            // Use string instead of ConsentState enum to avoid import issues
-            await convo.updateConsentState?.('allowed');
-        } catch (_) { }
+            const existingDm = await client.conversations.getDmByInboxId(peerInboxId);
+            if (existingDm) {
+                console.log('✅ [startNewConversation] Found existing DM (possibly from resolution):', existingDm.id);
 
-        return convo as AnyConversation;
+                // Ensure the conversation is allowed
+                try {
+                    await existingDm.updateConsentState?.('allowed');
+                } catch (_) { }
+
+                return existingDm as AnyConversation;
+            }
+        } catch (error) {
+            console.log('🔍 [startNewConversation] No existing DM found, will create new one');
+        }
+
+        // Create new DM using inbox ID (v3 API)
+        try {
+            const convo = await client.conversations.newDm(peerInboxId);
+            console.log('✅ [startNewConversation] Created new DM using v3 API:', convo.id);
+
+            // Immediately allow the conversation
+            try {
+                await convo.updateConsentState?.('allowed');
+            } catch (_) { }
+
+            return convo as AnyConversation;
+        } catch (newDmError) {
+            console.warn('⚠️ [startNewConversation] v3 newDm failed, trying fallback:', newDmError);
+
+            // Fallback: if newDm fails, try to find any existing conversation with this peer
+            // This might happen if the conversation was created during resolution
+            const conversations = await client.conversations.list();
+            for (const conv of conversations) {
+                try {
+                    if (conv.peerInboxId && typeof conv.peerInboxId === 'function') {
+                        const convPeerInboxId = await conv.peerInboxId();
+                        if (convPeerInboxId === peerInboxId) {
+                            console.log('✅ [startNewConversation] Found conversation via fallback search:', conv.id);
+
+                            // Ensure the conversation is allowed
+                            try {
+                                await conv.updateConsentState?.('allowed');
+                            } catch (_) { }
+
+                            return conv as AnyConversation;
+                        }
+                    }
+                } catch (error) {
+                    console.warn('⚠️ [startNewConversation] Error checking conversation in fallback:', error);
+                }
+            }
+
+            console.error('❌ [startNewConversation] All methods failed to create/find conversation');
+            return null;
+        }
     } catch (e) {
-        console.error('Error starting conversation:', e);
+        console.error('❌ [startNewConversation] Error starting conversation:', e);
+        return null;
+    }
+};
+
+/**
+ * Find existing DM by Ethereum address
+ * This uses the v3 API method getDmByInboxId
+ */
+export const findExistingDm = async (client: Client | null, ethAddress: string): Promise<AnyConversation | null> => {
+    if (!client || typeof window === 'undefined') return null;
+
+    try {
+        console.log('🔍 [findExistingDm] Looking for existing DM with address:', ethAddress);
+
+        // Method 1: Try to find inbox ID from existing conversations first (faster)
+        const conversations = await client.conversations.list();
+
+        for (const conv of conversations) {
+            try {
+                if (conv.members && typeof conv.members === 'function') {
+                    const members = await conv.members();
+                    if (Array.isArray(members)) {
+                        for (const member of members) {
+                            const addresses = [
+                                ...(member.accountAddresses || []),
+                                ...(member.addresses || []),
+                                member.address
+                            ].filter(Boolean);
+
+                            if (addresses.some(addr => addr.toLowerCase() === ethAddress.toLowerCase())) {
+                                console.log('✅ [findExistingDm] Found existing DM in conversation list:', conv.id);
+                                return conv as AnyConversation;
+                            }
+                        }
+                    }
+                }
+            } catch (error) {
+                console.warn('⚠️ [findExistingDm] Error checking conversation member:', error);
+            }
+        }
+
+        // Method 2: If not found in existing conversations, try to resolve inbox ID
+        const peerInboxId = await resolveInboxId(client, ethAddress);
+        if (!peerInboxId) {
+            console.log('❌ [findExistingDm] Could not resolve inbox ID for address:', ethAddress);
+            return null;
+        }
+
+        console.log('✅ [findExistingDm] Resolved inbox ID:', peerInboxId);
+
+        // Method 3: Use the v3 API method to get DM by inbox ID
+        try {
+            const existingDm = await client.conversations.getDmByInboxId(peerInboxId);
+            if (existingDm) {
+                console.log('✅ [findExistingDm] Found existing DM via getDmByInboxId:', existingDm.id);
+                return existingDm as AnyConversation;
+            }
+        } catch (error) {
+            console.log('🔍 [findExistingDm] getDmByInboxId failed or no DM found:', error);
+        }
+
+        // Method 4: Fallback - check if resolveInboxId created a conversation
+        // Re-list conversations to catch any that might have been created during resolution
+        const updatedConversations = await client.conversations.list();
+
+        for (const conv of updatedConversations) {
+            try {
+                if (conv.peerInboxId && typeof conv.peerInboxId === 'function') {
+                    const convPeerInboxId = await conv.peerInboxId();
+                    if (convPeerInboxId === peerInboxId) {
+                        console.log('✅ [findExistingDm] Found DM created during resolution:', conv.id);
+                        return conv as AnyConversation;
+                    }
+                }
+            } catch (error) {
+                console.warn('⚠️ [findExistingDm] Error checking peerInboxId:', error);
+            }
+        }
+
+        console.log('🔍 [findExistingDm] No existing DM found for address:', ethAddress);
+        return null;
+    } catch (error) {
+        console.error('❌ [findExistingDm] Error finding existing DM:', error);
         return null;
     }
 };
