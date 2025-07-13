@@ -143,6 +143,8 @@ const ChatPageContent = () => {
     const extractPeerAddresses = async () => {
       if (!conversations || !conversations.length) return;
 
+      console.log('📝 [ChatPage] Extracting peer addresses from', conversations.length, 'conversations');
+
       const addresses: string[] = [];
       for (const convo of conversations) {
         try {
@@ -158,7 +160,10 @@ const ChatPageContent = () => {
       console.log('📝 [ChatPage] Extracted peer addresses:', addresses);
     };
 
-    extractPeerAddresses();
+    // Only extract addresses if we have conversations and they've changed
+    if (conversations && conversations.length > 0) {
+      extractPeerAddresses();
+    }
   }, [conversations]);
 
   const handleSelectConversation = useCallback(
