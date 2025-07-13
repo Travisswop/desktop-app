@@ -1,32 +1,27 @@
 'use client';
 
-import React, { createContext, useContext, useEffect, useState, useCallback, useMemo, useRef } from 'react';
+import React, { createContext, useState, useContext, useCallback, useMemo, useEffect } from "react";
 import { useWallets } from '@privy-io/react-auth';
-import type { AnyConversation } from '../xmtp-safe';
-import { getClient } from '../xmtp';
-import {
-  safeSyncConversations,
-  safeListConversations,
-  safeStartNewConversation,
-  safeCanMessage,
-  safeGetMessages
-} from '../xmtp-safe';
-import { loadXmtp, clearXmtpClientData } from '../xmtp-browser';
+import { Client, Identifier, Signer as XMSigner, Conversation, Dm, Group, ConsentState } from "@xmtp/browser-sdk";
+import { ethers } from "ethers";
 
-// Define conversation type with proper typing
+export type AnyConversation = Conversation<unknown> | Dm<unknown> | Group<unknown>;
+
 interface XmtpContextValue {
-  client: any | null; // Use any type to avoid SSR issues with XMTP types
+  client: Client | null;
   isConnected: boolean;
   conversations: AnyConversation[];
   conversationRequests: AnyConversation[];
   loading: boolean;
   error: Error | null;
+  initClient: () => Promise<Client | null>;
+  disconnect: () => void;
   refreshConversations: () => Promise<void>;
-  newConversation: (peerAddress: string) => Promise<AnyConversation | null>;
-  sendText: (convo: AnyConversation, text: string) => Promise<void>;
-  allowConversation: (convo: AnyConversation) => Promise<void>;
+  newConversation: (addressOrName: string) => Promise<AnyConversation | null>;
+  sendText: (conversation: AnyConversation, message: string) => Promise<unknown | null>;
+  allowConversation: (conversation: AnyConversation) => void;
   canMessage: (address: string) => Promise<boolean>;
-  getMessages: (convo: AnyConversation) => Promise<any[]>;
+  getMessages: (conversation: AnyConversation) => Promise<any[]>;
   clearClientData: () => void;
 }
 
@@ -38,494 +33,432 @@ export const useXmtpContext = (): XmtpContextValue => {
   return ctx;
 };
 
-interface XmtpProviderProps {
-  children: React.ReactNode;
-}
-
-export const XmtpProvider: React.FC<XmtpProviderProps> = ({ children }) => {
+export const XmtpProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { wallets } = useWallets();
-  const [client, setClient] = useState<any | null>(null); // Use any type to avoid SSR issues with XMTP types
-  const [isConnected, setIsConnected] = useState<boolean>(false);
+  const [client, setClient] = useState<Client | null>(null);
+  const [isConnected, setIsConnected] = useState(false);
   const [conversations, setConversations] = useState<AnyConversation[]>([]);
   const [conversationRequests, setConversationRequests] = useState<AnyConversation[]>([]);
-  const [loading, setLoading] = useState<boolean>(false);
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState<Error | null>(null);
 
-  // Use ref to maintain stable client reference across re-renders
-  const clientRef = useRef<any | null>(null); // Use any type to avoid SSR issues with XMTP types
-
-  // Keep client ref in sync with client state
-  useEffect(() => {
-    clientRef.current = client;
-  }, [client]);
-
-  // Initialize XMTP
-  useEffect(() => {
-    const initXmtp = async () => {
-      try {
-        // Preload XMTP module
-        await loadXmtp();
-        console.log('✅ [XmtpContext] XMTP module loaded successfully');
-      } catch (err) {
-        console.error('❌ [XmtpContext] Failed to initialize XMTP:', err);
-      }
-    };
-
-    if (typeof window !== 'undefined') {
-      initXmtp();
-    }
-  }, []);
-
-  // Privy returns an array; pick the first ethereum wallet
+  // Get the Ethereum wallet from Privy
   const privyEthWallet = useMemo(() => {
-    if (!wallets?.length) return null;
-    return wallets.find((w) => w?.type === 'ethereum') || wallets[0];
+    console.log('🔍 [XmtpContext] Checking wallets:', {
+      walletsLength: wallets?.length || 0,
+      wallets: wallets?.map(w => ({ type: w.type, address: w.address }))
+    });
+
+    if (!wallets?.length) {
+      console.log('⚠️ [XmtpContext] No wallets available');
+      return null;
+    }
+
+    const ethWallet = wallets.find((w) => w?.type === 'ethereum');
+    if (ethWallet) {
+      console.log('✅ [XmtpContext] Found Ethereum wallet:', ethWallet.address);
+      return ethWallet;
+    }
+
+    console.log('⚠️ [XmtpContext] No Ethereum wallet found, using first wallet');
+    return wallets[0];
   }, [wallets]);
 
-  // Function to clear client data (for logout)
-  const clearClientData = useCallback(() => {
-    console.log('🧹 [XmtpContext] Clearing client data...');
+  // Initialize the XMTP client
+  const initClient = useCallback(async (): Promise<Client | null> => {
+    if (!privyEthWallet) {
+      console.log('❌ [XmtpContext] No Privy wallet available for XMTP initialization');
+      setError(new Error('No wallet connected'));
+      setLoading(false);
+      return null;
+    }
+
+    try {
+      setLoading(true);
+      setError(null);
+
+      console.log('🔄 [XmtpContext] Starting XMTP client initialization...');
+      console.log('🔄 [XmtpContext] Wallet details:', {
+        address: privyEthWallet.address,
+        type: privyEthWallet.type
+      });
+
+      // Get the Ethereum provider from Privy wallet
+      console.log('🔄 [XmtpContext] Getting Ethereum provider...');
+      const provider = await privyEthWallet.getEthereumProvider();
+
+      if (!provider) {
+        throw new Error('Failed to get Ethereum provider from Privy wallet');
+      }
+
+      console.log('✅ [XmtpContext] Ethereum provider obtained');
+
+      // Create ethers provider and signer
+      const ethersProvider = new ethers.BrowserProvider(provider as any);
+      const ethSigner = await ethersProvider.getSigner();
+      const address = await ethSigner.getAddress();
+
+      console.log('✅ [XmtpContext] Ethereum signer ready:', {
+        address: address,
+        walletAddress: privyEthWallet.address,
+        match: address.toLowerCase() === privyEthWallet.address.toLowerCase()
+      });
+
+      // Create XMTP-compatible signer following v3 documentation
+      const accountIdentifier: Identifier = {
+        identifier: address.toLowerCase(),
+        identifierKind: "Ethereum",
+      };
+
+      const xmtpSigner: XMSigner = {
+        type: "EOA",
+        getIdentifier: () => accountIdentifier,
+        signMessage: async (message: string): Promise<Uint8Array> => {
+          console.log('🔄 [XmtpContext] Signing message for XMTP...');
+          try {
+            const signature = await ethSigner.signMessage(message);
+            console.log('✅ [XmtpContext] Message signed successfully');
+            return ethers.getBytes(signature);
+          } catch (signError) {
+            console.error('❌ [XmtpContext] Error signing message:', signError);
+            throw signError;
+          }
+        },
+      };
+
+      console.log('🔄 [XmtpContext] Creating XMTP client...');
+
+      // Create XMTP client following v3 documentation
+      const xmtp = await Client.create(xmtpSigner, {
+        env: "production" // Use production environment for real deployment
+      });
+
+      console.log('✅ [XmtpContext] XMTP client created successfully:', {
+        inboxId: xmtp.inboxId,
+        address: address,
+        clientReady: !!xmtp
+      });
+
+      setClient(xmtp);
+      setIsConnected(true);
+      setLoading(false);
+
+      return xmtp;
+    } catch (error) {
+      console.error("❌ [XmtpContext] Error initializing XMTP client:", error);
+
+      // Provide more specific error messages
+      let errorMessage = 'Failed to initialize XMTP client';
+      if (error instanceof Error) {
+        if (error.message.includes('User rejected')) {
+          errorMessage = 'Wallet signature was rejected. Please try again.';
+        } else if (error.message.includes('network')) {
+          errorMessage = 'Network error. Please check your connection.';
+        } else {
+          errorMessage = error.message;
+        }
+      }
+
+      setError(new Error(errorMessage));
+      setIsConnected(false);
+      setLoading(false);
+      return null;
+    }
+  }, [privyEthWallet]);
+
+  // Disconnect the XMTP client
+  const disconnect = useCallback(() => {
+    console.log('🔄 [XmtpContext] Disconnecting XMTP client...');
     setClient(null);
-    clientRef.current = null; // Also clear the ref
     setIsConnected(false);
     setConversations([]);
     setConversationRequests([]);
     setError(null);
-    clearXmtpClientData();
-    console.log('✅ [XmtpContext] Client data cleared');
+    console.log('✅ [XmtpContext] XMTP client disconnected');
   }, []);
 
-  // Initialise XMTP client when wallet becomes available
-  useEffect(() => {
-    if (!privyEthWallet) {
-      console.log('⚠️ [XmtpContext] No Privy wallet available for XMTP initialization');
-      return;
-    }
-
-    console.log('🔄 [XmtpContext] Initializing XMTP client with wallet:', {
-      walletType: privyEthWallet.type,
-      walletAddress: privyEthWallet.address
-    });
-
-    let mounted = true;
-    let syncInterval: NodeJS.Timeout | null = null;
-    let conversationStream: any = null;
-
-    (async () => {
-      try {
-        setLoading(true);
-        setError(null);
-        console.log('🔄 [XmtpContext] Getting XMTP client with enhanced lifecycle management...');
-
-        const newClient = await getClient(privyEthWallet);
-        console.log('✅ [XmtpContext] XMTP client result:', {
-          clientExists: !!newClient,
-          clientInboxId: newClient ? newClient.inboxId : null
-        });
-
-        if (!mounted) {
-          console.log('⚠️ [XmtpContext] Component unmounted during client initialization');
-          return;
-        }
-
-        if (newClient) {
-          setClient(newClient);
-          setIsConnected(true);
-          console.log('✅ [XmtpContext] XMTP client connected successfully with localStorage caching');
-          console.log('🔍 [XmtpContext] Client details:', {
-            inboxId: newClient.inboxId,
-            hasInboxId: !!newClient.inboxId,
-            clientKeys: Object.keys(newClient),
-            walletAddress: privyEthWallet.address
-          });
-
-          // Store client globally for conversation peer address extraction
-          if (typeof window !== 'undefined') {
-            (window as any).xmtpClient = newClient;
-          }
-
-          // Sync with network before loading conversations
-          console.log('🔄 [XmtpContext] Syncing conversations from network...');
-          await safeSyncConversations(newClient);
-          console.log('✅ [XmtpContext] Network sync completed');
-
-          console.log('🔄 [XmtpContext] Loading conversations...');
-          const convos = await safeListConversations(newClient);
-          console.log('✅ [XmtpContext] Conversations loaded:', convos.length);
-
-          const allowed: AnyConversation[] = [];
-          const requests: AnyConversation[] = [];
-
-          for (const c of convos) {
-            try {
-              // Debug: Log the actual conversation object structure
-              console.log('🔍 [XmtpContext] Raw conversation object:', {
-                conversation: c,
-                allKeys: Object.keys(c as any),
-                allProperties: Object.getOwnPropertyNames(c as any)
-              });
-
-              // Get the current consent state
-              let state = 'unknown';
-              if (typeof (c as any).consentState === 'function') {
-                const consentResult = await (c as any).consentState();
-                state = String(consentResult);
-              } else {
-                state = String((c as any).consentState ?? 'allowed');
-              }
-
-              // Extract peer address using working version logic
-              const dm = c as unknown as { peerAddress?: string; topic?: string };
-              const peerAddress: string = dm.peerAddress || "";
-              const topic: string = dm.topic || "";
-              const displayAddress = peerAddress || topic || "";
-
-              console.log('📝 [XmtpContext] Conversation:', {
-                id: (c as any).id,
-                peerAddress: peerAddress || 'null',
-                topic: topic || 'null',
-                displayAddress: displayAddress || 'null',
-                consentState: state
-              });
-
-              // AUTO-ALLOW ALL CONVERSATIONS FOR SEAMLESS MESSAGING
-              if (state !== 'allowed') {
-                console.log('🔄 [XmtpContext] Auto-allowing conversation for seamless messaging...');
-                try {
-                  // @ts-ignore
-                  await c.updateConsentState?.('allowed');
-                  console.log('✅ [XmtpContext] Conversation auto-allowed successfully');
-                  state = 'allowed';
-                } catch (consentError) {
-                  console.warn('⚠️ [XmtpContext] Could not auto-allow conversation:', consentError);
-                }
-              }
-
-              // Always add to allowed list since we auto-allow everything
-              allowed.push(c);
-
-            } catch (error) {
-              console.error('❌ [XmtpContext] Error processing conversation:', error);
-              // If there's an error, still add to allowed list
-              allowed.push(c);
-            }
-          }
-
-          console.log('📝 [XmtpContext] Initial conversations set:', {
-            allowed: allowed.length,
-            requests: requests.length
-          });
-
-          setConversations(allowed);
-          setConversationRequests(requests);
-
-          // Set up global auto-allow system for ALL incoming conversations
-          console.log('🎧 [XmtpContext] Setting up global auto-allow system...');
-          try {
-            // Stream all conversations to auto-allow new ones
-            conversationStream = await (newClient as any).conversations.stream();
-            console.log('✅ [XmtpContext] Global conversation stream established');
-
-            (async () => {
-              for await (const conversation of conversationStream) {
-                if (!mounted) break;
-
-                try {
-                  console.log('🆕 [XmtpContext] New conversation detected in stream:', (conversation as any).id);
-
-                  // Immediately allow the new conversation
-                  try {
-                    console.log('🔄 [XmtpContext] Auto-allowing new conversation from stream...');
-                    // @ts-ignore
-                    await conversation.updateConsentState?.('allowed');
-                  } catch (consentError) {
-                    console.warn('⚠️ [XmtpContext] Could not auto-allow new conversation from stream:', consentError);
-                  }
-
-                  // Refresh conversations to include the new one
-                  setTimeout(async () => {
-                    if (mounted && clientRef.current) {
-                      await refreshConversations();
-                    }
-                  }, 500);
-                } catch (conversationError) {
-                  console.error('❌ [XmtpContext] Error processing conversation from stream:', conversationError);
-                }
-
-                // Break if component unmounted
-                if (!mounted) break;
-              }
-            })().catch(error => {
-              console.error('❌ [XmtpContext] Error in conversation stream:', error);
-            });
-
-          } catch (streamError) {
-            console.warn('⚠️ [XmtpContext] Could not set up global conversation stream:', streamError);
-          }
-
-          // Set up periodic sync to ensure we don't miss messages
-          syncInterval = setInterval(async () => {
-            if (!mounted) {
-              if (syncInterval) clearInterval(syncInterval);
-              return;
-            }
-
-            try {
-              // Use clientRef.current instead of stale state
-              const currentClient = clientRef.current;
-              if (currentClient) {
-                await safeSyncConversations(currentClient);
-                await refreshConversations();
-              }
-            } catch (error) {
-              console.warn('⚠️ [XmtpContext] Error in periodic sync:', error);
-            }
-          }, 10000); // Sync every 10 seconds
-
-          console.log('🚀 [XmtpContext] XMTP client fully activated!');
-
-        } else {
-          console.log('❌ [XmtpContext] Failed to get XMTP client');
-          setError(new Error('Failed to initialize XMTP client. This might be due to installation limits.'));
-        }
-      } catch (err: any) {
-        console.error('❌ [XmtpContext] Error during XMTP initialization:', err);
-
-        // Handle specific installation limit error
-        if (err.message && err.message.includes('has already registered 5/5 installations')) {
-          setError(new Error('XMTP installation limit reached. The system attempted to manage installations automatically. Please try refreshing the page.'));
-        } else {
-          setError(err as Error);
-        }
-      } finally {
-        if (mounted) {
-          setLoading(false);
-          console.log('🏁 [XmtpContext] XMTP initialization completed');
-        }
-      }
-    })();
-
-    return () => {
-      console.log('🧹 [XmtpContext] Cleaning up XMTP initialization');
-      mounted = false;
-
-      // Clear client ref to prevent stale references
-      clientRef.current = null;
-
-      // Clean up interval
-      if (syncInterval) {
-        clearInterval(syncInterval);
-      }
-
-      // Clean up conversation stream
-      if (conversationStream) {
-        try {
-          conversationStream.return?.();
-        } catch (error) {
-          console.warn('⚠️ [XmtpContext] Error closing conversation stream:', error);
-        }
-      }
-    };
-  }, [privyEthWallet]);
-
-  const refreshConversations = useCallback(async () => {
-    // Use current client ref instead of potentially stale state
-    const currentClient = clientRef.current;
-    if (!currentClient) {
-      console.log('⚠️ [XmtpContext] Cannot refresh conversations - no current client');
+  // Load conversations following v3 documentation
+  const refreshConversations = useCallback(async (): Promise<void> => {
+    if (!client) {
+      console.log('⚠️ [XmtpContext] Cannot refresh conversations - no client');
       return;
     }
 
     try {
-      // Sync with network first to get latest conversations
-      await safeSyncConversations(currentClient);
+      console.log('🔄 [XmtpContext] Syncing and loading conversations...');
 
-      const convos = await safeListConversations(currentClient);
-      console.log('✅ [XmtpContext] Retrieved conversations:', convos.length, 'total');
+      // Sync new conversations from network (v3 approach)
+      try {
+        await client.conversations.sync();
+        console.log('✅ [XmtpContext] Conversations synced from network');
+      } catch (syncErr) {
+        console.warn('⚠️ [XmtpContext] Sync warning (may be expected):', syncErr);
+      }
 
-      const allowed: AnyConversation[] = [];
-      const requests: AnyConversation[] = [];
+      // List all conversations
+      const convos = await client.conversations.list();
+      console.log('📝 [XmtpContext] Found conversations:', convos.length);
 
-      for (const c of convos) {
+      const allowedConvos: AnyConversation[] = [];
+      const requestConvos: AnyConversation[] = [];
+
+      // Process conversations and check consent state
+      for (const convo of convos) {
         try {
-          // Get the current consent state
-          let state = 'unknown';
-          if (typeof (c as any).consentState === 'function') {
-            const consentResult = await (c as any).consentState();
-            state = String(consentResult);
+          const consentState = (convo as any).consentState;
+          console.log('📝 [XmtpContext] Conversation consent state:', {
+            id: (convo as any).id,
+            consentState: consentState
+          });
+
+          if (consentState === 'allowed') {
+            allowedConvos.push(convo as AnyConversation);
           } else {
-            state = String((c as any).consentState ?? 'allowed');
+            requestConvos.push(convo as AnyConversation);
           }
-
-          // AUTO-ALLOW ALL CONVERSATIONS FOR SEAMLESS MESSAGING
-          if (state !== 'allowed') {
-            console.log('🔄 [XmtpContext] Auto-allowing conversation:', (c as any).id);
-            try {
-              // @ts-ignore
-              await c.updateConsentState?.('allowed');
-              state = 'allowed';
-            } catch (consentError) {
-              console.warn('⚠️ [XmtpContext] Could not auto-allow conversation:', consentError);
-            }
-          }
-
-          // Always add to allowed list since we auto-allow everything
-          allowed.push(c);
-
-        } catch (error) {
-          console.error('❌ [XmtpContext] Error processing conversation:', error);
-          // If there's an error, still add to allowed list
-          allowed.push(c);
+        } catch (convoError) {
+          console.warn('⚠️ [XmtpContext] Error processing conversation:', convoError);
+          // Default to allowed if we can't determine consent state
+          allowedConvos.push(convo as AnyConversation);
         }
       }
 
-      console.log('✅ [XmtpContext] Conversations categorized:', {
-        allowed: allowed.length,
-        requests: requests.length
+      setConversations(allowedConvos);
+      setConversationRequests(requestConvos);
+
+      console.log('✅ [XmtpContext] Conversations loaded:', {
+        allowed: allowedConvos.length,
+        requests: requestConvos.length,
+        total: convos.length
+      });
+    } catch (error) {
+      console.error("❌ [XmtpContext] Error loading conversations:", error);
+      setError(error instanceof Error ? error : new Error('Failed to load conversations'));
+    }
+  }, [client]);
+
+  // Create new conversation following v3 documentation
+  const newConversation = useCallback(async (addressOrName: string): Promise<AnyConversation | null> => {
+    if (!client) {
+      console.log('❌ [XmtpContext] Cannot create conversation - no client');
+      return null;
+    }
+
+    try {
+      console.log('🔄 [XmtpContext] Creating new conversation with:', addressOrName);
+
+      let address = addressOrName;
+
+      // Handle ENS resolution
+      if (addressOrName.includes(".eth")) {
+        console.log('🔄 [XmtpContext] Resolving ENS name:', addressOrName);
+        const provider = new ethers.JsonRpcProvider(
+          "https://eth-mainnet.g.alchemy.com/v2/3YZEMwwXrlGYDY4t-PQED7DOx28wR9av"
+        );
+        const resolvedAddress = await provider.resolveName(addressOrName);
+        if (!resolvedAddress) {
+          throw new Error(`Could not resolve ENS name: ${addressOrName}`);
+        }
+        address = resolvedAddress;
+        console.log('✅ [XmtpContext] ENS resolved to:', address);
+      }
+
+      // Check if address can receive messages
+      const canMessageResult = await client.canMessage([{
+        identifier: address.toLowerCase(),
+        identifierKind: "Ethereum",
+      }]);
+
+      const canMsg = canMessageResult.get(address.toLowerCase());
+      if (!canMsg) {
+        throw new Error(`Address ${address} cannot receive XMTP messages`);
+      }
+
+      console.log('✅ [XmtpContext] Address can receive messages');
+
+      // Create identifier for new DM
+      const identifier: Identifier = {
+        identifier: address.toLowerCase(),
+        identifierKind: "Ethereum",
+      };
+
+      // Create new DM conversation
+      const conversation = await client.conversations.newDmWithIdentifier(identifier);
+
+      // Immediately allow the conversation
+      await (conversation as any).updateConsentState(ConsentState.Allowed);
+
+      console.log('✅ [XmtpContext] New conversation created:', {
+        id: (conversation as any).id,
+        peerAddress: address
       });
 
-      setConversations(allowed);
-      setConversationRequests(requests);
+      // Refresh conversations to include the new one
+      await refreshConversations();
+
+      return conversation as unknown as AnyConversation;
     } catch (error) {
-      console.error('❌ [XmtpContext] Error refreshing conversations:', error);
+      console.error("❌ [XmtpContext] Error creating conversation:", error);
+      setError(error instanceof Error ? error : new Error('Failed to create conversation'));
+      return null;
     }
-  }, []); // Remove client dependency since we use clientRef.current
+  }, [client, refreshConversations]);
 
-  const newConversation = useCallback(
-    async (peer: string) => {
-      // Use current client ref instead of potentially stale state
-      const currentClient = clientRef.current;
-      if (!currentClient) {
-        console.log('⚠️ [XmtpContext] Cannot create conversation - no current client');
-        return null;
-      }
-
-      console.log('🆕 [XmtpContext] Creating new conversation with peer:', peer);
-      try {
-        const convo = await safeStartNewConversation(currentClient, peer);
-        console.log('✅ [XmtpContext] New conversation created:', {
-          conversation: convo,
-          conversationId: convo ? (convo as any).id : null,
-          peerAddress: peer
-        });
-
-        if (convo) {
-          // Immediately allow the conversation to enable real-time messaging
-          try {
-            console.log('🔄 [XmtpContext] Auto-allowing new conversation...');
-            // @ts-ignore
-            await convo.updateConsentState?.('allowed');
-          } catch (consentError) {
-            console.warn('⚠️ [XmtpContext] Could not auto-allow conversation:', consentError);
-          }
-
-          await refreshConversations();
-          console.log('✅ [XmtpContext] New conversation created and allowed');
-        }
-
-        return convo;
-      } catch (error) {
-        console.error('❌ [XmtpContext] Error creating new conversation:', error);
-        return null;
-      }
-    },
-    [refreshConversations], // Remove client dependency
-  );
-
-  const sendMessage = useCallback(async (convo: AnyConversation, text: string): Promise<void> => {
-    console.log('📤 [XmtpContext] sendMessage called with:', {
-      conversation: {},
-      conversationId: (convo as any).id,
-      text: text,
-      textLength: text.length
-    });
+  // Send message following v3 documentation
+  const sendText = useCallback(async (conversation: AnyConversation, message: string): Promise<unknown | null> => {
+    if (!client || !conversation) {
+      console.log('❌ [XmtpContext] Cannot send message - missing client or conversation');
+      return null;
+    }
 
     try {
-      // @ts-ignore
-      const result = await convo.send(text);
+      console.log('📤 [XmtpContext] Sending message:', message);
+      const sent = await conversation.send(message);
       console.log('✅ [XmtpContext] Message sent successfully');
-
-      // Sync conversations to ensure message appears everywhere
-      // Use current client ref instead of potentially stale state
-      const currentClient = clientRef.current;
-      if (currentClient) {
-        await safeSyncConversations(currentClient);
+      return sent;
+    } catch (error) {
+      // Handle the misleading "successful sync" error from XMTP SDK
+      if (error instanceof Error &&
+        error.message.includes('synced') &&
+        error.message.includes('succeeded') &&
+        (error.message.includes('0 failed') || !error.message.includes('failed'))) {
+        console.log('🔄 [XmtpContext] Message sent successfully (sync message detected)');
+        return true;
       }
 
-      // Trigger a refresh of conversations to ensure the message appears
-      await refreshConversations();
-
-    } catch (err: any) {
-      // Check if this is the misleading "successful sync" error from XMTP SDK
-      if (err.message &&
-        err.message.includes('synced') &&
-        err.message.includes('succeeded') &&
-        (err.message.includes('0 failed') || !err.message.includes('failed'))) {
-
-        console.log('🔄 [XmtpContext] Detected successful sync reported as error, treating as success');
-
-        // This is actually a successful message send, continue with sync
-        try {
-          const currentClient = clientRef.current;
-          if (currentClient) {
-            await safeSyncConversations(currentClient);
-          }
-
-          await refreshConversations();
-          console.log('✅ [XmtpContext] Message sent successfully (despite misleading error)');
-          return; // Treat as success
-        } catch (syncError) {
-          console.warn('⚠️ [XmtpContext] Error during post-send sync, but message was sent:', syncError);
-          return; // Still treat as success since message was sent
-        }
-      }
-
-      // This is a real error
-      console.error('❌ [XmtpContext] XMTP send error:', err);
-      throw err; // Re-throw so the UI can handle it
+      console.error("❌ [XmtpContext] Error sending message:", error);
+      setError(error instanceof Error ? error : new Error('Failed to send message'));
+      return null;
     }
-  }, [refreshConversations]); // Remove client dependency
+  }, [client]);
 
-  const allowConversation = useCallback(async (convo: AnyConversation): Promise<void> => {
+  // Allow conversation request
+  const allowConversation = useCallback(async (conversation: AnyConversation): Promise<void> => {
     try {
-      // @ts-ignore
-      await convo.updateConsentState?.('allowed');
+      console.log('🔄 [XmtpContext] Allowing conversation...');
+      await (conversation as any).updateConsentState(ConsentState.Allowed);
       await refreshConversations();
-    } catch (err) {
-      console.error('allowConversation error', err);
+      console.log('✅ [XmtpContext] Conversation allowed');
+    } catch (error) {
+      console.error("❌ [XmtpContext] Error allowing conversation:", error);
+      setError(error instanceof Error ? error : new Error('Failed to allow conversation'));
     }
   }, [refreshConversations]);
 
-  const ctxValue: XmtpContextValue = useMemo(
-    () => ({
-      client,
-      isConnected,
-      conversations,
-      conversationRequests,
-      loading,
-      error,
-      refreshConversations,
-      newConversation,
-      sendText: sendMessage,
-      allowConversation,
-      canMessage: async (addr: string) => safeCanMessage(addr, clientRef.current),
-      getMessages: (c) => safeGetMessages(c),
-      clearClientData,
-    }),
-    [
-      client,
-      isConnected,
-      conversations,
-      conversationRequests,
-      loading,
-      error,
-      refreshConversations,
-      newConversation,
-      sendMessage,
-      allowConversation,
-      clearClientData,
-    ],
-  );
+  // Check if can message an address
+  const canMessage = useCallback(async (address: string): Promise<boolean> => {
+    if (!client) return false;
 
-  return <XmtpContext.Provider value={ctxValue}>{children}</XmtpContext.Provider>;
+    try {
+      const identifier: Identifier = {
+        identifier: address.toLowerCase(),
+        identifierKind: "Ethereum",
+      };
+      const result = await client.canMessage([identifier]);
+      return result.get(address.toLowerCase()) ?? false;
+    } catch (error) {
+      console.error("❌ [XmtpContext] Error checking canMessage:", error);
+      return false;
+    }
+  }, [client]);
+
+  // Get messages from conversation following v3 documentation
+  const getMessages = useCallback(async (conversation: AnyConversation): Promise<any[]> => {
+    if (!conversation) return [];
+
+    try {
+      console.log('🔄 [XmtpContext] Loading messages...');
+
+      // Sync conversation to get latest messages
+      try {
+        await (conversation as any).sync?.();
+      } catch (syncError) {
+        console.warn('⚠️ [XmtpContext] Sync warning (may be expected):', syncError);
+      }
+
+      const messages = await conversation.messages();
+      console.log('✅ [XmtpContext] Messages loaded:', messages.length);
+      return messages;
+    } catch (error) {
+      console.error("❌ [XmtpContext] Error loading messages:", error);
+      return [];
+    }
+  }, []);
+
+  // Clear client data
+  const clearClientData = useCallback(() => {
+    disconnect();
+  }, [disconnect]);
+
+  // Auto-initialize when wallet becomes available
+  useEffect(() => {
+    console.log('🔍 [XmtpContext] Auto-init check:', {
+      hasWallet: !!privyEthWallet,
+      hasClient: !!client,
+      isLoading: loading
+    });
+
+    if (privyEthWallet && !client && !loading) {
+      console.log('🚀 [XmtpContext] Starting auto-initialization...');
+      initClient();
+    }
+  }, [privyEthWallet, client, loading, initClient]);
+
+  // Auto-load conversations when client is ready
+  useEffect(() => {
+    if (client && isConnected) {
+      console.log('🚀 [XmtpContext] Client ready, loading conversations...');
+      refreshConversations();
+    }
+  }, [client, isConnected, refreshConversations]);
+
+  // Debug wallet state changes
+  useEffect(() => {
+    console.log('🔍 [XmtpContext] Wallet state changed:', {
+      walletCount: wallets?.length || 0,
+      hasEthWallet: !!privyEthWallet,
+      walletAddress: privyEthWallet?.address
+    });
+  }, [wallets, privyEthWallet]);
+
+  // Value object to be provided by the context
+  const value: XmtpContextValue = useMemo(() => ({
+    client,
+    isConnected,
+    conversations,
+    conversationRequests,
+    loading,
+    error,
+    initClient,
+    disconnect,
+    refreshConversations,
+    newConversation,
+    sendText,
+    allowConversation,
+    canMessage,
+    getMessages,
+    clearClientData,
+  }), [
+    client,
+    isConnected,
+    conversations,
+    conversationRequests,
+    loading,
+    error,
+    initClient,
+    disconnect,
+    refreshConversations,
+    newConversation,
+    sendText,
+    allowConversation,
+    canMessage,
+    getMessages,
+    clearClientData,
+  ]);
+
+  return (
+    <XmtpContext.Provider value={value}>
+      {children}
+    </XmtpContext.Provider>
+  );
 };
