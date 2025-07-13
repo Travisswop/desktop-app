@@ -42,23 +42,75 @@ export default function ChatBox({
     // For XMTP v3, try to get peer address from conversation
     const conv = conversation as any;
 
-    // Try different ways to get peer address
-    if (conv.peerAddress) return conv.peerAddress;
-    if (conv.peer) return conv.peer;
-    if (conv.topic) return conv.topic;
+    console.log('🔍 [ChatBox] Extracting peer address from conversation:', {
+      id: conv.id,
+      type: conv.conversationType || 'unknown',
+      hasMembers: !!conv.members,
+      hasPeerAddress: !!conv.peerAddress,
+      hasPeer: !!conv.peer,
+      hasTopic: !!conv.topic
+    });
 
-    // If all else fails, try to extract from members
+    // Try different ways to get peer address
+    if (conv.peerAddress) {
+      console.log('✅ [ChatBox] Found peer address via peerAddress:', conv.peerAddress);
+      return conv.peerAddress;
+    }
+
+    if (conv.peer) {
+      console.log('✅ [ChatBox] Found peer address via peer:', conv.peer);
+      return conv.peer;
+    }
+
+    // For DM conversations, try to get peer info from members
     try {
       if (conv.members && Array.isArray(conv.members) && conv.members.length > 0) {
-        const member = conv.members.find((m: any) => m.inboxId !== client?.inboxId);
-        if (member?.accountAddresses && member.accountAddresses.length > 0) {
-          return member.accountAddresses[0];
+        console.log('🔍 [ChatBox] Checking members for peer address:', conv.members);
+
+        // Find the member that is not us
+        const peerMember = conv.members.find((m: any) => m.inboxId !== client?.inboxId);
+
+        if (peerMember) {
+          console.log('🔍 [ChatBox] Found peer member:', peerMember);
+
+          // Try to get address from account addresses
+          if (peerMember.accountAddresses && peerMember.accountAddresses.length > 0) {
+            const peerAddress = peerMember.accountAddresses[0];
+            console.log('✅ [ChatBox] Found peer address from member accountAddresses:', peerAddress);
+            return peerAddress;
+          }
+
+          // Try to get address from installations
+          if (peerMember.installations && peerMember.installations.length > 0) {
+            const installation = peerMember.installations[0];
+            if (installation.accountAddress) {
+              console.log('✅ [ChatBox] Found peer address from installation:', installation.accountAddress);
+              return installation.accountAddress;
+            }
+          }
         }
       }
     } catch (error) {
-      console.warn('⚠️ [ChatBox] Could not extract peer address from members:', error);
+      console.warn('⚠️ [ChatBox] Error extracting peer address from members:', error);
     }
 
+    // Try to get from conversation metadata
+    try {
+      if (conv.metadata && conv.metadata.peerAddress) {
+        console.log('✅ [ChatBox] Found peer address from metadata:', conv.metadata.peerAddress);
+        return conv.metadata.peerAddress;
+      }
+    } catch (error) {
+      console.warn('⚠️ [ChatBox] Error extracting peer address from metadata:', error);
+    }
+
+    // Last resort - try topic or other fields
+    if (conv.topic) {
+      console.log('📝 [ChatBox] Using topic as fallback:', conv.topic);
+      return conv.topic;
+    }
+
+    console.warn('⚠️ [ChatBox] Could not extract peer address from conversation');
     return null;
   }, [conversation, client?.inboxId]);
 

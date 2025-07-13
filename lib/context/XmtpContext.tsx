@@ -276,24 +276,73 @@ export const XmtpProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       console.log('✅ [XmtpContext] Address can receive messages');
 
-      // Create identifier for new DM
+      // Create identifier for the peer
       const identifier: Identifier = {
         identifier: address.toLowerCase(),
         identifierKind: "Ethereum",
       };
 
-      // Create new DM conversation
-      const conversation = await client.conversations.newDmWithIdentifier(identifier);
+      // First, get the peer's inbox ID
+      console.log('🔄 [XmtpContext] Getting peer inbox ID...');
+      let peerInboxId: string;
 
-      // Immediately allow the conversation
-      await (conversation as any).updateConsentState(ConsentState.Allowed);
+      try {
+        // For XMTP v3, we need to get the inbox ID from the identifier
+        // This is a simplified approach - in production you might need to handle this differently
+        const inboxId = await client.findInboxIdByIdentifier(identifier);
 
-      console.log('✅ [XmtpContext] New conversation created:', {
-        id: (conversation as any).id,
-        peerAddress: address
-      });
+        if (!inboxId) {
+          throw new Error(`Could not get inbox ID for address: ${address}`);
+        }
 
-      // Refresh conversations to include the new one
+        peerInboxId = inboxId;
+        console.log('✅ [XmtpContext] Peer inbox ID found:', peerInboxId);
+      } catch (error) {
+        console.error('❌ [XmtpContext] Error getting peer inbox ID:', error);
+        throw error;
+      }
+
+      // Check if we already have a DM with this peer
+      console.log('🔄 [XmtpContext] Checking for existing DM...');
+      let conversation: any;
+
+      try {
+        conversation = await client.conversations.getDmByInboxId(peerInboxId);
+        if (conversation) {
+          console.log('✅ [XmtpContext] Found existing DM:', {
+            id: conversation.id,
+            peerInboxId: peerInboxId
+          });
+        }
+      } catch (error) {
+        console.log('📝 [XmtpContext] No existing DM found, will create new one');
+        conversation = null;
+      }
+
+      // If no existing DM, create a new one
+      if (!conversation) {
+        console.log('🆕 [XmtpContext] Creating new DM conversation...');
+        try {
+          conversation = await client.conversations.newDm(peerInboxId);
+          console.log('✅ [XmtpContext] New DM created:', {
+            id: conversation.id,
+            peerInboxId: peerInboxId
+          });
+        } catch (error) {
+          console.error('❌ [XmtpContext] Error creating new DM:', error);
+          throw error;
+        }
+      }
+
+      // Ensure the conversation is allowed
+      try {
+        await conversation.updateConsentState(ConsentState.Allowed);
+        console.log('✅ [XmtpContext] Conversation consent state updated to allowed');
+      } catch (error) {
+        console.warn('⚠️ [XmtpContext] Warning updating consent state:', error);
+      }
+
+      // Refresh conversations to include the new/updated one
       await refreshConversations();
 
       return conversation as unknown as AnyConversation;

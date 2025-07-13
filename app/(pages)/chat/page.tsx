@@ -218,15 +218,48 @@ const ChatPageContent = () => {
 
         // Use simplified approach: try to find existing conversation or create new one
         console.log('🔍 [ChatPage] Looking for existing conversation...');
+        console.log('🔍 [ChatPage] Available conversations:', {
+          count: conversations?.length || 0,
+          conversations: conversations?.map(c => ({
+            id: (c as any).id,
+            type: (c as any).conversationType || 'unknown',
+            hasMembers: !!(c as any).members,
+            memberCount: (c as any).members?.length || 0
+          }))
+        });
 
         // First, check if we have any existing conversations with this address
         let existingConversation = null;
         if (conversations && conversations.length > 0) {
           for (const conv of conversations) {
             const convAny = conv as any;
-            // Check if this conversation is with the target address
+            console.log('🔍 [ChatPage] Checking conversation:', {
+              id: convAny.id,
+              members: convAny.members?.map((m: any) => ({
+                inboxId: m.inboxId,
+                accountAddresses: m.accountAddresses
+              }))
+            });
+
+            // Check if this conversation involves the target address
+            if (convAny.members && Array.isArray(convAny.members)) {
+              const hasPeerAddress = convAny.members.some((member: any) =>
+                member.accountAddresses?.some((addr: string) =>
+                  addr.toLowerCase() === recipientAddress.toLowerCase()
+                )
+              );
+
+              if (hasPeerAddress) {
+                console.log('✅ [ChatPage] Found existing conversation with peer:', convAny.id);
+                existingConversation = conv;
+                break;
+              }
+            }
+
+            // Also check direct peer address properties
             if (convAny.peerAddress === recipientAddress.toLowerCase() ||
               convAny.peer === recipientAddress.toLowerCase()) {
+              console.log('✅ [ChatPage] Found existing conversation via direct peer match:', convAny.id);
               existingConversation = conv;
               break;
             }
@@ -240,7 +273,14 @@ const ChatPageContent = () => {
           console.log('🆕 [ChatPage] Creating new conversation with:', recipientAddress);
           const newConvo = await newConversation(recipientAddress);
           if (newConvo) {
-            console.log('✅ [ChatPage] New conversation created:', (newConvo as any).id);
+            console.log('✅ [ChatPage] New conversation created:', {
+              id: (newConvo as any).id,
+              type: (newConvo as any).conversationType || 'unknown',
+              members: (newConvo as any).members?.map((m: any) => ({
+                inboxId: m.inboxId,
+                accountAddresses: m.accountAddresses
+              }))
+            });
             setSelectedConversation(newConvo);
           } else {
             console.error('❌ [ChatPage] Failed to create new conversation');
