@@ -146,19 +146,15 @@ const ChatPageContent = () => {
       const addresses: string[] = [];
       for (const convo of conversations) {
         try {
-          // Use the same logic as working version
           const peerAddress = await safeGetPeerAddress(convo);
-          const displayAddress = peerAddress || "";
-
-          if (displayAddress) {
-            addresses.push(displayAddress);
+          if (peerAddress) {
+            addresses.push(peerAddress);
           }
         } catch (error) {
           console.error('Error extracting peer address:', error);
         }
       }
 
-      // Update your state that uses peer addresses here
       console.log('📝 [ChatPage] Extracted peer addresses:', addresses);
     };
 
@@ -168,16 +164,11 @@ const ChatPageContent = () => {
   const handleSelectConversation = useCallback(
     async (recipientAddress: string) => {
       if (!recipientAddress || !xmtpClient) {
-        console.log('⚠️ [ChatPage] Cannot select conversation:', {
-          hasRecipientAddress: !!recipientAddress,
-          hasXmtpClient: !!xmtpClient,
-          recipientAddress
-        });
+        console.log('⚠️ [ChatPage] Cannot select conversation - missing params');
         return;
       }
 
       console.log('🎯 [ChatPage] Selecting conversation with:', recipientAddress);
-      console.log('📋 [ChatPage] Current conversations count:', conversations.length);
 
       try {
         setChangeConversationLoading(true);
@@ -186,24 +177,13 @@ const ChatPageContent = () => {
         // Check for existing conversation in both allowed and requests
         let existingConvo = null;
 
-        // Check conversations with proper peer address extraction (matching working version)
+        // Check conversations with proper peer address extraction
         for (const convo of conversations) {
           try {
-            // Use the same logic as working version
             const peerAddress = await safeGetPeerAddress(convo);
-            const displayAddress = peerAddress || "";
-
-            console.log('🔍 [ChatPage] Checking conversation:', {
-              id: (convo as any).id,
-              peerAddress: peerAddress || 'null',
-              displayAddress: displayAddress || 'null',
-              targetAddress: recipientAddress
-            });
-
-            // Check if this conversation matches the recipient
-            if (displayAddress && displayAddress.toLowerCase() === recipientAddress.toLowerCase()) {
+            if (peerAddress && peerAddress.toLowerCase() === recipientAddress.toLowerCase()) {
               existingConvo = convo;
-              console.log('✅ [ChatPage] Found conversation by displayAddress match');
+              console.log('✅ [ChatPage] Found existing conversation');
               break;
             }
           } catch (error) {
@@ -215,48 +195,26 @@ const ChatPageContent = () => {
         if (!existingConvo) {
           for (const convo of conversationRequests) {
             try {
-              // Use the same logic as working version
               const peerAddress = await safeGetPeerAddress(convo);
-              const displayAddress = peerAddress || "";
-
-              console.log('🔍 [ChatPage] Checking conversation request:', {
-                id: (convo as any).id,
-                peerAddress: peerAddress || 'null',
-                displayAddress: displayAddress || 'null',
-                targetAddress: recipientAddress
-              });
-
-              // Check if this conversation matches the recipient
-              if (displayAddress && displayAddress.toLowerCase() === recipientAddress.toLowerCase()) {
+              if (peerAddress && peerAddress.toLowerCase() === recipientAddress.toLowerCase()) {
                 existingConvo = convo;
-                console.log('✅ [ChatPage] Found conversation in requests by displayAddress match');
+                console.log('✅ [ChatPage] Found conversation in requests');
                 break;
               }
             } catch (error) {
               console.error('Error checking conversation request:', error);
             }
           }
-          console.log('🔍 [ChatPage] Checked conversation requests, found:', !!existingConvo);
         }
 
         // If still not found, try alternative matching methods
         if (!existingConvo) {
-          console.log('🔍 [ChatPage] Trying alternative conversation matching methods...');
-
-          // Try checking all conversations for any that might match this peer
           const allConversations = [...conversations, ...conversationRequests];
           for (const convo of allConversations) {
-            console.log('🔍 [ChatPage] Checking conversation:', {
-              id: (convo as any).id,
-              peerAddress: (convo as any).peerAddress,
-              members: (convo as any).members,
-              allKeys: Object.keys(convo as any)
-            });
-
             // Try different ways to match the peer
             if ((convo as any).peerAddress?.toLowerCase() === recipientAddress.toLowerCase()) {
               existingConvo = convo;
-              console.log('✅ [ChatPage] Found conversation by peerAddress (case insensitive)');
+              console.log('✅ [ChatPage] Found conversation by peerAddress');
               break;
             }
 
@@ -278,38 +236,23 @@ const ChatPageContent = () => {
         }
 
         if (existingConvo) {
-          console.log('✅ [ChatPage] Found existing conversation:', {
-            conversationId: (existingConvo as any).id,
-            peerAddress: (existingConvo as any).peerAddress
-          });
+          console.log('✅ [ChatPage] Using existing conversation:', (existingConvo as any).id);
 
           // Check if the conversation needs to be allowed
           try {
             const consentState = (existingConvo as any).consentState;
-            console.log('🔍 [ChatPage] Conversation consent state:', consentState);
-
             if (typeof consentState === 'function') {
               const currentState = await consentState();
-              console.log('🔍 [ChatPage] Current consent state:', currentState);
-
               if (currentState !== 'allowed') {
-                console.log('🔄 [ChatPage] Auto-allowing conversation for seamless messaging...');
-                // @ts-ignore
-                await existingConvo.updateConsentState?.('allowed');
-                console.log('✅ [ChatPage] Existing conversation auto-allowed successfully');
-
-                // Refresh conversations to update the state
-                console.log('🔄 [ChatPage] Refreshing conversations after allowing...');
-                // We'll need to get the updated conversation list
+                console.log('🔄 [ChatPage] Auto-allowing conversation...');
+                await (existingConvo as any).updateConsentState?.('allowed');
                 setTimeout(async () => {
                   await refreshConversations?.();
                 }, 100);
               }
             } else if (consentState !== 'allowed') {
-              console.log('🔄 [ChatPage] Auto-allowing conversation (direct state)...');
-              // @ts-ignore
-              await existingConvo.updateConsentState?.('allowed');
-              console.log('✅ [ChatPage] Existing conversation auto-allowed successfully');
+              console.log('🔄 [ChatPage] Auto-allowing conversation...');
+              await (existingConvo as any).updateConsentState?.('allowed');
             }
           } catch (consentError) {
             console.warn('⚠️ [ChatPage] Could not check/update consent state:', consentError);
@@ -317,52 +260,38 @@ const ChatPageContent = () => {
 
           setSelectedConversation(existingConvo);
         } else {
-          console.log('🔍 [ChatPage] No existing conversation found, checking if user can receive messages...');
+          console.log('🔍 [ChatPage] No existing conversation found, creating new one...');
 
           // First check if the address can receive XMTP messages
           const canMessageUser = await canMessage(recipientAddress);
-          console.log('🔍 [ChatPage] Can message user result:', canMessageUser);
-
           if (!canMessageUser) {
-            // The user doesn't have XMTP enabled
-            console.log('❌ [ChatPage] User cannot receive XMTP messages:', recipientAddress);
-            console.warn(`Cannot message ${recipientAddress}: XMTP not enabled`);
+            console.log('❌ [ChatPage] User cannot receive XMTP messages');
             return;
           }
 
-          console.log('✅ [ChatPage] User can receive messages, creating new conversation...');
-          // If they can receive messages, proceed with creating the conversation
+          // Create new conversation
           const convo = await newConversation(recipientAddress);
-          console.log('🆕 [ChatPage] New conversation result:', {
-            success: !!convo,
-            conversationId: convo ? (convo as any).id : null,
-            peerAddress: recipientAddress
-          });
-
           if (convo) {
+            console.log('✅ [ChatPage] Created new conversation:', (convo as any).id);
             setSelectedConversation(convo);
-            console.log('✅ [ChatPage] New conversation set as selected');
           } else {
-            console.error('❌ [ChatPage] Could not start a new conversation.');
+            console.error('❌ [ChatPage] Could not create conversation');
           }
         }
 
         // Set microsite data
         if (searchResult?.ethAddress === recipientAddress) {
-          console.log('📄 [ChatPage] Using search result for microsite data');
           setMicrositeData(searchResult);
         } else {
           const micrositeInfo = peerData.find(
             (peer) => peer.ethAddress === recipientAddress
           );
-          console.log('📄 [ChatPage] Using peer data for microsite data:', !!micrositeInfo);
           setMicrositeData(micrositeInfo || null);
         }
       } catch (error) {
         console.error('❌ [ChatPage] Failed to select conversation:', error);
       } finally {
         setChangeConversationLoading(false);
-        console.log('🏁 [ChatPage] Conversation selection completed');
       }
     },
     [xmtpClient, conversations, conversationRequests, newConversation, canMessage, peerData, searchResult, refreshConversations]

@@ -192,18 +192,23 @@ export const getPeerAddress = async (conversation: any): Promise<string | null> 
         // Use peerAddress first, then fallback to topic (matching working version logic)
         const extractedAddress = peerAddress || topic;
 
-        console.log('🔍 [getPeerAddress] Extracting address:', {
-            conversationId: conversation.id,
-            peerAddress: peerAddress || 'null',
-            topic: topic || 'null',
-            extractedAddress: extractedAddress || 'null'
-        });
-
         if (extractedAddress) {
+            console.log('🔍 [getPeerAddress] Extracted from direct property:', extractedAddress);
             return extractedAddress;
         }
 
-        // If both are empty, try to get members and extract peer address (fallback)
+        // Try alternative conversation properties first
+        if (conversation.peerAddress) {
+            console.log('🔍 [getPeerAddress] Extracted from conversation.peerAddress:', conversation.peerAddress);
+            return conversation.peerAddress;
+        }
+
+        if (conversation.topic) {
+            console.log('🔍 [getPeerAddress] Extracted from conversation.topic:', conversation.topic);
+            return conversation.topic;
+        }
+
+        // Try to get members and extract peer address (enhanced approach)
         if (conversation.members && typeof conversation.members === 'function') {
             try {
                 const members = await conversation.members();
@@ -211,19 +216,26 @@ export const getPeerAddress = async (conversation: any): Promise<string | null> 
                     // Find the member that's not the current client
                     const client = conversation.client;
                     const currentInboxId = client?.inboxId;
+                    const currentAddress = client?.address;
 
                     for (const member of members) {
-                        const memberInboxId = member.inboxId;
-                        if (memberInboxId && memberInboxId !== currentInboxId) {
-                            // Try to get the Ethereum address from the member
-                            if (member.accountAddresses && member.accountAddresses.length > 0) {
-                                console.log('🔍 [getPeerAddress] Extracted from member accountAddresses:', member.accountAddresses[0]);
-                                return member.accountAddresses[0];
-                            }
-                            if (member.addresses && member.addresses.length > 0) {
-                                console.log('🔍 [getPeerAddress] Extracted from member addresses:', member.addresses[0]);
-                                return member.addresses[0];
-                            }
+                        // Skip if this is the current user
+                        if (member.inboxId === currentInboxId) continue;
+                        if (member.address === currentAddress) continue;
+
+                        // Try various ways to get the peer address
+                        const possibleAddresses = [
+                            member.accountAddresses?.[0],
+                            member.addresses?.[0],
+                            member.address,
+                            member.ethAddress,
+                            member.walletAddress
+                        ].filter(Boolean);
+
+                        if (possibleAddresses.length > 0) {
+                            const peerAddr = possibleAddresses[0];
+                            console.log('🔍 [getPeerAddress] Extracted from member:', peerAddr);
+                            return peerAddr;
                         }
                     }
                 }
@@ -232,7 +244,16 @@ export const getPeerAddress = async (conversation: any): Promise<string | null> 
             }
         }
 
-        console.warn('🔍 [getPeerAddress] Could not extract peer address');
+        // Try to extract from conversation metadata or other properties
+        const metadataKeys = ['peer', 'peerAddress', 'recipientAddress', 'toAddress', 'with'];
+        for (const key of metadataKeys) {
+            if (conversation[key]) {
+                console.log('🔍 [getPeerAddress] Extracted from metadata key', key, ':', conversation[key]);
+                return conversation[key];
+            }
+        }
+
+        console.warn('🔍 [getPeerAddress] Could not extract peer address from conversation:', conversation.id);
         return null;
 
     } catch (error) {
