@@ -132,6 +132,17 @@ export const XmtpProvider: React.FC<XmtpProviderProps> = ({ children }) => {
           setClient(newClient);
           setIsConnected(true);
           console.log('✅ [XmtpContext] XMTP client connected successfully with localStorage caching');
+          console.log('🔍 [XmtpContext] Client details:', {
+            inboxId: newClient.inboxId,
+            hasInboxId: !!newClient.inboxId,
+            clientKeys: Object.keys(newClient),
+            walletAddress: privyEthWallet.address
+          });
+
+          // Store client globally for conversation peer address extraction
+          if (typeof window !== 'undefined') {
+            (window as any).xmtpClient = newClient;
+          }
 
           // Sync with network before loading conversations
           console.log('🔄 [XmtpContext] Syncing conversations from network...');

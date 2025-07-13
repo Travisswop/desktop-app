@@ -173,6 +173,35 @@ const ChatPageContent = () => {
         return;
       }
 
+      // Helper function to check if a conversation matches a given Ethereum address
+      const isConversationMatch = async (conversation: any, ethAddress: string): Promise<boolean> => {
+        try {
+          if (conversation.members && typeof conversation.members === 'function') {
+            const members = await conversation.members();
+            if (Array.isArray(members)) {
+              for (const member of members) {
+                // Check if any member has account addresses that match the eth address
+                const addresses = [
+                  ...(member.accountAddresses || []),
+                  ...(member.addresses || []),
+                  member.address,
+                  member.ethAddress,
+                  member.walletAddress
+                ].filter(Boolean);
+
+                if (addresses.some(addr => addr.toLowerCase() === ethAddress.toLowerCase())) {
+                  return true;
+                }
+              }
+            }
+          }
+          return false;
+        } catch (error) {
+          console.error('Error checking conversation match:', error);
+          return false;
+        }
+      };
+
       console.log('🎯 [ChatPage] Selecting conversation with:', recipientAddress);
 
       try {
@@ -185,11 +214,24 @@ const ChatPageContent = () => {
         // Check conversations with proper peer address extraction
         for (const convo of conversations) {
           try {
-            const peerAddress = await safeGetPeerAddress(convo);
-            if (peerAddress && peerAddress.toLowerCase() === recipientAddress.toLowerCase()) {
-              existingConvo = convo;
-              console.log('✅ [ChatPage] Found existing conversation');
-              break;
+            const peerIdentifier = await safeGetPeerAddress(convo);
+            if (peerIdentifier) {
+              console.log('🔍 [ChatPage] Checking conversation with peer identifier:', peerIdentifier);
+
+              // Check if this conversation matches the recipient
+              // Handle both Ethereum addresses and inbox IDs
+              const isMatch = (
+                peerIdentifier.toLowerCase() === recipientAddress.toLowerCase() ||
+                // If peerIdentifier looks like an inbox ID (longer hex string), 
+                // also check if it matches indirectly through conversation members
+                (peerIdentifier.length > 42 && await isConversationMatch(convo, recipientAddress))
+              );
+
+              if (isMatch) {
+                existingConvo = convo;
+                console.log('✅ [ChatPage] Found existing conversation');
+                break;
+              }
             }
           } catch (error) {
             console.error('Error checking conversation:', error);
@@ -200,11 +242,21 @@ const ChatPageContent = () => {
         if (!existingConvo) {
           for (const convo of conversationRequests) {
             try {
-              const peerAddress = await safeGetPeerAddress(convo);
-              if (peerAddress && peerAddress.toLowerCase() === recipientAddress.toLowerCase()) {
-                existingConvo = convo;
-                console.log('✅ [ChatPage] Found conversation in requests');
-                break;
+              const peerIdentifier = await safeGetPeerAddress(convo);
+              if (peerIdentifier) {
+                console.log('🔍 [ChatPage] Checking conversation request with peer identifier:', peerIdentifier);
+
+                // Check if this conversation matches the recipient
+                const isMatch = (
+                  peerIdentifier.toLowerCase() === recipientAddress.toLowerCase() ||
+                  (peerIdentifier.length > 42 && await isConversationMatch(convo, recipientAddress))
+                );
+
+                if (isMatch) {
+                  existingConvo = convo;
+                  console.log('✅ [ChatPage] Found conversation in requests');
+                  break;
+                }
               }
             } catch (error) {
               console.error('Error checking conversation request:', error);

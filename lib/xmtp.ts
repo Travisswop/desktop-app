@@ -182,74 +182,75 @@ export const getPeerAddress = async (conversation: any): Promise<string | null> 
     if (!conversation || typeof window === 'undefined') return null;
 
     try {
-        // Log the conversation structure for debugging
-        console.log('🔍 [getPeerAddress] Debugging conversation structure:', {
-            id: conversation.id,
-            keys: Object.keys(conversation),
-            hasMembers: typeof conversation.members === 'function',
-            conversationType: conversation.conversationType || 'unknown'
-        });
+        // The new XMTP SDK uses inboxId and has a peerInboxId() method for DMs
+        // This is the primary way to get the peer's identifier in the new SDK
+        if (conversation.peerInboxId && typeof conversation.peerInboxId === 'function') {
+            try {
+                const peerInboxId = await conversation.peerInboxId();
+                console.log('🔍 [getPeerAddress] Successfully got peer inbox ID:', peerInboxId);
 
-        // For the new XMTP SDK, we need to get members and find the peer
+                // Return the inboxId as the "address" - the system will need to work with inbox IDs
+                return peerInboxId;
+            } catch (peerInboxError) {
+                console.error('🔍 [getPeerAddress] Error calling peerInboxId():', peerInboxError);
+            }
+        }
+
+        // If peerInboxId method doesn't work, try to get members and find the peer
         if (conversation.members && typeof conversation.members === 'function') {
             try {
                 const members = await conversation.members();
-                console.log('🔍 [getPeerAddress] Members structure:', {
-                    memberCount: members?.length,
-                    members: members?.map((m: any) => ({
-                        inboxId: m.inboxId,
-                        accountAddresses: m.accountAddresses,
-                        addresses: m.addresses,
-                        address: m.address,
-                        allKeys: Object.keys(m)
-                    }))
-                });
+                console.log('🔍 [getPeerAddress] Members found:', members?.length);
 
                 if (Array.isArray(members) && members.length > 0) {
-                    // Get the current client to identify which member is the peer
+                    // Try to get the current client's inbox ID from different sources
                     const client = conversation.client;
-                    const currentInboxId = client?.inboxId;
+                    let currentInboxId = null;
 
-                    console.log('🔍 [getPeerAddress] Current client inboxId:', currentInboxId);
+                    // Try different ways to get the current inbox ID
+                    if (client) {
+                        currentInboxId = client.inboxId || client.inbox?.id || client.accountInboxId;
+                        console.log('🔍 [getPeerAddress] Found current inboxId from client:', currentInboxId);
+                    }
 
+                    // If we still don't have the current inbox ID, try to get it globally
+                    if (!currentInboxId && typeof window !== 'undefined') {
+                        // Try to get it from the global XMTP client if available
+                        const globalClient = (window as any).xmtpClient;
+                        if (globalClient) {
+                            currentInboxId = globalClient.inboxId || globalClient.inbox?.id;
+                            console.log('🔍 [getPeerAddress] Found current inboxId from global client:', currentInboxId);
+                        }
+                    }
+
+                    console.log('🔍 [getPeerAddress] Current user inboxId:', currentInboxId);
+                    console.log('🔍 [getPeerAddress] Available member inbox IDs:', members.map(m => m.inboxId));
+
+                    // Find the peer (member that's not the current user)
                     for (const member of members) {
-                        // Skip if this is the current user
-                        if (member.inboxId === currentInboxId) {
+                        if (currentInboxId && member.inboxId === currentInboxId) {
                             console.log('🔍 [getPeerAddress] Skipping current user:', member.inboxId);
                             continue;
                         }
 
-                        console.log('🔍 [getPeerAddress] Checking peer member:', {
-                            inboxId: member.inboxId,
-                            accountAddresses: member.accountAddresses,
-                            addresses: member.addresses,
-                            address: member.address
-                        });
-
-                        // Try various ways to get the peer address from the new SDK structure
-                        const possibleAddresses = [
-                            // New SDK structure
-                            member.accountAddresses?.[0],
-                            member.addresses?.[0],
-                            member.address,
-                            // Legacy properties just in case
-                            member.ethAddress,
-                            member.walletAddress,
-                            member.ethereumAddress
-                        ].filter(Boolean);
-
-                        if (possibleAddresses.length > 0) {
-                            const peerAddr = possibleAddresses[0];
-                            console.log('🔍 [getPeerAddress] Successfully extracted peer address:', peerAddr);
-                            return peerAddr;
+                        // Return the peer's inbox ID
+                        if (member.inboxId) {
+                            console.log('🔍 [getPeerAddress] Found peer inboxId:', member.inboxId);
+                            return member.inboxId;
                         }
+                    }
 
-                        // If no direct address, log what we have
-                        console.log('🔍 [getPeerAddress] No direct address found for member:', {
-                            inboxId: member.inboxId,
-                            allProperties: Object.keys(member),
-                            memberData: member
-                        });
+                    // If we couldn't identify the current user, but we have exactly 2 members,
+                    // return the first one (this is a fallback for DM conversations)
+                    if (!currentInboxId && members.length === 2) {
+                        console.log('🔍 [getPeerAddress] Could not identify current user, assuming DM and returning first member:', members[0].inboxId);
+                        return members[0].inboxId;
+                    }
+
+                    // If we have members but couldn't identify the peer, return the first member
+                    if (members.length > 0) {
+                        console.log('🔍 [getPeerAddress] Fallback: returning first member inboxId:', members[0].inboxId);
+                        return members[0].inboxId;
                     }
                 }
             } catch (membersError) {
@@ -257,7 +258,7 @@ export const getPeerAddress = async (conversation: any): Promise<string | null> 
             }
         }
 
-        // Try legacy approaches for backwards compatibility
+        // Try legacy approaches for backwards compatibility with older SDK versions
         const dm = conversation as unknown as { peerAddress?: string; topic?: string };
         const peerAddress: string = dm.peerAddress || "";
         const topic: string = dm.topic || "";
@@ -272,32 +273,17 @@ export const getPeerAddress = async (conversation: any): Promise<string | null> 
             return topic;
         }
 
-        // Try alternative conversation properties
+        // Try other conversation properties
         if (conversation.peerAddress) {
             console.log('🔍 [getPeerAddress] Found conversation.peerAddress:', conversation.peerAddress);
             return conversation.peerAddress;
         }
 
-        if (conversation.topic) {
-            console.log('🔍 [getPeerAddress] Found conversation.topic:', conversation.topic);
-            return conversation.topic;
-        }
-
-        // Try to extract from conversation metadata or other properties
-        const metadataKeys = ['peer', 'recipientAddress', 'toAddress', 'with', 'peerInboxId'];
-        for (const key of metadataKeys) {
-            if (conversation[key]) {
-                console.log('🔍 [getPeerAddress] Found metadata key', key, ':', conversation[key]);
-                return conversation[key];
-            }
-        }
-
-        console.warn('🔍 [getPeerAddress] Could not extract peer address from conversation:', conversation.id);
-        console.warn('🔍 [getPeerAddress] Full conversation object:', conversation);
+        console.warn('🔍 [getPeerAddress] Could not extract peer identifier from conversation:', conversation.id);
         return null;
 
     } catch (error) {
-        console.error('🔍 [getPeerAddress] Error extracting peer address:', error);
+        console.error('🔍 [getPeerAddress] Error extracting peer identifier:', error);
         return null;
     }
 }; 
