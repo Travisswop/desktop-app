@@ -147,8 +147,10 @@ const ChatPageContent = () => {
       for (const convo of conversations) {
         try {
           // Use the same logic as working version
-          const peerAddress = await safeGetPeerAddress(convo);
-          const displayAddress = peerAddress || "";
+          const dm = convo as unknown as { peerAddress?: string; topic?: string };
+          const peerAddress: string = dm.peerAddress || "";
+          const topic: string = dm.topic || "";
+          const displayAddress = peerAddress || topic || "";
 
           if (displayAddress) {
             addresses.push(displayAddress);
@@ -182,6 +184,7 @@ const ChatPageContent = () => {
       try {
         setChangeConversationLoading(true);
         setSelectedConversation(null);
+        // setXmtpError(null); // This line is removed as per the edit hint
 
         // Check for existing conversation in both allowed and requests
         let existingConvo = null;
@@ -190,12 +193,15 @@ const ChatPageContent = () => {
         for (const convo of conversations) {
           try {
             // Use the same logic as working version
-            const peerAddress = await safeGetPeerAddress(convo);
-            const displayAddress = peerAddress || "";
+            const dm = convo as unknown as { peerAddress?: string; topic?: string };
+            const peerAddress: string = dm.peerAddress || "";
+            const topic: string = dm.topic || "";
+            const displayAddress = peerAddress || topic || "";
 
             console.log('🔍 [ChatPage] Checking conversation:', {
               id: (convo as any).id,
               peerAddress: peerAddress || 'null',
+              topic: topic || 'null',
               displayAddress: displayAddress || 'null',
               targetAddress: recipientAddress
             });
@@ -204,6 +210,13 @@ const ChatPageContent = () => {
             if (displayAddress && displayAddress.toLowerCase() === recipientAddress.toLowerCase()) {
               existingConvo = convo;
               console.log('✅ [ChatPage] Found conversation by displayAddress match');
+              break;
+            }
+
+            // Also check if peerAddress specifically matches (direct match)
+            if (peerAddress && peerAddress.toLowerCase() === recipientAddress.toLowerCase()) {
+              existingConvo = convo;
+              console.log('✅ [ChatPage] Found conversation by peerAddress match');
               break;
             }
           } catch (error) {
@@ -216,12 +229,15 @@ const ChatPageContent = () => {
           for (const convo of conversationRequests) {
             try {
               // Use the same logic as working version
-              const peerAddress = await safeGetPeerAddress(convo);
-              const displayAddress = peerAddress || "";
+              const dm = convo as unknown as { peerAddress?: string; topic?: string };
+              const peerAddress: string = dm.peerAddress || "";
+              const topic: string = dm.topic || "";
+              const displayAddress = peerAddress || topic || "";
 
               console.log('🔍 [ChatPage] Checking conversation request:', {
                 id: (convo as any).id,
                 peerAddress: peerAddress || 'null',
+                topic: topic || 'null',
                 displayAddress: displayAddress || 'null',
                 targetAddress: recipientAddress
               });
@@ -230,6 +246,13 @@ const ChatPageContent = () => {
               if (displayAddress && displayAddress.toLowerCase() === recipientAddress.toLowerCase()) {
                 existingConvo = convo;
                 console.log('✅ [ChatPage] Found conversation in requests by displayAddress match');
+                break;
+              }
+
+              // Also check if peerAddress specifically matches
+              if (peerAddress && peerAddress.toLowerCase() === recipientAddress.toLowerCase()) {
+                existingConvo = convo;
+                console.log('✅ [ChatPage] Found conversation in requests by peerAddress match');
                 break;
               }
             } catch (error) {
@@ -326,6 +349,9 @@ const ChatPageContent = () => {
           if (!canMessageUser) {
             // The user doesn't have XMTP enabled
             console.log('❌ [ChatPage] User cannot receive XMTP messages:', recipientAddress);
+            // setXmtpError( // This line is removed as per the edit hint
+            //   `This address hasn't enabled XMTP messaging yet. They need to set up XMTP to receive messages.`
+            // );
             console.warn(`Cannot message ${recipientAddress}: XMTP not enabled`);
             return;
           }
@@ -343,6 +369,7 @@ const ChatPageContent = () => {
             setSelectedConversation(convo);
             console.log('✅ [ChatPage] New conversation set as selected');
           } else {
+            // setXmtpError('Could not start a new conversation. Please try again.'); // This line is removed as per the edit hint
             console.error('❌ [ChatPage] Could not start a new conversation.');
           }
         }
@@ -360,6 +387,7 @@ const ChatPageContent = () => {
         }
       } catch (error) {
         console.error('❌ [ChatPage] Failed to select conversation:', error);
+        // setXmtpError('Failed to load conversation. Please try again.'); // This line is removed as per the edit hint
       } finally {
         setChangeConversationLoading(false);
         console.log('🏁 [ChatPage] Conversation selection completed');
