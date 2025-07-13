@@ -25,13 +25,9 @@ import { useSearchParams, useRouter } from 'next/navigation';
 import WalletManager from '@/components/wallet/wallet-manager';
 import { useXmtpContext } from '@/lib/context/XmtpContext';
 import ChatBox from '@/components/wallet/chat/chat-box';
-import { useDebouncedCallback } from 'use-debounce';
 import { Skeleton } from '@/components/ui/skeleton';
-import { AnyConversation } from '@/lib/xmtp';
-import { safeGetPeerAddress, safeFindExistingDm, safeResolveInboxId } from '@/lib/xmtp-safe';
-import { XmtpErrorDisplay } from '@/components/xmtp/XmtpErrorDisplay';
+import { AnyConversation } from '@/lib/context/XmtpContext';
 import { useToast } from '@/hooks/use-toast';
-
 
 interface MessageProps {
   bio: string;
@@ -42,59 +38,11 @@ interface MessageProps {
   profilePic: string;
 }
 
-interface PeerData {
-  bio: string;
-  ens: string;
-  ensData: {
-    addresses: {
-      [key: number]: string;
-    };
-    createdAt: string;
-    name: string;
-    owner: string;
-    texts: {
-      avatar: string;
-    };
-    updatedAt: string;
-  };
-  ethAddress: string;
-  name: string;
-  profilePic: string;
-  profileUrl: string;
-  _id: string;
-}
-
 const getAvatarSrc = (profilePic?: string) => {
   if (!profilePic) return '/default-avatar.png';
   return profilePic.startsWith('http')
     ? profilePic
     : `/assets/avatar/${profilePic}.png`;
-};
-
-const getPeerData = async (peerAddresses: string[]) => {
-  if (!peerAddresses.length) return { data: [] };
-
-  try {
-    const response = await fetch(
-      `${process.env.NEXT_PUBLIC_API_URL}/api/v2/desktop/wallet/getPeerData`,
-      {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ peerAddresses }),
-      }
-    );
-
-    if (!response.ok) {
-      throw new Error('Network response was not ok');
-    }
-
-    return await response.json();
-  } catch (error) {
-    console.error('Error fetching peer data:', error);
-    return { data: [] };
-  }
 };
 
 const ChatPageContent = () => {
@@ -115,25 +63,15 @@ const ChatPageContent = () => {
   const router = useRouter();
   const { toast } = useToast();
 
-  const [walletData, setWalletData] = useState<WalletItem[] | null>(
-    null
-  );
-  const [isWalletManagerOpen, setIsWalletManagerOpen] =
-    useState(false);
+  const [walletData, setWalletData] = useState<WalletItem[] | null>(null);
+  const [isWalletManagerOpen, setIsWalletManagerOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [isSearchLoading, setIsSearchLoading] = useState(false);
-  const [searchResult, setSearchResult] = useState<PeerData | null>(
-    null
-  );
-  const [peerData, setPeerData] = useState<PeerData[]>([]);
-  const [isLoadingPeerData, setIsLoadingPeerData] = useState(false);
-  const [changeConversationLoading, setChangeConversationLoading] =
-    useState(false);
-  const [micrositeData, setMicrositeData] =
-    useState<MessageProps | null>(null);
+  const [searchResult, setSearchResult] = useState<any | null>(null);
+  const [changeConversationLoading, setChangeConversationLoading] = useState(false);
+  const [micrositeData, setMicrositeData] = useState<any | null>(null);
   const [tokenData, setTokenData] = useState<any>(null);
-  const [selectedConversation, setSelectedConversation] =
-    useState<AnyConversation | null>(null);
+  const [selectedConversation, setSelectedConversation] = useState<AnyConversation | null>(null);
 
   // Debug XMTP state
   useEffect(() => {
@@ -168,41 +106,36 @@ const ChatPageContent = () => {
     }
   };
 
-  const peerAddresses = useMemo(() => {
-    if (!conversations) return [];
-    // We'll need to extract peer addresses asynchronously, so this will be handled differently
-    // For now, return empty array and handle peer address extraction in useEffect
-    return [];
-  }, [conversations]);
+  // Extract peer addresses from conversations (like MVP)
+  const conversationPeers = useMemo(() => {
+    if (!Array.isArray(conversations)) return [];
 
-  // Add useEffect to extract peer addresses properly
-  useEffect(() => {
-    const extractPeerAddresses = async () => {
-      if (!conversations || !conversations.length) return;
+    return conversations.map((conv: any) => {
+      // Try to extract peer address from conversation
+      let peerAddress = '';
 
-      console.log('📝 [ChatPage] Extracting peer addresses from', conversations.length, 'conversations');
-
-      const addresses: string[] = [];
-      for (const convo of conversations) {
-        try {
-          const peerAddress = await safeGetPeerAddress(convo);
-          if (peerAddress) {
-            addresses.push(peerAddress);
-          }
-        } catch (error) {
-          console.error('Error extracting peer address:', error);
+      if (conv.peerAddress) {
+        peerAddress = conv.peerAddress;
+      } else if (conv.peer) {
+        peerAddress = conv.peer;
+      } else if (conv.members && Array.isArray(conv.members)) {
+        // Find the peer member (not us)
+        const peerMember = conv.members.find((m: any) => m.inboxId !== xmtpClient?.inboxId);
+        if (peerMember && peerMember.accountAddresses && peerMember.accountAddresses.length > 0) {
+          peerAddress = peerMember.accountAddresses[0];
         }
       }
 
-      console.log('📝 [ChatPage] Extracted peer addresses:', addresses);
-    };
+      return {
+        conversation: conv,
+        peerAddress: peerAddress,
+        displayName: peerAddress ? `${peerAddress.substring(0, 6)}...${peerAddress.substring(peerAddress.length - 4)}` : 'Unknown',
+        ethAddress: peerAddress
+      };
+    }).filter(peer => peer.peerAddress); // Only show conversations with valid peer addresses
+  }, [conversations, xmtpClient?.inboxId]);
 
-    // Only extract addresses if we have conversations and they've changed
-    if (conversations && conversations.length > 0) {
-      extractPeerAddresses();
-    }
-  }, [conversations]);
-
+  // Handle conversation selection
   const handleSelectConversation = useCallback(
     async (recipientAddress: string) => {
       if (!recipientAddress || !xmtpClient) {
@@ -216,72 +149,35 @@ const ChatPageContent = () => {
         setChangeConversationLoading(true);
         setSelectedConversation(null);
 
-        // Use simplified approach: try to find existing conversation or create new one
-        console.log('🔍 [ChatPage] Looking for existing conversation...');
-        console.log('🔍 [ChatPage] Available conversations:', {
-          count: conversations?.length || 0,
-          conversations: conversations?.map(c => ({
-            id: (c as any).id,
-            type: (c as any).conversationType || 'unknown',
-            hasMembers: !!(c as any).members,
-            memberCount: (c as any).members?.length || 0
-          }))
-        });
+        // Look for existing conversation
+        const existingPeer = conversationPeers.find(peer =>
+          peer.peerAddress.toLowerCase() === recipientAddress.toLowerCase()
+        );
 
-        // First, check if we have any existing conversations with this address
-        let existingConversation = null;
-        if (conversations && conversations.length > 0) {
-          for (const conv of conversations) {
-            const convAny = conv as any;
-            console.log('🔍 [ChatPage] Checking conversation:', {
-              id: convAny.id,
-              members: convAny.members?.map((m: any) => ({
-                inboxId: m.inboxId,
-                accountAddresses: m.accountAddresses
-              }))
-            });
-
-            // Check if this conversation involves the target address
-            if (convAny.members && Array.isArray(convAny.members)) {
-              const hasPeerAddress = convAny.members.some((member: any) =>
-                member.accountAddresses?.some((addr: string) =>
-                  addr.toLowerCase() === recipientAddress.toLowerCase()
-                )
-              );
-
-              if (hasPeerAddress) {
-                console.log('✅ [ChatPage] Found existing conversation with peer:', convAny.id);
-                existingConversation = conv;
-                break;
-              }
-            }
-
-            // Also check direct peer address properties
-            if (convAny.peerAddress === recipientAddress.toLowerCase() ||
-              convAny.peer === recipientAddress.toLowerCase()) {
-              console.log('✅ [ChatPage] Found existing conversation via direct peer match:', convAny.id);
-              existingConversation = conv;
-              break;
-            }
-          }
-        }
-
-        if (existingConversation) {
-          console.log('✅ [ChatPage] Found existing conversation:', (existingConversation as any).id);
-          setSelectedConversation(existingConversation);
+        if (existingPeer) {
+          console.log('✅ [ChatPage] Found existing conversation:', existingPeer.conversation);
+          setSelectedConversation(existingPeer.conversation);
+          setMicrositeData({
+            name: existingPeer.displayName,
+            ethAddress: existingPeer.ethAddress,
+            bio: '',
+            ens: '',
+            profilePic: '',
+            profileUrl: ''
+          });
         } else {
           console.log('🆕 [ChatPage] Creating new conversation with:', recipientAddress);
           const newConvo = await newConversation(recipientAddress);
           if (newConvo) {
-            console.log('✅ [ChatPage] New conversation created:', {
-              id: (newConvo as any).id,
-              type: (newConvo as any).conversationType || 'unknown',
-              members: (newConvo as any).members?.map((m: any) => ({
-                inboxId: m.inboxId,
-                accountAddresses: m.accountAddresses
-              }))
-            });
             setSelectedConversation(newConvo);
+            setMicrositeData({
+              name: `${recipientAddress.substring(0, 6)}...${recipientAddress.substring(recipientAddress.length - 4)}`,
+              ethAddress: recipientAddress,
+              bio: '',
+              ens: '',
+              profilePic: '',
+              profileUrl: ''
+            });
           } else {
             console.error('❌ [ChatPage] Failed to create new conversation');
             toast({
@@ -290,16 +186,6 @@ const ChatPageContent = () => {
               variant: 'destructive',
             });
           }
-        }
-
-        // Set microsite data
-        if (searchResult?.ethAddress === recipientAddress) {
-          setMicrositeData(searchResult);
-        } else {
-          const micrositeInfo = peerData.find(
-            (peer) => peer.ethAddress === recipientAddress
-          );
-          setMicrositeData(micrositeInfo || null);
         }
       } catch (error) {
         console.error('❌ [ChatPage] Error selecting conversation:', error);
@@ -312,82 +198,61 @@ const ChatPageContent = () => {
         setChangeConversationLoading(false);
       }
     },
-    [xmtpClient, conversations, newConversation, toast, searchResult, peerData],
+    [xmtpClient, conversationPeers, newConversation, toast],
   );
 
-  const fetchPeerData = useCallback(async () => {
-    if (!peerAddresses.length) return;
+  // Handle search (enhanced to always show results)
+  const handleSearchInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value;
+    setSearchQuery(value);
 
-    try {
-      setIsLoadingPeerData(true);
-      const response = await getPeerData(peerAddresses);
-      if (response.data) {
-        setPeerData(response.data);
+    // Show search result for any input that could be an address
+    if (value.trim().length > 3) {
+      // Check if it looks like an Ethereum address
+      if (value.startsWith('0x') && value.length >= 6) {
+        setSearchResult({
+          name: value.length > 10 ? `${value.substring(0, 6)}...${value.substring(value.length - 4)}` : value,
+          ethAddress: value,
+          bio: 'Click to start conversation',
+          ens: '',
+          profilePic: '',
+          profileUrl: ''
+        });
+      } else if (value.includes('.eth')) {
+        // Handle ENS-like names
+        setSearchResult({
+          name: value,
+          ethAddress: value,
+          bio: 'ENS name - Click to start conversation',
+          ens: value,
+          profilePic: '',
+          profileUrl: ''
+        });
+      } else {
+        // For any other search, show as potential address
+        setSearchResult({
+          name: value,
+          ethAddress: value,
+          bio: 'Click to start conversation',
+          ens: '',
+          profilePic: '',
+          profileUrl: ''
+        });
       }
-    } catch (error) {
-      console.error('Failed to fetch peer data:', error);
-    } finally {
-      setIsLoadingPeerData(false);
+    } else {
+      setSearchResult(null);
     }
-  }, [peerAddresses]);
+  };
 
-  const debouncedFetchEnsData = useDebouncedCallback(
-    async (searchTerm: string) => {
-      if (!searchTerm) {
-        setSearchResult(null);
-        setIsSearchLoading(false);
-        return;
-      }
+  // Filter conversations based on search
+  const filteredConversationPeers = useMemo(() => {
+    if (!searchQuery.trim()) return conversationPeers;
 
-      setIsSearchLoading(true);
-
-      try {
-        const response = await fetch(
-          `${process.env.NEXT_PUBLIC_API_URL}/api/v4/wallet/getEnsAddress/${searchTerm}`
-        );
-
-        if (!response.ok) {
-          throw new Error('Failed to fetch ENS data');
-        }
-
-        const data = await response.json();
-
-        const info: PeerData = {
-          profilePic: data.domainOwner.avatar,
-          profileUrl: data.domainOwner.profileUrl,
-          bio: data.domainOwner.bio,
-          ens: data.name,
-          ethAddress: data.owner,
-          name: data.domainOwner.name,
-          ensData: data,
-          _id: data.domainOwner._id,
-        };
-
-        setSearchResult(info);
-      } catch (err) {
-        setSearchResult(null);
-        console.error('ENS search error:', err);
-      } finally {
-        setIsSearchLoading(false);
-      }
-    },
-    800
-  );
-
-  const filteredPeerData = useMemo(() => {
-    if (!searchQuery.trim()) return peerData;
-
-    return peerData.filter(
-      (peer) =>
-        peer.name
-          ?.toLowerCase()
-          .includes(searchQuery.toLowerCase()) ||
-        peer.bio?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        peer.ethAddress
-          ?.toLowerCase()
-          .includes(searchQuery.toLowerCase())
+    return conversationPeers.filter(peer =>
+      peer.peerAddress.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      peer.displayName.toLowerCase().includes(searchQuery.toLowerCase())
     );
-  }, [peerData, searchQuery]);
+  }, [conversationPeers, searchQuery]);
 
   // Initialize wallet data from Privy user
   useEffect(() => {
@@ -419,17 +284,13 @@ const ChatPageContent = () => {
 
     if (typeof window !== 'undefined') {
       try {
-        const storedTokenData =
-          sessionStorage.getItem('chatTokenData');
+        const storedTokenData = sessionStorage.getItem('chatTokenData');
         if (storedTokenData) {
           const parsedTokenData = JSON.parse(storedTokenData);
           setTokenData(parsedTokenData);
         }
       } catch (error) {
-        console.error(
-          'Error retrieving token data from sessionStorage:',
-          error
-        );
+        console.error('Error retrieving token data from sessionStorage:', error);
       }
     }
 
@@ -438,28 +299,8 @@ const ChatPageContent = () => {
     }
   }, [searchParams, handleSelectConversation]);
 
-  // Fetch peer data when address list changes
-  useEffect(() => {
-    if (peerAddresses.length) {
-      fetchPeerData();
-    }
-  }, [peerAddresses, fetchPeerData]);
-
   const handleWalletClick = async (ethAddress: string) => {
     await handleSelectConversation(ethAddress);
-  };
-
-  const handleSearchInputChange = (
-    e: React.ChangeEvent<HTMLInputElement>
-  ) => {
-    const value = e.target.value;
-    setSearchQuery(value);
-
-    if (value.length > 2) {
-      debouncedFetchEnsData(value);
-    } else {
-      setSearchResult(null);
-    }
   };
 
   const handleBackToWallet = () => {
@@ -619,39 +460,61 @@ const ChatPageContent = () => {
                 ))}
               </div>
             )}
-            {searchResult && (
-              <div className="mb-4">
-                <MessageList
-                  {...searchResult}
-                  handleWalletClick={handleWalletClick}
-                  recipientAddress={micrositeData?.ethAddress ?? null}
-                />
-              </div>
-            )}
-            {isLoadingPeerData ? (
-              <div className="space-y-2">
-                {[...Array(5)].map((_, i) => (
-                  <div
-                    key={i}
-                    className="flex items-center gap-2 p-2"
-                  >
-                    <Skeleton className="h-10 w-10 rounded-full" />
-                    <div className="space-y-2">
-                      <Skeleton className="h-4 w-[100px]" />
-                      <Skeleton className="h-3 w-[150px]" />
-                    </div>
-                  </div>
+
+            {/* Show search result as new conversation option (if exists and not already in conversations) */}
+            {searchResult && !filteredConversationPeers.some(peer =>
+              peer.peerAddress.toLowerCase() === searchResult.ethAddress.toLowerCase()
+            ) && (
+                <div className="mb-2">
+                  <div className="text-xs text-gray-400 px-3 py-1 border-b">New Conversation</div>
+                  <MessageList
+                    key={`search-${searchResult.ethAddress}`}
+                    bio={searchResult.bio}
+                    name={searchResult.name}
+                    profilePic={searchResult.profilePic}
+                    ethAddress={searchResult.ethAddress}
+                    handleWalletClick={handleWalletClick}
+                    recipientAddress={micrositeData?.ethAddress ?? null}
+                  />
+                </div>
+              )}
+
+            {/* Show existing conversation peers */}
+            {filteredConversationPeers.length > 0 && (
+              <div className="mb-2">
+                {searchQuery.trim() && <div className="text-xs text-gray-400 px-3 py-1 border-b">Existing Conversations</div>}
+                {filteredConversationPeers.map((peer: any) => (
+                  <MessageList
+                    key={peer.ethAddress}
+                    bio="Existing conversation"
+                    name={peer.displayName}
+                    profilePic=""
+                    ethAddress={peer.ethAddress}
+                    handleWalletClick={handleWalletClick}
+                    recipientAddress={micrositeData?.ethAddress ?? null}
+                  />
                 ))}
               </div>
-            ) : (
-              filteredPeerData.map((chat: MessageProps) => (
-                <MessageList
-                  key={chat.ethAddress}
-                  {...chat}
-                  handleWalletClick={handleWalletClick}
-                  recipientAddress={micrositeData?.ethAddress ?? null}
-                />
-              ))
+            )}
+
+            {/* Show message when no results found */}
+            {!searchResult && filteredConversationPeers.length === 0 && searchQuery.trim() && (
+              <div className="flex items-center justify-center h-32 text-gray-500">
+                <div className="text-center">
+                  <p>No conversations found</p>
+                  <p className="text-sm text-gray-400">Try entering a complete Ethereum address (0x...)</p>
+                </div>
+              </div>
+            )}
+
+            {/* Show message when no conversations exist and no search */}
+            {!searchQuery.trim() && filteredConversationPeers.length === 0 && (
+              <div className="flex items-center justify-center h-32 text-gray-500">
+                <div className="text-center">
+                  <p>No conversations yet</p>
+                  <p className="text-sm text-gray-400">Search for an address to start chatting</p>
+                </div>
+              </div>
             )}
           </div>
         </div>
