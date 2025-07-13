@@ -486,11 +486,17 @@ class AuthMiddleware {
                   } else if (response.status === 404) {
                     return this.createRedirect(req, "/onboard");
                   } else {
-                    return this.createRedirect(req, "/onboard");
+                    // For any other API error (500, 401, 403, etc.), redirect to home
+                    // since the user has a valid token but there's a server issue
+                    console.warn(
+                      `API returned status ${response.status} for user ${userId}, redirecting to home`
+                    );
+                    return this.createRedirect(req, "/");
                   }
                 } catch (error) {
                   console.error("Error checking user in backend:", error);
-                  return this.createRedirect(req, "/onboard");
+                  // On network/timeout errors, redirect to home since user has valid token
+                  return this.createRedirect(req, "/");
                 }
               }
             }
