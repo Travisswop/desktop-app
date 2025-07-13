@@ -1,6 +1,17 @@
 'use client';
 
 import type { Client } from '@xmtp/browser-sdk';
+import {
+    getClient,
+    canMessage,
+    startNewConversation,
+    listConversations,
+    getMessages,
+    syncConversations,
+    getPeerAddress,
+    resolveInboxId,
+    findExistingDm
+} from './xmtp';
 
 // Server-safe XMTP wrapper that prevents SSR issues
 
@@ -78,4 +89,42 @@ export const safeSyncConversations = async (client: Client | null): Promise<void
 export const safeGetPeerAddress = async (conversation: AnyConversation | null): Promise<string | null> => {
     const { getPeerAddress } = await getXmtpFunctions();
     return getPeerAddress(conversation);
+};
+
+/**
+ * Safe wrapper for resolving Ethereum address to inbox ID
+ */
+export const safeResolveInboxId = async (client: any, ethAddress: string): Promise<string | null> => {
+    try {
+        if (!client || typeof window === 'undefined') {
+            console.log('⚠️ [safeResolveInboxId] No client or running server-side');
+            return null;
+        }
+
+        const inboxId = await resolveInboxId(client, ethAddress);
+        console.log('✅ [safeResolveInboxId] Resolved inbox ID:', inboxId);
+        return inboxId;
+    } catch (error) {
+        console.error('❌ [safeResolveInboxId] Error resolving inbox ID:', error);
+        return null;
+    }
+};
+
+/**
+ * Safe wrapper for finding existing DM by Ethereum address
+ */
+export const safeFindExistingDm = async (client: any, ethAddress: string): Promise<AnyConversation | null> => {
+    try {
+        if (!client || typeof window === 'undefined') {
+            console.log('⚠️ [safeFindExistingDm] No client or running server-side');
+            return null;
+        }
+
+        const existingDm = await findExistingDm(client, ethAddress);
+        console.log('✅ [safeFindExistingDm] Found existing DM:', existingDm ? (existingDm as any).id : 'none');
+        return existingDm;
+    } catch (error) {
+        console.error('❌ [safeFindExistingDm] Error finding existing DM:', error);
+        return null;
+    }
 }; 

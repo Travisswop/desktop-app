@@ -132,6 +132,17 @@ export const XmtpProvider: React.FC<XmtpProviderProps> = ({ children }) => {
           setClient(newClient);
           setIsConnected(true);
           console.log('✅ [XmtpContext] XMTP client connected successfully with localStorage caching');
+          console.log('🔍 [XmtpContext] Client details:', {
+            inboxId: newClient.inboxId,
+            hasInboxId: !!newClient.inboxId,
+            clientKeys: Object.keys(newClient),
+            walletAddress: privyEthWallet.address
+          });
+
+          // Store client globally for conversation peer address extraction
+          if (typeof window !== 'undefined') {
+            (window as any).xmtpClient = newClient;
+          }
 
           // Sync with network before loading conversations
           console.log('🔄 [XmtpContext] Syncing conversations from network...');
@@ -219,28 +230,30 @@ export const XmtpProvider: React.FC<XmtpProviderProps> = ({ children }) => {
               for await (const conversation of conversationStream) {
                 if (!mounted) break;
 
-                console.log('🆕 [XmtpContext] New conversation detected in stream:', {
-                  id: (conversation as any).id,
-                  peerAddress: (conversation as any).peerAddress
-                });
-
-                // Immediately allow the new conversation
                 try {
-                  console.log('🔄 [XmtpContext] Auto-allowing new conversation from stream...');
-                  // @ts-ignore
-                  await conversation.updateConsentState?.('allowed');
-                  console.log('✅ [XmtpContext] New conversation auto-allowed from stream');
-                } catch (consentError) {
-                  console.warn('⚠️ [XmtpContext] Could not auto-allow new conversation from stream:', consentError);
+                  console.log('🆕 [XmtpContext] New conversation detected in stream:', (conversation as any).id);
+
+                  // Immediately allow the new conversation
+                  try {
+                    console.log('🔄 [XmtpContext] Auto-allowing new conversation from stream...');
+                    // @ts-ignore
+                    await conversation.updateConsentState?.('allowed');
+                  } catch (consentError) {
+                    console.warn('⚠️ [XmtpContext] Could not auto-allow new conversation from stream:', consentError);
+                  }
+
+                  // Refresh conversations to include the new one
+                  setTimeout(async () => {
+                    if (mounted && clientRef.current) {
+                      await refreshConversations();
+                    }
+                  }, 500);
+                } catch (conversationError) {
+                  console.error('❌ [XmtpContext] Error processing conversation from stream:', conversationError);
                 }
 
-                // Refresh conversations to include the new one
-                console.log('🔄 [XmtpContext] Refreshing conversations after new conversation...');
-                setTimeout(async () => {
-                  if (mounted && clientRef.current) {
-                    await refreshConversations();
-                  }
-                }, 500);
+                // Break if component unmounted
+                if (!mounted) break;
               }
             })().catch(error => {
               console.error('❌ [XmtpContext] Error in conversation stream:', error);
@@ -251,7 +264,6 @@ export const XmtpProvider: React.FC<XmtpProviderProps> = ({ children }) => {
           }
 
           // Set up periodic sync to ensure we don't miss messages
-          console.log('⏰ [XmtpContext] Setting up periodic sync system...');
           syncInterval = setInterval(async () => {
             if (!mounted) {
               if (syncInterval) clearInterval(syncInterval);
@@ -259,21 +271,18 @@ export const XmtpProvider: React.FC<XmtpProviderProps> = ({ children }) => {
             }
 
             try {
-              console.log('🔄 [XmtpContext] Running periodic sync...');
               // Use clientRef.current instead of stale state
               const currentClient = clientRef.current;
               if (currentClient) {
                 await safeSyncConversations(currentClient);
                 await refreshConversations();
-              } else {
-                console.log('⚠️ [XmtpContext] Skipping periodic sync - no current client');
               }
             } catch (error) {
               console.warn('⚠️ [XmtpContext] Error in periodic sync:', error);
             }
           }, 10000); // Sync every 10 seconds
 
-          console.log('🚀 [XmtpContext] Comprehensive auto-allow system fully activated for seamless messaging!');
+          console.log('🚀 [XmtpContext] XMTP client fully activated!');
 
         } else {
           console.log('❌ [XmtpContext] Failed to get XMTP client');
@@ -327,7 +336,6 @@ export const XmtpProvider: React.FC<XmtpProviderProps> = ({ children }) => {
       return;
     }
 
-    console.log('🔄 [XmtpContext] Refreshing conversations...');
     try {
       // Sync with network first to get latest conversations
       await safeSyncConversations(currentClient);
@@ -349,27 +357,12 @@ export const XmtpProvider: React.FC<XmtpProviderProps> = ({ children }) => {
             state = String((c as any).consentState ?? 'allowed');
           }
 
-          // Extract peer address using working version logic
-          const dm = c as unknown as { peerAddress?: string; topic?: string };
-          const peerAddress: string = dm.peerAddress || "";
-          const topic: string = dm.topic || "";
-          const displayAddress = peerAddress || topic || "";
-
-          console.log('📝 [XmtpContext] Conversation:', {
-            id: (c as any).id,
-            peerAddress: peerAddress || 'null',
-            topic: topic || 'null',
-            displayAddress: displayAddress || 'null',
-            consentState: state
-          });
-
           // AUTO-ALLOW ALL CONVERSATIONS FOR SEAMLESS MESSAGING
           if (state !== 'allowed') {
-            console.log('🔄 [XmtpContext] Auto-allowing conversation for seamless messaging...');
+            console.log('🔄 [XmtpContext] Auto-allowing conversation:', (c as any).id);
             try {
               // @ts-ignore
               await c.updateConsentState?.('allowed');
-              console.log('✅ [XmtpContext] Conversation auto-allowed successfully');
               state = 'allowed';
             } catch (consentError) {
               console.warn('⚠️ [XmtpContext] Could not auto-allow conversation:', consentError);
@@ -386,7 +379,7 @@ export const XmtpProvider: React.FC<XmtpProviderProps> = ({ children }) => {
         }
       }
 
-      console.log('✅ [XmtpContext] Conversations categorized (auto-allowed):', {
+      console.log('✅ [XmtpContext] Conversations categorized:', {
         allowed: allowed.length,
         requests: requests.length
       });
@@ -419,17 +412,15 @@ export const XmtpProvider: React.FC<XmtpProviderProps> = ({ children }) => {
         if (convo) {
           // Immediately allow the conversation to enable real-time messaging
           try {
-            console.log('🔄 [XmtpContext] Auto-allowing conversation for seamless messaging...');
+            console.log('🔄 [XmtpContext] Auto-allowing new conversation...');
             // @ts-ignore
             await convo.updateConsentState?.('allowed');
-            console.log('✅ [XmtpContext] Conversation auto-allowed successfully');
           } catch (consentError) {
             console.warn('⚠️ [XmtpContext] Could not auto-allow conversation:', consentError);
           }
 
-          console.log('🔄 [XmtpContext] Refreshing conversations after creation...');
           await refreshConversations();
-          console.log('✅ [XmtpContext] Conversations refreshed after creation');
+          console.log('✅ [XmtpContext] New conversation created and allowed');
         }
 
         return convo;
@@ -443,21 +434,18 @@ export const XmtpProvider: React.FC<XmtpProviderProps> = ({ children }) => {
 
   const sendMessage = useCallback(async (convo: AnyConversation, text: string): Promise<void> => {
     console.log('📤 [XmtpContext] sendMessage called with:', {
-      conversation: convo,
+      conversation: {},
       conversationId: (convo as any).id,
-      peerAddress: (convo as any).peerAddress,
       text: text,
       textLength: text.length
     });
 
     try {
-      console.log('🔄 [XmtpContext] Calling convo.send()...');
       // @ts-ignore
       const result = await convo.send(text);
-      console.log('✅ [XmtpContext] Message sent successfully, result:', result);
+      console.log('✅ [XmtpContext] Message sent successfully');
 
       // Sync conversations to ensure message appears everywhere
-      console.log('🔄 [XmtpContext] Syncing after send...');
       // Use current client ref instead of potentially stale state
       const currentClient = clientRef.current;
       if (currentClient) {
@@ -465,9 +453,7 @@ export const XmtpProvider: React.FC<XmtpProviderProps> = ({ children }) => {
       }
 
       // Trigger a refresh of conversations to ensure the message appears
-      console.log('🔄 [XmtpContext] Refreshing conversations after send...');
       await refreshConversations();
-      console.log('✅ [XmtpContext] Conversations refreshed after send');
 
     } catch (err: any) {
       // Check if this is the misleading "successful sync" error from XMTP SDK
@@ -476,17 +462,15 @@ export const XmtpProvider: React.FC<XmtpProviderProps> = ({ children }) => {
         err.message.includes('succeeded') &&
         (err.message.includes('0 failed') || !err.message.includes('failed'))) {
 
-        console.log('🔄 [XmtpContext] Detected successful sync reported as error, treating as success:', err.message);
+        console.log('🔄 [XmtpContext] Detected successful sync reported as error, treating as success');
 
         // This is actually a successful message send, continue with sync
         try {
-          console.log('🔄 [XmtpContext] Syncing after successful send...');
           const currentClient = clientRef.current;
           if (currentClient) {
             await safeSyncConversations(currentClient);
           }
 
-          console.log('🔄 [XmtpContext] Refreshing conversations after successful send...');
           await refreshConversations();
           console.log('✅ [XmtpContext] Message sent successfully (despite misleading error)');
           return; // Treat as success
@@ -498,12 +482,6 @@ export const XmtpProvider: React.FC<XmtpProviderProps> = ({ children }) => {
 
       // This is a real error
       console.error('❌ [XmtpContext] XMTP send error:', err);
-      console.error('❌ [XmtpContext] Error details:', {
-        message: err instanceof Error ? err.message : 'Unknown error',
-        stack: err instanceof Error ? err.stack : undefined,
-        conversationId: (convo as any).id,
-        peerAddress: (convo as any).peerAddress
-      });
       throw err; // Re-throw so the UI can handle it
     }
   }, [refreshConversations]); // Remove client dependency
