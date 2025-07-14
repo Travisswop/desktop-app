@@ -97,7 +97,7 @@ export default function SendToModal({
   open = false,
   onOpenChange,
   onSelectReceiver,
-  // network,
+  network,
   currentWalletAddress,
   selectedToken,
   amount,
@@ -112,7 +112,8 @@ export default function SendToModal({
 
   // const { tokenContent } = useTokenSendStore();
 
-  const network = selectedToken?.chain || 'ETHEREUM';
+  // Remove the local network assignment, always use the prop
+  // const network = selectedToken?.chain || 'ETHEREUM';
 
   const isValidAddress =
     searchQuery &&
@@ -125,7 +126,7 @@ export default function SendToModal({
     isLoading,
     error,
   } = useQuery({
-    queryKey: ['user', debouncedQuery],
+    queryKey: ['user', debouncedQuery, network],
     queryFn: () => fetchUserByENS(debouncedQuery, network),
     enabled:
       Boolean(debouncedQuery) &&
@@ -167,18 +168,17 @@ export default function SendToModal({
       }
 
       // Validate resolved address format matches network
-      const isValidResolved = [
-        'ETHEREUM',
-        'POLYGON',
-        'BASE',
-      ].includes(network)
-        ? validateEthereumAddress(userData.address)
-        : validateSolanaAddress(userData.address);
+      const isValidResolved =
+        network === 'SOLANA'
+          ? validateSolanaAddress(userData.address)
+          : validateEthereumAddress(userData.address);
 
       if (!isValidResolved) {
         setAddressError(true);
         return;
       }
+
+      console.log('userData', userData);
 
       onSelectReceiver({
         address: userData.address,

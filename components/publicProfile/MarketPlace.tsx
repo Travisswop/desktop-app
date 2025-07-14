@@ -50,7 +50,7 @@ const download = async (data: any, parentId: string) => {
 
 const MarketPlace: any = ({
   data,
-  parentId,
+  sellerId,
   number,
   userName,
   accessToken,
@@ -80,7 +80,7 @@ const MarketPlace: any = ({
       _id: Math.random().toString(36).substring(2, 15),
       quantity: 1,
       timestamp: new Date().getTime(),
-      sellerId: parentId,
+      sellerId: sellerId,
       nftTemplate: {
         _id: data._id,
         name: itemName,
@@ -110,7 +110,7 @@ const MarketPlace: any = ({
         collectionId: collectionId,
         templateId: templateId,
         quantity: 1,
-        sellerId: parentId,
+        sellerId: sellerId,
       };
 
       const response = await addProductToCart(
@@ -154,7 +154,7 @@ const MarketPlace: any = ({
             stiffness: 400,
             damping: 10,
           }}
-          onClick={() => download(data, parentId)}
+          onClick={() => download(data, sellerId)}
           className="my-1 flex gap-2 justify-between items-center cursor-pointer bg-white shadow-xl p-2 rounded-[12px]"
         >
           <div className="flex items-center gap-2 flex-1">

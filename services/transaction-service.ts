@@ -10,8 +10,12 @@ import {
 import {
   getAssociatedTokenAddress,
   createTransferInstruction,
+  createTransferCheckedInstruction,
   createAssociatedTokenAccountInstruction,
   getAccount,
+  TOKEN_PROGRAM_ID,
+  TOKEN_2022_PROGRAM_ID,
+  ASSOCIATED_TOKEN_PROGRAM_ID,
 } from '@solana/spl-token';
 import { SendFlowState, Network } from '@/types/wallet-types';
 import { Transaction } from '@/types/transaction';
@@ -23,6 +27,28 @@ export const USDC_ADDRESS =
   'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v';
 export const SWOP_ADDRESS =
   'GAehkgN1ZDNvavX81FmzCcwRnzekKMkSyUNq8WkMsjX1';
+
+// Utility to detect Token-2022 tokens by mint address
+async function getSolanaTokenProgramId(
+  connection: Connection,
+  mintAddress: string
+): Promise<PublicKey> {
+  const mintInfo = await connection.getParsedAccountInfo(
+    new PublicKey(mintAddress)
+  );
+  // @ts-ignore
+  const owner = mintInfo.value?.owner;
+  if (!owner) throw new Error('Unable to fetch mint owner');
+  return new PublicKey(owner);
+}
+
+// Utility to get the correct associated token program ID
+function getAssociatedTokenProgramId(
+  tokenProgramId: PublicKey
+): PublicKey {
+  // Token-2022 uses the same associated token program as legacy SPL tokens
+  return ASSOCIATED_TOKEN_PROGRAM_ID;
+}
 
 export class TransactionService {
   /**
@@ -38,14 +64,28 @@ export class TransactionService {
     const toWallet = new PublicKey(sendFlow.recipient?.address || '');
     const mint = new PublicKey(sendFlow.nft?.contract || '');
 
+    // Detect programId for this mint
+    const programId = await getSolanaTokenProgramId(
+      connection,
+      mint.toString()
+    );
+    const associatedTokenProgramId =
+      getAssociatedTokenProgramId(programId);
+
     const sourceAccount = await getAssociatedTokenAddress(
       mint,
-      new PublicKey(solanaWallet.address)
+      new PublicKey(solanaWallet.address),
+      false,
+      programId,
+      associatedTokenProgramId
     );
 
     const destinationAccount = await getAssociatedTokenAddress(
       mint,
-      toWallet
+      toWallet,
+      false,
+      programId,
+      associatedTokenProgramId
     );
 
     const tx = new SolanaTransaction();
@@ -57,20 +97,40 @@ export class TransactionService {
           new PublicKey(solanaWallet.address),
           destinationAccount,
           toWallet,
-          mint
+          mint,
+          programId,
+          associatedTokenProgramId
         )
       );
     }
 
     // Add transfer instruction
-    tx.add(
-      createTransferInstruction(
-        sourceAccount,
-        destinationAccount,
-        new PublicKey(solanaWallet.address),
-        1
-      )
-    );
+    const isToken2022 = programId.equals(TOKEN_2022_PROGRAM_ID);
+    if (isToken2022) {
+      tx.add(
+        createTransferCheckedInstruction(
+          sourceAccount,
+          mint,
+          destinationAccount,
+          new PublicKey(solanaWallet.address),
+          1,
+          0, // NFTs have 0 decimals
+          [],
+          programId
+        )
+      );
+    } else {
+      tx.add(
+        createTransferInstruction(
+          sourceAccount,
+          destinationAccount,
+          new PublicKey(solanaWallet.address),
+          1,
+          [],
+          programId
+        )
+      );
+    }
 
     const { blockhash } = await connection.getLatestBlockhash();
     tx.recentBlockhash = blockhash;
@@ -124,14 +184,26 @@ export class TransactionService {
       );
     } else {
       // SPL Token transfer
+      const programId = await getSolanaTokenProgramId(
+        connection,
+        sendFlow.token.address
+      );
+      const associatedTokenProgramId =
+        getAssociatedTokenProgramId(programId);
       const fromTokenAccount = await getAssociatedTokenAddress(
         new PublicKey(sendFlow.token.address),
-        new PublicKey(solanaWallet.address)
+        new PublicKey(solanaWallet.address),
+        false,
+        programId,
+        associatedTokenProgramId
       );
 
       const toTokenAccount = await getAssociatedTokenAddress(
         new PublicKey(sendFlow.token.address),
-        new PublicKey(sendFlow.recipient?.address || '')
+        new PublicKey(sendFlow.recipient?.address || ''),
+        false,
+        programId,
+        associatedTokenProgramId
       );
 
       const tx = new SolanaTransaction();
@@ -143,7 +215,9 @@ export class TransactionService {
             new PublicKey(solanaWallet.address),
             toTokenAccount,
             new PublicKey(sendFlow.recipient?.address || ''),
-            new PublicKey(sendFlow.token.address)
+            new PublicKey(sendFlow.token.address),
+            programId,
+            associatedTokenProgramId
           )
         );
       }
@@ -152,14 +226,32 @@ export class TransactionService {
         amount * Math.pow(10, sendFlow.token.decimals)
       );
 
-      tx.add(
-        createTransferInstruction(
-          fromTokenAccount,
-          toTokenAccount,
-          new PublicKey(solanaWallet.address),
-          tokenAmount
-        )
-      );
+      const isToken2022 = programId.equals(TOKEN_2022_PROGRAM_ID);
+      if (isToken2022) {
+        tx.add(
+          createTransferCheckedInstruction(
+            fromTokenAccount,
+            new PublicKey(sendFlow.token.address),
+            toTokenAccount,
+            new PublicKey(solanaWallet.address),
+            tokenAmount,
+            sendFlow.token.decimals,
+            [],
+            programId
+          )
+        );
+      } else {
+        tx.add(
+          createTransferInstruction(
+            fromTokenAccount,
+            toTokenAccount,
+            new PublicKey(solanaWallet.address),
+            tokenAmount,
+            [],
+            programId
+          )
+        );
+      }
 
       if (
         !sendFlow.isOrder &&
@@ -429,9 +521,18 @@ export class TransactionService {
       );
     } else {
       // SPL Token transfer
+      const programId = await getSolanaTokenProgramId(
+        connection,
+        config.tokenAddress
+      );
+      const associatedTokenProgramId =
+        getAssociatedTokenProgramId(programId);
       const fromTokenAccount = await getAssociatedTokenAddress(
         new PublicKey(config.tokenAddress),
-        new PublicKey(solanaWallet.address)
+        new PublicKey(solanaWallet.address),
+        false,
+        programId,
+        associatedTokenProgramId
       );
 
       // fetch parsed account data
@@ -453,7 +554,10 @@ export class TransactionService {
 
       const toTokenAccount = await getAssociatedTokenAddress(
         new PublicKey(config.tokenAddress),
-        new PublicKey(config.tempAddress)
+        new PublicKey(config.tempAddress),
+        false,
+        programId,
+        associatedTokenProgramId
       );
 
       const tx = new SolanaTransaction();
@@ -478,19 +582,39 @@ export class TransactionService {
             new PublicKey(solanaWallet.address),
             toTokenAccount,
             new PublicKey(config.tempAddress),
-            new PublicKey(config.tokenAddress)
+            new PublicKey(config.tokenAddress),
+            programId,
+            associatedTokenProgramId
           )
         );
       }
 
-      tx.add(
-        createTransferInstruction(
-          fromTokenAccount,
-          toTokenAccount,
-          new PublicKey(solanaWallet.address),
-          config.totalAmount
-        )
-      );
+      const isToken2022 = programId.equals(TOKEN_2022_PROGRAM_ID);
+      if (isToken2022) {
+        tx.add(
+          createTransferCheckedInstruction(
+            fromTokenAccount,
+            new PublicKey(config.tokenAddress),
+            toTokenAccount,
+            new PublicKey(solanaWallet.address),
+            config.totalAmount,
+            config.tokenDecimals,
+            [],
+            programId
+          )
+        );
+      } else {
+        tx.add(
+          createTransferInstruction(
+            fromTokenAccount,
+            toTokenAccount,
+            new PublicKey(solanaWallet.address),
+            config.totalAmount,
+            [],
+            programId
+          )
+        );
+      }
 
       const { blockhash } = await connection.getLatestBlockhash();
       tx.recentBlockhash = blockhash;

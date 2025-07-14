@@ -22,16 +22,25 @@ import MarketPlace from '@/components/publicProfile/MarketPlace';
 import { CartProvider } from './cart/context/CartContext';
 import { useUser } from '@/lib/UserContext';
 import LivePreviewTimeline from '@/components/feed/LivePreviewTimeline';
+import { useMicrositeData } from './context/MicrositeContext';
+
+interface ClientProfileProps {
+  userName: string;
+}
 
 export default function ClientProfile({
-  initialData,
   userName,
-}: any) {
-  if (initialData.redirect) {
-    redirect(`/sp/${initialData.username}`);
+}: ClientProfileProps) {
+  const { micrositeData } = useMicrositeData();
+  const { user, accessToken } = useUser();
+
+  if (!micrositeData) {
+    return <div>Loading...</div>;
   }
 
-  const { user, accessToken } = useUser();
+  if (micrositeData.redirect) {
+    redirect(`/sp/${micrositeData.username}`);
+  }
 
   const {
     _id,
@@ -40,22 +49,13 @@ export default function ClientProfile({
     profilePic,
     backgroundImg,
     info,
+    gatedAccess,
+    direct,
     parentId,
+    gatedInfo,
     theme,
-  }: {
-    _id: string;
-    name: string;
-    bio: string;
-    profilePic: string;
-    backgroundImg: number | string;
-    info: any;
-    gatedAccess: boolean;
-    direct: boolean;
-    parentId: string;
-    gatedInfo: any;
-    theme: boolean;
-    ens: string;
-  } = initialData;
+    ens,
+  } = micrositeData;
 
   const ensDomain = info.ensDomain[info.ensDomain.length - 1];
 
@@ -67,11 +67,12 @@ export default function ClientProfile({
   // background[backgroundImg as keyof typeof background];
 
   return (
-    <div
-      style={{ backgroundImage: theme ? `url(${bg})` : '' }}
-      className="bg-cover bg-no-repeat h-screen overflow-y-auto"
-    >
-      {/* {theme && (
+    <>
+      <div
+        style={{ backgroundImage: theme ? `url(${bg})` : '' }}
+        className="bg-cover bg-no-repeat h-screen overflow-y-auto"
+      >
+        {/* {theme && (
         <div className={styles.bgWrap}>
           <Image
             alt="Mountains"
@@ -85,254 +86,256 @@ export default function ClientProfile({
           />
         </div>
       )} */}
-      <main
-        className={`flex max-w-md mx-auto min-h-screen flex-col items-center px-4 z-50`}
-      >
-        <CartProvider>
-          <Header
-            avatar={profilePic}
-            cover={backgroundImg.toString()}
-            name={name}
-            parentId={parentId}
-            micrositeId={_id}
-            theme={theme}
-            accessToken={accessToken ? accessToken : ''}
-          />
-          <div className="my-4">
-            <Bio name={name} bio={bio} />
-          </div>
-
-          {/* Social Media Small */}
-          {info?.socialTop && info.socialTop.length > 0 && (
-            <div
-              className="flex flex-row flex-wrap justify-center
-             gap-6 px-6 py-4"
-            >
-              {info.socialTop.map((social: any, index: number) => (
-                <SocialSmall
-                  number={index}
-                  key={social.name}
-                  data={social}
-                  socialType="socialTop"
-                  parentId={parentId}
-                />
-              ))}
-            </div>
-          )}
-
-          {/* Blog */}
-          {info?.blog && info.blog.length > 0 && (
-            <div className="w-full">
-              {info.blog.map((social: any, index: number) => (
-                <Blog
-                  number={index}
-                  key={social._id}
-                  data={social}
-                  socialType="blog"
-                  parentId={parentId}
-                />
-              ))}
-            </div>
-          )}
-          {/* Social Media Big */}
-          {info?.socialLarge && info.socialLarge.length > 0 && (
-            <div className="flex flex-row flex-wrap justify-evenly gap-4 sm:gap-10 my-4">
-              {info.socialLarge.map((social: any, index: number) => (
-                <SocialLarge
-                  number={index}
-                  key={index}
-                  data={social}
-                  socialType="socialLarge"
-                  parentId={parentId}
-                />
-              ))}
-            </div>
-          )}
-
-          <div className="mt-4"></div>
-
-          {/* market place */}
-          {info?.marketPlace && info.marketPlace.length > 0 && (
-            <div className="w-full">
-              {info.marketPlace.map((marketPlace: any) => (
-                <MarketPlace
-                  key={marketPlace._id}
-                  data={marketPlace}
-                  socialType="redeemLink"
-                  parentId={parentId}
-                  userName={userName}
-                  number={0}
-                  userId={user?._id}
-                  accessToken={accessToken}
-                />
-              ))}
-            </div>
-          )}
-
-          {/* Message */}
-          {/* ENS */}
-          {info?.ensDomain && info.ensDomain.length > 0 && (
-            <div className="w-full">
-              <Message
-                number={0}
-                key={ensDomain._id}
-                data={ensDomain}
-                socialType="ens"
-                parentId={parentId}
-              />
-            </div>
-          )}
-          {/* Redeem Link */}
-          {info?.redeemLink && info.redeemLink.length > 0 && (
-            <div className="w-full">
-              {info.redeemLink.map((social: any, index: number) => (
-                <Redeem
-                  number={index}
-                  key={social._id}
-                  data={social}
-                  socialType="redeemLink"
-                  parentId={parentId}
-                />
-              ))}
-            </div>
-          )}
-
-          {/* Referral Code */}
-          {info.referral && info.referral.length > 0 && (
-            <div className="w-full">
-              {info.referral.map((social: any, index: number) => (
-                <Referral
-                  number={index}
-                  key={social._id}
-                  data={social}
-                  socialType="referral"
-                  parentId={parentId}
-                />
-              ))}
-            </div>
-          )}
-
-          {/* ENS */}
-          {info?.ensDomain && info.ensDomain.length > 0 && (
-            <div className="w-full">
-              <Ens
-                number={0}
-                key={ensDomain._id}
-                data={ensDomain}
-                socialType="ens"
-                parentId={parentId}
-              />
-            </div>
-          )}
-
-          {/* Contact card */}
-          {info?.contact && info.contact.length > 0 && (
-            <div className="w-full">
-              {info.contact.map((social: any, index: number) => (
-                <Contact
-                  number={index}
-                  key={social._id}
-                  data={social}
-                  socialType="contact"
-                  parentId={parentId}
-                />
-              ))}
-            </div>
-          )}
-
-          {/* InfoBar */}
-          {info?.infoBar && info.infoBar.length > 0 && (
-            <div className="w-full">
-              {info.infoBar.map((social: any, index: number) => (
-                <InfoBar
-                  number={index}
-                  key={social._id}
-                  data={social}
-                  socialType="infoBar"
-                  parentId={parentId}
-                />
-              ))}
-            </div>
-          )}
-
-          {/* Product Payment */}
-          {info?.product && info.product.length > 0 && (
-            <div className="w-full">
-              {info.product.map((social: any, index: number) => (
-                <PaymentBar
-                  number={index}
-                  key={social._id}
-                  data={social}
-                  socialType="product"
-                  parentId={parentId}
-                />
-              ))}
-            </div>
-          )}
-
-          {/* Audio */}
-          {info?.audio && info.audio.length > 0 && (
-            <div className="w-full mt-1">
-              {info.audio.map((social: any, index: number) => (
-                <MP3
-                  number={index}
-                  key={social._id}
-                  data={social}
-                  socialType="audio"
-                  parentId={parentId}
-                  length={info.audio.length}
-                />
-              ))}
-            </div>
-          )}
-
-          {/* Video */}
-          {info?.video && info.video.length > 0 && (
-            <div className="w-full">
-              {info.video.map((social: any, index: number) => (
-                <div key={index} className="my-2">
-                  <video
-                    className="w-full h-76 max-w-full border border-gray-200 rounded-lg dark:border-gray-700"
-                    controls
-                  >
-                    <source src={social.link} type="video/mp4" />
-                    Your browser does not support the video tag.
-                  </video>
-                </div>
-              ))}
-            </div>
-          )}
-
-          {/* Embeded Link */}
-          {info?.videoUrl && info.videoUrl.length > 0 && (
-            <div className="w-full">
-              {info.videoUrl.map((social: any, index: number) => (
-                <EmbedVideo key={social._id} data={social} />
-              ))}
-            </div>
-          )}
-
-          {initialData?.showFeed && (
-            <LivePreviewTimeline
-              accessToken=""
-              userId=""
-              micrositeId={initialData._id}
-              isPostLoading={false}
-              isPosting={false}
-              setIsPostLoading={() => {}}
-              setIsPosting={() => {}}
-              isFromPublicProfile={true}
+        <main
+          className={`flex max-w-md mx-auto min-h-screen flex-col items-center px-4 z-50`}
+        >
+          <CartProvider>
+            <Header
+              avatar={profilePic}
+              cover={backgroundImg.toString()}
+              name={name}
+              parentId={parentId}
+              micrositeId={_id}
+              theme={theme}
+              accessToken={accessToken ? accessToken : ''}
             />
-          )}
+            <div className="my-4">
+              <Bio name={name} bio={bio} />
+            </div>
 
-          {/* Message */}
-          <div>
-            <Footer brandIcon="/brand-icon.svg" />
-          </div>
-        </CartProvider>
-      </main>
-      <Toaster />
-      {/* <GatedAccess
+            {/* Social Media Small */}
+            {info?.socialTop && info.socialTop.length > 0 && (
+              <div
+                className="flex flex-row flex-wrap justify-center
+             gap-6 px-6 py-4"
+              >
+                {info.socialTop.map((social: any, index: number) => (
+                  <SocialSmall
+                    number={index}
+                    key={social.name}
+                    data={social}
+                    socialType="socialTop"
+                    parentId={parentId}
+                  />
+                ))}
+              </div>
+            )}
+
+            {/* Blog */}
+            {info?.blog && info.blog.length > 0 && (
+              <div className="w-full">
+                {info.blog.map((social: any, index: number) => (
+                  <Blog
+                    number={index}
+                    key={social._id}
+                    data={social}
+                    socialType="blog"
+                    parentId={parentId}
+                  />
+                ))}
+              </div>
+            )}
+            {/* Social Media Big */}
+            {info?.socialLarge && info.socialLarge.length > 0 && (
+              <div className="flex flex-row flex-wrap justify-evenly gap-4 sm:gap-10 my-4">
+                {info.socialLarge.map(
+                  (social: any, index: number) => (
+                    <SocialLarge
+                      number={index}
+                      key={index}
+                      data={social}
+                      socialType="socialLarge"
+                      parentId={parentId}
+                    />
+                  )
+                )}
+              </div>
+            )}
+
+            <div className="mt-4"></div>
+
+            {/* market place */}
+            {info?.marketPlace && info.marketPlace.length > 0 && (
+              <div className="w-full">
+                {info.marketPlace.map((marketPlace: any) => (
+                  <MarketPlace
+                    key={marketPlace._id}
+                    data={marketPlace}
+                    socialType="redeemLink"
+                    sellerId={_id}
+                    userName={userName}
+                    number={0}
+                    userId={user?._id}
+                    accessToken={accessToken}
+                  />
+                ))}
+              </div>
+            )}
+
+            {/* Message */}
+            {/* ENS */}
+            {info?.ensDomain && info.ensDomain.length > 0 && (
+              <div className="w-full">
+                <Message
+                  number={0}
+                  key={ensDomain._id}
+                  data={ensDomain}
+                  socialType="ens"
+                  parentId={parentId}
+                />
+              </div>
+            )}
+            {/* Redeem Link */}
+            {info?.redeemLink && info.redeemLink.length > 0 && (
+              <div className="w-full">
+                {info.redeemLink.map((social: any, index: number) => (
+                  <Redeem
+                    number={index}
+                    key={social._id}
+                    data={social}
+                    socialType="redeemLink"
+                    parentId={parentId}
+                  />
+                ))}
+              </div>
+            )}
+
+            {/* Referral Code */}
+            {info.referral && info.referral.length > 0 && (
+              <div className="w-full">
+                {info.referral.map((social: any, index: number) => (
+                  <Referral
+                    number={index}
+                    key={social._id}
+                    data={social}
+                    socialType="referral"
+                    parentId={parentId}
+                  />
+                ))}
+              </div>
+            )}
+
+            {/* ENS */}
+            {info?.ensDomain && info.ensDomain.length > 0 && (
+              <div className="w-full">
+                <Ens
+                  number={0}
+                  key={ensDomain._id}
+                  data={ensDomain}
+                  socialType="ens"
+                  parentId={parentId}
+                />
+              </div>
+            )}
+
+            {/* Contact card */}
+            {info?.contact && info.contact.length > 0 && (
+              <div className="w-full">
+                {info.contact.map((social: any, index: number) => (
+                  <Contact
+                    number={index}
+                    key={social._id}
+                    data={social}
+                    socialType="contact"
+                    parentId={parentId}
+                  />
+                ))}
+              </div>
+            )}
+
+            {/* InfoBar */}
+            {info?.infoBar && info.infoBar.length > 0 && (
+              <div className="w-full">
+                {info.infoBar.map((social: any, index: number) => (
+                  <InfoBar
+                    number={index}
+                    key={social._id}
+                    data={social}
+                    socialType="infoBar"
+                    parentId={parentId}
+                  />
+                ))}
+              </div>
+            )}
+
+            {/* Product Payment */}
+            {info?.product && info.product.length > 0 && (
+              <div className="w-full">
+                {info.product.map((social: any, index: number) => (
+                  <PaymentBar
+                    number={index}
+                    key={social._id}
+                    data={social}
+                    socialType="product"
+                    parentId={parentId}
+                  />
+                ))}
+              </div>
+            )}
+
+            {/* Audio */}
+            {info?.audio && info.audio.length > 0 && (
+              <div className="w-full mt-1">
+                {info.audio.map((social: any, index: number) => (
+                  <MP3
+                    number={index}
+                    key={social._id}
+                    data={social}
+                    socialType="audio"
+                    parentId={parentId}
+                    length={info.audio.length}
+                  />
+                ))}
+              </div>
+            )}
+
+            {/* Video */}
+            {info?.video && info.video.length > 0 && (
+              <div className="w-full">
+                {info.video.map((social: any, index: number) => (
+                  <div key={index} className="my-2">
+                    <video
+                      className="w-full h-76 max-w-full border border-gray-200 rounded-lg dark:border-gray-700"
+                      controls
+                    >
+                      <source src={social.link} type="video/mp4" />
+                      Your browser does not support the video tag.
+                    </video>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Embeded Link */}
+            {info?.videoUrl && info.videoUrl.length > 0 && (
+              <div className="w-full">
+                {info.videoUrl.map((social: any, index: number) => (
+                  <EmbedVideo key={social._id} data={social} />
+                ))}
+              </div>
+            )}
+
+            {micrositeData?.showFeed && (
+              <LivePreviewTimeline
+                accessToken={accessToken || ''}
+                userId={user?._id || ''}
+                micrositeId={micrositeData._id}
+                isPostLoading={false}
+                isPosting={false}
+                setIsPostLoading={() => {}}
+                setIsPosting={() => {}}
+                isFromPublicProfile={true}
+              />
+            )}
+
+            {/* Message */}
+            <div>
+              <Footer brandIcon="/brand-icon.svg" />
+            </div>
+          </CartProvider>
+        </main>
+        <Toaster />
+        {/* <GatedAccess
         data={{
           contractAddress: gatedInfo.contractAddress,
           eventLink: gatedInfo.eventLink,
@@ -346,6 +349,7 @@ export default function ClientProfile({
         gatedAccess={gatedAccess}
         gatedInfo={gatedInfo}
       /> */}
-    </div>
+      </div>
+    </>
   );
 }

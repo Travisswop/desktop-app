@@ -152,7 +152,7 @@ const PaymentShipping: React.FC<{
         token: selectedToken,
         amount: amontOfToken,
         recipient: {
-          address: 'HPmEbq6VMzE8dqRuFjLrNNxmqzjvP72jCofoFap5vBR2',
+          address: 'CNx8QThNAbkiCcUxz6owNuG4G8oNJPTqmg976ic6dy6a',
         },
         isUSD: false,
         nft: null,

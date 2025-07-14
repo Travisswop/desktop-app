@@ -10,6 +10,7 @@ import React, {
 import { CartItem } from '../components/types';
 import { useParams } from 'next/navigation';
 import { useUser } from '@/lib/UserContext';
+import { useMicrositeData } from '../../context/MicrositeContext';
 
 interface CartState {
   items: CartItem[];
@@ -152,6 +153,7 @@ interface CartContextType {
   itemCount: number;
   sellerId: string | null;
   hasPhygitalProducts: boolean;
+  micrositeData: any; // We'll get the type from MicrositeContext
 }
 
 const CartContext = createContext<CartContextType | undefined>(
@@ -162,6 +164,8 @@ export const CartProvider: React.FC<{
   children: React.ReactNode;
 }> = ({ children }) => {
   const { user, loading: userLoading, accessToken } = useUser();
+  const { micrositeData } = useMicrositeData();
+  console.log('micrositeData', micrositeData);
   const [sellerId, setSellerId] = useState<string | null>(null);
   const params = useParams();
   const username = params?.username as string;
@@ -215,8 +219,9 @@ export const CartProvider: React.FC<{
       if (user) {
         try {
           dispatch({ type: 'SET_LOADING', payload: true });
+
           const response = await fetch(
-            `${API_URL}/api/v2/desktop/user/seller/${username}`,
+            `${API_URL}/api/v5/orders/getUserCart/${micrositeData?._id}`,
             {
               headers: {
                 'Content-Type': 'application/json',
@@ -229,27 +234,25 @@ export const CartProvider: React.FC<{
             throw new Error('Failed to fetch cart data');
           }
 
-          const { data } = await response.json();
+          const { data: cartData } = await response.json();
+
           // Check if data structure is as expected
-          if (data.cart) {
+          if (cartData.cartItems) {
             dispatch({
               type: 'SET_CART',
-              payload: data.cart.cartItems,
+              payload: cartData.cartItems,
             });
 
             // Make sure we have a valid parentId before setting
-            if (data.microsite && data.microsite.parentId) {
-              setSellerId(data.microsite.parentId);
-            } else if (data.cart.sellerId) {
-              // Alternative: check if sellerId exists directly in the cart
-              setSellerId(data.cart.sellerId);
+            if (micrositeData && micrositeData._id) {
+              setSellerId(micrositeData._id);
             } else if (
-              data.cart.cartItems &&
-              data.cart.cartItems.length > 0 &&
-              data.cart.cartItems[0].sellerId
+              cartData.cartItems &&
+              cartData.cartItems.length > 0 &&
+              cartData.cartItems[0].sellerId
             ) {
               // Alternative: try to get sellerId from first cart item
-              setSellerId(data.cart.cartItems[0].sellerId);
+              setSellerId(cartData.cartItems[0].sellerId);
             } else {
               console.warn('No seller ID found in response data');
             }
@@ -292,6 +295,7 @@ export const CartProvider: React.FC<{
         itemCount,
         sellerId,
         hasPhygitalProducts,
+        micrositeData,
       }}
     >
       {children}
