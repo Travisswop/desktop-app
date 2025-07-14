@@ -31,17 +31,17 @@ export default function PaymentFailedContent() {
     const errorMessage = searchParams.get('message');
     const orderIdParam = searchParams.get('orderId');
     const username = searchParams.get('username');
-    
+
     if (orderIdParam) {
       setOrderId(orderIdParam);
     }
-    
+
     if (username) {
       setRetryUrl(`/sp/${username}/cart`);
     } else {
       setRetryUrl('/');
     }
-    
+
     if (errorMessage) {
       setErrorDetails(errorMessage);
     } else if (error) {
@@ -66,13 +66,13 @@ export default function PaymentFailedContent() {
           Payment Failed
         </CardTitle>
         <CardDescription className="text-center">
-          We couldn't process your payment
+          We couldn&apos;t process your payment
         </CardDescription>
       </CardHeader>
 
       <CardContent className="flex flex-col items-center justify-center p-6">
         <XCircle className="h-16 w-16 text-red-500 mb-4" />
-        
+
         <div className="text-center mb-4">
           <p className="mb-2">
             There was an issue processing your payment.
@@ -95,14 +95,14 @@ export default function PaymentFailedContent() {
       </CardContent>
 
       <CardFooter className="flex flex-col gap-2">
-        <Button 
+        <Button
           onClick={handleRetry}
           className="w-full bg-blue-600 hover:bg-blue-700"
         >
           <RefreshCw className="h-4 w-4 mr-2" />
           Try Again
         </Button>
-        
+
         <Button asChild variant="outline" className="w-full">
           <Link href="/">Return to Home</Link>
         </Button>

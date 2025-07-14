@@ -5,6 +5,7 @@ type AuthCacheEntry = {
   timestamp: number;
   isValid: boolean;
   userId?: string;
+  lastVerified?: number; // Track when token was last successfully verified
 };
 
 // Centralized CSP configuration object for easier maintenance
@@ -54,7 +55,7 @@ const cspConfig = {
     "https://*.coinranking.com",
     "https://*.cloudinary.com",
     "https://*.metaplex.com",
-    "https://*.jup.ag", // Added the Jupiter API domain
+    "https://*.jup.ag",
   ],
   workerSrc: ["'self'"],
   manifestSrc: ["'self'"],
@@ -76,9 +77,12 @@ class AuthMiddleware {
   private authCache: Map<string, AuthCacheEntry>;
   private protectedRoutes: Set<string>;
   private readonly CACHE_DURATION: number;
+  private readonly EXTENDED_CACHE_DURATION: number;
+  private readonly VERIFICATION_INTERVAL: number;
   private readonly MAX_CACHE_SIZE: number;
   private readonly AUTH_ROUTES: Set<string>;
-  private readonly PUBLIC_ROUTES: Set<string>; // Routes accessible to everyone
+  private readonly PUBLIC_ROUTES: Set<string>;
+  private readonly MAX_RETRIES: number;
 
   constructor() {
     this.authCache = new Map();
@@ -97,14 +101,17 @@ class AuthMiddleware {
     this.AUTH_ROUTES = new Set(["/login", "/onboard"]);
     this.PUBLIC_ROUTES = new Set([
       "/api",
-      "/api/proxy/solana-nft", // Add proxy endpoint for Solana NFT fetching
+      "/api/proxy/solana-nft",
       "/_next",
       "/favicon.ico",
       "/static",
       "/sp",
     ]);
-    this.CACHE_DURATION = 1 * 24 * 60 * 60 * 1000; // 1 days
+    this.CACHE_DURATION = 15 * 60 * 1000; // 15 minutes
+    this.EXTENDED_CACHE_DURATION = 2 * 60 * 60 * 1000; // 2 hours for fallback
+    this.VERIFICATION_INTERVAL = 5 * 60 * 1000; // Re-verify every 5 minutes
     this.MAX_CACHE_SIZE = 1000;
+    this.MAX_RETRIES = 2;
   }
 
   private isProtectedRoute(pathname: string): boolean {
@@ -146,9 +153,9 @@ class AuthMiddleware {
 
   private cleanupCache(): void {
     const now = Date.now();
-    const expiredTime = now - this.CACHE_DURATION;
+    const expiredTime = now - this.EXTENDED_CACHE_DURATION;
 
-    // Delete expired entries
+    // Delete entries that are beyond extended cache duration
     for (const [key, entry] of this.authCache.entries()) {
       if (entry.timestamp < expiredTime) {
         this.authCache.delete(key);
@@ -198,7 +205,6 @@ class AuthMiddleware {
     return /Mobi|Android/i.test(userAgent);
   }
 
-  // Only redirect mobile if specifically configured
   private shouldRedirectMobile(): boolean {
     return process.env.ENABLE_MOBILE_REDIRECT === "true";
   }
@@ -241,13 +247,73 @@ class AuthMiddleware {
     return true;
   }
 
+  private async verifyTokenWithRetry(
+    privyServer: PrivyClient,
+    token: string,
+    maxRetries: number = this.MAX_RETRIES
+  ): Promise<{ isValid: boolean; userId: string }> {
+    for (let attempt = 0; attempt <= maxRetries; attempt++) {
+      try {
+        const verifiedClaims = await privyServer.verifyAuthToken(token);
+        return {
+          isValid: Boolean(verifiedClaims.userId),
+          userId: verifiedClaims.userId || "",
+        };
+      } catch (error) {
+        console.error(
+          `Token verification attempt ${attempt + 1} failed:`,
+          error
+        );
+
+        if (attempt === maxRetries) {
+          throw error;
+        }
+
+        // Wait before retrying (exponential backoff)
+        await new Promise((resolve) =>
+          setTimeout(resolve, Math.pow(2, attempt) * 1000)
+        );
+      }
+    }
+
+    return { isValid: false, userId: "" };
+  }
+
+  private async fetchWithTimeout(
+    url: string,
+    options: RequestInit & { timeout?: number } = {}
+  ): Promise<Response> {
+    const { timeout = 5000, ...fetchOptions } = options;
+
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), timeout);
+
+    try {
+      const response = await fetch(url, {
+        ...fetchOptions,
+        signal: controller.signal,
+      });
+      clearTimeout(timeoutId);
+      return response;
+    } catch (error) {
+      clearTimeout(timeoutId);
+      throw error;
+    }
+  }
+
+  private shouldReVerifyToken(
+    cachedResult: AuthCacheEntry,
+    now: number
+  ): boolean {
+    const lastVerified = cachedResult.lastVerified || cachedResult.timestamp;
+    return now - lastVerified > this.VERIFICATION_INTERVAL;
+  }
+
   public async authenticate(req: NextRequest): Promise<NextResponse> {
     const response = NextResponse.next();
 
     try {
       if (!this.validateEnvironment()) {
-        // If environment validation fails, allow the request to continue
-        // This will let the application handle the error properly
         return response;
       }
 
@@ -259,7 +325,7 @@ class AuthMiddleware {
         return response;
       }
 
-      // Handle mobile redirects (only if enabled and not on auth routes)
+      // Handle mobile redirects
       const mobileRedirect = this.handleMobileRedirect(userAgent, pathname);
       if (mobileRedirect) {
         return NextResponse.redirect(new URL(mobileRedirect));
@@ -267,6 +333,7 @@ class AuthMiddleware {
 
       const token = req.cookies.get("privy-token")?.value;
       const isAuthRoute = this.isAuthRoute(pathname);
+
       // Handle authenticated users
       if (token) {
         let isValidToken = false;
@@ -279,63 +346,120 @@ class AuthMiddleware {
           const cachedResult = this.authCache.get(cacheKey);
           const now = Date.now();
 
+          // Check if we have a valid cached result
           if (
             cachedResult &&
             now - cachedResult.timestamp < this.CACHE_DURATION
           ) {
             isValidToken = cachedResult.isValid;
             userId = cachedResult.userId || "";
-          } else {
-            // Verify token with Privy
 
-            const privyServer = new PrivyClient(
-              process.env.NEXT_PUBLIC_PRIVY_APP_ID!,
-              process.env.NEXT_PUBLIC_PRIVY_APP_SECRET!
-            );
+            // If token is valid but hasn't been verified recently, re-verify in background
+            if (isValidToken && this.shouldReVerifyToken(cachedResult, now)) {
+              // Background verification - don't await
+              this.backgroundTokenVerification(token, cacheKey);
+            }
+          }
+          // Check if we have an extended cache result for fallback
+          else if (
+            cachedResult &&
+            now - cachedResult.timestamp < this.EXTENDED_CACHE_DURATION
+          ) {
+            try {
+              // Try to verify the token
+              const privyServer = new PrivyClient(
+                process.env.NEXT_PUBLIC_PRIVY_APP_ID!,
+                process.env.NEXT_PUBLIC_PRIVY_APP_SECRET!
+              );
 
-            const verifiedClaims = await privyServer.verifyAuthToken(token);
+              const verificationResult = await this.verifyTokenWithRetry(
+                privyServer,
+                token
+              );
+              isValidToken = verificationResult.isValid;
+              userId = verificationResult.userId;
 
-            isValidToken = Boolean(verifiedClaims.userId);
-            userId = verifiedClaims.userId || "";
-            // Update cache
-            this.authCache.set(cacheKey, {
-              timestamp: now,
-              isValid: isValidToken,
-              userId,
-            });
+              // Update cache with fresh verification
+              this.authCache.set(cacheKey, {
+                timestamp: now,
+                isValid: isValidToken,
+                userId,
+                lastVerified: now,
+              });
+            } catch (tokenError) {
+              console.error(
+                "Token verification failed, using cached result:",
+                tokenError
+              );
+
+              // Use cached result as fallback
+              isValidToken = cachedResult.isValid;
+              userId = cachedResult.userId || "";
+
+              // Update timestamp but keep old verification time
+              this.authCache.set(cacheKey, {
+                ...cachedResult,
+                timestamp: now,
+              });
+            }
+          }
+          // No cache or expired, verify token
+          else {
+            try {
+              const privyServer = new PrivyClient(
+                process.env.NEXT_PUBLIC_PRIVY_APP_ID!,
+                process.env.NEXT_PUBLIC_PRIVY_APP_SECRET!
+              );
+
+              const verificationResult = await this.verifyTokenWithRetry(
+                privyServer,
+                token
+              );
+              isValidToken = verificationResult.isValid;
+              userId = verificationResult.userId;
+
+              // Update cache with successful verification
+              this.authCache.set(cacheKey, {
+                timestamp: now,
+                isValid: isValidToken,
+                userId,
+                lastVerified: now,
+              });
+            } catch (tokenError) {
+              console.error("Token verification failed:", tokenError);
+
+              isValidToken = false;
+              userId = "";
+
+              // Cache the failure to avoid repeated verification attempts
+              this.authCache.set(cacheKey, {
+                timestamp: now,
+                isValid: false,
+                userId: "",
+                lastVerified: now,
+              });
+            }
           }
 
-          if (isValidToken) {
+          if (isValidToken && userId) {
             // Redirect authenticated users away from auth routes
             if (isAuthRoute) {
               // For onboard route, check if user exists in backend
               if (pathname === "/onboard") {
                 try {
-                  // Create abort controller for timeout
-                  const controller = new AbortController();
-                  const timeoutId = setTimeout(() => controller.abort(), 5000);
-
-                  const response = await fetch(
+                  const response = await this.fetchWithTimeout(
                     `${process.env.NEXT_PUBLIC_API_URL}/api/v2/desktop/user/getPrivyUser/${userId}`,
                     {
                       headers: { "Content-Type": "application/json" },
-                      signal: controller.signal,
+                      timeout: 5000,
                     }
                   );
 
-                  clearTimeout(timeoutId);
-
-                  // If user exists in backend, redirect to home
                   if (response.ok) {
                     return this.createRedirect(req, "/");
-                  }
-                  // If user doesn't exist (404), allow them to stay on onboard
-                  else if (response.status === 404) {
+                  } else if (response.status === 404) {
                     return NextResponse.next();
-                  }
-                  // For any other status code (500, 401, 403, etc.), allow them to stay on onboard
-                  // to prevent infinite redirects
-                  else {
+                  } else {
                     console.warn(
                       `API returned status ${response.status} for user ${userId}, allowing onboard access`
                     );
@@ -343,18 +467,17 @@ class AuthMiddleware {
                   }
                 } catch (error) {
                   console.error("Error checking user in backend:", error);
-                  // On any error (network, timeout, etc.), allow them to stay on onboard
-                  // to prevent infinite redirects
                   return NextResponse.next();
                 }
               }
-              // For login route, always check if user exists and redirect accordingly
+              // For login route
               else if (pathname === "/login") {
                 try {
-                  const response = await fetch(
+                  const response = await this.fetchWithTimeout(
                     `${process.env.NEXT_PUBLIC_API_URL}/api/v2/desktop/user/getPrivyUser/${userId}`,
                     {
                       headers: { "Content-Type": "application/json" },
+                      timeout: 5000,
                     }
                   );
 
@@ -362,19 +485,22 @@ class AuthMiddleware {
                     return this.createRedirect(req, "/");
                   } else if (response.status === 404) {
                     return this.createRedirect(req, "/onboard");
+                  } else {
+                    return this.createRedirect(req, "/onboard");
                   }
                 } catch (error) {
                   console.error("Error checking user in backend:", error);
-                  // On error, redirect to onboard to be safe
                   return this.createRedirect(req, "/onboard");
                 }
               }
             }
+
+            // User is authenticated and not on auth route, allow access
             return response;
           }
         } catch (error) {
-          console.error("Token verification error:", error);
-          // Fall through to redirect to login below
+          console.error("Authentication error:", error);
+          // Don't immediately redirect on error - let it fall through
         }
       }
 
@@ -410,6 +536,37 @@ class AuthMiddleware {
       }
 
       return this.createRedirect(req, "/login");
+    }
+  }
+
+  private async backgroundTokenVerification(
+    token: string,
+    cacheKey: string
+  ): Promise<void> {
+    try {
+      const privyServer = new PrivyClient(
+        process.env.NEXT_PUBLIC_PRIVY_APP_ID!,
+        process.env.NEXT_PUBLIC_PRIVY_APP_SECRET!
+      );
+
+      const verificationResult = await this.verifyTokenWithRetry(
+        privyServer,
+        token
+      );
+      const now = Date.now();
+
+      // Update cache with background verification result
+      const existingCache = this.authCache.get(cacheKey);
+      if (existingCache) {
+        this.authCache.set(cacheKey, {
+          ...existingCache,
+          isValid: verificationResult.isValid,
+          userId: verificationResult.userId,
+          lastVerified: now,
+        });
+      }
+    } catch (error) {
+      console.error("Background token verification failed:", error);
     }
   }
 }
