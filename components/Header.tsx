@@ -117,70 +117,71 @@ export default function Header() {
   }
 
   return (
-    <header className="sticky top-0 z-30 h-20 border-b bg-white px-4 flex items-center justify-between">
-      <SidebarTrigger />
-      <div className=" flex items-center justify-end">
-        <div>
-          <Link href="/chat">
-            <button className="rounded-full w-[38px] h-[38px] bg-black flex items-center justify-center">
-              <BiMessageSquareDots color="white" size={19} />
-            </button>
-            {/* <Button variant="black" className="gap-2 font-bold rounded-xl">
+    <div className="bg-white border-b">
+      <header className="sticky top-0 z-30 h-20 bg-white pr-4 ml-4 flex items-center justify-between">
+        <SidebarTrigger />
+        <div className=" flex items-center justify-end">
+          <div>
+            <Link href="/chat">
+              <button className="rounded-full w-[38px] h-[38px] bg-black flex items-center justify-center">
+                <BiMessageSquareDots color="white" size={19} />
+              </button>
+              {/* <Button variant="black" className="gap-2 font-bold rounded-xl">
             <Image src={filePlus} alt="file-plus" className="w-6 h-6" />
             Create Microsite
           </Button> */}
-          </Link>
-        </div>
-        <div className="bg-[#f6f6fd] p-2 rounded-full mx-2">
-          <Image src={bellIcon} alt="bell icon" className="w-7 h-7" />
-        </div>
-        {user && (
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button
-                variant="ghost"
-                className="relative flex items-center gap-2 px-3 py-4 rounded-full bg-[#F7F7F9] hover:bg-accent h-14"
-                disabled={isLoggingOut}
-              >
-                <div className="relative h-8 w-8">
-                  {user.profilePic && (
-                    <>
-                      {isUrl(user?.profilePic) ? (
-                        <Image
-                          src={user.profilePic}
-                          alt={user.name || ""}
-                          fill
-                          className="rounded-full object-cover border"
-                        />
-                      ) : (
-                        <Image
-                          src={`/images/user_avator/${user.profilePic}.png`}
-                          alt={user.name || ""}
-                          fill
-                          className="rounded-full object-cover"
-                        />
-                      )}
-                    </>
-                  )}
-                </div>
-                <span className="text-sm font-medium">{user.name}</span>
-                <ChevronDown className="h-4 w-4 text-muted-foreground" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-48">
-              <DropdownMenuItem
-                color="red"
-                className="cursor-pointer"
-                onSelect={() => {
-                  router.push("/account-settings");
-                }}
-              >
-                Settings
-              </DropdownMenuItem>
+            </Link>
+          </div>
+          <div className="bg-[#f6f6fd] p-2 rounded-full mx-2">
+            <Image src={bellIcon} alt="bell icon" className="w-7 h-7" />
+          </div>
+          {user && (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="ghost"
+                  className="relative flex items-center gap-2 px-3 py-4 rounded-full bg-[#F7F7F9] hover:bg-accent h-14"
+                  disabled={isLoggingOut}
+                >
+                  <div className="relative h-8 w-8">
+                    {user.profilePic && (
+                      <>
+                        {isUrl(user?.profilePic) ? (
+                          <Image
+                            src={user.profilePic}
+                            alt={user.name || ""}
+                            fill
+                            className="rounded-full object-cover border"
+                          />
+                        ) : (
+                          <Image
+                            src={`/images/user_avator/${user.profilePic}.png`}
+                            alt={user.name || ""}
+                            fill
+                            className="rounded-full object-cover"
+                          />
+                        )}
+                      </>
+                    )}
+                  </div>
+                  <span className="text-sm font-medium">{user.name}</span>
+                  <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-48">
+                <DropdownMenuItem
+                  color="red"
+                  className="cursor-pointer"
+                  onSelect={() => {
+                    router.push("/account-settings");
+                  }}
+                >
+                  Settings
+                </DropdownMenuItem>
 
-              <DropdownMenuItem>
-                <button onClick={handleLoginWithPasskey}>Passkey</button>
-                {/* <div className="flex items-start gap-4">
+                <DropdownMenuItem>
+                  <button onClick={handleLoginWithPasskey}>Passkey</button>
+                  {/* <div className="flex items-start gap-4">
                 <div className="w-72 flex flex-col gap-3 bg-white rounded-xl shadow-medium p-4">
                   <div className="flex items-center gap-2 justify-between">
                     <div className="flex items-center gap-1 font-medium">
@@ -195,11 +196,11 @@ export default function Header() {
                   </DynamicPrimaryBtn>
                 </div>
               </div> */}
-              </DropdownMenuItem>
+                </DropdownMenuItem>
 
-              <DropdownMenuItem>
-                <button onClick={showMfaEnrollmentModal}>Biometrics</button>
-                {/* <div className="w-96 flex flex-col gap-3 bg-white rounded-xl shadow-medium p-4">
+                <DropdownMenuItem>
+                  <button onClick={showMfaEnrollmentModal}>Biometrics</button>
+                  {/* <div className="w-96 flex flex-col gap-3 bg-white rounded-xl shadow-medium p-4">
                 <div className="flex items-center gap-2 justify-between">
                   <div className="flex items-center gap-1 font-medium">
                     <IoLockClosedOutline />
@@ -231,44 +232,47 @@ export default function Header() {
                   )}
                 </DynamicPrimaryBtn>
               </div> */}
-              </DropdownMenuItem>
+                </DropdownMenuItem>
 
-              {/* Export Wallet Sub-menu */}
-              {(hasEmbeddedWallet || hasSolanaWallet) && (
-                <DropdownMenuSub>
-                  <DropdownMenuSubTrigger>Export Wallet</DropdownMenuSubTrigger>
-                  <DropdownMenuSubContent>
-                    {hasEmbeddedWallet && (
-                      <DropdownMenuItem
-                        onClick={handleExportEVMWallet}
-                        disabled={!isAuthenticated}
-                      >
-                        Export EVM Wallet
-                      </DropdownMenuItem>
-                    )}
-                    {hasSolanaWallet && (
-                      <DropdownMenuItem
-                        onClick={handleExportSolanaWallet}
-                        disabled={!isAuthenticated}
-                      >
-                        Export Solana Wallet
-                      </DropdownMenuItem>
-                    )}
-                  </DropdownMenuSubContent>
-                </DropdownMenuSub>
-              )}
+                {/* Export Wallet Sub-menu */}
+                {(hasEmbeddedWallet || hasSolanaWallet) && (
+                  <DropdownMenuSub>
+                    <DropdownMenuSubTrigger>
+                      Export Wallet
+                    </DropdownMenuSubTrigger>
+                    <DropdownMenuSubContent>
+                      {hasEmbeddedWallet && (
+                        <DropdownMenuItem
+                          onClick={handleExportEVMWallet}
+                          disabled={!isAuthenticated}
+                        >
+                          Export EVM Wallet
+                        </DropdownMenuItem>
+                      )}
+                      {hasSolanaWallet && (
+                        <DropdownMenuItem
+                          onClick={handleExportSolanaWallet}
+                          disabled={!isAuthenticated}
+                        >
+                          Export Solana Wallet
+                        </DropdownMenuItem>
+                      )}
+                    </DropdownMenuSubContent>
+                  </DropdownMenuSub>
+                )}
 
-              <DropdownMenuItem
-                className="cursor-pointer"
-                onSelect={handleLogout}
-                disabled={isLoggingOut}
-              >
-                {isLoggingOut ? "Logging out..." : "Logout"}
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        )}
-      </div>
-    </header>
+                <DropdownMenuItem
+                  className="cursor-pointer"
+                  onSelect={handleLogout}
+                  disabled={isLoggingOut}
+                >
+                  {isLoggingOut ? "Logging out..." : "Logout"}
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
+        </div>
+      </header>
+    </div>
   );
 }

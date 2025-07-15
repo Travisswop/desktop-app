@@ -56,8 +56,6 @@ export default function Sidenav() {
 
   const { open } = useSidebar();
 
-  console.log("sidebar open", open);
-
   const { user } = useUser();
   const pathname = usePathname();
   const { logout } = useUser();
@@ -95,14 +93,20 @@ export default function Sidenav() {
   };
 
   return (
-    <Sidebar collapsible="icon" variant="sidebar">
+    <Sidebar
+      style={{ width: `${open ? "" : "3.8rem"}` }}
+      collapsible="icon"
+      variant="sidebar"
+    >
       <SidebarContent className="h-full">
         <SidebarGroup className="!p-0 overflow-x-hidden">
           <SidebarGroupContent>
             {/* <aside className="fixed left-0 top-0 z-40 h-screen w-64 border-r bg-white overflow-x-hidden"> */}
             <div className="flex h-full flex-col !p-0">
-              <SidebarHeader
-                className={`${open ? "h-[92px]" : "h-[90px]"} flex border-b ${
+              <div
+                className={`${
+                  open ? "h-[96px]" : "h-[93px]"
+                } flex border-b overflow-hidden ${
                   !open && "flex items-center justify-center"
                 }`}
               >
@@ -131,7 +135,7 @@ export default function Sidenav() {
                     />
                   </Link>
                 )}
-              </SidebarHeader>
+              </div>
               <div className="h-full flex flex-col justify-between overflow-y-auto overflow-x-hidden">
                 <SidebarMenu
                   className={`py-6 flex flex-col ${
