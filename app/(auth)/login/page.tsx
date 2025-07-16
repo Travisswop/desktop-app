@@ -50,6 +50,8 @@ const Login: React.FC = () => {
   const { isAuthenticated } = useUser();
   const router = useRouter();
 
+  console.log("isAuthenticated", isAuthenticated, authenticated, ready);
+
   // State management
   const [loginFlow, setLoginFlow] = useState<LoginFlow>(LoginFlow.EMAIL_INPUT);
   const [email, setEmail] = useState("");

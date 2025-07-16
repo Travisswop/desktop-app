@@ -441,6 +441,8 @@ class AuthMiddleware {
             }
           }
 
+          console.log("isValidToken - Rayhan xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx", isValidToken, userId);
+
           if (isValidToken && userId) {
             // Redirect authenticated users away from auth routes
             if (isAuthRoute) {
@@ -522,10 +524,10 @@ class AuthMiddleware {
         error:
           error instanceof Error
             ? {
-                name: error.name,
-                message: error.message,
-                stack: error.stack,
-              }
+              name: error.name,
+              message: error.message,
+              stack: error.stack,
+            }
             : "Unknown error",
         path: req.nextUrl.pathname,
       });
