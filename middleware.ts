@@ -174,7 +174,7 @@ class AuthMiddleware {
     }
   }
 
-  private createRedirect(req: NextRequest, target: string): NextResponse {
+  private createRedirect(req: NextRequest, target: string, clearCookies: boolean): NextResponse {
     // Prevent redirect loops by checking if we're already on the target
     if (req.nextUrl.pathname === target) {
       return NextResponse.next();
@@ -182,7 +182,7 @@ class AuthMiddleware {
 
     const response = NextResponse.redirect(new URL(target, req.url));
 
-    if (target === "/login") {
+    if (target === "/login" && clearCookies) {
       // Clear all authentication cookies
       const cookiesToClear = [
         "privy-token",
@@ -335,10 +335,12 @@ class AuthMiddleware {
       const token = req.cookies.get("privy-token")?.value;
       const isAuthRoute = this.isAuthRoute(pathname);
 
+      console.log(`Cookies received:`, req.cookies.getAll());  // Log all cookies for debugging
       console.log(`Token found: ${!!token ? 'Yes' : 'No'} for path: ${req.nextUrl.pathname}`);
 
       // Handle authenticated users
       if (token) {
+        console.log(`Token value: ${token}`);  // Log the token value if present
         let isValidToken = false;
         let userId = "";
 
@@ -462,7 +464,7 @@ class AuthMiddleware {
 
                   if (response.ok) {
                     console.log(`API call succeeded for userId: ${userId}, redirecting to /`);
-                    return this.createRedirect(req, "/");
+                    return this.createRedirect(req, "/", false);
                   } else if (response.status === 404) {
                     return NextResponse.next();
                   } else {
@@ -489,16 +491,16 @@ class AuthMiddleware {
 
                   if (response.ok) {
                     console.log(`API call succeeded for userId: ${userId}, redirecting to /`);
-                    return this.createRedirect(req, "/");
+                    return this.createRedirect(req, "/", false);
                   } else if (response.status === 404) {
-                    return this.createRedirect(req, "/onboard");
+                    return this.createRedirect(req, "/onboard", false);
                   } else {
                     console.log(`API call failed for userId: ${userId}, status: ${response.status}, redirecting to /onboard`);
-                    return this.createRedirect(req, "/onboard");
+                    return this.createRedirect(req, "/onboard", false);
                   }
                 } catch (error) {
                   console.error("Error checking user in backend:", error);
-                  return this.createRedirect(req, "/onboard");
+                  return this.createRedirect(req, "/onboard", false);
                 }
               }
             }
@@ -513,8 +515,11 @@ class AuthMiddleware {
       }
 
       // Handle unauthenticated requests
-      if (this.isProtectedRoute(pathname)) {
-        return this.createRedirect(req, "/login");
+      if (this.isProtectedRoute(pathname) && !token) {
+        return this.createRedirect(req, "/login", true);  // Only redirect and clear if no token
+      } else if (this.isProtectedRoute(pathname) && token) {
+        console.log(`Token present but invalid or not verified, allowing fallback check`);
+        return NextResponse.next();  // Temporary fallback to avoid immediate redirect
       }
 
       // Generate CSP header from the config object
@@ -543,7 +548,7 @@ class AuthMiddleware {
         return NextResponse.next();
       }
 
-      return this.createRedirect(req, "/login");
+      return this.createRedirect(req, "/login", true);
     }
   }
 
