@@ -1,23 +1,23 @@
-'use client';
-import React, { useState } from 'react';
+"use client";
+import React, { useState } from "react";
 
-import Image from 'next/image';
-import qrcode from '@/public/images/websites/qrcode.png';
-import edit from '@/public/images/websites/icon/edit.svg';
-import send from '@/public/images/websites/icon/send.svg';
+import Image from "next/image";
+import qrcode from "@/public/images/websites/qrcode.png";
+import edit from "@/public/images/websites/icon/edit.svg";
+import send from "@/public/images/websites/icon/send.svg";
 // import qrJson1 from "@/components/smartsite/qrCode/qr-code-json/1-A.json";
-import qrJson from '@/components/smartsite/qrCode/qr-code-json/customQr.json';
-import { postUserCustomQrCode } from '@/actions/customQrCode';
-import Link from 'next/link';
+import qrJson from "@/components/smartsite/qrCode/qr-code-json/customQr.json";
+import { postUserCustomQrCode } from "@/actions/customQrCode";
+import Link from "next/link";
 
-import { QrCode1 } from '@/components/smartsite/qrCode/QRData';
-import { FiDownload } from 'react-icons/fi';
-import QRCodeShareModal from '../smartsite/socialShare/QRCodeShareModal';
-import { useToast } from '@/hooks/use-toast';
-import { Card, CardContent } from '../ui/card';
-import { Button } from '@nextui-org/react';
-import { Loader2, QrCode } from 'lucide-react';
-import { useUser } from '@/lib/UserContext';
+import { QrCode1 } from "@/components/smartsite/qrCode/QRData";
+import { FiDownload } from "react-icons/fi";
+import QRCodeShareModal from "../smartsite/socialShare/QRCodeShareModal";
+import { useToast } from "@/hooks/use-toast";
+import { Card, CardContent } from "../ui/card";
+import { Button } from "@nextui-org/react";
+import { Loader2, QrCode } from "lucide-react";
+import { useUser } from "@/lib/UserContext";
 
 const CreateQRCode = () => {
   const { user, accessToken } = useUser();
@@ -45,64 +45,64 @@ const CreateQRCode = () => {
 
       const payload = {
         userId: user?._id,
-        qrCodeName: formData.get('title'),
-        data: formData.get('url'),
-        qrCodeSvgName: 'dots',
+        qrCodeName: formData.get("title"),
+        data: formData.get("url"),
+        qrCodeSvgName: "dots",
         customQrData: qrData,
         dotsOptions: {
-          dotType: 'dots',
-          color: '#000000',
+          dotType: "dots",
+          color: "#000000",
         },
         cornersDotOptions: {
-          dotType: 'dot',
-          color: '#000000',
+          dotType: "dot",
+          color: "#000000",
         },
         cornersSquareOptions: {
-          squareType: 'dot',
-          color: '#000000',
+          squareType: "dot",
+          color: "#000000",
         },
       };
 
       qrData.dotsOptions = {
         ...qrData.dotsOptions,
-        color: '#000000',
+        color: "#000000",
       };
 
       qrData.cornersDotOptions = {
         ...qrData.cornersDotOptions,
-        color: '#000000',
+        color: "#000000",
       };
       qrData.cornersSquareOptions = {
         ...qrData.cornersSquareOptions,
-        color: '#000000',
+        color: "#000000",
       };
 
       qrData.image =
-        'https://res.cloudinary.com/dziyri2ge/image/upload/v1733895036/link_jrgwpk.png';
+        "https://res.cloudinary.com/dziyri2ge/image/upload/v1733895036/link_jrgwpk.png";
 
       // Send the updated JSON data in a POST request
       const data: any = await postUserCustomQrCode(
         payload,
-        accessToken ?? '' // Provide empty string fallback for null case
+        accessToken ?? "" // Provide empty string fallback for null case
       );
 
-      if (data && data.status === 'success') {
+      if (data && data.status === "success") {
         setData(data);
         toast({
-          title: 'Qr code created',
-          description: 'Qr code created successfully',
+          title: "Qr code created",
+          description: "Qr code created successfully",
         });
         setIsLoading(false);
       } else {
         toast({
-          title: 'something went wrong',
-          description: 'Please try again later',
+          title: "something went wrong",
+          description: "Please try again later",
         });
       }
     } catch (error) {
       toast({
-        title: 'something went wrong',
-        description: 'Please try again later',
+        title: "something went wrong",
+        description: "Please try again later",
       });
       setIsLoading(false);
     } finally {
@@ -118,7 +118,7 @@ const CreateQRCode = () => {
     <>
       <Card className="w-full mx-auto border-none">
         {/* <CardHeader className="pb-0"> */}
-        <h5 className="text-lg font-semibold p-4 pl-6 text-gray-800">
+        <h5 className="text-xl font-semibold p-4 pl-6 text-gray-800">
           Create QR Code
         </h5>
         {/* </CardHeader> */}
@@ -143,10 +143,7 @@ const CreateQRCode = () => {
                 />
               </div>
               <div className="flex justify-center w-full mt-4">
-                <Button
-                  className="w-1/2 text-white bg-black"
-                  type="submit"
-                >
+                <Button className="w-1/2 text-white bg-black" type="submit">
                   {isLoading ? (
                     <Loader2 className="mr-0 h-4 w-4 animate-spin" />
                   ) : (
@@ -160,27 +157,16 @@ const CreateQRCode = () => {
               <div>
                 <Image
                   alt="qr code"
-                  src={
-                    data?.data?.qrCodeUrl
-                      ? data.data.qrCodeUrl
-                      : qrcode
-                  }
+                  src={data?.data?.qrCodeUrl ? data.data.qrCodeUrl : qrcode}
                   width={200}
                   height={200}
                   className="border-2 border-gray-600 rounded-2xl"
                 />
                 <div className="flex items-center gap-2 justify-center mt-2">
                   <Link
-                    href={
-                      data?.data?._id
-                        ? `/qr-code/${data.data._id}`
-                        : ''
-                    }
+                    href={data?.data?._id ? `/qr-code/${data.data._id}` : ""}
                   >
-                    <button
-                      type="button"
-                      className="bg-black p-2 rounded-lg"
-                    >
+                    <button type="button" className="bg-black p-2 rounded-lg">
                       <Image alt="edit" src={edit} width={16} />
                     </button>
                   </Link>
@@ -203,19 +189,17 @@ const CreateQRCode = () => {
             ) : (
               <div className="border-2 border-gray-500 rounded-xl p-2 pb-4">
                 <div className="relative w-[130px] h-[130px]">
-                  <QrCode1 color={'black'} width={130} height={130} />
+                  <QrCode1 color={"black"} width={130} height={130} />
                   <Image
                     alt="swop-logo"
                     src={
-                      'https://res.cloudinary.com/bayshore/image/upload/v1732872687/swop-logo_n9qal7.jpg'
+                      "https://res.cloudinary.com/bayshore/image/upload/v1732872687/swop-logo_n9qal7.jpg"
                     }
                     width={90}
                     height={90}
                     className="absolute inset-0 m-auto w-8 h-8"
                   />
-                  <p className="text-[8px] text-center">
-                    Powered By SWOP
-                  </p>
+                  <p className="text-[8px] text-center">Powered By SWOP</p>
                 </div>
               </div>
             )}
