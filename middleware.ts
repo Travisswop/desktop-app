@@ -56,6 +56,8 @@ const cspConfig = {
     "https://*.cloudinary.com",
     "https://*.metaplex.com",
     "https://*.jup.ag",
+    "https://*.li.fi",
+    "https://li.quest",
   ],
   workerSrc: ["'self'"],
   manifestSrc: ["'self'"],
