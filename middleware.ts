@@ -310,7 +310,6 @@ class AuthMiddleware {
   }
 
   public async authenticate(req: NextRequest): Promise<NextResponse> {
-    console.log(`Middleware triggered for path: ${req.nextUrl.pathname} and method: ${req.method}`);
     const response = NextResponse.next();
 
     try {
@@ -335,12 +334,9 @@ class AuthMiddleware {
       const token = req.cookies.get("privy-token")?.value;
       const isAuthRoute = this.isAuthRoute(pathname);
 
-      console.log(`Cookies received:`, req.cookies.getAll());  // Log all cookies for debugging
-      console.log(`Token found: ${!!token ? 'Yes' : 'No'} for path: ${req.nextUrl.pathname}`);
 
       // Handle authenticated users
       if (token) {
-        console.log(`Token value: ${token}`);  // Log the token value if present
         let isValidToken = false;
         let userId = "";
 
@@ -446,7 +442,6 @@ class AuthMiddleware {
             }
           }
 
-          console.log(`isValidToken check - Rayhan: ${isValidToken}, userId: ${userId}, full path: ${req.nextUrl.pathname}`);
 
           if (isValidToken && userId) {
             // Redirect authenticated users away from auth routes

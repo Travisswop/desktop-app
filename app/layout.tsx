@@ -1,12 +1,12 @@
 import './globals.css';
 import PrivyProvider from '@/components/PrivyProvider';
 import { UserProvider } from '@/lib/UserContext';
-import { SolanaWalletProvider } from '@/lib/context/SolanaWalletContext';
 
 import { Figtree, Inter } from 'next/font/google';
-import { TanstackProvider } from '@/components/providers/tanstackProvider';
 import { Toaster } from 'react-hot-toast';
 import { XmtpProvider } from '@/lib/context/XmtpContext';
+import { WalletProvider } from '@/providers/SyncedWalletProvider';
+import { LiFiWalletProvider } from '@/providers/WalletManagementProvider';
 
 const figtree = Figtree({
   subsets: ['latin'],
@@ -32,15 +32,15 @@ export default function RootLayout({
       <body className={`font-[figtree] bg-[#F7F7F9]`}>
         <Toaster position="top-center" reverseOrder={false} />
 
-        <TanstackProvider>
-          <PrivyProvider>
-            <SolanaWalletProvider>
+        <PrivyProvider>
+          <WalletProvider>
+            <LiFiWalletProvider>
               <XmtpProvider>
                 <UserProvider>{children}</UserProvider>
               </XmtpProvider>
-            </SolanaWalletProvider>
-          </PrivyProvider>
-        </TanstackProvider>
+            </LiFiWalletProvider>
+          </WalletProvider>
+        </PrivyProvider>
       </body>
     </html>
   );

@@ -29,7 +29,7 @@ import WalletChartButton from '../Button/WalletChartButton';
 import { IoIosSend } from 'react-icons/io';
 import { BsBank2, BsQrCodeScan } from 'react-icons/bs';
 import { FaRegListAlt } from 'react-icons/fa';
-import SwapModal from './swapModal/SwapModal';
+import SwapButton from './SwapButton';
 import logger from '../../utils/logger';
 import {
   usePathname,
@@ -95,7 +95,6 @@ const BalanceChart: React.FC<BalanceChartProps> = ({
   );
   const [showPopup, setShowPopup] = useState(false);
   const [bankShow, setBankShow] = useState(false);
-  const [openSwapModal, setOpenSwapModal] = useState(false);
   const [showBalance, setShowBalance] = useState(false);
 
   const searchParams = useSearchParams();
@@ -115,41 +114,6 @@ const BalanceChart: React.FC<BalanceChartProps> = ({
       return () => clearTimeout(timer); // cleanup
     }
   }, [showBalance]);
-
-  // Open swap modal when URL params are present
-  useEffect(() => {
-    if (inputTokenParam || outputTokenParam || amountParam) {
-      setOpenSwapModal(true);
-    }
-  }, [amountParam, inputTokenParam, outputTokenParam]);
-
-  // Clean up URL params when modal closes
-  const cleanupUrlParams = useCallback(() => {
-    if (
-      !openSwapModal &&
-      (inputTokenParam || outputTokenParam || amountParam)
-    ) {
-      const newSearchParams = new URLSearchParams(
-        searchParams as any
-      );
-      newSearchParams.delete('inputToken');
-      newSearchParams.delete('outputToken');
-      newSearchParams.delete('amount');
-      router.replace(`${pathname}?${newSearchParams.toString()}`);
-    }
-  }, [
-    openSwapModal,
-    pathname,
-    router,
-    searchParams,
-    inputTokenParam,
-    outputTokenParam,
-    amountParam,
-  ]);
-
-  useEffect(() => {
-    cleanupUrlParams();
-  }, [cleanupUrlParams]);
 
   const filteredData = useMemo(() => {
     const now = new Date();
@@ -248,9 +212,9 @@ const BalanceChart: React.FC<BalanceChartProps> = ({
     (date: string) => {
       return timeRange === TIME_RANGES.ONE_DAY
         ? new Date(date).toLocaleTimeString([], {
-            hour: '2-digit',
-            minute: '2-digit',
-          })
+          hour: '2-digit',
+          minute: '2-digit',
+        })
         : new Date(date).toLocaleDateString();
     },
     [timeRange]
@@ -278,11 +242,10 @@ const BalanceChart: React.FC<BalanceChartProps> = ({
               <div className="relative">
                 <div className="font-bold text-gray-900 tracking-tight min-w-[70px] text-left">
                   <span
-                    className={`inline-block transition-all duration-700 ease-out ${
-                      showBalance
-                        ? 'opacity-100 transform translate-y-0'
-                        : 'opacity-0 transform translate-y-1'
-                    }`}
+                    className={`inline-block transition-all duration-700 ease-out ${showBalance
+                      ? 'opacity-100 transform translate-y-0'
+                      : 'opacity-0 transform translate-y-1'
+                      }`}
                   >
                     {totalTokensValue.toLocaleString(undefined, {
                       minimumFractionDigits: 2,
@@ -293,11 +256,10 @@ const BalanceChart: React.FC<BalanceChartProps> = ({
 
                 {/* Hidden State Overlay */}
                 <div
-                  className={`absolute inset-0 flex items-center justify-center transition-all duration-700 ease-out w-full ${
-                    !showBalance
-                      ? 'opacity-100 transform translate-y-0'
-                      : 'opacity-0 transform -translate-y-1 pointer-events-none'
-                  }`}
+                  className={`absolute inset-0 flex items-center justify-center transition-all duration-700 ease-out w-full ${!showBalance
+                    ? 'opacity-100 transform translate-y-0'
+                    : 'opacity-0 transform -translate-y-1 pointer-events-none'
+                    }`}
                 >
                   <div className="flex items-center gap-2 text-gray-500">
                     <div className="flex gap-1">
@@ -317,18 +279,16 @@ const BalanceChart: React.FC<BalanceChartProps> = ({
               <div className="flex items-center justify-center w-7 h-7 rounded-full bg-white border border-gray-200 group-hover:border-gray-300 group-hover:shadow-sm transition-all duration-300">
                 <div className="relative w-4 h-4">
                   <Eye
-                    className={`absolute inset-0 w-4 h-4 text-gray-600 transition-all duration-500 ${
-                      showBalance
-                        ? 'opacity-100 rotate-0 scale-100'
-                        : 'opacity-0 rotate-180 scale-75'
-                    }`}
+                    className={`absolute inset-0 w-4 h-4 text-gray-600 transition-all duration-500 ${showBalance
+                      ? 'opacity-100 rotate-0 scale-100'
+                      : 'opacity-0 rotate-180 scale-75'
+                      }`}
                   />
                   <EyeOff
-                    className={`absolute inset-0 w-4 h-4 text-gray-600 transition-all duration-500 ${
-                      !showBalance
-                        ? 'opacity-100 rotate-0 scale-100'
-                        : 'opacity-0 rotate-180 scale-75'
-                    }`}
+                    className={`absolute inset-0 w-4 h-4 text-gray-600 transition-all duration-500 ${!showBalance
+                      ? 'opacity-100 rotate-0 scale-100'
+                      : 'opacity-0 rotate-180 scale-75'
+                      }`}
                   />
                 </div>
               </div>
@@ -343,14 +303,8 @@ const BalanceChart: React.FC<BalanceChartProps> = ({
           <WalletChartButton onClick={() => setShowPopup(!showPopup)}>
             <Wallet size={16} /> Receive
           </WalletChartButton>
-          <WalletChartButton onClick={() => setOpenSwapModal(true)}>
-            <ArrowLeftRight size={16} /> Swap
-          </WalletChartButton>
-
-          <SwapModal
-            open={openSwapModal}
-            onOpenChange={setOpenSwapModal}
-            userToken={tokens}
+          <SwapButton
+            tokens={tokens}
             accessToken={accessToken || ''}
             initialInputToken={inputTokenParam || ''}
             initialOutputToken={outputTokenParam || ''}
@@ -429,11 +383,10 @@ const BalanceChart: React.FC<BalanceChartProps> = ({
           style={{ marginBottom: '20px' }}
         >
           <p
-            className={`font-semibold p-2 rounded-lg mr-2 ${
-              Number(growthPercentage) >= 0
-                ? 'text-[#00E725] bg-[#7AE38B33]'
-                : 'text-red-500 bg-red-100'
-            }`}
+            className={`font-semibold p-2 rounded-lg mr-2 ${Number(growthPercentage) >= 0
+              ? 'text-[#00E725] bg-[#7AE38B33]'
+              : 'text-red-500 bg-red-100'
+              }`}
           >
             {growthPercentage > 0 ? '+' : ''}
             {growthPercentage}%
@@ -512,67 +465,67 @@ const WalletBalanceChartForWalletPage: React.FC<
   onQRClick,
   onTokenRefresh,
 }) => {
-  const { user, accessToken } = useUser();
-  const [balanceData, setBalanceData] = useState<
-    BalanceHistoryEntry[]
-  >([]);
-  const [totalTokensValue, setTotalTokensValue] = useState(0);
-  const [isLoading, setIsLoading] = useState(true);
+    const { user, accessToken } = useUser();
+    const [balanceData, setBalanceData] = useState<
+      BalanceHistoryEntry[]
+    >([]);
+    const [totalTokensValue, setTotalTokensValue] = useState(0);
+    const [isLoading, setIsLoading] = useState(true);
 
-  useEffect(() => {
-    const fetchData = async () => {
-      if (!user?._id) return;
+    useEffect(() => {
+      const fetchData = async () => {
+        if (!user?._id) return;
 
-      setIsLoading(true);
+        setIsLoading(true);
 
-      try {
-        const response = await fetch(
-          `${process.env.NEXT_PUBLIC_API_URL}/api/v5/wallet/getBalance/${user._id}`
-        );
+        try {
+          const response = await fetch(
+            `${process.env.NEXT_PUBLIC_API_URL}/api/v5/wallet/getBalance/${user._id}`
+          );
 
-        if (!response.ok) {
-          throw new Error(`HTTP error! status: ${response.status}`);
-        }
+          if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+          }
 
-        const result = await response.json();
+          const result = await response.json();
 
-        // Safely handle the response data
-        if (result?.balanceData?.balanceHistory) {
-          setBalanceData(result.balanceData.balanceHistory);
-          setTotalTokensValue(result.totalTokensValue || 0);
-        } else {
-          // If data is not in expected format, set empty data
+          // Safely handle the response data
+          if (result?.balanceData?.balanceHistory) {
+            setBalanceData(result.balanceData.balanceHistory);
+            setTotalTokensValue(result.totalTokensValue || 0);
+          } else {
+            // If data is not in expected format, set empty data
+            setBalanceData([]);
+            setTotalTokensValue(0);
+          }
+        } catch (error) {
+          // Silently handle errors and set empty data
           setBalanceData([]);
           setTotalTokensValue(0);
+          logger.error('Error fetching balance data:', error);
+        } finally {
+          setIsLoading(false);
         }
-      } catch (error) {
-        // Silently handle errors and set empty data
-        setBalanceData([]);
-        setTotalTokensValue(0);
-        logger.error('Error fetching balance data:', error);
-      } finally {
-        setIsLoading(false);
-      }
-    };
+      };
 
-    fetchData();
-  }, [user?._id]);
+      fetchData();
+    }, [user?._id]);
 
-  if (isLoading) {
-    return <SkeletonBalanceChart />;
-  }
+    if (isLoading) {
+      return <SkeletonBalanceChart />;
+    }
 
-  return (
-    <BalanceChart
-      balanceHistory={balanceData}
-      onSelectAsset={onSelectAsset}
-      walletData={walletData}
-      totalTokensValue={totalTokensValue}
-      accessToken={accessToken || ''}
-      tokens={tokens}
-      onTokenRefresh={onTokenRefresh}
-    />
-  );
-};
+    return (
+      <BalanceChart
+        balanceHistory={balanceData}
+        onSelectAsset={onSelectAsset}
+        walletData={walletData}
+        totalTokensValue={totalTokensValue}
+        accessToken={accessToken || ''}
+        tokens={tokens}
+        onTokenRefresh={onTokenRefresh}
+      />
+    );
+  };
 
 export default WalletBalanceChartForWalletPage;

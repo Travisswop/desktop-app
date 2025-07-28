@@ -49,7 +49,6 @@ import { Toaster } from '../ui/toaster';
 import ProfileHeader from '../dashboard/profile-header';
 import RedeemTokenList from './redeem/token-list';
 import WalletBalanceChartForWalletPage from './WalletBalanceChart';
-
 // Utilities
 import Cookies from 'js-cookie';
 import { createTransactionPayload } from '@/lib/utils/transactionUtils';
@@ -87,6 +86,8 @@ const WalletContentInner = () => {
   const { solWalletAddress, evmWalletAddress } =
     useWalletAddresses(walletData);
   const { payload } = useTransactionPayload(user);
+  const { wallets : ethWalletsData } = useWallets();
+  console.log(ethWalletsData,'ethWalletsData')
 
   const {
     sendFlow,
