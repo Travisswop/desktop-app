@@ -8,7 +8,6 @@ interface LiFiPrivyWrapperProps {
     config: any;
     onSwapComplete?: () => void;
 }
-
 export default function LiFiPrivyWrapper({
     config,
     onSwapComplete
