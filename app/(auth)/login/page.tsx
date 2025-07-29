@@ -198,11 +198,7 @@ const Login: React.FC = () => {
         setWalletStatus((prev) => ({ ...prev, inProgress: false }));
       }
     },
-    [
-      createEthereumWallet,
-      createSolanaWallet,
-      walletStatus.inProgress,
-    ]
+    [createEthereumWallet, createSolanaWallet]
   );
 
   useEffect(() => {
@@ -224,7 +220,6 @@ const Login: React.FC = () => {
     walletStatus.inProgress,
     walletStatus.ethereum,
     walletStatus.solana,
-    createPrivyWallets,
   ]);
 
   // Handle successful login
