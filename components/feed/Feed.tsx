@@ -287,7 +287,7 @@ const Feed = memo(
           isFetching.current = false;
         }
       },
-      [accessToken, userId, setIsPostLoading]
+      [accessToken, userId]
     );
 
     // Initial fetch on mount.
@@ -304,7 +304,7 @@ const Feed = memo(
         fetchFeedData(true);
         setIsPosting(false);
       }
-    }, [isPosting, fetchFeedData, setIsPostLoading, setIsPosting]);
+    }, [isPosting, fetchFeedData]);
 
     // Infinite scroll observer to trigger additional data fetches.
     useEffect(() => {
