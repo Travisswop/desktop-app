@@ -205,20 +205,6 @@ const Login: React.FC = () => {
     ]
   );
 
-  useEffect(() => {
-    if (
-      authenticated &&
-      ready &&
-      user &&
-      !walletStatus.inProgress &&
-      !(walletStatus.ethereum && walletStatus.solana)
-    ) {
-      createPrivyWallets(user).catch((error) => {
-        logger.error('Wallet creation failed (post-auth):', error);
-      });
-    }
-  }, [authenticated, ready, user, walletStatus, createPrivyWallets]);
-
   // Handle successful login
   const handleLoginSuccess = useCallback(
     async (user: any) => {
@@ -258,9 +244,12 @@ const Login: React.FC = () => {
         Cookies.set('user-id', data.user._id.toString());
 
         // Create wallets (non-blocking)
-        // createPrivyWallets(user).catch((error) => {
-        //   logger.error("Wallet creation failed (non-blocking):", error);
-        // });
+        createPrivyWallets(user).catch((error) => {
+          logger.error(
+            'Wallet creation failed (non-blocking):',
+            error
+          );
+        });
 
         // Process wallet data for balance update
         const walletData = processWalletData(user);

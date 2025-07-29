@@ -12,13 +12,18 @@ export default function PrivyProvider({
 }) {
   // Add some debugging
   console.log('Privy App ID:', process.env.NEXT_PUBLIC_PRIVY_APP_ID);
-  console.log('Privy Client ID:', process.env.NEXT_PUBLIC_PRIVY_CLIENT_ID);
-  console.log('Current origin:', typeof window !== 'undefined' ? window.location.origin : 'server');
+  console.log(
+    'Privy Client ID:',
+    process.env.NEXT_PUBLIC_PRIVY_CLIENT_ID
+  );
+  console.log(
+    'Current origin:',
+    typeof window !== 'undefined' ? window.location.origin : 'server'
+  );
 
   return (
     <Privy
       appId={process.env.NEXT_PUBLIC_PRIVY_APP_ID as string}
-      clientId={process.env.NEXT_PUBLIC_PRIVY_CLIENT_ID as string}
       config={{
         embeddedWallets: {
           ethereum: {
@@ -41,7 +46,8 @@ export default function PrivyProvider({
         solanaClusters: [
           {
             name: 'mainnet-beta',
-            rpcUrl: 'https://chaotic-restless-putty.solana-mainnet.quiknode.pro/',
+            rpcUrl:
+              'https://chaotic-restless-putty.solana-mainnet.quiknode.pro/',
           },
         ],
       }}
