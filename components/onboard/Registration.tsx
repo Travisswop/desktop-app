@@ -432,7 +432,6 @@ export default function Registration({
       const userData = {
         name,
         email: user.email,
-        password: '12345678',
         mobileNo: phone || '',
         address: address || '',
         bio: bio || '',
@@ -448,7 +447,7 @@ export default function Registration({
 
       // Create user and smartsite using v4 signup endpoint
       const response = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL}/api/v4/user/signup`,
+        `${process.env.NEXT_PUBLIC_API_URL}/api/v2/desktop/user/create`,
         {
           method: 'POST',
           headers: {
