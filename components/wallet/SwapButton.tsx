@@ -116,7 +116,6 @@ export default function SwapButton({
                 <ArrowLeftRight size={16} /> Swap
             </WalletChartButton>
 
-            {/* LiFi Swap Modal */}
             <Dialog open={openSwapModal} onOpenChange={setOpenSwapModal}>
                 <DialogContent className="sm:max-w-[450px] md:max-w-[550px] p-0">
                     <DialogTitle className="sr-only">Token Swap</DialogTitle>
@@ -133,4 +132,7 @@ export default function SwapButton({
             </Dialog>
         </>
     );
-} 
+}
+
+
+
