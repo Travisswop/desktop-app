@@ -4,6 +4,7 @@ import type { NextRequest } from 'next/server';
 interface UserData {
   name: string;
   email: string;
+  password: string;
   mobileNo: string;
   address: string;
   bio: string;
@@ -41,6 +42,7 @@ export async function POST(request: NextRequest) {
     const formatData: UserData = {
       name: data.name,
       email: data.email,
+      password: '1235',
       mobileNo: data.mobileNo || '',
       address: data.address || '',
       bio: data.bio || '',
