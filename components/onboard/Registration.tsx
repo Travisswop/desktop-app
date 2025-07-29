@@ -477,7 +477,13 @@ export default function Registration({
         userId: result.data._id,
       };
 
-      await createWalletBalance(walletPayload);
+      console.log('Wallet payload:', walletPayload);
+
+      try {
+        await createWalletBalance(walletPayload);
+      } catch (error) {
+        console.error('Error creating wallet balance:', error);
+      }
 
       toast({
         title: 'Success',
