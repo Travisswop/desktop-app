@@ -13,16 +13,6 @@ export default function PrivyProvider({
   // Enhanced debugging for production
   const isProduction = process.env.NODE_ENV === 'production';
   const appId = process.env.NEXT_PUBLIC_PRIVY_APP_ID;
-  const currentOrigin =
-    typeof window !== 'undefined' ? window.location.origin : 'server';
-
-  console.log('Privy Configuration:', {
-    appId: appId ? `${appId.substring(0, 8)}...` : 'NOT_SET',
-    environment: process.env.NODE_ENV,
-    isProduction,
-    currentOrigin,
-    hasAppId: !!appId,
-  });
 
   // Validate configuration
   if (!appId) {
