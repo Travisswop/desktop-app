@@ -445,9 +445,9 @@ export default function Registration({
         solanaWallet: solanaWallet?.address,
       };
 
-      // Create user and smartsite
+      // Create user and smartsite using v4 signup endpoint
       const response = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL}/api/v2/desktop/user/create`,
+        `${process.env.NEXT_PUBLIC_API_URL}/api/v4/user/signup`,
         {
           method: 'POST',
           headers: {
@@ -458,10 +458,17 @@ export default function Registration({
       );
 
       if (!response.ok) {
-        throw new Error('Failed to create user and smartsite');
+        const errorData = await response
+          .json()
+          .catch(() => ({ message: 'Unknown error' }));
+        console.error('Registration error:', errorData);
+        throw new Error(
+          errorData.message || 'Failed to create user and smartsite'
+        );
       }
 
       const result = await response.json();
+      console.log('Registration success:', result);
 
       // Create wallet balance record
       const walletPayload = {
