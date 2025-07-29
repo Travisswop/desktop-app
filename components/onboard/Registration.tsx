@@ -162,6 +162,21 @@ export default function Registration({
         return;
       }
 
+      // Add production debugging
+      const isProduction = process.env.NODE_ENV === 'production';
+      if (isProduction) {
+        logger.log('Production wallet creation - Initial state:', {
+          authenticated,
+          ready,
+          hasUser: !!privyUser,
+          linkedAccountsCount: privyUser?.linkedAccounts?.length || 0,
+          userAgent:
+            typeof window !== 'undefined'
+              ? window.navigator.userAgent
+              : 'server',
+        });
+      }
+
       // Check if user already has wallets
       const hasEthereumWallet = privyUser?.linkedAccounts.some(
         (account: any) =>
@@ -176,6 +191,13 @@ export default function Registration({
           (account.walletClientType === 'privy' ||
             account.connectorType === 'embedded')
       );
+
+      if (isProduction) {
+        logger.log('Production wallet creation - Wallet status:', {
+          hasEthereumWallet,
+          hasSolanaWallet,
+        });
+      }
 
       // Create Ethereum wallet if needed
       if (!hasEthereumWallet) {
@@ -205,6 +227,21 @@ export default function Registration({
           logger.error(
             `Ethereum wallet creation failed: ${JSON.stringify(err)}`
           );
+          // In production, log additional details
+          if (isProduction) {
+            logger.error(
+              'Production Ethereum wallet creation error:',
+              {
+                error: err instanceof Error ? err.message : err,
+                stack: err instanceof Error ? err.stack : undefined,
+                userAgent:
+                  typeof window !== 'undefined'
+                    ? window.navigator.userAgent
+                    : 'server',
+                timestamp: new Date().toISOString(),
+              }
+            );
+          }
           // Don't mark as created if there was a real error
         }
       } else {
@@ -245,6 +282,18 @@ export default function Registration({
           logger.error(
             `Solana wallet creation failed: ${JSON.stringify(err)}`
           );
+          // In production, log additional details
+          if (isProduction) {
+            logger.error('Production Solana wallet creation error:', {
+              error: err instanceof Error ? err.message : err,
+              stack: err instanceof Error ? err.stack : undefined,
+              userAgent:
+                typeof window !== 'undefined'
+                  ? window.navigator.userAgent
+                  : 'server',
+              timestamp: new Date().toISOString(),
+            });
+          }
         }
       } else {
         logger.info(
@@ -255,6 +304,18 @@ export default function Registration({
       logger.error(
         `Error in wallet creation flow: ${JSON.stringify(error)}`
       );
+      // In production, log additional details
+      if (process.env.NODE_ENV === 'production') {
+        logger.error('Production wallet creation flow error:', {
+          error: error instanceof Error ? error.message : error,
+          stack: error instanceof Error ? error.stack : undefined,
+          userAgent:
+            typeof window !== 'undefined'
+              ? window.navigator.userAgent
+              : 'server',
+          timestamp: new Date().toISOString(),
+        });
+      }
     }
   }, [
     authenticated,

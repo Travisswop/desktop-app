@@ -3,20 +3,30 @@ import type { NextConfig } from 'next';
 const nextConfig: NextConfig = {
   reactStrictMode: true,
 
-
   // Add CSP headers
   async headers() {
     return [
       {
-        source: '/(.*)',
+        source: '/:path*',
         headers: [
           {
             key: 'Content-Security-Policy',
-            value: [
-              "frame-ancestors 'self' https://swopme.app https://www.swopme.app https://privy.swopme.app https://auth.privy.io",
-              "frame-src 'self' https://auth.privy.io https://privy.swopme.app",
-              "connect-src 'self' https://privy.swopme.app https://auth.privy.io wss: https:",
-            ].join('; '),
+            value: `
+              default-src 'self';
+              script-src 'self' https://challenges.cloudflare.com;
+              style-src 'self' 'unsafe-inline';
+              img-src 'self' data: blob:;
+              font-src 'self';
+              object-src 'none';
+              base-uri 'self';
+              form-action 'self';
+              frame-ancestors 'none';
+              child-src https://auth.privy.io https://verify.walletconnect.com https://verify.walletconnect.org;
+              frame-src https://auth.privy.io https://verify.walletconnect.com https://verify.walletconnect.org https://challenges.cloudflare.com;
+              connect-src 'self' https://auth.privy.io wss://relay.walletconnect.com wss://relay.walletconnect.org wss://www.walletlink.org https://*.rpc.privy.systems https://explorer-api.walletconnect.com;
+              worker-src 'self';
+              manifest-src 'self'
+            `,
           },
         ],
       },
@@ -85,7 +95,7 @@ const nextConfig: NextConfig = {
     // Fix for wbg issue and other problematic imports
     config.resolve.alias = {
       ...config.resolve.alias,
-      'wbg': false,
+      wbg: false,
     };
 
     // Additional optimization for XMTP WASM handling
@@ -144,4 +154,4 @@ const nextConfig: NextConfig = {
   ],
 };
 
-export default nextConfig; 
+export default nextConfig;

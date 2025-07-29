@@ -152,6 +152,18 @@ const Login: React.FC = () => {
               acc.connectorType === 'embedded')
         );
 
+        // Add production debugging
+        const isProduction = process.env.NODE_ENV === 'production';
+        if (isProduction) {
+          logger.log('Production wallet creation - User state:', {
+            hasEthWallet,
+            hasSolWallet,
+            linkedAccountsCount: existingWallets.length,
+            userAuthenticated: !!user,
+            privyReady: ready,
+          });
+        }
+
         // Create Ethereum wallet if needed
         if (!hasEthWallet) {
           try {
@@ -170,6 +182,21 @@ const Login: React.FC = () => {
               logger.log('Ethereum wallet already exists');
             } else {
               logger.error('Ethereum wallet creation failed:', error);
+              // In production, log additional details
+              if (isProduction) {
+                logger.error(
+                  'Production Ethereum wallet error details:',
+                  {
+                    error: error?.message || error,
+                    stack: error?.stack,
+                    userAgent:
+                      typeof window !== 'undefined'
+                        ? window.navigator.userAgent
+                        : 'server',
+                    timestamp: new Date().toISOString(),
+                  }
+                );
+              }
             }
           }
         }
@@ -189,16 +216,43 @@ const Login: React.FC = () => {
               logger.log('Solana wallet already exists');
             } else {
               logger.error('Solana wallet creation failed:', error);
+              // In production, log additional details
+              if (isProduction) {
+                logger.error(
+                  'Production Solana wallet error details:',
+                  {
+                    error: error?.message || error,
+                    stack: error?.stack,
+                    userAgent:
+                      typeof window !== 'undefined'
+                        ? window.navigator.userAgent
+                        : 'server',
+                    timestamp: new Date().toISOString(),
+                  }
+                );
+              }
             }
           }
         }
       } catch (error) {
         logger.error('Wallet creation process failed:', error);
+        // In production, log additional details
+        if (process.env.NODE_ENV === 'production') {
+          logger.error('Production wallet creation process error:', {
+            error: error instanceof Error ? error.message : error,
+            stack: error instanceof Error ? error.stack : undefined,
+            userAgent:
+              typeof window !== 'undefined'
+                ? window.navigator.userAgent
+                : 'server',
+            timestamp: new Date().toISOString(),
+          });
+        }
       } finally {
         setWalletStatus((prev) => ({ ...prev, inProgress: false }));
       }
     },
-    [createEthereumWallet, createSolanaWallet]
+    [createEthereumWallet, createSolanaWallet, ready]
   );
 
   useEffect(() => {
