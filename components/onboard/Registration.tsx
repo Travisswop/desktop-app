@@ -63,8 +63,7 @@ export default function Registration({
 
   const { isOpen, onOpen, onOpenChange } = useDisclosure();
   const { authenticated, ready, user: privyUser } = usePrivy();
-  const { wallets: solanaWallets, createWallet: createSolanaWallet } =
-    useSolanaWallets();
+  const { createWallet: createSolanaWallet } = useSolanaWallets();
 
   const { createWallet } = useCreateWallet({
     onSuccess: ({ wallet }) => {
@@ -156,7 +155,7 @@ export default function Registration({
         return;
       }
 
-      if (!user) {
+      if (!privyUser) {
         logger.error(
           'User object is not available - cannot create wallets'
         );
@@ -164,14 +163,14 @@ export default function Registration({
       }
 
       // Check if user already has wallets
-      const hasEthereumWallet = user?.linkedAccounts.some(
+      const hasEthereumWallet = privyUser?.linkedAccounts.some(
         (account: any) =>
           account.chainType === 'ethereum' &&
           (account.walletClientType === 'privy' ||
             account.connectorType === 'embedded')
       );
 
-      const hasSolanaWallet = user?.linkedAccounts.some(
+      const hasSolanaWallet = privyUser?.linkedAccounts.some(
         (account: any) =>
           account.chainType === 'solana' &&
           (account.walletClientType === 'privy' ||
@@ -257,7 +256,13 @@ export default function Registration({
         `Error in wallet creation flow: ${JSON.stringify(error)}`
       );
     }
-  }, [authenticated, ready, user, createSolanaWallet]);
+  }, [
+    authenticated,
+    ready,
+    privyUser,
+    createWallet,
+    createSolanaWallet,
+  ]);
 
   const handleUserProfileModal = () => {
     onOpen();
