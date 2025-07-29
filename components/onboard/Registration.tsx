@@ -432,7 +432,7 @@ export default function Registration({
       const userData = {
         name,
         email: user.email,
-        password: '1235',
+        password: '12345678',
         mobileNo: phone || '',
         address: address || '',
         bio: bio || '',
