@@ -10,6 +10,11 @@ export default function PrivyProvider({
 }: {
   children: React.ReactNode;
 }) {
+  // Add some debugging
+  console.log('Privy App ID:', process.env.NEXT_PUBLIC_PRIVY_APP_ID);
+  console.log('Privy Client ID:', process.env.NEXT_PUBLIC_PRIVY_CLIENT_ID);
+  console.log('Current origin:', typeof window !== 'undefined' ? window.location.origin : 'server');
+
   return (
     <Privy
       appId={process.env.NEXT_PUBLIC_PRIVY_APP_ID as string}
@@ -45,4 +50,3 @@ export default function PrivyProvider({
     </Privy>
   );
 }
-

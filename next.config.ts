@@ -2,6 +2,27 @@ import type { NextConfig } from 'next';
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,
+
+
+  // Add CSP headers
+  async headers() {
+    return [
+      {
+        source: '/(.*)',
+        headers: [
+          {
+            key: 'Content-Security-Policy',
+            value: [
+              "frame-ancestors 'self' https://swopme.app https://www.swopme.app https://privy.swopme.app https://auth.privy.io",
+              "frame-src 'self' https://auth.privy.io https://privy.swopme.app",
+              "connect-src 'self' https://privy.swopme.app https://auth.privy.io wss: https:",
+            ].join('; '),
+          },
+        ],
+      },
+    ];
+  },
+
   typescript: {
     ignoreBuildErrors:
       process.env.NEXT_PUBLIC_IGNORE_BUILD_ERROR === 'true',
