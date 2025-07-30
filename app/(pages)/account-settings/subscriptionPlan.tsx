@@ -9,11 +9,12 @@ import {
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { useState } from "react";
+import SubscribeButton from "@/components/StripeSubscriptionBtn";
 
 interface Plan {
-  name: string;
+  name: "Pro" | "Premium" | "Free";
   description: string;
-  price: number | "Free";
+  price: number;
   interval?: string;
   features: string[];
   buttonText: string;
@@ -22,9 +23,9 @@ interface Plan {
 
 const plans: Plan[] = [
   {
-    name: "Basic",
+    name: "Free",
     description: "Lorem ipsum dolor sit amet consectetur adipisicing elit.",
-    price: "Free",
+    price: 0,
     features: [
       "1 SmartSite",
       "1 QR Code",
@@ -149,21 +150,22 @@ export default function SubscriptionPlans() {
               </CardContent>
             </div>
             <CardFooter>
-              <Button
-                className={`w-full ${
+              <button
+                className={`w-full text-white rounded-lg ${
                   plan.isPopular
                     ? "bg-[#593ED3] hover:bg-purple-600"
-                    : plan.price === "Free"
+                    : plan.price === 0
                     ? "bg-black hover:bg-gray-800"
                     : "bg-black hover:bg-gray-800"
                 }`}
               >
-                {plan.buttonText}
-              </Button>
+                <SubscribeButton plan={plan.name} />
+              </button>
             </CardFooter>
           </Card>
         ))}
       </div>
+      {/* <SubscribeButton plan="Pro" /> */}
     </div>
   );
 }
