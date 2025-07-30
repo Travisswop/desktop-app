@@ -61,10 +61,15 @@ export default function Registration({
   const [isUserProfileModalOpen, setIsUserProfileModalOpen] =
     useState(false);
 
+  // Add wallet creation state management
+  const [walletsCreated, setWalletsCreated] = useState({
+    ethereum: false,
+    solana: false,
+  });
+
   const { isOpen, onOpen, onOpenChange } = useDisclosure();
   const { authenticated, ready, user: privyUser } = usePrivy();
-  const { wallets: solanaWallets, createWallet: createSolanaWallet } =
-    useSolanaWallets();
+  const { createWallet: createSolanaWallet } = useSolanaWallets();
 
   const { createWallet } = useCreateWallet({
     onSuccess: ({ wallet }) => {
@@ -156,34 +161,59 @@ export default function Registration({
         return;
       }
 
-      if (!user) {
+      if (!privyUser) {
         logger.error(
           'User object is not available - cannot create wallets'
         );
         return;
       }
 
+      logger.info(
+        `Authentication status: authenticated=${authenticated}, ready=${ready}, user=${!!privyUser}`
+      );
+
+      // Add a small delay to ensure authentication is fully propagated
+      await new Promise((resolve) => setTimeout(resolve, 500));
+      logger.info(
+        'Authentication delay complete, proceeding with wallet creation...'
+      );
+
       // Check if user already has wallets
-      const hasEthereumWallet = user?.linkedAccounts.some(
+      const hasEthereumWallet = privyUser?.linkedAccounts.some(
         (account: any) =>
           account.chainType === 'ethereum' &&
           (account.walletClientType === 'privy' ||
             account.connectorType === 'embedded')
       );
 
-      const hasSolanaWallet = user?.linkedAccounts.some(
+      const hasSolanaWallet = privyUser?.linkedAccounts.some(
         (account: any) =>
           account.chainType === 'solana' &&
           (account.walletClientType === 'privy' ||
             account.connectorType === 'embedded')
       );
 
+      logger.info(
+        `Wallet status check - Ethereum: ${hasEthereumWallet}, Solana: ${hasSolanaWallet}`
+      );
+      logger.info(
+        `Wallets created state - Ethereum: ${walletsCreated.ethereum}, Solana: ${walletsCreated.solana}`
+      );
+
       // Create Ethereum wallet if needed
-      if (!hasEthereumWallet) {
+      if (!hasEthereumWallet && !walletsCreated.ethereum) {
         try {
           logger.info('Attempting to create Ethereum wallet...');
 
-          await createWallet().catch((error) => {
+          // Double-check authentication before wallet creation
+          if (!authenticated || !ready || !privyUser) {
+            logger.error(
+              'Authentication state changed during wallet creation - aborting Ethereum wallet creation'
+            );
+            return;
+          }
+
+          const result = await createWallet().catch((error) => {
             // Handle embedded_wallet_already_exists as a success case
             if (
               error === 'embedded_wallet_already_exists' ||
@@ -197,10 +227,20 @@ export default function Registration({
               );
               return { status: 'already_exists' };
             }
-
+            logger.error(
+              `Ethereum wallet creation error: ${JSON.stringify(
+                error
+              )}`
+            );
             throw error;
           });
 
+          logger.info(
+            `Ethereum wallet creation result: ${JSON.stringify(
+              result
+            )}`
+          );
+          setWalletsCreated((prev) => ({ ...prev, ethereum: true }));
           logger.info('Ethereum wallet creation complete');
         } catch (err) {
           logger.error(
@@ -215,9 +255,17 @@ export default function Registration({
       }
 
       // Create Solana wallet if needed
-      if (!hasSolanaWallet) {
+      if (!hasSolanaWallet && !walletsCreated.solana) {
         try {
           logger.info('Attempting to create Solana wallet...');
+
+          // Double-check authentication before wallet creation
+          if (!authenticated || !ready || !privyUser) {
+            logger.error(
+              'Authentication state changed during wallet creation - aborting Solana wallet creation'
+            );
+            return;
+          }
 
           const result = await createSolanaWallet().catch((error) => {
             if (
@@ -241,6 +289,7 @@ export default function Registration({
           logger.info(
             `Solana wallet creation result: ${JSON.stringify(result)}`
           );
+          setWalletsCreated((prev) => ({ ...prev, solana: true }));
           logger.info('Solana wallet creation complete');
         } catch (err) {
           logger.error(
@@ -252,12 +301,49 @@ export default function Registration({
           'Skipping Solana wallet creation - already exists or already created'
         );
       }
+
+      // Final status check
+      logger.info(
+        `Final wallet creation status: ${JSON.stringify(
+          walletsCreated
+        )}`
+      );
     } catch (error) {
       logger.error(
         `Error in wallet creation flow: ${JSON.stringify(error)}`
       );
+      // Still mark wallets as attempted to prevent infinite loops
+      setWalletsCreated({ ethereum: true, solana: true });
     }
-  }, [authenticated, ready, user, createSolanaWallet]);
+  }, [
+    authenticated,
+    ready,
+    privyUser,
+    createWallet,
+    createSolanaWallet,
+    walletsCreated,
+  ]);
+
+  // Auto-create wallets when user is authenticated
+  useEffect(() => {
+    if (
+      authenticated &&
+      ready &&
+      privyUser &&
+      (!walletsCreated.ethereum || !walletsCreated.solana)
+    ) {
+      logger.info('Auto-creating wallets on authentication...');
+      createPrivyWallets().catch((error) => {
+        logger.error('Auto wallet creation failed:', error);
+      });
+    }
+  }, [
+    authenticated,
+    ready,
+    privyUser,
+    walletsCreated,
+    createPrivyWallets,
+  ]);
 
   const handleUserProfileModal = () => {
     onOpen();
@@ -302,10 +388,19 @@ export default function Registration({
     setIsSubmitting(true);
 
     try {
-      if (createPrivyWallets) {
-        await createPrivyWallets();
-        refreshWalletData();
-      }
+      // Create wallets first and wait for completion
+      logger.info('Starting wallet creation in registration form...');
+      await createPrivyWallets();
+
+      // Add a small delay to ensure wallet data is updated
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+
+      // Refresh wallet data after creation
+      refreshWalletData();
+
+      logger.info(
+        'Wallet creation completed, proceeding with user registration...'
+      );
 
       // Process profile image
       let avatarUrl = profileImage;
@@ -326,6 +421,13 @@ export default function Registration({
         (wallet) => !wallet?.isEVM
       );
 
+      logger.info('Wallet data for registration:', {
+        walletData,
+        ethereumWallet: ethereumWallet?.address,
+        solanaWallet: solanaWallet?.address,
+        walletsCreated,
+      });
+
       // Format user data for API
       const userData = {
         name,
@@ -343,7 +445,7 @@ export default function Registration({
         solanaWallet: solanaWallet?.address,
       };
 
-      // Create user and smartsite
+      // Create user and smartsite using v4 signup endpoint
       const response = await fetch(
         `${process.env.NEXT_PUBLIC_API_URL}/api/v2/desktop/user/create`,
         {
@@ -356,10 +458,17 @@ export default function Registration({
       );
 
       if (!response.ok) {
-        throw new Error('Failed to create user and smartsite');
+        const errorData = await response
+          .json()
+          .catch(() => ({ message: 'Unknown error' }));
+        console.error('Registration error:', errorData);
+        throw new Error(
+          errorData.message || 'Failed to create user and smartsite'
+        );
       }
 
       const result = await response.json();
+      console.log('Registration success:', result);
 
       // Create wallet balance record
       const walletPayload = {
@@ -368,7 +477,13 @@ export default function Registration({
         userId: result.data._id,
       };
 
-      await createWalletBalance(walletPayload);
+      console.log('Wallet payload:', walletPayload);
+
+      try {
+        await createWalletBalance(walletPayload);
+      } catch (error) {
+        console.error('Error creating wallet balance:', error);
+      }
 
       toast({
         title: 'Success',
@@ -636,13 +751,51 @@ export default function Registration({
                 </div>
               </div>
 
+              {/* Debug section for wallet creation status */}
+              {process.env.NODE_ENV === 'development' && (
+                <div className="mt-4 p-4 bg-gray-100 rounded text-xs">
+                  <h4 className="font-semibold mb-2">Debug Info:</h4>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <p>
+                        <strong>Authenticated:</strong>{' '}
+                        {authenticated.toString()}
+                      </p>
+                      <p>
+                        <strong>Ready:</strong> {ready.toString()}
+                      </p>
+                      <p>
+                        <strong>User Available:</strong>{' '}
+                        {(!!privyUser).toString()}
+                      </p>
+                    </div>
+                    <div>
+                      <p>
+                        <strong>Ethereum Created:</strong>{' '}
+                        {walletsCreated.ethereum.toString()}
+                      </p>
+                      <p>
+                        <strong>Solana Created:</strong>{' '}
+                        {walletsCreated.solana.toString()}
+                      </p>
+                      <p>
+                        <strong>Wallet Count:</strong>{' '}
+                        {walletData.length}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
+
               <div className="flex justify-center col-span-2">
                 <Button
                   className="bg-black text-white w-1/4 hover:bg-gray-800"
                   type="submit"
                   disabled={isSubmitting}
                 >
-                  {isSubmitting ? 'Creating...' : 'Next'}
+                  {isSubmitting
+                    ? 'Creating Wallets & Account...'
+                    : 'Next'}
                 </Button>
               </div>
             </form>

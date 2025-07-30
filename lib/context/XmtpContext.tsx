@@ -1,4 +1,4 @@
-"use client";
+'use client';
 
 import React, {
   createContext,
@@ -7,8 +7,8 @@ import React, {
   useCallback,
   useMemo,
   useEffect,
-} from "react";
-import { useWallets } from "@privy-io/react-auth";
+} from 'react';
+import { useWallets } from '@privy-io/react-auth';
 import {
   Client,
   Identifier,
@@ -17,8 +17,8 @@ import {
   Dm,
   Group,
   ConsentState,
-} from "@xmtp/browser-sdk";
-import { ethers } from "ethers";
+} from '@xmtp/browser-sdk';
+import { ethers } from 'ethers';
 
 export type AnyConversation =
   | Conversation<unknown>
@@ -35,7 +35,9 @@ interface XmtpContextValue {
   initClient: () => Promise<Client | null>;
   disconnect: () => void;
   refreshConversations: () => Promise<void>;
-  newConversation: (addressOrName: string) => Promise<AnyConversation | null>;
+  newConversation: (
+    addressOrName: string
+  ) => Promise<AnyConversation | null>;
   sendText: (
     conversation: AnyConversation,
     message: string
@@ -50,17 +52,22 @@ const XmtpContext = createContext<XmtpContextValue | null>(null);
 
 export const useXmtpContext = (): XmtpContextValue => {
   const ctx = useContext(XmtpContext);
-  if (!ctx) throw new Error("useXmtpContext must be used within XmtpProvider");
+  if (!ctx)
+    throw new Error(
+      'useXmtpContext must be used within XmtpProvider'
+    );
   return ctx;
 };
 
-export const XmtpProvider: React.FC<{ children: React.ReactNode }> = ({
-  children,
-}) => {
+export const XmtpProvider: React.FC<{
+  children: React.ReactNode;
+}> = ({ children }) => {
   const { wallets } = useWallets();
   const [client, setClient] = useState<Client | null>(null);
   const [isConnected, setIsConnected] = useState(false);
-  const [conversations, setConversations] = useState<AnyConversation[]>([]);
+  const [conversations, setConversations] = useState<
+    AnyConversation[]
+  >([]);
   const [conversationRequests, setConversationRequests] = useState<
     AnyConversation[]
   >([]);
@@ -69,35 +76,22 @@ export const XmtpProvider: React.FC<{ children: React.ReactNode }> = ({
 
   // Get the Ethereum wallet from Privy
   const privyEthWallet = useMemo(() => {
-    console.log("🔍 [XmtpContext] Checking wallets:", {
-      walletsLength: wallets?.length || 0,
-      wallets: wallets?.map((w) => ({ type: w.type, address: w.address })),
-    });
-
     if (!wallets?.length) {
-      console.log("⚠️ [XmtpContext] No wallets available");
       return null;
     }
 
-    const ethWallet = wallets.find((w) => w?.type === "ethereum");
+    const ethWallet = wallets.find((w) => w?.type === 'ethereum');
     if (ethWallet) {
-      console.log("✅ [XmtpContext] Found Ethereum wallet:", ethWallet.address);
       return ethWallet;
     }
 
-    console.log(
-      "⚠️ [XmtpContext] No Ethereum wallet found, using first wallet"
-    );
     return wallets[0];
   }, [wallets]);
 
   // Initialize the XMTP client
   const initClient = useCallback(async (): Promise<Client | null> => {
     if (!privyEthWallet) {
-      console.log(
-        "❌ [XmtpContext] No Privy wallet available for XMTP initialization"
-      );
-      setError(new Error("No wallet connected"));
+      setError(new Error('No wallet connected'));
       setLoading(false);
       return null;
     }
@@ -106,66 +100,56 @@ export const XmtpProvider: React.FC<{ children: React.ReactNode }> = ({
       setLoading(true);
       setError(null);
 
-      console.log("🔄 [XmtpContext] Starting XMTP client initialization...");
-      console.log("🔄 [XmtpContext] Wallet details:", {
-        address: privyEthWallet.address,
-        type: privyEthWallet.type,
-      });
-
       // Get the Ethereum provider from Privy wallet
-      console.log("🔄 [XmtpContext] Getting Ethereum provider...");
       const provider = await privyEthWallet.getEthereumProvider();
 
       if (!provider) {
-        throw new Error("Failed to get Ethereum provider from Privy wallet");
+        throw new Error(
+          'Failed to get Ethereum provider from Privy wallet'
+        );
       }
 
-      console.log("✅ [XmtpContext] Ethereum provider obtained");
-
       // Create ethers provider and signer
-      const ethersProvider = new ethers.BrowserProvider(provider as any);
+      const ethersProvider = new ethers.BrowserProvider(
+        provider as any
+      );
       const ethSigner = await ethersProvider.getSigner();
       const address = await ethSigner.getAddress();
 
-      console.log("✅ [XmtpContext] Ethereum signer ready:", {
+      console.log('✅ [XmtpContext] Ethereum signer ready:', {
         address: address,
         walletAddress: privyEthWallet.address,
-        match: address.toLowerCase() === privyEthWallet.address.toLowerCase(),
+        match:
+          address.toLowerCase() ===
+          privyEthWallet.address.toLowerCase(),
       });
 
       // Create XMTP-compatible signer following v3 documentation
       const accountIdentifier: Identifier = {
         identifier: address.toLowerCase(),
-        identifierKind: "Ethereum",
+        identifierKind: 'Ethereum',
       };
 
       const xmtpSigner: XMSigner = {
-        type: "EOA",
+        type: 'EOA',
         getIdentifier: () => accountIdentifier,
         signMessage: async (message: string): Promise<Uint8Array> => {
-          console.log("🔄 [XmtpContext] Signing message for XMTP...");
           try {
             const signature = await ethSigner.signMessage(message);
-            console.log("✅ [XmtpContext] Message signed successfully");
             return ethers.getBytes(signature);
           } catch (signError) {
-            console.error("❌ [XmtpContext] Error signing message:", signError);
+            console.error(
+              '❌ [XmtpContext] Error signing message:',
+              signError
+            );
             throw signError;
           }
         },
       };
 
-      console.log("🔄 [XmtpContext] Creating XMTP client...");
-
       // Create XMTP client following v3 documentation
       const xmtp = await Client.create(xmtpSigner, {
-        env: "production", // Use production environment for real deployment
-      });
-
-      console.log("✅ [XmtpContext] XMTP client created successfully:", {
-        inboxId: xmtp.inboxId,
-        address: address,
-        clientReady: !!xmtp,
+        env: 'production', // Use production environment for real deployment
       });
 
       setClient(xmtp);
@@ -174,15 +158,20 @@ export const XmtpProvider: React.FC<{ children: React.ReactNode }> = ({
 
       return xmtp;
     } catch (error) {
-      console.error("❌ [XmtpContext] Error initializing XMTP client:", error);
+      console.error(
+        '❌ [XmtpContext] Error initializing XMTP client:',
+        error
+      );
 
       // Provide more specific error messages
-      let errorMessage = "Failed to initialize XMTP client";
+      let errorMessage = 'Failed to initialize XMTP client';
       if (error instanceof Error) {
-        if (error.message.includes("User rejected")) {
-          errorMessage = "Wallet signature was rejected. Please try again.";
-        } else if (error.message.includes("network")) {
-          errorMessage = "Network error. Please check your connection.";
+        if (error.message.includes('User rejected')) {
+          errorMessage =
+            'Wallet signature was rejected. Please try again.';
+        } else if (error.message.includes('network')) {
+          errorMessage =
+            'Network error. Please check your connection.';
         } else {
           errorMessage = error.message;
         }
@@ -197,186 +186,181 @@ export const XmtpProvider: React.FC<{ children: React.ReactNode }> = ({
 
   // Disconnect the XMTP client
   const disconnect = useCallback(() => {
-    console.log("🔄 [XmtpContext] Disconnecting XMTP client...");
     setClient(null);
     setIsConnected(false);
     setConversations([]);
     setConversationRequests([]);
     setError(null);
-    console.log("✅ [XmtpContext] XMTP client disconnected");
   }, []);
 
   // Load conversations following v3 documentation
-  const refreshConversations = useCallback(async (): Promise<void> => {
-    if (!client) {
-      console.log("⚠️ [XmtpContext] Cannot refresh conversations - no client");
-      return;
-    }
+  const refreshConversations =
+    useCallback(async (): Promise<void> => {
+      if (!client) {
+        return;
+      }
 
-    try {
-      console.log("🔄 [XmtpContext] Syncing and loading conversations...");
-
-      // Sync new conversations from network (v3 approach)
       try {
-        await client.conversations.sync();
-        console.log("✅ [XmtpContext] Conversations synced from network");
-      } catch (syncErr) {
-        console.warn(
-          "⚠️ [XmtpContext] Sync warning (may be expected):",
-          syncErr
+        // Sync new conversations from network (v3 approach)
+        try {
+          await client.conversations.sync();
+        } catch (syncErr) {
+          console.warn(
+            '⚠️ [XmtpContext] Sync warning (may be expected):',
+            syncErr
+          );
+        }
+
+        // List all conversations
+        const convos = await client.conversations.list();
+
+        const allowedConvos: AnyConversation[] = [];
+        const requestConvos: AnyConversation[] = [];
+
+        // Process conversations and check consent state
+        for (const convo of convos) {
+          try {
+            const consentState = (convo as any).consentState;
+
+            if (consentState === 'allowed') {
+              allowedConvos.push(convo as AnyConversation);
+            } else {
+              requestConvos.push(convo as AnyConversation);
+            }
+          } catch (convoError) {
+            console.warn(
+              '⚠️ [XmtpContext] Error processing conversation:',
+              convoError
+            );
+            // Default to allowed if we can't determine consent state
+            allowedConvos.push(convo as AnyConversation);
+          }
+        }
+
+        setConversations(allowedConvos);
+        setConversationRequests(requestConvos);
+      } catch (error) {
+        console.error(
+          '❌ [XmtpContext] Error loading conversations:',
+          error
+        );
+        setError(
+          error instanceof Error
+            ? error
+            : new Error('Failed to load conversations')
         );
       }
-
-      // List all conversations
-      const convos = await client.conversations.list();
-      console.log("📝 [XmtpContext] Found conversations:", convos.length);
-
-      const allowedConvos: AnyConversation[] = [];
-      const requestConvos: AnyConversation[] = [];
-
-      // Process conversations and check consent state
-      for (const convo of convos) {
-        try {
-          const consentState = (convo as any).consentState;
-          console.log("📝 [XmtpContext] Conversation consent state:", {
-            id: (convo as any).id,
-            consentState: consentState,
-          });
-
-          if (consentState === "allowed") {
-            allowedConvos.push(convo as AnyConversation);
-          } else {
-            requestConvos.push(convo as AnyConversation);
-          }
-        } catch (convoError) {
-          console.warn(
-            "⚠️ [XmtpContext] Error processing conversation:",
-            convoError
-          );
-          // Default to allowed if we can't determine consent state
-          allowedConvos.push(convo as AnyConversation);
-        }
-      }
-
-      setConversations(allowedConvos);
-      setConversationRequests(requestConvos);
-
-      console.log("✅ [XmtpContext] Conversations loaded:", {
-        allowed: allowedConvos.length,
-        requests: requestConvos.length,
-        total: convos.length,
-      });
-    } catch (error) {
-      console.error("❌ [XmtpContext] Error loading conversations:", error);
-      setError(
-        error instanceof Error
-          ? error
-          : new Error("Failed to load conversations")
-      );
-    }
-  }, [client]);
+    }, [client]);
 
   // Create new conversation following v3 documentation
   const newConversation = useCallback(
-    async (addressOrName: string): Promise<AnyConversation | null> => {
+    async (
+      addressOrName: string
+    ): Promise<AnyConversation | null> => {
       if (!client) {
-        console.log("❌ [XmtpContext] Cannot create conversation - no client");
         return null;
       }
 
       try {
-        console.log(
-          "🔄 [XmtpContext] Creating new conversation with:",
-          addressOrName
-        );
-
         let address = addressOrName;
 
         // Handle ENS resolution
-        if (addressOrName.includes(".eth")) {
-          console.log("🔄 [XmtpContext] Resolving ENS name:", addressOrName);
+        if (addressOrName.includes('.eth')) {
           const provider = new ethers.JsonRpcProvider(
-            "https://eth-mainnet.g.alchemy.com/v2/3YZEMwwXrlGYDY4t-PQED7DOx28wR9av"
+            'https://eth-mainnet.g.alchemy.com/v2/3YZEMwwXrlGYDY4t-PQED7DOx28wR9av'
           );
-          const resolvedAddress = await provider.resolveName(addressOrName);
+          const resolvedAddress = await provider.resolveName(
+            addressOrName
+          );
           if (!resolvedAddress) {
-            throw new Error(`Could not resolve ENS name: ${addressOrName}`);
+            throw new Error(
+              `Could not resolve ENS name: ${addressOrName}`
+            );
           }
           address = resolvedAddress;
-          console.log("✅ [XmtpContext] ENS resolved to:", address);
         }
 
         // Check if address can receive messages
         const canMessageResult = await client.canMessage([
           {
             identifier: address.toLowerCase(),
-            identifierKind: "Ethereum",
+            identifierKind: 'Ethereum',
           },
         ]);
 
         const canMsg = canMessageResult.get(address.toLowerCase());
         if (!canMsg) {
-          throw new Error(`Address ${address} cannot receive XMTP messages`);
+          throw new Error(
+            `Address ${address} cannot receive XMTP messages`
+          );
         }
-
-        console.log("✅ [XmtpContext] Address can receive messages");
 
         // Create identifier for the peer
         const identifier: Identifier = {
           identifier: address.toLowerCase(),
-          identifierKind: "Ethereum",
+          identifierKind: 'Ethereum',
         };
 
         // First, get the peer's inbox ID
-        console.log("🔄 [XmtpContext] Getting peer inbox ID...");
         let peerInboxId: string;
 
         try {
           // For XMTP v3, we need to get the inbox ID from the identifier
           // This is a simplified approach - in production you might need to handle this differently
-          const inboxId = await client.findInboxIdByIdentifier(identifier);
+          const inboxId = await client.findInboxIdByIdentifier(
+            identifier
+          );
 
           if (!inboxId) {
-            throw new Error(`Could not get inbox ID for address: ${address}`);
+            throw new Error(
+              `Could not get inbox ID for address: ${address}`
+            );
           }
 
           peerInboxId = inboxId;
-          console.log("✅ [XmtpContext] Peer inbox ID found:", peerInboxId);
         } catch (error) {
-          console.error("❌ [XmtpContext] Error getting peer inbox ID:", error);
+          console.error(
+            '❌ [XmtpContext] Error getting peer inbox ID:',
+            error
+          );
           throw error;
         }
 
         // Check if we already have a DM with this peer
-        console.log("🔄 [XmtpContext] Checking for existing DM...");
         let conversation: any;
 
         try {
-          conversation = await client.conversations.getDmByInboxId(peerInboxId);
+          conversation = await client.conversations.getDmByInboxId(
+            peerInboxId
+          );
           if (conversation) {
-            console.log("✅ [XmtpContext] Found existing DM:", {
+            console.log('✅ [XmtpContext] Found existing DM:', {
               id: conversation.id,
               peerInboxId: peerInboxId,
             });
           }
         } catch (error) {
           console.log(
-            "📝 [XmtpContext] No existing DM found, will create new one"
+            '📝 [XmtpContext] No existing DM found, will create new one'
           );
           conversation = null;
         }
 
         // If no existing DM, create a new one
         if (!conversation) {
-          console.log("🆕 [XmtpContext] Creating new DM conversation...");
           try {
-            conversation = await client.conversations.newDm(peerInboxId);
-            console.log("✅ [XmtpContext] New DM created:", {
+            conversation = await client.conversations.newDm(
+              peerInboxId
+            );
+            console.log('✅ [XmtpContext] New DM created:', {
               id: conversation.id,
               peerInboxId: peerInboxId,
             });
           } catch (error) {
-            console.error("❌ [XmtpContext] Error creating new DM:", error);
+            console.error(
+              '❌ [XmtpContext] Error creating new DM:',
+              error
+            );
             throw error;
           }
         }
@@ -384,12 +368,9 @@ export const XmtpProvider: React.FC<{ children: React.ReactNode }> = ({
         // Ensure the conversation is allowed
         try {
           await conversation.updateConsentState(ConsentState.Allowed);
-          console.log(
-            "✅ [XmtpContext] Conversation consent state updated to allowed"
-          );
         } catch (error) {
           console.warn(
-            "⚠️ [XmtpContext] Warning updating consent state:",
+            '⚠️ [XmtpContext] Warning updating consent state:',
             error
           );
         }
@@ -399,11 +380,14 @@ export const XmtpProvider: React.FC<{ children: React.ReactNode }> = ({
 
         return conversation as unknown as AnyConversation;
       } catch (error) {
-        console.error("❌ [XmtpContext] Error creating conversation:", error);
+        console.error(
+          '❌ [XmtpContext] Error creating conversation:',
+          error
+        );
         setError(
           error instanceof Error
             ? error
-            : new Error("Failed to create conversation")
+            : new Error('Failed to create conversation')
         );
         return null;
       }
@@ -419,34 +403,37 @@ export const XmtpProvider: React.FC<{ children: React.ReactNode }> = ({
     ): Promise<unknown | null> => {
       if (!client || !conversation) {
         console.log(
-          "❌ [XmtpContext] Cannot send message - missing client or conversation"
+          '❌ [XmtpContext] Cannot send message - missing client or conversation'
         );
         return null;
       }
 
       try {
-        console.log("📤 [XmtpContext] Sending message:", message);
         const sent = await conversation.send(message);
-        console.log("✅ [XmtpContext] Message sent successfully");
         return sent;
       } catch (error) {
         // Handle the misleading "successful sync" error from XMTP SDK
         if (
           error instanceof Error &&
-          error.message.includes("synced") &&
-          error.message.includes("succeeded") &&
-          (error.message.includes("0 failed") ||
-            !error.message.includes("failed"))
+          error.message.includes('synced') &&
+          error.message.includes('succeeded') &&
+          (error.message.includes('0 failed') ||
+            !error.message.includes('failed'))
         ) {
           console.log(
-            "🔄 [XmtpContext] Message sent successfully (sync message detected)"
+            '🔄 [XmtpContext] Message sent successfully (sync message detected)'
           );
           return true;
         }
 
-        console.error("❌ [XmtpContext] Error sending message:", error);
+        console.error(
+          '❌ [XmtpContext] Error sending message:',
+          error
+        );
         setError(
-          error instanceof Error ? error : new Error("Failed to send message")
+          error instanceof Error
+            ? error
+            : new Error('Failed to send message')
         );
         return null;
       }
@@ -458,16 +445,19 @@ export const XmtpProvider: React.FC<{ children: React.ReactNode }> = ({
   const allowConversation = useCallback(
     async (conversation: AnyConversation): Promise<void> => {
       try {
-        console.log("🔄 [XmtpContext] Allowing conversation...");
-        await (conversation as any).updateConsentState(ConsentState.Allowed);
+        await (conversation as any).updateConsentState(
+          ConsentState.Allowed
+        );
         await refreshConversations();
-        console.log("✅ [XmtpContext] Conversation allowed");
       } catch (error) {
-        console.error("❌ [XmtpContext] Error allowing conversation:", error);
+        console.error(
+          '❌ [XmtpContext] Error allowing conversation:',
+          error
+        );
         setError(
           error instanceof Error
             ? error
-            : new Error("Failed to allow conversation")
+            : new Error('Failed to allow conversation')
         );
       }
     },
@@ -482,12 +472,15 @@ export const XmtpProvider: React.FC<{ children: React.ReactNode }> = ({
       try {
         const identifier: Identifier = {
           identifier: address.toLowerCase(),
-          identifierKind: "Ethereum",
+          identifierKind: 'Ethereum',
         };
         const result = await client.canMessage([identifier]);
         return result.get(address.toLowerCase()) ?? false;
       } catch (error) {
-        console.error("❌ [XmtpContext] Error checking canMessage:", error);
+        console.error(
+          '❌ [XmtpContext] Error checking canMessage:',
+          error
+        );
         return false;
       }
     },
@@ -500,23 +493,23 @@ export const XmtpProvider: React.FC<{ children: React.ReactNode }> = ({
       if (!conversation) return [];
 
       try {
-        console.log("🔄 [XmtpContext] Loading messages...");
-
         // Sync conversation to get latest messages
         try {
           await (conversation as any).sync?.();
         } catch (syncError) {
           console.warn(
-            "⚠️ [XmtpContext] Sync warning (may be expected):",
+            '⚠️ [XmtpContext] Sync warning (may be expected):',
             syncError
           );
         }
 
         const messages = await conversation.messages();
-        console.log("✅ [XmtpContext] Messages loaded:", messages.length);
         return messages;
       } catch (error) {
-        console.error("❌ [XmtpContext] Error loading messages:", error);
+        console.error(
+          '❌ [XmtpContext] Error loading messages:',
+          error
+        );
         return [];
       }
     },
@@ -530,33 +523,10 @@ export const XmtpProvider: React.FC<{ children: React.ReactNode }> = ({
 
   // Auto-initialize when wallet becomes available
   useEffect(() => {
-    console.log("🔍 [XmtpContext] Auto-init check:", {
-      hasWallet: !!privyEthWallet,
-      hasClient: !!client,
-      isLoading: loading,
-    });
-
     if (privyEthWallet && !client && !loading) {
-      console.log("🚀 [XmtpContext] Starting auto-initialization...");
+      console.log('🚀 [XmtpContext] Starting auto-initialization...');
       initClient();
     }
-  }, []);
-
-  // Auto-load conversations when client is ready
-  useEffect(() => {
-    if (client && isConnected) {
-      console.log("🚀 [XmtpContext] Client ready, loading conversations...");
-      refreshConversations();
-    }
-  }, []);
-
-  // Debug wallet state changes
-  useEffect(() => {
-    console.log("🔍 [XmtpContext] Wallet state changed:", {
-      walletCount: wallets?.length || 0,
-      hasEthWallet: !!privyEthWallet,
-      walletAddress: privyEthWallet?.address,
-    });
   }, []);
 
   // Value object to be provided by the context
@@ -597,5 +567,9 @@ export const XmtpProvider: React.FC<{ children: React.ReactNode }> = ({
     ]
   );
 
-  return <XmtpContext.Provider value={value}>{children}</XmtpContext.Provider>;
+  return (
+    <XmtpContext.Provider value={value}>
+      {children}
+    </XmtpContext.Provider>
+  );
 };

@@ -1,4 +1,4 @@
-"use client";
+'use client';
 
 import {
   createContext,
@@ -8,9 +8,9 @@ import {
   useCallback,
   useMemo,
   useRef,
-} from "react";
-import { useRouter, usePathname } from "next/navigation";
-import { usePrivy } from "@privy-io/react-auth";
+} from 'react';
+import { useRouter, usePathname } from 'next/navigation';
+import { usePrivy } from '@privy-io/react-auth';
 
 export interface UserData {
   _id: string;
@@ -48,9 +48,9 @@ const UserContext = createContext<UserContextType | null>(null);
 
 // Cookie management utilities
 const COOKIE_CONFIG = {
-  path: "/",
-  secure: process.env.NODE_ENV === "production",
-  sameSite: "strict" as const,
+  path: '/',
+  secure: process.env.NODE_ENV === 'production',
+  sameSite: 'strict' as const,
   maxAge: 86400, // 24 hours
 };
 
@@ -61,9 +61,9 @@ const setCookie = (
 ) => {
   const config = `${name}=${value}; path=${
     COOKIE_CONFIG.path
-  }; max-age=${maxAge}; ${COOKIE_CONFIG.secure ? "secure; " : ""}samesite=${
-    COOKIE_CONFIG.sameSite
-  }`;
+  }; max-age=${maxAge}; ${
+    COOKIE_CONFIG.secure ? 'secure; ' : ''
+  }samesite=${COOKIE_CONFIG.sameSite}`;
   document.cookie = config;
 };
 
@@ -71,37 +71,43 @@ const clearCookie = (name: string) => {
   document.cookie = `${name}=; path=${
     COOKIE_CONFIG.path
   }; expires=Thu, 01 Jan 1970 00:00:00 GMT; ${
-    COOKIE_CONFIG.secure ? "secure; " : ""
+    COOKIE_CONFIG.secure ? 'secure; ' : ''
   }samesite=${COOKIE_CONFIG.sameSite}`;
 };
 
 const clearAllAuthCookies = () => {
   const authCookies = [
-    "privy-token",
-    "privy-id-token",
-    "privy-refresh-token",
-    "access-token",
-    "user-id",
+    'privy-token',
+    'privy-id-token',
+    'privy-refresh-token',
+    'access-token',
+    'user-id',
   ];
   authCookies.forEach(clearCookie);
 };
 
 // Authentication states
 enum AuthState {
-  INITIALIZING = "initializing",
-  CHECKING_BACKEND = "checking_backend",
-  AUTHENTICATED = "authenticated",
-  UNAUTHENTICATED = "unauthenticated",
-  ERROR = "error",
+  INITIALIZING = 'initializing',
+  CHECKING_BACKEND = 'checking_backend',
+  AUTHENTICATED = 'authenticated',
+  UNAUTHENTICATED = 'unauthenticated',
+  ERROR = 'error',
 }
 
-export function UserProvider({ children }: { children: React.ReactNode }) {
+export function UserProvider({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
   // State management
   const [user, setUser] = useState<UserData | null>(null);
   const [accessToken, setAccessToken] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
-  const [authState, setAuthState] = useState<AuthState>(AuthState.INITIALIZING);
+  const [authState, setAuthState] = useState<AuthState>(
+    AuthState.INITIALIZING
+  );
 
   // Hooks
   const router = useRouter();
@@ -122,13 +128,13 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
   // Constants
   const PUBLIC_ROUTES = useMemo(
     () => [
-      "/sp",
-      "/login",
-      "/signup",
-      "/onboard",
-      "/welcome",
-      "/debug-privy",
-      "/guest-order",
+      '/sp',
+      '/login',
+      '/signup',
+      '/onboard',
+      '/welcome',
+      '/debug-privy',
+      '/guest-order',
     ],
     []
   );
@@ -143,10 +149,11 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
       return (
         privyUser.google?.email ||
         privyUser.email?.address ||
-        privyUser.linkedAccounts?.find((acc: any) => acc.type === "email")
-          ?.address ||
         privyUser.linkedAccounts?.find(
-          (acc: any) => acc.type === "google_oauth"
+          (acc: any) => acc.type === 'email'
+        )?.address ||
+        privyUser.linkedAccounts?.find(
+          (acc: any) => acc.type === 'google_oauth'
         )?.email ||
         null
       );
@@ -176,7 +183,7 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
   const fetchUserData = useCallback(
     async (email: string): Promise<boolean> => {
       if (!email || !API_BASE_URL) {
-        console.error("Missing email or API URL");
+        console.error('Missing email or API URL');
         return false;
       }
 
@@ -209,7 +216,7 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
           `${API_BASE_URL}/api/v2/desktop/user/${email}`,
           {
             headers: {
-              "Content-Type": "application/json",
+              'Content-Type': 'application/json',
             },
             signal: abortControllerRef.current.signal,
           }
@@ -223,7 +230,7 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
 
             // Only redirect if not already on public route
             if (!isPublicRoute(pathname)) {
-              router.push("/onboard");
+              router.push('/onboard');
             }
             return false;
           }
@@ -233,19 +240,21 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
             await privyLogout();
 
             if (!isPublicRoute(pathname)) {
-              router.push("/login");
+              router.push('/login');
             }
             return false;
           }
 
-          throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+          throw new Error(
+            `HTTP ${response.status}: ${response.statusText}`
+          );
         }
 
         const data = await response.json();
         const { user: userData, token } = data;
 
         if (!userData || !token) {
-          throw new Error("Invalid response structure");
+          throw new Error('Invalid response structure');
         }
 
         // Update state
@@ -256,21 +265,21 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
         lastFetchedEmailRef.current = email;
 
         // Set cookies
-        setCookie("access-token", token);
-        setCookie("user-id", userData._id);
+        setCookie('access-token', token);
+        setCookie('user-id', userData._id);
 
         return true;
       } catch (err) {
-        console.error("Error fetching user data:", err);
+        console.error('Error fetching user data:', err);
 
         // Handle specific errors
         if (err instanceof Error) {
-          if (err.name === "AbortError") {
+          if (err.name === 'AbortError') {
             return false;
           }
           setError(err);
         } else {
-          setError(new Error("Unknown error occurred"));
+          setError(new Error('Unknown error occurred'));
         }
 
         // Only clear session on actual errors, not on public routes
@@ -305,12 +314,12 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
 
       clearUserSession();
       await privyLogout();
-      router.push("/login");
+      router.push('/login');
     } catch (err) {
-      console.error("Error during logout:", err);
+      console.error('Error during logout:', err);
       // Force clear even if logout fails
       clearUserSession();
-      router.push("/login");
+      router.push('/login');
     }
   }, [clearUserSession, privyLogout, router]);
 
@@ -386,7 +395,7 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
         clearUserSession();
         setLoading(false);
         if (!isPublicRoute(pathname)) {
-          router.push("/login");
+          router.push('/login');
         }
         return;
       }
@@ -394,10 +403,10 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
       // Extract email from Privy user
       const email = extractEmailFromPrivyUser(privyUser);
       if (!email) {
-        setError(new Error("No email found in account"));
+        setError(new Error('No email found in account'));
         setLoading(false);
         if (!isPublicRoute(pathname)) {
-          router.push("/onboard");
+          router.push('/onboard');
         }
         return;
       }
@@ -420,12 +429,10 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
     authenticated,
     privyUser,
     pathname,
-    isPublicRoute,
     extractEmailFromPrivyUser,
     fetchUserData,
     clearUserSession,
     router,
-    user,
   ]);
 
   // Session validation effect
@@ -435,7 +442,7 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
       clearUserSession();
 
       if (!isPublicRoute(pathname)) {
-        router.push("/login");
+        router.push('/login');
       }
     }
   }, [
@@ -486,21 +493,32 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
       error,
       refreshUser,
       logout: handleLogout,
-      isAuthenticated: authState === AuthState.AUTHENTICATED && !!user,
+      isAuthenticated:
+        authState === AuthState.AUTHENTICATED && !!user,
       primaryMicrosite: user?.primaryMicrosite,
     }),
-    [user, accessToken, loading, error, refreshUser, handleLogout, authState]
+    [
+      user,
+      accessToken,
+      loading,
+      error,
+      refreshUser,
+      handleLogout,
+      authState,
+    ]
   );
 
   return (
-    <UserContext.Provider value={contextValue}>{children}</UserContext.Provider>
+    <UserContext.Provider value={contextValue}>
+      {children}
+    </UserContext.Provider>
   );
 }
 
 export const useUser = () => {
   const context = useContext(UserContext);
   if (!context) {
-    throw new Error("useUser must be used within a UserProvider");
+    throw new Error('useUser must be used within a UserProvider');
   }
   return context;
 };

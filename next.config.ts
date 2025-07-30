@@ -64,7 +64,7 @@ const nextConfig: NextConfig = {
     // Fix for wbg issue and other problematic imports
     config.resolve.alias = {
       ...config.resolve.alias,
-      'wbg': false,
+      wbg: false,
     };
 
     // Additional optimization for XMTP WASM handling
@@ -123,4 +123,4 @@ const nextConfig: NextConfig = {
   ],
 };
 
-export default nextConfig; 
+export default nextConfig;

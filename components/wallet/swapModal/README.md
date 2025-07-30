@@ -1,114 +1,84 @@
-# Swap Modal Component
+# Ethereum Token Swap Implementation
 
-The Swap Modal component provides a user-friendly interface for swapping tokens on the Solana blockchain using the Jupiter Exchange aggregator. It allows users to exchange tokens with competitive rates, customizable slippage, and priority fees.
+This directory contains the implementation for swapping Ethereum-based tokens using the Uniswap V3 API and smart contracts.
+
+## Setup
+
+### Prerequisites
+
+1. **API Key**: You need an API key from an Ethereum RPC provider like [Alchemy](https://www.alchemy.com/) or [Infura](https://www.infura.io/) for executing swaps.
+   
+2. **Uniswap Dependencies**: The implementation uses both the Uniswap V3 SDK and the Uniswap API.
+
+### Configuration for Production
+
+1. Update the `MAINNET_RPC_URL` in `EthSwapHandler.tsx` with your API key:
+
+```typescript
+const MAINNET_RPC_URL = 'https://eth-mainnet.g.alchemy.com/v2/YOUR_API_KEY_HERE';
+```
+
+For security, you should use an environment variable:
+
+```typescript
+const MAINNET_RPC_URL = `https://eth-mainnet.g.alchemy.com/v2/${process.env.NEXT_PUBLIC_ALCHEMY_KEY}`;
+```
+
+2. Add the environment variable to your `.env` file:
+
+```
+NEXT_PUBLIC_ALCHEMY_KEY=your_alchemy_api_key
+```
 
 ## Features
 
-- **Token Selection**: Search and select from a wide range of Solana tokens
-- **Quote Fetching**: Automatically fetch real-time quotes from Jupiter Exchange
-- **Auto-refresh**: Quotes automatically refresh every 10 seconds to ensure accuracy
-- **Slippage Control**: Customizable slippage tolerance (default 0.5%)
-- **Priority Fee Selection**: Choose priority level for faster transaction processing
-- **Platform Fees**: Integrated 0.5% platform fee collection system
-- **Transaction Status**: Real-time transaction status updates and confirmation
-- **Balance Management**: View and manage token balances with half/max amount buttons
+- Real-time price quotes from Uniswap V3 API
+- Accurate price impact calculation
+- Support for ERC20 tokens and native ETH
+- Gas estimation
+- Slippage protection
+- Fallback to simulated quotes for development
 
-## Component Structure
+## Architecture
 
-- **SwapModal.tsx**: Main component that handles the swap interface
-- **types.ts**: TypeScript interfaces for the component
-- **utils/**: Helper functions and subcomponents
+- **EthSwapModal.tsx**: Main modal component for Ethereum swaps
+- **EthSwapHandler.tsx**: Handles wallet connection and swap execution
+- **handleEthSwap.ts**: Core swap logic using Uniswap contracts
+- **ethSwapUtils.ts**: Utility functions and constants
+- **EthPriceCard.tsx**: Displays swap quote information
 
-### Key Subcomponents
+## Implementation Notes
 
-- **SlippageControl**: Allows users to adjust slippage tolerance
-- **PriceCard**: Displays price information and impact
-- **PriorityFeeSelector**: Lets users choose transaction priority level
+### Quoter Implementation
 
-## Usage
+The implementation uses the Uniswap API for fetching quotes instead of direct contract calls. This approach:
 
-```tsx
-import SwapModal from '@/components/wallet/swapModal/SwapModal';
+1. Works reliably with free tier API keys
+2. Provides more accurate quotes with less code
+3. Handles all the complexities of route finding and price calculation
 
-// Inside your component
-const [open, setOpen] = useState(false);
+If the API fails, a fallback mechanism provides simulated quotes for testing purposes.
 
-return (
-  <>
-    <Button onClick={() => setOpen(true)}>Swap Tokens</Button>
-    <SwapModal
-      open={open}
-      onOpenChange={setOpen}
-      userToken={yourTokenArray}
-      accessToken={yourAccessToken}
-    />
-  </>
-);
-```
+### Swap Execution
 
-## API Reference
+Swaps are executed directly against the Uniswap V3 Router contract, requiring:
 
-### Props
+1. An active wallet connection 
+2. A valid signer with ETH for gas
+3. Proper token allowances (handled automatically)
 
-| Prop | Type | Description |
-|------|------|-------------|
-| `open` | boolean | Controls whether the modal is displayed |
-| `onOpenChange` | function | Callback function when modal open state changes |
-| `userToken` | TokenInfo[] | Array of user's tokens |
-| `accessToken` | string | Authentication token for API requests |
+## Production Considerations
 
-### TokenInfo Interface
+1. **Rate Limiting**: Be aware of the RPC provider's rate limits. Production apps with high volume might require higher tier plans.
 
-```typescript
-interface TokenInfo {
-  symbol: string;
-  address?: PublicKey;
-  id?: PublicKey;
-  icon?: string;
-  logoURI?: string;
-  decimals?: number;
-  balance?: string;
-  price?: string;
-  usdPrice?: string;
-  marketData?: { price?: string; };
-  name?: string;
-}
-```
+2. **CORS Issues**: The Uniswap API may have CORS restrictions. For production, consider implementing a backend proxy or using the router contract directly.
 
-## Platform Fee System
+3. **Token Lists**: For production, consider using a more comprehensive token list rather than the hardcoded defaults.
 
-The swap functionality includes a platform fee system that collects a 0.5% fee (50 basis points) on all swap transactions. The implementation:
+4. **Security**: Ensure your API keys are properly secured and not exposed in client-side code. Use environment variables and server-side API proxying when possible.
 
-1. Creates token accounts for the platform fee wallet if needed
-2. Collects fees in the input token (the token being swapped)
-3. Uses Jupiter's API for processing the swap with fee collection
+5. **Testing**: Always test thoroughly on testnets before deploying to production.
 
-See the [utils/README.md](./utils/README.md) for detailed information on the fee collection system.
+## Customization
 
-## How It Works
-
-1. **Token Selection**: User selects input and output tokens
-2. **Amount Input**: User enters the amount they want to swap
-3. **Quote Fetching**: System fetches real-time quotes from Jupiter
-4. **Transaction Preparation**: Creates and simulates the transaction before sending
-5. **Transaction Execution**: Executes the swap transaction
-6. **Status Updates**: Provides real-time updates on transaction status
-7. **Confirmation**: Displays success message with transaction signature
-
-## Dependencies
-
-- **Solana Web3.js**: For blockchain interaction
-- **Jupiter API**: For swap routing and execution
-- **Privy Auth**: For wallet connection via `useSolanaWallets` hook
-- **Lucide Icons**: For UI elements
-- **React**: For component framework
-- **Next.js**: For application framework
-
-## Developer Notes
-
-- Ensure the `NEXT_PUBLIC_QUICKNODE_SOLANA_URL` environment variable is set for RPC connections
-- Platform fee configuration is in `utils/feeConfig.ts` (set to 50 basis points or 0.5%)
-- Transaction handling is managed in `utils/handleSwap.ts`
-- Token utilities are available in `utils/swapUtils.ts`
-- Token account creation is handled in `utils/tokenAccountUtils.ts`
-- Private key for fee collection must be set in environment variables
+You can customize the fees, slippage defaults, and supported tokens in the `ethSwapUtils.ts` file.
