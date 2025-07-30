@@ -151,10 +151,12 @@
 //   );
 // }
 
+export const dynamic = "force-dynamic";
+
 import { getMicrositeViewer } from "@/actions/micrositeViewer";
 import AnalyticsView from "@/components/analytics/AnalyticsView";
 
-const page = async () => {
+const AnalyticsPage = async () => {
   const viewersData = await getMicrositeViewer();
 
   return (
@@ -164,4 +166,4 @@ const page = async () => {
   );
 };
 
-export default page;
+export default AnalyticsPage;
