@@ -1,10 +1,12 @@
 'use client';
 
-import { LiFiWidget } from '@lifi/widget';
+import { LiFiWidget, WidgetConfig } from '@lifi/widget';
 import { WidgetEvent, useWidgetEvents } from '@lifi/widget';
 import { useEffect, useMemo, useState } from 'react';
 import { ChainId } from '@lifi/widget';
 import { useWallets, useSolanaWallets } from '@privy-io/react-auth';
+import { useWallet } from '@solana/wallet-adapter-react';
+import { PrivySolanaSync } from './PrivySolanaSync';
 
 interface LiFiModalProps {
     config: any;
@@ -17,15 +19,13 @@ export default function LiFiModal({
     onSwapComplete,
     integrator = 'nextjs-example'
 }: LiFiModalProps) {
-    // Get Privy wallets directly
     const { wallets } = useWallets();
     const { wallets: solWallets } = useSolanaWallets();
+    const { connected: solanaConnected, publicKey: solanaPublicKey } = useWallet();
     const [preferSolana, setPreferSolana] = useState(false);
+    const [widgetKey, setWidgetKey] = useState(0);
 
-    // Handle LiFi widget events
     const widgetEvents = useWidgetEvents();
-
-
 
     useEffect(() => {
         const onRouteExecutionCompleted = () => {
@@ -62,42 +62,19 @@ export default function LiFiModal({
 
     const solWallet = solWallets && solWallets.length > 0 ? solWallets[0] : null;
 
-    // Alternative: Force wallet connection on switch
+    // Force widget re-render when switching wallets or connection changes
     useEffect(() => {
-        if (preferSolana && solWallet && widgetEvents) {
-            // Force LiFi to recognize the Solana wallet
-            console.log('Forcing Solana wallet connection...');
-            // You might need to trigger a custom event here
-        }
-    }, [preferSolana, solWallet, widgetEvents]);
+        setWidgetKey(prev => prev + 1);
+    }, [preferSolana, solanaConnected]);
 
     // Use the preferred wallet based on selection or availability
     const activeWallet = preferSolana ? solWallet : (ethWallet || solWallet);
     const activeAddress = activeWallet?.address || '';
     const isEthereumWallet = activeWallet === ethWallet;
 
-    // Log available wallets for debugging
-    useEffect(() => {
-        console.log("Debug - Wallet info:", {
-            ethWallet: ethWallet ? {
-                address: ethWallet.address,
-                type: ethWallet.type,
-                walletClientType: ethWallet.walletClientType,
-                chainId: ethWallet.chainId
-            } : null,
-            solWallet: solWallet ? {
-                address: solWallet.address
-            } : null,
-            activeAddress,
-            preferSolana,
-            isEthereumWallet
-        });
-    }, [wallets, solWallets, activeAddress, isEthereumWallet, preferSolana, ethWallet, solWallet]);
-
-    // Build LiFi widget config with proper Solana wallet configuration
+    // Build LiFi widget config
     const widgetConfig = useMemo(() => {
         const baseConfig = {
-            ...config,
             variant: 'expandable',
             appearance: 'light',
             containerStyle: {
@@ -111,14 +88,9 @@ export default function LiFiModal({
                     borderRadius: '16px',
                 },
             },
-            // Set default chains based on preference
-            fromChain: preferSolana ? ChainId.SOL : ChainId.ETH,
-
-            // Enhanced SDK config
+            integrator,
             sdkConfig: {
-                ...config.sdkConfig,
                 rpcUrls: {
-                    ...(config.sdkConfig?.rpcUrls || {}),
                     [ChainId.SOL]: [
                         'https://chaotic-restless-putty.solana-mainnet.quiknode.pro/',
                         'https://dacey-pp61jd-fast-mainnet.helius-rpc.com/',
@@ -127,60 +99,51 @@ export default function LiFiModal({
                 }
             }
         };
-
-        // Configure wallet management differently for Solana vs Ethereum
+        // For Solana wallet
         if (preferSolana && solWallet) {
             return {
                 ...baseConfig,
-                walletManagement: {
-                    connect: {
-                        external: true,
-                        enabled: false, // Disable wallet connection UI since we're managing externally
-                    },
-                    signer: {
-                        external: true,
-                        enabled: true,
-                    }
-                },
-                // For Solana, we need to provide wallet info in a specific format
-                wallet: {
-                    address: activeAddress,
-                    chainId: ChainId.SOL,
-                    provider: solWallet, // Pass the actual wallet object
-                },
-                // Also set walletAddress for backward compatibility
-                walletAddress: activeAddress,
-                // Set destination address to same as source for Solana
-                toAddress: activeAddress,
+                fromChain: ChainId.SOL,
+                chains: {
+                    allow: [ChainId.SOL],
+                    deny: []
+                }
             };
-        } else if (ethWallet) {
+        } 
+        // For Ethereum wallet
+        else if (ethWallet) {
             return {
                 ...baseConfig,
-                walletManagement: {
-                    connect: {
-                        external: true,
-                        enabled: false, // Disable since we're managing externally
-                    },
-                    signer: {
-                        external: true,
-                        enabled: true,
-                    }
-                },
-                walletAddress: activeAddress,
+                fromChain: ChainId.ETH,
+                chains: {
+                    allow: [ChainId.ETH, ChainId.POL, ChainId.BSC, ChainId.ARB, ChainId.OPT]
+                }
             };
         }
 
-        // Fallback configuration
-        return {
-            ...baseConfig,
-            walletManagement: {
-                connect: {
-                    external: false,
-                    enabled: true,
-                }
-            }
-        };
-    }, [config, activeAddress, preferSolana, solWallet, ethWallet]);
+        return baseConfig;
+    }, [preferSolana, solWallet, ethWallet, integrator]);
+
+    // Log available wallets for debugging
+    useEffect(() => {
+        console.log("Debug - Wallet info:", {
+            ethWallet: ethWallet ? {
+                address: ethWallet.address,
+                type: ethWallet.type,
+                walletClientType: ethWallet.walletClientType,
+                chainId: ethWallet.chainId
+            } : null,
+            solWallet: solWallet ? {
+                address: solWallet.address
+            } : null,
+            solanaAdapterConnected: solanaConnected,
+            solanaAdapterPublicKey: solanaPublicKey?.toBase58(),
+            activeAddress,
+            preferSolana,
+            isEthereumWallet,
+            hasWalletConfig: 'NO'
+        });
+    }, [wallets, solWallets, activeAddress, isEthereumWallet, preferSolana, ethWallet, solWallet, solanaConnected, solanaPublicKey]);
 
     // Toggle between Ethereum and Solana wallets
     const toggleWallet = () => {
@@ -189,6 +152,9 @@ export default function LiFiModal({
 
     return (
         <div className="w-full">
+            {/* Include Privy Solana Sync */}
+            <PrivySolanaSync />
+            
             {/* Wallet Selection UI */}
             <div className="mb-4 flex flex-col gap-2">
                 <div className="text-sm font-medium">Connected Wallets:</div>
@@ -209,6 +175,7 @@ export default function LiFiModal({
                         >
                             <span className="w-2 h-2 rounded-full bg-green-500"></span>
                             SOL: {solWallet.address.slice(0, 6)}...{solWallet.address.slice(-4)}
+                            {solanaConnected && <span className="text-xs">✓</span>}
                         </button>
                     )}
                 </div>
@@ -230,13 +197,17 @@ export default function LiFiModal({
                 <strong>Debug:</strong> Active Address: {activeAddress} |
                 Wallet Type: {isEthereumWallet ? 'ETH' : 'SOL'} |
                 Prefer Solana: {preferSolana.toString()} |
+                Solana Adapter Connected: {solanaConnected.toString()} |
+                Adapter PublicKey: {solanaPublicKey?.toBase58() || 'None'} |
+                Has Wallet Config: NO |
                 Config Keys: {Object.keys(widgetConfig).join(', ')}
             </div>
 
             {/* Only render widget if we have an active address */}
             {activeAddress ? (
                 <LiFiWidget
-                    config={widgetConfig}
+                    key={`${widgetKey}-${preferSolana ? 'sol' : 'eth'}-${activeAddress}-${solanaConnected}`}
+                    config={widgetConfig as Partial<WidgetConfig>}
                     integrator={integrator}
                 />
             ) : (

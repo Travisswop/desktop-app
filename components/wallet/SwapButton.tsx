@@ -7,6 +7,7 @@ import { ChainId } from '@lifi/widget';
 import { useEffect, useMemo } from 'react';
 import LiFiPrivyWrapper from './LiFiPrivyWrapper';
 import { useWallets, useSolanaWallets } from '@privy-io/react-auth';
+import { SolanaProvider } from '../SolanaProvider';
 
 interface SwapButtonProps {
     tokens: any[];
@@ -123,10 +124,12 @@ export default function SwapButton({
                         Swap tokens between chains using LiFi protocol
                     </DialogDescription>
                     <div className="p-4">
+                    <SolanaProvider>
                         <LiFiPrivyWrapper
                             config={config}
                             onSwapComplete={handleSwapComplete}
                         />
+                        </SolanaProvider>
                     </div>
                 </DialogContent>
             </Dialog>
