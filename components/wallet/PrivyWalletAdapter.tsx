@@ -107,18 +107,41 @@ export class PrivyWalletAdapter extends BaseWalletAdapter {
                 throw new WalletNotConnectedError();
             }
 
-            try {
-                if (isSolanaWallet(this._wallet)) {
-                    const signedTransaction = await this._wallet.signTransaction(transaction);
-                    return signedTransaction as T;
-                }
-                throw new WalletSignTransactionError('Wallet does not support transaction signing');
-            } catch (error: any) {
-                throw new WalletSignTransactionError(error?.message, error);
+            console.log('Attempting to sign transaction with Privy wallet:', {
+                walletAddress: this._wallet.address,
+                walletClientType: this._wallet.walletClientType,
+                availableMethods: Object.keys(this._wallet)
+            });
+
+            // Detailed check for Solana transaction signing support
+            if (!('signTransaction' in this._wallet)) {
+                const errorMessage = 'Privy wallet does not support Solana transaction signing. ' +
+                    'Please ensure your wallet is properly configured for Solana transactions.';
+
+                console.error(errorMessage, {
+                    walletMethods: Object.keys(this._wallet),
+                    walletAddress: this._wallet.address
+                });
+
+                throw new WalletSignTransactionError(errorMessage);
             }
+
+            // Cast to any to bypass type checking
+            const signMethod = (this._wallet as any).signTransaction;
+
+            if (typeof signMethod !== 'function') {
+                throw new WalletSignTransactionError('signTransaction is not a function');
+            }
+
+            const signedTransaction = await signMethod(transaction);
+            return signedTransaction as T;
         } catch (error: any) {
+            console.error('Transaction signing error:', error);
             this.emit('error', error);
-            throw error;
+            throw new WalletSignTransactionError(
+                error?.message || 'Failed to sign Solana transaction',
+                error
+            );
         }
     }
 
