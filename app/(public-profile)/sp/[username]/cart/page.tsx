@@ -1,6 +1,6 @@
-import React from 'react';
-import CartCheckout from './CartCheckout';
-import { CartProvider } from './context/CartContext';
+import React from "react";
+import CartCheckout from "./CartCheckout";
+import { CartProvider } from "./context/CartContext";
 const CartPage = async () => {
   return (
     <div className="flex max-w-md mx-auto min-h-screen flex-col items-center px-4">
