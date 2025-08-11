@@ -28,6 +28,14 @@ import {
   useSignTransaction,
   useSolanaWallets,
 } from '@privy-io/react-auth/solana';
+import { clusterApiUrl } from '@solana/web3.js';
+
+// Create a connection instance for mainnet
+const connection = new Connection(
+  process.env.NEXT_PUBLIC_QUICKNODE_SOLANA_ENDPOINT ||
+    clusterApiUrl('mainnet-beta')
+);
+
 // Type guard to check if wallet has Solana-specific methods
 function isSolanaWallet(wallet: Wallet | null): wallet is Wallet & {
   signTransaction: (
@@ -141,17 +149,18 @@ export class PrivyWalletAdapter extends BaseWalletAdapter {
         }
       );
 
-      // Use the Privy Solana wallet's signTransaction method
-      if (isSolanaWallet(this._wallet)) {
-        const signedTransaction = await this._wallet.signTransaction(
-          transaction
+      // Get the global signer instance
+      const signer = (window as any).__privyTransactionSigner;
+      if (!signer?.signTransaction) {
+        throw new WalletSignTransactionError(
+          'Privy transaction signer not initialized. Make sure PrivyTransactionSignerProvider is mounted.'
         );
-        return signedTransaction as T;
       }
 
-      throw new WalletSignTransactionError(
-        'Wallet does not support Solana transaction signing'
+      const signedTransaction = await signer.signTransaction(
+        transaction
       );
+      return signedTransaction as T;
     } catch (error: any) {
       console.error('Transaction signing error:', error);
       this.emit('error', error);
@@ -170,21 +179,22 @@ export class PrivyWalletAdapter extends BaseWalletAdapter {
         throw new WalletNotConnectedError();
       }
 
-      try {
-        if (isSolanaWallet(this._wallet)) {
-          const signedTransactions =
-            await this._wallet.signAllTransactions(transactions);
-          return signedTransactions as T[];
-        }
+      // Get the global signer instance
+      const signer = (window as any).__privyTransactionSigner;
+      if (!signer?.signAllTransactions) {
         throw new WalletSignTransactionError(
-          'Wallet does not support transaction signing'
+          'Privy transaction signer not initialized. Make sure PrivyTransactionSignerProvider is mounted.'
         );
-      } catch (error: any) {
-        throw new WalletSignTransactionError(error?.message, error);
       }
+
+      const signedTransactions = await signer.signAllTransactions(
+        transactions
+      );
+      return signedTransactions as T[];
     } catch (error: any) {
+      console.error('Failed to sign transactions:', error);
       this.emit('error', error);
-      throw error;
+      throw new WalletSignTransactionError(error?.message, error);
     }
   }
 

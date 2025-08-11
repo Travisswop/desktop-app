@@ -8,6 +8,7 @@ import { useWallets, useSolanaWallets } from '@privy-io/react-auth';
 import { useWallet } from '@solana/wallet-adapter-react';
 import { PrivySolanaSync } from './PrivySolanaSync';
 import { PrivyWalletAdapter } from './PrivyWalletAdapter'; // Import your adapter
+import { PrivyTransactionSignerProvider } from './PrivyTransactionSigner';
 
 interface LiFiModalProps {
   config: any;
@@ -331,109 +332,113 @@ export default function LiFiModal({
 
   return (
     <div className="w-full">
-      {/* Include Privy Solana Sync */}
-      <PrivySolanaSync />
+      {/* Include Privy Solana Sync and Transaction Signer */}
+      <PrivyTransactionSignerProvider>
+        <PrivySolanaSync />
 
-      {/* Wallet Selection UI */}
-      <div className="mb-4 flex flex-col gap-2">
-        <div className="text-sm font-medium">Connected Wallets:</div>
-        <div className="flex gap-2 mb-3">
-          {ethWallet && (
-            <button
-              onClick={() => setPreferSolana(false)}
-              className={`px-3 py-1 text-sm rounded-md flex gap-1 items-center ${
-                !preferSolana
-                  ? 'bg-blue-500 text-white'
-                  : 'bg-gray-100 text-gray-700'
+        {/* Wallet Selection UI */}
+        <div className="mb-4 flex flex-col gap-2">
+          <div className="text-sm font-medium">
+            Connected Wallets:
+          </div>
+          <div className="flex gap-2 mb-3">
+            {ethWallet && (
+              <button
+                onClick={() => setPreferSolana(false)}
+                className={`px-3 py-1 text-sm rounded-md flex gap-1 items-center ${
+                  !preferSolana
+                    ? 'bg-blue-500 text-white'
+                    : 'bg-gray-100 text-gray-700'
+                }`}
+              >
+                <span className="w-2 h-2 rounded-full bg-green-500"></span>
+                ETH: {ethWallet.address.slice(0, 6)}...
+                {ethWallet.address.slice(-4)}
+              </button>
+            )}
+            {solWallet && (
+              <button
+                onClick={() => setPreferSolana(true)}
+                className={`px-3 py-1 text-sm rounded-md flex gap-1 items-center ${
+                  preferSolana
+                    ? 'bg-blue-500 text-white'
+                    : 'bg-gray-100 text-gray-700'
+                }`}
+              >
+                <span className="w-2 h-2 rounded-full bg-green-500"></span>
+                SOL: {solWallet.address.slice(0, 6)}...
+                {solWallet.address.slice(-4)}
+                {privyAdapter?.connected && (
+                  <span className="text-xs">✓</span>
+                )}
+              </button>
+            )}
+          </div>
+          <div className="text-xs text-gray-500 mb-2">
+            Using {isEthereumWallet ? 'Ethereum' : 'Solana'} wallet
+            for this swap.
+            {ethWallet && solWallet && (
+              <button
+                onClick={toggleWallet}
+                className="text-blue-500 ml-1 underline"
+              >
+                Switch to {isEthereumWallet ? 'Solana' : 'Ethereum'}
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* Enhanced debug info */}
+        <div className="mb-2 p-2 bg-gray-100 text-xs rounded">
+          <strong>Debug:</strong> Active Address: {activeAddress} |
+          Wallet Type: {isEthereumWallet ? 'ETH' : 'SOL'} | Prefer
+          Solana: {preferSolana.toString()} | Privy Adapter Connected:{' '}
+          {privyAdapter?.connected?.toString() || 'N/A'} | Adapter
+          PublicKey: {privyAdapter?.publicKey?.toBase58() || 'None'} |
+          Has Wallet Config:{' '}
+          {preferSolana && privyAdapter ? 'YES' : 'NO'} | Config Keys:{' '}
+          {Object.keys(widgetConfig).join(', ')}
+        </div>
+
+        {/* Adapter Status Indicator */}
+        {preferSolana && solWallet && (
+          <div className="mb-2 p-2 bg-blue-50 text-xs rounded border border-blue-200">
+            <strong>Solana Adapter Status:</strong>
+            <span
+              className={`ml-1 ${
+                privyAdapter?.connected
+                  ? 'text-green-600'
+                  : 'text-orange-600'
               }`}
             >
-              <span className="w-2 h-2 rounded-full bg-green-500"></span>
-              ETH: {ethWallet.address.slice(0, 6)}...
-              {ethWallet.address.slice(-4)}
-            </button>
-          )}
-          {solWallet && (
-            <button
-              onClick={() => setPreferSolana(true)}
-              className={`px-3 py-1 text-sm rounded-md flex gap-1 items-center ${
-                preferSolana
-                  ? 'bg-blue-500 text-white'
-                  : 'bg-gray-100 text-gray-700'
-              }`}
-            >
-              <span className="w-2 h-2 rounded-full bg-green-500"></span>
-              SOL: {solWallet.address.slice(0, 6)}...
-              {solWallet.address.slice(-4)}
-              {privyAdapter?.connected && (
-                <span className="text-xs">✓</span>
-              )}
-            </button>
-          )}
-        </div>
-        <div className="text-xs text-gray-500 mb-2">
-          Using {isEthereumWallet ? 'Ethereum' : 'Solana'} wallet for
-          this swap.
-          {ethWallet && solWallet && (
-            <button
-              onClick={toggleWallet}
-              className="text-blue-500 ml-1 underline"
-            >
-              Switch to {isEthereumWallet ? 'Solana' : 'Ethereum'}
-            </button>
-          )}
-        </div>
-      </div>
+              {privyAdapter?.connected
+                ? 'Connected & Ready'
+                : 'Connecting...'}
+            </span>
+            {privyAdapter?.publicKey && (
+              <div className="mt-1">
+                <strong>Public Key:</strong>{' '}
+                {privyAdapter.publicKey.toBase58().slice(0, 8)}...
+              </div>
+            )}
+          </div>
+        )}
 
-      {/* Enhanced debug info */}
-      <div className="mb-2 p-2 bg-gray-100 text-xs rounded">
-        <strong>Debug:</strong> Active Address: {activeAddress} |
-        Wallet Type: {isEthereumWallet ? 'ETH' : 'SOL'} | Prefer
-        Solana: {preferSolana.toString()} | Privy Adapter Connected:{' '}
-        {privyAdapter?.connected?.toString() || 'N/A'} | Adapter
-        PublicKey: {privyAdapter?.publicKey?.toBase58() || 'None'} |
-        Has Wallet Config:{' '}
-        {preferSolana && privyAdapter ? 'YES' : 'NO'} | Config Keys:{' '}
-        {Object.keys(widgetConfig).join(', ')}
-      </div>
-
-      {/* Adapter Status Indicator */}
-      {preferSolana && solWallet && (
-        <div className="mb-2 p-2 bg-blue-50 text-xs rounded border border-blue-200">
-          <strong>Solana Adapter Status:</strong>
-          <span
-            className={`ml-1 ${
-              privyAdapter?.connected
-                ? 'text-green-600'
-                : 'text-orange-600'
-            }`}
-          >
-            {privyAdapter?.connected
-              ? 'Connected & Ready'
-              : 'Connecting...'}
-          </span>
-          {privyAdapter?.publicKey && (
-            <div className="mt-1">
-              <strong>Public Key:</strong>{' '}
-              {privyAdapter.publicKey.toBase58().slice(0, 8)}...
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* Only render widget if we have an active address */}
-      {activeAddress ? (
-        <LiFiWidget
-          key={`${widgetKey}-${
-            preferSolana ? 'sol' : 'eth'
-          }-${activeAddress}-${privyAdapter?.connected}`}
-          config={widgetConfig as Partial<WidgetConfig>}
-          integrator={integrator}
-        />
-      ) : (
-        <div className="p-4 text-center text-gray-500">
-          Please connect a wallet to continue
-        </div>
-      )}
+        {/* Only render widget if we have an active address */}
+        {activeAddress ? (
+          <LiFiWidget
+            key={`${widgetKey}-${
+              preferSolana ? 'sol' : 'eth'
+            }-${activeAddress}-${privyAdapter?.connected}`}
+            config={widgetConfig as Partial<WidgetConfig>}
+            integrator={integrator}
+          />
+        ) : (
+          <div className="p-4 text-center text-gray-500">
+            Please connect a wallet to continue
+          </div>
+        )}
+      </PrivyTransactionSignerProvider>
     </div>
   );
 }
