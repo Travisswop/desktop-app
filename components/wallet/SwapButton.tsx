@@ -214,25 +214,25 @@ export default function SwapButton({
           //   hideCloseButton // 👈 hides default "X"
 
           className="sm:max-w-[450px] md:max-w-[550px] p-0"
-          onPointerDownOutside={(e) => {
-            if (
-              e.target instanceof HTMLElement &&
-              e.target.closest("[data-privy-modal]")
-            ) {
-              return; // allow interaction with Privy modal
-            }
-            e.preventDefault();
-          }}
-          onFocusOutside={(e) => {
-            if (
-              e.target instanceof HTMLElement &&
-              e.target.closest("[data-privy-modal]")
-            ) {
-              return; // allow focus shift to Privy modal inputs
-            }
-            e.preventDefault();
-          }}
-          onEscapeKeyDown={(e) => e.preventDefault()}
+          //   onPointerDownOutside={(e) => {
+          //     if (
+          //       e.target instanceof HTMLElement &&
+          //       e.target.closest("[data-privy-modal]")
+          //     ) {
+          //       return; // allow interaction with Privy modal
+          //     }
+          //     e.preventDefault();
+          //   }}
+          //   onFocusOutside={(e) => {
+          //     if (
+          //       e.target instanceof HTMLElement &&
+          //       e.target.closest("[data-privy-modal]")
+          //     ) {
+          //       return; // allow focus shift to Privy modal inputs
+          //     }
+          //     e.preventDefault();
+          //   }}
+          //   onEscapeKeyDown={(e) => e.preventDefault()}
           hideCloseButton
         >
           <DialogTitle className="sr-only">Token Swap</DialogTitle>
