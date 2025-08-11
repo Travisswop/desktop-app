@@ -144,7 +144,7 @@ export default function SwapButton({
         <ArrowLeftRight size={16} /> Swap
       </WalletChartButton>
 
-      <Dialog open={openSwapModal} onOpenChange={setOpenSwapModal}>
+      {/* <Dialog open={openSwapModal} onOpenChange={setOpenSwapModal}>
         <DialogContent className="sm:max-w-[450px] md:max-w-[550px] p-0">
           <DialogTitle className="sr-only">Token Swap</DialogTitle>
           <DialogDescription className="sr-only">
@@ -159,7 +159,7 @@ export default function SwapButton({
             </SolanaProvider>
           </div>
         </DialogContent>
-      </Dialog>
+      </Dialog> */}
 
       {/* <Dialog
         open={openSwapModal}
@@ -199,7 +199,7 @@ export default function SwapButton({
         </DialogContent>
       </Dialog> */}
 
-      {/* <Dialog
+      <Dialog
         open={openSwapModal}
         onOpenChange={(open) => {
           // Prevent Radix from closing the modal except when we do it manually
@@ -214,25 +214,25 @@ export default function SwapButton({
           //   hideCloseButton // 👈 hides default "X"
 
           className="sm:max-w-[450px] md:max-w-[550px] p-0"
-          //   onPointerDownOutside={(e) => {
-          //     if (
-          //       e.target instanceof HTMLElement &&
-          //       e.target.closest("[data-privy-modal]")
-          //     ) {
-          //       return; // allow interaction with Privy modal
-          //     }
-          //     e.preventDefault();
-          //   }}
-          //   onFocusOutside={(e) => {
-          //     if (
-          //       e.target instanceof HTMLElement &&
-          //       e.target.closest("[data-privy-modal]")
-          //     ) {
-          //       return; // allow focus shift to Privy modal inputs
-          //     }
-          //     e.preventDefault();
-          //   }}
-          //   onEscapeKeyDown={(e) => e.preventDefault()}
+          onPointerDownOutside={(e) => {
+            if (
+              e.target instanceof HTMLElement &&
+              e.target.closest(".privy-modal-class")
+            ) {
+              return; // allow interaction with Privy modal
+            }
+            e.preventDefault();
+          }}
+          onFocusOutside={(e) => {
+            if (
+              e.target instanceof HTMLElement &&
+              e.target.closest(".privy-modal-class")
+            ) {
+              return; // allow focus shift to Privy modal inputs
+            }
+            e.preventDefault();
+          }}
+          onEscapeKeyDown={(e) => e.preventDefault()}
           hideCloseButton
         >
           <DialogTitle className="sr-only">Token Swap</DialogTitle>
@@ -256,7 +256,7 @@ export default function SwapButton({
             </SolanaProvider>
           </div>
         </DialogContent>
-      </Dialog> */}
+      </Dialog>
     </>
   );
 }
