@@ -144,7 +144,7 @@ export default function SwapButton({
         <ArrowLeftRight size={16} /> Swap
       </WalletChartButton>
 
-      {/* <Dialog open={openSwapModal} onOpenChange={setOpenSwapModal}>
+      <Dialog open={openSwapModal} onOpenChange={setOpenSwapModal}>
         <DialogContent className="sm:max-w-[450px] md:max-w-[550px] p-0">
           <DialogTitle className="sr-only">Token Swap</DialogTitle>
           <DialogDescription className="sr-only">
@@ -159,7 +159,7 @@ export default function SwapButton({
             </SolanaProvider>
           </div>
         </DialogContent>
-      </Dialog> */}
+      </Dialog>
 
       {/* <Dialog
         open={openSwapModal}
@@ -199,7 +199,7 @@ export default function SwapButton({
         </DialogContent>
       </Dialog> */}
 
-      <Dialog
+      {/* <Dialog
         open={openSwapModal}
         onOpenChange={(open) => {
           // Prevent Radix from closing the modal except when we do it manually
@@ -240,7 +240,6 @@ export default function SwapButton({
             Swap tokens between chains using LiFi protocol
           </DialogDescription>
 
-          {/* Custom X button */}
           <button
             onClick={() => setOpenSwapModal(false)}
             className="absolute top-3 right-3 rounded-md p-1 hover:bg-gray-100 focus:outline-none"
@@ -257,7 +256,7 @@ export default function SwapButton({
             </SolanaProvider>
           </div>
         </DialogContent>
-      </Dialog>
+      </Dialog> */}
     </>
   );
 }
