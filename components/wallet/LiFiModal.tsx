@@ -221,11 +221,28 @@ export default function LiFiModal({
             ? {
                 signTransaction: async (transaction: any) => {
                   console.log(
-                    'LiFi requesting transaction signature...'
+                    'LiFi requesting transaction signature...',
+                    {
+                      transaction,
+                      walletAddress:
+                        privyAdapter.publicKey?.toBase58(),
+                      connected: privyAdapter.connected,
+                      readyState: privyAdapter.readyState,
+                    }
                   );
-                  return await privyAdapter.signTransaction(
-                    transaction
-                  );
+                  try {
+                    const signed = await privyAdapter.signTransaction(
+                      transaction
+                    );
+                    console.log('Transaction signed successfully');
+                    return signed;
+                  } catch (error) {
+                    console.error(
+                      'Failed to sign transaction:',
+                      error
+                    );
+                    throw error;
+                  }
                 },
                 signAllTransactions: async (transactions: any[]) => {
                   console.log(
