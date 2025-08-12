@@ -1,18 +1,22 @@
-import { useState } from "react";
-import { ArrowLeftRight } from "lucide-react";
-import { useSearchParams, useRouter, usePathname } from "next/navigation";
+import { useState } from 'react';
+import { ArrowLeftRight } from 'lucide-react';
+import {
+  useSearchParams,
+  useRouter,
+  usePathname,
+} from 'next/navigation';
 import {
   Dialog,
   DialogContent,
   DialogTitle,
   DialogDescription,
-} from "@/components/ui/dialog";
-import WalletChartButton from "../Button/WalletChartButton";
-import { ChainId } from "@lifi/widget";
-import { useEffect, useMemo } from "react";
-import LiFiPrivyWrapper from "./LiFiPrivyWrapper";
-import { useWallets, useSolanaWallets } from "@privy-io/react-auth";
-import { SolanaProvider } from "../SolanaProvider";
+} from '@/components/ui/dialog';
+import WalletChartButton from '../Button/WalletChartButton';
+import { ChainId } from '@lifi/widget';
+import { useEffect, useMemo } from 'react';
+import LiFiPrivyWrapper from './LiFiPrivyWrapper';
+import { useWallets, useSolanaWallets } from '@privy-io/react-auth';
+import { SolanaProvider } from '../SolanaProvider';
 
 interface SwapButtonProps {
   tokens: any[];
@@ -32,6 +36,75 @@ export default function SwapButton({
   initialAmount,
 }: SwapButtonProps) {
   const [openSwapModal, setOpenSwapModal] = useState(false);
+
+  // Helper function to detect if an element is part of a Privy modal or authentication dialog
+  // This fixes the issue where 2FA input fields become disabled when the modal auto-close option is updated
+  const isPrivyModal = (element: HTMLElement): boolean => {
+    // Check for various Privy modal selectors
+    const privySelectors = [
+      '.privy-modal-class',
+      '[data-privy-component]',
+      '[data-privy-modal]',
+      '.privy-modal',
+      '.privy-auth-modal',
+      '.privy-2fa-modal',
+      '.privy-authenticator',
+      "[role='dialog']",
+      "[aria-modal='true']",
+      '.modal',
+      "[class*='privy']",
+      "[class*='modal']",
+      "[class*='auth']",
+      "[class*='authenticator']",
+      "[class*='2fa']",
+      "[class*='otp']",
+      "[class*='verification']",
+      "[class*='login']",
+      "[class*='signup']",
+      // Additional selectors for better coverage
+      "[class*='verification-code']",
+      "[class*='email-verification']",
+      "[class*='phone-verification']",
+      "[class*='totp']",
+      "[class*='mfa']",
+      "[class*='two-factor']",
+      "[class*='security-code']",
+      "[class*='confirmation-code']",
+    ];
+
+    const isModal = privySelectors.some((selector) =>
+      element.closest(selector)
+    );
+
+    // Also check if the element is an input field or form element that might be part of authentication
+    const isAuthInput =
+      element.tagName === 'INPUT' ||
+      element.tagName === 'TEXTAREA' ||
+      element.tagName === 'SELECT' ||
+      element.tagName === 'FORM' ||
+      !!element.closest('form') ||
+      !!element.closest('input') ||
+      !!element.closest('textarea') ||
+      !!element.closest('select');
+
+    // Debug logging when a Privy modal is detected
+    if (isModal || isAuthInput) {
+      console.log('Privy modal or auth input detected:', {
+        element: element.tagName,
+        classes: element.className,
+        isModal,
+        isAuthInput,
+        closestSelector: isModal
+          ? privySelectors.find((selector) =>
+              element.closest(selector)
+            )
+          : null,
+      });
+    }
+
+    return isModal || isAuthInput;
+  };
+
   const { wallets } = useWallets();
   const { wallets: solWallets } = useSolanaWallets();
 
@@ -44,9 +117,9 @@ export default function SwapButton({
   const router = useRouter();
   const pathname = usePathname();
 
-  const inputTokenParam = searchParams?.get("inputToken");
-  const outputTokenParam = searchParams?.get("outputToken");
-  const amountParam = searchParams?.get("amount");
+  const inputTokenParam = searchParams?.get('inputToken');
+  const outputTokenParam = searchParams?.get('outputToken');
+  const amountParam = searchParams?.get('amount');
 
   // Clean up URL params when modal closes
   useEffect(() => {
@@ -54,10 +127,12 @@ export default function SwapButton({
       !openSwapModal &&
       (inputTokenParam || outputTokenParam || amountParam)
     ) {
-      const newSearchParams = new URLSearchParams(searchParams as any);
-      newSearchParams.delete("inputToken");
-      newSearchParams.delete("outputToken");
-      newSearchParams.delete("amount");
+      const newSearchParams = new URLSearchParams(
+        searchParams as any
+      );
+      newSearchParams.delete('inputToken');
+      newSearchParams.delete('outputToken');
+      newSearchParams.delete('amount');
       router.replace(`${pathname}?${newSearchParams.toString()}`);
     }
   }, [
@@ -72,7 +147,7 @@ export default function SwapButton({
 
   // Log wallet status for debugging
   useEffect(() => {
-    console.log("Wallets status in SwapButton:", {
+    console.log('Wallets status in SwapButton:', {
       ethWallets: wallets.length,
       solWallets: solWallets?.length || 0,
       hasWallets,
@@ -82,18 +157,18 @@ export default function SwapButton({
   // LiFi widget config
   const config = useMemo(
     () => ({
-      variant: "expandable",
-      integrator: "nextjs-example",
-      appearance: "light",
+      variant: 'expandable',
+      integrator: 'nextjs-example',
+      appearance: 'light',
       containerStyle: {
-        width: "100%",
-        height: "100%",
-        border: "none",
+        width: '100%',
+        height: '100%',
+        border: 'none',
       },
       theme: {
         container: {
-          border: "1px solid rgb(234, 234, 234)",
-          borderRadius: "16px",
+          border: '1px solid rgb(234, 234, 234)',
+          borderRadius: '16px',
         },
       },
       // External wallet management is critical
@@ -109,8 +184,8 @@ export default function SwapButton({
       sdkConfig: {
         rpcUrls: {
           [ChainId.SOL]: [
-            "https://chaotic-restless-putty.solana-mainnet.quiknode.pro/",
-            "https://dacey-pp61jd-fast-mainnet.helius-rpc.com/",
+            'https://chaotic-restless-putty.solana-mainnet.quiknode.pro/',
+            'https://dacey-pp61jd-fast-mainnet.helius-rpc.com/',
           ],
         },
       },
@@ -180,7 +255,7 @@ export default function SwapButton({
             Swap tokens between chains using LiFi protocol
           </DialogDescription>
 
-          
+
           <button
             onClick={() => setOpenSwapModal(false)}
             className="absolute top-3 right-32 text-gray-500 hover:text-gray-700"
@@ -214,21 +289,25 @@ export default function SwapButton({
           //   hideCloseButton // 👈 hides default "X"
 
           className="sm:max-w-[450px] md:max-w-[550px] p-0"
+          // Allow interaction with Privy modals and authentication dialogs (fixes 2FA input field issue)
           onPointerDownOutside={(e) => {
+            // Check for various Privy modal classes and elements
             if (
               e.target instanceof HTMLElement &&
-              e.target.closest(".privy-modal-class")
+              isPrivyModal(e.target)
             ) {
-              return; // allow interaction with Privy modal
+              return; // allow interaction with Privy modals and authentication dialogs
             }
             e.preventDefault();
           }}
+          // Allow focus shift to Privy modals and authentication dialogs (fixes 2FA input field issue)
           onFocusOutside={(e) => {
+            // Check for various Privy modal classes and elements
             if (
               e.target instanceof HTMLElement &&
-              e.target.closest(".privy-modal-class")
+              isPrivyModal(e.target)
             ) {
-              return; // allow focus shift to Privy modal inputs
+              return; // allow focus shift to Privy modals and authentication dialogs
             }
             e.preventDefault();
           }}
