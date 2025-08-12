@@ -32,8 +32,6 @@ export default function SwapButton({
   initialOutputToken,
   initialAmount,
 }: SwapButtonProps) {
-  const [openSwapModal, setOpenSwapModal] = useState(false);
-
   const { isOpen, onOpen, onOpenChange, onClose } = useDisclosure();
 
   // Helper function to detect if an element is part of a Privy modal or authentication dialog
@@ -198,12 +196,9 @@ export default function SwapButton({
   const outputTokenParam = searchParams?.get("outputToken");
   const amountParam = searchParams?.get("amount");
 
-  // Clean up URL params when modal closes
+  // Clean up URL params when modal closes - FIXED to use isOpen
   useEffect(() => {
-    if (
-      !openSwapModal &&
-      (inputTokenParam || outputTokenParam || amountParam)
-    ) {
+    if (!isOpen && (inputTokenParam || outputTokenParam || amountParam)) {
       const newSearchParams = new URLSearchParams(searchParams as any);
       newSearchParams.delete("inputToken");
       newSearchParams.delete("outputToken");
@@ -211,7 +206,7 @@ export default function SwapButton({
       router.replace(`${pathname}?${newSearchParams.toString()}`);
     }
   }, [
-    openSwapModal,
+    isOpen, // Changed from openSwapModal to isOpen
     pathname,
     router,
     searchParams,
@@ -219,6 +214,96 @@ export default function SwapButton({
     outputTokenParam,
     amountParam,
   ]);
+
+  // Privy modal handler - This is the key fix!
+  useEffect(() => {
+    if (!isOpen) return;
+
+    // Function to handle events when Privy modal is active
+    const handleGlobalInteraction = (e: Event) => {
+      const target = e.target as HTMLElement;
+
+      // If the interaction is within privy-modal-content, allow it completely
+      if (target && target.closest("#privy-modal-content")) {
+        // Stop the event from reaching NextUI modal handlers
+        e.stopPropagation();
+
+        // For input events, ensure they work normally
+        if (e.type === "input" || e.type === "keydown" || e.type === "focus") {
+          // Allow the event to proceed normally for Privy inputs
+          return;
+        }
+
+        // For click events within Privy modal, allow them
+        if (e.type === "click" || e.type === "mousedown") {
+          return;
+        }
+      }
+    };
+
+    // Add event listeners with capture: true to intercept early
+    const eventTypes = [
+      "click",
+      "mousedown",
+      "keydown",
+      "input",
+      "focus",
+      "blur",
+    ];
+    eventTypes.forEach((eventType) => {
+      document.addEventListener(eventType, handleGlobalInteraction, {
+        capture: true,
+        passive: false,
+      });
+    });
+
+    // Monitor DOM for Privy modal and adjust z-index
+    const observer = new MutationObserver((mutations) => {
+      mutations.forEach((mutation) => {
+        if (mutation.type === "childList") {
+          const privyModal = document.getElementById("privy-modal-content");
+          if (privyModal) {
+            // Ensure Privy modal has the highest z-index
+            const privyParent = privyModal.closest(
+              '[role="dialog"]'
+            ) as HTMLElement;
+            if (privyParent) {
+              privyParent.style.zIndex = "999999";
+              privyParent.style.position = "fixed";
+            }
+
+            privyModal.style.zIndex = "999999";
+            privyModal.style.position = "relative";
+
+            // Also handle any backdrop/overlay
+            const privyOverlay = privyModal.parentElement?.querySelector(
+              '[class*="overlay"], [class*="backdrop"]'
+            ) as HTMLElement;
+            if (privyOverlay) {
+              privyOverlay.style.zIndex = "999998";
+            }
+
+            console.log("Privy modal detected and z-index adjusted");
+          }
+        }
+      });
+    });
+
+    observer.observe(document.body, {
+      childList: true,
+      subtree: true,
+    });
+
+    return () => {
+      // Cleanup event listeners
+      eventTypes.forEach((eventType) => {
+        document.removeEventListener(eventType, handleGlobalInteraction, {
+          capture: true,
+        } as any);
+      });
+      observer.disconnect();
+    };
+  }, [isOpen]);
 
   // Log wallet status for debugging
   useEffect(() => {
@@ -280,11 +365,20 @@ export default function SwapButton({
   );
 
   const handleSwapComplete = () => {
-    // Close modal on successful swap
-    setOpenSwapModal(false);
+    // Close modal on successful swap - FIXED to use onClose
+    onClose();
 
     if (onTokenRefresh) {
       onTokenRefresh();
+    }
+  };
+
+  // Custom onOpenChange to prevent auto-closing
+  const handleOpenChange = (open: boolean) => {
+    // Only allow closing, not opening through backdrop/esc
+    if (!open) {
+      // Don't auto close - only allow manual close via button
+      return;
     }
   };
 
@@ -298,8 +392,30 @@ export default function SwapButton({
         <ArrowLeftRight size={16} /> Swaps
       </WalletChartButton>
 
-      <Modal isDismissable={false} isOpen={isOpen} onOpenChange={onOpenChange}>
-        <ModalContent onClick={(e) => e.stopPropagation()}>
+      <Modal
+        isDismissable={false}
+        isOpen={isOpen}
+        onOpenChange={handleOpenChange}
+        hideCloseButton
+        size="2xl"
+        classNames={{
+          wrapper: "z-[50000]", // Lower than Privy
+          backdrop: "z-[49999]",
+        }}
+        closeButton={<></>}
+        backdrop="blur"
+        scrollBehavior="inside"
+        portalContainer={document.body}
+      >
+        <ModalContent
+          onClick={(e) => {
+            // Only stop propagation if not clicking on Privy content
+            const target = e.target as HTMLElement;
+            if (!target.closest("#privy-modal-content")) {
+              e.stopPropagation();
+            }
+          }}
+        >
           {(onClose) => (
             <>
               <div className="sr-only">Token Swap</div>
@@ -309,9 +425,23 @@ export default function SwapButton({
 
               <button
                 onClick={() => onClose()}
-                className="absolute top-3 right-3 rounded-md p-1 hover:bg-gray-100 focus:outline-none"
+                className="absolute top-3 right-3 z-10 rounded-md p-1 hover:bg-gray-100 focus:outline-none transition-colors"
+                type="button"
               >
-                <span className="sr-only">Close</span>✕
+                <span className="sr-only">Close</span>
+                <svg
+                  className="w-4 h-4"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M6 18L18 6M6 6l12 12"
+                  />
+                </svg>
               </button>
 
               <div className="p-4">
@@ -326,55 +456,6 @@ export default function SwapButton({
           )}
         </ModalContent>
       </Modal>
-
-      {/* <Dialog
-        open={openSwapModal}
-        onOpenChange={(open) => {
-          // Prevent Radix from closing the modal except when we do it manually
-          if (!open) return;
-          setOpenSwapModal(open);
-        }}
-      >
-        <DialogContent
-          className="sm:max-w-[450px] md:max-w-[550px] p-0"
-          // Allow interaction with Privy modals and authentication dialogs (fixes 2FA input field issue)
-          onPointerDownOutside={(e) => {
-            if (e.target instanceof HTMLElement && isPrivyModal(e.target)) {
-              return; // This will be respected
-            }
-            e.preventDefault();
-          }}
-          onFocusOutside={(e) => {
-            if (e.target instanceof HTMLElement && isPrivyModal(e.target)) {
-              return; // This will be respected
-            }
-            e.preventDefault();
-          }}
-          // onEscapeKeyDown={(e) => e.preventDefault()}
-          hideCloseButton
-        >
-          <DialogTitle className="sr-only">Token Swap</DialogTitle>
-          <DialogDescription className="sr-only">
-            Swap tokens between chains using LiFi protocol
-          </DialogDescription>
-
-          <button
-            onClick={() => setOpenSwapModal(false)}
-            className="absolute top-3 right-3 rounded-md p-1 hover:bg-gray-100 focus:outline-none"
-          >
-            <span className="sr-only">Close</span>✕
-          </button>
-
-          <div className="p-4">
-            <SolanaProvider>
-              <LiFiPrivyWrapper
-                config={config}
-                onSwapComplete={handleSwapComplete}
-              />
-            </SolanaProvider>
-          </div>
-        </DialogContent>
-      </Dialog> */}
     </>
   );
 }
