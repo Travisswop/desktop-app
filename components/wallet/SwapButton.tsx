@@ -170,7 +170,6 @@ export default function SwapButton({
         closestPinInput: element.closest('[class*="PinInput"]')?.className,
       });
     }
-
     return (
       isModal ||
       isAuthInput ||
