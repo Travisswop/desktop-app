@@ -49,27 +49,46 @@ export default function SwapButton({
       '.privy-auth-modal',
       '.privy-2fa-modal',
       '.privy-authenticator',
-      "[role='dialog']",
-      "[aria-modal='true']",
+      '[role="dialog"]',
+      '[aria-modal="true"]',
       '.modal',
-      "[class*='privy']",
-      "[class*='modal']",
-      "[class*='auth']",
-      "[class*='authenticator']",
-      "[class*='2fa']",
-      "[class*='otp']",
-      "[class*='verification']",
-      "[class*='login']",
-      "[class*='signup']",
+      '[class*="privy"]',
+      '[class*="modal"]',
+      '[class*="auth"]',
+      '[class*="authenticator"]',
+      '[class*="2fa"]',
+      '[class*="otp"]',
+      '[class*="verification"]',
+      '[class*="login"]',
+      '[class*="signup"]',
       // Additional selectors for better coverage
-      "[class*='verification-code']",
-      "[class*='email-verification']",
-      "[class*='phone-verification']",
-      "[class*='totp']",
-      "[class*='mfa']",
-      "[class*='two-factor']",
-      "[class*='security-code']",
-      "[class*='confirmation-code']",
+      '[class*="verification-code"]',
+      '[class*="email-verification"]',
+      '[class*="phone-verification"]',
+      '[class*="totp"]',
+      '[class*="mfa"]',
+      '[class*="two-factor"]',
+      '[class*="security-code"]',
+      '[class*="confirmation-code"]',
+      // Privy-specific selectors based on the actual HTML structure
+      '#privy-modal-content',
+      '[id*="privy"]',
+      '[class*="ContentWrapper"]',
+      '[class*="BaseModal"]',
+      '[class*="StyledHeader"]',
+      '[class*="Title"]',
+      '[class*="Subtitle"]',
+      '[class*="PinInputContainer"]',
+      '[class*="InputHelp"]',
+      '[class*="Button"]',
+      '[class*="StyledButton"]',
+      '[class*="ModalFooter"]',
+      // Check for Privy's specific class patterns (sc-* classes)
+      '[class*="sc-"]',
+      // Check for elements with numeric input patterns (2FA fields)
+      'input[inputmode="numeric"]',
+      'input[pattern="[0-9]"]',
+      'input[autocomplete="off"]',
     ];
 
     const isModal = privySelectors.some((selector) =>
@@ -87,22 +106,86 @@ export default function SwapButton({
       !!element.closest('textarea') ||
       !!element.closest('select');
 
+    // Additional check for Privy's specific modal structure
+    const isPrivyModalStructure =
+      element.id === 'privy-modal-content' ||
+      element.closest('#privy-modal-content') ||
+      element.closest('[id*="privy"]') ||
+      element.closest('[class*="sc-"][class*="Modal"]') ||
+      element.closest('[class*="sc-"][class*="Content"]') ||
+      element.closest('[class*="sc-"][class*="Wrapper"]');
+
+    // Specific check for 2FA input fields and verification elements
+    const is2FAElement =
+      element.tagName === 'INPUT' &&
+      (element.getAttribute('inputmode') === 'numeric' ||
+        element.getAttribute('pattern') === '[0-9]' ||
+        element.getAttribute('autocomplete') === 'off' ||
+        element.getAttribute('name')?.startsWith('pin-') ||
+        element.closest('[class*="PinInput"]') ||
+        element.closest('[class*="verification"]') ||
+        element.closest('[class*="2fa"]') ||
+        element.closest('[class*="otp"]') ||
+        element.closest('[class*="mfa"]'));
+
+    // Check if element is within any Privy-related context
+    const privyContextSelectors = [
+      '[id*="privy"]',
+      '[class*="privy"]',
+      '[data-privy]',
+      '[class*="sc-"][class*="Modal"]',
+      '[class*="sc-"][class*="Content"]',
+      '[class*="sc-"][class*="Wrapper"]',
+      '[class*="sc-"][class*="Button"]',
+      '[class*="sc-"][class*="Title"]',
+      '[class*="sc-"][class*="Subtitle"]',
+    ];
+
+    const isInPrivyContext = privyContextSelectors.some(
+      (selector) => element.closest(selector) !== null
+    );
+
     // Debug logging when a Privy modal is detected
-    if (isModal || isAuthInput) {
+    if (
+      isModal ||
+      isAuthInput ||
+      isPrivyModalStructure ||
+      is2FAElement ||
+      isInPrivyContext
+    ) {
       console.log('Privy modal or auth input detected:', {
         element: element.tagName,
+        elementId: element.id,
+        elementName:
+          element instanceof HTMLInputElement ? element.name : null,
+        elementInputMode: element.getAttribute('inputmode'),
+        elementPattern: element.getAttribute('pattern'),
+        elementAutoComplete: element.getAttribute('autocomplete'),
         classes: element.className,
         isModal,
         isAuthInput,
+        isPrivyModalStructure,
+        is2FAElement,
+        isInPrivyContext,
         closestSelector: isModal
           ? privySelectors.find((selector) =>
               element.closest(selector)
             )
           : null,
+        closestPrivyId: element.closest('[id*="privy"]')?.id,
+        closestScClass: element.closest('[class*="sc-"]')?.className,
+        closestPinInput: element.closest('[class*="PinInput"]')
+          ?.className,
       });
     }
 
-    return isModal || isAuthInput;
+    return (
+      isModal ||
+      isAuthInput ||
+      isPrivyModalStructure ||
+      is2FAElement ||
+      isInPrivyContext
+    );
   };
 
   const { wallets } = useWallets();
