@@ -116,7 +116,7 @@ export default function SwapButton({
   );
 
   const handleSwapComplete = () => {
-    setOpenSwapModal(false);
+    // setOpenSwapModal(false);
     if (onTokenRefresh) {
       onTokenRefresh();
     }
