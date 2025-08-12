@@ -357,22 +357,34 @@ export default function SwapButton({
         <DialogContent
           className="sm:max-w-[450px] md:max-w-[550px] p-0"
           // Allow interaction with Privy modals and authentication dialogs (fixes 2FA input field issue)
+          // onPointerDownOutside={(e) => {
+          //   // Check for various Privy modal classes and elements
+          //   if (e.target instanceof HTMLElement && isPrivyModal(e.target)) {
+          //     return; // allow interaction with Privy modals and authentication dialogs
+          //   }
+          //   e.preventDefault();
+          // }}
+          // // Allow focus shift to Privy modals and authentication dialogs (fixes 2FA input field issue)
+          // onFocusOutside={(e) => {
+          //   // Check for various Privy modal classes and elements
+          //   if (e.target instanceof HTMLElement && isPrivyModal(e.target)) {
+          //     return; // allow focus shift to Privy modals and authentication dialogs
+          //   }
+          //   e.preventDefault();
+          // }}
           onPointerDownOutside={(e) => {
-            // Check for various Privy modal classes and elements
             if (e.target instanceof HTMLElement && isPrivyModal(e.target)) {
-              return; // allow interaction with Privy modals and authentication dialogs
+              return; // This will be respected
             }
             e.preventDefault();
           }}
-          // Allow focus shift to Privy modals and authentication dialogs (fixes 2FA input field issue)
           onFocusOutside={(e) => {
-            // Check for various Privy modal classes and elements
             if (e.target instanceof HTMLElement && isPrivyModal(e.target)) {
-              return; // allow focus shift to Privy modals and authentication dialogs
+              return; // This will be respected
             }
             e.preventDefault();
           }}
-          onEscapeKeyDown={(e) => e.preventDefault()}
+          // onEscapeKeyDown={(e) => e.preventDefault()}
           hideCloseButton
         >
           <DialogTitle className="sr-only">Token Swap</DialogTitle>
