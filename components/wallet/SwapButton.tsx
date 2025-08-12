@@ -215,92 +215,57 @@ export default function SwapButton({
     amountParam,
   ]);
 
-  // Privy modal handler - This is the key fix!
+  // Privy modal handler - SIMPLIFIED APPROACH
   useEffect(() => {
     if (!isOpen) return;
 
-    // Function to handle events when Privy modal is active
-    const handleGlobalInteraction = (e: Event) => {
-      const target = e.target as HTMLElement;
+    // Simple approach: just ensure Privy modal has higher z-index
+    const observer = new MutationObserver(() => {
+      const privyModal = document.getElementById("privy-modal-content");
+      if (privyModal) {
+        // Find all Privy modal related elements and boost their z-index
+        const privyElements = [
+          privyModal,
+          privyModal.parentElement,
+          privyModal.closest('[role="dialog"]'),
+          privyModal.closest('[class*="modal"]'),
+          privyModal.closest("[data-radix-dialog-content]"),
+        ].filter(Boolean) as HTMLElement[];
 
-      // If the interaction is within privy-modal-content, allow it completely
-      if (target && target.closest("#privy-modal-content")) {
-        // Stop the event from reaching NextUI modal handlers
-        e.stopPropagation();
-
-        // For input events, ensure they work normally
-        if (e.type === "input" || e.type === "keydown" || e.type === "focus") {
-          // Allow the event to proceed normally for Privy inputs
-          return;
-        }
-
-        // For click events within Privy modal, allow them
-        if (e.type === "click" || e.type === "mousedown") {
-          return;
-        }
-      }
-    };
-
-    // Add event listeners with capture: true to intercept early
-    const eventTypes = [
-      "click",
-      "mousedown",
-      "keydown",
-      "input",
-      "focus",
-      "blur",
-    ];
-    eventTypes.forEach((eventType) => {
-      document.addEventListener(eventType, handleGlobalInteraction, {
-        capture: true,
-        passive: false,
-      });
-    });
-
-    // Monitor DOM for Privy modal and adjust z-index
-    const observer = new MutationObserver((mutations) => {
-      mutations.forEach((mutation) => {
-        if (mutation.type === "childList") {
-          const privyModal = document.getElementById("privy-modal-content");
-          if (privyModal) {
-            // Ensure Privy modal has the highest z-index
-            const privyParent = privyModal.closest(
-              '[role="dialog"]'
-            ) as HTMLElement;
-            if (privyParent) {
-              privyParent.style.zIndex = "999999";
-              privyParent.style.position = "fixed";
-            }
-
-            privyModal.style.zIndex = "999999";
-            privyModal.style.position = "relative";
-
-            // Also handle any backdrop/overlay
-            const privyOverlay = privyModal.parentElement?.querySelector(
-              '[class*="overlay"], [class*="backdrop"]'
-            ) as HTMLElement;
-            if (privyOverlay) {
-              privyOverlay.style.zIndex = "999998";
-            }
-
-            console.log("Privy modal detected and z-index adjusted");
+        privyElements.forEach((element) => {
+          if (element) {
+            element.style.zIndex = "999999";
+            element.style.pointerEvents = "auto";
           }
-        }
-      });
+        });
+
+        // Also handle backdrop/overlay
+        const allBackdrops = document.querySelectorAll(
+          '[class*="backdrop"], [class*="overlay"], [data-radix-dialog-overlay]'
+        );
+        allBackdrops.forEach((backdrop) => {
+          const backdropEl = backdrop as HTMLElement;
+          const computedStyle = getComputedStyle(backdropEl);
+          const currentZIndex = parseInt(computedStyle.zIndex) || 0;
+
+          // If it's likely a Privy backdrop (high z-index), boost it further
+          if (currentZIndex > 10000) {
+            backdropEl.style.zIndex = "999998";
+          }
+        });
+
+        console.log("Privy modal found and z-index boosted to 999999");
+      }
     });
 
     observer.observe(document.body, {
       childList: true,
       subtree: true,
+      attributes: true,
+      attributeFilter: ["style", "class"],
     });
 
     return () => {
-      // Cleanup event listeners
-      eventTypes.forEach((eventType) => {
-        document.removeEventListener(eventType, handleGlobalInteraction, {
-          capture: true,
-        } as any);
-      });
       observer.disconnect();
     };
   }, [isOpen]);
@@ -399,23 +364,28 @@ export default function SwapButton({
         hideCloseButton
         size="2xl"
         classNames={{
-          wrapper: "z-[50000]", // Lower than Privy
-          backdrop: "z-[49999]",
+          wrapper: "z-[1000]", // Much lower z-index
+          backdrop: "z-[999]", // Lower backdrop
         }}
         closeButton={<></>}
-        backdrop="blur"
+        backdrop="opaque" // Change from blur to opaque
         scrollBehavior="inside"
         portalContainer={document.body}
+        // KEY FIX: Allow pointer events to pass through to higher z-index elements
+        motionProps={{
+          variants: {
+            enter: {
+              y: 0,
+              opacity: 1,
+            },
+            exit: {
+              y: -20,
+              opacity: 0,
+            },
+          },
+        }}
       >
-        <ModalContent
-          onClick={(e) => {
-            // Only stop propagation if not clicking on Privy content
-            const target = e.target as HTMLElement;
-            if (!target.closest("#privy-modal-content")) {
-              e.stopPropagation();
-            }
-          }}
-        >
+        <ModalContent>
           {(onClose) => (
             <>
               <div className="sr-only">Token Swap</div>
