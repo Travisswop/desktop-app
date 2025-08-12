@@ -144,61 +144,6 @@ export default function SwapButton({
         <ArrowLeftRight size={16} /> Swap
       </WalletChartButton>
 
-      {/* <Dialog open={openSwapModal} onOpenChange={setOpenSwapModal}>
-        <DialogContent className="sm:max-w-[450px] md:max-w-[550px] p-0">
-          <DialogTitle className="sr-only">Token Swap</DialogTitle>
-          <DialogDescription className="sr-only">
-            Swap tokens between chains using LiFi protocol
-          </DialogDescription>
-          <div className="p-4">
-            <SolanaProvider>
-              <LiFiPrivyWrapper
-                config={config}
-                onSwapComplete={handleSwapComplete}
-              />
-            </SolanaProvider>
-          </div>
-        </DialogContent>
-      </Dialog> */}
-
-      {/* <Dialog
-        open={openSwapModal}
-        onOpenChange={(open) => {
-          // This will only run when we explicitly set `open` true/false.
-          // We don't want it to close unless we trigger it ourselves.
-          if (!open) return; // Ignore close triggers from outside click or Esc
-          setOpenSwapModal(open);
-        }}
-      >
-        <DialogContent
-          className="sm:max-w-[450px] md:max-w-[550px] p-0"
-          onPointerDownOutside={(e) => e.preventDefault()} // ⛔ block overlay click close
-          onEscapeKeyDown={(e) => e.preventDefault()} // ⛔ block Esc close
-        >
-          <DialogTitle className="sr-only">Token Swap</DialogTitle>
-          <DialogDescription className="sr-only">
-            Swap tokens between chains using LiFi protocol
-          </DialogDescription>
-
-          
-          <button
-            onClick={() => setOpenSwapModal(false)}
-            className="absolute top-3 right-32 text-gray-500 hover:text-gray-700"
-          >
-            ✕
-          </button>
-
-          <div className="p-4">
-            <SolanaProvider>
-              <LiFiPrivyWrapper
-                config={config}
-                onSwapComplete={handleSwapComplete}
-              />
-            </SolanaProvider>
-          </div>
-        </DialogContent>
-      </Dialog> */}
-
       <Dialog
         open={openSwapModal}
         onOpenChange={(open) => {
@@ -208,32 +153,27 @@ export default function SwapButton({
         }}
       >
         <DialogContent
-          //   className="sm:max-w-[450px] md:max-w-[550px] p-0"
-          //   onPointerDownOutside={(e) => e.preventDefault()} // block overlay close
-          //   onEscapeKeyDown={(e) => e.preventDefault()} // block esc close
-          //   hideCloseButton // 👈 hides default "X"
-
           className="sm:max-w-[450px] md:max-w-[550px] p-0"
-          onPointerDownOutside={(e) => {
-            if (
-              e.target instanceof HTMLElement &&
-              e.target.closest(".privy-modal-class")
-            ) {
-              return; // allow interaction with Privy modal
-            }
-            e.preventDefault();
-          }}
-          onFocusOutside={(e) => {
-            if (
-              e.target instanceof HTMLElement &&
-              e.target.closest(".privy-modal-class")
-            ) {
-              return; // allow focus shift to Privy modal inputs
-            }
-            e.preventDefault();
-          }}
-          onEscapeKeyDown={(e) => e.preventDefault()}
-          hideCloseButton
+          // onPointerDownOutside={(e) => {
+          //   if (
+          //     e.target instanceof HTMLElement &&
+          //     e.target.closest(".privy-modal-class")
+          //   ) {
+          //     return; // allow interaction with Privy modal
+          //   }
+          //   e.preventDefault();
+          // }}
+          // onFocusOutside={(e) => {
+          //   if (
+          //     e.target instanceof HTMLElement &&
+          //     e.target.closest(".privy-modal-class")
+          //   ) {
+          //     return; // allow focus shift to Privy modal inputs
+          //   }
+          //   e.preventDefault();
+          // }}
+          // onEscapeKeyDown={(e) => e.preventDefault()}
+          // hideCloseButton
         >
           <DialogTitle className="sr-only">Token Swap</DialogTitle>
           <DialogDescription className="sr-only">
