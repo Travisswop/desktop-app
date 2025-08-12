@@ -10,6 +10,89 @@ import { PrivySolanaSync } from './PrivySolanaSync';
 import { PrivyWalletAdapter } from './PrivyWalletAdapter'; // Import your adapter
 import { PrivyTransactionSignerProvider } from './PrivyTransactionSigner';
 
+const defaultConfig = {
+  variant: 'compact',
+  subvariant: 'split',
+  appearance: 'light',
+  theme: {
+    typography: {},
+    header: {
+      overflow: 'visible',
+    },
+    container: {
+      boxShadow: '0px 8px 32px rgba(0, 0, 0, 0.12)',
+      borderRadius: '24px',
+    },
+    shape: {
+      borderRadius: 12,
+      borderRadiusSecondary: 16,
+    },
+    colorSchemes: {
+      light: {
+        palette: {
+          primary: {
+            main: '#140925',
+          },
+          secondary: {
+            main: '#8700B8',
+          },
+          background: {
+            default: '#fafafa',
+            paper: '#FFFFFF',
+          },
+          text: {
+            primary: '#000000',
+            secondary: '#818084',
+          },
+          grey: {
+            200: '#ECEBF0',
+            300: '#E5E1EB',
+            700: '#70767A',
+            800: '#4B4F52',
+          },
+          playground: {
+            main: '#F3EBFF',
+          },
+        },
+      },
+      dark: {
+        palette: {
+          primary: {
+            main: '#653BA3',
+          },
+          secondary: {
+            main: '#D35CFF',
+          },
+          background: {
+            default: '#24203D',
+            paper: '#302B52',
+          },
+          text: {
+            primary: '#ffffff',
+            secondary: '#9490a5',
+          },
+          grey: {
+            200: '#ECEBF0',
+            300: '#DDDCE0',
+            700: '#70767A',
+            800: '#3c375c',
+          },
+          playground: {
+            main: '#120F29',
+          },
+        },
+      },
+    },
+    components: {
+      MuiCard: {
+        defaultProps: {
+          variant: 'elevation',
+        },
+      },
+    },
+  },
+};
+
 interface LiFiModalProps {
   config: any;
   onSwapComplete?: () => void;
@@ -17,7 +100,7 @@ interface LiFiModalProps {
 }
 
 export default function LiFiModal({
-  config,
+  config = defaultConfig,
   onSwapComplete,
   integrator = 'SWOP',
 }: LiFiModalProps) {
@@ -165,19 +248,7 @@ export default function LiFiModal({
   // Build LiFi widget config with wallet management
   const widgetConfig = useMemo(() => {
     const baseConfig = {
-      variant: 'expandable',
-      appearance: 'light',
-      containerStyle: {
-        width: '100%',
-        height: '100%',
-        border: 'none',
-      },
-      theme: {
-        container: {
-          border: '1px solid rgb(234, 234, 234)',
-          borderRadius: '16px',
-        },
-      },
+      ...defaultConfig,
       integrator,
       sdkConfig: {
         rpcUrls: {
@@ -387,42 +458,6 @@ export default function LiFiModal({
             )}
           </div>
         </div>
-
-        {/* Enhanced debug info */}
-        <div className="mb-2 p-2 bg-gray-100 text-xs rounded">
-          <strong>Debug:</strong> Active Address: {activeAddress} |
-          Wallet Type: {isEthereumWallet ? 'ETH' : 'SOL'} | Prefer
-          Solana: {preferSolana.toString()} | Privy Adapter Connected:{' '}
-          {privyAdapter?.connected?.toString() || 'N/A'} | Adapter
-          PublicKey: {privyAdapter?.publicKey?.toBase58() || 'None'} |
-          Has Wallet Config:{' '}
-          {preferSolana && privyAdapter ? 'YES' : 'NO'} | Config Keys:{' '}
-          {Object.keys(widgetConfig).join(', ')}
-        </div>
-
-        {/* Adapter Status Indicator */}
-        {preferSolana && solWallet && (
-          <div className="mb-2 p-2 bg-blue-50 text-xs rounded border border-blue-200">
-            <strong>Solana Adapter Status:</strong>
-            <span
-              className={`ml-1 ${
-                privyAdapter?.connected
-                  ? 'text-green-600'
-                  : 'text-orange-600'
-              }`}
-            >
-              {privyAdapter?.connected
-                ? 'Connected & Ready'
-                : 'Connecting...'}
-            </span>
-            {privyAdapter?.publicKey && (
-              <div className="mt-1">
-                <strong>Public Key:</strong>{' '}
-                {privyAdapter.publicKey.toBase58().slice(0, 8)}...
-              </div>
-            )}
-          </div>
-        )}
 
         {/* Only render widget if we have an active address */}
         {activeAddress ? (

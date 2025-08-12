@@ -32,6 +32,154 @@ export default function SwapButton({
   initialAmount,
 }: SwapButtonProps) {
   const [openSwapModal, setOpenSwapModal] = useState(false);
+
+  // Helper function to detect if an element is part of a Privy modal or authentication dialog
+  // This fixes the issue where 2FA input fields become disabled when the modal auto-close option is updated
+  const isPrivyModal = (element: HTMLElement): boolean => {
+    // Check for various Privy modal selectors
+    const privySelectors = [
+      ".privy-modal-class",
+      "[data-privy-component]",
+      "[data-privy-modal]",
+      ".privy-modal",
+      ".privy-auth-modal",
+      ".privy-2fa-modal",
+      ".privy-authenticator",
+      '[role="dialog"]',
+      '[aria-modal="true"]',
+      ".modal",
+      '[class*="privy"]',
+      '[class*="modal"]',
+      '[class*="auth"]',
+      '[class*="authenticator"]',
+      '[class*="2fa"]',
+      '[class*="otp"]',
+      '[class*="verification"]',
+      '[class*="login"]',
+      '[class*="signup"]',
+      // Additional selectors for better coverage
+      '[class*="verification-code"]',
+      '[class*="email-verification"]',
+      '[class*="phone-verification"]',
+      '[class*="totp"]',
+      '[class*="mfa"]',
+      '[class*="two-factor"]',
+      '[class*="security-code"]',
+      '[class*="confirmation-code"]',
+      // Privy-specific selectors based on the actual HTML structure
+      "#privy-modal-content",
+      '[id*="privy"]',
+      '[class*="ContentWrapper"]',
+      '[class*="BaseModal"]',
+      '[class*="StyledHeader"]',
+      '[class*="Title"]',
+      '[class*="Subtitle"]',
+      '[class*="PinInputContainer"]',
+      '[class*="InputHelp"]',
+      '[class*="Button"]',
+      '[class*="StyledButton"]',
+      '[class*="ModalFooter"]',
+      // Check for Privy's specific class patterns (sc-* classes)
+      '[class*="sc-"]',
+      // Check for elements with numeric input patterns (2FA fields)
+      'input[inputmode="numeric"]',
+      'input[pattern="[0-9]"]',
+      'input[autocomplete="off"]',
+    ];
+
+    const isModal = privySelectors.some((selector) =>
+      element.closest(selector)
+    );
+
+    // Also check if the element is an input field or form element that might be part of authentication
+    const isAuthInput =
+      element.tagName === "INPUT" ||
+      element.tagName === "TEXTAREA" ||
+      element.tagName === "SELECT" ||
+      element.tagName === "FORM" ||
+      !!element.closest("form") ||
+      !!element.closest("input") ||
+      !!element.closest("textarea") ||
+      !!element.closest("select");
+
+    // Additional check for Privy's specific modal structure
+    const isPrivyModalStructure =
+      element.id === "privy-modal-content" ||
+      element.closest("#privy-modal-content") ||
+      element.closest('[id*="privy"]') ||
+      element.closest('[class*="sc-"][class*="Modal"]') ||
+      element.closest('[class*="sc-"][class*="Content"]') ||
+      element.closest('[class*="sc-"][class*="Wrapper"]');
+
+    // Specific check for 2FA input fields and verification elements
+    const is2FAElement =
+      element.tagName === "INPUT" &&
+      (element.getAttribute("inputmode") === "numeric" ||
+        element.getAttribute("pattern") === "[0-9]" ||
+        element.getAttribute("autocomplete") === "off" ||
+        element.getAttribute("name")?.startsWith("pin-") ||
+        element.closest('[class*="PinInput"]') ||
+        element.closest('[class*="verification"]') ||
+        element.closest('[class*="2fa"]') ||
+        element.closest('[class*="otp"]') ||
+        element.closest('[class*="mfa"]'));
+
+    // Check if element is within any Privy-related context
+    const privyContextSelectors = [
+      '[id*="privy"]',
+      '[class*="privy"]',
+      "[data-privy]",
+      '[class*="sc-"][class*="Modal"]',
+      '[class*="sc-"][class*="Content"]',
+      '[class*="sc-"][class*="Wrapper"]',
+      '[class*="sc-"][class*="Button"]',
+      '[class*="sc-"][class*="Title"]',
+      '[class*="sc-"][class*="Subtitle"]',
+    ];
+
+    const isInPrivyContext = privyContextSelectors.some(
+      (selector) => element.closest(selector) !== null
+    );
+
+    // Debug logging when a Privy modal is detected
+    if (
+      isModal ||
+      isAuthInput ||
+      isPrivyModalStructure ||
+      is2FAElement ||
+      isInPrivyContext
+    ) {
+      console.log("Privy modal or auth input detected:", {
+        element: element.tagName,
+        elementId: element.id,
+        elementName: element instanceof HTMLInputElement ? element.name : null,
+        elementInputMode: element.getAttribute("inputmode"),
+        elementPattern: element.getAttribute("pattern"),
+        elementAutoComplete: element.getAttribute("autocomplete"),
+        classes: element.className,
+        isModal,
+        isAuthInput,
+        isPrivyModalStructure,
+        is2FAElement,
+        isInPrivyContext,
+        closestSelector: isModal
+          ? privySelectors.find((selector) => element.closest(selector))
+          : null,
+        closestPrivyId: element.closest('[id*="privy"]')?.id,
+        closestScClass: element.closest('[class*="sc-"]')?.className,
+        closestPinInput: element.closest('[class*="PinInput"]')?.className,
+      });
+    }
+
+    return (
+      isModal ||
+      isAuthInput ||
+      isPrivyModalStructure ||
+      is2FAElement ||
+      isInPrivyContext
+    );
+  };
+
   const { wallets } = useWallets();
   const { wallets: solWallets } = useSolanaWallets();
 
@@ -144,6 +292,61 @@ export default function SwapButton({
         <ArrowLeftRight size={16} /> Swap
       </WalletChartButton>
 
+      {/* <Dialog open={openSwapModal} onOpenChange={setOpenSwapModal}>
+        <DialogContent className="sm:max-w-[450px] md:max-w-[550px] p-0">
+          <DialogTitle className="sr-only">Token Swap</DialogTitle>
+          <DialogDescription className="sr-only">
+            Swap tokens between chains using LiFi protocol
+          </DialogDescription>
+          <div className="p-4">
+            <SolanaProvider>
+              <LiFiPrivyWrapper
+                config={config}
+                onSwapComplete={handleSwapComplete}
+              />
+            </SolanaProvider>
+          </div>
+        </DialogContent>
+      </Dialog> */}
+
+      {/* <Dialog
+        open={openSwapModal}
+        onOpenChange={(open) => {
+          // This will only run when we explicitly set `open` true/false.
+          // We don't want it to close unless we trigger it ourselves.
+          if (!open) return; // Ignore close triggers from outside click or Esc
+          setOpenSwapModal(open);
+        }}
+      >
+        <DialogContent
+          className="sm:max-w-[450px] md:max-w-[550px] p-0"
+          onPointerDownOutside={(e) => e.preventDefault()} // ⛔ block overlay click close
+          onEscapeKeyDown={(e) => e.preventDefault()} // ⛔ block Esc close
+        >
+          <DialogTitle className="sr-only">Token Swap</DialogTitle>
+          <DialogDescription className="sr-only">
+            Swap tokens between chains using LiFi protocol
+          </DialogDescription>
+
+
+          <button
+            onClick={() => setOpenSwapModal(false)}
+            className="absolute top-3 right-32 text-gray-500 hover:text-gray-700"
+          >
+            ✕
+          </button>
+
+          <div className="p-4">
+            <SolanaProvider>
+              <LiFiPrivyWrapper
+                config={config}
+                onSwapComplete={handleSwapComplete}
+              />
+            </SolanaProvider>
+          </div>
+        </DialogContent>
+      </Dialog> */}
+
       <Dialog
         open={openSwapModal}
         onOpenChange={(open) => {
@@ -154,26 +357,24 @@ export default function SwapButton({
       >
         <DialogContent
           className="sm:max-w-[450px] md:max-w-[550px] p-0"
-          // onPointerDownOutside={(e) => {
-          //   if (
-          //     e.target instanceof HTMLElement &&
-          //     e.target.closest(".privy-modal-class")
-          //   ) {
-          //     return; // allow interaction with Privy modal
-          //   }
-          //   e.preventDefault();
-          // }}
-          // onFocusOutside={(e) => {
-          //   if (
-          //     e.target instanceof HTMLElement &&
-          //     e.target.closest(".privy-modal-class")
-          //   ) {
-          //     return; // allow focus shift to Privy modal inputs
-          //   }
-          //   e.preventDefault();
-          // }}
-          // onEscapeKeyDown={(e) => e.preventDefault()}
-          // hideCloseButton
+          // Allow interaction with Privy modals and authentication dialogs (fixes 2FA input field issue)
+          onPointerDownOutside={(e) => {
+            // Check for various Privy modal classes and elements
+            if (e.target instanceof HTMLElement && isPrivyModal(e.target)) {
+              return; // allow interaction with Privy modals and authentication dialogs
+            }
+            e.preventDefault();
+          }}
+          // Allow focus shift to Privy modals and authentication dialogs (fixes 2FA input field issue)
+          onFocusOutside={(e) => {
+            // Check for various Privy modal classes and elements
+            if (e.target instanceof HTMLElement && isPrivyModal(e.target)) {
+              return; // allow focus shift to Privy modals and authentication dialogs
+            }
+            e.preventDefault();
+          }}
+          onEscapeKeyDown={(e) => e.preventDefault()}
+          hideCloseButton
         >
           <DialogTitle className="sr-only">Token Swap</DialogTitle>
           <DialogDescription className="sr-only">
