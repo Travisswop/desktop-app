@@ -215,46 +215,79 @@ export default function SwapButton({
     amountParam,
   ]);
 
-  // Privy modal handler - SIMPLIFIED APPROACH
+  // Privy modal handler - CSS-based solution
   useEffect(() => {
     if (!isOpen) return;
 
-    // Simple approach: just ensure Privy modal has higher z-index
+    // Add global CSS to allow interactions with Privy elements
+    const style = document.createElement("style");
+    style.id = "privy-modal-fix";
+    style.textContent = `
+      /* Allow pointer events on all Privy modal elements */
+      #privy-modal-content,
+      #privy-modal-content *,
+      [class*="Container-sc-"],
+      [class*="PinInputContainer-sc-"],
+      [class*="InputHelp-sc-"],
+      [class*="SubTitle-sc-"],
+      input[name^="pin-"],
+      input[inputmode="numeric"] {
+        pointer-events: auto !important;
+        z-index: 999999 !important;
+        position: relative !important;
+      }
+      
+      /* Ensure Privy modal container is on top */
+      [role="dialog"][style*="z-index"] {
+        z-index: 999999 !important;
+      }
+      
+      /* Make sure backdrop doesn't interfere */
+      .z-\\[999\\] {
+        pointer-events: none !important;
+      }
+    `;
+    document.head.appendChild(style);
+
+    // Simple observer to boost Privy elements
     const observer = new MutationObserver(() => {
       const privyModal = document.getElementById("privy-modal-content");
       if (privyModal) {
-        // Find all Privy modal related elements and boost their z-index
-        const privyElements = [
+        // Boost all Privy-related elements
+        const elements = [
           privyModal,
-          privyModal.parentElement,
+          ...Array.from(privyModal.querySelectorAll("*")),
           privyModal.closest('[role="dialog"]'),
-          privyModal.closest('[class*="modal"]'),
-          privyModal.closest("[data-radix-dialog-content]"),
+          ...Array.from(document.querySelectorAll('[class*="Container-sc-"]')),
+          ...Array.from(
+            document.querySelectorAll('[class*="PinInputContainer-sc-"]')
+          ),
+          ...Array.from(document.querySelectorAll('input[name^="pin-"]')),
+          ...Array.from(
+            document.querySelectorAll('input[inputmode="numeric"]')
+          ),
         ].filter(Boolean) as HTMLElement[];
 
-        privyElements.forEach((element) => {
+        elements.forEach((element) => {
           if (element) {
             element.style.zIndex = "999999";
             element.style.pointerEvents = "auto";
+            element.style.position = "relative";
           }
         });
 
-        // Also handle backdrop/overlay
-        const allBackdrops = document.querySelectorAll(
-          '[class*="backdrop"], [class*="overlay"], [data-radix-dialog-overlay]'
-        );
-        allBackdrops.forEach((backdrop) => {
-          const backdropEl = backdrop as HTMLElement;
-          const computedStyle = getComputedStyle(backdropEl);
-          const currentZIndex = parseInt(computedStyle.zIndex) || 0;
-
-          // If it's likely a Privy backdrop (high z-index), boost it further
-          if (currentZIndex > 10000) {
-            backdropEl.style.zIndex = "999998";
-          }
+        // Specifically handle the PIN inputs
+        const pinInputs = document.querySelectorAll('input[name^="pin-"]');
+        pinInputs.forEach((input) => {
+          const inputEl = input as HTMLInputElement;
+          inputEl.style.pointerEvents = "auto";
+          inputEl.style.zIndex = "999999";
+          inputEl.style.position = "relative";
+          inputEl.disabled = false;
+          inputEl.readOnly = false;
         });
 
-        console.log("Privy modal found and z-index boosted to 999999");
+        console.log("Privy PIN inputs enabled:", pinInputs.length);
       }
     });
 
@@ -262,11 +295,16 @@ export default function SwapButton({
       childList: true,
       subtree: true,
       attributes: true,
-      attributeFilter: ["style", "class"],
+      attributeFilter: ["style", "class", "disabled", "readonly"],
     });
 
     return () => {
       observer.disconnect();
+      // Remove the CSS fix
+      const styleEl = document.getElementById("privy-modal-fix");
+      if (styleEl) {
+        styleEl.remove();
+      }
     };
   }, [isOpen]);
 
@@ -365,7 +403,7 @@ export default function SwapButton({
         size="2xl"
         classNames={{
           wrapper: "z-[1000]", // Much lower z-index
-          backdrop: "z-[999]", // Lower backdrop
+          backdrop: "z-[999] pointer-events-none", // KEY: pointer-events-none on backdrop
         }}
         closeButton={<></>}
         backdrop="opaque" // Change from blur to opaque
