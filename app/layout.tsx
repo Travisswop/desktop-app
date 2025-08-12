@@ -21,14 +21,14 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: "Swop Technologies",
+  title: "Swop",
   description: "Web3 ecommerce",
   metadataBase: new URL("https://www.swopme.app"),
   openGraph: {
-    title: "Swop Technologies",
+    title: "Swop",
     description: "Web3 ecommerce",
     url: "https://www.swopme.app",
-    siteName: "Swop Technologies",
+    siteName: "Swop",
     images: [
       {
         url: "/og-image.png", // Must be an absolute URL or path from public folder
@@ -42,7 +42,7 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: "summary_large_image",
-    title: "Swop Technologies",
+    title: "Swop",
     description: "Web3 ecommerce",
     images: ["/og-image.png"],
   },
