@@ -13,6 +13,7 @@ import { useEffect, useMemo } from "react";
 import LiFiPrivyWrapper from "./LiFiPrivyWrapper";
 import { useWallets, useSolanaWallets } from "@privy-io/react-auth";
 import { SolanaProvider } from "../SolanaProvider";
+import { Modal, ModalContent, useDisclosure } from "@nextui-org/react";
 
 interface SwapButtonProps {
   tokens: any[];
@@ -32,6 +33,8 @@ export default function SwapButton({
   initialAmount,
 }: SwapButtonProps) {
   const [openSwapModal, setOpenSwapModal] = useState(false);
+
+  const { isOpen, onOpen, onOpenChange, onClose } = useDisclosure();
 
   // Helper function to detect if an element is part of a Privy modal or authentication dialog
   // This fixes the issue where 2FA input fields become disabled when the modal auto-close option is updated
@@ -287,66 +290,44 @@ export default function SwapButton({
 
   return (
     <>
-      <WalletChartButton onClick={() => setOpenSwapModal(true)}>
-        <ArrowLeftRight size={16} /> Swap
-      </WalletChartButton>
-
-      {/* <Dialog open={openSwapModal} onOpenChange={setOpenSwapModal}>
-        <DialogContent className="sm:max-w-[450px] md:max-w-[550px] p-0">
-          <DialogTitle className="sr-only">Token Swap</DialogTitle>
-          <DialogDescription className="sr-only">
-            Swap tokens between chains using LiFi protocol
-          </DialogDescription>
-          <div className="p-4">
-            <SolanaProvider>
-              <LiFiPrivyWrapper
-                config={config}
-                onSwapComplete={handleSwapComplete}
-              />
-            </SolanaProvider>
-          </div>
-        </DialogContent>
-      </Dialog> */}
-
-      {/* <Dialog
-        open={openSwapModal}
-        onOpenChange={(open) => {
-          // This will only run when we explicitly set `open` true/false.
-          // We don't want it to close unless we trigger it ourselves.
-          if (!open) return; // Ignore close triggers from outside click or Esc
-          setOpenSwapModal(open);
+      <WalletChartButton
+        onClick={() => {
+          onOpen();
         }}
       >
-        <DialogContent
-          className="sm:max-w-[450px] md:max-w-[550px] p-0"
-          onPointerDownOutside={(e) => e.preventDefault()} // ⛔ block overlay click close
-          onEscapeKeyDown={(e) => e.preventDefault()} // ⛔ block Esc close
-        >
-          <DialogTitle className="sr-only">Token Swap</DialogTitle>
-          <DialogDescription className="sr-only">
-            Swap tokens between chains using LiFi protocol
-          </DialogDescription>
+        <ArrowLeftRight size={16} /> Swaps
+      </WalletChartButton>
 
+      <Modal isDismissable={false} isOpen={isOpen} onOpenChange={onOpenChange}>
+        <ModalContent onClick={(e) => e.stopPropagation()}>
+          {(onClose) => (
+            <>
+              <div className="sr-only">Token Swap</div>
+              <div className="sr-only">
+                Swap tokens between chains using LiFi protocol
+              </div>
 
-          <button
-            onClick={() => setOpenSwapModal(false)}
-            className="absolute top-3 right-32 text-gray-500 hover:text-gray-700"
-          >
-            ✕
-          </button>
+              <button
+                onClick={() => onClose()}
+                className="absolute top-3 right-3 rounded-md p-1 hover:bg-gray-100 focus:outline-none"
+              >
+                <span className="sr-only">Close</span>✕
+              </button>
 
-          <div className="p-4">
-            <SolanaProvider>
-              <LiFiPrivyWrapper
-                config={config}
-                onSwapComplete={handleSwapComplete}
-              />
-            </SolanaProvider>
-          </div>
-        </DialogContent>
-      </Dialog> */}
+              <div className="p-4">
+                <SolanaProvider>
+                  <LiFiPrivyWrapper
+                    config={config}
+                    onSwapComplete={handleSwapComplete}
+                  />
+                </SolanaProvider>
+              </div>
+            </>
+          )}
+        </ModalContent>
+      </Modal>
 
-      <Dialog
+      {/* <Dialog
         open={openSwapModal}
         onOpenChange={(open) => {
           // Prevent Radix from closing the modal except when we do it manually
@@ -357,21 +338,6 @@ export default function SwapButton({
         <DialogContent
           className="sm:max-w-[450px] md:max-w-[550px] p-0"
           // Allow interaction with Privy modals and authentication dialogs (fixes 2FA input field issue)
-          // onPointerDownOutside={(e) => {
-          //   // Check for various Privy modal classes and elements
-          //   if (e.target instanceof HTMLElement && isPrivyModal(e.target)) {
-          //     return; // allow interaction with Privy modals and authentication dialogs
-          //   }
-          //   e.preventDefault();
-          // }}
-          // // Allow focus shift to Privy modals and authentication dialogs (fixes 2FA input field issue)
-          // onFocusOutside={(e) => {
-          //   // Check for various Privy modal classes and elements
-          //   if (e.target instanceof HTMLElement && isPrivyModal(e.target)) {
-          //     return; // allow focus shift to Privy modals and authentication dialogs
-          //   }
-          //   e.preventDefault();
-          // }}
           onPointerDownOutside={(e) => {
             if (e.target instanceof HTMLElement && isPrivyModal(e.target)) {
               return; // This will be respected
@@ -408,7 +374,7 @@ export default function SwapButton({
             </SolanaProvider>
           </div>
         </DialogContent>
-      </Dialog>
+      </Dialog> */}
     </>
   );
 }
