@@ -1,4 +1,4 @@
-import { PublicKey } from '@solana/web3.js';
+import { PublicKey } from "@solana/web3.js";
 
 export interface TokenInfo {
   symbol: string;
@@ -48,13 +48,13 @@ export interface EthQuoteResponse {
 }
 
 export interface SwapModalProps {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
+  // open: boolean;
+  // onOpenChange: (open: boolean) => void;
   userToken: TokenInfo[];
   accessToken: string;
   initialInputToken?: string;
   initialOutputToken?: string;
   initialAmount?: string;
   onTokenRefresh?: () => void;
-  chain?: 'solana' | 'ethereum';
+  chain?: "solana" | "ethereum";
 }

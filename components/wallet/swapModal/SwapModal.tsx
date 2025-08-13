@@ -4,7 +4,7 @@ import React, {
   useCallback,
   useMemo,
   useRef,
-} from 'react';
+} from "react";
 import {
   ArrowUpDown,
   ChevronRight,
@@ -16,37 +16,30 @@ import {
   Loader2,
   XCircle,
   Clock,
-} from 'lucide-react';
+} from "lucide-react";
 
-import {
-  Dialog,
-  DialogContent,
-  DialogTitle,
-} from '@/components/ui/dialog';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { useSolanaWallets } from '@privy-io/react-auth';
-import { Connection, PublicKey } from '@solana/web3.js';
-import toast from 'react-hot-toast';
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { useSolanaWallets } from "@privy-io/react-auth";
+import { Connection, PublicKey } from "@solana/web3.js";
+import toast from "react-hot-toast";
 
 import {
   getTokenInfoBySymbol,
   formatUSD,
   TOKEN_ADDRESSES,
-} from './utils/swapUtils';
-import { handleSwap } from './utils/handleSwap';
-import { PLATFORM_FEE_BPS } from './utils/feeConfig';
-import { TokenInfo, QuoteResponse, SwapModalProps } from './types';
-import SlippageControl from './utils/SlippageControl';
-import PriceCard from './utils/PriceCard';
+} from "./utils/swapUtils";
+import { handleSwap } from "./utils/handleSwap";
+import { PLATFORM_FEE_BPS } from "./utils/feeConfig";
+import { TokenInfo, QuoteResponse, SwapModalProps } from "./types";
+// import SlippageControl from "./utils/SlippageControl";
+import PriceCard from "./utils/PriceCard";
 import PriorityFeeSelector, {
   PriorityLevel,
-} from './utils/PriorityFeeSelector';
-import TokenImage from './TokenImage';
+} from "./utils/PriorityFeeSelector";
+import TokenImage from "./TokenImage";
 
 export default function SwapModal({
-  open,
-  onOpenChange,
   userToken,
   accessToken,
   initialInputToken,
@@ -57,12 +50,12 @@ export default function SwapModal({
   // State management
   // Initialize state with initial values if provided
   const [selectedInputSymbol, setSelectedInputSymbol] = useState(
-    initialInputToken || 'SOL'
+    initialInputToken || "SOL"
   );
   const [selectedOutputSymbol, setSelectedOutputSymbol] = useState(
-    initialOutputToken || 'USDC'
+    initialOutputToken || "USDC"
   );
-  const [amount, setAmount] = useState(initialAmount || '0.01');
+  const [amount, setAmount] = useState(initialAmount || "0.01");
 
   const [tokenMetaData, setTokenMetaData] = useState<TokenInfo[]>([]);
   const [quote, setQuote] = useState<QuoteResponse | null>(null);
@@ -71,10 +64,8 @@ export default function SwapModal({
   const [isTokenListOpen, setIsTokenListOpen] = useState(false);
   const [isInputToken, setIsInputToken] = useState(true);
   const [swapLoading, setSwapLoading] = useState(false);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [searchedTokens, setSearchedTokens] = useState<TokenInfo[]>(
-    []
-  );
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchedTokens, setSearchedTokens] = useState<TokenInfo[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const [searchKey, setSearchKey] = useState(0);
   const [txSignature, setTxSignature] = useState<string | null>(null);
@@ -90,16 +81,12 @@ export default function SwapModal({
 
   // New state variables
   const [slippageBps, setSlippageBps] = useState(50); // Default 0.5%
-  const [priorityLevel, setPriorityLevel] =
-    useState<PriorityLevel>('none');
-  const [showAdvancedOptions, setShowAdvancedOptions] =
-    useState(false);
+  const [priorityLevel, setPriorityLevel] = useState<PriorityLevel>("none");
+  const [showAdvancedOptions, setShowAdvancedOptions] = useState(false);
   const [refreshingBalances, setRefreshingBalances] = useState(false);
 
   const [inputMint, setInputMint] = useState<PublicKey | null>(null);
-  const [outputMint, setOutputMint] = useState<PublicKey | null>(
-    null
-  );
+  const [outputMint, setOutputMint] = useState<PublicKey | null>(null);
 
   // Function to reset transaction state when modal is opened/closed
   const resetModalState = useCallback(() => {
@@ -117,16 +104,16 @@ export default function SwapModal({
     resetModalState();
   }, [open, resetModalState]);
 
-  const handleOpenChange = useCallback(
-    (newOpenState: boolean) => {
-      if (!newOpenState) {
-        resetModalState();
-        // Optionally clear the URL params here if needed
-      }
-      onOpenChange(newOpenState);
-    },
-    [onOpenChange, resetModalState]
-  );
+  // const handleOpenChange = useCallback(
+  //   (newOpenState: boolean) => {
+  //     if (!newOpenState) {
+  //       resetModalState();
+  //       // Optionally clear the URL params here if needed
+  //     }
+  //     onOpenChange(newOpenState);
+  //   },
+  //   [onOpenChange, resetModalState]
+  // );
 
   // Handle custom onOpenChange to properly reset state
   // const handleOpenChange = useCallback(
@@ -145,29 +132,18 @@ export default function SwapModal({
 
   // Create connection as a memoized value to prevent re-creation on renders
   const connection = useMemo(
-    () =>
-      new Connection(process.env.NEXT_PUBLIC_QUICKNODE_SOLANA_URL!),
+    () => new Connection(process.env.NEXT_PUBLIC_QUICKNODE_SOLANA_URL!),
     []
   );
 
   // Memoize token information to prevent recalculation on every render
   const inputToken = useMemo(
-    () =>
-      getTokenInfoBySymbol(
-        selectedInputSymbol,
-        userToken,
-        tokenMetaData
-      ),
+    () => getTokenInfoBySymbol(selectedInputSymbol, userToken, tokenMetaData),
     [selectedInputSymbol, userToken, tokenMetaData]
   );
 
   const outputToken = useMemo(
-    () =>
-      getTokenInfoBySymbol(
-        selectedOutputSymbol,
-        userToken,
-        tokenMetaData
-      ),
+    () => getTokenInfoBySymbol(selectedOutputSymbol, userToken, tokenMetaData),
     [selectedOutputSymbol, userToken, tokenMetaData]
   );
   // Set input amount to half of balance
@@ -182,7 +158,7 @@ export default function SwapModal({
       const halfAmount = (balance / 2).toString();
       setAmount(halfAmount);
     } catch (err) {
-      console.error('Error setting half amount:', err);
+      console.error("Error setting half amount:", err);
     }
   }, [inputToken]);
 
@@ -195,14 +171,14 @@ export default function SwapModal({
       if (isNaN(balance) || balance <= 0) return;
 
       // If token is SOL, keep a small amount for transaction fees
-      if (selectedInputSymbol === 'SOL') {
+      if (selectedInputSymbol === "SOL") {
         const maxAmount = Math.max(0, balance - 0.01).toString();
         setAmount(maxAmount);
       } else {
         setAmount(balance.toString());
       }
     } catch (err) {
-      console.error('Error setting max amount:', err);
+      console.error("Error setting max amount:", err);
     }
   }, [inputToken, selectedInputSymbol]);
 
@@ -216,7 +192,7 @@ export default function SwapModal({
     const userBalance = parseFloat(inputToken.balance);
 
     // Add minimum amount check for SOL
-    if (selectedInputSymbol === 'SOL' && inputAmount < 0.01) {
+    if (selectedInputSymbol === "SOL" && inputAmount < 0.01) {
       return true;
     }
 
@@ -228,8 +204,8 @@ export default function SwapModal({
     if (!amount) return null;
     const inputAmount = parseFloat(amount);
 
-    if (selectedInputSymbol === 'SOL' && inputAmount < 0.01) {
-      return 'Minimum swap amount is 0.01 SOL';
+    if (selectedInputSymbol === "SOL" && inputAmount < 0.01) {
+      return "Minimum swap amount is 0.01 SOL";
     }
 
     return null;
@@ -241,12 +217,8 @@ export default function SwapModal({
       try {
         // Only fetch metadata for input and output tokens
         const tokensToFetch = [
-          TOKEN_ADDRESSES[
-            selectedInputSymbol as keyof typeof TOKEN_ADDRESSES
-          ],
-          TOKEN_ADDRESSES[
-            selectedOutputSymbol as keyof typeof TOKEN_ADDRESSES
-          ],
+          TOKEN_ADDRESSES[selectedInputSymbol as keyof typeof TOKEN_ADDRESSES],
+          TOKEN_ADDRESSES[selectedOutputSymbol as keyof typeof TOKEN_ADDRESSES],
         ].filter(Boolean); // Remove any undefined values
 
         if (tokensToFetch.length === 0) return;
@@ -255,15 +227,13 @@ export default function SwapModal({
         const tokensNeeded = tokensToFetch.filter(
           (mint) =>
             !tokenMetaData.some(
-              (t) =>
-                t.address?.toString() === mint ||
-                t.id?.toString() === mint
+              (t) => t.address?.toString() === mint || t.id?.toString() === mint
             )
         );
 
         if (tokensNeeded.length === 0) return;
 
-        const queryParam = encodeURIComponent(tokensNeeded.join(','));
+        const queryParam = encodeURIComponent(tokensNeeded.join(","));
         const url = `https://datapi.jup.ag/v1/assets/search?query=${queryParam}`;
 
         const res = await fetch(url);
@@ -276,8 +246,8 @@ export default function SwapModal({
           setTokenMetaData((prev) => [...prev, ...json]);
         }
       } catch (err) {
-        console.error('Error fetching metadata:', err);
-        setError('Error fetching token metadata');
+        console.error("Error fetching metadata:", err);
+        setError("Error fetching token metadata");
       }
     };
 
@@ -326,9 +296,9 @@ export default function SwapModal({
       // Reset countdown whenever we get a new quote
       setRefreshCountdown(10);
     } catch (err: any) {
-      console.error('Quote fetch error:', err);
-      setError(err.message || 'Failed to fetch quote');
-      toast.error('Failed to fetch quote. Please try again.');
+      console.error("Quote fetch error:", err);
+      setError(err.message || "Failed to fetch quote");
+      toast.error("Failed to fetch quote. Please try again.");
     } finally {
       setLoading(false);
     }
@@ -399,11 +369,11 @@ export default function SwapModal({
 
   // Reset auto-refresh when modal state changes
   useEffect(() => {
-    if (open) {
+    if (true) {
       setAutoRefreshEnabled(true);
       setRefreshCountdown(10);
     }
-  }, [open]);
+  }, []);
 
   // Handle token search with debouncing
   useEffect(() => {
@@ -441,10 +411,10 @@ export default function SwapModal({
           setSearchedTokens(newTokens);
         }
       } catch (err) {
-        console.error('Error searching tokens:', err);
+        console.error("Error searching tokens:", err);
         if (isMounted) {
           setSearchedTokens([]);
-          setError('Failed to search tokens. Please try again.');
+          setError("Failed to search tokens. Please try again.");
         }
       } finally {
         if (isMounted) {
@@ -472,24 +442,22 @@ export default function SwapModal({
         (!isInputToken && symbol === selectedInputSymbol)
       ) {
         toast.error(
-          'You cannot select the same token for both input and output'
+          "You cannot select the same token for both input and output"
         );
         setIsTokenListOpen(false);
-        setSearchQuery('');
+        setSearchQuery("");
         setSearchedTokens([]);
         setSearchKey((prev) => prev + 1);
         return;
       }
 
       if (tokenData && tokenMetaData) {
-        const tokenExists = tokenMetaData.some(
-          (t) => t.symbol === symbol
-        );
+        const tokenExists = tokenMetaData.some((t) => t.symbol === symbol);
 
         if (!tokenExists) {
           const formattedToken = {
             ...tokenData,
-            balance: '0',
+            balance: "0",
           };
 
           setTokenMetaData([...tokenMetaData, formattedToken]);
@@ -503,23 +471,16 @@ export default function SwapModal({
       }
 
       setIsTokenListOpen(false);
-      setSearchQuery('');
+      setSearchQuery("");
       setSearchedTokens([]);
       setSearchKey((prev) => prev + 1);
     },
-    [
-      isInputToken,
-      selectedInputSymbol,
-      selectedOutputSymbol,
-      tokenMetaData,
-    ]
+    [isInputToken, selectedInputSymbol, selectedOutputSymbol, tokenMetaData]
   );
 
   const reverseTokens = useCallback(() => {
     const newInputSymbol = selectedOutputSymbol;
-    const userOwnsNewInput = userToken.find(
-      (t) => t.symbol === newInputSymbol
-    );
+    const userOwnsNewInput = userToken.find((t) => t.symbol === newInputSymbol);
 
     if (userOwnsNewInput) {
       // If user owns the output token, do normal swap
@@ -528,7 +489,7 @@ export default function SwapModal({
     } else {
       // If user doesn't own the output token, set input to empty and move current input to output
       setSelectedOutputSymbol(selectedInputSymbol);
-      setSelectedInputSymbol('');
+      setSelectedInputSymbol("");
     }
     setError(null);
   }, [selectedInputSymbol, selectedOutputSymbol, userToken]);
@@ -572,15 +533,13 @@ export default function SwapModal({
       },
       onSuccess: (signature, feedData) => {
         setTxSignature(signature);
-        setTxStatus('Transaction completed successfully!');
+        setTxStatus("Transaction completed successfully!");
         setTxSuccess(true);
         setError(null);
 
         // Show a success notification for the feed
         if (feedData) {
-          toast.success(
-            'Swap transaction added to your activity feed!'
-          );
+          toast.success("Swap transaction added to your activity feed!");
         }
 
         // Refresh token list after successful swap
@@ -599,7 +558,7 @@ export default function SwapModal({
         setTimeout(() => {
           setRefreshingBalances(false);
           // Use toast just for this notification since it's not related to the transaction directly
-          toast.success('Balances updated');
+          toast.success("Balances updated");
         }, 2000);
       },
     });
@@ -618,7 +577,7 @@ export default function SwapModal({
   ]);
 
   const openTokenList = useCallback((isInput: boolean) => {
-    setSearchQuery('');
+    setSearchQuery("");
     setSearchedTokens([]);
     setIsSearching(false);
     setSearchKey((prev) => prev + 1);
@@ -649,35 +608,22 @@ export default function SwapModal({
     }
 
     return merged;
-  }, [
-    isInputToken,
-    searchQuery,
-    searchedTokens,
-    userToken,
-    tokenMetaData,
-  ]);
+  }, [isInputToken, searchQuery, searchedTokens, userToken, tokenMetaData]);
 
   // Formatted output amount calculation
   const formattedOutputAmount = useMemo(() => {
     if (!quote?.outAmount || !outputToken?.decimals) {
-      return '0';
+      return "0";
     }
     return (quote.outAmount / 10 ** outputToken.decimals).toString();
   }, [quote?.outAmount, outputToken?.decimals]);
 
   return (
-    <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent className="max-w-md w-full rounded-2xl p-6 gap-2">
-        <DialogTitle className="sr-only">Swap Tokens</DialogTitle>
+    <section>
+      <div className="max-w-md w-full rounded-2xl p-6 gap-2">
+        <h2 className="sr-only">Swap Tokens</h2>
         <div className="flex justify-between items-center mb-4">
           <h2 className="text-lg font-semibold">Swap Tokens</h2>
-          <div className="flex items-center gap-2 relative">
-            <SlippageControl
-              slippage={slippageBps}
-              setSlippage={setSlippageBps}
-            />
-            <button onClick={() => onOpenChange(false)} />
-          </div>
         </div>
 
         {/* Token Input - with curved bottom */}
@@ -691,19 +637,17 @@ export default function SwapModal({
                   onChange={(e) => setAmount(e.target.value)}
                   placeholder="0.0"
                   className={`text-xl border-none shadow-none bg-transparent p-0 w-full ${
-                    hasInsufficientFunds ? 'text-red-500' : ''
+                    hasInsufficientFunds ? "text-red-500" : ""
                   }`}
                 />
                 <div className="text-sm text-gray-500 mt-1">
                   {selectedInputSymbol &&
                   inputToken?.price &&
                   !isNaN(
-                    parseFloat(
-                      inputToken.price || inputToken?.usdPrice || '0'
-                    )
+                    parseFloat(inputToken.price || inputToken?.usdPrice || "0")
                   ) ? (
                     `$${formatUSD(
-                      inputToken.price || inputToken?.usdPrice || '0',
+                      inputToken.price || inputToken?.usdPrice || "0",
                       (
                         (quote?.inAmount || 0) /
                         10 ** (inputToken?.decimals || 6)
@@ -711,8 +655,7 @@ export default function SwapModal({
                     )}`
                   ) : (
                     <span className="flex items-center gap-1">
-                      <AlertCircle className="w-3 h-3" /> No price
-                      data
+                      <AlertCircle className="w-3 h-3" /> No price data
                     </span>
                   )}
                 </div>
@@ -731,15 +674,13 @@ export default function SwapModal({
                 <>
                   <TokenImage
                     src={inputToken?.icon || inputToken?.logoURI}
-                    alt={inputToken?.symbol || 'Input Token'}
+                    alt={inputToken?.symbol || "Input Token"}
                     width={20}
                     height={20}
                     className="w-5 h-5 mr-2 rounded-full"
                     fallbackSrc={inputToken.marketData?.iconUrl}
                   />
-                  <span className="font-medium">
-                    {inputToken?.symbol}
-                  </span>
+                  <span className="font-medium">{inputToken?.symbol}</span>
                 </>
               ) : (
                 <span className="font-medium">Select</span>
@@ -749,29 +690,26 @@ export default function SwapModal({
           </div>
           <div className="flex justify-between items-center mt-2">
             <div className="flex space-x-2">
-              {inputToken?.balance &&
-                parseFloat(inputToken.balance) > 0 && (
-                  <>
-                    <button
-                      onClick={setHalfAmount}
-                      className="text-xs bg-gray-200 hover:bg-gray-300 px-2 py-1 rounded text-gray-700 transition-colors"
-                    >
-                      Half
-                    </button>
-                    <button
-                      onClick={setMaxAmount}
-                      className="text-xs bg-gray-200 hover:bg-gray-300 px-2 py-1 rounded text-gray-700 transition-colors"
-                    >
-                      Max
-                    </button>
-                  </>
-                )}
+              {inputToken?.balance && parseFloat(inputToken.balance) > 0 && (
+                <>
+                  <button
+                    onClick={setHalfAmount}
+                    className="text-xs bg-gray-200 hover:bg-gray-300 px-2 py-1 rounded text-gray-700 transition-colors"
+                  >
+                    Half
+                  </button>
+                  <button
+                    onClick={setMaxAmount}
+                    className="text-xs bg-gray-200 hover:bg-gray-300 px-2 py-1 rounded text-gray-700 transition-colors"
+                  >
+                    Max
+                  </button>
+                </>
+              )}
             </div>
             <div className="flex items-center gap-1 text-sm text-muted-foreground">
-              <span
-                className={hasInsufficientFunds ? 'text-red-500' : ''}
-              >
-                Balance: {inputToken?.balance || '0'}
+              <span className={hasInsufficientFunds ? "text-red-500" : ""}>
+                Balance: {inputToken?.balance || "0"}
               </span>
               {refreshingBalances ? (
                 <RefreshCw className="w-3 h-3 animate-spin" />
@@ -811,15 +749,13 @@ export default function SwapModal({
             >
               <TokenImage
                 src={outputToken?.icon || outputToken?.logoURI}
-                alt={outputToken?.symbol || 'Output Token'}
+                alt={outputToken?.symbol || "Output Token"}
                 width={20}
                 height={20}
                 className="w-5 h-5 mr-2 rounded-full"
                 fallbackSrc={outputToken.marketData?.iconUrl}
               />
-              <span className="font-medium">
-                {outputToken?.symbol}
-              </span>
+              <span className="font-medium">{outputToken?.symbol}</span>
               <ChevronRight className="w-4 h-4" />
             </Button>
           </div>
@@ -828,12 +764,10 @@ export default function SwapModal({
               {outputToken &&
               quote?.outAmount &&
               !isNaN(
-                parseFloat(
-                  outputToken.price || outputToken?.usdPrice || '0'
-                )
+                parseFloat(outputToken.price || outputToken?.usdPrice || "0")
               ) ? (
                 `$${formatUSD(
-                  outputToken.price || outputToken?.usdPrice || '0',
+                  outputToken.price || outputToken?.usdPrice || "0",
                   formattedOutputAmount
                 )}`
               ) : (
@@ -843,7 +777,7 @@ export default function SwapModal({
               )}
             </div>
             <div className="flex items-center gap-1">
-              <span>Balance: {outputToken?.balance || '0'}</span>
+              <span>Balance: {outputToken?.balance || "0"}</span>
               {refreshingBalances ? (
                 <RefreshCw className="w-3 h-3 animate-spin" />
               ) : null}
@@ -856,9 +790,7 @@ export default function SwapModal({
           <div className="mb-2">
             <div className="flex items-center justify-between mb-1">
               <div className="flex items-center text-xs text-gray-500">
-                <span className="mr-1">
-                  Quote includes a 0.5% Swop fee
-                </span>
+                <span className="mr-1">Quote includes a 0.5% Swop fee</span>
                 <Info className="w-3 h-3" />
               </div>
               <div className="flex items-center text-xs text-gray-500">
@@ -889,7 +821,7 @@ export default function SwapModal({
           onClick={() => setShowAdvancedOptions(!showAdvancedOptions)}
           className="text-xs text-gray-500 ml-auto"
         >
-          {showAdvancedOptions ? 'Hide Advanced' : 'Advanced Options'}
+          {showAdvancedOptions ? "Hide Advanced" : "Advanced Options"}
         </Button>
 
         {/* Priority Fee Selector */}
@@ -907,10 +839,10 @@ export default function SwapModal({
           <div
             className={`mt-2 p-3 rounded-lg ${
               error
-                ? 'bg-red-100 text-red-700'
+                ? "bg-red-100 text-red-700"
                 : txSuccess
-                ? 'bg-green-100 text-green-700'
-                : 'bg-blue-100 text-blue-700'
+                ? "bg-green-100 text-green-700"
+                : "bg-blue-100 text-blue-700"
             }`}
           >
             <div className="flex items-center gap-2">
@@ -921,9 +853,7 @@ export default function SwapModal({
               ) : (
                 <Loader2 className="w-5 h-5 text-blue-500 animate-spin" />
               )}
-              <span className="text-sm font-medium">
-                {error || txStatus}
-              </span>
+              <span className="text-sm font-medium">{error || txStatus}</span>
             </div>
           </div>
         )}
@@ -941,16 +871,16 @@ export default function SwapModal({
           }
         >
           {swapLoading
-            ? 'Swapping...'
+            ? "Swapping..."
             : loading
-            ? 'Loading...'
+            ? "Loading..."
             : hasInsufficientFunds
             ? `Insufficient ${inputToken?.symbol}`
             : getAmountError
             ? getAmountError
             : selectedInputSymbol
-            ? 'Swap'
-            : 'Select input token'}
+            ? "Swap"
+            : "Select input token"}
         </Button>
 
         {/* Transaction result section */}
@@ -962,8 +892,7 @@ export default function SwapModal({
               rel="noopener noreferrer"
               className="flex items-center justify-center gap-1 text-blue-500 hover:text-blue-700 text-sm"
             >
-              View transaction on Solscan{' '}
-              <ExternalLink className="w-3 h-3" />
+              View transaction on Solscan <ExternalLink className="w-3 h-3" />
             </a>
           </div>
         )}
@@ -973,9 +902,7 @@ export default function SwapModal({
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
             <div className="bg-white rounded-xl shadow-lg w-[90%] max-w-sm max-h-[450px] overflow-hidden p-0">
               <div className="flex justify-between items-center p-4">
-                <h3 className="text-md font-semibold">
-                  Select a token
-                </h3>
+                <h3 className="text-md font-semibold">Select a token</h3>
                 <button
                   onClick={() => setIsTokenListOpen(false)}
                   className="text-gray-500 hover:text-gray-700 focus:outline-none"
@@ -1014,9 +941,7 @@ export default function SwapModal({
                         token.address || token.id || Math.random()
                       }-${searchKey}`}
                       variant="ghost"
-                      onClick={() =>
-                        handleTokenSelect(token.symbol, token)
-                      }
+                      onClick={() => handleTokenSelect(token.symbol, token)}
                       className="flex items-center justify-start w-full gap-3 text-left hover:bg-gray-100 px-3 py-2 rounded-lg h-auto"
                     >
                       <TokenImage
@@ -1028,9 +953,7 @@ export default function SwapModal({
                         fallbackSrc={token.marketData?.iconUrl}
                       />
                       <div className="flex flex-col text-sm">
-                        <span className="font-medium">
-                          {token.symbol}
-                        </span>
+                        <span className="font-medium">{token.symbol}</span>
                         <span className="text-gray-400 text-xs">
                           {token?.name || token.symbol}
                         </span>
@@ -1039,18 +962,16 @@ export default function SwapModal({
                   ))}
                 </div>
 
-                {searchQuery &&
-                  !isSearching &&
-                  searchedTokens.length === 0 && (
-                    <div className="text-center py-4 text-gray-500">
-                      No tokens found
-                    </div>
-                  )}
+                {searchQuery && !isSearching && searchedTokens.length === 0 && (
+                  <div className="text-center py-4 text-gray-500">
+                    No tokens found
+                  </div>
+                )}
               </div>
             </div>
           </div>
         )}
-      </DialogContent>
-    </Dialog>
+      </div>
+    </section>
   );
 }

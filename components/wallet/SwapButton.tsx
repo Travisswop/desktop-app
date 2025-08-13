@@ -17,8 +17,6 @@ interface SwapButtonProps {
 }
 
 export default function SwapButton({
-  tokens,
-  accessToken,
   onTokenRefresh,
   initialInputToken,
   initialOutputToken,

@@ -1,27 +1,29 @@
-'use client';
+"use client";
 
-import { LiFiWidget, WidgetConfig } from '@lifi/widget';
-import { WidgetEvent, useWidgetEvents } from '@lifi/widget';
-import { useEffect, useMemo, useState } from 'react';
-import { ChainId } from '@lifi/widget';
-import { useWallets, useSolanaWallets } from '@privy-io/react-auth';
-import { useWallet } from '@solana/wallet-adapter-react';
-import { PrivySolanaSync } from './PrivySolanaSync';
-import { PrivyWalletAdapter } from './PrivyWalletAdapter'; // Import your adapter
-import { PrivyTransactionSignerProvider } from './PrivyTransactionSigner';
+import { LiFiWidget, WidgetConfig } from "@lifi/widget";
+import { WidgetEvent, useWidgetEvents } from "@lifi/widget";
+import { useEffect, useMemo, useState } from "react";
+import { ChainId } from "@lifi/widget";
+import { useWallets, useSolanaWallets } from "@privy-io/react-auth";
+import { useWallet } from "@solana/wallet-adapter-react";
+import { PrivySolanaSync } from "./PrivySolanaSync";
+import { PrivyWalletAdapter } from "./PrivyWalletAdapter"; // Import your adapter
+import { PrivyTransactionSignerProvider } from "./PrivyTransactionSigner";
+import SwapModal from "./swapModal/SwapModal";
+import { useSwapStore } from "@/zustandStore/tokenSwapProps";
 
 const defaultConfig = {
-  variant: 'compact',
-  subvariant: 'split',
-  appearance: 'light',
+  variant: "compact",
+  subvariant: "split",
+  appearance: "light",
   theme: {
     typography: {},
     header: {
-      overflow: 'visible',
+      overflow: "visible",
     },
     container: {
-      boxShadow: '0px 8px 32px rgba(0, 0, 0, 0.12)',
-      borderRadius: '24px',
+      boxShadow: "0px 8px 32px rgba(0, 0, 0, 0.12)",
+      borderRadius: "24px",
     },
     shape: {
       borderRadius: 12,
@@ -31,54 +33,54 @@ const defaultConfig = {
       light: {
         palette: {
           primary: {
-            main: '#140925',
+            main: "#140925",
           },
           secondary: {
-            main: '#8700B8',
+            main: "#8700B8",
           },
           background: {
-            default: '#fafafa',
-            paper: '#FFFFFF',
+            default: "#fafafa",
+            paper: "#FFFFFF",
           },
           text: {
-            primary: '#000000',
-            secondary: '#818084',
+            primary: "#000000",
+            secondary: "#818084",
           },
           grey: {
-            200: '#ECEBF0',
-            300: '#E5E1EB',
-            700: '#70767A',
-            800: '#4B4F52',
+            200: "#ECEBF0",
+            300: "#E5E1EB",
+            700: "#70767A",
+            800: "#4B4F52",
           },
           playground: {
-            main: '#F3EBFF',
+            main: "#F3EBFF",
           },
         },
       },
       dark: {
         palette: {
           primary: {
-            main: '#653BA3',
+            main: "#653BA3",
           },
           secondary: {
-            main: '#D35CFF',
+            main: "#D35CFF",
           },
           background: {
-            default: '#24203D',
-            paper: '#302B52',
+            default: "#24203D",
+            paper: "#302B52",
           },
           text: {
-            primary: '#ffffff',
-            secondary: '#9490a5',
+            primary: "#ffffff",
+            secondary: "#9490a5",
           },
           grey: {
-            200: '#ECEBF0',
-            300: '#DDDCE0',
-            700: '#70767A',
-            800: '#3c375c',
+            200: "#ECEBF0",
+            300: "#DDDCE0",
+            700: "#70767A",
+            800: "#3c375c",
           },
           playground: {
-            main: '#120F29',
+            main: "#120F29",
           },
         },
       },
@@ -86,7 +88,7 @@ const defaultConfig = {
     components: {
       MuiCard: {
         defaultProps: {
-          variant: 'elevation',
+          variant: "elevation",
         },
       },
     },
@@ -102,7 +104,7 @@ interface LiFiModalProps {
 export default function LiFiModal({
   config = defaultConfig,
   onSwapComplete,
-  integrator = 'SWOP',
+  integrator = "SWOP",
 }: LiFiModalProps) {
   const { wallets } = useWallets();
   const { wallets: solWallets } = useSolanaWallets();
@@ -110,26 +112,26 @@ export default function LiFiModal({
     useWallet();
   const [preferSolana, setPreferSolana] = useState(false);
   const [widgetKey, setWidgetKey] = useState(0);
-  const [privyAdapter, setPrivyAdapter] =
-    useState<PrivyWalletAdapter | null>(null);
+  const [privyAdapter, setPrivyAdapter] = useState<PrivyWalletAdapter | null>(
+    null
+  );
 
   const widgetEvents = useWidgetEvents();
 
   // Find Ethereum and Solana wallets
   const ethWallet = wallets.find(
     (wallet) =>
-      wallet.walletClientType === 'privy' &&
+      wallet.walletClientType === "privy" &&
       wallet.chainId &&
-      wallet.chainId.includes('eip155:')
+      wallet.chainId.includes("eip155:")
   );
 
-  const solWallet =
-    solWallets && solWallets.length > 0 ? solWallets[0] : null;
+  const solWallet = solWallets && solWallets.length > 0 ? solWallets[0] : null;
 
   // Create and manage Privy Wallet Adapter for Solana
   useEffect(() => {
     if (solWallet) {
-      console.log('Creating PrivyWalletAdapter for wallet:', {
+      console.log("Creating PrivyWalletAdapter for wallet:", {
         address: solWallet.address,
         chainType: (solWallet as any).chainType,
         walletClientType: (solWallet as any).walletClientType,
@@ -154,60 +156,49 @@ export default function LiFiModal({
   // Connect the adapter when needed
   useEffect(() => {
     if (privyAdapter && preferSolana && !privyAdapter.connected) {
-      console.log('Connecting PrivyWalletAdapter...');
+      console.log("Connecting PrivyWalletAdapter...");
       privyAdapter.connect().catch((error) => {
-        console.error('Failed to connect PrivyWalletAdapter:', error);
+        console.error("Failed to connect PrivyWalletAdapter:", error);
       });
     }
   }, [privyAdapter, preferSolana]);
 
   useEffect(() => {
     const onRouteExecutionCompleted = () => {
-      console.log('Swap completed successfully');
+      console.log("Swap completed successfully");
       if (onSwapComplete) {
         onSwapComplete();
       }
     };
 
     const onRouteExecutionFailed = (error: any) => {
-      console.error('Swap failed with error:', error);
-      alert(
-        `Swap failed: ${error?.message || 'Unknown error occurred'}`
-      );
+      console.error("Swap failed with error:", error);
+      alert(`Swap failed: ${error?.message || "Unknown error occurred"}`);
     };
 
     const onWalletConnected = (wallet: any) => {
-      console.log('LiFi wallet connected:', wallet);
+      console.log("LiFi wallet connected:", wallet);
     };
 
     const onSignatureRequired = (signatureData: any) => {
-      console.warn(
-        'Signature required for transaction:',
-        signatureData
-      );
+      console.warn("Signature required for transaction:", signatureData);
       alert(
-        'Please sign the transaction in your Solana wallet to complete the swap'
+        "Please sign the transaction in your Solana wallet to complete the swap"
       );
     };
 
     const onTransactionUpdated = (transactionData: any) => {
-      console.log('Transaction updated:', transactionData);
+      console.log("Transaction updated:", transactionData);
     };
 
     widgetEvents.on(
       WidgetEvent.RouteExecutionCompleted,
       onRouteExecutionCompleted
     );
-    widgetEvents.on(
-      WidgetEvent.RouteExecutionFailed,
-      onRouteExecutionFailed
-    );
+    widgetEvents.on(WidgetEvent.RouteExecutionFailed, onRouteExecutionFailed);
     widgetEvents.on(WidgetEvent.WalletConnected, onWalletConnected);
-    widgetEvents.on('signature_required' as any, onSignatureRequired);
-    widgetEvents.on(
-      'transaction_updated' as any,
-      onTransactionUpdated
-    );
+    widgetEvents.on("signature_required" as any, onSignatureRequired);
+    widgetEvents.on("transaction_updated" as any, onTransactionUpdated);
 
     return () => {
       widgetEvents.off(
@@ -218,18 +209,9 @@ export default function LiFiModal({
         WidgetEvent.RouteExecutionFailed,
         onRouteExecutionFailed
       );
-      widgetEvents.off(
-        WidgetEvent.WalletConnected,
-        onWalletConnected
-      );
-      widgetEvents.off(
-        'signature_required' as any,
-        onSignatureRequired
-      );
-      widgetEvents.off(
-        'transaction_updated' as any,
-        onTransactionUpdated
-      );
+      widgetEvents.off(WidgetEvent.WalletConnected, onWalletConnected);
+      widgetEvents.off("signature_required" as any, onSignatureRequired);
+      widgetEvents.off("transaction_updated" as any, onTransactionUpdated);
     };
   }, [widgetEvents, onSwapComplete]);
 
@@ -239,10 +221,8 @@ export default function LiFiModal({
   }, [preferSolana, solanaConnected, privyAdapter?.connected]);
 
   // Use the preferred wallet based on selection or availability
-  const activeWallet = preferSolana
-    ? solWallet
-    : ethWallet || solWallet;
-  const activeAddress = activeWallet?.address || '';
+  const activeWallet = preferSolana ? solWallet : ethWallet || solWallet;
+  const activeAddress = activeWallet?.address || "";
   const isEthereumWallet = activeWallet === ethWallet;
 
   // Build LiFi widget config with wallet management
@@ -252,9 +232,7 @@ export default function LiFiModal({
       integrator,
       sdkConfig: {
         rpcUrls: {
-          [ChainId.SOL]: [
-            process.env.NEXT_PUBLIC_QUICKNODE_SOLANA_ENDPOINT,
-          ],
+          [ChainId.SOL]: [process.env.NEXT_PUBLIC_QUICKNODE_SOLANA_ENDPOINT],
         },
       },
     };
@@ -271,17 +249,17 @@ export default function LiFiModal({
         // Configure wallet management for Solana
         walletConfig: {
           onConnect: async () => {
-            console.log('LiFi requesting wallet connection...');
+            console.log("LiFi requesting wallet connection...");
             if (!privyAdapter.connected) {
               await privyAdapter.connect();
             }
             return {
-              account: privyAdapter.publicKey?.toBase58() || '',
+              account: privyAdapter.publicKey?.toBase58() || "",
               chainId: ChainId.SOL,
             };
           },
           onDisconnect: async () => {
-            console.log('LiFi requesting wallet disconnection...');
+            console.log("LiFi requesting wallet disconnection...");
             if (privyAdapter.connected) {
               await privyAdapter.disconnect();
             }
@@ -292,37 +270,28 @@ export default function LiFiModal({
           signer: privyAdapter.connected
             ? {
                 signTransaction: async (transaction: any) => {
-                  console.log(
-                    'LiFi requesting transaction signature...',
-                    {
-                      transaction,
-                      walletAddress:
-                        privyAdapter.publicKey?.toBase58(),
-                      connected: privyAdapter.connected,
-                      readyState: privyAdapter.readyState,
-                    }
-                  );
+                  console.log("LiFi requesting transaction signature...", {
+                    transaction,
+                    walletAddress: privyAdapter.publicKey?.toBase58(),
+                    connected: privyAdapter.connected,
+                    readyState: privyAdapter.readyState,
+                  });
                   try {
                     const signed = await privyAdapter.signTransaction(
                       transaction
                     );
-                    console.log('Transaction signed successfully');
+                    console.log("Transaction signed successfully");
                     return signed;
                   } catch (error) {
-                    console.error(
-                      'Failed to sign transaction:',
-                      error
-                    );
+                    console.error("Failed to sign transaction:", error);
                     throw error;
                   }
                 },
                 signAllTransactions: async (transactions: any[]) => {
                   console.log(
-                    'LiFi requesting multiple transaction signatures...'
+                    "LiFi requesting multiple transaction signatures..."
                   );
-                  return await privyAdapter.signAllTransactions(
-                    transactions
-                  );
+                  return await privyAdapter.signAllTransactions(transactions);
                 },
                 publicKey: privyAdapter.publicKey,
                 connected: privyAdapter.connected,
@@ -353,7 +322,7 @@ export default function LiFiModal({
 
   // Log debug information
   useEffect(() => {
-    console.log('Debug - Enhanced wallet info:', {
+    console.log("Debug - Enhanced wallet info:", {
       ethWallet: ethWallet
         ? {
             address: ethWallet.address,
@@ -381,7 +350,7 @@ export default function LiFiModal({
       activeAddress,
       preferSolana,
       isEthereumWallet,
-      hasWalletConfig: preferSolana && privyAdapter ? 'YES' : 'NO',
+      hasWalletConfig: preferSolana && privyAdapter ? "YES" : "NO",
     });
   }, [
     wallets,
@@ -401,79 +370,91 @@ export default function LiFiModal({
     setPreferSolana(!preferSolana);
   };
 
+  const {
+    userToken,
+    accessToken,
+    initialInputToken,
+    initialOutputToken,
+    initialAmount,
+    onTokenRefresh,
+  } = useSwapStore();
+
   return (
     <div className="w-full">
-      {/* Include Privy Solana Sync and Transaction Signer */}
-      <PrivyTransactionSignerProvider>
-        <PrivySolanaSync />
-
-        {/* Wallet Selection UI */}
-        <div className="mb-4 flex flex-col gap-2">
-          <div className="text-sm font-medium">
-            Connected Wallets:
-          </div>
-          <div className="flex gap-2 mb-3">
-            {ethWallet && (
-              <button
-                onClick={() => setPreferSolana(false)}
-                className={`px-3 py-1 text-sm rounded-md flex gap-1 items-center ${
-                  !preferSolana
-                    ? 'bg-blue-500 text-white'
-                    : 'bg-gray-100 text-gray-700'
-                }`}
-              >
-                <span className="w-2 h-2 rounded-full bg-green-500"></span>
-                ETH: {ethWallet.address.slice(0, 6)}...
-                {ethWallet.address.slice(-4)}
-              </button>
-            )}
-            {solWallet && (
-              <button
-                onClick={() => setPreferSolana(true)}
-                className={`px-3 py-1 text-sm rounded-md flex gap-1 items-center ${
-                  preferSolana
-                    ? 'bg-blue-500 text-white'
-                    : 'bg-gray-100 text-gray-700'
-                }`}
-              >
-                <span className="w-2 h-2 rounded-full bg-green-500"></span>
-                SOL: {solWallet.address.slice(0, 6)}...
-                {solWallet.address.slice(-4)}
-                {privyAdapter?.connected && (
-                  <span className="text-xs">✓</span>
-                )}
-              </button>
-            )}
-          </div>
-          <div className="text-xs text-gray-500 mb-2">
-            Using {isEthereumWallet ? 'Ethereum' : 'Solana'} wallet
-            for this swap.
-            {ethWallet && solWallet && (
-              <button
-                onClick={toggleWallet}
-                className="text-blue-500 ml-1 underline"
-              >
-                Switch to {isEthereumWallet ? 'Solana' : 'Ethereum'}
-              </button>
-            )}
-          </div>
+      {/* Wallet Selection UI */}
+      <div className="mb-4 flex flex-col gap-2">
+        <div className="text-sm font-medium">Connected Wallets:</div>
+        <div className="flex gap-2 mb-3">
+          {ethWallet && (
+            <button
+              onClick={() => setPreferSolana(false)}
+              className={`px-3 py-1 text-sm rounded-md flex gap-1 items-center ${
+                !preferSolana
+                  ? "bg-blue-500 text-white"
+                  : "bg-gray-100 text-gray-700"
+              }`}
+            >
+              <span className="w-2 h-2 rounded-full bg-green-500"></span>
+              ETH: {ethWallet.address.slice(0, 6)}...
+              {ethWallet.address.slice(-4)}
+            </button>
+          )}
+          {solWallet && (
+            <button
+              onClick={() => setPreferSolana(true)}
+              className={`px-3 py-1 text-sm rounded-md flex gap-1 items-center ${
+                preferSolana
+                  ? "bg-blue-500 text-white"
+                  : "bg-gray-100 text-gray-700"
+              }`}
+            >
+              <span className="w-2 h-2 rounded-full bg-green-500"></span>
+              SOL: {solWallet.address.slice(0, 6)}...
+              {solWallet.address.slice(-4)}
+              {privyAdapter?.connected && <span className="text-xs">✓</span>}
+            </button>
+          )}
         </div>
-
-        {/* Only render widget if we have an active address */}
-        {activeAddress ? (
-          <LiFiWidget
-            key={`${widgetKey}-${
-              preferSolana ? 'sol' : 'eth'
-            }-${activeAddress}-${privyAdapter?.connected}`}
-            config={widgetConfig as Partial<WidgetConfig>}
-            integrator={integrator}
-          />
-        ) : (
-          <div className="p-4 text-center text-gray-500">
-            Please connect a wallet to continue
-          </div>
-        )}
-      </PrivyTransactionSignerProvider>
+        <div className="text-xs text-gray-500 mb-2">
+          Using {isEthereumWallet ? "Ethereum" : "Solana"} wallet for this swap.
+          {ethWallet && solWallet && (
+            <button
+              onClick={toggleWallet}
+              className="text-blue-500 ml-1 underline"
+            >
+              Switch to {isEthereumWallet ? "Solana" : "Ethereum"}
+            </button>
+          )}
+        </div>
+      </div>
+      {preferSolana ? (
+        <SwapModal
+          userToken={userToken}
+          accessToken={accessToken || ""}
+          initialInputToken={initialInputToken || ""}
+          initialOutputToken={initialOutputToken || ""}
+          initialAmount={initialAmount || ""}
+          onTokenRefresh={onTokenRefresh}
+        />
+      ) : (
+        <PrivyTransactionSignerProvider>
+          <PrivySolanaSync />
+          {/* Only render widget if we have an active address */}
+          {activeAddress ? (
+            <LiFiWidget
+              key={`${widgetKey}-${
+                preferSolana ? "sol" : "eth"
+              }-${activeAddress}-${privyAdapter?.connected}`}
+              config={widgetConfig as Partial<WidgetConfig>}
+              integrator={integrator}
+            />
+          ) : (
+            <div className="p-4 text-center text-gray-500">
+              Please connect a wallet to continue
+            </div>
+          )}
+        </PrivyTransactionSignerProvider>
+      )}
     </div>
   );
 }
