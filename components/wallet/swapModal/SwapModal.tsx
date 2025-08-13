@@ -860,7 +860,7 @@ export default function SwapModal({
 
         <Button
           onClick={handleSwapClick}
-          className="py-6 text-base font-medium bg-[#F7F7F7] text-black hover:text-black hover:bg-[#F7F7F7] rounded-lg w-3/4 mx-auto"
+          className="py-6 text-base font-medium bg-[#F7F7F7] text-black hover:text-black hover:bg-[#F7F7F7] rounded-lg w-full mx-auto"
           disabled={
             swapLoading ||
             !quote ||
