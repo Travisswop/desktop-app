@@ -17,6 +17,7 @@ interface SwapButtonProps {
 }
 
 export default function SwapButton({
+  tokens,
   onTokenRefresh,
   initialInputToken,
   initialOutputToken,
@@ -36,6 +37,14 @@ export default function SwapButton({
   const inputTokenParam = searchParams?.get("inputToken");
   const outputTokenParam = searchParams?.get("outputToken");
   const amountParam = searchParams?.get("amount");
+
+  console.log("wallets", wallets);
+  console.log("solWallets", solWallets);
+
+  // console.log("tokensgg", tokens);
+  console.log("inputTokenParam", inputTokenParam);
+  console.log("outputTokenParam", outputTokenParam);
+  console.log("amountParam", amountParam);
 
   useEffect(() => {
     if (
@@ -151,6 +160,7 @@ export default function SwapButton({
                 <LiFiPrivyWrapper
                   config={config}
                   onSwapComplete={handleSwapComplete}
+                  tokens={tokens}
                 />
               </SolanaProvider>
             </div>
