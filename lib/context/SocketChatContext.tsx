@@ -12,6 +12,7 @@ export interface ChatMessage {
   senderImage?: string;
   recipientId: string;
   conversationId: string;
+  channelId?: string; // For group messages
   content: string;
   createdAt: string;
   messageType?: 'text' | 'image' | 'video' | 'file';
@@ -35,6 +36,29 @@ export interface ChatConversation {
   lastMessage?: string;
   lastMessageTime?: string;
   unreadCount: number;
+  isGroup?: boolean;
+  avatarUrl?: string;
+  memberCount?: number;
+}
+
+export interface GroupMember {
+  id: string;
+  displayName: string;
+  avatarUrl?: string;
+  role: 'admin' | 'moderator' | 'member';
+  status?: 'online' | 'offline';
+  lastSeen?: number;
+}
+
+export interface Group {
+  groupId: string;
+  name: string;
+  description: string;
+  isPrivate: boolean;
+  role: string;
+  avatarUrl: string;
+  createdAt: string;
+  members?: GroupMember[];
 }
 
 interface SocketChatContextType {
@@ -43,6 +67,7 @@ interface SocketChatContextType {
   loading: boolean;
   error: Error | null;
   conversations: ChatConversation[];
+  groups: Group[];
   messages: Record<string, ChatMessage[]>;
   activeConversationId: string | null;
   createConversation: (recipientId: string) => Promise<string>;
@@ -59,6 +84,26 @@ interface SocketChatContextType {
   setUserOnline: (userId: string) => Promise<void>;
   refreshConversations: () => Promise<void>;
   userPresence: Record<string, { status: string; lastSeen?: number }>;
+  // Group chat operations
+  createGroup: (params: {
+    name: string;
+    description?: string;
+    members?: string[];
+    isPrivate?: boolean;
+    avatarUrl?: string;
+  }) => Promise<string>;
+  joinGroup: (groupId: string) => Promise<void>;
+  leaveGroup: (groupId: string) => Promise<void>;
+  addGroupMembers: (groupId: string, memberIds: string[]) => Promise<void>;
+  removeGroupMember: (groupId: string, memberId: string) => Promise<void>;
+  searchUsers: (query: string, currentGroupId?: string) => Promise<any[]>;
+  getGroupMembers: (groupId: string) => Promise<GroupMember[]>;
+  sendGroupMessage: (params: {
+    groupId: string;
+    content: string;
+    attachmentData?: any;
+    messageType?: 'text' | 'image' | 'video' | 'file';
+  }) => Promise<void>;
 }
 
 const SocketChatContext = createContext<SocketChatContextType | undefined>(undefined);
@@ -70,6 +115,7 @@ export function SocketChatProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
   const [conversations, setConversations] = useState<ChatConversation[]>([]);
+  const [groups, setGroups] = useState<Group[]>([]);
   const [messages, setMessages] = useState<Record<string, ChatMessage[]>>({});
   const [activeConversationId, setActiveConversationId] = useState<string | null>(null);
   const [userPresence, setUserPresence] = useState<Record<string, { status: string; lastSeen?: number }>>({});
@@ -109,8 +155,24 @@ export function SocketChatProvider({ children }: { children: ReactNode }) {
       setIsConnected(false);
     });
 
-    // Listen for message history
+    // Listen for message history (handles both private DMs and group messages)
     socketInstance.on('private_message_history', (messageHistory: ChatMessage[]) => {
+      setMessages(prev => {
+        // Get current active conversation ID from state to avoid dependency warning
+        const currentActiveConversationId = activeConversationId;
+        if (currentActiveConversationId) {
+          return {
+            ...prev,
+            [currentActiveConversationId]: messageHistory
+          };
+        }
+        return prev;
+      });
+    });
+    
+    // Listen for group channel message history
+    socketInstance.on('message_history', (messageHistory: ChatMessage[]) => {
+      console.log('[GROUP] Received message history:', messageHistory);
       setMessages(prev => {
         // Get current active conversation ID from state to avoid dependency warning
         const currentActiveConversationId = activeConversationId;
@@ -131,6 +193,7 @@ export function SocketChatProvider({ children }: { children: ReactNode }) {
       console.log('🔔 Active conversation:', activeConversationId);
       console.log('🔔 Socket connected:', isConnected);
       console.log('🔔 Socket ID:', socket?.id);
+      console.log('🔔 TIMESTAMP:', new Date().toISOString());
       
       // IMPORTANT: Ensure we're using the correct conversation ID format
       let conversationId = message.conversationId;
@@ -205,17 +268,26 @@ export function SocketChatProvider({ children }: { children: ReactNode }) {
       // Force a re-render of the component using this conversation
       if (conversationId === activeConversationId) {
         console.log('🔄 Forcing re-render for active conversation');
-        setActiveConversationId(prev => {
-          // This is a trick to force a re-render without changing the value
-          setTimeout(() => setActiveConversationId(conversationId), 0);
-          return prev;
-        });
+        
+        // This is a more reliable way to force a re-render
+        setTimeout(() => {
+          console.log('🔄 Executing delayed re-render now');
+          setActiveConversationId(oldId => {
+            console.log(`🔄 Re-render: changing from ${oldId} to ${conversationId} and back`);
+            // Change to a different value and then back to force React to notice the change
+            const tempId = `${conversationId}_temp_${Date.now()}`;
+            setTimeout(() => setActiveConversationId(conversationId), 5);
+            return tempId;
+          });
+        }, 10);
       }
       
       // Update the conversation list with the new message
       setConversations(prev => {
+        console.log('🔍 Updating conversations list with new message');
         const index = prev.findIndex(conv => conv.conversationId === conversationId);
         if (index !== -1) {
+          console.log(`🔍 Found existing conversation at index ${index}`);
           const updatedConversations = [...prev];
           updatedConversations[index] = {
             ...updatedConversations[index],
@@ -289,7 +361,7 @@ export function SocketChatProvider({ children }: { children: ReactNode }) {
       // If this is for the active conversation, update it visually
       if (conversationId === activeConversationId) {
         // Force scroll to bottom by triggering a minor state update
-        setActiveConversationId(prev => prev);
+        console.log('🔄 Triggering scroll to bottom for active conversation');
       } else {
         // If we're not currently viewing this conversation, show a notification
         console.log(`New message in conversation ${conversationId} while viewing ${activeConversationId}`);
@@ -494,10 +566,112 @@ export function SocketChatProvider({ children }: { children: ReactNode }) {
         conversationCount: Object.keys(messages).length,
         conversations: Object.keys(messages)
       });
+      
+      // Fetch user's groups - with explicit debug
+      console.log(`🔍 Requesting groups for user: ${user.id}`);
+      socket.emit('get_user_groups', { userId: user.id });
+      
+      // Set a timeout to retry fetching groups if none are received
+      const retryTimer = setTimeout(() => {
+        if (groups.length === 0) {
+          console.log(`⚠️ No groups received after 3 seconds, retrying...`);
+          socket.emit('get_user_groups', { userId: user.id });
+        }
+      }, 3000);
+      
+      return () => clearTimeout(retryTimer);
     }
-    // We intentionally exclude 'messages' from dependencies to avoid infinite loops
+    // We intentionally exclude some dependencies to avoid infinite loops
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isConnected, socket, user, socket?.id]);
+  }, [user, isConnected, socket]);
+  
+  // Listen for user groups and group messages
+  useEffect(() => {
+    if (!socket) return;
+    
+    // Handle user groups
+    socket.on('user_groups', (userGroups) => {
+      console.log('📋 Received user groups:', userGroups);
+      console.log(`📋 Groups count: ${userGroups?.length || 0}`);
+      
+      if (userGroups && Array.isArray(userGroups) && userGroups.length > 0) {
+        console.log(`📋 First group: ${userGroups[0].name} (${userGroups[0].groupId})`);
+        setGroups(userGroups);
+      } else {
+        console.warn('⚠️ Received empty or invalid user_groups data');
+        // If we got an empty array, keep any existing groups
+        setGroups(prev => prev.length > 0 ? prev : []);
+      }
+    });
+    
+    // Handle new group messages
+    socket.on('receive_message', (message: ChatMessage) => {
+      console.log('📢 GROUP MESSAGE RECEIVED:', message);
+      console.log('📢 Current active conversation:', activeConversationId);
+      console.log('📢 Current user:', user?.id);
+      console.log('📢 All current conversations:', Object.keys(messages));
+      
+      // Extract the channel ID (using as conversationId for storage)
+      const channelId = message.channelId || message.conversationId;
+      
+      if (!channelId) {
+        console.warn('Received message without channelId or conversationId:', message);
+        return;
+      }
+      
+      console.log(`📢 Will store message in channel/conversation: ${channelId}`);
+      
+      // Update the messages state
+      setMessages(prev => {
+        console.log(`📢 Previous messages for ${channelId}:`, prev[channelId]?.length || 0);
+        
+        const conversationMessages = prev[channelId] || [];
+        
+        // Check if the message already exists to avoid duplicates
+        const messageExists = conversationMessages.some(msg => msg._id === message._id);
+        
+        if (messageExists) {
+          console.log(`🔄 Message already exists in channel ${channelId}:`, message._id);
+          return prev;
+        }
+        
+        // Filter out any temporary message with the same content (from optimistic updates)
+        const filteredMessages = conversationMessages.filter(msg => 
+          !(msg._id.startsWith('temp_') && msg.content === message.content && 
+            Math.abs(new Date(msg.createdAt).getTime() - new Date(message.createdAt).getTime()) < 10000)
+        );
+        
+        console.log(`📩 Adding message to channel ${channelId}`);
+        
+        // Create the new state
+        const newState = {
+          ...prev,
+          [channelId]: [...filteredMessages, message]
+        };
+        
+        // Debug the new state
+        console.log(`📢 After update, messages for ${channelId}:`, newState[channelId].length);
+        console.log(`📢 Latest message content: "${newState[channelId][newState[channelId].length - 1].content}"`);
+        
+        return newState;
+      });
+      
+      // Force a re-render if this is the active conversation
+      if (channelId === activeConversationId) {
+        console.log(`🔄 Forcing re-render for active conversation ${channelId}`);
+        
+        // This is a trick to force React to re-render the component
+        setTimeout(() => {
+          setActiveConversationId(channelId);
+        }, 10);
+      }
+    });
+    
+    return () => {
+      socket.off('user_groups');
+      socket.off('receive_message');
+    };
+  }, [socket, activeConversationId, user?.id]);
 
   // Create a new conversation
   const createConversation = useCallback(async (recipientId: string): Promise<string> => {
@@ -732,6 +906,55 @@ export function SocketChatProvider({ children }: { children: ReactNode }) {
         }
       }
       
+      // Create a temporary message for optimistic UI update
+      const tempMessageId = `temp_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+      
+      // Get current timestamp
+      const now = new Date().toISOString();
+      
+      // Create a temporary message object to show immediately
+      const tempMessage: ChatMessage = {
+        _id: tempMessageId,
+        senderId: actualSenderId,
+        senderName: actualSenderId.startsWith('did:privy:') 
+          ? `User ${actualSenderId.substring(10, 16)}...` 
+          : actualSenderId.substring(0, 6) + '...',
+        senderImage: '',
+        recipientId: actualRecipientId || '',
+        conversationId: conversationIdForMessage || '',
+        content,
+        createdAt: now,
+        messageType,
+        attachment: attachmentData ? 'pending...' : undefined,
+      };
+      
+      // Optimistically add the message to UI if we have a valid conversation ID
+      if (conversationIdForMessage) {
+        setMessages(prev => ({
+          ...prev,
+          [conversationIdForMessage]: [...(prev[conversationIdForMessage] || []), tempMessage]
+        }));
+        
+        // Update conversations list
+        setConversations(prev => {
+          const existingConvIndex = prev.findIndex(c => c.conversationId === conversationIdForMessage);
+          
+          if (existingConvIndex >= 0) {
+            // Update existing conversation
+            const updatedConversations = [...prev];
+            updatedConversations[existingConvIndex] = {
+              ...updatedConversations[existingConvIndex],
+              lastMessage: content,
+              lastMessageTime: now
+            };
+            return updatedConversations;
+          } else {
+            // If conversation doesn't exist yet
+            return prev;
+          }
+        });
+      }
+      
       console.log('Sending message:', {
         from: actualSenderId,
         to: actualRecipientId,
@@ -823,12 +1046,324 @@ export function SocketChatProvider({ children }: { children: ReactNode }) {
     }
   }, [socket, user]);
 
+  // Group chat methods
+  const createGroup = useCallback(async ({
+    name,
+    description = '',
+    members = [],
+    isPrivate = false,
+    avatarUrl = ''
+  }: {
+    name: string;
+    description?: string;
+    members?: string[];
+    isPrivate?: boolean;
+    avatarUrl?: string;
+  }): Promise<string> => {
+    if (!socket) {
+      console.warn('Socket not connected, cannot create group');
+      throw new Error('Not connected to chat server');
+    }
+
+    if (!user) {
+      console.warn('User not authenticated');
+      throw new Error('User not authenticated');
+    }
+
+    return new Promise((resolve, reject) => {
+      const createdBy = user.wallet?.address || user.id;
+      
+      socket.emit('create_group', {
+        name,
+        description,
+        createdBy,
+        isPrivate,
+        members,
+        avatarUrl
+      });
+
+      // Listen for group created event
+      const handleGroupCreated = (response: { success: boolean; groupId: string; name: string }) => {
+        if (response.success) {
+          console.log(`Group created: ${response.name} (${response.groupId})`);
+          
+          // Refresh user groups
+          socket.emit('get_user_groups', { userId: user.id });
+          
+          // Clean up listener
+          socket.off('group_created', handleGroupCreated);
+          
+          resolve(response.groupId);
+        } else {
+          reject(new Error('Failed to create group'));
+        }
+      };
+
+      socket.on('group_created', handleGroupCreated);
+
+      // Add timeout
+      setTimeout(() => {
+        socket.off('group_created', handleGroupCreated);
+        reject(new Error('Group creation timed out'));
+      }, 10000);
+    });
+  }, [socket, user]);
+
+  const joinGroup = useCallback(async (groupId: string): Promise<void> => {
+    if (!socket) {
+      console.warn('Socket not connected, cannot join group');
+      throw new Error('Not connected to chat server');
+    }
+
+    if (!user?.id) {
+      console.warn('User not authenticated');
+      throw new Error('User not authenticated');
+    }
+
+    return new Promise((resolve, reject) => {
+      try {
+        socket.emit('join_channel', { channelId: groupId, userId: user.id });
+        
+        // Listen for message history
+        const handleMessageHistory = (messages: ChatMessage[]) => {
+          // Store the messages
+          setMessages(prev => ({
+            ...prev,
+            [groupId]: messages
+          }));
+          
+          // Set as active conversation
+          setActiveConversationId(groupId);
+          
+          // Clean up listener
+          socket.off('message_history', handleMessageHistory);
+          
+          resolve();
+        };
+        
+        socket.on('message_history', handleMessageHistory);
+        
+        // Add timeout
+        setTimeout(() => {
+          socket.off('message_history', handleMessageHistory);
+          reject(new Error('Join group timed out'));
+        }, 10000);
+      } catch (error) {
+        reject(error);
+      }
+    });
+  }, [socket, user]);
+
+  const leaveGroup = useCallback(async (groupId: string): Promise<void> => {
+    if (!socket || !user?.id) {
+      console.warn('Socket not connected or user not authenticated');
+      return;
+    }
+
+    socket.emit('leave_channel', { channelId: groupId, userId: user.id });
+    
+    if (activeConversationId === groupId) {
+      setActiveConversationId(null);
+    }
+  }, [socket, user, activeConversationId]);
+
+  const addGroupMembers = useCallback(async (groupId: string, memberIds: string[]): Promise<void> => {
+    if (!socket) {
+      console.warn('Socket not connected, cannot add members');
+      throw new Error('Not connected to chat server');
+    }
+
+    if (!user?.id) {
+      console.warn('User not authenticated');
+      throw new Error('User not authenticated');
+    }
+
+    return new Promise((resolve, reject) => {
+      socket.emit('add_group_member', {
+        groupId,
+        userId: user.id,
+        memberIds
+      });
+
+      // Listen for members added event
+      const handleMembersAdded = (response: { success: boolean; groupId: string; members: any[] }) => {
+        if (response.success && response.groupId === groupId) {
+          console.log(`Added ${response.members.length} members to group ${groupId}`);
+          
+          // Clean up listener
+          socket.off('members_added_success', handleMembersAdded);
+          
+          resolve();
+        }
+      };
+
+      socket.on('members_added_success', handleMembersAdded);
+
+      // Add timeout
+      setTimeout(() => {
+        socket.off('members_added_success', handleMembersAdded);
+        reject(new Error('Add members timed out'));
+      }, 10000);
+    });
+  }, [socket, user]);
+
+  const removeGroupMember = useCallback(async (): Promise<void> => {
+    if (!socket || !user?.id) {
+      console.warn('Socket not connected or user not authenticated');
+      return;
+    }
+
+    // This is a placeholder for future implementation
+    console.warn('removeGroupMember not fully implemented');
+  }, [socket, user]);
+
+  const searchUsers = useCallback(async (query: string, currentGroupId?: string): Promise<any[]> => {
+    if (!socket) {
+      console.warn('Socket not connected, cannot search users');
+      throw new Error('Not connected to chat server');
+    }
+
+    return new Promise((resolve, reject) => {
+      socket.emit('search_users', {
+        query,
+        currentGroupId
+      });
+
+      // Listen for search results
+      const handleSearchResults = (results: any[]) => {
+        console.log(`Found ${results.length} users matching "${query}"`);
+        
+        // Clean up listener
+        socket.off('user_search_results', handleSearchResults);
+        
+        resolve(results);
+      };
+
+      socket.on('user_search_results', handleSearchResults);
+
+      // Add timeout
+      setTimeout(() => {
+        socket.off('user_search_results', handleSearchResults);
+        reject(new Error('User search timed out'));
+      }, 10000);
+    });
+  }, [socket]);
+
+  const getGroupMembers = useCallback(async (groupId: string): Promise<GroupMember[]> => {
+    if (!socket) {
+      console.warn('Socket not connected, cannot get group members');
+      throw new Error('Not connected to chat server');
+    }
+
+    return new Promise((resolve, reject) => {
+      socket.emit('get_group_members', { groupId });
+      
+      // Set a timeout to avoid hanging if the server doesn't respond
+      const timeout = setTimeout(() => {
+        reject(new Error('Request timed out'));
+      }, 5000);
+      
+      // Wait for the group_members event to come back
+      const handleGroupMembers = (data: { groupId: string, members: GroupMember[] }) => {
+        if (data.groupId === groupId) {
+          // Clean up
+          clearTimeout(timeout);
+          socket.off('group_members', handleGroupMembers);
+          
+          // Return the members
+          resolve(data.members);
+        }
+      };
+      
+      socket.on('group_members', handleGroupMembers);
+    });
+  }, [socket]);
+
+  const sendGroupMessage = useCallback(async ({
+    groupId,
+    content,
+    attachmentData,
+    messageType = 'text'
+  }: {
+    groupId: string;
+    content: string;
+    attachmentData?: any;
+    messageType?: 'text' | 'image' | 'video' | 'file';
+  }): Promise<void> => {
+    if (!socket) {
+      console.warn('Socket not connected, cannot send message');
+      throw new Error('Not connected to chat server');
+    }
+
+    if (!user?.id) {
+      console.warn('User not authenticated');
+      throw new Error('User not authenticated');
+    }
+
+    // Create a temporary message for optimistic UI update
+    const tempMessageId = `temp_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+    
+    // Get current timestamp
+    const now = new Date().toISOString();
+    
+    // Create a temporary message object to show immediately
+    const tempMessage: ChatMessage = {
+      _id: tempMessageId,
+      senderId: user.id,
+      senderName: user.id.startsWith('did:privy:') 
+        ? `User ${user.id.substring(10, 16)}...` 
+        : user.id.substring(0, 6) + '...',
+      senderImage: '',
+      recipientId: '', // Not relevant for group messages
+      conversationId: groupId, // Use groupId as conversationId for consistency
+      content,
+      createdAt: now,
+      messageType,
+      attachment: attachmentData ? 'pending...' : undefined,
+    };
+    
+    // Optimistically add the message to UI
+    setMessages(prev => ({
+      ...prev,
+      [groupId]: [...(prev[groupId] || []), tempMessage]
+    }));
+    
+    try {
+      // Send the actual message
+      socket.emit('send_message', {
+        channelId: groupId,
+        content,
+        userId: user.id,
+        messageType,
+        attachmentData
+      });
+      
+      // We don't replace the temporary message here - we'll wait for the server to send
+      // back the official message with the real ID in the message_received event
+    } catch (error) {
+      console.error('Failed to send group message:', error);
+      
+      // If there was an error, remove the temporary message
+      setMessages(prev => {
+        if (!prev[groupId]) return prev;
+        
+        return {
+          ...prev,
+          [groupId]: prev[groupId].filter(msg => msg._id !== tempMessageId)
+        };
+      });
+      
+      throw error;
+    }
+  }, [socket, user]);
+
   const value = {
     socket,
     isConnected,
     loading,
     error,
     conversations,
+    groups,
     messages,
     activeConversationId,
     createConversation,
@@ -838,7 +1373,16 @@ export function SocketChatProvider({ children }: { children: ReactNode }) {
     markAsRead,
     setUserOnline,
     refreshConversations,
-    userPresence
+    userPresence,
+    // Group chat methods
+    createGroup,
+    joinGroup,
+    leaveGroup,
+    addGroupMembers,
+    removeGroupMember,
+    searchUsers,
+    getGroupMembers,
+    sendGroupMessage
   };
 
   return (
