@@ -44,7 +44,7 @@ import NFTSlider from './nft/nft-list';
 import TokenDetails from './token/token-details-view';
 import NFTDetailView from './nft/nft-details-view';
 import WalletModals from './WalletModals';
-import MessageList from './message-list';
+import MessageList from './socket-message-list';
 import { Toaster } from '../ui/toaster';
 import ProfileHeader from '../dashboard/profile-header';
 import RedeemTokenList from './redeem/token-list';

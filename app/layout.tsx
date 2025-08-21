@@ -4,7 +4,7 @@ import { UserProvider } from "@/lib/UserContext";
 
 import { Figtree, Inter } from "next/font/google";
 import { Toaster } from "react-hot-toast";
-import { XmtpProvider } from "@/lib/context/XmtpContext";
+import { SocketChatProvider } from "@/lib/context/SocketChatContext";
 import { WalletProvider } from "@/providers/SyncedWalletProvider";
 import { LiFiWalletProvider } from "@/providers/WalletManagementProvider";
 import { Metadata } from "next";
@@ -61,9 +61,9 @@ export default function RootLayout({
         <PrivyProvider>
           <WalletProvider>
             <LiFiWalletProvider>
-              <XmtpProvider>
+              <SocketChatProvider>
                 <UserProvider>{children}</UserProvider>
-              </XmtpProvider>
+              </SocketChatProvider>
             </LiFiWalletProvider>
           </WalletProvider>
         </PrivyProvider>
