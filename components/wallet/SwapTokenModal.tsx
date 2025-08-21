@@ -78,6 +78,9 @@ export default function SwapTokenModal({ tokens }: { tokens: any[] }) {
   const [receiverChainId, setReceiverChainId] = useState("137");
   const [selectedReceiverChain, setSelectedReceiverChain] = useState("137"); // For UI tab selection
   const [quote, setQuote] = useState<any>(null);
+  // 2. Add swap status states
+  const [swapError, setSwapError] = useState<string | null>(null);
+  const [txHash, setTxHash] = useState<string | null>(null);
 
   const { wallets } = useWallets();
   const { wallets: solWallets } = useSolanaWallets();
@@ -109,31 +112,165 @@ export default function SwapTokenModal({ tokens }: { tokens: any[] }) {
     return Math.floor(result).toString();
   };
 
-  const executeCrossChainSwap = async () => {
-    // Find Ethereum wallet with explicit type casting
-    const allAccounts = PrivyUser?.linkedAccounts || [];
-    const ethereumAccount = allAccounts.find(
-      (account: any) =>
-        account.chainType === "ethereum" &&
-        account.type === "wallet" &&
-        account.address
-    );
-    let evmWallet;
-    if ((ethereumAccount as any)?.address) {
-      evmWallet = wallets.find(
-        (w) =>
-          w.address?.toLowerCase() ===
-          (ethereumAccount as any).address.toLowerCase()
-      );
+  // 1. Add balance validation function
+  const validateBalance = () => {
+    if (!payToken?.balance || !payAmount) return { isValid: true, error: null };
+
+    const balance = parseFloat(payToken.balance);
+    const amount = parseFloat(payAmount);
+
+    if (amount > balance) {
+      return {
+        isValid: false,
+        error: `Insufficient balance. Available: ${balance.toFixed(6)} ${
+          payToken.symbol
+        }`,
+      };
     }
-    const provider = await evmWallet?.getEthereumProvider();
-    const txHash = await provider?.request({
-      method: "eth_sendTransaction",
-      params: [quote.transactionRequest],
-    });
-    console.log("providerss", provider);
-    console.log("txHash", txHash);
+
+    if (amount <= 0) {
+      return {
+        isValid: false,
+        error: "Amount must be greater than 0",
+      };
+    }
+
+    return { isValid: true, error: null };
   };
+
+  const executeCrossChainSwap = async () => {
+    try {
+      setIsSwapping(true);
+      setSwapError(null);
+      setTxHash(null);
+      setSwapStatus("Preparing transaction...");
+
+      // Validate balance first
+      const balanceCheck = validateBalance();
+      if (!balanceCheck.isValid) {
+        setSwapError(balanceCheck.error);
+        setIsSwapping(false);
+        return;
+      }
+
+      // Check if quote is available
+      if (!quote) {
+        setSwapError("No quote available. Please try again.");
+        setIsSwapping(false);
+        return;
+      }
+
+      // Determine which wallet to use based on the chain
+      const fromChainId = parseInt(chainId);
+      let wallet, provider;
+
+      if (fromChainId === 1151111081099710) {
+        // Solana transaction - you'll need to implement Solana transaction logic
+        setSwapError("Solana swaps not yet implemented");
+        setIsSwapping(false);
+        return;
+      } else {
+        // EVM chains
+        const allAccounts = PrivyUser?.linkedAccounts || [];
+        const ethereumAccount = allAccounts.find(
+          (account: any) =>
+            account.chainType === "ethereum" &&
+            account.type === "wallet" &&
+            account.address
+        );
+
+        if (!ethereumAccount) {
+          setSwapError("No Ethereum wallet connected");
+          setIsSwapping(false);
+          return;
+        }
+
+        wallet = wallets.find(
+          (w) =>
+            w.address?.toLowerCase() ===
+            (ethereumAccount as any).address.toLowerCase()
+        );
+
+        if (!wallet) {
+          setSwapError("Wallet not found");
+          setIsSwapping(false);
+          return;
+        }
+
+        provider = await wallet.getEthereumProvider();
+        if (!provider) {
+          setSwapError("Failed to get wallet provider");
+          setIsSwapping(false);
+          return;
+        }
+      }
+
+      setSwapStatus("Waiting for confirmation...");
+
+      // Execute the transaction
+      const txHash = await provider.request({
+        method: "eth_sendTransaction",
+        params: [quote.transactionRequest],
+      });
+
+      console.log("Transaction hash:", txHash);
+      setTxHash(txHash);
+      setSwapStatus("Transaction submitted! Waiting for confirmation...");
+
+      // Optional: Wait for transaction confirmation
+      // You can add transaction monitoring logic here
+
+      setSwapStatus("Swap completed successfully!");
+      setIsSwapping(false);
+    } catch (error: any) {
+      console.error("Swap error:", error);
+
+      let errorMessage = "Swap failed";
+      if (error.code === 4001) {
+        errorMessage = "Transaction rejected by user";
+      } else if (error.message) {
+        errorMessage = error.message;
+      }
+
+      setSwapError(errorMessage);
+      setSwapStatus(null);
+      setIsSwapping(false);
+    }
+  };
+
+  // 4. Add this useEffect to clear errors when inputs change
+  useEffect(() => {
+    setSwapError(null);
+    setSwapStatus(null);
+  }, [payAmount, payToken, receiveToken]);
+
+  const balanceValidation = validateBalance();
+
+  // const executeCrossChainSwap = async () => {
+  //   // Find Ethereum wallet with explicit type casting
+  //   const allAccounts = PrivyUser?.linkedAccounts || [];
+  //   const ethereumAccount = allAccounts.find(
+  //     (account: any) =>
+  //       account.chainType === "ethereum" &&
+  //       account.type === "wallet" &&
+  //       account.address
+  //   );
+  //   let evmWallet;
+  //   if ((ethereumAccount as any)?.address) {
+  //     evmWallet = wallets.find(
+  //       (w) =>
+  //         w.address?.toLowerCase() ===
+  //         (ethereumAccount as any).address.toLowerCase()
+  //     );
+  //   }
+  //   const provider = await evmWallet?.getEthereumProvider();
+  //   const txHash = await provider?.request({
+  //     method: "eth_sendTransaction",
+  //     params: [quote.transactionRequest],
+  //   });
+  //   console.log("providerss", provider);
+  //   console.log("txHash", txHash);
+  // };
 
   // Set chain ID based on payToken
   useEffect(() => {
@@ -199,6 +336,8 @@ export default function SwapTokenModal({ tokens }: { tokens: any[] }) {
           queryParams.append("fromAddress", fromWalletAddress);
           queryParams.append("toAddress", toWalletAddress);
           queryParams.append("fromAmount", fromAmount);
+          // if (params.fee) queryParams.append('fee', params.fee.toString());
+          // queryParams.append("fee", "0.005");
 
           const response = await fetch(
             `https://li.quest/v1/quote?${queryParams}`,
@@ -397,8 +536,10 @@ export default function SwapTokenModal({ tokens }: { tokens: any[] }) {
 
   const handlePercentageClick = (percentage: number) => {
     if (payToken?.balance) {
+      setIsCalculating(true);
       const amount = (parseFloat(payToken.balance) * percentage).toString();
       setPayAmount(amount);
+      setIsCalculating(false);
     }
   };
 
@@ -505,9 +646,15 @@ export default function SwapTokenModal({ tokens }: { tokens: any[] }) {
           <div className="p-3 rounded-xl bg-gray-100">
             <div className="flex justify-between items-center text-sm text-gray-400 mb-1">
               <span>You Pay</span>
-              <span>
+              <span
+                className={`${
+                  !balanceValidation.isValid ? "text-red-500" : ""
+                }`}
+              >
                 {payToken?.balance
-                  ? parseFloat(payToken.balance).toFixed(4)
+                  ? `${parseFloat(payToken.balance).toFixed(4)} ${
+                      payToken.symbol
+                    }`
                   : "0"}
               </span>
             </div>
@@ -691,6 +838,38 @@ export default function SwapTokenModal({ tokens }: { tokens: any[] }) {
               </button>
             </div>
           </div>
+          {/* Error/Status Display */}
+          {(swapError || swapStatus || !balanceValidation.isValid) && (
+            <div className="p-3 rounded-lg">
+              {!balanceValidation.isValid && (
+                <div className="text-red-500 text-sm mb-2 text-center">
+                  {balanceValidation.error}
+                </div>
+              )}
+              {swapError && (
+                <div className="text-red-500 text-sm mb-2 text-center">
+                  {swapError}
+                </div>
+              )}
+              {swapStatus && (
+                <div className="text-blue-600 text-sm text-center">
+                  {swapStatus}
+                </div>
+              )}
+              {txHash && (
+                <div className="text-green-600 text-xs text-center mt-2">
+                  <a
+                    href={`https://etherscan.io/tx/${txHash}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="underline"
+                  >
+                    View transaction
+                  </a>
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Exchange Rate Display */}
           {/* Enhanced version with USD values if available */}
@@ -738,11 +917,37 @@ export default function SwapTokenModal({ tokens }: { tokens: any[] }) {
           {/* Swap Button */}
           <Button
             onClick={executeCrossChainSwap}
-            className="w-full bg-purple-600 hover:bg-purple-700"
-            disabled={!payAmount || !receiveAmount || isCalculating}
+            className="w-full bg-purple-600 hover:bg-purple-700 disabled:opacity-50"
+            disabled={
+              !payAmount ||
+              !receiveAmount ||
+              isCalculating ||
+              isSwapping ||
+              !balanceValidation.isValid ||
+              !quote
+            }
           >
-            {isCalculating ? "Calculating..." : "Swap"}
+            {isSwapping
+              ? "Swapping..."
+              : !balanceValidation.isValid
+              ? "Insufficient Balance"
+              : isCalculating
+              ? "Calculating..."
+              : "Swap"}
           </Button>
+          {/* Add loading state during swap */}
+          {isSwapping && (
+            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+              <div className="bg-white rounded-lg p-6 max-w-sm mx-4">
+                <div className="flex items-center justify-center mb-4">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600"></div>
+                </div>
+                <p className="text-center text-gray-700">
+                  {swapStatus || "Processing swap..."}
+                </p>
+              </div>
+            </div>
+          )}
         </div>
       </Card>
 
