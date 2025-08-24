@@ -38,7 +38,7 @@ export default function SocketStatus() {
         </div>
         
         <div className="text-sm space-y-1">
-          <div>Socket URL: <code className="text-xs bg-gray-100 px-1 rounded">{process.env.NEXT_PUBLIC_SOCKET}/anthillChat</code></div>
+          <div>Socket URL: <code className="text-xs bg-gray-100 px-1 rounded">{(process.env.NEXT_PUBLIC_SOCKET || 'http://localhost:9000').replace(/\/$/, '') + '/anthillChat'}</code></div>
           <div>Socket ID: <code className="text-xs bg-gray-100 px-1 rounded">{socket?.id || 'N/A'}</code></div>
           <div>Transport: <code className="text-xs bg-gray-100 px-1 rounded">{socket?.io.engine?.transport?.name || 'N/A'}</code></div>
         </div>

@@ -127,8 +127,14 @@ export function SocketChatProvider({ children }: { children: ReactNode }) {
       return;
     }
 
-    // Connect to socket server
-    const socketInstance = io(`${process.env.NEXT_PUBLIC_SOCKET}/anthillChat`, {
+    // Connect to socket server - ensure no double slashes
+    const baseUrl = process.env.NEXT_PUBLIC_SOCKET || 'http://localhost:9000';
+    // Try connecting to root namespace first to test connectivity
+    const socketUrl = baseUrl.replace(/\/$/, '');
+    console.log('🔍 Connecting to socket URL:', socketUrl);
+    console.log('🔍 Attempting connection to root namespace first to test server connectivity');
+    
+    const socketInstance = io(socketUrl, {
       transports: ['websocket', 'polling'],
       reconnection: true,
       reconnectionAttempts: 10,
@@ -146,7 +152,7 @@ export function SocketChatProvider({ children }: { children: ReactNode }) {
     socketInstance.on('connect', () => {
       console.log('🟢 Socket connected successfully');
       console.log('🟢 Socket ID:', socketInstance.id);
-      console.log('🟢 Socket URL:', `${process.env.NEXT_PUBLIC_SOCKET}/anthillChat`);
+      console.log('🟢 Socket URL:', socketUrl);
       console.log('🟢 Transport:', socketInstance.io.engine.transport.name);
       console.log('🟢 User:', user?.id);
       setIsConnected(true);
@@ -156,7 +162,7 @@ export function SocketChatProvider({ children }: { children: ReactNode }) {
 
     socketInstance.on('connect_error', (err) => {
       console.error('🔴 Socket connection error:', err);
-      console.error('🔴 Socket URL attempted:', `${process.env.NEXT_PUBLIC_SOCKET}/anthillChat`);
+      console.error('🔴 Socket URL attempted:', socketUrl);
       console.error('🔴 Error details:', {
         message: err.message,
         description: (err as any).description || 'N/A',
