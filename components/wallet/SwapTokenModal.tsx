@@ -35,6 +35,18 @@ const getChainId = (chainName: string) => {
   return chainIds[chainName.toUpperCase()] || "1";
 };
 
+const getExplorerUrl = (chainId: string, txHash: string): string => {
+  const explorerUrls: Record<string, string> = {
+    "1151111081099710": `https://solscan.io/tx/${txHash}`, // Solana
+    "1": `https://etherscan.io/tx/${txHash}`, // Ethereum
+    "56": `https://bscscan.com/tx/${txHash}`, // BSC
+    "137": `https://polygonscan.com/tx/${txHash}`, // Polygon
+    "42161": `https://arbiscan.io/tx/${txHash}`, // Arbitrum
+    "8453": `https://basescan.org/tx/${txHash}`, // Base
+  };
+  return explorerUrls[chainId] || `https://etherscan.io/tx/${txHash}`;
+};
+
 // Chain configuration for receiver selection
 const RECEIVER_CHAINS = [
   {
@@ -101,18 +113,6 @@ export default function SwapTokenModal({ tokens }: { tokens: any[] }) {
   const formatTokenAmount = (amount: string, decimals: number): string => {
     const result = Number(amount) * Math.pow(10, decimals);
     return Math.floor(result).toString();
-  };
-
-  const getExplorerUrl = (chainId: string, txHash: string): string => {
-    const explorerUrls: Record<string, string> = {
-      "1151111081099710": `https://solscan.io/tx/${txHash}`, // Solana
-      "1": `https://etherscan.io/tx/${txHash}`, // Ethereum
-      "56": `https://bscscan.com/tx/${txHash}`, // BSC
-      "137": `https://polygonscan.com/tx/${txHash}`, // Polygon
-      "42161": `https://arbiscan.io/tx/${txHash}`, // Arbitrum
-      "8453": `https://basescan.org/tx/${txHash}`, // Base
-    };
-    return explorerUrls[chainId] || `https://etherscan.io/tx/${txHash}`;
   };
 
   const validateBalance = () => {
@@ -475,7 +475,6 @@ export default function SwapTokenModal({ tokens }: { tokens: any[] }) {
   }, [quote, receiveToken, payAmount, payToken]);
 
   // Solana swap execution
-  // Solana swap execution
   const executeSolanaSwap = async () => {
     try {
       if (!solWallets || solWallets.length === 0) {
@@ -486,7 +485,7 @@ export default function SwapTokenModal({ tokens }: { tokens: any[] }) {
 
       const solanaWallet = solWallets[0];
 
-      // ✅ use .env RPC
+      // use .env RPC
       const rpcUrl =
         process.env.NEXT_PUBLIC_HELIUS_API_URL ||
         process.env.NEXT_PUBLIC_ALCHEMY_SOLANA_URL ||
@@ -494,29 +493,25 @@ export default function SwapTokenModal({ tokens }: { tokens: any[] }) {
 
       const connection = new Connection(rpcUrl, "confirmed");
 
-      // ✅ Extract tx from LiFi quote
+      // Extract tx from LiFi quote
       const { transactionRequest } = quote;
       const rawTx = transactionRequest?.transaction || transactionRequest?.data;
       if (!rawTx) {
         throw new Error("No transactionRequest found in LiFi quote");
       }
 
-      // ✅ Decode base64 into VersionedTransaction
+      // Decode base64 into VersionedTransaction
       const txBuffer = Buffer.from(rawTx, "base64");
       const tx = VersionedTransaction.deserialize(txBuffer);
 
-      // ✅ Option 1: Let Privy handle sending
+      // Let Privy handle sending
       const txId = await solanaWallet.sendTransaction(tx, connection);
-
-      // ✅ Option 2: Manual sign + send (if Privy supports signTransaction)
-      // const signedTx = await solanaWallet.signTransaction(tx);
-      // const txId = await connection.sendRawTransaction(signedTx.serialize());
 
       setTxHash(txId);
       setSwapStatus("Transaction submitted! Waiting for confirmation...");
 
       await connection.confirmTransaction(txId, "confirmed");
-      setSwapStatus("Transaction confirmed ✅");
+      setSwapStatus("Transaction confirmed");
     } catch (error) {
       console.error("Solana swap failed:", error);
       setSwapError(error.message || "Transaction failed");
@@ -926,33 +921,90 @@ export default function SwapTokenModal({ tokens }: { tokens: any[] }) {
 
           {/* Error/Status Display */}
           {(swapError || swapStatus || !balanceValidation.isValid) && (
-            <div className="p-3 rounded-lg">
+            <div className="p-3 rounded-lg border border-gray-200 bg-gray-50">
               {!balanceValidation.isValid && (
                 <div className="text-red-500 text-sm mb-2 text-center">
                   {balanceValidation.error}
                 </div>
               )}
               {swapError && (
-                <div className="text-red-500 text-sm mb-2 text-center">
+                <div className="text-red-500 text-sm mb-2 text-center flex items-center justify-center gap-2">
+                  <svg
+                    className="w-4 h-4"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                    />
+                  </svg>
                   {swapError}
                 </div>
               )}
               {swapStatus && (
-                <div className="text-blue-600 text-sm text-center">
+                <div
+                  className={`text-sm text-center flex items-center justify-center gap-2 ${
+                    swapStatus.includes("completed successfully") ||
+                    swapStatus.includes("Transaction confirmed")
+                      ? "text-green-600"
+                      : "text-blue-600"
+                  }`}
+                >
+                  {swapStatus.includes("completed successfully") ||
+                  swapStatus.includes("Transaction confirmed") ? (
+                    <svg
+                      className="w-4 h-4"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
+                      />
+                    </svg>
+                  ) : (
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-current"></div>
+                  )}
                   {swapStatus}
                 </div>
               )}
-
               {txHash && (
-                <div className="text-green-600 text-xs text-center mt-2">
-                  <a
-                    href={getExplorerUrl(chainId, txHash)}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="underline"
-                  >
-                    View transaction
-                  </a>
+                <div className="text-green-600 text-xs text-center mt-3 pt-2 border-t border-gray-200">
+                  <div className="flex items-center justify-center gap-2">
+                    <svg
+                      className="w-3 h-3"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"
+                      />
+                    </svg>
+                    <a
+                      href={getExplorerUrl(chainId, txHash)}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="underline hover:text-green-700 transition-colors"
+                    >
+                      View on explorer
+                    </a>
+                  </div>
+                  <div className="text-gray-500 mt-1 font-mono text-xs">
+                    {txHash.length > 16
+                      ? `${txHash.slice(0, 8)}...${txHash.slice(-8)}`
+                      : txHash}
+                  </div>
                 </div>
               )}
             </div>
@@ -1002,23 +1054,55 @@ export default function SwapTokenModal({ tokens }: { tokens: any[] }) {
 
           {/* Swap Button */}
           <Button
-            onClick={executeCrossChainSwap}
-            className="w-full bg-purple-600 hover:bg-purple-700 disabled:opacity-50"
+            onClick={
+              swapStatus === "Swap completed successfully!" ||
+              swapStatus?.includes("Transaction confirmed")
+                ? () => {
+                    // Reset swap state for new swap
+                    setSwapStatus(null);
+                    setSwapError(null);
+                    setTxHash(null);
+                    setPayAmount("");
+                    setReceiveAmount("");
+                  }
+                : executeCrossChainSwap
+            }
+            className={`w-full ${
+              swapStatus === "Swap completed successfully!" ||
+              swapStatus?.includes("Transaction confirmed")
+                ? "bg-green-600 hover:bg-green-700"
+                : "bg-purple-600 hover:bg-purple-700"
+            } disabled:opacity-50`}
             disabled={
-              !payAmount ||
-              !receiveAmount ||
-              isCalculating ||
               isSwapping ||
-              !balanceValidation.isValid ||
-              !quote
+              (!balanceValidation.isValid &&
+                !(
+                  swapStatus === "Swap completed successfully!" ||
+                  swapStatus?.includes("Transaction confirmed")
+                )) ||
+              (!quote &&
+                !(
+                  swapStatus === "Swap completed successfully!" ||
+                  swapStatus?.includes("Transaction confirmed")
+                )) ||
+              (isCalculating &&
+                !(
+                  swapStatus === "Swap completed successfully!" ||
+                  swapStatus?.includes("Transaction confirmed")
+                ))
             }
           >
-            {isSwapping
+            {swapStatus === "Swap completed successfully!" ||
+            swapStatus?.includes("Transaction confirmed")
+              ? "New Swap"
+              : isSwapping
               ? "Swapping..."
               : !balanceValidation.isValid
               ? "Insufficient Balance"
               : isCalculating
               ? "Calculating..."
+              : !payAmount || !receiveAmount
+              ? "Enter Amount"
               : "Swap"}
           </Button>
 
