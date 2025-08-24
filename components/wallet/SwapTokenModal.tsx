@@ -9,6 +9,7 @@ import Image from "next/image";
 import { debounce } from "lodash";
 import { fetchTokensFromLiFi } from "@/actions/lifiForTokenSwap";
 import { usePrivy, useSolanaWallets, useWallets } from "@privy-io/react-auth";
+import { Connection, VersionedTransaction } from "@solana/web3.js";
 
 const getChainIcon = (chainName: string) => {
   const chainIcons: Record<string, string> = {
@@ -76,14 +77,15 @@ export default function SwapTokenModal({ tokens }: { tokens: any[] }) {
   const [isCalculating, setIsCalculating] = useState(false);
   const [chainId, setChainId] = useState("1151111081099710");
   const [receiverChainId, setReceiverChainId] = useState("137");
-  const [selectedReceiverChain, setSelectedReceiverChain] = useState("137"); // For UI tab selection
+  const [selectedReceiverChain, setSelectedReceiverChain] = useState("137");
   const [quote, setQuote] = useState<any>(null);
-  // 2. Add swap status states
   const [swapError, setSwapError] = useState<string | null>(null);
   const [txHash, setTxHash] = useState<string | null>(null);
 
   const { wallets } = useWallets();
   const { wallets: solWallets } = useSolanaWallets();
+
+  console.log("solWallets", solWallets);
 
   const ethWallet = wallets[0]?.address;
   const solWallet = solWallets[0]?.address;
@@ -91,28 +93,28 @@ export default function SwapTokenModal({ tokens }: { tokens: any[] }) {
   const [fromWalletAddress, setFromWalletAddress] = useState(solWallet || "");
   const [toWalletAddress, setToWalletAddress] = useState(solWallet || "");
 
-  console.log("fromWalletAddress", fromWalletAddress);
-  console.log("toWalletAddress", toWalletAddress);
-  console.log("quote", quote);
-
-  // for swapping
   const [isSwapping, setIsSwapping] = useState(false);
   const [swapStatus, setSwapStatus] = useState<string | null>(null);
-  const [swapRoutes, setSwapRoutes] = useState<any[]>([]);
-  const [selectedRoute, setSelectedRoute] = useState<any>(null);
 
   const { authenticated, ready, user: PrivyUser } = usePrivy();
-
-  console.log("wallets", ethWallet);
-  console.log("sol wallets", solWallet);
-  console.log("payAmount", payAmount);
 
   const formatTokenAmount = (amount: string, decimals: number): string => {
     const result = Number(amount) * Math.pow(10, decimals);
     return Math.floor(result).toString();
   };
 
-  // 1. Add balance validation function
+  const getExplorerUrl = (chainId: string, txHash: string): string => {
+    const explorerUrls: Record<string, string> = {
+      "1151111081099710": `https://solscan.io/tx/${txHash}`, // Solana
+      "1": `https://etherscan.io/tx/${txHash}`, // Ethereum
+      "56": `https://bscscan.com/tx/${txHash}`, // BSC
+      "137": `https://polygonscan.com/tx/${txHash}`, // Polygon
+      "42161": `https://arbiscan.io/tx/${txHash}`, // Arbitrum
+      "8453": `https://basescan.org/tx/${txHash}`, // Base
+    };
+    return explorerUrls[chainId] || `https://etherscan.io/tx/${txHash}`;
+  };
+
   const validateBalance = () => {
     if (!payToken?.balance || !payAmount) return { isValid: true, error: null };
 
@@ -162,13 +164,11 @@ export default function SwapTokenModal({ tokens }: { tokens: any[] }) {
 
       // Determine which wallet to use based on the chain
       const fromChainId = parseInt(chainId);
-      let wallet, provider;
 
       if (fromChainId === 1151111081099710) {
-        // Solana transaction - you'll need to implement Solana transaction logic
-        setSwapError("Solana swaps not yet implemented");
+        // Solana transaction
+        await executeSolanaSwap();
         setIsSwapping(false);
-        return;
       } else {
         // EVM chains
         const allAccounts = PrivyUser?.linkedAccounts || [];
@@ -185,7 +185,7 @@ export default function SwapTokenModal({ tokens }: { tokens: any[] }) {
           return;
         }
 
-        wallet = wallets.find(
+        const wallet = wallets.find(
           (w) =>
             w.address?.toLowerCase() ===
             (ethereumAccount as any).address.toLowerCase()
@@ -197,31 +197,27 @@ export default function SwapTokenModal({ tokens }: { tokens: any[] }) {
           return;
         }
 
-        provider = await wallet.getEthereumProvider();
+        const provider = await wallet.getEthereumProvider();
         if (!provider) {
           setSwapError("Failed to get wallet provider");
           setIsSwapping(false);
           return;
         }
+
+        setSwapStatus("Waiting for confirmation...");
+
+        // Execute the transaction
+        const txHash = await provider.request({
+          method: "eth_sendTransaction",
+          params: [quote.transactionRequest],
+        });
+
+        console.log("Transaction hash:", txHash);
+        setTxHash(txHash);
+        setSwapStatus("Transaction submitted! Waiting for confirmation...");
+        setSwapStatus("Swap completed successfully!");
+        setIsSwapping(false);
       }
-
-      setSwapStatus("Waiting for confirmation...");
-
-      // Execute the transaction
-      const txHash = await provider.request({
-        method: "eth_sendTransaction",
-        params: [quote.transactionRequest],
-      });
-
-      console.log("Transaction hash:", txHash);
-      setTxHash(txHash);
-      setSwapStatus("Transaction submitted! Waiting for confirmation...");
-
-      // Optional: Wait for transaction confirmation
-      // You can add transaction monitoring logic here
-
-      setSwapStatus("Swap completed successfully!");
-      setIsSwapping(false);
     } catch (error: any) {
       console.error("Swap error:", error);
 
@@ -238,39 +234,12 @@ export default function SwapTokenModal({ tokens }: { tokens: any[] }) {
     }
   };
 
-  // 4. Add this useEffect to clear errors when inputs change
   useEffect(() => {
     setSwapError(null);
     setSwapStatus(null);
   }, [payAmount, payToken, receiveToken]);
 
   const balanceValidation = validateBalance();
-
-  // const executeCrossChainSwap = async () => {
-  //   // Find Ethereum wallet with explicit type casting
-  //   const allAccounts = PrivyUser?.linkedAccounts || [];
-  //   const ethereumAccount = allAccounts.find(
-  //     (account: any) =>
-  //       account.chainType === "ethereum" &&
-  //       account.type === "wallet" &&
-  //       account.address
-  //   );
-  //   let evmWallet;
-  //   if ((ethereumAccount as any)?.address) {
-  //     evmWallet = wallets.find(
-  //       (w) =>
-  //         w.address?.toLowerCase() ===
-  //         (ethereumAccount as any).address.toLowerCase()
-  //     );
-  //   }
-  //   const provider = await evmWallet?.getEthereumProvider();
-  //   const txHash = await provider?.request({
-  //     method: "eth_sendTransaction",
-  //     params: [quote.transactionRequest],
-  //   });
-  //   console.log("providerss", provider);
-  //   console.log("txHash", txHash);
-  // };
 
   // Set chain ID based on payToken
   useEffect(() => {
@@ -299,86 +268,169 @@ export default function SwapTokenModal({ tokens }: { tokens: any[] }) {
     }
   }, [ethWallet, payToken, receiveToken, solWallet]);
 
-  // 1. get lifi quote
-  useEffect(() => {
-    let getLifiQuote: any;
-    if (payAmount && payToken && receiveToken) {
-      // Set calculating state when starting quote fetch
-      setIsCalculating(true);
+  // FIXED: getLifiQuote function with proper Solana handling
+  const getLifiQuote = async () => {
+    try {
+      const queryParams = new URLSearchParams();
 
-      getLifiQuote = async () => {
-        try {
-          const queryParams = new URLSearchParams();
+      // Convert human-readable amount to token units
+      const fromAmount = formatTokenAmount(payAmount, payToken.decimals || 6);
 
-          // Convert human-readable amount to token units (wei, lamports, etc.)
-          const fromAmount = formatTokenAmount(
-            payAmount,
-            payToken.decimals || 6
-          );
+      // Validate the amount
+      if (fromAmount === "0" || !fromAmount) {
+        throw new Error("Invalid amount");
+      }
 
-          console.log("fromAmount", fromAmount);
-
-          // Validate the amount
-          if (fromAmount === "0") {
-            setSwapStatus("Invalid amount");
-            setIsCalculating(false);
-            return;
-          }
-
-          // Required parameters
-          queryParams.append("fromChain", chainId.toString());
-          queryParams.append("toChain", receiverChainId.toString());
-          queryParams.append(
-            "fromToken",
-            payToken?.address || payToken?.symbol
-          );
-          queryParams.append("toToken", receiveToken.address);
-          queryParams.append("fromAddress", fromWalletAddress);
-          queryParams.append("toAddress", toWalletAddress);
-          queryParams.append("fromAmount", fromAmount);
-          // if (params.fee) queryParams.append('fee', params.fee.toString());
-          // queryParams.append("fee", "0.005");
-
-          const response = await fetch(
-            `https://li.quest/v1/quote?${queryParams}`,
-            {
-              method: "GET",
-              headers: {
-                Accept: "application/json",
-                "Content-Type": "application/json",
-              },
-            }
-          );
-
-          if (!response.ok) {
-            const errorData = await response.json().catch(() => null);
-            throw new Error(
-              errorData?.message || `Quote request failed: ${response.status}`
-            );
-          }
-
-          const quote = await response.json();
-          return quote;
-        } catch (error) {
-          console.error("Error getting LiFi quote:", error);
-          setIsCalculating(false);
-          return null;
+      // FIXED: Proper token address handling for Solana
+      let fromTokenAddress;
+      if (chainId === "1151111081099710") {
+        // Solana chain
+        if (payToken?.symbol === "SOL") {
+          // For native SOL, use the wrapped SOL address
+          fromTokenAddress = "So11111111111111111111111111111111111111112";
+        } else if (payToken?.address) {
+          // For SPL tokens, use the token mint address
+          fromTokenAddress = payToken.address;
+        } else {
+          throw new Error("Invalid Solana token");
         }
-      };
-    } else {
-      // Clear quote when inputs are missing
-      setQuote(undefined);
-    }
+      } else {
+        // EVM chains
+        if (payToken?.symbol === "ETH" || payToken?.symbol === "POL") {
+          fromTokenAddress = "0x0000000000000000000000000000000000000000";
+        } else if (payToken?.address) {
+          fromTokenAddress = payToken.address;
+        } else {
+          throw new Error("Invalid EVM token");
+        }
+      }
 
-    const getQuote = async () => {
-      const data = await getLifiQuote();
-      setQuote(data);
-      console.log("datadd", data);
+      // FIXED: Proper receive token address handling
+      let toTokenAddress;
+      if (receiverChainId === "1151111081099710") {
+        // Receiving on Solana
+        if (receiveToken?.symbol === "SOL") {
+          toTokenAddress = "So11111111111111111111111111111111111111112";
+        } else if (receiveToken?.address) {
+          toTokenAddress = receiveToken.address;
+        } else {
+          throw new Error("Invalid Solana receive token");
+        }
+      } else {
+        // Receiving on EVM
+        if (receiveToken?.symbol === "ETH" || receiveToken?.symbol === "POL") {
+          toTokenAddress = "0x0000000000000000000000000000000000000000";
+        } else if (receiveToken?.address) {
+          toTokenAddress = receiveToken.address;
+        } else {
+          throw new Error("Invalid EVM receive token");
+        }
+      }
+
+      // Validate wallet addresses
+      if (!fromWalletAddress || !toWalletAddress) {
+        throw new Error("Wallet addresses not available");
+      }
+
+      // Build query parameters
+      queryParams.append("fromChain", chainId.toString());
+      queryParams.append("toChain", receiverChainId.toString());
+      queryParams.append("fromToken", fromTokenAddress);
+      queryParams.append("toToken", toTokenAddress);
+      queryParams.append("fromAddress", fromWalletAddress);
+      queryParams.append("toAddress", toWalletAddress);
+      queryParams.append("fromAmount", fromAmount);
+      queryParams.append("slippage", "0.03"); // 3%
+
+      // FIXED: Add integrator for better support
+      queryParams.append("integrator", "your-app-name");
+
+      const response = await fetch(`https://li.quest/v1/quote?${queryParams}`, {
+        method: "GET",
+        headers: {
+          Accept: "application/json",
+          "Content-Type": "application/json",
+        },
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => null);
+        console.error("LiFi API Error:", errorData);
+
+        if (response.status === 404) {
+          throw new Error(
+            "Route not found. This token pair or chain combination may not be supported."
+          );
+        } else if (response.status === 400) {
+          throw new Error(
+            `Invalid parameters: ${errorData?.message || "Bad request"}`
+          );
+        } else if (response.status === 429) {
+          throw new Error("Rate limit exceeded. Please wait and try again.");
+        } else {
+          throw new Error(
+            errorData?.message || `Quote request failed: ${response.status}`
+          );
+        }
+      }
+
+      const quote = await response.json();
+
+      if (!quote || !quote.estimate) {
+        throw new Error("Invalid quote response");
+      }
+
+      return quote;
+    } catch (error) {
+      console.error("Error getting LiFi quote:", error);
+      throw error;
+    }
+  };
+
+  // Quote fetching useEffect
+  useEffect(() => {
+    let isCancelled = false;
+
+    const fetchQuote = async () => {
+      if (
+        !payAmount ||
+        !payToken ||
+        !receiveToken ||
+        !fromWalletAddress ||
+        !toWalletAddress
+      ) {
+        setQuote(null);
+        return;
+      }
+
+      try {
+        setIsCalculating(true);
+        setSwapError(null);
+
+        const quote = await getLifiQuote();
+
+        if (!isCancelled) {
+          setQuote(quote);
+          console.log("Quote received:", quote);
+        }
+      } catch (error: any) {
+        if (!isCancelled) {
+          console.error("Quote fetch error:", error);
+          setQuote(null);
+          setSwapError(error.message || "Failed to get quote");
+        }
+      } finally {
+        if (!isCancelled) {
+          setIsCalculating(false);
+        }
+      }
     };
 
-    if (payToken && receiveToken && payAmount) {
-      getQuote();
-    }
+    fetchQuote();
+
+    return () => {
+      isCancelled = true;
+    };
   }, [
     chainId,
     fromWalletAddress,
@@ -389,20 +441,16 @@ export default function SwapTokenModal({ tokens }: { tokens: any[] }) {
     toWalletAddress,
   ]);
 
-  // 2. Calculate receive amount from quote
+  // Calculate receive amount from quote
   useEffect(() => {
     if (quote && receiveToken) {
       try {
         setIsCalculating(true);
-        // Get the toAmount from quote (this is in wei/smallest unit)
         const toAmount = quote?.estimate?.toAmount || quote.toAmount;
 
         if (toAmount && receiveToken.decimals) {
-          // Convert from wei to readable amount
           const decimals = receiveToken.decimals;
           const readableAmount = Number(toAmount) / Math.pow(10, decimals);
-
-          // Format to appropriate decimal places (max 8 decimals)
           const formattedAmount = readableAmount
             .toFixed(8)
             .replace(/\.?0+$/, "");
@@ -419,20 +467,63 @@ export default function SwapTokenModal({ tokens }: { tokens: any[] }) {
         setIsCalculating(false);
       }
     } else if (payAmount && payToken && receiveToken && !quote) {
-      // Show calculating when we have inputs but no quote yet
       setIsCalculating(true);
     } else {
-      // Clear receive amount when inputs are missing
       setReceiveAmount("");
       setIsCalculating(false);
     }
   }, [quote, receiveToken, payAmount, payToken]);
 
-  console.log("paytoken", payToken);
-  console.log("receiveToken", receiveToken);
-  console.log("payAmount", payAmount);
-  console.log("receiveAmount", receiveAmount);
-  console.log("chainId", chainId);
+  // Solana swap execution
+  // Solana swap execution
+  const executeSolanaSwap = async () => {
+    try {
+      if (!solWallets || solWallets.length === 0) {
+        setSwapError("No Solana wallet connected");
+        setIsSwapping(false);
+        return;
+      }
+
+      const solanaWallet = solWallets[0];
+
+      // ✅ use .env RPC
+      const rpcUrl =
+        process.env.NEXT_PUBLIC_HELIUS_API_URL ||
+        process.env.NEXT_PUBLIC_ALCHEMY_SOLANA_URL ||
+        process.env.NEXT_PUBLIC_QUICKNODE_SOLANA_URL;
+
+      const connection = new Connection(rpcUrl, "confirmed");
+
+      // ✅ Extract tx from LiFi quote
+      const { transactionRequest } = quote;
+      const rawTx = transactionRequest?.transaction || transactionRequest?.data;
+      if (!rawTx) {
+        throw new Error("No transactionRequest found in LiFi quote");
+      }
+
+      // ✅ Decode base64 into VersionedTransaction
+      const txBuffer = Buffer.from(rawTx, "base64");
+      const tx = VersionedTransaction.deserialize(txBuffer);
+
+      // ✅ Option 1: Let Privy handle sending
+      const txId = await solanaWallet.sendTransaction(tx, connection);
+
+      // ✅ Option 2: Manual sign + send (if Privy supports signTransaction)
+      // const signedTx = await solanaWallet.signTransaction(tx);
+      // const txId = await connection.sendRawTransaction(signedTx.serialize());
+
+      setTxHash(txId);
+      setSwapStatus("Transaction submitted! Waiting for confirmation...");
+
+      await connection.confirmTransaction(txId, "confirmed");
+      setSwapStatus("Transaction confirmed ✅");
+    } catch (error) {
+      console.error("Solana swap failed:", error);
+      setSwapError(error.message || "Transaction failed");
+    } finally {
+      setIsSwapping(false);
+    }
+  };
 
   // Debounced token search for receive tokens
   const debouncedSearch = useCallback(
@@ -483,13 +574,12 @@ export default function SwapTokenModal({ tokens }: { tokens: any[] }) {
   const handleReceiverChainSelect = (chainId: string) => {
     setSelectedReceiverChain(chainId);
     setReceiverChainId(chainId);
-    setReceiveToken(null); // Reset selected token when chain changes
-    setSearchQuery(""); // Reset search
-    // Fetch tokens for the new chain
+    setReceiveToken(null);
+    setSearchQuery("");
     debouncedSearch("", chainId);
   };
 
-  // Fetch tokens when chainId or searchQuery changes (for receive tokens)
+  // Fetch tokens when chainId or searchQuery changes
   useEffect(() => {
     if (openDrawer && selecting === "receive") {
       debouncedSearch(searchQuery, selectedReceiverChain);
@@ -581,15 +671,13 @@ export default function SwapTokenModal({ tokens }: { tokens: any[] }) {
     }
   };
 
-  // Calculate exchange rate for display
-  // Calculate exchange rate directly from the quote
+  // Calculate exchange rate from quote
   const calculateExchangeRateFromQuote = () => {
     if (!quote || !payToken || !receiveToken) {
       return null;
     }
 
     try {
-      // Get amounts from quote (these are in smallest units - wei, lamports, etc.)
       const fromAmount = quote.estimate?.fromAmount || quote.fromAmount;
       const toAmount = quote.estimate?.toAmount || quote.toAmount;
 
@@ -597,7 +685,6 @@ export default function SwapTokenModal({ tokens }: { tokens: any[] }) {
         return null;
       }
 
-      // Convert to human-readable amounts using token decimals
       const fromAmountReadable =
         Number(fromAmount) / Math.pow(10, payToken.decimals || 18);
       const toAmountReadable =
@@ -607,7 +694,6 @@ export default function SwapTokenModal({ tokens }: { tokens: any[] }) {
         return null;
       }
 
-      // Calculate rate: how much receiveToken you get for 1 payToken
       const rate = toAmountReadable / fromAmountReadable;
       return rate;
     } catch (error) {
@@ -615,11 +701,10 @@ export default function SwapTokenModal({ tokens }: { tokens: any[] }) {
       return null;
     }
   };
-  // Alternative: Get additional rate info if available in quote
+
   const getQuoteExchangeInfo = () => {
     if (!quote) return null;
 
-    // Some LiFi quotes might include USD values
     const fromAmountUSD = quote.estimate?.fromAmountUSD || quote.fromAmountUSD;
     const toAmountUSD = quote.estimate?.toAmountUSD || quote.toAmountUSD;
 
@@ -838,6 +923,7 @@ export default function SwapTokenModal({ tokens }: { tokens: any[] }) {
               </button>
             </div>
           </div>
+
           {/* Error/Status Display */}
           {(swapError || swapStatus || !balanceValidation.isValid) && (
             <div className="p-3 rounded-lg">
@@ -856,10 +942,11 @@ export default function SwapTokenModal({ tokens }: { tokens: any[] }) {
                   {swapStatus}
                 </div>
               )}
+
               {txHash && (
                 <div className="text-green-600 text-xs text-center mt-2">
                   <a
-                    href={`https://etherscan.io/tx/${txHash}`}
+                    href={getExplorerUrl(chainId, txHash)}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="underline"
@@ -872,7 +959,6 @@ export default function SwapTokenModal({ tokens }: { tokens: any[] }) {
           )}
 
           {/* Exchange Rate Display */}
-          {/* Enhanced version with USD values if available */}
           {(() => {
             const quoteInfo = getQuoteExchangeInfo();
             return (
@@ -935,7 +1021,8 @@ export default function SwapTokenModal({ tokens }: { tokens: any[] }) {
               ? "Calculating..."
               : "Swap"}
           </Button>
-          {/* Add loading state during swap */}
+
+          {/* Loading state during swap */}
           {isSwapping && (
             <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
               <div className="bg-white rounded-lg p-6 max-w-sm mx-4">
