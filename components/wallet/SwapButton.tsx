@@ -145,7 +145,7 @@ export default function SwapButton({
           ></div>
 
           {/* Modal content */}
-          <div className="relative z-10 w-full max-w-lg rounded-lg bg-white shadow-lg">
+          <div className="relative z-10 w-full max-w-lg rounded-2xl bg-white shadow-lg">
             {/* Close Button */}
             <button
               onClick={() => setOpenSwapModal(false)}

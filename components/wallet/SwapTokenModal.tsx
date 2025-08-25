@@ -1870,7 +1870,7 @@ export default function SwapTokenModal({ tokens }: { tokens: any[] }) {
                   }
                 : executeCrossChainSwap
             }
-            className={`w-full py-4 text-lg font-semibold rounded-xl ${
+            className={`w-full py-4 font-semibold rounded-xl ${
               swapStatus === "Swap completed successfully!" ||
               swapStatus?.includes("Transaction confirmed")
                 ? "bg-green-600 hover:bg-green-700"
