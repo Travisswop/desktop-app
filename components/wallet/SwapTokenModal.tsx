@@ -284,6 +284,7 @@ export default function SwapTokenModal({ tokens }: { tokens: any[] }) {
   const { wallets: solWallets } = useSolanaWallets();
 
   console.log("receiveToken", receiveToken);
+  console.log("payToken", payToken);
   console.log("payAmount", payAmount);
 
   const ethWallet = wallets[0]?.address;
@@ -344,28 +345,20 @@ export default function SwapTokenModal({ tokens }: { tokens: any[] }) {
     }
   }, [lastQuoteTime, payAmount, payToken, receiveToken]);
 
-  // const formatTokenAmount = (amount: string, decimals: number): string => {
-  //   const result = Number(amount) * Math.pow(10, decimals);
-  //   return Math.floor(result).toString();
-  // };
+  const formatTokenAmount = (
+    amount: string | number,
+    decimals: number | bigint
+  ): string => {
+    // always convert decimals to number
+    const dec = typeof decimals === "bigint" ? Number(decimals) : decimals;
 
-  const formatTokenAmount = (amount: string, decimals: number): string => {
-    // Parse the amount as a float and handle scientific notation
-    const numericAmount = parseFloat(amount);
-    if (isNaN(numericAmount)) return "0";
+    const [whole, fractionRaw = ""] = amount.toString().split(".");
+    const fraction = fractionRaw.toString();
 
-    // Convert to string to avoid scientific notation
-    const amountStr = numericAmount.toFixed(decimals);
-    const [integerPart, fractionalPart = ""] = amountStr.split(".");
+    const fractionPadded = (fraction + "0".repeat(dec)).slice(0, dec);
+    const raw = whole + fractionPadded;
 
-    // Pad fractional part with zeros to the required decimals
-    const paddedFractional = fractionalPart
-      .padEnd(decimals, "0")
-      .slice(0, decimals);
-
-    // Combine and convert to BigInt
-    const fullAmount = integerPart + paddedFractional;
-    return BigInt(fullAmount).toString();
+    return BigInt(raw).toString();
   };
 
   const validateBalance = () => {
@@ -510,6 +503,8 @@ export default function SwapTokenModal({ tokens }: { tokens: any[] }) {
       const queryParams = new URLSearchParams();
 
       const fromAmount = formatTokenAmount(payAmount, payToken.decimals || 6);
+
+      console.log("fromAmount2", fromAmount);
 
       if (fromAmount === "0" || !fromAmount) {
         throw new Error("Invalid amount");
@@ -745,6 +740,8 @@ export default function SwapTokenModal({ tokens }: { tokens: any[] }) {
     if ((quote || jupiterQuote) && receiveToken) {
       try {
         let toAmount;
+
+        console.log("gggg2", toAmount);
 
         if (jupiterQuote) {
           toAmount = jupiterQuote.outAmount;
@@ -1186,6 +1183,8 @@ export default function SwapTokenModal({ tokens }: { tokens: any[] }) {
 
     try {
       let fromAmount, toAmount;
+
+      console.log("gggg", fromAmount);
 
       if (jupiterQuote) {
         fromAmount = jupiterQuote.inAmount;
