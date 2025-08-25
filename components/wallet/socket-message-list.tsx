@@ -21,7 +21,7 @@ interface MessageProps {
 }
 
 const MessageList = ({ tokens }: { tokens: any }) => {
-  const { conversations, loading: chatLoading } = useSocketChat();
+  const { conversations, loading: chatLoading, isConnected, error } = useSocketChat();
   const [searchQuery, setSearchQuery] = useState('');
   const [isSearchLoading] = useState(false);
   const [searchResult, setSearchResult] = useState<any | null>(null);
@@ -142,12 +142,25 @@ const MessageList = ({ tokens }: { tokens: any }) => {
   return (
     <Card className="w-full border-none rounded-xl">
       <CardHeader>
-        <div className="flex items-center gap-2">
-          <MessageCircle className="h-5 w-5" />
-          <h3 className="font-bold text-xl text-gray-700">
-            Messages
-          </h3>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <MessageCircle className="h-5 w-5" />
+            <h3 className="font-bold text-xl text-gray-700">
+              Messages
+            </h3>
+          </div>
+          <div className="flex items-center gap-2">
+            <div className={`w-2 h-2 rounded-full ${isConnected ? 'bg-green-500' : 'bg-red-500'}`}></div>
+            <span className={`text-xs ${isConnected ? 'text-green-600' : 'text-red-600'}`}>
+              {isConnected ? 'Connected' : 'Disconnected'}
+            </span>
+          </div>
         </div>
+        {error && (
+          <div className="text-xs text-red-500 mt-2 p-2 bg-red-50 rounded">
+            Connection Error: {error.message}
+          </div>
+        )}
       </CardHeader>
       <CardContent>
         <div className="flex items-center mb-6">

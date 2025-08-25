@@ -127,32 +127,75 @@ export function SocketChatProvider({ children }: { children: ReactNode }) {
       return;
     }
 
-    // Connect to socket server
-    const socketInstance = io(`${process.env.NEXT_PUBLIC_SOCKET}/anthillChat`, {
-      transports: ['websocket'],
+    // Connect to socket server - ensure no double slashes
+    const baseUrl = process.env.NEXT_PUBLIC_SOCKET || 'http://localhost:9000';
+    // Try connecting to root namespace first to test connectivity
+    const socketUrl = baseUrl.replace(/\/$/, '');
+    console.log('🔍 Connecting to socket URL:', socketUrl);
+    console.log('🔍 Attempting connection to root namespace first to test server connectivity');
+    
+    const socketInstance = io(socketUrl, {
+      transports: ['websocket', 'polling'],
       reconnection: true,
-      reconnectionAttempts: 5,
+      reconnectionAttempts: 10,
       reconnectionDelay: 1000,
+      reconnectionDelayMax: 5000,
+      timeout: 20000,
+      forceNew: true,
+      upgrade: true,
+      withCredentials: false,
     });
 
     setSocket(socketInstance);
 
     // Socket event handlers
     socketInstance.on('connect', () => {
-      console.log('Socket connected successfully');
+      console.log('🟢 Socket connected successfully');
+      console.log('🟢 Socket ID:', socketInstance.id);
+      console.log('🟢 Socket URL:', socketUrl);
+      console.log('🟢 Transport:', socketInstance.io.engine.transport.name);
+      console.log('🟢 User:', user?.id);
       setIsConnected(true);
       setLoading(false);
+      setError(null);
     });
 
     socketInstance.on('connect_error', (err) => {
-      console.error('Socket connection error:', err);
+      console.error('🔴 Socket connection error:', err);
+      console.error('🔴 Socket URL attempted:', socketUrl);
+      console.error('🔴 Error details:', {
+        message: err.message,
+        description: (err as any).description || 'N/A',
+        context: (err as any).context || 'N/A',
+        type: (err as any).type || 'N/A'
+      });
       setError(new Error(`Connection error: ${err.message}`));
       setLoading(false);
     });
 
-    socketInstance.on('disconnect', () => {
-      console.log('Socket disconnected');
+    socketInstance.on('disconnect', (reason) => {
+      console.log('🟡 Socket disconnected. Reason:', reason);
+      console.log('🟡 Will attempt reconnection:', socketInstance.io.reconnection);
       setIsConnected(false);
+    });
+
+    socketInstance.on('reconnect', (attemptNumber) => {
+      console.log('🔄 Socket reconnected after', attemptNumber, 'attempts');
+      setIsConnected(true);
+      setError(null);
+    });
+
+    socketInstance.on('reconnect_attempt', (attemptNumber) => {
+      console.log('🔄 Socket reconnection attempt:', attemptNumber);
+    });
+
+    socketInstance.on('reconnect_error', (err) => {
+      console.error('🔴 Socket reconnection error:', err);
+    });
+
+    socketInstance.on('reconnect_failed', () => {
+      console.error('🔴 Socket reconnection failed - giving up');
+      setError(new Error('Failed to reconnect to chat server'));
     });
 
     // Listen for message history (handles both private DMs and group messages)
