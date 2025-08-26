@@ -1,4 +1,4 @@
-"use client";
+'use client';
 
 import {
   createContext,
@@ -7,9 +7,9 @@ import {
   useEffect,
   useCallback,
   ReactNode,
-} from "react";
-import { io, Socket } from "socket.io-client";
-import { usePrivy } from "@privy-io/react-auth";
+} from 'react';
+import { io, Socket } from 'socket.io-client';
+import { usePrivy } from '@privy-io/react-auth';
 
 // Types for messages and conversations
 export interface ChatMessage {
@@ -22,7 +22,7 @@ export interface ChatMessage {
   channelId?: string; // For group messages
   content: string;
   createdAt: string;
-  messageType?: "text" | "image" | "video" | "file";
+  messageType?: 'text' | 'image' | 'video' | 'file';
   attachment?: string;
   reactions?: Array<{
     userId: string;
@@ -52,8 +52,8 @@ export interface GroupMember {
   id: string;
   displayName: string;
   avatarUrl?: string;
-  role: "admin" | "moderator" | "member";
-  status?: "online" | "offline";
+  role: 'admin' | 'moderator' | 'member';
+  status?: 'online' | 'offline';
   lastSeen?: number;
 }
 
@@ -84,10 +84,13 @@ interface SocketChatContextType {
     recipientId: string;
     content: string;
     attachmentData?: any;
-    messageType?: "text" | "image" | "video" | "file";
+    messageType?: 'text' | 'image' | 'video' | 'file';
   }) => Promise<void>;
   leaveConversation: (conversationId: string) => Promise<void>;
-  markAsRead: (conversationId: string, userId: string) => Promise<void>;
+  markAsRead: (
+    conversationId: string,
+    userId: string
+  ) => Promise<void>;
   setUserOnline: (userId: string) => Promise<void>;
   refreshConversations: () => Promise<void>;
   userPresence: Record<string, { status: string; lastSeen?: number }>;
@@ -101,31 +104,48 @@ interface SocketChatContextType {
   }) => Promise<string>;
   joinGroup: (groupId: string) => Promise<void>;
   leaveGroup: (groupId: string) => Promise<void>;
-  addGroupMembers: (groupId: string, memberIds: string[]) => Promise<void>;
-  removeGroupMember: (groupId: string, memberId: string) => Promise<void>;
-  searchUsers: (query: string, currentGroupId?: string) => Promise<any[]>;
+  addGroupMembers: (
+    groupId: string,
+    memberIds: string[]
+  ) => Promise<void>;
+  removeGroupMember: (
+    groupId: string,
+    memberId: string
+  ) => Promise<void>;
+  searchUsers: (
+    query: string,
+    currentGroupId?: string
+  ) => Promise<any[]>;
   getGroupMembers: (groupId: string) => Promise<GroupMember[]>;
   sendGroupMessage: (params: {
     groupId: string;
     content: string;
     attachmentData?: any;
-    messageType?: "text" | "image" | "video" | "file";
+    messageType?: 'text' | 'image' | 'video' | 'file';
   }) => Promise<void>;
 }
 
-const SocketChatContext = createContext<SocketChatContextType | undefined>(
-  undefined
-);
+const SocketChatContext = createContext<
+  SocketChatContextType | undefined
+>(undefined);
 
-export function SocketChatProvider({ children }: { children: ReactNode }) {
+export function SocketChatProvider({
+  children,
+}: {
+  children: ReactNode;
+}) {
   const { user } = usePrivy();
   const [socket, setSocket] = useState<Socket | null>(null);
   const [isConnected, setIsConnected] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
-  const [conversations, setConversations] = useState<ChatConversation[]>([]);
+  const [conversations, setConversations] = useState<
+    ChatConversation[]
+  >([]);
   const [groups, setGroups] = useState<Group[]>([]);
-  const [messages, setMessages] = useState<Record<string, ChatMessage[]>>({});
+  const [messages, setMessages] = useState<
+    Record<string, ChatMessage[]>
+  >({});
   const [activeConversationId, setActiveConversationId] = useState<
     string | null
   >(null);
@@ -140,87 +160,88 @@ export function SocketChatProvider({ children }: { children: ReactNode }) {
       return;
     }
 
-    // Connect to socket server - ensure no double slashes
-    const baseUrl = process.env.NEXT_PUBLIC_SOCKET || "http://localhost:9000";
-    // Try connecting to root namespace first to test connectivity
-    const socketUrl = baseUrl.replace(/\/$/, "");
-    console.log("🔍 Connecting to socket URL:", socketUrl);
     console.log(
-      "🔍 Attempting connection to root namespace first to test server connectivity"
+      '🔍 Attempting connection to root namespace first to test server connectivity'
     );
 
-    console.log("base url and the socket url : ", baseUrl, socketUrl);
-
-    const socketInstance = io(socketUrl, {
-      transports: ["websocket", "polling"],
-      reconnection: true,
-      reconnectionAttempts: 10,
-      reconnectionDelay: 1000,
-      reconnectionDelayMax: 5000,
-      timeout: 20000,
-      forceNew: true,
-      upgrade: true,
-      withCredentials: false,
-    });
+    const socketInstance = io(
+      `${process.env.NEXT_PUBLIC_SOCKET}/anthillChat`,
+      {
+        transports: ['websocket', 'polling'],
+        reconnection: true,
+        reconnectionAttempts: 10,
+        reconnectionDelay: 1000,
+        reconnectionDelayMax: 5000,
+        timeout: 20000,
+        forceNew: true,
+        upgrade: true,
+        withCredentials: false,
+      }
+    );
 
     setSocket(socketInstance);
 
     // Socket event handlers
-    socketInstance.on("connect", () => {
-      console.log("🟢 Socket connected successfully");
-      console.log("🟢 Socket ID:", socketInstance.id);
-      console.log("🟢 Socket URL:", socketUrl);
-      console.log("🟢 Transport:", socketInstance.io.engine.transport.name);
-      console.log("🟢 User:", user?.id);
+    socketInstance.on('connect', () => {
+      console.log('🟢 Socket connected successfully');
+      console.log('🟢 Socket ID:', socketInstance.id);
+      console.log(
+        '🟢 Transport:',
+        socketInstance.io.engine.transport.name
+      );
+      console.log('🟢 User:', user?.id);
       setIsConnected(true);
       setLoading(false);
       setError(null);
     });
 
-    socketInstance.on("connect_error", (err) => {
-      console.error("🔴 Socket connection error:", err);
-      console.error("🔴 Socket URL attempted:", socketUrl);
-      console.error("🔴 Error details:", {
+    socketInstance.on('connect_error', (err) => {
+      console.error('🔴 Socket connection error:', err);
+      console.error('🔴 Error details:', {
         message: err.message,
-        description: (err as any).description || "N/A",
-        context: (err as any).context || "N/A",
-        type: (err as any).type || "N/A",
+        description: (err as any).description || 'N/A',
+        context: (err as any).context || 'N/A',
+        type: (err as any).type || 'N/A',
       });
       setError(new Error(`Connection error: ${err.message}`));
       setLoading(false);
     });
 
-    socketInstance.on("disconnect", (reason) => {
-      console.log("🟡 Socket disconnected. Reason:", reason);
+    socketInstance.on('disconnect', (reason) => {
+      console.log('🟡 Socket disconnected. Reason:', reason);
       console.log(
-        "🟡 Will attempt reconnection:",
+        '🟡 Will attempt reconnection:',
         socketInstance.io.reconnection
       );
       setIsConnected(false);
     });
 
-    socketInstance.on("reconnect", (attemptNumber) => {
-      console.log("🔄 Socket reconnected after", attemptNumber, "attempts");
+    socketInstance.on('reconnect', (attemptNumber) => {
+      console.log(
+        '🔄 Socket reconnected after',
+        attemptNumber,
+        'attempts'
+      );
       setIsConnected(true);
       setError(null);
     });
 
-    socketInstance.on("reconnect_attempt", (attemptNumber) => {
-      console.log("🔄 Socket reconnection attempt:", attemptNumber);
+    socketInstance.on('reconnect_attempt', (attemptNumber) => {
+      console.log('🔄 Socket reconnection attempt:', attemptNumber);
     });
 
-    socketInstance.on("reconnect_error", (err) => {
-      console.error("🔴 Socket reconnection error:", err);
+    socketInstance.on('reconnect_error', (err) => {
+      console.error('🔴 Socket reconnection error:', err);
     });
 
-    socketInstance.on("reconnect_failed", () => {
-      console.error("🔴 Socket reconnection failed - giving up");
-      setError(new Error("Failed to reconnect to chat server"));
+    socketInstance.on('reconnect_failed', () => {
+      console.error('🔴 Socket reconnection failed - giving up');
+      setError(new Error('Failed to reconnect to chat server'));
     });
 
     // Listen for message history (handles both private DMs and group messages)
     socketInstance.on(
-      "private_message_history",
+      'private_message_history',
       (messageHistory: ChatMessage[]) => {
         setMessages((prev) => {
           // Get current active conversation ID from state to avoid dependency warning
@@ -237,40 +258,46 @@ export function SocketChatProvider({ children }: { children: ReactNode }) {
     );
 
     // Listen for group channel message history
-    socketInstance.on("message_history", (messageHistory: ChatMessage[]) => {
-      console.log("[GROUP] Received message history:", messageHistory);
-      setMessages((prev) => {
-        // Get current active conversation ID from state to avoid dependency warning
-        const currentActiveConversationId = activeConversationId;
-        if (currentActiveConversationId) {
-          return {
-            ...prev,
-            [currentActiveConversationId]: messageHistory,
-          };
-        }
-        return prev;
-      });
-    });
+    socketInstance.on(
+      'message_history',
+      (messageHistory: ChatMessage[]) => {
+        console.log(
+          '[GROUP] Received message history:',
+          messageHistory
+        );
+        setMessages((prev) => {
+          // Get current active conversation ID from state to avoid dependency warning
+          const currentActiveConversationId = activeConversationId;
+          if (currentActiveConversationId) {
+            return {
+              ...prev,
+              [currentActiveConversationId]: messageHistory,
+            };
+          }
+          return prev;
+        });
+      }
+    );
 
     // Listen for new direct messages
-    socketInstance.on("recived_dm", (message: ChatMessage) => {
-      console.log("🔔 RECEIVED MESSAGE EVENT:", message);
-      console.log("🔔 Current user:", user?.id);
-      console.log("🔔 Active conversation:", activeConversationId);
-      console.log("🔔 Socket connected:", isConnected);
-      console.log("🔔 Socket ID:", socket?.id);
-      console.log("🔔 TIMESTAMP:", new Date().toISOString());
+    socketInstance.on('recived_dm', (message: ChatMessage) => {
+      console.log('🔔 RECEIVED MESSAGE EVENT:', message);
+      console.log('🔔 Current user:', user?.id);
+      console.log('🔔 Active conversation:', activeConversationId);
+      console.log('🔔 Socket connected:', isConnected);
+      console.log('🔔 Socket ID:', socket?.id);
+      console.log('🔔 TIMESTAMP:', new Date().toISOString());
 
       // IMPORTANT: Ensure we're using the correct conversation ID format
       let conversationId = message.conversationId;
 
       // If the conversation ID contains ETH addresses, ensure consistent format
-      if (conversationId.includes("0x")) {
-        const parts = conversationId.split("_");
+      if (conversationId.includes('0x')) {
+        const parts = conversationId.split('_');
         if (parts.length === 2) {
           // Sort to ensure consistent ordering
           const sortedParts = [...parts].sort();
-          const sortedConversationId = sortedParts.join("_");
+          const sortedConversationId = sortedParts.join('_');
 
           if (sortedConversationId !== conversationId) {
             console.log(
@@ -282,18 +309,21 @@ export function SocketChatProvider({ children }: { children: ReactNode }) {
       }
 
       // Add the message to the messages state
-      console.log("🔍 Before updating messages state:", {
+      console.log('🔍 Before updating messages state:', {
         allConversations: Object.keys(messages),
         hasThisConversation: !!messages[conversationId],
         messageCount: messages[conversationId]?.length || 0,
       });
 
       setMessages((prev) => {
-        console.log("🔍 Inside setMessages callback - previous state:", {
-          allConversations: Object.keys(prev),
-          hasThisConversation: !!prev[conversationId],
-          messageCount: prev[conversationId]?.length || 0,
-        });
+        console.log(
+          '🔍 Inside setMessages callback - previous state:',
+          {
+            allConversations: Object.keys(prev),
+            hasThisConversation: !!prev[conversationId],
+            messageCount: prev[conversationId]?.length || 0,
+          }
+        );
 
         const conversationMessages = prev[conversationId] || [];
 
@@ -303,10 +333,12 @@ export function SocketChatProvider({ children }: { children: ReactNode }) {
         );
 
         if (!messageExists) {
-          console.log(`🟢 Adding message to conversation ${conversationId}`);
+          console.log(
+            `🟢 Adding message to conversation ${conversationId}`
+          );
 
           // Create a debug log to help diagnose issues
-          console.log("🟢 Message details:", {
+          console.log('🟢 Message details:', {
             id: message._id,
             from: message.senderId,
             to: message.recipientId,
@@ -321,7 +353,7 @@ export function SocketChatProvider({ children }: { children: ReactNode }) {
           };
 
           // Log the new state
-          console.log("🔍 New messages state will be:", {
+          console.log('🔍 New messages state will be:', {
             allConversations: Object.keys(newState),
             hasThisConversation: !!newState[conversationId],
             messageCount: newState[conversationId]?.length || 0,
@@ -331,24 +363,30 @@ export function SocketChatProvider({ children }: { children: ReactNode }) {
           return newState;
         }
 
-        console.log("⚠️ Message already exists, not adding:", message._id);
+        console.log(
+          '⚠️ Message already exists, not adding:',
+          message._id
+        );
         return prev;
       });
 
       // Force a re-render of the component using this conversation
       if (conversationId === activeConversationId) {
-        console.log("🔄 Forcing re-render for active conversation");
+        console.log('🔄 Forcing re-render for active conversation');
 
         // This is a more reliable way to force a re-render
         setTimeout(() => {
-          console.log("🔄 Executing delayed re-render now");
+          console.log('🔄 Executing delayed re-render now');
           setActiveConversationId((oldId) => {
             console.log(
               `🔄 Re-render: changing from ${oldId} to ${conversationId} and back`
             );
             // Change to a different value and then back to force React to notice the change
             const tempId = `${conversationId}_temp_${Date.now()}`;
-            setTimeout(() => setActiveConversationId(conversationId), 5);
+            setTimeout(
+              () => setActiveConversationId(conversationId),
+              5
+            );
             return tempId;
           });
         }, 10);
@@ -356,12 +394,16 @@ export function SocketChatProvider({ children }: { children: ReactNode }) {
 
       // Update the conversation list with the new message
       setConversations((prev) => {
-        console.log("🔍 Updating conversations list with new message");
+        console.log(
+          '🔍 Updating conversations list with new message'
+        );
         const index = prev.findIndex(
           (conv) => conv.conversationId === conversationId
         );
         if (index !== -1) {
-          console.log(`🔍 Found existing conversation at index ${index}`);
+          console.log(
+            `🔍 Found existing conversation at index ${index}`
+          );
           const updatedConversations = [...prev];
           updatedConversations[index] = {
             ...updatedConversations[index],
@@ -374,12 +416,12 @@ export function SocketChatProvider({ children }: { children: ReactNode }) {
         // If this is a new conversation, add it to the conversations list
         if (conversationId) {
           // Extract sender/recipient info to create conversation object
-          let displayName = "";
-          let peerAddress = "";
+          let displayName = '';
+          let peerAddress = '';
 
           // Find the ID that's not the current user
           if (user && user.id) {
-            const parts = conversationId.split("_");
+            const parts = conversationId.split('_');
 
             // Determine which part is the peer (not the current user)
             let peerId;
@@ -411,14 +453,16 @@ export function SocketChatProvider({ children }: { children: ReactNode }) {
             peerAddress = peerId;
 
             // Format the display name based on the ID type
-            if (peerId.startsWith("did:privy:")) {
-              displayName = `${peerId.substring(0, 10)}...${peerId.substring(
-                peerId.length - 5
-              )}`;
-            } else if (peerId.startsWith("0x")) {
-              displayName = `${peerId.substring(0, 6)}...${peerId.substring(
-                peerId.length - 4
-              )}`;
+            if (peerId.startsWith('did:privy:')) {
+              displayName = `${peerId.substring(
+                0,
+                10
+              )}...${peerId.substring(peerId.length - 5)}`;
+            } else if (peerId.startsWith('0x')) {
+              displayName = `${peerId.substring(
+                0,
+                6
+              )}...${peerId.substring(peerId.length - 4)}`;
             } else {
               displayName = peerId;
             }
@@ -447,7 +491,9 @@ export function SocketChatProvider({ children }: { children: ReactNode }) {
       // If this is for the active conversation, update it visually
       if (conversationId === activeConversationId) {
         // Force scroll to bottom by triggering a minor state update
-        console.log("🔄 Triggering scroll to bottom for active conversation");
+        console.log(
+          '🔄 Triggering scroll to bottom for active conversation'
+        );
       } else {
         // If we're not currently viewing this conversation, show a notification
         console.log(
@@ -458,14 +504,14 @@ export function SocketChatProvider({ children }: { children: ReactNode }) {
 
     // Listen for broadcast messages (fallback delivery method)
     socketInstance.on(
-      "recived_dm_broadcast",
+      'recived_dm_broadcast',
       ({
         message,
         senderId,
         recipientId,
         conversationId: msgConversationId,
       }) => {
-        console.log("🔔 RECEIVED BROADCAST MESSAGE:", message);
+        console.log('🔔 RECEIVED BROADCAST MESSAGE:', message);
 
         // Check if this message is relevant to the current user
         if (
@@ -475,17 +521,20 @@ export function SocketChatProvider({ children }: { children: ReactNode }) {
           user?.wallet?.address === recipientId
         ) {
           console.log(
-            "🔔 Broadcast message is relevant to current user, processing..."
+            '🔔 Broadcast message is relevant to current user, processing...'
           );
 
           // Process it like a normal message
-          const normalizedConversationId = msgConversationId.includes("_")
-            ? msgConversationId.split("_").sort().join("_")
+          const normalizedConversationId = msgConversationId.includes(
+            '_'
+          )
+            ? msgConversationId.split('_').sort().join('_')
             : msgConversationId;
 
           // Add to messages state if not already there
           setMessages((prev) => {
-            const conversationMessages = prev[normalizedConversationId] || [];
+            const conversationMessages =
+              prev[normalizedConversationId] || [];
             const messageExists = conversationMessages.some(
               (msg) => msg._id === message._id
             );
@@ -496,7 +545,10 @@ export function SocketChatProvider({ children }: { children: ReactNode }) {
               );
               return {
                 ...prev,
-                [normalizedConversationId]: [...conversationMessages, message],
+                [normalizedConversationId]: [
+                  ...conversationMessages,
+                  message,
+                ],
               };
             }
 
@@ -507,47 +559,52 @@ export function SocketChatProvider({ children }: { children: ReactNode }) {
     );
 
     // Listen for reaction updates
-    socketInstance.on("reaction_updated", ({ messageId, reactions }) => {
-      setMessages((prev) => {
-        const updatedMessages = { ...prev };
-
-        // Find the conversation that contains this message
-        Object.keys(updatedMessages).forEach((convId) => {
-          const messageIndex = updatedMessages[convId].findIndex(
-            (msg) => msg._id === messageId
-          );
-
-          if (messageIndex !== -1) {
-            const updatedMessagesArray = [...updatedMessages[convId]];
-            updatedMessagesArray[messageIndex] = {
-              ...updatedMessagesArray[messageIndex],
-              reactions,
-            };
-            updatedMessages[convId] = updatedMessagesArray;
-          }
-        });
-
-        return updatedMessages;
-      });
-    });
-
-    // Listen for typing indicators
     socketInstance.on(
-      "typing",
-      (typingData: { userId: string; name: string }) => {
-        // Handle typing indicator (could update UI state)
-        console.log("User is typing:", typingData);
+      'reaction_updated',
+      ({ messageId, reactions }) => {
+        setMessages((prev) => {
+          const updatedMessages = { ...prev };
+
+          // Find the conversation that contains this message
+          Object.keys(updatedMessages).forEach((convId) => {
+            const messageIndex = updatedMessages[convId].findIndex(
+              (msg) => msg._id === messageId
+            );
+
+            if (messageIndex !== -1) {
+              const updatedMessagesArray = [
+                ...updatedMessages[convId],
+              ];
+              updatedMessagesArray[messageIndex] = {
+                ...updatedMessagesArray[messageIndex],
+                reactions,
+              };
+              updatedMessages[convId] = updatedMessagesArray;
+            }
+          });
+
+          return updatedMessages;
+        });
       }
     );
 
-    socketInstance.on("stop_typing", ({ userId }) => {
+    // Listen for typing indicators
+    socketInstance.on(
+      'typing',
+      (typingData: { userId: string; name: string }) => {
+        // Handle typing indicator (could update UI state)
+        console.log('User is typing:', typingData);
+      }
+    );
+
+    socketInstance.on('stop_typing', ({ userId }) => {
       // Handle stop typing
-      console.log("User stopped typing:", userId);
+      console.log('User stopped typing:', userId);
     });
 
     // Listen for user presence updates
     socketInstance.on(
-      "user_presence_updated",
+      'user_presence_updated',
       ({ userId, status, lastSeen }) => {
         setUserPresence((prev) => ({
           ...prev,
@@ -556,11 +613,17 @@ export function SocketChatProvider({ children }: { children: ReactNode }) {
       }
     );
 
-    socketInstance.on("all_users_presence", (presenceStatuses) => {
-      const presenceMap: Record<string, { status: string; lastSeen?: number }> =
-        {};
+    socketInstance.on('all_users_presence', (presenceStatuses) => {
+      const presenceMap: Record<
+        string,
+        { status: string; lastSeen?: number }
+      > = {};
       presenceStatuses.forEach(
-        (status: { userId: string; status: string; lastSeen?: number }) => {
+        (status: {
+          userId: string;
+          status: string;
+          lastSeen?: number;
+        }) => {
           presenceMap[status.userId] = {
             status: status.status,
             lastSeen: status.lastSeen,
@@ -571,7 +634,7 @@ export function SocketChatProvider({ children }: { children: ReactNode }) {
     });
 
     // Listen for unread counts
-    socketInstance.on("unread_counts", (data) => {
+    socketInstance.on('unread_counts', (data) => {
       if (data.channels && data.directMessages) {
         // Handle bulk unread counts update
         const updatedConversations: ChatConversation[] = [
@@ -579,9 +642,9 @@ export function SocketChatProvider({ children }: { children: ReactNode }) {
             conversationId: dm.conversationId,
             peerAddress:
               dm.conversationId
-                .split("_")
-                .find((id: string) => id !== user.id) || "",
-            displayName: "", // Will need to be set with user data
+                .split('_')
+                .find((id: string) => id !== user.id) || '',
+            displayName: '', // Will need to be set with user data
             lastMessage: dm.lastMessage,
             lastMessageTime: dm.lastMessageTime,
             unreadCount: dm.count,
@@ -608,21 +671,21 @@ export function SocketChatProvider({ children }: { children: ReactNode }) {
           // If conversation doesn't exist yet, add it
           if (data.senderId && data.senderId !== user?.id) {
             // Create a safe display name from sender ID
-            let displayName = "Unknown";
+            let displayName = 'Unknown';
             try {
               if (
-                typeof data.senderId === "string" &&
+                typeof data.senderId === 'string' &&
                 data.senderId.length > 10
               ) {
                 displayName =
                   data.senderId.substring(0, 6) +
-                  "..." +
+                  '...' +
                   data.senderId.substring(data.senderId.length - 4);
               } else {
                 displayName = String(data.senderId);
               }
             } catch (err) {
-              console.error("Error formatting displayName:", err);
+              console.error('Error formatting displayName:', err);
             }
 
             return [
@@ -631,7 +694,7 @@ export function SocketChatProvider({ children }: { children: ReactNode }) {
                 conversationId: data.conversationId,
                 peerAddress: data.senderId,
                 displayName,
-                lastMessage: data.lastMessage || "",
+                lastMessage: data.lastMessage || '',
                 lastMessageTime:
                   data.lastMessageTime || new Date().toISOString(),
                 unreadCount: data.count || 0,
@@ -644,29 +707,34 @@ export function SocketChatProvider({ children }: { children: ReactNode }) {
     });
 
     // Listen for edited messages
-    socketInstance.on("message_edited", ({ messageId, newContent, edited }) => {
-      setMessages((prev) => {
-        const updatedMessages = { ...prev };
+    socketInstance.on(
+      'message_edited',
+      ({ messageId, newContent, edited }) => {
+        setMessages((prev) => {
+          const updatedMessages = { ...prev };
 
-        Object.keys(updatedMessages).forEach((convId) => {
-          const messageIndex = updatedMessages[convId].findIndex(
-            (msg) => msg._id === messageId
-          );
+          Object.keys(updatedMessages).forEach((convId) => {
+            const messageIndex = updatedMessages[convId].findIndex(
+              (msg) => msg._id === messageId
+            );
 
-          if (messageIndex !== -1) {
-            const updatedMessagesArray = [...updatedMessages[convId]];
-            updatedMessagesArray[messageIndex] = {
-              ...updatedMessagesArray[messageIndex],
-              content: newContent,
-              edited,
-            };
-            updatedMessages[convId] = updatedMessagesArray;
-          }
+            if (messageIndex !== -1) {
+              const updatedMessagesArray = [
+                ...updatedMessages[convId],
+              ];
+              updatedMessagesArray[messageIndex] = {
+                ...updatedMessagesArray[messageIndex],
+                content: newContent,
+                edited,
+              };
+              updatedMessages[convId] = updatedMessagesArray;
+            }
+          });
+
+          return updatedMessages;
         });
-
-        return updatedMessages;
-      });
-    });
+      }
+    );
 
     // Clean up on unmount
     return () => {
@@ -680,23 +748,25 @@ export function SocketChatProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (isConnected && socket && user?.id) {
       // Emit user online status with ETH address if available
-      socket.emit("user_online", {
+      socket.emit('user_online', {
         userId: user.id,
         ethAddress: user.wallet?.address || null,
       });
 
       // Fetch unread message counts
-      socket.emit("fetch_unread_counts", { userId: user.id });
+      socket.emit('fetch_unread_counts', { userId: user.id });
 
       // Debug: log connection status
-      console.log(`Socket connected and user authenticated: ${user.id}`);
+      console.log(
+        `Socket connected and user authenticated: ${user.id}`
+      );
       if (user.wallet?.address) {
         console.log(`User ETH address: ${user.wallet.address}`);
       }
 
       // Force join the user's personal room to ensure message delivery
       // This is a backup in case the server-side join doesn't work
-      socket.emit("join_user_room", { userId: user.id });
+      socket.emit('join_user_room', { userId: user.id });
 
       // Log current messages state
       console.log(`Current messages state:`, {
@@ -706,13 +776,15 @@ export function SocketChatProvider({ children }: { children: ReactNode }) {
 
       // Fetch user's groups - with explicit debug
       console.log(`🔍 Requesting groups for user: ${user.id}`);
-      socket.emit("get_user_groups", { userId: user.id });
+      socket.emit('get_user_groups', { userId: user.id });
 
       // Set a timeout to retry fetching groups if none are received
       const retryTimer = setTimeout(() => {
         if (groups.length === 0) {
-          console.log(`⚠️ No groups received after 3 seconds, retrying...`);
-          socket.emit("get_user_groups", { userId: user.id });
+          console.log(
+            `⚠️ No groups received after 3 seconds, retrying...`
+          );
+          socket.emit('get_user_groups', { userId: user.id });
         }
       }, 3000);
 
@@ -727,35 +799,45 @@ export function SocketChatProvider({ children }: { children: ReactNode }) {
     if (!socket) return;
 
     // Handle user groups
-    socket.on("user_groups", (userGroups) => {
-      console.log("📋 Received user groups:", userGroups);
+    socket.on('user_groups', (userGroups) => {
+      console.log('📋 Received user groups:', userGroups);
       console.log(`📋 Groups count: ${userGroups?.length || 0}`);
 
-      if (userGroups && Array.isArray(userGroups) && userGroups.length > 0) {
+      if (
+        userGroups &&
+        Array.isArray(userGroups) &&
+        userGroups.length > 0
+      ) {
         console.log(
           `📋 First group: ${userGroups[0].name} (${userGroups[0].groupId})`
         );
         setGroups(userGroups);
       } else {
-        console.warn("⚠️ Received empty or invalid user_groups data");
+        console.warn('⚠️ Received empty or invalid user_groups data');
         // If we got an empty array, keep any existing groups
         setGroups((prev) => (prev.length > 0 ? prev : []));
       }
     });
 
     // Handle new group messages
-    socket.on("receive_message", (message: ChatMessage) => {
-      console.log("📢 GROUP MESSAGE RECEIVED:", message);
-      console.log("📢 Current active conversation:", activeConversationId);
-      console.log("📢 Current user:", user?.id);
-      console.log("📢 All current conversations:", Object.keys(messages));
+    socket.on('receive_message', (message: ChatMessage) => {
+      console.log('📢 GROUP MESSAGE RECEIVED:', message);
+      console.log(
+        '📢 Current active conversation:',
+        activeConversationId
+      );
+      console.log('📢 Current user:', user?.id);
+      console.log(
+        '📢 All current conversations:',
+        Object.keys(messages)
+      );
 
       // Extract the channel ID (using as conversationId for storage)
       const channelId = message.channelId || message.conversationId;
 
       if (!channelId) {
         console.warn(
-          "Received message without channelId or conversationId:",
+          'Received message without channelId or conversationId:',
           message
         );
         return;
@@ -791,7 +873,7 @@ export function SocketChatProvider({ children }: { children: ReactNode }) {
         const filteredMessages = conversationMessages.filter(
           (msg) =>
             !(
-              msg._id.startsWith("temp_") &&
+              msg._id.startsWith('temp_') &&
               msg.content === message.content &&
               Math.abs(
                 new Date(msg.createdAt).getTime() -
@@ -815,7 +897,8 @@ export function SocketChatProvider({ children }: { children: ReactNode }) {
         );
         console.log(
           `📢 Latest message content: "${
-            newState[channelId][newState[channelId].length - 1].content
+            newState[channelId][newState[channelId].length - 1]
+              .content
           }"`
         );
 
@@ -836,8 +919,8 @@ export function SocketChatProvider({ children }: { children: ReactNode }) {
     });
 
     return () => {
-      socket.off("user_groups");
-      socket.off("receive_message");
+      socket.off('user_groups');
+      socket.off('receive_message');
     };
   }, [socket, activeConversationId, user?.id]);
 
@@ -847,18 +930,18 @@ export function SocketChatProvider({ children }: { children: ReactNode }) {
       // More defensive checking with better error message
       if (!socket) {
         console.warn(
-          "Socket not connected, attempting to create conversation without socket"
+          'Socket not connected, attempting to create conversation without socket'
         );
       }
 
       if (!user) {
-        console.warn("User not authenticated yet");
+        console.warn('User not authenticated yet');
         // Return a temporary conversation ID that will be replaced when user is available
         return `temp_${recipientId}_${Date.now()}`;
       }
 
       if (!user.id) {
-        console.warn("User has no ID");
+        console.warn('User has no ID');
         // Return a temporary conversation ID that will be replaced when user ID is available
         return `temp_${recipientId}_${Date.now()}`;
       }
@@ -869,12 +952,12 @@ export function SocketChatProvider({ children }: { children: ReactNode }) {
       const recipientEthAddress = recipientId;
 
       // If recipient is a Privy ID, we need to get its ETH address from the server
-      if (recipientId.startsWith("did:privy:")) {
-        console.log("Recipient is a Privy ID, using as is for now");
+      if (recipientId.startsWith('did:privy:')) {
+        console.log('Recipient is a Privy ID, using as is for now');
         // We'll rely on the server to handle this correctly
       }
       // If user ID is a Privy ID but we have their ETH address, use that
-      else if (user.id.startsWith("did:privy:") && userEthAddress) {
+      else if (user.id.startsWith('did:privy:') && userEthAddress) {
         console.log(
           `Using user's ETH address (${userEthAddress}) instead of Privy ID for conversation`
         );
@@ -886,8 +969,8 @@ export function SocketChatProvider({ children }: { children: ReactNode }) {
       const targetId = recipientEthAddress || recipientId;
 
       // Sort and join to ensure the same conversation ID regardless of who initiates
-      const conversationId = [userId, targetId].sort().join("_");
-      console.log("Created conversation ID:", conversationId);
+      const conversationId = [userId, targetId].sort().join('_');
+      console.log('Created conversation ID:', conversationId);
 
       return conversationId;
     },
@@ -899,33 +982,40 @@ export function SocketChatProvider({ children }: { children: ReactNode }) {
     async (conversationId: string): Promise<void> => {
       // Prevent infinite loops - if this conversation is already active, don't rejoin
       if (activeConversationId === conversationId) {
-        console.log(`Already in conversation ${conversationId}, skipping join`);
+        console.log(
+          `Already in conversation ${conversationId}, skipping join`
+        );
         return;
       }
 
       // Always set the active conversation ID immediately for UI
-      console.log("Setting active conversation ID to:", conversationId);
+      console.log(
+        'Setting active conversation ID to:',
+        conversationId
+      );
       setActiveConversationId(conversationId);
 
       // Handle missing socket with warning instead of error
       if (!socket) {
-        console.warn("Socket not connected, cannot join conversation yet");
+        console.warn(
+          'Socket not connected, cannot join conversation yet'
+        );
         return;
       }
 
       // Handle missing user with warning
       if (!user || !user.id) {
         console.warn(
-          "User not authenticated yet, cannot join conversation fully"
+          'User not authenticated yet, cannot join conversation fully'
         );
         return;
       }
 
       try {
         console.log(
-          "Joining conversation:",
+          'Joining conversation:',
           conversationId,
-          "as user:",
+          'as user:',
           user.id
         );
 
@@ -934,17 +1024,17 @@ export function SocketChatProvider({ children }: { children: ReactNode }) {
         let finalConversationId = conversationId;
 
         // If the conversation ID contains ETH addresses, make sure we're using the consistent format
-        if (conversationId.includes("0x")) {
+        if (conversationId.includes('0x')) {
           console.log(
-            "Conversation ID contains ETH addresses, ensuring consistency"
+            'Conversation ID contains ETH addresses, ensuring consistency'
           );
 
           // Extract the ETH addresses
-          const parts = conversationId.split("_");
+          const parts = conversationId.split('_');
           if (parts.length === 2) {
             // Sort them to ensure consistent ordering
             const sortedParts = [...parts].sort();
-            finalConversationId = sortedParts.join("_");
+            finalConversationId = sortedParts.join('_');
 
             if (finalConversationId !== conversationId) {
               console.log(
@@ -961,7 +1051,9 @@ export function SocketChatProvider({ children }: { children: ReactNode }) {
           !messages[finalConversationId] ||
           messages[finalConversationId].length === 0
         ) {
-          console.log("No existing messages found, requesting message history");
+          console.log(
+            'No existing messages found, requesting message history'
+          );
 
           // Force an update to messages to ensure the UI displays correctly
           setMessages((prev) => ({
@@ -975,26 +1067,28 @@ export function SocketChatProvider({ children }: { children: ReactNode }) {
         }
 
         // Join the conversation room
-        socket.emit("join_dm", {
+        socket.emit('join_dm', {
           conversationId: finalConversationId,
           userId: user.id,
         });
 
         // Reset unread count when joining conversation
-        socket.emit("message_read", {
+        socket.emit('message_read', {
           userId: user.id,
           conversationId: finalConversationId,
         });
 
         // Force refresh messages for this conversation
-        socket.emit("get_private_message_history", {
+        socket.emit('get_private_message_history', {
           conversationId: finalConversationId,
         });
 
         // Debug: log that we've joined the conversation
-        console.log(`Joined conversation room: ${finalConversationId}`);
+        console.log(
+          `Joined conversation room: ${finalConversationId}`
+        );
       } catch (error) {
-        console.error("Error joining conversation:", error);
+        console.error('Error joining conversation:', error);
       }
     },
     [socket, user, messages, activeConversationId]
@@ -1007,18 +1101,18 @@ export function SocketChatProvider({ children }: { children: ReactNode }) {
       recipientId,
       content,
       attachmentData,
-      messageType = "text",
+      messageType = 'text',
       conversationId: explicitConversationId,
     }: {
       senderId: string;
       recipientId: string;
       content: string;
       attachmentData?: any;
-      messageType?: "text" | "image" | "video" | "file";
+      messageType?: 'text' | 'image' | 'video' | 'file';
       conversationId?: string;
     }) => {
       if (!socket) {
-        console.warn("Socket not connected, cannot send message");
+        console.warn('Socket not connected, cannot send message');
         return;
       }
 
@@ -1031,16 +1125,19 @@ export function SocketChatProvider({ children }: { children: ReactNode }) {
         // Critical fix: Make sure recipient ID is not the same as sender ID
         if (actualRecipientId === actualSenderId) {
           console.warn(
-            "Recipient ID is same as sender ID - attempting to find correct recipient"
+            'Recipient ID is same as sender ID - attempting to find correct recipient'
           );
 
           // Try to extract the correct recipient from the conversation ID
           if (activeConversationId) {
-            const parts = activeConversationId.split("_");
+            const parts = activeConversationId.split('_');
             if (parts.length === 2) {
               // Find the part that's not the sender
-              actualRecipientId = parts[0] === senderId ? parts[1] : parts[0];
-              console.log(`Fixed recipient ID: now using ${actualRecipientId}`);
+              actualRecipientId =
+                parts[0] === senderId ? parts[1] : parts[0];
+              console.log(
+                `Fixed recipient ID: now using ${actualRecipientId}`
+              );
             }
           }
         }
@@ -1050,7 +1147,10 @@ export function SocketChatProvider({ children }: { children: ReactNode }) {
         const userEthAddress = user?.wallet?.address;
 
         // If sender is a Privy ID and we have their ETH address, use the ETH address
-        if (actualSenderId.startsWith("did:privy:") && userEthAddress) {
+        if (
+          actualSenderId.startsWith('did:privy:') &&
+          userEthAddress
+        ) {
           console.log(
             `Using ETH address (${userEthAddress}) instead of Privy ID for sender`
           );
@@ -1070,10 +1170,11 @@ export function SocketChatProvider({ children }: { children: ReactNode }) {
         // If we don't have an active conversation ID or want to ensure consistency
         else if (
           !activeConversationId ||
-          activeConversationId.includes("temp_")
+          activeConversationId.includes('temp_')
         ) {
           // Use the best available IDs for the conversation
-          const senderIdForConversation = userEthAddress || actualSenderId;
+          const senderIdForConversation =
+            userEthAddress || actualSenderId;
           const recipientIdForConversation = actualRecipientId;
 
           // Create a deterministic conversation ID
@@ -1082,9 +1183,9 @@ export function SocketChatProvider({ children }: { children: ReactNode }) {
             recipientIdForConversation,
           ]
             .sort()
-            .join("_");
+            .join('_');
           console.log(
-            "Created consistent conversation ID for message:",
+            'Created consistent conversation ID for message:',
             conversationIdForMessage
           );
         }
@@ -1092,12 +1193,12 @@ export function SocketChatProvider({ children }: { children: ReactNode }) {
         // Ensure conversation ID is normalized (sorted) if it contains ETH addresses
         if (
           conversationIdForMessage &&
-          conversationIdForMessage.includes("0x")
+          conversationIdForMessage.includes('0x')
         ) {
-          const parts = conversationIdForMessage.split("_");
+          const parts = conversationIdForMessage.split('_');
           if (parts.length === 2) {
             const sortedParts = [...parts].sort();
-            const sortedConversationId = sortedParts.join("_");
+            const sortedConversationId = sortedParts.join('_');
 
             if (sortedConversationId !== conversationIdForMessage) {
               console.log(
@@ -1114,24 +1215,24 @@ export function SocketChatProvider({ children }: { children: ReactNode }) {
 
         // Ensure we have proper IDs for messaging (either Privy IDs or ETH addresses)
         const isValidSender =
-          actualSenderId.startsWith("did:privy:") ||
-          actualSenderId.startsWith("0x");
+          actualSenderId.startsWith('did:privy:') ||
+          actualSenderId.startsWith('0x');
         const isValidRecipient =
-          actualRecipientId.startsWith("did:privy:") ||
-          actualRecipientId.startsWith("0x");
+          actualRecipientId.startsWith('did:privy:') ||
+          actualRecipientId.startsWith('0x');
 
         if (!isValidSender || !isValidRecipient) {
           console.warn(
-            "Invalid sender or recipient ID format - Socket server expects did:privy: or 0x format"
+            'Invalid sender or recipient ID format - Socket server expects did:privy: or 0x format'
           );
-          console.warn("Sender ID:", actualSenderId);
-          console.warn("Recipient ID:", actualRecipientId);
+          console.warn('Sender ID:', actualSenderId);
+          console.warn('Recipient ID:', actualRecipientId);
 
           // Try to use known Privy IDs as fallback for sender
-          if (!isValidSender && user?.id?.startsWith("did:privy:")) {
+          if (!isValidSender && user?.id?.startsWith('did:privy:')) {
             actualSenderId = user.id;
             console.log(
-              "Using user.id as fallback for sender:",
+              'Using user.id as fallback for sender:',
               actualSenderId
             );
           }
@@ -1139,7 +1240,7 @@ export function SocketChatProvider({ children }: { children: ReactNode }) {
           // If we still don't have valid IDs, show an error
           if (!isValidSender || !isValidRecipient) {
             console.error(
-              "Cannot send message: Invalid user IDs format - must be did:privy: or 0x format"
+              'Cannot send message: Invalid user IDs format - must be did:privy: or 0x format'
             );
             return;
           }
@@ -1157,16 +1258,16 @@ export function SocketChatProvider({ children }: { children: ReactNode }) {
         const tempMessage: ChatMessage = {
           _id: tempMessageId,
           senderId: actualSenderId,
-          senderName: actualSenderId.startsWith("did:privy:")
+          senderName: actualSenderId.startsWith('did:privy:')
             ? `User ${actualSenderId.substring(10, 16)}...`
-            : actualSenderId.substring(0, 6) + "...",
-          senderImage: "",
-          recipientId: actualRecipientId || "",
-          conversationId: conversationIdForMessage || "",
+            : actualSenderId.substring(0, 6) + '...',
+          senderImage: '',
+          recipientId: actualRecipientId || '',
+          conversationId: conversationIdForMessage || '',
           content,
           createdAt: now,
           messageType,
-          attachment: attachmentData ? "pending..." : undefined,
+          attachment: attachmentData ? 'pending...' : undefined,
         };
 
         // Optimistically add the message to UI if we have a valid conversation ID
@@ -1201,17 +1302,18 @@ export function SocketChatProvider({ children }: { children: ReactNode }) {
           });
         }
 
-        console.log("Sending message:", {
+        console.log('Sending message:', {
           from: actualSenderId,
           to: actualRecipientId,
           content:
-            content.substring(0, 20) + (content.length > 20 ? "..." : ""),
+            content.substring(0, 20) +
+            (content.length > 20 ? '...' : ''),
           type: messageType,
           hasAttachment: !!attachmentData,
           conversationId: conversationIdForMessage,
         });
 
-        socket.emit("send_dm", {
+        socket.emit('send_dm', {
           senderId: actualSenderId,
           recipientId: actualRecipientId,
           content,
@@ -1221,7 +1323,7 @@ export function SocketChatProvider({ children }: { children: ReactNode }) {
           conversationId: conversationIdForMessage,
         });
       } catch (error) {
-        console.error("Error sending message:", error);
+        console.error('Error sending message:', error);
       }
     },
     [socket, activeConversationId, user]
@@ -1231,16 +1333,18 @@ export function SocketChatProvider({ children }: { children: ReactNode }) {
   const leaveConversation = useCallback(
     async (conversationId: string): Promise<void> => {
       if (!socket) {
-        console.warn("Socket not connected, cannot leave conversation");
+        console.warn(
+          'Socket not connected, cannot leave conversation'
+        );
         setActiveConversationId(null);
         return;
       }
 
       try {
-        socket.emit("leave_dm", { conversationId });
+        socket.emit('leave_dm', { conversationId });
         setActiveConversationId(null);
       } catch (error) {
-        console.error("Error leaving conversation:", error);
+        console.error('Error leaving conversation:', error);
         // Still reset the active conversation ID
         setActiveConversationId(null);
       }
@@ -1252,14 +1356,16 @@ export function SocketChatProvider({ children }: { children: ReactNode }) {
   const markAsRead = useCallback(
     async (conversationId: string, userId: string): Promise<void> => {
       if (!socket) {
-        console.warn("Socket not connected, cannot mark messages as read");
+        console.warn(
+          'Socket not connected, cannot mark messages as read'
+        );
         return;
       }
 
       try {
-        socket.emit("message_read", { userId, conversationId });
+        socket.emit('message_read', { userId, conversationId });
       } catch (error) {
-        console.error("Error marking messages as read:", error);
+        console.error('Error marking messages as read:', error);
       }
     },
     [socket]
@@ -1269,49 +1375,56 @@ export function SocketChatProvider({ children }: { children: ReactNode }) {
   const setUserOnline = useCallback(
     async (userId: string): Promise<void> => {
       if (!socket) {
-        console.warn("Socket not connected, cannot update online status");
+        console.warn(
+          'Socket not connected, cannot update online status'
+        );
         return;
       }
 
       try {
-        socket.emit("user_online", {
+        socket.emit('user_online', {
           userId,
           ethAddress: user?.wallet?.address || null,
         });
       } catch (error) {
-        console.error("Error setting user online:", error);
+        console.error('Error setting user online:', error);
       }
     },
     [socket, user]
   );
 
   // Refresh conversation list
-  const refreshConversations = useCallback(async (): Promise<void> => {
-    if (!socket) {
-      console.warn("Socket not connected, cannot refresh conversations");
-      return;
-    }
+  const refreshConversations =
+    useCallback(async (): Promise<void> => {
+      if (!socket) {
+        console.warn(
+          'Socket not connected, cannot refresh conversations'
+        );
+        return;
+      }
 
-    if (!user?.id) {
-      console.warn("User not authenticated, cannot refresh conversations");
-      return;
-    }
+      if (!user?.id) {
+        console.warn(
+          'User not authenticated, cannot refresh conversations'
+        );
+        return;
+      }
 
-    try {
-      socket.emit("fetch_unread_counts", { userId: user.id });
-    } catch (error) {
-      console.error("Error refreshing conversations:", error);
-    }
-  }, [socket, user]);
+      try {
+        socket.emit('fetch_unread_counts', { userId: user.id });
+      } catch (error) {
+        console.error('Error refreshing conversations:', error);
+      }
+    }, [socket, user]);
 
   // Group chat methods
   const createGroup = useCallback(
     async ({
       name,
-      description = "",
+      description = '',
       members = [],
       isPrivate = false,
-      avatarUrl = "",
+      avatarUrl = '',
     }: {
       name: string;
       description?: string;
@@ -1320,19 +1433,19 @@ export function SocketChatProvider({ children }: { children: ReactNode }) {
       avatarUrl?: string;
     }): Promise<string> => {
       if (!socket) {
-        console.warn("Socket not connected, cannot create group");
-        throw new Error("Not connected to chat server");
+        console.warn('Socket not connected, cannot create group');
+        throw new Error('Not connected to chat server');
       }
 
       if (!user) {
-        console.warn("User not authenticated");
-        throw new Error("User not authenticated");
+        console.warn('User not authenticated');
+        throw new Error('User not authenticated');
       }
 
       return new Promise((resolve, reject) => {
         const createdBy = user.wallet?.address || user.id;
 
-        socket.emit("create_group", {
+        socket.emit('create_group', {
           name,
           description,
           createdBy,
@@ -1353,23 +1466,23 @@ export function SocketChatProvider({ children }: { children: ReactNode }) {
             );
 
             // Refresh user groups
-            socket.emit("get_user_groups", { userId: user.id });
+            socket.emit('get_user_groups', { userId: user.id });
 
             // Clean up listener
-            socket.off("group_created", handleGroupCreated);
+            socket.off('group_created', handleGroupCreated);
 
             resolve(response.groupId);
           } else {
-            reject(new Error("Failed to create group"));
+            reject(new Error('Failed to create group'));
           }
         };
 
-        socket.on("group_created", handleGroupCreated);
+        socket.on('group_created', handleGroupCreated);
 
         // Add timeout
         setTimeout(() => {
-          socket.off("group_created", handleGroupCreated);
-          reject(new Error("Group creation timed out"));
+          socket.off('group_created', handleGroupCreated);
+          reject(new Error('Group creation timed out'));
         }, 10000);
       });
     },
@@ -1379,18 +1492,21 @@ export function SocketChatProvider({ children }: { children: ReactNode }) {
   const joinGroup = useCallback(
     async (groupId: string): Promise<void> => {
       if (!socket) {
-        console.warn("Socket not connected, cannot join group");
-        throw new Error("Not connected to chat server");
+        console.warn('Socket not connected, cannot join group');
+        throw new Error('Not connected to chat server');
       }
 
       if (!user?.id) {
-        console.warn("User not authenticated");
-        throw new Error("User not authenticated");
+        console.warn('User not authenticated');
+        throw new Error('User not authenticated');
       }
 
       return new Promise((resolve, reject) => {
         try {
-          socket.emit("join_channel", { channelId: groupId, userId: user.id });
+          socket.emit('join_channel', {
+            channelId: groupId,
+            userId: user.id,
+          });
 
           // Listen for message history
           const handleMessageHistory = (messages: ChatMessage[]) => {
@@ -1404,17 +1520,17 @@ export function SocketChatProvider({ children }: { children: ReactNode }) {
             setActiveConversationId(groupId);
 
             // Clean up listener
-            socket.off("message_history", handleMessageHistory);
+            socket.off('message_history', handleMessageHistory);
 
             resolve();
           };
 
-          socket.on("message_history", handleMessageHistory);
+          socket.on('message_history', handleMessageHistory);
 
           // Add timeout
           setTimeout(() => {
-            socket.off("message_history", handleMessageHistory);
-            reject(new Error("Join group timed out"));
+            socket.off('message_history', handleMessageHistory);
+            reject(new Error('Join group timed out'));
           }, 10000);
         } catch (error) {
           reject(error);
@@ -1427,11 +1543,16 @@ export function SocketChatProvider({ children }: { children: ReactNode }) {
   const leaveGroup = useCallback(
     async (groupId: string): Promise<void> => {
       if (!socket || !user?.id) {
-        console.warn("Socket not connected or user not authenticated");
+        console.warn(
+          'Socket not connected or user not authenticated'
+        );
         return;
       }
 
-      socket.emit("leave_channel", { channelId: groupId, userId: user.id });
+      socket.emit('leave_channel', {
+        channelId: groupId,
+        userId: user.id,
+      });
 
       if (activeConversationId === groupId) {
         setActiveConversationId(null);
@@ -1443,17 +1564,17 @@ export function SocketChatProvider({ children }: { children: ReactNode }) {
   const addGroupMembers = useCallback(
     async (groupId: string, memberIds: string[]): Promise<void> => {
       if (!socket) {
-        console.warn("Socket not connected, cannot add members");
-        throw new Error("Not connected to chat server");
+        console.warn('Socket not connected, cannot add members');
+        throw new Error('Not connected to chat server');
       }
 
       if (!user?.id) {
-        console.warn("User not authenticated");
-        throw new Error("User not authenticated");
+        console.warn('User not authenticated');
+        throw new Error('User not authenticated');
       }
 
       return new Promise((resolve, reject) => {
-        socket.emit("add_group_member", {
+        socket.emit('add_group_member', {
           groupId,
           userId: user.id,
           memberIds,
@@ -1471,18 +1592,18 @@ export function SocketChatProvider({ children }: { children: ReactNode }) {
             );
 
             // Clean up listener
-            socket.off("members_added_success", handleMembersAdded);
+            socket.off('members_added_success', handleMembersAdded);
 
             resolve();
           }
         };
 
-        socket.on("members_added_success", handleMembersAdded);
+        socket.on('members_added_success', handleMembersAdded);
 
         // Add timeout
         setTimeout(() => {
-          socket.off("members_added_success", handleMembersAdded);
-          reject(new Error("Add members timed out"));
+          socket.off('members_added_success', handleMembersAdded);
+          reject(new Error('Add members timed out'));
         }, 10000);
       });
     },
@@ -1491,43 +1612,48 @@ export function SocketChatProvider({ children }: { children: ReactNode }) {
 
   const removeGroupMember = useCallback(async (): Promise<void> => {
     if (!socket || !user?.id) {
-      console.warn("Socket not connected or user not authenticated");
+      console.warn('Socket not connected or user not authenticated');
       return;
     }
 
     // This is a placeholder for future implementation
-    console.warn("removeGroupMember not fully implemented");
+    console.warn('removeGroupMember not fully implemented');
   }, [socket, user]);
 
   const searchUsers = useCallback(
-    async (query: string, currentGroupId?: string): Promise<any[]> => {
+    async (
+      query: string,
+      currentGroupId?: string
+    ): Promise<any[]> => {
       if (!socket) {
-        console.warn("Socket not connected, cannot search users");
-        throw new Error("Not connected to chat server");
+        console.warn('Socket not connected, cannot search users');
+        throw new Error('Not connected to chat server');
       }
 
       return new Promise((resolve, reject) => {
-        socket.emit("search_users", {
+        socket.emit('search_users', {
           query,
           currentGroupId,
         });
 
         // Listen for search results
         const handleSearchResults = (results: any[]) => {
-          console.log(`Found ${results.length} users matching "${query}"`);
+          console.log(
+            `Found ${results.length} users matching "${query}"`
+          );
 
           // Clean up listener
-          socket.off("user_search_results", handleSearchResults);
+          socket.off('user_search_results', handleSearchResults);
 
           resolve(results);
         };
 
-        socket.on("user_search_results", handleSearchResults);
+        socket.on('user_search_results', handleSearchResults);
 
         // Add timeout
         setTimeout(() => {
-          socket.off("user_search_results", handleSearchResults);
-          reject(new Error("User search timed out"));
+          socket.off('user_search_results', handleSearchResults);
+          reject(new Error('User search timed out'));
         }, 10000);
       });
     },
@@ -1537,16 +1663,18 @@ export function SocketChatProvider({ children }: { children: ReactNode }) {
   const getGroupMembers = useCallback(
     async (groupId: string): Promise<GroupMember[]> => {
       if (!socket) {
-        console.warn("Socket not connected, cannot get group members");
-        throw new Error("Not connected to chat server");
+        console.warn(
+          'Socket not connected, cannot get group members'
+        );
+        throw new Error('Not connected to chat server');
       }
 
       return new Promise((resolve, reject) => {
-        socket.emit("get_group_members", { groupId });
+        socket.emit('get_group_members', { groupId });
 
         // Set a timeout to avoid hanging if the server doesn't respond
         const timeout = setTimeout(() => {
-          reject(new Error("Request timed out"));
+          reject(new Error('Request timed out'));
         }, 5000);
 
         // Wait for the group_members event to come back
@@ -1557,14 +1685,14 @@ export function SocketChatProvider({ children }: { children: ReactNode }) {
           if (data.groupId === groupId) {
             // Clean up
             clearTimeout(timeout);
-            socket.off("group_members", handleGroupMembers);
+            socket.off('group_members', handleGroupMembers);
 
             // Return the members
             resolve(data.members);
           }
         };
 
-        socket.on("group_members", handleGroupMembers);
+        socket.on('group_members', handleGroupMembers);
       });
     },
     [socket]
@@ -1575,21 +1703,21 @@ export function SocketChatProvider({ children }: { children: ReactNode }) {
       groupId,
       content,
       attachmentData,
-      messageType = "text",
+      messageType = 'text',
     }: {
       groupId: string;
       content: string;
       attachmentData?: any;
-      messageType?: "text" | "image" | "video" | "file";
+      messageType?: 'text' | 'image' | 'video' | 'file';
     }): Promise<void> => {
       if (!socket) {
-        console.warn("Socket not connected, cannot send message");
-        throw new Error("Not connected to chat server");
+        console.warn('Socket not connected, cannot send message');
+        throw new Error('Not connected to chat server');
       }
 
       if (!user?.id) {
-        console.warn("User not authenticated");
-        throw new Error("User not authenticated");
+        console.warn('User not authenticated');
+        throw new Error('User not authenticated');
       }
 
       // Create a temporary message for optimistic UI update
@@ -1604,16 +1732,16 @@ export function SocketChatProvider({ children }: { children: ReactNode }) {
       const tempMessage: ChatMessage = {
         _id: tempMessageId,
         senderId: user.id,
-        senderName: user.id.startsWith("did:privy:")
+        senderName: user.id.startsWith('did:privy:')
           ? `User ${user.id.substring(10, 16)}...`
-          : user.id.substring(0, 6) + "...",
-        senderImage: "",
-        recipientId: "", // Not relevant for group messages
+          : user.id.substring(0, 6) + '...',
+        senderImage: '',
+        recipientId: '', // Not relevant for group messages
         conversationId: groupId, // Use groupId as conversationId for consistency
         content,
         createdAt: now,
         messageType,
-        attachment: attachmentData ? "pending..." : undefined,
+        attachment: attachmentData ? 'pending...' : undefined,
       };
 
       // Optimistically add the message to UI
@@ -1624,7 +1752,7 @@ export function SocketChatProvider({ children }: { children: ReactNode }) {
 
       try {
         // Send the actual message
-        socket.emit("send_message", {
+        socket.emit('send_message', {
           channelId: groupId,
           content,
           userId: user.id,
@@ -1635,7 +1763,7 @@ export function SocketChatProvider({ children }: { children: ReactNode }) {
         // We don't replace the temporary message here - we'll wait for the server to send
         // back the official message with the real ID in the message_received event
       } catch (error) {
-        console.error("Failed to send group message:", error);
+        console.error('Failed to send group message:', error);
 
         // If there was an error, remove the temporary message
         setMessages((prev) => {
@@ -1643,7 +1771,9 @@ export function SocketChatProvider({ children }: { children: ReactNode }) {
 
           return {
             ...prev,
-            [groupId]: prev[groupId].filter((msg) => msg._id !== tempMessageId),
+            [groupId]: prev[groupId].filter(
+              (msg) => msg._id !== tempMessageId
+            ),
           };
         });
 
@@ -1691,7 +1821,9 @@ export function SocketChatProvider({ children }: { children: ReactNode }) {
 export function useSocketChat() {
   const context = useContext(SocketChatContext);
   if (context === undefined) {
-    throw new Error("useSocketChat must be used within a SocketChatProvider");
+    throw new Error(
+      'useSocketChat must be used within a SocketChatProvider'
+    );
   }
   return context;
 }
