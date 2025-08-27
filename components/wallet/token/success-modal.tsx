@@ -31,6 +31,7 @@ export default function TransactionSuccess({
   isUSD,
   hash,
 }: TransactionSuccessProps) {
+  console.log('token', token);
   const getExplorerUrl = () => {
     switch (token?.chain) {
       case 'ETHEREUM':

@@ -253,20 +253,27 @@ export class TransactionService {
         );
       }
 
+      // Check if this should be a sponsored transaction
       if (
         !sendFlow.isOrder &&
         (sendFlow.token?.address === USDC_ADDRESS ||
           sendFlow.token?.address === SWOP_ADDRESS)
       ) {
-        const serializedTransaction =
-          await this.prepareSponsoredTransaction(
-            tx.instructions,
-            solanaWallet,
-            connection
-          );
-
-        return serializedTransaction;
+        // Use Privy sponsored transaction for USDC and SWOP
+        const serializedTransaction = await this.createSponsoredTransaction(
+          tx,
+          solanaWallet,
+          connection
+        );
+        
+        const result = await this.submitPrivySponsoredTransaction(
+          serializedTransaction,
+          solanaWallet
+        );
+        
+        return result;
       } else {
+        // Regular transaction flow for other tokens
         const { blockhash } = await connection.getLatestBlockhash();
         tx.recentBlockhash = blockhash;
         tx.feePayer = new PublicKey(solanaWallet.address);
@@ -628,7 +635,75 @@ export class TransactionService {
   }
 
   /**
-   * This function prepares and signs a sponsored transaction
+   * Creates a transaction ready for Privy sponsored submission
+   */
+  static async createSponsoredTransaction(
+    tx: SolanaTransaction,
+    solanaWallet: any,
+    connection: Connection
+  ) {
+    const { blockhash } = await connection.getLatestBlockhash();
+    tx.recentBlockhash = blockhash;
+    tx.feePayer = new PublicKey(solanaWallet.address);
+
+    // Serialize the transaction for Privy API
+    const serializedTransaction = Buffer.from(
+      tx.serialize({ requireAllSignatures: false })
+    ).toString('base64');
+
+    return serializedTransaction;
+  }
+
+  /**
+   * Submits a sponsored transaction through our backend API (which calls Privy's API)
+   */
+  static async submitPrivySponsoredTransaction(
+    serializedTransaction: string,
+    solanaWallet: any
+  ) {
+    try {
+      // Get the wallet ID - try different possible properties
+      const walletId = solanaWallet.id || solanaWallet.address || solanaWallet.publicKey?.toString();
+      
+      if (!walletId) {
+        throw new Error('Could not determine wallet ID for sponsored transaction');
+      }
+
+      // Call our backend API which will handle the Privy authentication
+      const response = await fetch('/api/solana/sponsored-transaction', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          walletId,
+          transaction: serializedTransaction,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => null);
+        throw new Error(
+          errorData?.error || `API error: ${response.status} ${response.statusText}`
+        );
+      }
+
+      const result = await response.json();
+      
+      if (!result.success) {
+        throw new Error(result.error || 'Sponsored transaction failed');
+      }
+
+      return result.signature || result.transactionId;
+    } catch (error) {
+      console.error('Privy sponsored transaction failed:', error);
+      throw new Error('Sponsored transaction failed: ' + (error as Error).message);
+    }
+  }
+
+  /**
+   * Legacy method - kept for compatibility
+   * @deprecated Use createSponsoredTransaction and submitPrivySponsoredTransaction instead
    */
   static async prepareSponsoredTransaction(
     instructions: any,
