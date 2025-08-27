@@ -43,6 +43,8 @@ const Login: React.FC = () => {
   // Privy hooks
   const { authenticated, ready, user } = usePrivy();
   const { state, sendCode, loginWithCode } = useLoginWithEmail();
+  const { createWallet: createEthereumWallet } = useCreateWallet();
+  const { createWallet: createSolanaWallet } = useSolanaWallets();
 
   // Custom hooks
   const { isAuthenticated } = useUser();
@@ -128,6 +130,152 @@ const Login: React.FC = () => {
       }));
   }, []);
 
+  // Create wallets
+  const createPrivyWallets = useCallback(
+    async (user: any) => {
+      if (walletStatus.inProgress) return;
+
+      setWalletStatus((prev) => ({ ...prev, inProgress: true }));
+
+      try {
+        const existingWallets = user?.linkedAccounts || [];
+        const hasEthWallet = existingWallets.some(
+          (acc: any) =>
+            acc.chainType === 'ethereum' &&
+            (acc.walletClientType === 'privy' ||
+              acc.connectorType === 'embedded')
+        );
+        const hasSolWallet = existingWallets.some(
+          (acc: any) =>
+            acc.chainType === 'solana' &&
+            (acc.walletClientType === 'privy' ||
+              acc.connectorType === 'embedded')
+        );
+
+        // Add production debugging
+        const isProduction = process.env.NODE_ENV === 'production';
+        if (isProduction) {
+          logger.log('Production wallet creation - User state:', {
+            hasEthWallet,
+            hasSolWallet,
+            linkedAccountsCount: existingWallets.length,
+            userAuthenticated: !!user,
+            privyReady: ready,
+          });
+        }
+
+        // Create Ethereum wallet if needed
+        if (!hasEthWallet) {
+          try {
+            await createEthereumWallet();
+            setWalletStatus((prev) => ({ ...prev, ethereum: true }));
+            logger.log('Ethereum wallet created successfully');
+          } catch (error: any) {
+            if (
+              error === 'embedded_wallet_already_exists' ||
+              error?.message === 'embedded_wallet_already_exists'
+            ) {
+              setWalletStatus((prev) => ({
+                ...prev,
+                ethereum: true,
+              }));
+              logger.log('Ethereum wallet already exists');
+            } else {
+              logger.error('Ethereum wallet creation failed:', error);
+              // In production, log additional details
+              if (isProduction) {
+                logger.error(
+                  'Production Ethereum wallet error details:',
+                  {
+                    error: error?.message || error,
+                    stack: error?.stack,
+                    userAgent:
+                      typeof window !== 'undefined'
+                        ? window.navigator.userAgent
+                        : 'server',
+                    timestamp: new Date().toISOString(),
+                  }
+                );
+              }
+            }
+          }
+        }
+
+        // Create Solana wallet if needed
+        if (!hasSolWallet) {
+          try {
+            await createSolanaWallet();
+            setWalletStatus((prev) => ({ ...prev, solana: true }));
+            logger.log('Solana wallet created successfully');
+          } catch (error: any) {
+            if (
+              error === 'embedded_wallet_already_exists' ||
+              error?.message === 'embedded_wallet_already_exists'
+            ) {
+              setWalletStatus((prev) => ({ ...prev, solana: true }));
+              logger.log('Solana wallet already exists');
+            } else {
+              logger.error('Solana wallet creation failed:', error);
+              // In production, log additional details
+              if (isProduction) {
+                logger.error(
+                  'Production Solana wallet error details:',
+                  {
+                    error: error?.message || error,
+                    stack: error?.stack,
+                    userAgent:
+                      typeof window !== 'undefined'
+                        ? window.navigator.userAgent
+                        : 'server',
+                    timestamp: new Date().toISOString(),
+                  }
+                );
+              }
+            }
+          }
+        }
+      } catch (error) {
+        logger.error('Wallet creation process failed:', error);
+        // In production, log additional details
+        if (process.env.NODE_ENV === 'production') {
+          logger.error('Production wallet creation process error:', {
+            error: error instanceof Error ? error.message : error,
+            stack: error instanceof Error ? error.stack : undefined,
+            userAgent:
+              typeof window !== 'undefined'
+                ? window.navigator.userAgent
+                : 'server',
+            timestamp: new Date().toISOString(),
+          });
+        }
+      } finally {
+        setWalletStatus((prev) => ({ ...prev, inProgress: false }));
+      }
+    },
+    [createEthereumWallet, createSolanaWallet, ready]
+  );
+
+  useEffect(() => {
+    if (
+      authenticated &&
+      ready &&
+      user &&
+      !walletStatus.inProgress &&
+      !(walletStatus.ethereum && walletStatus.solana)
+    ) {
+      createPrivyWallets(user).catch((error) => {
+        logger.error('Wallet creation failed (post-auth):', error);
+      });
+    }
+  }, [
+    authenticated,
+    ready,
+    user,
+    walletStatus.inProgress,
+    walletStatus.ethereum,
+    walletStatus.solana,
+  ]);
+
   // Handle successful login
   const handleLoginSuccess = useCallback(
     async (user: any) => {
@@ -165,6 +313,11 @@ const Login: React.FC = () => {
 
         // Set user ID cookie
         Cookies.set('user-id', data.user._id.toString());
+
+        // Create wallets (non-blocking)
+        // createPrivyWallets(user).catch((error) => {
+        //   logger.error("Wallet creation failed (non-blocking):", error);
+        // });
 
         // Process wallet data for balance update
         const walletData = processWalletData(user);
