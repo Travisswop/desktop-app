@@ -1,7 +1,11 @@
 'use client';
 
 import { useEffect, useState, useMemo, useCallback } from 'react';
-import { usePrivy, useWallets, useSolanaWallets } from '@privy-io/react-auth';
+import {
+  usePrivy,
+  useWallets,
+  useSolanaWallets,
+} from '@privy-io/react-auth';
 import { useSolanaWalletContext } from '@/lib/context/SolanaWalletContext';
 import { Connection } from '@solana/web3.js';
 import { useToast } from '@/hooks/use-toast';
@@ -77,7 +81,10 @@ const WalletContentInner = () => {
   // Hooks
   const { authenticated, ready, user: PrivyUser } = usePrivy();
   const { wallets: ethWallets } = useWallets();
-  const { wallets: directSolanaWallets, createWallet: createSolanaWallet } = useSolanaWallets();
+  const {
+    wallets: directSolanaWallets,
+    createWallet: createSolanaWallet,
+  } = useSolanaWallets();
   const { createWallet, solanaWallets } = useSolanaWalletContext();
   const { toast } = useToast();
   const { user } = useUser();
@@ -87,8 +94,8 @@ const WalletContentInner = () => {
   const { solWalletAddress, evmWalletAddress } =
     useWalletAddresses(walletData);
   const { payload } = useTransactionPayload(user);
-  const { wallets : ethWalletsData } = useWallets();
-  console.log(ethWalletsData,'ethWalletsData')
+  const { wallets: ethWalletsData } = useWallets();
+  console.log(ethWalletsData, 'ethWalletsData');
 
   const {
     sendFlow,
@@ -192,32 +199,51 @@ const WalletContentInner = () => {
       );
 
       // Use direct Solana wallets from Privy (more reliable)
-      const availableSolanaWallets = directSolanaWallets || solanaWallets || [];
-      
+      const availableSolanaWallets =
+        directSolanaWallets || solanaWallets || [];
+
       // Debug logging
       console.log('Debug Solana wallet detection:');
       console.log('directSolanaWallets:', directSolanaWallets);
       console.log('solanaWallets (context):', solanaWallets);
       console.log('availableSolanaWallets:', availableSolanaWallets);
-      console.log('PrivyUser linkedAccounts:', PrivyUser?.linkedAccounts?.filter((acc: any) => acc.chainType === 'solana'));
-      
-      const solanaWallet = availableSolanaWallets.find(
-        (w: any) => w.walletClientType === 'privy' || w.connectorType === 'embedded'
-      ) || availableSolanaWallets[0];
-      
+      console.log(
+        'PrivyUser linkedAccounts:',
+        PrivyUser?.linkedAccounts?.filter(
+          (acc: any) => acc.chainType === 'solana'
+        )
+      );
+
+      const solanaWallet =
+        availableSolanaWallets.find(
+          (w: any) =>
+            w.walletClientType === 'privy' ||
+            w.connectorType === 'embedded'
+        ) || availableSolanaWallets[0];
+
       console.log('Selected solanaWallet:', solanaWallet);
 
       // Check if we have a Solana wallet when needed
-      if ((sendFlow.token?.chain === 'SOLANA' || sendFlow.network === 'SOLANA') && !solanaWallet) {
+      if (
+        (sendFlow.token?.chain === 'SOLANA' ||
+          sendFlow.network === 'SOLANA') &&
+        !solanaWallet
+      ) {
         // Check if wallet exists in linked accounts but not in wallets array
-        const hasSolanaAccount = PrivyUser?.linkedAccounts?.some((account: any) =>
-          account.chainType === 'solana' && account.type === 'wallet'
+        const hasSolanaAccount = PrivyUser?.linkedAccounts?.some(
+          (account: any) =>
+            account.chainType === 'solana' &&
+            account.type === 'wallet'
         );
-        
+
         if (hasSolanaAccount) {
-          throw new Error('Solana wallet found in account but not accessible. Please refresh the page and try again.');
+          throw new Error(
+            'Solana wallet found in account but not accessible. Please refresh the page and try again.'
+          );
         } else {
-          throw new Error('No Solana wallet found. Please connect a Solana wallet.');
+          throw new Error(
+            'No Solana wallet found. Please connect a Solana wallet.'
+          );
         }
       }
 
@@ -262,45 +288,52 @@ const WalletContentInner = () => {
         // Handle token transfer
         if (sendFlow.token.chain === 'SOLANA') {
           // Special handling for USDC and SWOP tokens on Solana
-          if (
-            sendFlow.token.address === USDC_ADDRESS ||
-            sendFlow.token.address === SWOP_ADDRESS
-          ) {
-            const serializedTransaction =
-              await TransactionService.handleSolanaSend(
-                solanaWallet,
-                sendFlow,
-                connection
-              );
+          // if (
+          //   sendFlow.token.address === USDC_ADDRESS ||
+          //   sendFlow.token.address === SWOP_ADDRESS
+          // ) {
+          //   const serializedTransaction =
+          //     await TransactionService.handleSolanaSend(
+          //       solanaWallet,
+          //       sendFlow,
+          //       connection
+          //     );
 
-            const response = await fetch(
-              `${process.env.NEXT_PUBLIC_API_URL}${API_ENDPOINTS.SPONSOR_TRANSACTION}`,
-              {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                  transaction: serializedTransaction,
-                }),
-              }
-            );
+          //   const response = await fetch(
+          //     `${process.env.NEXT_PUBLIC_API_URL}${API_ENDPOINTS.SPONSOR_TRANSACTION}`,
+          //     {
+          //       method: 'POST',
+          //       headers: { 'Content-Type': 'application/json' },
+          //       body: JSON.stringify({
+          //         transaction: serializedTransaction,
+          //       }),
+          //     }
+          //   );
 
-            if (!response.ok) {
-              throw new Error(
-                `${ERROR_MESSAGES.SERVER_ERROR}: ${response.status}`
-              );
-            }
+          //   if (!response.ok) {
+          //     throw new Error(
+          //       `${ERROR_MESSAGES.SERVER_ERROR}: ${response.status}`
+          //     );
+          //   }
 
-            const { transactionHash } = await response.json();
-            hash = transactionHash.signature;
-            await connection.confirmTransaction(hash);
-          } else {
-            hash = await TransactionService.handleSolanaSend(
-              solanaWallet,
-              sendFlow,
-              connection
-            );
-            await connection.confirmTransaction(hash);
-          }
+          //   const { transactionHash } = await response.json();
+          //   hash = transactionHash.signature;
+          //   await connection.confirmTransaction(hash);
+          // } else {
+          //   hash = await TransactionService.handleSolanaSend(
+          //     solanaWallet,
+          //     sendFlow,
+          //     connection
+          //   );
+          //   await connection.confirmTransaction(hash);
+          // }
+
+          hash = await TransactionService.handleSolanaSend(
+            solanaWallet,
+            sendFlow,
+            connection
+          );
+          await connection.confirmTransaction(hash);
         } else {
           // EVM token transfer
           await evmWallet?.switchChain(CHAIN_ID[sendFlow.network]);
@@ -324,7 +357,14 @@ const WalletContentInner = () => {
             : ERROR_MESSAGES.UNKNOWN_ERROR,
       };
     }
-  }, [sendFlow, ethWallets, directSolanaWallets, solanaWallets, PrivyUser, refetchNFTs]);
+  }, [
+    sendFlow,
+    ethWallets,
+    directSolanaWallets,
+    solanaWallets,
+    PrivyUser,
+    refetchNFTs,
+  ]);
 
   // Main transaction handler
   const handleSendConfirm = useCallback(async () => {
