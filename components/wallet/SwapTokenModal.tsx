@@ -48,6 +48,39 @@ const getExplorerUrl = (chainId: string, txHash: string): string => {
   return explorerUrls[chainId] || `https://etherscan.io/tx/${txHash}`;
 };
 
+const PAY_CHAINS = [
+  {
+    id: "all",
+    name: "All",
+    fullName: "All Chains",
+    icon: null, // We'll handle this differently
+  },
+  {
+    id: "1151111081099710",
+    name: "SOL",
+    fullName: "Solana",
+    icon: "/images/IconShop/solana@2x.png",
+  },
+  {
+    id: "1",
+    name: "ETH",
+    fullName: "Ethereum",
+    icon: "/images/IconShop/outline-icons/light/ethereum-outline@3x.png",
+  },
+  {
+    id: "137",
+    name: "POL",
+    fullName: "Polygon",
+    icon: "/images/IconShop/polygon.png",
+  },
+  {
+    id: "8453",
+    name: "BASE",
+    fullName: "Base",
+    icon: "https://www.base.org/document/safari-pinned-tab.svg",
+  },
+];
+
 const RECEIVER_CHAINS = [
   {
     id: "1",
@@ -270,6 +303,7 @@ export default function SwapTokenModal({ tokens }: { tokens: any[] }) {
   const [showSlippageSettings, setShowSlippageSettings] = useState(false);
   const [customSlippage, setCustomSlippage] = useState("");
   const [showSlippageModal, setShowSlippageModal] = useState(false);
+  const [selectedPayChain, setSelectedPayChain] = useState("all");
 
   // New states for loading and auto-refresh
   const [isQuoteLoading, setIsQuoteLoading] = useState(false);
@@ -286,6 +320,7 @@ export default function SwapTokenModal({ tokens }: { tokens: any[] }) {
   console.log("receiveToken", receiveToken);
   console.log("payToken", payToken);
   console.log("payAmount", payAmount);
+  console.log("availableTokens", availableTokens);
 
   const ethWallet = wallets[0]?.address;
   const solWallet = solWallets[0]?.address;
@@ -297,6 +332,69 @@ export default function SwapTokenModal({ tokens }: { tokens: any[] }) {
   const [swapStatus, setSwapStatus] = useState<string | null>(null);
 
   const { authenticated, ready, user: PrivyUser } = usePrivy();
+
+  // Add this helper function to filter tokens by chain
+  const filterTokensByChain = (tokens: any[], chainFilter: string) => {
+    if (chainFilter === "all") {
+      return tokens;
+    }
+
+    return tokens.filter((token: any) => {
+      const tokenChainId = getChainId(token.chain);
+      return tokenChainId === chainFilter;
+    });
+  };
+
+  // Add this function to handle pay chain selection
+  const handlePayChainSelect = (chainId: string) => {
+    setSelectedPayChain(chainId);
+    setSearchQuery("");
+
+    if (chainId === "all") {
+      setAvailableTokens(tokens);
+    } else {
+      const filteredTokens = filterTokensByChain(tokens, chainId);
+      setAvailableTokens(filteredTokens);
+    }
+  };
+
+  // Update the handlePayTokenSearch function
+  const handlePayTokenSearch = (query: string) => {
+    setIsLoadingTokens(true);
+    try {
+      let baseTokens = tokens;
+
+      // First filter by selected chain
+      if (selectedPayChain !== "all") {
+        baseTokens = filterTokensByChain(tokens, selectedPayChain);
+      }
+
+      // Then filter by search query
+      const results = baseTokens.filter(
+        (token: any) =>
+          token.symbol.toLowerCase().includes(query.toLowerCase()) ||
+          token.name.toLowerCase().includes(query.toLowerCase())
+      );
+
+      setAvailableTokens(results); // Show all results without slicing
+    } catch (error) {
+      console.error("Error filtering tokens:", error);
+    } finally {
+      setIsLoadingTokens(false);
+    }
+  };
+
+  // Update the useEffect that sets available tokens for pay selection
+  useEffect(() => {
+    if (openDrawer && selecting === "pay") {
+      if (selectedPayChain === "all") {
+        setAvailableTokens(tokens); // Show all tokens without slicing
+      } else {
+        const filteredTokens = filterTokensByChain(tokens, selectedPayChain);
+        setAvailableTokens(filteredTokens); // Show all filtered tokens
+      }
+    }
+  }, [openDrawer, selecting, tokens, selectedPayChain]);
 
   // Clear intervals on unmount
   useEffect(() => {
@@ -1149,21 +1247,21 @@ export default function SwapTokenModal({ tokens }: { tokens: any[] }) {
     }
   };
 
-  const handlePayTokenSearch = (query: string) => {
-    setIsLoadingTokens(true);
-    try {
-      const results = tokens.filter(
-        (token: any) =>
-          token.symbol.toLowerCase().includes(query.toLowerCase()) ||
-          token.name.toLowerCase().includes(query.toLowerCase())
-      );
-      setAvailableTokens(results.slice(0, query ? 50 : 20));
-    } catch (error) {
-      console.error("Error filtering tokens:", error);
-    } finally {
-      setIsLoadingTokens(false);
-    }
-  };
+  // const handlePayTokenSearch = (query: string) => {
+  //   setIsLoadingTokens(true);
+  //   try {
+  //     const results = tokens.filter(
+  //       (token: any) =>
+  //         token.symbol.toLowerCase().includes(query.toLowerCase()) ||
+  //         token.name.toLowerCase().includes(query.toLowerCase())
+  //     );
+  //     setAvailableTokens(results.slice(0, query ? 50 : 20));
+  //   } catch (error) {
+  //     console.error("Error filtering tokens:", error);
+  //   } finally {
+  //     setIsLoadingTokens(false);
+  //   }
+  // };
 
   const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const query = e.target.value;
@@ -1324,6 +1422,33 @@ export default function SwapTokenModal({ tokens }: { tokens: any[] }) {
       console.error("Failed to save swap transaction:", error);
       // Don't throw error here to avoid disrupting the swap flow
     }
+  };
+
+  const utf8ToBase64 = (str: string) => {
+    return window.btoa(unescape(encodeURIComponent(str)));
+  };
+
+  const getTokenIcon = (token: any) => {
+    if (token?.logoURI) {
+      return token?.logoURI;
+    }
+
+    // Generate initials from symbol
+    const initials = token.symbol.slice(0, 2).toUpperCase();
+    const colors = ["#FF6B6B", "#4ECDC4", "#45B7D1", "#F9A826", "#6C5CE7"];
+    const colorIndex = token.symbol.length % colors.length;
+
+    const svg = `
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" 
+      xmlns="http://www.w3.org/2000/svg">
+      <rect width="24" height="24" fill="${colors[colorIndex]}" rx="12"/>
+      <text x="12" y="16" text-anchor="middle" fill="white" font-size="10" font-weight="bold">
+        ${initials}
+      </text>
+    </svg>
+  `;
+
+    return `data:image/svg+xml;base64,${utf8ToBase64(svg)}`;
   };
 
   return (
@@ -1990,7 +2115,7 @@ export default function SwapTokenModal({ tokens }: { tokens: any[] }) {
 
       {/* Token Select Drawer */}
       {openDrawer && (
-        <div className="absolute inset-0 z-10 flex items-end justify-center">
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
           <div
             className="fixed inset-0 bg-black bg-opacity-50"
             onClick={() => {
@@ -1998,7 +2123,7 @@ export default function SwapTokenModal({ tokens }: { tokens: any[] }) {
               setSearchQuery("");
             }}
           />
-          <div className="w-full max-w-md bg-white rounded-t-2xl shadow-lg p-4 max-h-[70vh] overflow-y-auto z-20">
+          <div className="w-full max-w-[30rem] bg-white rounded-2xl shadow-lg p-6 max-h-[80vh] z-50 mx-4">
             <div className="mb-4">
               <p className="font-semibold text-lg mb-3">
                 {selecting === "pay"
@@ -2006,36 +2131,68 @@ export default function SwapTokenModal({ tokens }: { tokens: any[] }) {
                   : "Select Token to Receive"}
               </p>
 
-              {/* Chain Selection Tabs - Only show for receiver tokens */}
-              {selecting === "receive" && (
-                <div className="mb-4">
-                  <p className="text-sm text-gray-600 mb-3">Select Chain:</p>
-                  <div className="flex gap-2 mb-4">
-                    {RECEIVER_CHAINS.map((chain) => (
-                      <button
-                        key={chain.id}
-                        onClick={() => handleReceiverChainSelect(chain.id)}
-                        className={`flex items-center gap-2 px-3 py-2 rounded-lg border transition-all ${
-                          selectedReceiverChain === chain.id
-                            ? "bg-black text-white border-black"
-                            : "bg-white border-gray-200 hover:bg-gray-100"
-                        }`}
-                      >
-                        <Image
-                          src={chain.icon}
-                          alt={chain.name}
-                          width={20}
-                          height={20}
-                          className="w-5 h-5 rounded-full"
-                        />
-                        <span className="font-medium text-sm">
-                          {chain.name}
-                        </span>
-                      </button>
-                    ))}
-                  </div>
+              {/* Chain Selection Tabs - Show for both pay and receive tokens */}
+              <div className="mb-4">
+                <div className="flex gap-2 mb-4">
+                  {selecting === "pay"
+                    ? // Pay token chain selection
+                      PAY_CHAINS.map((chain) => (
+                        <button
+                          key={chain.id}
+                          onClick={() => handlePayChainSelect(chain.id)}
+                          className={`flex items-center gap-2 px-3 py-2 rounded-lg border transition-all ${
+                            selectedPayChain === chain.id
+                              ? "bg-black text-white border-black"
+                              : "bg-white border-gray-200 hover:bg-gray-100"
+                          }`}
+                        >
+                          {chain.icon ? (
+                            <Image
+                              src={chain.icon}
+                              alt={chain.name}
+                              width={200}
+                              height={200}
+                              quality={100}
+                              className="w-5 h-5 rounded-full bg-white"
+                            />
+                          ) : (
+                            // All chains icon - you can customize this
+                            <div className="w-5 h-5 rounded-full bg-gradient-to-r from-blue-400 to-purple-500 flex items-center justify-center">
+                              <span className="text-white text-xs font-bold">
+                                *
+                              </span>
+                            </div>
+                          )}
+                          <span className="font-medium text-sm">
+                            {chain.name}
+                          </span>
+                        </button>
+                      ))
+                    : // Receive token chain selection (existing code)
+                      RECEIVER_CHAINS.map((chain) => (
+                        <button
+                          key={chain.id}
+                          onClick={() => handleReceiverChainSelect(chain.id)}
+                          className={`flex items-center gap-2 px-3 py-2 rounded-lg border transition-all ${
+                            selectedReceiverChain === chain.id
+                              ? "bg-black text-white border-black"
+                              : "bg-white border-gray-200 hover:bg-gray-100"
+                          }`}
+                        >
+                          <Image
+                            src={chain.icon}
+                            alt={chain.name}
+                            width={20}
+                            height={20}
+                            className="w-5 h-5 rounded-full bg-white"
+                          />
+                          <span className="font-medium text-sm">
+                            {chain.name}
+                          </span>
+                        </button>
+                      ))}
                 </div>
-              )}
+              </div>
 
               <Input
                 placeholder="Search token name or symbol"
@@ -2050,7 +2207,7 @@ export default function SwapTokenModal({ tokens }: { tokens: any[] }) {
                 <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-black"></div>
               </div>
             ) : (
-              <div className="space-y-2">
+              <div className="space-y-0 overflow-y-auto max-h-[300px]">
                 {availableTokens
                   .filter((token: any) =>
                     selecting === "pay"
@@ -2063,23 +2220,38 @@ export default function SwapTokenModal({ tokens }: { tokens: any[] }) {
                       onClick={() => handleTokenSelect(token, selecting!)}
                       className="flex items-center gap-3 w-full px-3 py-3 rounded-lg hover:bg-gray-100 transition-colors"
                     >
-                      <div className="relative">
-                        {token.logoURI && (
+                      <div className="relative w-8 h-8">
+                        {token.symbol === "SWOP" ? (
                           <Image
                             src={token.logoURI}
                             alt={token.symbol}
-                            width={32}
-                            height={32}
-                            className="w-8 h-8 rounded-full"
+                            width={1020}
+                            height={1020}
+                            quality={100}
+                            className="w-auto h-auto rounded-full border"
+                          />
+                        ) : (
+                          <Image
+                            src={
+                              token?.marketData?.iconUrl ||
+                              token?.logoURI ||
+                              getTokenIcon(token)
+                            }
+                            alt={token.symbol}
+                            width={1020}
+                            height={1020}
+                            quality={100}
+                            className="w-auto h-auto rounded-full"
                           />
                         )}
                         {token.chain && (
                           <div className="absolute -bottom-1 -right-1 bg-white rounded-full p-0.5 flex items-center justify-center w-4 h-4 border border-gray-200">
                             <Image
-                              src={getChainIcon(token.chain)}
+                              src={getChainIcon(token.chain) || ""}
                               alt={token.chain}
-                              width={12}
-                              height={12}
+                              width={120}
+                              height={120}
+                              quality={100}
                               className="w-3 h-3 rounded-full"
                             />
                           </div>
@@ -2101,8 +2273,10 @@ export default function SwapTokenModal({ tokens }: { tokens: any[] }) {
 
                 {!isLoadingTokens && availableTokens.length === 0 && (
                   <div className="text-center py-8 text-gray-500">
-                    <div className="mb-2">No tokens found</div>
-                    <div className="text-xs">Try adjusting your search</div>
+                    <div className="mb-2">No tokens found for this Chain</div>
+                    <div className="text-xs">
+                      Try adjusting your search or chain filter
+                    </div>
                   </div>
                 )}
               </div>
