@@ -191,8 +191,13 @@ const WalletContentInner = () => {
       );
 
       const solanaWallet = solanaWallets?.find(
-        (w: any) => w.walletClientType === 'privy'
-      );
+        (w: any) => w.walletClientType === 'privy' || w.connectorType === 'embedded'
+      ) || solanaWallets?.[0];
+
+      // Check if we have a Solana wallet when needed
+      if ((sendFlow.token?.chain === 'SOLANA' || sendFlow.network === 'SOLANA') && !solanaWallet) {
+        throw new Error('No Solana wallet found. Please connect a Solana wallet.');
+      }
 
       // Find Ethereum wallet with explicit type casting
       const allAccounts = PrivyUser?.linkedAccounts || [];
