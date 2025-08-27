@@ -253,18 +253,36 @@ export class TransactionService {
         );
       }
 
-      // For now, disable sponsored transactions until proper backend API is set up
-      // TODO: Re-enable when Privy backend authentication is properly configured
-      
-      // Regular transaction flow for all tokens
-      const { blockhash } = await connection.getLatestBlockhash();
-      tx.recentBlockhash = blockhash;
-      tx.feePayer = new PublicKey(solanaWallet.address);
+      // Check if this should be a sponsored transaction
+      if (
+        !sendFlow.isOrder &&
+        (sendFlow.token?.address === USDC_ADDRESS ||
+          sendFlow.token?.address === SWOP_ADDRESS)
+      ) {
+        // Use Privy sponsored transaction for USDC and SWOP
+        const serializedTransaction = await this.createSponsoredTransaction(
+          tx,
+          solanaWallet,
+          connection
+        );
+        
+        const result = await this.submitPrivySponsoredTransaction(
+          serializedTransaction,
+          solanaWallet
+        );
+        
+        return result;
+      } else {
+        // Regular transaction flow for other tokens
+        const { blockhash } = await connection.getLatestBlockhash();
+        tx.recentBlockhash = blockhash;
+        tx.feePayer = new PublicKey(solanaWallet.address);
 
-      const signedTx = await solanaWallet.signTransaction(tx);
-      return await connection.sendRawTransaction(
-        signedTx.serialize()
-      );
+        const signedTx = await solanaWallet.signTransaction(tx);
+        return await connection.sendRawTransaction(
+          signedTx.serialize()
+        );
+      }
     }
   }
 
@@ -637,35 +655,46 @@ export class TransactionService {
   }
 
   /**
-   * Submits a sponsored transaction through Privy's API
+   * Submits a sponsored transaction through our backend API (which calls Privy's API)
    */
   static async submitPrivySponsoredTransaction(
     serializedTransaction: string,
     solanaWallet: any
   ) {
     try {
-      // For now, let's try using the sendTransaction method with sponsored options
-      // First, deserialize the transaction
-      const transaction = SolanaTransaction.from(Buffer.from(serializedTransaction, 'base64'));
+      // Get the wallet ID - try different possible properties
+      const walletId = solanaWallet.id || solanaWallet.address || solanaWallet.publicKey?.toString();
       
-      // Check if the wallet has a sendTransaction method with sponsor option
-      if (typeof solanaWallet.sendTransaction === 'function') {
-        // Try to send with sponsor option if supported
-        const result = await solanaWallet.sendTransaction(transaction, { sponsor: true });
-        return result.signature || result;
-      } else {
-        // Fallback to regular signing and sending
-        const signedTransaction = await solanaWallet.signTransaction(transaction);
-        
-        // Use a basic Solana connection to send the transaction
-        const connection = new Connection(
-          process.env.NEXT_PUBLIC_QUICKNODE_SOLANA_URL!,
-          'confirmed'
-        );
-        
-        const signature = await connection.sendRawTransaction(signedTransaction.serialize());
-        return signature;
+      if (!walletId) {
+        throw new Error('Could not determine wallet ID for sponsored transaction');
       }
+
+      // Call our backend API which will handle the Privy authentication
+      const response = await fetch('/api/solana/sponsored-transaction', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          walletId,
+          transaction: serializedTransaction,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => null);
+        throw new Error(
+          errorData?.error || `API error: ${response.status} ${response.statusText}`
+        );
+      }
+
+      const result = await response.json();
+      
+      if (!result.success) {
+        throw new Error(result.error || 'Sponsored transaction failed');
+      }
+
+      return result.signature || result.transactionId;
     } catch (error) {
       console.error('Privy sponsored transaction failed:', error);
       throw new Error('Sponsored transaction failed: ' + (error as Error).message);
