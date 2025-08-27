@@ -46,6 +46,7 @@ const cspConfig = {
     "https://swopme.app",
     "https://privy.swopme.app",
     "https://auth.privy.io",
+    "https://swop-id-ens-gateway.swop.workers.dev",
     "wss://relay.walletconnect.com",
     "wss://relay.walletconnect.org",
     "wss://www.walletlink.org",

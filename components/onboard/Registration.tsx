@@ -464,22 +464,6 @@ export default function Registration({
       }
 
       const result = await response.json();
-      console.log('Registration success:', result);
-
-      // Create wallet balance record
-      const walletPayload = {
-        // ethAddress: ethereumWallet?.address,
-        // solanaAddress: solanaWallet?.address,
-        userId: result.data._id,
-      };
-
-      console.log('Wallet payload:', walletPayload);
-      //problem in this api
-      try {
-        await createWalletBalance(walletPayload);
-      } catch (error) {
-        console.error('Error creating wallet balance:', error);
-      }
 
       toast({
         title: 'Success',
