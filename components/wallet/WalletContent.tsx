@@ -81,10 +81,12 @@ const WalletContentInner = () => {
   // Hooks
   const { authenticated, ready, user: PrivyUser } = usePrivy();
   const { wallets: ethWallets } = useWallets();
+  console.log(ethWallets, 'ethWallets');
   const {
     wallets: directSolanaWallets,
     createWallet: createSolanaWallet,
   } = useSolanaWallets();
+  console.log(directSolanaWallets, 'directSolanaWallets');
   const { createWallet, solanaWallets } = useSolanaWalletContext();
   const { toast } = useToast();
   const { user } = useUser();
@@ -319,14 +321,15 @@ const WalletContentInner = () => {
             sendFlow,
             connection
           );
-          
+
           hash = result;
-          
+
           // For sponsored transactions (USDC/SWOP), Privy handles confirmation
           // For regular transactions, we need to confirm manually
-          const isSponsored = sendFlow.token?.address === USDC_ADDRESS || 
-                             sendFlow.token?.address === SWOP_ADDRESS;
-          
+          const isSponsored =
+            sendFlow.token?.address === USDC_ADDRESS ||
+            sendFlow.token?.address === SWOP_ADDRESS;
+
           if (hash && !isSponsored) {
             await connection.confirmTransaction(hash);
           }

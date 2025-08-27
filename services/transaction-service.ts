@@ -260,17 +260,18 @@ export class TransactionService {
           sendFlow.token?.address === SWOP_ADDRESS)
       ) {
         // Use Privy sponsored transaction for USDC and SWOP
-        const serializedTransaction = await this.createSponsoredTransaction(
-          tx,
-          solanaWallet,
-          connection
-        );
-        
+        const serializedTransaction =
+          await this.createSponsoredTransaction(
+            tx,
+            solanaWallet,
+            connection
+          );
+
         const result = await this.submitPrivySponsoredTransaction(
           serializedTransaction,
           solanaWallet
         );
-        
+
         return result;
       } else {
         // Regular transaction flow for other tokens
@@ -663,41 +664,54 @@ export class TransactionService {
   ) {
     try {
       // Get the wallet ID - try different possible properties
-      const walletId = solanaWallet.id || solanaWallet.address || solanaWallet.publicKey?.toString();
-      
+      const walletId =
+        solanaWallet.id ||
+        solanaWallet.address ||
+        solanaWallet.publicKey?.toString();
+
       if (!walletId) {
-        throw new Error('Could not determine wallet ID for sponsored transaction');
+        throw new Error(
+          'Could not determine wallet ID for sponsored transaction'
+        );
       }
 
       // Call our backend API which will handle the Privy authentication
-      const response = await fetch('/api/solana/sponsored-transaction', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          walletId,
-          transaction: serializedTransaction,
-        }),
-      });
+      const response = await fetch(
+        '/api/solana/sponsored-transaction',
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            walletId,
+            transaction: serializedTransaction,
+          }),
+        }
+      );
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => null);
         throw new Error(
-          errorData?.error || `API error: ${response.status} ${response.statusText}`
+          errorData?.error ||
+            `API error: ${response.status} ${response.statusText}`
         );
       }
 
       const result = await response.json();
-      
+
       if (!result.success) {
-        throw new Error(result.error || 'Sponsored transaction failed');
+        throw new Error(
+          result.error || 'Sponsored transaction failed'
+        );
       }
 
       return result.signature || result.transactionId;
     } catch (error) {
       console.error('Privy sponsored transaction failed:', error);
-      throw new Error('Sponsored transaction failed: ' + (error as Error).message);
+      throw new Error(
+        'Sponsored transaction failed: ' + (error as Error).message
+      );
     }
   }
 
