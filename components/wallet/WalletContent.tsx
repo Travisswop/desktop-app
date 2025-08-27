@@ -202,26 +202,12 @@ const WalletContentInner = () => {
       const availableSolanaWallets =
         directSolanaWallets || solanaWallets || [];
 
-      // Debug logging
-      console.log('Debug Solana wallet detection:');
-      console.log('directSolanaWallets:', directSolanaWallets);
-      console.log('solanaWallets (context):', solanaWallets);
-      console.log('availableSolanaWallets:', availableSolanaWallets);
-      console.log(
-        'PrivyUser linkedAccounts:',
-        PrivyUser?.linkedAccounts?.filter(
-          (acc: any) => acc.chainType === 'solana'
-        )
-      );
-
       const solanaWallet =
         availableSolanaWallets.find(
           (w: any) =>
             w.walletClientType === 'privy' ||
             w.connectorType === 'embedded'
         ) || availableSolanaWallets[0];
-
-      console.log('Selected solanaWallet:', solanaWallet);
 
       // Check if we have a Solana wallet when needed
       if (
@@ -328,12 +314,26 @@ const WalletContentInner = () => {
           //   await connection.confirmTransaction(hash);
           // }
 
-          hash = await TransactionService.handleSolanaSend(
+          const result = await TransactionService.handleSolanaSend(
             solanaWallet,
             sendFlow,
             connection
           );
-          await connection.confirmTransaction(hash);
+          
+          // Handle both sponsored and regular transactions
+          if (typeof result === 'string') {
+            hash = result;
+            // For sponsored transactions (USDC/SWOP), Privy handles the submission
+            // so we don't need to confirm - the transaction is already submitted
+            const isSponsored = sendFlow.token?.address === USDC_ADDRESS || 
+                               sendFlow.token?.address === SWOP_ADDRESS;
+            
+            if (!isSponsored) {
+              await connection.confirmTransaction(hash);
+            }
+          } else {
+            hash = result;
+          }
         } else {
           // EVM token transfer
           await evmWallet?.switchChain(CHAIN_ID[sendFlow.network]);
