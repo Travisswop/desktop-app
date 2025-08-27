@@ -328,24 +328,12 @@ const WalletContentInner = () => {
           //   await connection.confirmTransaction(hash);
           // }
 
-          const result = await TransactionService.handleSolanaSend(
+          hash = await TransactionService.handleSolanaSend(
             solanaWallet,
             sendFlow,
             connection
           );
-          
-          // Check if this is a serialized transaction (base64) or a signature
-          if (typeof result === 'string' && result.length > 100) {
-            // This is likely a serialized transaction for sponsored tokens
-            // For sponsored transactions, the backend handles the submission
-            hash = result; // Store the serialized transaction
-          } else {
-            // This is a transaction signature
-            hash = result;
-            if (hash) {
-              await connection.confirmTransaction(hash);
-            }
-          }
+          await connection.confirmTransaction(hash);
         } else {
           // EVM token transfer
           await evmWallet?.switchChain(CHAIN_ID[sendFlow.network]);

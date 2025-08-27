@@ -253,29 +253,38 @@ export class TransactionService {
         );
       }
 
-      if (
-        !sendFlow.isOrder &&
-        (sendFlow.token?.address === USDC_ADDRESS ||
-          sendFlow.token?.address === SWOP_ADDRESS)
-      ) {
-        const serializedTransaction =
-          await this.prepareSponsoredTransaction(
-            tx.instructions,
-            solanaWallet,
-            connection
-          );
+      // if (
+      //   !sendFlow.isOrder &&
+      //   (sendFlow.token?.address === USDC_ADDRESS ||
+      //     sendFlow.token?.address === SWOP_ADDRESS)
+      // ) {
+      //   const serializedTransaction =
+      //     await this.prepareSponsoredTransaction(
+      //       tx.instructions,
+      //       solanaWallet,
+      //       connection
+      //     );
 
-        return serializedTransaction;
-      } else {
-        const { blockhash } = await connection.getLatestBlockhash();
-        tx.recentBlockhash = blockhash;
-        tx.feePayer = new PublicKey(solanaWallet.address);
+      //   return serializedTransaction;
+      // } else {
+      //   const { blockhash } = await connection.getLatestBlockhash();
+      //   tx.recentBlockhash = blockhash;
+      //   tx.feePayer = new PublicKey(solanaWallet.address);
 
-        const signedTx = await solanaWallet.signTransaction(tx);
-        return await connection.sendRawTransaction(
-          signedTx.serialize()
-        );
-      }
+      //   const signedTx = await solanaWallet.signTransaction(tx);
+      //   return await connection.sendRawTransaction(
+      //     signedTx.serialize()
+      //   );
+      // }
+
+      const { blockhash } = await connection.getLatestBlockhash();
+      tx.recentBlockhash = blockhash;
+      tx.feePayer = new PublicKey(solanaWallet.address);
+
+      const signedTx = await solanaWallet.signTransaction(tx);
+      return await connection.sendRawTransaction(
+        signedTx.serialize()
+      );
     }
   }
 
