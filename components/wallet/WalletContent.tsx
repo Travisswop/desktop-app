@@ -80,6 +80,7 @@ const WalletContentInner = () => {
 
   // Hooks
   const { authenticated, ready, user: PrivyUser } = usePrivy();
+  console.log(PrivyUser, 'PrivyUser');
   const { wallets: ethWallets } = useWallets();
   console.log(ethWallets, 'ethWallets');
   const {
