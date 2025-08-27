@@ -253,36 +253,18 @@ export class TransactionService {
         );
       }
 
-      // Check if this should be a sponsored transaction
-      if (
-        !sendFlow.isOrder &&
-        (sendFlow.token?.address === USDC_ADDRESS ||
-          sendFlow.token?.address === SWOP_ADDRESS)
-      ) {
-        // Use Privy sponsored transaction
-        const serializedTransaction = await this.createSponsoredTransaction(
-          tx,
-          solanaWallet,
-          connection
-        );
-        
-        const result = await this.submitPrivySponsoredTransaction(
-          serializedTransaction,
-          solanaWallet
-        );
-        
-        return result;
-      } else {
-        // Regular transaction
-        const { blockhash } = await connection.getLatestBlockhash();
-        tx.recentBlockhash = blockhash;
-        tx.feePayer = new PublicKey(solanaWallet.address);
+      // For now, disable sponsored transactions until proper backend API is set up
+      // TODO: Re-enable when Privy backend authentication is properly configured
+      
+      // Regular transaction flow for all tokens
+      const { blockhash } = await connection.getLatestBlockhash();
+      tx.recentBlockhash = blockhash;
+      tx.feePayer = new PublicKey(solanaWallet.address);
 
-        const signedTx = await solanaWallet.signTransaction(tx);
-        return await connection.sendRawTransaction(
-          signedTx.serialize()
-        );
-      }
+      const signedTx = await solanaWallet.signTransaction(tx);
+      return await connection.sendRawTransaction(
+        signedTx.serialize()
+      );
     }
   }
 
@@ -662,17 +644,28 @@ export class TransactionService {
     solanaWallet: any
   ) {
     try {
-      // Use Privy's signAndSendTransaction method with sponsor=true
-      const result = await solanaWallet.request({
-        method: 'signAndSendTransaction',
-        params: {
-          transaction: serializedTransaction,
-          encoding: 'base64',
-        },
-        sponsor: true,
-      });
-
-      return result.signature || result;
+      // For now, let's try using the sendTransaction method with sponsored options
+      // First, deserialize the transaction
+      const transaction = SolanaTransaction.from(Buffer.from(serializedTransaction, 'base64'));
+      
+      // Check if the wallet has a sendTransaction method with sponsor option
+      if (typeof solanaWallet.sendTransaction === 'function') {
+        // Try to send with sponsor option if supported
+        const result = await solanaWallet.sendTransaction(transaction, { sponsor: true });
+        return result.signature || result;
+      } else {
+        // Fallback to regular signing and sending
+        const signedTransaction = await solanaWallet.signTransaction(transaction);
+        
+        // Use a basic Solana connection to send the transaction
+        const connection = new Connection(
+          process.env.NEXT_PUBLIC_QUICKNODE_SOLANA_URL!,
+          'confirmed'
+        );
+        
+        const signature = await connection.sendRawTransaction(signedTransaction.serialize());
+        return signature;
+      }
     } catch (error) {
       console.error('Privy sponsored transaction failed:', error);
       throw new Error('Sponsored transaction failed: ' + (error as Error).message);

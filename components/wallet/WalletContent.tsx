@@ -14,11 +14,7 @@ import { TokenData } from '@/types/token';
 import { NFT } from '@/types/nft';
 import { CHAIN_ID, SendFlowState } from '@/types/wallet-types';
 
-import {
-  SWOP_ADDRESS,
-  TransactionService,
-  USDC_ADDRESS,
-} from '@/services/transaction-service';
+import { TransactionService } from '@/services/transaction-service';
 import { useSendFlow } from '@/lib/hooks/useSendFlow';
 import { useMultiChainTokenData } from '@/lib/hooks/useToken';
 import { useNFT } from '@/lib/hooks/useNFT';
@@ -314,25 +310,15 @@ const WalletContentInner = () => {
           //   await connection.confirmTransaction(hash);
           // }
 
-          const result = await TransactionService.handleSolanaSend(
+          hash = await TransactionService.handleSolanaSend(
             solanaWallet,
             sendFlow,
             connection
           );
           
-          // Handle both sponsored and regular transactions
-          if (typeof result === 'string') {
-            hash = result;
-            // For sponsored transactions (USDC/SWOP), Privy handles the submission
-            // so we don't need to confirm - the transaction is already submitted
-            const isSponsored = sendFlow.token?.address === USDC_ADDRESS || 
-                               sendFlow.token?.address === SWOP_ADDRESS;
-            
-            if (!isSponsored) {
-              await connection.confirmTransaction(hash);
-            }
-          } else {
-            hash = result;
+          // Confirm the transaction
+          if (hash) {
+            await connection.confirmTransaction(hash);
           }
         } else {
           // EVM token transfer
