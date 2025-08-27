@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState, useMemo, useCallback } from 'react';
-import { usePrivy, useWallets } from '@privy-io/react-auth';
+import { usePrivy, useWallets, useSolanaWallets } from '@privy-io/react-auth';
 import { useSolanaWalletContext } from '@/lib/context/SolanaWalletContext';
 import { Connection } from '@solana/web3.js';
 import { useToast } from '@/hooks/use-toast';
@@ -77,6 +77,7 @@ const WalletContentInner = () => {
   // Hooks
   const { authenticated, ready, user: PrivyUser } = usePrivy();
   const { wallets: ethWallets } = useWallets();
+  const { wallets: directSolanaWallets, createWallet: createSolanaWallet } = useSolanaWallets();
   const { createWallet, solanaWallets } = useSolanaWalletContext();
   const { toast } = useToast();
   const { user } = useUser();
@@ -121,9 +122,9 @@ const WalletContentInner = () => {
     );
 
     if (!hasExistingSolanaWallet) {
-      createWallet();
+      createSolanaWallet();
     }
-  }, [authenticated, ready, PrivyUser, createWallet]);
+  }, [authenticated, ready, PrivyUser, createSolanaWallet]);
 
   // Data fetching hooks
   const {
@@ -190,13 +191,34 @@ const WalletContentInner = () => {
         'confirmed'
       );
 
-      const solanaWallet = solanaWallets?.find(
+      // Use direct Solana wallets from Privy (more reliable)
+      const availableSolanaWallets = directSolanaWallets || solanaWallets || [];
+      
+      // Debug logging
+      console.log('Debug Solana wallet detection:');
+      console.log('directSolanaWallets:', directSolanaWallets);
+      console.log('solanaWallets (context):', solanaWallets);
+      console.log('availableSolanaWallets:', availableSolanaWallets);
+      console.log('PrivyUser linkedAccounts:', PrivyUser?.linkedAccounts?.filter((acc: any) => acc.chainType === 'solana'));
+      
+      const solanaWallet = availableSolanaWallets.find(
         (w: any) => w.walletClientType === 'privy' || w.connectorType === 'embedded'
-      ) || solanaWallets?.[0];
+      ) || availableSolanaWallets[0];
+      
+      console.log('Selected solanaWallet:', solanaWallet);
 
       // Check if we have a Solana wallet when needed
       if ((sendFlow.token?.chain === 'SOLANA' || sendFlow.network === 'SOLANA') && !solanaWallet) {
-        throw new Error('No Solana wallet found. Please connect a Solana wallet.');
+        // Check if wallet exists in linked accounts but not in wallets array
+        const hasSolanaAccount = PrivyUser?.linkedAccounts?.some((account: any) =>
+          account.chainType === 'solana' && account.type === 'wallet'
+        );
+        
+        if (hasSolanaAccount) {
+          throw new Error('Solana wallet found in account but not accessible. Please refresh the page and try again.');
+        } else {
+          throw new Error('No Solana wallet found. Please connect a Solana wallet.');
+        }
       }
 
       // Find Ethereum wallet with explicit type casting
@@ -302,7 +324,7 @@ const WalletContentInner = () => {
             : ERROR_MESSAGES.UNKNOWN_ERROR,
       };
     }
-  }, [sendFlow, ethWallets, solanaWallets, PrivyUser, refetchNFTs]);
+  }, [sendFlow, ethWallets, directSolanaWallets, solanaWallets, PrivyUser, refetchNFTs]);
 
   // Main transaction handler
   const handleSendConfirm = useCallback(async () => {
