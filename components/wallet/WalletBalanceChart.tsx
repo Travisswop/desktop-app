@@ -231,7 +231,7 @@ const BalanceChart: React.FC<BalanceChartProps> = ({
 
   return (
     <div className="bg-white p-5 rounded-xl shadow-sm relative">
-      <div className="flex justify-between items-center">
+      <div className="flex flex-wrap gap-y-3 justify-between items-center">
         <div>
           <h2 className="font-bold text-xl text-gray-700">Balance</h2>
           <div className="flex items-center justify-center mt-1">
