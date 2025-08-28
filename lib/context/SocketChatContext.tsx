@@ -346,10 +346,31 @@ export function SocketChatProvider({
             conversation: conversationId,
           });
 
-          // Create the new state
+          // IMPORTANT: Remove any temporary messages with the same content and sender
+          // This prevents duplicate messages when optimistic updates are replaced by server messages
+          const filteredMessages = conversationMessages.filter((msg) => {
+            // Keep all non-temporary messages
+            if (!msg._id.startsWith('temp_')) {
+              return true;
+            }
+            
+            // For temporary messages, remove if they have the same sender and content
+            // as the incoming server message (this means it's a duplicate)
+            const isSameSender = msg.senderId === message.senderId;
+            const isSameContent = msg.content.trim() === message.content.trim();
+            
+            if (isSameSender && isSameContent) {
+              console.log(`🗑️ Removing temporary message ${msg._id} as it's being replaced by server message ${message._id}`);
+              return false; // Remove this temporary message
+            }
+            
+            return true; // Keep this temporary message
+          });
+
+          // Create the new state with filtered messages plus the new server message
           const newState = {
             ...prev,
-            [conversationId]: [...conversationMessages, message],
+            [conversationId]: [...filteredMessages, message],
           };
 
           // Log the new state
@@ -543,10 +564,30 @@ export function SocketChatProvider({
               console.log(
                 `🟢 Adding broadcast message to conversation ${normalizedConversationId}`
               );
+
+              // Remove any temporary messages with the same content and sender
+              const filteredMessages = conversationMessages.filter((msg) => {
+                // Keep all non-temporary messages
+                if (!msg._id.startsWith('temp_')) {
+                  return true;
+                }
+                
+                // For temporary messages, remove if they have the same sender and content
+                const isSameSender = msg.senderId === message.senderId;
+                const isSameContent = msg.content.trim() === message.content.trim();
+                
+                if (isSameSender && isSameContent) {
+                  console.log(`🗑️ Removing temporary broadcast message ${msg._id} as it's being replaced by server message ${message._id}`);
+                  return false; // Remove this temporary message
+                }
+                
+                return true; // Keep this temporary message
+              });
+
               return {
                 ...prev,
                 [normalizedConversationId]: [
-                  ...conversationMessages,
+                  ...filteredMessages,
                   message,
                 ],
               };
