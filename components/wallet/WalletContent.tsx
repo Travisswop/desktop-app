@@ -49,6 +49,7 @@ import WalletBalanceChartForWalletPage from "./WalletBalanceChart";
 // Utilities
 import Cookies from "js-cookie";
 import { createTransactionPayload } from "@/lib/utils/transactionUtils";
+import { Loader2 } from "lucide-react";
 
 export default function WalletContent() {
   return <WalletContentInner />;
@@ -468,21 +469,32 @@ const WalletContentInner = () => {
           onTokenRefresh={refetchTokens}
         />
 
-        <div className="max-h-[35.5rem] overflow-y-auto rounded-xl">
-          {selectedToken ? (
-            <TokenDetails
-              token={selectedToken}
-              onBack={handleBack}
-              onSend={handleSendClick}
-            />
-          ) : (
-            <TokenList
-              tokens={tokens}
-              loading={tokenLoading}
-              error={tokenError!}
-              onSelectToken={handleTokenSelect}
-            />
-          )}
+        <div className="rounded-xl bg-white">
+          <div className="flex items-center justify-between pl-6 pt-6 mb-2">
+            <div className="flex items-center">
+              <span className="font-bold text-xl text-gray-700">Tokens</span>
+              {tokenLoading && (
+                <Loader2 className="w-6 h-6 text-gray-600 animate-spin" />
+              )}
+            </div>
+            {/* <ViewToggle viewMode={viewMode} onViewChange={setViewMode} /> */}
+          </div>
+          <div className="max-h-[35.5rem] overflow-y-auto rounded-xl">
+            {selectedToken ? (
+              <TokenDetails
+                token={selectedToken}
+                onBack={handleBack}
+                onSend={handleSendClick}
+              />
+            ) : (
+              <TokenList
+                tokens={tokens}
+                loading={tokenLoading}
+                error={tokenError!}
+                onSelectToken={handleTokenSelect}
+              />
+            )}
+          </div>
         </div>
       </div>
 

@@ -1,19 +1,14 @@
-'use client';
+"use client";
 
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
-import { TokenData } from '@/types/token';
-import { AlertCircle, Loader2 } from 'lucide-react';
-import TokenCardView from './token-card-view';
-import React, { useMemo, useState } from 'react';
-import TokenListView from './token-list-view';
+import { TokenData } from "@/types/token";
+import { AlertCircle, Loader2 } from "lucide-react";
+import TokenCardView from "./token-card-view";
+import React, { useMemo, useState } from "react";
+import TokenListView from "./token-list-view";
 
-type ViewMode = 'card' | 'list';
+type ViewMode = "card" | "list";
 interface TokenListProps {
   tokens: TokenData[];
   loading: boolean;
@@ -75,12 +70,9 @@ const ErrorAlert = ({ message }: { message: string }) => (
 
 const LoadingSkeleton = ({ viewMode }: { viewMode: ViewMode }) => {
   const skeletonItems = Array(4).fill(0);
-  const skeletonClass =
-    viewMode === 'card' ? 'h-[200px]' : 'h-[100px]';
+  const skeletonClass = viewMode === "card" ? "h-[200px]" : "h-[100px]";
   const containerClass =
-    viewMode === 'card'
-      ? 'grid grid-cols-1 md:grid-cols-2 gap-4'
-      : 'space-y-4';
+    viewMode === "card" ? "grid grid-cols-1 md:grid-cols-2 gap-4" : "space-y-4";
 
   return (
     <div className={containerClass}>
@@ -96,7 +88,7 @@ const LoadingSkeleton = ({ viewMode }: { viewMode: ViewMode }) => {
 
 const TokenContent = ({
   tokens,
-  viewMode = 'list',
+  viewMode = "list",
   onSelectToken,
 }: {
   tokens: TokenData[];
@@ -112,12 +104,9 @@ const TokenContent = ({
   }
 
   const containerClass =
-    viewMode === 'card'
-      ? 'grid grid-cols-1 md:grid-cols-2 gap-4'
-      : 'space-y-4';
+    viewMode === "card" ? "grid grid-cols-1 md:grid-cols-2 gap-4" : "space-y-4";
 
-  const TokenComponent =
-    viewMode === 'card' ? TokenCardView : TokenListView;
+  const TokenComponent = viewMode === "card" ? TokenCardView : TokenListView;
 
   return (
     <div className={containerClass}>
@@ -140,7 +129,7 @@ const TokenList = ({
   error,
   onSelectToken,
 }: TokenListProps) => {
-  const [viewMode] = useState<ViewMode>('card');
+  const [viewMode] = useState<ViewMode>("card");
 
   const content = useMemo(() => {
     if (loading) {
@@ -149,7 +138,7 @@ const TokenList = ({
     return (
       <TokenContent
         tokens={tokens}
-        viewMode={'list'}
+        viewMode={"list"}
         onSelectToken={onSelectToken}
       />
     );
@@ -157,19 +146,6 @@ const TokenList = ({
 
   return (
     <Card className="w-full border-none rounded-xl">
-      <CardHeader>
-        <div className="flex items-center justify-between">
-          <CardTitle className="flex items-center">
-            <span className="font-bold text-xl text-gray-700">
-              Tokens
-            </span>
-            {loading && (
-              <Loader2 className="w-6 h-6 text-gray-600 animate-spin" />
-            )}
-          </CardTitle>
-          {/* <ViewToggle viewMode={viewMode} onViewChange={setViewMode} /> */}
-        </div>
-      </CardHeader>
       <CardContent>
         {error && (
           <ErrorAlert message="Some tokens couldn't be loaded. Please try again later." />
