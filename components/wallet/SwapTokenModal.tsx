@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ArrowUpDown, Info, Settings } from "lucide-react";
 import Image from "next/image";
-import { debounce } from "lodash";
+import { chain, debounce } from "lodash";
 import { fetchTokensFromLiFi } from "@/actions/lifiForTokenSwap";
 import { usePrivy, useSolanaWallets, useWallets } from "@privy-io/react-auth";
 import { Connection, VersionedTransaction } from "@solana/web3.js";
@@ -280,6 +280,45 @@ const formatUserFriendlyError = (error: string): string => {
   return error.charAt(0).toUpperCase() + error.slice(1).replace(/[._]/g, " ");
 };
 
+const NATIVE_TOKENS_AND_USDC = {
+  // Ethereum
+  "1": [
+    {
+      symbol: "ETH",
+    },
+    {
+      symbol: "USDC",
+    },
+  ],
+  // Solana
+  "1151111081099710": [
+    {
+      symbol: "SOL",
+    },
+    {
+      symbol: "USDC",
+    },
+  ],
+  // Polygon
+  "137": [
+    {
+      symbol: "POL",
+    },
+    {
+      symbol: "USDC",
+    },
+  ],
+  // Base
+  "8453": [
+    {
+      symbol: "ETH",
+    },
+    {
+      symbol: "USDC",
+    },
+  ],
+};
+
 export default function SwapTokenModal({ tokens }: { tokens: any[] }) {
   // State management
   const [payToken, setPayToken] = useState<any>(tokens?.[0] || null);
@@ -289,6 +328,9 @@ export default function SwapTokenModal({ tokens }: { tokens: any[] }) {
   const [openDrawer, setOpenDrawer] = useState(false);
   const [selecting, setSelecting] = useState<"pay" | "receive" | null>(null);
   const [availableTokens, setAvailableTokens] = useState<any[]>([]);
+  const [filteredReceivedTokens, setFilteredReceivedTokens] = useState<any[]>(
+    []
+  );
   const [searchQuery, setSearchQuery] = useState("");
   const [isLoadingTokens, setIsLoadingTokens] = useState(false);
   const [isCalculating, setIsCalculating] = useState(false);
@@ -321,6 +363,10 @@ export default function SwapTokenModal({ tokens }: { tokens: any[] }) {
   console.log("payToken", payToken);
   console.log("payAmount", payAmount);
   console.log("availableTokens", availableTokens);
+  console.log("chainId", chainId);
+  console.log("receiverChainId", receiverChainId);
+  console.log("filteredReceivedTokens", filteredReceivedTokens);
+  console.log("selecting", selecting);
 
   const ethWallet = wallets[0]?.address;
   const solWallet = solWallets[0]?.address;
@@ -395,6 +441,33 @@ export default function SwapTokenModal({ tokens }: { tokens: any[] }) {
       }
     }
   }, [openDrawer, selecting, tokens, selectedPayChain]);
+
+  //filter receive token
+  useEffect(() => {
+    if (receiverChainId === chainId) {
+      setFilteredReceivedTokens(availableTokens);
+    } else {
+      setIsLoadingTokens(true);
+      const symbols = NATIVE_TOKENS_AND_USDC[receiverChainId as string]; // e.g. [{symbol: "SOL"}, {symbol: "USDC"}]
+
+      console.log("symbols", symbols);
+
+      // Extract the plain symbol strings into a Set for faster lookup
+      const symbolSet = new Set(symbols.map((s) => s.symbol));
+
+      console.log("symbolSet", symbolSet);
+
+      // Filter availableTokens where the symbol is in symbolSet
+      const filtered = availableTokens.filter((avail) =>
+        symbolSet.has(avail.symbol)
+      );
+
+      console.log("filtered", filtered);
+
+      setFilteredReceivedTokens(filtered);
+      setIsLoadingTokens(false);
+    }
+  }, [chainId, receiverChainId, availableTokens]);
 
   // Clear intervals on unmount
   useEffect(() => {
@@ -1246,22 +1319,6 @@ export default function SwapTokenModal({ tokens }: { tokens: any[] }) {
       setIsQuoteLoading(true);
     }
   };
-
-  // const handlePayTokenSearch = (query: string) => {
-  //   setIsLoadingTokens(true);
-  //   try {
-  //     const results = tokens.filter(
-  //       (token: any) =>
-  //         token.symbol.toLowerCase().includes(query.toLowerCase()) ||
-  //         token.name.toLowerCase().includes(query.toLowerCase())
-  //     );
-  //     setAvailableTokens(results.slice(0, query ? 50 : 20));
-  //   } catch (error) {
-  //     console.error("Error filtering tokens:", error);
-  //   } finally {
-  //     setIsLoadingTokens(false);
-  //   }
-  // };
 
   const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const query = e.target.value;
@@ -2208,68 +2265,141 @@ export default function SwapTokenModal({ tokens }: { tokens: any[] }) {
               </div>
             ) : (
               <div className="space-y-0 overflow-y-auto max-h-[300px]">
-                {availableTokens
-                  .filter((token: any) =>
-                    selecting === "pay"
-                      ? token.address !== receiveToken?.address
-                      : token.address !== payToken?.address
-                  )
-                  .map((token: any) => (
-                    <button
-                      key={token.address}
-                      onClick={() => handleTokenSelect(token, selecting!)}
-                      className="flex items-center gap-3 w-full px-3 py-3 rounded-lg hover:bg-gray-100 transition-colors"
-                    >
-                      <div className="relative w-8 h-8">
-                        {token.symbol === "SWOP" ? (
-                          <Image
-                            src={token.logoURI}
-                            alt={token.symbol}
-                            width={1020}
-                            height={1020}
-                            quality={100}
-                            className="w-auto h-auto rounded-full border"
-                          />
-                        ) : (
-                          <Image
-                            src={
-                              token?.marketData?.iconUrl ||
-                              token?.logoURI ||
-                              getTokenIcon(token)
-                            }
-                            alt={token.symbol}
-                            width={1020}
-                            height={1020}
-                            quality={100}
-                            className="w-auto h-auto rounded-full"
-                          />
-                        )}
-                        {token.chain && (
-                          <div className="absolute -bottom-1 -right-1 bg-white rounded-full p-0.5 flex items-center justify-center w-4 h-4 border border-gray-200">
-                            <Image
-                              src={getChainIcon(token.chain) || ""}
-                              alt={token.chain}
-                              width={120}
-                              height={120}
-                              quality={100}
-                              className="w-3 h-3 rounded-full"
-                            />
+                {selecting === "pay" ? (
+                  <>
+                    {availableTokens
+                      .filter((token: any) =>
+                        selecting === "pay"
+                          ? token.address !== receiveToken?.address
+                          : token.address !== payToken?.address
+                      )
+                      .map((token: any) => (
+                        <button
+                          key={token.address}
+                          onClick={() => handleTokenSelect(token, selecting!)}
+                          className="flex items-center gap-3 w-full px-3 py-3 rounded-lg hover:bg-gray-100 transition-colors"
+                        >
+                          <div className="relative w-8 h-8">
+                            {token.symbol === "SWOP" ? (
+                              <Image
+                                src={token.logoURI}
+                                alt={token.symbol}
+                                width={1020}
+                                height={1020}
+                                quality={100}
+                                className="w-auto h-auto rounded-full border"
+                              />
+                            ) : (
+                              <Image
+                                src={
+                                  token?.marketData?.iconUrl ||
+                                  token?.logoURI ||
+                                  getTokenIcon(token)
+                                }
+                                alt={token.symbol}
+                                width={1020}
+                                height={1020}
+                                quality={100}
+                                className="w-auto h-auto rounded-full"
+                              />
+                            )}
+                            {token.chain && (
+                              <div className="absolute -bottom-1 -right-1 bg-white rounded-full p-0.5 flex items-center justify-center w-4 h-4 border border-gray-200">
+                                <Image
+                                  src={getChainIcon(token.chain) || ""}
+                                  alt={token.chain}
+                                  width={120}
+                                  height={120}
+                                  quality={100}
+                                  className="w-3 h-3 rounded-full"
+                                />
+                              </div>
+                            )}
                           </div>
-                        )}
-                      </div>
-                      <div className="flex justify-between w-full items-center">
-                        <div className="text-left">
-                          <p className="font-semibold">{token.symbol}</p>
-                          <p className="text-xs text-gray-500">{token.name}</p>
-                        </div>
-                        {token.balance && (
-                          <span className="text-gray-400 text-sm font-medium">
-                            {parseFloat(token.balance).toFixed(4)}
-                          </span>
-                        )}
-                      </div>
-                    </button>
-                  ))}
+                          <div className="flex justify-between w-full items-center">
+                            <div className="text-left">
+                              <p className="font-semibold">{token.symbol}</p>
+                              <p className="text-xs text-gray-500">
+                                {token.name}
+                              </p>
+                            </div>
+                            {token.balance && (
+                              <span className="text-gray-400 text-sm font-medium">
+                                {parseFloat(token.balance).toFixed(4)}
+                              </span>
+                            )}
+                          </div>
+                        </button>
+                      ))}
+                  </>
+                ) : (
+                  <>
+                    {filteredReceivedTokens
+                      .filter((token: any) =>
+                        selecting === "pay"
+                          ? token.address !== receiveToken?.address
+                          : token.address !== payToken?.address
+                      )
+                      .map((token: any) => (
+                        <button
+                          key={token.address}
+                          onClick={() => handleTokenSelect(token, selecting!)}
+                          className="flex items-center gap-3 w-full px-3 py-3 rounded-lg hover:bg-gray-100 transition-colors"
+                        >
+                          <div className="relative w-8 h-8">
+                            {token.symbol === "SWOP" ? (
+                              <Image
+                                src={token.logoURI}
+                                alt={token.symbol}
+                                width={1020}
+                                height={1020}
+                                quality={100}
+                                className="w-auto h-auto rounded-full border"
+                              />
+                            ) : (
+                              <Image
+                                src={
+                                  token?.marketData?.iconUrl ||
+                                  token?.logoURI ||
+                                  getTokenIcon(token)
+                                }
+                                alt={token.symbol}
+                                width={1020}
+                                height={1020}
+                                quality={100}
+                                className="w-auto h-auto rounded-full"
+                              />
+                            )}
+                            {token.chain && (
+                              <div className="absolute -bottom-1 -right-1 bg-white rounded-full p-0.5 flex items-center justify-center w-4 h-4 border border-gray-200">
+                                <Image
+                                  src={getChainIcon(token.chain) || ""}
+                                  alt={token.chain}
+                                  width={120}
+                                  height={120}
+                                  quality={100}
+                                  className="w-3 h-3 rounded-full"
+                                />
+                              </div>
+                            )}
+                          </div>
+                          <div className="flex justify-between w-full items-center">
+                            <div className="text-left">
+                              <p className="font-semibold">{token.symbol}</p>
+                              <p className="text-xs text-gray-500">
+                                {token.name}
+                              </p>
+                            </div>
+                            {token.balance && (
+                              <span className="text-gray-400 text-sm font-medium">
+                                {parseFloat(token.balance).toFixed(4)}
+                              </span>
+                            )}
+                          </div>
+                        </button>
+                      ))}
+                  </>
+                )}
 
                 {!isLoadingTokens && availableTokens.length === 0 && (
                   <div className="text-center py-8 text-gray-500">
