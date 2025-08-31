@@ -415,97 +415,76 @@ export function SocketChatProvider({
 
       // Update the conversation list with the new message
       setConversations((prev) => {
-        console.log(
-          '🔍 Updating conversations list with new message'
-        );
-        const index = prev.findIndex(
-          (conv) => conv.conversationId === conversationId
-        );
+        console.log('🔍 Updating conversations list with new message for conversation:', conversationId);
+        
+        const index = prev.findIndex((conv) => conv.conversationId === conversationId);
+        
         if (index !== -1) {
-          console.log(
-            `🔍 Found existing conversation at index ${index}`
-          );
+          console.log(`🔍 Found existing conversation at index ${index}`);
           const updatedConversations = [...prev];
           updatedConversations[index] = {
             ...updatedConversations[index],
             lastMessage: message.content,
             lastMessageTime: message.createdAt,
+            // Don't increment unread count if this is the active conversation
+            unreadCount: conversationId === activeConversationId 
+              ? 0 
+              : (updatedConversations[index].unreadCount || 0) + 1,
           };
+          console.log(`🔍 Updated conversation:`, updatedConversations[index]);
           return updatedConversations;
         }
 
-        // If this is a new conversation, add it to the conversations list
-        if (conversationId) {
-          // Extract sender/recipient info to create conversation object
-          let displayName = '';
+        // Create new conversation entry if it doesn't exist
+        if (conversationId && user) {
+          console.log('🔍 Creating new conversation entry for:', conversationId);
+          
+          // Determine peer address from conversation ID and message
           let peerAddress = '';
-
-          // Find the ID that's not the current user
-          if (user && user.id) {
-            const parts = conversationId.split('_');
-
-            // Determine which part is the peer (not the current user)
-            let peerId;
-            if (parts[0] === user.id) {
-              peerId = parts[1];
-            } else if (parts[1] === user.id) {
-              peerId = parts[0];
-            } else if (user.wallet?.address) {
-              // Check if one of the parts matches the user's ETH address
-              if (parts[0] === user.wallet.address) {
-                peerId = parts[1];
-              } else if (parts[1] === user.wallet.address) {
-                peerId = parts[0];
-              } else {
-                // If neither part matches, use the sender ID if it's not the current user
-                peerId =
-                  message.senderId !== user.id
-                    ? message.senderId
-                    : message.recipientId;
-              }
+          let displayName = 'Unknown';
+          
+          // Try to extract peer from conversation ID
+          const parts = conversationId.split('_');
+          if (parts.length === 2) {
+            // Find which part is not the current user
+            if (parts[0] === user.id || parts[0] === user.wallet?.address) {
+              peerAddress = parts[1];
+            } else if (parts[1] === user.id || parts[1] === user.wallet?.address) {
+              peerAddress = parts[0];
             } else {
-              // Fallback: use the sender ID if it's not the current user
-              peerId =
-                message.senderId !== user.id
-                  ? message.senderId
-                  : message.recipientId;
+              // Fallback: determine from message sender/recipient
+              peerAddress = message.senderId !== user.id ? message.senderId : message.recipientId;
             }
-
-            peerAddress = peerId;
-
-            // Format the display name based on the ID type
-            if (peerId.startsWith('did:privy:')) {
-              displayName = `${peerId.substring(
-                0,
-                10
-              )}...${peerId.substring(peerId.length - 5)}`;
-            } else if (peerId.startsWith('0x')) {
-              displayName = `${peerId.substring(
-                0,
-                6
-              )}...${peerId.substring(peerId.length - 4)}`;
+          } else {
+            // Fallback: determine from message sender/recipient
+            peerAddress = message.senderId !== user.id ? message.senderId : message.recipientId;
+          }
+          
+          // Create display name
+          if (peerAddress) {
+            if (peerAddress.startsWith('did:privy:')) {
+              displayName = `${peerAddress.substring(0, 10)}...${peerAddress.substring(peerAddress.length - 5)}`;
+            } else if (peerAddress.startsWith('0x')) {
+              displayName = `${peerAddress.substring(0, 6)}...${peerAddress.substring(peerAddress.length - 4)}`;
             } else {
-              displayName = peerId;
+              displayName = peerAddress;
             }
           }
 
-          console.log(
-            `Adding new conversation: ${conversationId} with peer: ${peerAddress}`
-          );
+          const newConversation = {
+            conversationId,
+            peerAddress,
+            displayName,
+            lastMessage: message.content,
+            lastMessageTime: message.createdAt,
+            unreadCount: conversationId === activeConversationId ? 0 : 1,
+          };
 
-          return [
-            ...prev,
-            {
-              conversationId: conversationId,
-              peerAddress,
-              displayName,
-              lastMessage: message.content,
-              lastMessageTime: message.createdAt,
-              unreadCount: 1,
-            },
-          ];
+          console.log('🔍 Adding new conversation:', newConversation);
+          return [...prev, newConversation];
         }
 
+        console.log('🔍 No changes to conversations list');
         return prev;
       });
 
@@ -674,76 +653,137 @@ export function SocketChatProvider({
       setUserPresence(presenceMap);
     });
 
-    // Listen for unread counts
+    // Listen for unread counts and conversation updates
     socketInstance.on('unread_counts', (data) => {
+      console.log('📊 Received unread_counts:', data);
+      
       if (data.channels && data.directMessages) {
         // Handle bulk unread counts update
-        const updatedConversations: ChatConversation[] = [
-          ...data.directMessages.map((dm: any) => ({
+        console.log('📊 Processing bulk unread counts:', data.directMessages);
+        
+        const updatedConversations: ChatConversation[] = data.directMessages.map((dm: any) => {
+          // Get the peer address (the other person in the conversation)
+          const conversationParts = dm.conversationId.split('_');
+          let displayName = 'Unknown';
+          let peerAddress = '';
+          
+          // Find which part is not the current user
+          if (conversationParts.length === 2) {
+            if (conversationParts[0] === user?.id || conversationParts[0] === user?.wallet?.address) {
+              peerAddress = conversationParts[1];
+            } else if (conversationParts[1] === user?.id || conversationParts[1] === user?.wallet?.address) {
+              peerAddress = conversationParts[0];
+            } else {
+              peerAddress = conversationParts[0]; // Fallback
+            }
+          }
+          
+          // Create display name
+          if (peerAddress) {
+            if (peerAddress.startsWith('did:privy:')) {
+              displayName = `${peerAddress.substring(0, 10)}...${peerAddress.substring(peerAddress.length - 5)}`;
+            } else if (peerAddress.startsWith('0x')) {
+              displayName = `${peerAddress.substring(0, 6)}...${peerAddress.substring(peerAddress.length - 4)}`;
+            } else {
+              displayName = peerAddress;
+            }
+          }
+          
+          return {
             conversationId: dm.conversationId,
-            peerAddress:
-              dm.conversationId
-                .split('_')
-                .find((id: string) => id !== user.id) || '',
-            displayName: '', // Will need to be set with user data
-            lastMessage: dm.lastMessage,
-            lastMessageTime: dm.lastMessageTime,
-            unreadCount: dm.count,
-          })),
-        ];
+            peerAddress,
+            displayName,
+            lastMessage: dm.lastMessage || '',
+            lastMessageTime: dm.lastMessageTime || new Date().toISOString(),
+            unreadCount: dm.count || 0,
+          };
+        });
 
+        console.log('📊 Setting conversations from bulk update:', updatedConversations);
         setConversations(updatedConversations);
       } else if (data.conversationId) {
         // Handle single conversation update
+        console.log('📊 Processing single conversation update:', data);
+        
         setConversations((prev) => {
           const index = prev.findIndex(
             (conv) => conv.conversationId === data.conversationId
           );
+          
           if (index !== -1) {
+            // Update existing conversation
             const updatedConversations = [...prev];
             updatedConversations[index] = {
               ...updatedConversations[index],
-              unreadCount: data.count,
-              lastMessage: data.lastMessage,
-              lastMessageTime: data.lastMessageTime,
+              unreadCount: data.count || 0,
+              lastMessage: data.lastMessage || updatedConversations[index].lastMessage,
+              lastMessageTime: data.lastMessageTime || updatedConversations[index].lastMessageTime,
             };
+            console.log('📊 Updated existing conversation:', updatedConversations[index]);
             return updatedConversations;
-          }
-          // If conversation doesn't exist yet, add it
-          if (data.senderId && data.senderId !== user?.id) {
-            // Create a safe display name from sender ID
+          } else if (data.senderId && data.senderId !== user?.id) {
+            // Create new conversation entry
             let displayName = 'Unknown';
-            try {
-              if (
-                typeof data.senderId === 'string' &&
-                data.senderId.length > 10
-              ) {
-                displayName =
-                  data.senderId.substring(0, 6) +
-                  '...' +
-                  data.senderId.substring(data.senderId.length - 4);
-              } else {
-                displayName = String(data.senderId);
-              }
-            } catch (err) {
-              console.error('Error formatting displayName:', err);
+            let peerAddress = data.senderId;
+            
+            // Format display name
+            if (peerAddress.startsWith('did:privy:')) {
+              displayName = `${peerAddress.substring(0, 10)}...${peerAddress.substring(peerAddress.length - 5)}`;
+            } else if (peerAddress.startsWith('0x')) {
+              displayName = `${peerAddress.substring(0, 6)}...${peerAddress.substring(peerAddress.length - 4)}`;
+            } else {
+              displayName = peerAddress;
             }
 
-            return [
-              ...prev,
-              {
-                conversationId: data.conversationId,
-                peerAddress: data.senderId,
-                displayName,
-                lastMessage: data.lastMessage || '',
-                lastMessageTime:
-                  data.lastMessageTime || new Date().toISOString(),
-                unreadCount: data.count || 0,
-              },
-            ];
+            const newConversation = {
+              conversationId: data.conversationId,
+              peerAddress,
+              displayName,
+              lastMessage: data.lastMessage || '',
+              lastMessageTime: data.lastMessageTime || new Date().toISOString(),
+              unreadCount: data.count || 0,
+            };
+            
+            console.log('📊 Creating new conversation:', newConversation);
+            return [...prev, newConversation];
           }
           return prev;
         });
+      }
+    });
+
+    // Listen for conversation list (alternative event)
+    socketInstance.on('conversation_list', (conversationList: any[]) => {
+      console.log('📋 Received conversation_list:', conversationList);
+      
+      if (conversationList && Array.isArray(conversationList)) {
+        const formattedConversations: ChatConversation[] = conversationList.map((conv: any) => {
+          // Format the conversation data
+          let displayName = 'Unknown';
+          const peerAddress = conv.peerAddress || conv.recipientId || '';
+          
+          if (peerAddress) {
+            if (peerAddress.startsWith('did:privy:')) {
+              displayName = `${peerAddress.substring(0, 10)}...${peerAddress.substring(peerAddress.length - 5)}`;
+            } else if (peerAddress.startsWith('0x')) {
+              displayName = `${peerAddress.substring(0, 6)}...${peerAddress.substring(peerAddress.length - 4)}`;
+            } else {
+              displayName = peerAddress;
+            }
+          }
+          
+          return {
+            conversationId: conv.conversationId || `${conv.senderId}_${conv.recipientId}`,
+            peerAddress,
+            displayName: conv.displayName || displayName,
+            lastMessage: conv.lastMessage || '',
+            lastMessageTime: conv.lastMessageTime || new Date().toISOString(),
+            unreadCount: conv.unreadCount || 0,
+          };
+        });
+        
+        console.log('📋 Setting conversations from conversation_list:', formattedConversations);
+        setConversations(formattedConversations);
       }
     });
 
@@ -815,12 +855,29 @@ export function SocketChatProvider({
         conversations: Object.keys(messages),
       });
 
+      // **CRITICAL FIX**: Immediately request conversation history
+      // The server should respond with unread_counts event that populates conversations
+      console.log('🔄 Requesting conversation history and unread counts...');
+      socket.emit('fetch_unread_counts', { userId: user.id });
+      
+      // Also try alternative methods to get conversation data
+      socket.emit('get_conversation_list', { userId: user.id });
+      
+      // Set a fallback timer to retry if no conversations are received
+      const conversationRetryTimer = setTimeout(() => {
+        if (conversations.length === 0) {
+          console.log('⚠️ No conversations received after 3 seconds, retrying...');
+          socket.emit('fetch_unread_counts', { userId: user.id });
+          socket.emit('get_conversation_list', { userId: user.id });
+        }
+      }, 3000);
+
       // Fetch user's groups - with explicit debug
       console.log(`🔍 Requesting groups for user: ${user.id}`);
       socket.emit('get_user_groups', { userId: user.id });
 
       // Set a timeout to retry fetching groups if none are received
-      const retryTimer = setTimeout(() => {
+      const groupRetryTimer = setTimeout(() => {
         if (groups.length === 0) {
           console.log(
             `⚠️ No groups received after 3 seconds, retrying...`
@@ -829,7 +886,10 @@ export function SocketChatProvider({
         }
       }, 3000);
 
-      return () => clearTimeout(retryTimer);
+      return () => {
+        clearTimeout(conversationRetryTimer);
+        clearTimeout(groupRetryTimer);
+      };
     }
     // We intentionally exclude some dependencies to avoid infinite loops
     // eslint-disable-next-line react-hooks/exhaustive-deps
