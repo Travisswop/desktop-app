@@ -267,13 +267,28 @@ const SocketChatContext = createContext<
   SocketChatContextType | undefined
 >(undefined);
 
+// Custom hook to safely use UserContext
+function useUserSafely() {
+  try {
+    return useUser();
+  } catch (error) {
+    // UserProvider is not available
+    console.log(
+      'UserProvider not available, proceeding with Privy data only'
+    );
+    return { user: null };
+  }
+}
+
 export function SocketChatProvider({
   children,
 }: {
   children: ReactNode;
 }) {
   const { user } = usePrivy();
-  const userContext = useUser();
+
+  // Safely use useUser hook with error handling
+  const userContext = useUserSafely();
   const userData = userContext.user;
 
   console.log('🚀 ~ SocketChatProvider ~ user:', user);
