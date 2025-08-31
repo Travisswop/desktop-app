@@ -22,7 +22,14 @@ export interface ChatMessage {
   channelId?: string; // For group messages
   content: string;
   createdAt: string;
-  messageType?: 'text' | 'image' | 'video' | 'file' | 'bot_command' | 'transaction' | 'crypto_action';
+  messageType?:
+    | 'text'
+    | 'image'
+    | 'video'
+    | 'file'
+    | 'bot_command'
+    | 'transaction'
+    | 'crypto_action';
   attachment?: string;
   reactions?: Array<{
     userId: string;
@@ -41,7 +48,7 @@ export interface ChatMessage {
   ethAddress?: string;
   ensName?: string;
   displayName?: string;
-  
+
   // Bot-specific message fields
   isFromBot?: boolean;
   botId?: string;
@@ -55,7 +62,7 @@ export interface ChatMessage {
     transactionHash?: string;
     networkFee?: string;
   };
-  
+
   // Crypto transaction fields
   transactionData?: {
     type: 'send' | 'swap' | 'bridge' | 'stake' | 'unstake';
@@ -68,16 +75,20 @@ export interface ChatMessage {
     hash?: string;
     blockNumber?: number;
   };
-  
+
   // Interactive elements
   quickReplies?: Array<{
     text: string;
     action: string;
     data?: any;
   }>;
-  
+
   // User verification and permissions
-  verificationStatus?: 'unverified' | 'email_verified' | 'wallet_verified' | 'kyc_verified';
+  verificationStatus?:
+    | 'unverified'
+    | 'email_verified'
+    | 'wallet_verified'
+    | 'kyc_verified';
   permissions?: string[];
 }
 
@@ -107,33 +118,53 @@ export interface GroupMember {
   ethAddress?: string;
   ensName?: string;
   bio?: string;
-  
+
   // Bot-specific fields
   isBot?: boolean;
   botType?: 'crypto' | 'ai' | 'trading' | 'defi' | 'nft' | 'custom';
   botCapabilities?: Array<
-    'price_check' | 'swap_tokens' | 'send_crypto' | 
-    'check_balance' | 'transaction_history' | 'portfolio_analysis' |
-    'defi_yields' | 'nft_floor_prices' | 'market_analysis' |
-    'trading_signals' | 'gas_tracker' | 'bridge_tokens'
+    | 'price_check'
+    | 'swap_tokens'
+    | 'send_crypto'
+    | 'check_balance'
+    | 'transaction_history'
+    | 'portfolio_analysis'
+    | 'defi_yields'
+    | 'nft_floor_prices'
+    | 'market_analysis'
+    | 'trading_signals'
+    | 'gas_tracker'
+    | 'bridge_tokens'
   >;
-  
+
   // Channel-specific user settings
   notificationsEnabled?: boolean;
   canInviteOthers?: boolean;
   canInteractWithBots?: boolean;
   joinedAt?: Date;
   lastActivity?: Date;
-  
+
   // Permissions
   permissions?: Array<
-    'read_messages' | 'send_messages' | 'send_media' | 'mention_everyone' |
-    'manage_messages' | 'kick_members' | 'ban_members' | 'create_invite' |
-    'manage_channel' | 'interact_with_bots' | 'execute_bot_commands'
+    | 'read_messages'
+    | 'send_messages'
+    | 'send_media'
+    | 'mention_everyone'
+    | 'manage_messages'
+    | 'kick_members'
+    | 'ban_members'
+    | 'create_invite'
+    | 'manage_channel'
+    | 'interact_with_bots'
+    | 'execute_bot_commands'
   >;
-  
+
   // Verification and reputation
-  verificationStatus?: 'unverified' | 'email_verified' | 'wallet_verified' | 'kyc_verified';
+  verificationStatus?:
+    | 'unverified'
+    | 'email_verified'
+    | 'wallet_verified'
+    | 'kyc_verified';
   reputation?: number;
 }
 
@@ -213,7 +244,10 @@ interface SocketChatContextType {
   }) => Promise<void>;
   getAvailableBots: (groupId?: string) => Promise<GroupMember[]>;
   addBotToGroup: (groupId: string, botId: string) => Promise<void>;
-  removeBotFromGroup: (groupId: string, botId: string) => Promise<void>;
+  removeBotFromGroup: (
+    groupId: string,
+    botId: string
+  ) => Promise<void>;
   getBotCapabilities: (botId: string) => Promise<string[]>;
   // Crypto transaction operations
   initiateCryptoTransaction: (params: {
@@ -238,6 +272,7 @@ export function SocketChatProvider({
   children: ReactNode;
 }) {
   const { user } = usePrivy();
+  console.log('🚀 ~ SocketChatProvider ~ user:', user);
   const [socket, setSocket] = useState<Socket | null>(null);
   const [isConnected, setIsConnected] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -451,24 +486,29 @@ export function SocketChatProvider({
 
           // IMPORTANT: Remove any temporary messages with the same content and sender
           // This prevents duplicate messages when optimistic updates are replaced by server messages
-          const filteredMessages = conversationMessages.filter((msg) => {
-            // Keep all non-temporary messages
-            if (!msg._id.startsWith('temp_')) {
-              return true;
+          const filteredMessages = conversationMessages.filter(
+            (msg) => {
+              // Keep all non-temporary messages
+              if (!msg._id.startsWith('temp_')) {
+                return true;
+              }
+
+              // For temporary messages, remove if they have the same sender and content
+              // as the incoming server message (this means it's a duplicate)
+              const isSameSender = msg.senderId === message.senderId;
+              const isSameContent =
+                msg.content.trim() === message.content.trim();
+
+              if (isSameSender && isSameContent) {
+                console.log(
+                  `🗑️ Removing temporary message ${msg._id} as it's being replaced by server message ${message._id}`
+                );
+                return false; // Remove this temporary message
+              }
+
+              return true; // Keep this temporary message
             }
-            
-            // For temporary messages, remove if they have the same sender and content
-            // as the incoming server message (this means it's a duplicate)
-            const isSameSender = msg.senderId === message.senderId;
-            const isSameContent = msg.content.trim() === message.content.trim();
-            
-            if (isSameSender && isSameContent) {
-              console.log(`🗑️ Removing temporary message ${msg._id} as it's being replaced by server message ${message._id}`);
-              return false; // Remove this temporary message
-            }
-            
-            return true; // Keep this temporary message
-          });
+          );
 
           // Create the new state with filtered messages plus the new server message
           const newState = {
@@ -518,57 +558,89 @@ export function SocketChatProvider({
 
       // Update the conversation list with the new message
       setConversations((prev) => {
-        console.log('🔍 Updating conversations list with new message for conversation:', conversationId);
-        
-        const index = prev.findIndex((conv) => conv.conversationId === conversationId);
-        
+        console.log(
+          '🔍 Updating conversations list with new message for conversation:',
+          conversationId
+        );
+
+        const index = prev.findIndex(
+          (conv) => conv.conversationId === conversationId
+        );
+
         if (index !== -1) {
-          console.log(`🔍 Found existing conversation at index ${index}`);
+          console.log(
+            `🔍 Found existing conversation at index ${index}`
+          );
           const updatedConversations = [...prev];
           updatedConversations[index] = {
             ...updatedConversations[index],
             lastMessage: message.content,
             lastMessageTime: message.createdAt,
             // Don't increment unread count if this is the active conversation
-            unreadCount: conversationId === activeConversationId 
-              ? 0 
-              : (updatedConversations[index].unreadCount || 0) + 1,
+            unreadCount:
+              conversationId === activeConversationId
+                ? 0
+                : (updatedConversations[index].unreadCount || 0) + 1,
           };
-          console.log(`🔍 Updated conversation:`, updatedConversations[index]);
+          console.log(
+            `🔍 Updated conversation:`,
+            updatedConversations[index]
+          );
           return updatedConversations;
         }
 
         // Create new conversation entry if it doesn't exist
         if (conversationId && user) {
-          console.log('🔍 Creating new conversation entry for:', conversationId);
-          
+          console.log(
+            '🔍 Creating new conversation entry for:',
+            conversationId
+          );
+
           // Determine peer address from conversation ID and message
           let peerAddress = '';
           let displayName = 'Unknown';
-          
+
           // Try to extract peer from conversation ID
           const parts = conversationId.split('_');
           if (parts.length === 2) {
             // Find which part is not the current user
-            if (parts[0] === user.id || parts[0] === user.wallet?.address) {
+            if (
+              parts[0] === user.id ||
+              parts[0] === user.wallet?.address
+            ) {
               peerAddress = parts[1];
-            } else if (parts[1] === user.id || parts[1] === user.wallet?.address) {
+            } else if (
+              parts[1] === user.id ||
+              parts[1] === user.wallet?.address
+            ) {
               peerAddress = parts[0];
             } else {
               // Fallback: determine from message sender/recipient
-              peerAddress = message.senderId !== user.id ? message.senderId : message.recipientId;
+              peerAddress =
+                message.senderId !== user.id
+                  ? message.senderId
+                  : message.recipientId;
             }
           } else {
             // Fallback: determine from message sender/recipient
-            peerAddress = message.senderId !== user.id ? message.senderId : message.recipientId;
+            peerAddress =
+              message.senderId !== user.id
+                ? message.senderId
+                : message.recipientId;
           }
-          
+
           // Create display name
           if (peerAddress) {
             if (peerAddress.startsWith('did:privy:')) {
-              displayName = `${peerAddress.substring(0, 10)}...${peerAddress.substring(peerAddress.length - 5)}`;
+              displayName = `${peerAddress.substring(
+                0,
+                10
+              )}...${peerAddress.substring(peerAddress.length - 5)}`;
             } else if (peerAddress.startsWith('0x')) {
-              displayName = `${peerAddress.substring(0, 6)}...${peerAddress.substring(peerAddress.length - 4)}`;
+              displayName = `${peerAddress.substring(
+                0,
+                6
+              )}...${peerAddress.substring(peerAddress.length - 4)}`;
             } else {
               displayName = peerAddress;
             }
@@ -580,7 +652,8 @@ export function SocketChatProvider({
             displayName,
             lastMessage: message.content,
             lastMessageTime: message.createdAt,
-            unreadCount: conversationId === activeConversationId ? 0 : 1,
+            unreadCount:
+              conversationId === activeConversationId ? 0 : 1,
           };
 
           console.log('🔍 Adding new conversation:', newConversation);
@@ -648,23 +721,29 @@ export function SocketChatProvider({
               );
 
               // Remove any temporary messages with the same content and sender
-              const filteredMessages = conversationMessages.filter((msg) => {
-                // Keep all non-temporary messages
-                if (!msg._id.startsWith('temp_')) {
-                  return true;
+              const filteredMessages = conversationMessages.filter(
+                (msg) => {
+                  // Keep all non-temporary messages
+                  if (!msg._id.startsWith('temp_')) {
+                    return true;
+                  }
+
+                  // For temporary messages, remove if they have the same sender and content
+                  const isSameSender =
+                    msg.senderId === message.senderId;
+                  const isSameContent =
+                    msg.content.trim() === message.content.trim();
+
+                  if (isSameSender && isSameContent) {
+                    console.log(
+                      `🗑️ Removing temporary broadcast message ${msg._id} as it's being replaced by server message ${message._id}`
+                    );
+                    return false; // Remove this temporary message
+                  }
+
+                  return true; // Keep this temporary message
                 }
-                
-                // For temporary messages, remove if they have the same sender and content
-                const isSameSender = msg.senderId === message.senderId;
-                const isSameContent = msg.content.trim() === message.content.trim();
-                
-                if (isSameSender && isSameContent) {
-                  console.log(`🗑️ Removing temporary broadcast message ${msg._id} as it's being replaced by server message ${message._id}`);
-                  return false; // Remove this temporary message
-                }
-                
-                return true; // Keep this temporary message
-              });
+              );
 
               return {
                 ...prev,
@@ -759,81 +838,121 @@ export function SocketChatProvider({
     // Listen for unread counts and conversation updates
     socketInstance.on('unread_counts', (data) => {
       console.log('📊 Received unread_counts:', data);
-      
+
       if (data.channels && data.directMessages) {
         // Handle bulk unread counts update
-        console.log('📊 Processing bulk unread counts:', data.directMessages);
-        
-        const updatedConversations: ChatConversation[] = data.directMessages.map((dm: any) => {
-          // Get the peer address (the other person in the conversation)
-          const conversationParts = dm.conversationId.split('_');
-          let displayName = 'Unknown';
-          let peerAddress = '';
-          
-          // Find which part is not the current user
-          if (conversationParts.length === 2) {
-            if (conversationParts[0] === user?.id || conversationParts[0] === user?.wallet?.address) {
-              peerAddress = conversationParts[1];
-            } else if (conversationParts[1] === user?.id || conversationParts[1] === user?.wallet?.address) {
-              peerAddress = conversationParts[0];
-            } else {
-              peerAddress = conversationParts[0]; // Fallback
-            }
-          }
-          
-          // Create display name
-          if (peerAddress) {
-            if (peerAddress.startsWith('did:privy:')) {
-              displayName = `${peerAddress.substring(0, 10)}...${peerAddress.substring(peerAddress.length - 5)}`;
-            } else if (peerAddress.startsWith('0x')) {
-              displayName = `${peerAddress.substring(0, 6)}...${peerAddress.substring(peerAddress.length - 4)}`;
-            } else {
-              displayName = peerAddress;
-            }
-          }
-          
-          return {
-            conversationId: dm.conversationId,
-            peerAddress,
-            displayName,
-            lastMessage: dm.lastMessage || '',
-            lastMessageTime: dm.lastMessageTime || new Date().toISOString(),
-            unreadCount: dm.count || 0,
-          };
-        });
+        console.log(
+          '📊 Processing bulk unread counts:',
+          data.directMessages
+        );
 
-        console.log('📊 Setting conversations from bulk update:', updatedConversations);
+        const updatedConversations: ChatConversation[] =
+          data.directMessages.map((dm: any) => {
+            // Get the peer address (the other person in the conversation)
+            const conversationParts = dm.conversationId.split('_');
+            let displayName = 'Unknown';
+            let peerAddress = '';
+
+            // Find which part is not the current user
+            if (conversationParts.length === 2) {
+              if (
+                conversationParts[0] === user?.id ||
+                conversationParts[0] === user?.wallet?.address
+              ) {
+                peerAddress = conversationParts[1];
+              } else if (
+                conversationParts[1] === user?.id ||
+                conversationParts[1] === user?.wallet?.address
+              ) {
+                peerAddress = conversationParts[0];
+              } else {
+                peerAddress = conversationParts[0]; // Fallback
+              }
+            }
+
+            // Create display name
+            if (peerAddress) {
+              if (peerAddress.startsWith('did:privy:')) {
+                displayName = `${peerAddress.substring(
+                  0,
+                  10
+                )}...${peerAddress.substring(
+                  peerAddress.length - 5
+                )}`;
+              } else if (peerAddress.startsWith('0x')) {
+                displayName = `${peerAddress.substring(
+                  0,
+                  6
+                )}...${peerAddress.substring(
+                  peerAddress.length - 4
+                )}`;
+              } else {
+                displayName = peerAddress;
+              }
+            }
+
+            return {
+              conversationId: dm.conversationId,
+              peerAddress,
+              displayName,
+              lastMessage: dm.lastMessage || '',
+              lastMessageTime:
+                dm.lastMessageTime || new Date().toISOString(),
+              unreadCount: dm.count || 0,
+            };
+          });
+
+        console.log(
+          '📊 Setting conversations from bulk update:',
+          updatedConversations
+        );
         setConversations(updatedConversations);
       } else if (data.conversationId) {
         // Handle single conversation update
-        console.log('📊 Processing single conversation update:', data);
-        
+        console.log(
+          '📊 Processing single conversation update:',
+          data
+        );
+
         setConversations((prev) => {
           const index = prev.findIndex(
             (conv) => conv.conversationId === data.conversationId
           );
-          
+
           if (index !== -1) {
             // Update existing conversation
             const updatedConversations = [...prev];
             updatedConversations[index] = {
               ...updatedConversations[index],
               unreadCount: data.count || 0,
-              lastMessage: data.lastMessage || updatedConversations[index].lastMessage,
-              lastMessageTime: data.lastMessageTime || updatedConversations[index].lastMessageTime,
+              lastMessage:
+                data.lastMessage ||
+                updatedConversations[index].lastMessage,
+              lastMessageTime:
+                data.lastMessageTime ||
+                updatedConversations[index].lastMessageTime,
             };
-            console.log('📊 Updated existing conversation:', updatedConversations[index]);
+            console.log(
+              '📊 Updated existing conversation:',
+              updatedConversations[index]
+            );
             return updatedConversations;
           } else if (data.senderId && data.senderId !== user?.id) {
             // Create new conversation entry
             let displayName = 'Unknown';
             let peerAddress = data.senderId;
-            
+
             // Format display name
             if (peerAddress.startsWith('did:privy:')) {
-              displayName = `${peerAddress.substring(0, 10)}...${peerAddress.substring(peerAddress.length - 5)}`;
+              displayName = `${peerAddress.substring(
+                0,
+                10
+              )}...${peerAddress.substring(peerAddress.length - 5)}`;
             } else if (peerAddress.startsWith('0x')) {
-              displayName = `${peerAddress.substring(0, 6)}...${peerAddress.substring(peerAddress.length - 4)}`;
+              displayName = `${peerAddress.substring(
+                0,
+                6
+              )}...${peerAddress.substring(peerAddress.length - 4)}`;
             } else {
               displayName = peerAddress;
             }
@@ -843,11 +962,15 @@ export function SocketChatProvider({
               peerAddress,
               displayName,
               lastMessage: data.lastMessage || '',
-              lastMessageTime: data.lastMessageTime || new Date().toISOString(),
+              lastMessageTime:
+                data.lastMessageTime || new Date().toISOString(),
               unreadCount: data.count || 0,
             };
-            
-            console.log('📊 Creating new conversation:', newConversation);
+
+            console.log(
+              '📊 Creating new conversation:',
+              newConversation
+            );
             return [...prev, newConversation];
           }
           return prev;
@@ -856,39 +979,63 @@ export function SocketChatProvider({
     });
 
     // Listen for conversation list (alternative event)
-    socketInstance.on('conversation_list', (conversationList: any[]) => {
-      console.log('📋 Received conversation_list:', conversationList);
-      
-      if (conversationList && Array.isArray(conversationList)) {
-        const formattedConversations: ChatConversation[] = conversationList.map((conv: any) => {
-          // Format the conversation data
-          let displayName = 'Unknown';
-          const peerAddress = conv.peerAddress || conv.recipientId || '';
-          
-          if (peerAddress) {
-            if (peerAddress.startsWith('did:privy:')) {
-              displayName = `${peerAddress.substring(0, 10)}...${peerAddress.substring(peerAddress.length - 5)}`;
-            } else if (peerAddress.startsWith('0x')) {
-              displayName = `${peerAddress.substring(0, 6)}...${peerAddress.substring(peerAddress.length - 4)}`;
-            } else {
-              displayName = peerAddress;
-            }
-          }
-          
-          return {
-            conversationId: conv.conversationId || `${conv.senderId}_${conv.recipientId}`,
-            peerAddress,
-            displayName: conv.displayName || displayName,
-            lastMessage: conv.lastMessage || '',
-            lastMessageTime: conv.lastMessageTime || new Date().toISOString(),
-            unreadCount: conv.unreadCount || 0,
-          };
-        });
-        
-        console.log('📋 Setting conversations from conversation_list:', formattedConversations);
-        setConversations(formattedConversations);
+    socketInstance.on(
+      'conversation_list',
+      (conversationList: any[]) => {
+        console.log(
+          '📋 Received conversation_list:',
+          conversationList
+        );
+
+        if (conversationList && Array.isArray(conversationList)) {
+          const formattedConversations: ChatConversation[] =
+            conversationList.map((conv: any) => {
+              // Format the conversation data
+              let displayName = 'Unknown';
+              const peerAddress =
+                conv.peerAddress || conv.recipientId || '';
+
+              if (peerAddress) {
+                if (peerAddress.startsWith('did:privy:')) {
+                  displayName = `${peerAddress.substring(
+                    0,
+                    10
+                  )}...${peerAddress.substring(
+                    peerAddress.length - 5
+                  )}`;
+                } else if (peerAddress.startsWith('0x')) {
+                  displayName = `${peerAddress.substring(
+                    0,
+                    6
+                  )}...${peerAddress.substring(
+                    peerAddress.length - 4
+                  )}`;
+                } else {
+                  displayName = peerAddress;
+                }
+              }
+
+              return {
+                conversationId:
+                  conv.conversationId ||
+                  `${conv.senderId}_${conv.recipientId}`,
+                peerAddress,
+                displayName: conv.displayName || displayName,
+                lastMessage: conv.lastMessage || '',
+                lastMessageTime:
+                  conv.lastMessageTime || new Date().toISOString(),
+                unreadCount: conv.unreadCount || 0,
+              };
+            });
+
+          console.log(
+            '📋 Setting conversations from conversation_list:',
+            formattedConversations
+          );
+          setConversations(formattedConversations);
+        }
       }
-    });
+    );
 
     // Listen for edited messages
     socketInstance.on(
@@ -960,16 +1107,20 @@ export function SocketChatProvider({
 
       // **CRITICAL FIX**: Immediately request conversation history
       // The server should respond with unread_counts event that populates conversations
-      console.log('🔄 Requesting conversation history and unread counts...');
+      console.log(
+        '🔄 Requesting conversation history and unread counts...'
+      );
       socket.emit('fetch_unread_counts', { userId: user.id });
-      
+
       // Also try alternative methods to get conversation data
       socket.emit('get_conversation_list', { userId: user.id });
-      
+
       // Set a fallback timer to retry if no conversations are received
       const conversationRetryTimer = setTimeout(() => {
         if (conversations.length === 0) {
-          console.log('⚠️ No conversations received after 3 seconds, retrying...');
+          console.log(
+            '⚠️ No conversations received after 3 seconds, retrying...'
+          );
           socket.emit('fetch_unread_counts', { userId: user.id });
           socket.emit('get_conversation_list', { userId: user.id });
         }
@@ -2013,8 +2164,10 @@ export function SocketChatProvider({
       }
 
       try {
-        console.log(`Sending bot command: ${command} to bot: ${botId}`);
-        
+        console.log(
+          `Sending bot command: ${command} to bot: ${botId}`
+        );
+
         socket.emit('send_bot_command', {
           botId,
           command,
@@ -2034,7 +2187,9 @@ export function SocketChatProvider({
   const getAvailableBots = useCallback(
     async (groupId?: string): Promise<GroupMember[]> => {
       if (!socket) {
-        console.warn('Socket not connected, cannot get available bots');
+        console.warn(
+          'Socket not connected, cannot get available bots'
+        );
         throw new Error('Not connected to chat server');
       }
 
@@ -2043,7 +2198,7 @@ export function SocketChatProvider({
 
         const handleAvailableBots = (bots: GroupMember[]) => {
           socket.off('available_bots', handleAvailableBots);
-          resolve(bots.filter(bot => bot.isBot));
+          resolve(bots.filter((bot) => bot.isBot));
         };
 
         socket.on('available_bots', handleAvailableBots);
@@ -2060,7 +2215,9 @@ export function SocketChatProvider({
   const addBotToGroup = useCallback(
     async (groupId: string, botId: string): Promise<void> => {
       if (!socket || !user?.id) {
-        throw new Error('Socket not connected or user not authenticated');
+        throw new Error(
+          'Socket not connected or user not authenticated'
+        );
       }
 
       return new Promise((resolve, reject) => {
@@ -2070,7 +2227,10 @@ export function SocketChatProvider({
           userId: user.id,
         });
 
-        const handleBotAdded = (response: { success: boolean; groupId: string }) => {
+        const handleBotAdded = (response: {
+          success: boolean;
+          groupId: string;
+        }) => {
           if (response.success && response.groupId === groupId) {
             socket.off('bot_added_to_group', handleBotAdded);
             resolve();
@@ -2091,7 +2251,9 @@ export function SocketChatProvider({
   const removeBotFromGroup = useCallback(
     async (groupId: string, botId: string): Promise<void> => {
       if (!socket || !user?.id) {
-        throw new Error('Socket not connected or user not authenticated');
+        throw new Error(
+          'Socket not connected or user not authenticated'
+        );
       }
 
       socket.emit('remove_bot_from_group', {
@@ -2112,7 +2274,10 @@ export function SocketChatProvider({
       return new Promise((resolve, reject) => {
         socket.emit('get_bot_capabilities', { botId });
 
-        const handleBotCapabilities = (data: { botId: string; capabilities: string[] }) => {
+        const handleBotCapabilities = (data: {
+          botId: string;
+          capabilities: string[];
+        }) => {
           if (data.botId === botId) {
             socket.off('bot_capabilities', handleBotCapabilities);
             resolve(data.capabilities);
@@ -2151,7 +2316,9 @@ export function SocketChatProvider({
       groupId?: string;
     }): Promise<void> => {
       if (!socket || !user?.id) {
-        throw new Error('Socket not connected or user not authenticated');
+        throw new Error(
+          'Socket not connected or user not authenticated'
+        );
       }
 
       try {
@@ -2174,7 +2341,10 @@ export function SocketChatProvider({
           groupId,
         });
       } catch (error) {
-        console.error('Failed to initiate crypto transaction:', error);
+        console.error(
+          'Failed to initiate crypto transaction:',
+          error
+        );
         throw error;
       }
     },

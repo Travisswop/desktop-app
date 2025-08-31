@@ -1,30 +1,37 @@
-"use client";
+'use client';
 
-import { useEffect, useState, useMemo, useCallback } from "react";
-import { usePrivy, useWallets, useSolanaWallets } from "@privy-io/react-auth";
-import { useSolanaWalletContext } from "@/lib/context/SolanaWalletContext";
-import { Connection } from "@solana/web3.js";
-import { useToast } from "@/hooks/use-toast";
+import { useEffect, useState, useMemo, useCallback } from 'react';
+import {
+  usePrivy,
+  useWallets,
+  useSolanaWallets,
+} from '@privy-io/react-auth';
+import { useSolanaWalletContext } from '@/lib/context/SolanaWalletContext';
+import { Connection } from '@solana/web3.js';
+import { useToast } from '@/hooks/use-toast';
 
-import { TokenData } from "@/types/token";
-import { NFT } from "@/types/nft";
-import { CHAIN_ID, SendFlowState } from "@/types/wallet-types";
+import { TokenData } from '@/types/token';
+import { NFT } from '@/types/nft';
+import { CHAIN_ID, SendFlowState } from '@/types/wallet-types';
 
 import {
   TransactionService,
   USDC_ADDRESS,
   SWOP_ADDRESS,
-} from "@/services/transaction-service";
-import { useSendFlow } from "@/lib/hooks/useSendFlow";
-import { useMultiChainTokenData } from "@/lib/hooks/useToken";
-import { useNFT } from "@/lib/hooks/useNFT";
-import { useUser } from "@/lib/UserContext";
-import { addSwopPoint } from "@/actions/addPoint";
-import { postFeed } from "@/actions/postFeed";
+} from '@/services/transaction-service';
+import { useSendFlow } from '@/lib/hooks/useSendFlow';
+import { useMultiChainTokenData } from '@/lib/hooks/useToken';
+import { useNFT } from '@/lib/hooks/useNFT';
+import { useUser } from '@/lib/UserContext';
+import { addSwopPoint } from '@/actions/addPoint';
+import { postFeed } from '@/actions/postFeed';
 
 // Custom hooks
-import { useWalletData, useWalletAddresses } from "./hooks/useWalletData";
-import { useTransactionPayload } from "./hooks/useTransactionPayload";
+import {
+  useWalletData,
+  useWalletAddresses,
+} from './hooks/useWalletData';
+import { useTransactionPayload } from './hooks/useTransactionPayload';
 
 // Constants
 import {
@@ -33,23 +40,23 @@ import {
   ERROR_MESSAGES,
   POINT_TYPES,
   ACTION_KEYS,
-} from "./constants";
+} from './constants';
 
 // UI Components
-import TokenList from "./token/token-list";
-import NFTSlider from "./nft/nft-list";
-import TokenDetails from "./token/token-details-view";
-import NFTDetailView from "./nft/nft-details-view";
-import WalletModals from "./WalletModals";
-import MessageList from "./socket-message-list";
-import { Toaster } from "../ui/toaster";
-import ProfileHeader from "../dashboard/profile-header";
-import RedeemTokenList from "./redeem/token-list";
-import WalletBalanceChartForWalletPage from "./WalletBalanceChart";
+import TokenList from './token/token-list';
+import NFTSlider from './nft/nft-list';
+import TokenDetails from './token/token-details-view';
+import NFTDetailView from './nft/nft-details-view';
+import WalletModals from './WalletModals';
+import MessageList from './socket-message-list';
+import { Toaster } from '../ui/toaster';
+import ProfileHeader from '../dashboard/profile-header';
+import RedeemTokenList from './redeem/token-list';
+import WalletBalanceChartForWalletPage from './WalletBalanceChart';
 // Utilities
-import Cookies from "js-cookie";
-import { createTransactionPayload } from "@/lib/utils/transactionUtils";
-import { Loader2 } from "lucide-react";
+import Cookies from 'js-cookie';
+import { createTransactionPayload } from '@/lib/utils/transactionUtils';
+import { Loader2 } from 'lucide-react';
 
 export default function WalletContent() {
   return <WalletContentInner />;
@@ -57,36 +64,43 @@ export default function WalletContent() {
 
 const WalletContentInner = () => {
   // UI state
-  const [selectedToken, setSelectedToken] = useState<TokenData | null>(null);
+  const [selectedToken, setSelectedToken] =
+    useState<TokenData | null>(null);
   const [selectedNFT, setSelectedNFT] = useState<NFT | null>(null);
   const [isNFTModalOpen, setIsNFTModalOpen] = useState(false);
-  const [accessToken, setAccessToken] = useState("");
+  const [accessToken, setAccessToken] = useState('');
 
   // QR code modals state
   const [walletQRModalOpen, setWalletQRModalOpen] = useState(false);
-  const [walletQRShareModalOpen, setWalletQRShareModalOpen] = useState(false);
-  const [walletShareAddress, setWalletShareAddress] = useState("");
-  const [qrcodeShareUrl, setQrcodeShareUrl] = useState("");
-  const [QRCodeShareModalOpen, setQRCodeShareModalOpen] = useState(false);
+  const [walletQRShareModalOpen, setWalletQRShareModalOpen] =
+    useState(false);
+  const [walletShareAddress, setWalletShareAddress] = useState('');
+  const [qrcodeShareUrl, setQrcodeShareUrl] = useState('');
+  const [QRCodeShareModalOpen, setQRCodeShareModalOpen] =
+    useState(false);
 
   // Hooks
   const { authenticated, ready, user: PrivyUser } = usePrivy();
-  console.log(PrivyUser, "PrivyUser");
+  console.log(PrivyUser, 'PrivyUser');
   const { wallets: ethWallets } = useWallets();
-  console.log(ethWallets, "ethWallets");
-  const { wallets: directSolanaWallets, createWallet: createSolanaWallet } =
-    useSolanaWallets();
-  console.log(directSolanaWallets, "directSolanaWallets");
+  console.log(ethWallets, 'ethWallets');
+  const {
+    wallets: directSolanaWallets,
+    createWallet: createSolanaWallet,
+  } = useSolanaWallets();
+  console.log(directSolanaWallets, 'directSolanaWallets');
   const { createWallet, solanaWallets } = useSolanaWalletContext();
   const { toast } = useToast();
   const { user } = useUser();
 
+  console.log('user', user);
   // Custom hooks
   const walletData = useWalletData(authenticated, ready, PrivyUser);
-  const { solWalletAddress, evmWalletAddress } = useWalletAddresses(walletData);
+  const { solWalletAddress, evmWalletAddress } =
+    useWalletAddresses(walletData);
   const { payload } = useTransactionPayload(user);
   const { wallets: ethWalletsData } = useWallets();
-  console.log(ethWalletsData, "ethWalletsData");
+  console.log(ethWalletsData, 'ethWalletsData');
 
   const {
     sendFlow,
@@ -102,7 +116,7 @@ const WalletContentInner = () => {
 
   // Get access token from cookies
   useEffect(() => {
-    const token = Cookies.get("access-token");
+    const token = Cookies.get('access-token');
     if (token) {
       setAccessToken(token);
     }
@@ -114,9 +128,9 @@ const WalletContentInner = () => {
 
     const hasExistingSolanaWallet = PrivyUser.linkedAccounts.some(
       (account: any) =>
-        account.type === "wallet" &&
-        account.walletClientType === "privy" &&
-        account.chainType === "solana"
+        account.type === 'wallet' &&
+        account.walletClientType === 'privy' &&
+        account.chainType === 'solana'
     );
 
     if (!hasExistingSolanaWallet) {
@@ -148,13 +162,17 @@ const WalletContentInner = () => {
     return tokens.reduce((total, token) => {
       const value =
         parseFloat(token.balance) *
-        (token.marketData?.price ? parseFloat(token.marketData.price) : 0);
+        (token.marketData?.price
+          ? parseFloat(token.marketData.price)
+          : 0);
       return isNaN(value) ? total : total + value;
     }, 0);
   }, [tokens]);
 
   const nativeTokenPrice = useMemo(
-    () => tokens.find((token) => token.isNative)?.marketData?.price || "0",
+    () =>
+      tokens.find((token) => token.isNative)?.marketData?.price ||
+      '0',
     [tokens]
   );
 
@@ -168,7 +186,8 @@ const WalletContentInner = () => {
     (flowData: SendFlowState): string => {
       if (flowData.isUSD && flowData.token?.marketData.price) {
         return (
-          Number(flowData.amount) / Number(flowData.token.marketData.price)
+          Number(flowData.amount) /
+          Number(flowData.token.marketData.price)
         ).toString();
       }
       return flowData.amount;
@@ -181,36 +200,40 @@ const WalletContentInner = () => {
     try {
       const connection = new Connection(
         process.env.NEXT_PUBLIC_QUICKNODE_SOLANA_URL!,
-        "confirmed"
+        'confirmed'
       );
 
       // Use direct Solana wallets from Privy (more reliable)
-      const availableSolanaWallets = directSolanaWallets || solanaWallets || [];
+      const availableSolanaWallets =
+        directSolanaWallets || solanaWallets || [];
 
       const solanaWallet =
         availableSolanaWallets.find(
           (w: any) =>
-            w.walletClientType === "privy" || w.connectorType === "embedded"
+            w.walletClientType === 'privy' ||
+            w.connectorType === 'embedded'
         ) || availableSolanaWallets[0];
 
       // Check if we have a Solana wallet when needed
       if (
-        (sendFlow.token?.chain === "SOLANA" || sendFlow.network === "SOLANA") &&
+        (sendFlow.token?.chain === 'SOLANA' ||
+          sendFlow.network === 'SOLANA') &&
         !solanaWallet
       ) {
         // Check if wallet exists in linked accounts but not in wallets array
         const hasSolanaAccount = PrivyUser?.linkedAccounts?.some(
           (account: any) =>
-            account.chainType === "solana" && account.type === "wallet"
+            account.chainType === 'solana' &&
+            account.type === 'wallet'
         );
 
         if (hasSolanaAccount) {
           throw new Error(
-            "Solana wallet found in account but not accessible. Please refresh the page and try again."
+            'Solana wallet found in account but not accessible. Please refresh the page and try again.'
           );
         } else {
           throw new Error(
-            "No Solana wallet found. Please connect a Solana wallet."
+            'No Solana wallet found. Please connect a Solana wallet.'
           );
         }
       }
@@ -219,8 +242,8 @@ const WalletContentInner = () => {
       const allAccounts = PrivyUser?.linkedAccounts || [];
       const ethereumAccount = allAccounts.find(
         (account: any) =>
-          account.chainType === "ethereum" &&
-          account.type === "wallet" &&
+          account.chainType === 'ethereum' &&
+          account.type === 'wallet' &&
           account.address
       );
 
@@ -234,11 +257,11 @@ const WalletContentInner = () => {
         );
       }
 
-      let hash = "";
+      let hash = '';
 
       if (sendFlow.nft) {
         // Handle NFT transfer
-        if (sendFlow.network === "SOLANA") {
+        if (sendFlow.network === 'SOLANA') {
           hash = await TransactionService.handleSolanaNFTTransfer(
             solanaWallet,
             sendFlow,
@@ -254,7 +277,7 @@ const WalletContentInner = () => {
         refetchNFTs();
       } else if (sendFlow.token) {
         // Handle token transfer
-        if (sendFlow.token.chain === "SOLANA") {
+        if (sendFlow.token.chain === 'SOLANA') {
           // Special handling for USDC and SWOP tokens on Solana
           // if (
           //   sendFlow.token.address === USDC_ADDRESS ||
@@ -328,11 +351,13 @@ const WalletContentInner = () => {
 
       return { success: true, hash };
     } catch (error) {
-      console.error("Transaction execution error:", error);
+      console.error('Transaction execution error:', error);
       return {
         success: false,
         error:
-          error instanceof Error ? error.message : ERROR_MESSAGES.UNKNOWN_ERROR,
+          error instanceof Error
+            ? error.message
+            : ERROR_MESSAGES.UNKNOWN_ERROR,
       };
     }
   }, [
@@ -352,8 +377,8 @@ const WalletContentInner = () => {
       !sendFlow.amount
     ) {
       toast({
-        variant: "destructive",
-        title: "Error",
+        variant: 'destructive',
+        title: 'Error',
         description: ERROR_MESSAGES.MISSING_TRANSACTION_INFO,
       });
       return;
@@ -365,7 +390,9 @@ const WalletContentInner = () => {
       const result = await executeTransaction();
 
       if (!result.success) {
-        throw new Error(result.error || ERROR_MESSAGES.TRANSACTION_FAILED);
+        throw new Error(
+          result.error || ERROR_MESSAGES.TRANSACTION_FAILED
+        );
       }
 
       // Update points if using Swop.ID
@@ -394,14 +421,14 @@ const WalletContentInner = () => {
       // Update UI state
       setSendFlow((prev) => ({
         ...prev,
-        hash: result.hash || "",
-        step: "success",
+        hash: result.hash || '',
+        step: 'success',
       }));
     } catch (error) {
-      console.error("Error sending token/NFT:", error);
+      console.error('Error sending token/NFT:', error);
       toast({
-        variant: "destructive",
-        title: "Error",
+        variant: 'destructive',
+        title: 'Error',
         description:
           error instanceof Error
             ? error.message
@@ -443,13 +470,16 @@ const WalletContentInner = () => {
 
   const handleBack = useCallback(() => setSelectedToken(null), []);
 
-  const handleQRClick = useCallback(() => setWalletQRModalOpen(true), []);
+  const handleQRClick = useCallback(
+    () => setWalletQRModalOpen(true),
+    []
+  );
 
   const handleAssetSelect = useCallback(
     () =>
       setSendFlow((prev) => ({
         ...prev,
-        step: "select-method",
+        step: 'select-method',
       })),
     [setSendFlow]
   );
@@ -472,7 +502,9 @@ const WalletContentInner = () => {
         <div className="rounded-xl bg-white">
           <div className="flex items-center justify-between pl-6 pt-6 mb-2">
             <div className="flex items-center">
-              <span className="font-bold text-xl text-gray-700">Tokens</span>
+              <span className="font-bold text-xl text-gray-700">
+                Tokens
+              </span>
               {tokenLoading && (
                 <Loader2 className="w-6 h-6 text-gray-600 animate-spin" />
               )}
