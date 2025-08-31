@@ -22,7 +22,7 @@ export interface ChatMessage {
   channelId?: string; // For group messages
   content: string;
   createdAt: string;
-  messageType?: 'text' | 'image' | 'video' | 'file';
+  messageType?: 'text' | 'image' | 'video' | 'file' | 'bot_command' | 'transaction' | 'crypto_action';
   attachment?: string;
   reactions?: Array<{
     userId: string;
@@ -34,6 +34,51 @@ export interface ChatMessage {
     dp?: string;
   }>;
   edited?: boolean;
+  swopensId?: string;
+  solanaAddress?: string;
+  user_id?: string;
+  privyId?: string;
+  ethAddress?: string;
+  ensName?: string;
+  displayName?: string;
+  
+  // Bot-specific message fields
+  isFromBot?: boolean;
+  botId?: string;
+  botType?: 'crypto' | 'ai' | 'trading' | 'defi' | 'nft' | 'custom';
+  botCommand?: string;
+  botResponse?: {
+    success: boolean;
+    data?: any;
+    error?: string;
+    actionRequired?: boolean;
+    transactionHash?: string;
+    networkFee?: string;
+  };
+  
+  // Crypto transaction fields
+  transactionData?: {
+    type: 'send' | 'swap' | 'bridge' | 'stake' | 'unstake';
+    fromToken?: string;
+    toToken?: string;
+    amount?: string;
+    network?: string;
+    gasPrice?: string;
+    status?: 'pending' | 'confirmed' | 'failed';
+    hash?: string;
+    blockNumber?: number;
+  };
+  
+  // Interactive elements
+  quickReplies?: Array<{
+    text: string;
+    action: string;
+    data?: any;
+  }>;
+  
+  // User verification and permissions
+  verificationStatus?: 'unverified' | 'email_verified' | 'wallet_verified' | 'kyc_verified';
+  permissions?: string[];
 }
 
 export interface ChatConversation {
@@ -52,9 +97,44 @@ export interface GroupMember {
   id: string;
   displayName: string;
   avatarUrl?: string;
-  role: 'admin' | 'moderator' | 'member';
-  status?: 'online' | 'offline';
+  role: 'admin' | 'moderator' | 'member' | 'bot';
+  status?: 'online' | 'offline' | 'away' | 'busy';
   lastSeen?: number;
+  swopensId?: string;
+  solanaAddress?: string;
+  user_id?: string;
+  privyId?: string;
+  ethAddress?: string;
+  ensName?: string;
+  bio?: string;
+  
+  // Bot-specific fields
+  isBot?: boolean;
+  botType?: 'crypto' | 'ai' | 'trading' | 'defi' | 'nft' | 'custom';
+  botCapabilities?: Array<
+    'price_check' | 'swap_tokens' | 'send_crypto' | 
+    'check_balance' | 'transaction_history' | 'portfolio_analysis' |
+    'defi_yields' | 'nft_floor_prices' | 'market_analysis' |
+    'trading_signals' | 'gas_tracker' | 'bridge_tokens'
+  >;
+  
+  // Channel-specific user settings
+  notificationsEnabled?: boolean;
+  canInviteOthers?: boolean;
+  canInteractWithBots?: boolean;
+  joinedAt?: Date;
+  lastActivity?: Date;
+  
+  // Permissions
+  permissions?: Array<
+    'read_messages' | 'send_messages' | 'send_media' | 'mention_everyone' |
+    'manage_messages' | 'kick_members' | 'ban_members' | 'create_invite' |
+    'manage_channel' | 'interact_with_bots' | 'execute_bot_commands'
+  >;
+  
+  // Verification and reputation
+  verificationStatus?: 'unverified' | 'email_verified' | 'wallet_verified' | 'kyc_verified';
+  reputation?: number;
 }
 
 export interface Group {
@@ -122,6 +202,29 @@ interface SocketChatContextType {
     content: string;
     attachmentData?: any;
     messageType?: 'text' | 'image' | 'video' | 'file';
+  }) => Promise<void>;
+  // Bot-specific operations
+  sendBotCommand: (params: {
+    botId: string;
+    command: string;
+    parameters?: Record<string, any>;
+    conversationId?: string;
+    groupId?: string;
+  }) => Promise<void>;
+  getAvailableBots: (groupId?: string) => Promise<GroupMember[]>;
+  addBotToGroup: (groupId: string, botId: string) => Promise<void>;
+  removeBotFromGroup: (groupId: string, botId: string) => Promise<void>;
+  getBotCapabilities: (botId: string) => Promise<string[]>;
+  // Crypto transaction operations
+  initiateCryptoTransaction: (params: {
+    type: 'send' | 'swap' | 'bridge';
+    fromToken: string;
+    toToken?: string;
+    amount: string;
+    toAddress?: string;
+    network: string;
+    conversationId?: string;
+    groupId?: string;
   }) => Promise<void>;
 }
 
@@ -1884,6 +1987,200 @@ export function SocketChatProvider({
     [socket, user]
   );
 
+  // Bot-specific operations
+  const sendBotCommand = useCallback(
+    async ({
+      botId,
+      command,
+      parameters = {},
+      conversationId,
+      groupId,
+    }: {
+      botId: string;
+      command: string;
+      parameters?: Record<string, any>;
+      conversationId?: string;
+      groupId?: string;
+    }): Promise<void> => {
+      if (!socket) {
+        console.warn('Socket not connected, cannot send bot command');
+        throw new Error('Not connected to chat server');
+      }
+
+      if (!user?.id) {
+        console.warn('User not authenticated');
+        throw new Error('User not authenticated');
+      }
+
+      try {
+        console.log(`Sending bot command: ${command} to bot: ${botId}`);
+        
+        socket.emit('send_bot_command', {
+          botId,
+          command,
+          parameters,
+          userId: user.id,
+          conversationId,
+          groupId,
+        });
+      } catch (error) {
+        console.error('Failed to send bot command:', error);
+        throw error;
+      }
+    },
+    [socket, user]
+  );
+
+  const getAvailableBots = useCallback(
+    async (groupId?: string): Promise<GroupMember[]> => {
+      if (!socket) {
+        console.warn('Socket not connected, cannot get available bots');
+        throw new Error('Not connected to chat server');
+      }
+
+      return new Promise((resolve, reject) => {
+        socket.emit('get_available_bots', { groupId });
+
+        const handleAvailableBots = (bots: GroupMember[]) => {
+          socket.off('available_bots', handleAvailableBots);
+          resolve(bots.filter(bot => bot.isBot));
+        };
+
+        socket.on('available_bots', handleAvailableBots);
+
+        setTimeout(() => {
+          socket.off('available_bots', handleAvailableBots);
+          reject(new Error('Get available bots timed out'));
+        }, 10000);
+      });
+    },
+    [socket]
+  );
+
+  const addBotToGroup = useCallback(
+    async (groupId: string, botId: string): Promise<void> => {
+      if (!socket || !user?.id) {
+        throw new Error('Socket not connected or user not authenticated');
+      }
+
+      return new Promise((resolve, reject) => {
+        socket.emit('add_bot_to_group', {
+          groupId,
+          botId,
+          userId: user.id,
+        });
+
+        const handleBotAdded = (response: { success: boolean; groupId: string }) => {
+          if (response.success && response.groupId === groupId) {
+            socket.off('bot_added_to_group', handleBotAdded);
+            resolve();
+          }
+        };
+
+        socket.on('bot_added_to_group', handleBotAdded);
+
+        setTimeout(() => {
+          socket.off('bot_added_to_group', handleBotAdded);
+          reject(new Error('Add bot to group timed out'));
+        }, 10000);
+      });
+    },
+    [socket, user]
+  );
+
+  const removeBotFromGroup = useCallback(
+    async (groupId: string, botId: string): Promise<void> => {
+      if (!socket || !user?.id) {
+        throw new Error('Socket not connected or user not authenticated');
+      }
+
+      socket.emit('remove_bot_from_group', {
+        groupId,
+        botId,
+        userId: user.id,
+      });
+    },
+    [socket, user]
+  );
+
+  const getBotCapabilities = useCallback(
+    async (botId: string): Promise<string[]> => {
+      if (!socket) {
+        throw new Error('Socket not connected');
+      }
+
+      return new Promise((resolve, reject) => {
+        socket.emit('get_bot_capabilities', { botId });
+
+        const handleBotCapabilities = (data: { botId: string; capabilities: string[] }) => {
+          if (data.botId === botId) {
+            socket.off('bot_capabilities', handleBotCapabilities);
+            resolve(data.capabilities);
+          }
+        };
+
+        socket.on('bot_capabilities', handleBotCapabilities);
+
+        setTimeout(() => {
+          socket.off('bot_capabilities', handleBotCapabilities);
+          reject(new Error('Get bot capabilities timed out'));
+        }, 5000);
+      });
+    },
+    [socket]
+  );
+
+  const initiateCryptoTransaction = useCallback(
+    async ({
+      type,
+      fromToken,
+      toToken,
+      amount,
+      toAddress,
+      network,
+      conversationId,
+      groupId,
+    }: {
+      type: 'send' | 'swap' | 'bridge';
+      fromToken: string;
+      toToken?: string;
+      amount: string;
+      toAddress?: string;
+      network: string;
+      conversationId?: string;
+      groupId?: string;
+    }): Promise<void> => {
+      if (!socket || !user?.id) {
+        throw new Error('Socket not connected or user not authenticated');
+      }
+
+      try {
+        console.log(`Initiating ${type} transaction:`, {
+          fromToken,
+          toToken,
+          amount,
+          network,
+        });
+
+        socket.emit('initiate_crypto_transaction', {
+          type,
+          fromToken,
+          toToken,
+          amount,
+          toAddress,
+          network,
+          userId: user.id,
+          conversationId,
+          groupId,
+        });
+      } catch (error) {
+        console.error('Failed to initiate crypto transaction:', error);
+        throw error;
+      }
+    },
+    [socket, user]
+  );
+
   const value = {
     socket,
     isConnected,
@@ -1910,6 +2207,14 @@ export function SocketChatProvider({
     searchUsers,
     getGroupMembers,
     sendGroupMessage,
+    // Bot-specific operations
+    sendBotCommand,
+    getAvailableBots,
+    addBotToGroup,
+    removeBotFromGroup,
+    getBotCapabilities,
+    // Crypto transaction operations
+    initiateCryptoTransaction,
   };
 
   return (

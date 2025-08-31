@@ -39,4 +39,53 @@ export interface UserData {
   totalConnection: number;
   updatedAt?: string;
   __v?: number;
+  swopensId?: string;
+  solanaAddress?: string;
+  user_id?: string;
+  privyId?: string;
+  ethAddress?: string;
+  ensName?: string;
+  displayName?: string;
+  
+  // Bot-related fields
+  isBot?: boolean;
+  botType?: 'crypto' | 'ai' | 'trading' | 'defi' | 'nft' | 'custom';
+  botCapabilities?: Array<
+    'price_check' | 'swap_tokens' | 'send_crypto' | 
+    'check_balance' | 'transaction_history' | 'portfolio_analysis' |
+    'defi_yields' | 'nft_floor_prices' | 'market_analysis' |
+    'trading_signals' | 'gas_tracker' | 'bridge_tokens'
+  >;
+  botMetadata?: {
+    version?: string;
+    provider?: string;
+    apiEndpoint?: string;
+    supportedNetworks?: string[];
+    maxTransactionAmount?: number;
+    permissions?: string[];
+  };
+  
+  // User preferences
+  preferences?: {
+    language?: string;
+    currency?: string;
+    notifications?: boolean;
+    privacy?: {
+      showOnlineStatus?: boolean;
+      allowBotInteractions?: boolean;
+    };
+  };
+  
+  // Crypto-related fields
+  walletConnections?: Array<{
+    network: string;
+    address: string;
+    isActive: boolean;
+    lastUsed: Date;
+  }>;
+  
+  // Social features
+  reputation?: number;
+  verificationStatus?: 'unverified' | 'email_verified' | 'wallet_verified' | 'kyc_verified';
+  isActive?: boolean;
 }
