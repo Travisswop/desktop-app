@@ -10,6 +10,7 @@ import {
 } from 'react';
 import { io, Socket } from 'socket.io-client';
 import { usePrivy } from '@privy-io/react-auth';
+import { useUser } from '../UserContext';
 
 // Types for messages and conversations
 export interface ChatMessage {
@@ -272,6 +273,7 @@ export function SocketChatProvider({
   children: ReactNode;
 }) {
   const { user } = usePrivy();
+  const { user: userData } = useUser();
   console.log('🚀 ~ SocketChatProvider ~ user:', user);
   const [socket, setSocket] = useState<Socket | null>(null);
   const [isConnected, setIsConnected] = useState(false);
@@ -290,6 +292,94 @@ export function SocketChatProvider({
   const [userPresence, setUserPresence] = useState<
     Record<string, { status: string; lastSeen?: number }>
   >({});
+
+  // Function to register/update user data in the database
+  const registerUserInDatabase = useCallback(async () => {
+    if (!socket || !user || !userData) {
+      return;
+    }
+
+    try {
+      // Extract Solana address from Privy linked accounts
+      const solanaAccount = user.linkedAccounts?.find(
+        (account: any) => account.chainType === 'solana'
+      ) as any;
+
+      // Get Google account info
+      const googleAccount = user.linkedAccounts?.find(
+        (account: any) => account.type === 'google_oauth'
+      ) as any;
+
+      // Prepare user data for the server
+      const userDataForServer = {
+        // Primary identifiers (at least one required)
+        privyId: user.id,
+        ethAddress: user.wallet?.address,
+        email: user.email?.address || userData.email,
+        
+        // Additional identifiers
+        solanaAddress: solanaAccount?.address || userData.solanaAddress,
+        userId: userData._id,
+        ensName: userData.ensName,
+        
+        // Profile information
+        name: userData.name || user.google?.name || googleAccount?.name,
+        displayName: userData.displayName || userData.name,
+        bio: userData.bio || '',
+        profilePic: userData.profilePic || '',
+        
+        // Preferences
+        preferences: {
+          language: userData.preferences?.language || 'en',
+          currency: userData.preferences?.currency || 'USD',
+          notifications: userData.preferences?.notifications ?? true,
+          privacy: {
+            showOnlineStatus: userData.preferences?.privacy?.showOnlineStatus ?? true,
+            allowBotInteractions: userData.preferences?.privacy?.allowBotInteractions ?? true,
+          },
+        },
+        
+        // Wallet connections
+        walletConnections: [
+          ...(user.wallet?.address ? [{
+            network: 'ethereum',
+            address: user.wallet.address,
+            isActive: true,
+            lastUsed: new Date(),
+          }] : []),
+          ...(solanaAccount?.address ? [{
+            network: 'solana',
+            address: solanaAccount.address,
+            isActive: true,
+            lastUsed: new Date(),
+          }] : []),
+        ],
+        
+        // Social features
+        reputation: userData.reputation || 0,
+        verificationStatus: user.email?.address ? 'email_verified' : 'unverified',
+        
+        // Bot-related fields (default values)
+        isBot: false,
+        botType: null,
+        botCapabilities: [],
+        botMetadata: {},
+      };
+
+      console.log('🔄 Registering/updating user in database:', {
+        privyId: userDataForServer.privyId,
+        ethAddress: userDataForServer.ethAddress,
+        email: userDataForServer.email,
+        name: userDataForServer.name,
+      });
+
+      // Emit user registration/update to the server
+      socket.emit('register_user', userDataForServer);
+
+    } catch (error) {
+      console.error('❌ Error registering user in database:', error);
+    }
+  }, [socket, user, userData]);
 
   // Create and initialize socket connection
   useEffect(() => {
@@ -331,6 +421,11 @@ export function SocketChatProvider({
       setIsConnected(true);
       setLoading(false);
       setError(null);
+
+      // Register/update user in database when socket connects
+      if (user && userData) {
+        registerUserInDatabase();
+      }
     });
 
     socketInstance.on('connect_error', (err) => {
@@ -1037,6 +1132,20 @@ export function SocketChatProvider({
       }
     );
 
+    // Listen for user registration response
+    socketInstance.on('user_registered', (response: { 
+      success: boolean; 
+      userId?: string; 
+      message?: string;
+      error?: string; 
+    }) => {
+      if (response.success) {
+        console.log('✅ User registered/updated successfully:', response.userId);
+      } else {
+        console.error('❌ User registration failed:', response.error || response.message);
+      }
+    });
+
     // Listen for edited messages
     socketInstance.on(
       'message_edited',
@@ -1073,7 +1182,14 @@ export function SocketChatProvider({
       setSocket(null);
       setIsConnected(false);
     };
-  }, [user, activeConversationId]);
+  }, [user, activeConversationId, registerUserInDatabase]);
+
+  // Register/update user data when userData changes
+  useEffect(() => {
+    if (isConnected && socket && user && userData) {
+      registerUserInDatabase();
+    }
+  }, [isConnected, socket, user, userData, registerUserInDatabase]);
 
   // Initialize user's presence when connected
   useEffect(() => {
