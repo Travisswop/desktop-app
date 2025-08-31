@@ -64,9 +64,9 @@ export default function RootLayout({
         <PrivyProvider>
           <WalletProvider>
             <LiFiWalletProvider>
-              <UserProvider>
-                <SocketChatProvider>{children}</SocketChatProvider>
-              </UserProvider>
+              <SocketChatProvider>
+                <UserProvider>{children}</UserProvider>
+              </SocketChatProvider>
             </LiFiWalletProvider>
           </WalletProvider>
         </PrivyProvider>
