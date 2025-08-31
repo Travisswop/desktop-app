@@ -3,7 +3,6 @@
 import { ReactNode } from 'react';
 import { PrivyProvider } from '@privy-io/react-auth';
 import { Toaster } from '@/components/ui/toaster';
-import { SocketChatProvider } from '@/lib/context/SocketChatContext';
 
 interface ProvidersProps {
   children: ReactNode;
@@ -25,10 +24,8 @@ export function Providers({ children }: ProvidersProps) {
         },
       }}
     >
-        <SocketChatProvider>
-          {children}
-          <Toaster />
-        </SocketChatProvider>
+      {children}
+      <Toaster />
     </PrivyProvider>
   );
 }

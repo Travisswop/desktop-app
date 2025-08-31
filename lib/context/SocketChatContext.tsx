@@ -273,7 +273,9 @@ export function SocketChatProvider({
   children: ReactNode;
 }) {
   const { user } = usePrivy();
-  const { user: userData } = useUser();
+  const userContext = useUser();
+  const userData = userContext.user;
+
   console.log('🚀 ~ SocketChatProvider ~ user:', user);
   const [socket, setSocket] = useState<Socket | null>(null);
   const [isConnected, setIsConnected] = useState(false);
@@ -295,7 +297,7 @@ export function SocketChatProvider({
 
   // Function to register/update user data in the database
   const registerUserInDatabase = useCallback(async () => {
-    if (!socket || !user || !userData) {
+    if (!socket || !user) {
       return;
     }
 
@@ -315,50 +317,70 @@ export function SocketChatProvider({
         // Primary identifiers (at least one required)
         privyId: user.id,
         ethAddress: user.wallet?.address,
-        email: user.email?.address || userData.email,
-        
+        email: user.email?.address || userData?.email,
+
         // Additional identifiers
-        solanaAddress: solanaAccount?.address || userData.solanaAddress,
-        userId: userData._id,
-        ensName: userData.ensName,
-        
+        solanaAddress:
+          solanaAccount?.address || userData?.solanaAddress,
+        userId: userData?._id,
+        ensName: userData?.ensName,
+
         // Profile information
-        name: userData.name || user.google?.name || googleAccount?.name,
-        displayName: userData.displayName || userData.name,
-        bio: userData.bio || '',
-        profilePic: userData.profilePic || '',
-        
+        name:
+          userData?.name || user.google?.name || googleAccount?.name,
+        displayName:
+          userData?.displayName ||
+          userData?.name ||
+          user.google?.name ||
+          googleAccount?.name,
+        bio: userData?.bio || '',
+        profilePic: userData?.profilePic || '',
+
         // Preferences
         preferences: {
-          language: userData.preferences?.language || 'en',
-          currency: userData.preferences?.currency || 'USD',
-          notifications: userData.preferences?.notifications ?? true,
+          language: userData?.preferences?.language || 'en',
+          currency: userData?.preferences?.currency || 'USD',
+          notifications: userData?.preferences?.notifications ?? true,
           privacy: {
-            showOnlineStatus: userData.preferences?.privacy?.showOnlineStatus ?? true,
-            allowBotInteractions: userData.preferences?.privacy?.allowBotInteractions ?? true,
+            showOnlineStatus:
+              userData?.preferences?.privacy?.showOnlineStatus ??
+              true,
+            allowBotInteractions:
+              userData?.preferences?.privacy?.allowBotInteractions ??
+              true,
           },
         },
-        
+
         // Wallet connections
         walletConnections: [
-          ...(user.wallet?.address ? [{
-            network: 'ethereum',
-            address: user.wallet.address,
-            isActive: true,
-            lastUsed: new Date(),
-          }] : []),
-          ...(solanaAccount?.address ? [{
-            network: 'solana',
-            address: solanaAccount.address,
-            isActive: true,
-            lastUsed: new Date(),
-          }] : []),
+          ...(user.wallet?.address
+            ? [
+                {
+                  network: 'ethereum',
+                  address: user.wallet.address,
+                  isActive: true,
+                  lastUsed: new Date(),
+                },
+              ]
+            : []),
+          ...(solanaAccount?.address
+            ? [
+                {
+                  network: 'solana',
+                  address: solanaAccount.address,
+                  isActive: true,
+                  lastUsed: new Date(),
+                },
+              ]
+            : []),
         ],
-        
+
         // Social features
-        reputation: userData.reputation || 0,
-        verificationStatus: user.email?.address ? 'email_verified' : 'unverified',
-        
+        reputation: userData?.reputation || 0,
+        verificationStatus: user.email?.address
+          ? 'email_verified'
+          : 'unverified',
+
         // Bot-related fields (default values)
         isBot: false,
         botType: null,
@@ -375,7 +397,6 @@ export function SocketChatProvider({
 
       // Emit user registration/update to the server
       socket.emit('register_user', userDataForServer);
-
     } catch (error) {
       console.error('❌ Error registering user in database:', error);
     }
@@ -423,7 +444,7 @@ export function SocketChatProvider({
       setError(null);
 
       // Register/update user in database when socket connects
-      if (user && userData) {
+      if (user) {
         registerUserInDatabase();
       }
     });
@@ -1133,18 +1154,27 @@ export function SocketChatProvider({
     );
 
     // Listen for user registration response
-    socketInstance.on('user_registered', (response: { 
-      success: boolean; 
-      userId?: string; 
-      message?: string;
-      error?: string; 
-    }) => {
-      if (response.success) {
-        console.log('✅ User registered/updated successfully:', response.userId);
-      } else {
-        console.error('❌ User registration failed:', response.error || response.message);
+    socketInstance.on(
+      'user_registered',
+      (response: {
+        success: boolean;
+        userId?: string;
+        message?: string;
+        error?: string;
+      }) => {
+        if (response.success) {
+          console.log(
+            '✅ User registered/updated successfully:',
+            response.userId
+          );
+        } else {
+          console.error(
+            '❌ User registration failed:',
+            response.error || response.message
+          );
+        }
       }
-    });
+    );
 
     // Listen for edited messages
     socketInstance.on(
@@ -1186,7 +1216,7 @@ export function SocketChatProvider({
 
   // Register/update user data when userData changes
   useEffect(() => {
-    if (isConnected && socket && user && userData) {
+    if (isConnected && socket && user) {
       registerUserInDatabase();
     }
   }, [isConnected, socket, user, userData, registerUserInDatabase]);
