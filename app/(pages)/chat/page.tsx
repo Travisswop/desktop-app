@@ -50,6 +50,7 @@ const ChatPageContent = () => {
     conversations,
     createConversation,
     refreshConversations,
+    searchUsers,
   } = useSocketChat();
   const { user: PrivyUser } = usePrivy();
   const searchParams = useSearchParams();
@@ -59,8 +60,9 @@ const ChatPageContent = () => {
   const [walletData, setWalletData] = useState<WalletItem[] | null>(null);
   const [isWalletManagerOpen, setIsWalletManagerOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
-  const [isSearchLoading] = useState(false);
+  const [isSearchLoading, setIsSearchLoading] = useState(false);
   const [searchResult, setSearchResult] = useState<any | null>(null);
+  const [searchResults, setSearchResults] = useState<any[]>([]);
   const [changeConversationLoading, setChangeConversationLoading] = useState(false);
   const [micrositeData, setMicrositeData] = useState<any | null>(null);
   const [selectedConversationId, setSelectedConversationId] = useState<string | null>(null);
@@ -180,17 +182,37 @@ const ChatPageContent = () => {
         setSelectedConversationId(conversationId);
         setSelectedRecipientId(resolvedRecipient);
         
-        // Display the original ENS name in the UI if applicable
-        const displayName = isEns ? recipientAddress : 
-          `${resolvedRecipient.substring(0, 6)}...${resolvedRecipient.substring(resolvedRecipient.length - 4)}`;
+        // Find user data from search results to use display name and profile info
+        let userData = null;
+        
+        // Look for user in recent search results
+        if (searchResults.length > 0) {
+          userData = searchResults.find(user => 
+            user.userId === resolvedRecipient || 
+            user.ethAddress === resolvedRecipient || 
+            user.ensName === recipientAddress
+          );
+        }
+        
+        // If not found in search results but we have a single search result, use that
+        if (!userData && searchResult && 
+            (searchResult.ethAddress === resolvedRecipient || searchResult.ensName === recipientAddress)) {
+          userData = searchResult;
+        }
+        
+        // Display the best available name and info
+        const displayName = userData?.displayName || 
+          userData?.name || 
+          (isEns ? recipientAddress : 
+            `${resolvedRecipient.substring(0, 6)}...${resolvedRecipient.substring(resolvedRecipient.length - 4)}`);
         
         setMicrositeData({
           name: displayName,
           ethAddress: resolvedRecipient, // Store the resolved ID
-          bio: '',
-          ens: isEns ? recipientAddress : '',
-          profilePic: '',
-          profileUrl: ''
+          bio: userData?.bio || '',
+          ens: userData?.ensName || (isEns ? recipientAddress : ''),
+          profilePic: userData?.profilePic || '',
+          profileUrl: userData?.profileUrl || ''
         });
       } catch (error) {
         console.error('❌ [ChatPage] Error selecting conversation:', error);
@@ -203,51 +225,95 @@ const ChatPageContent = () => {
         setChangeConversationLoading(false);
       }
     },
-    [PrivyUser?.id, createConversation, toast],
+    [PrivyUser?.id, createConversation, toast, searchResults, searchResult],
   );
 
-  // Handle search (enhanced to always show results)
+  // Handle user search using the socket server
+  const handleUserSearch = useCallback(async (query: string) => {
+    if (!query.trim() || query.length < 2) {
+      setSearchResults([]);
+      setSearchResult(null);
+      return;
+    }
+
+    setIsSearchLoading(true);
+    try {
+      console.log('🔍 Searching for users with query:', query);
+      const results = await searchUsers(query);
+      console.log('🔍 Search results:', results);
+      
+      if (results && results.length > 0) {
+        setSearchResults(results);
+        setSearchResult(null); // Clear single search result
+      } else {
+        // If no server results, create a fallback result
+        setSearchResults([]);
+        if (query.startsWith('0x') && query.length >= 6) {
+          setSearchResult({
+            name: query.length > 10 ? `${query.substring(0, 6)}...${query.substring(query.length - 4)}` : query,
+            ethAddress: query,
+            displayName: query.length > 10 ? `${query.substring(0, 6)}...${query.substring(query.length - 4)}` : query,
+            bio: 'Click to start conversation',
+            ensName: '',
+            profilePic: '',
+          });
+        } else if (query.includes('.eth') || query.includes('.swop.id')) {
+          setSearchResult({
+            name: query,
+            ethAddress: query,
+            displayName: query,
+            bio: 'ENS name - Click to start conversation',
+            ensName: query,
+            profilePic: '',
+          });
+        } else {
+          setSearchResult({
+            name: query,
+            ethAddress: query,
+            displayName: query,
+            bio: 'Search by username - Click to start conversation',
+            ensName: '',
+            profilePic: '',
+          });
+        }
+      }
+    } catch (error) {
+      console.error('Error searching users:', error);
+      setSearchResults([]);
+      setSearchResult(null);
+      toast({
+        title: 'Search Error',
+        description: 'Unable to search users. Please try again.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsSearchLoading(false);
+    }
+  }, [searchUsers, toast]);
+
+  // Handle search input change with debounce
   const handleSearchInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value;
     setSearchQuery(value);
 
-    // Show search result for any input that could be an address
-    if (value.trim().length > 3) {
-      // Check if it looks like an Ethereum address
-      if (value.startsWith('0x') && value.length >= 6) {
-        setSearchResult({
-          name: value.length > 10 ? `${value.substring(0, 6)}...${value.substring(value.length - 4)}` : value,
-          ethAddress: value,
-          bio: 'Click to start conversation',
-          ens: '',
-          profilePic: '',
-          profileUrl: ''
-        });
-      } else if (value.includes('.eth')) {
-        // Handle ENS-like names
-        setSearchResult({
-          name: value,
-          ethAddress: value,
-          bio: 'ENS name - Click to start conversation',
-          ens: value,
-          profilePic: '',
-          profileUrl: ''
-        });
-      } else {
-        // For any other search, show as potential address
-        setSearchResult({
-          name: value,
-          ethAddress: value,
-          bio: 'Click to start conversation',
-          ens: '',
-          profilePic: '',
-          profileUrl: ''
-        });
-      }
+    // Clear previous results immediately
+    setSearchResults([]);
+    setSearchResult(null);
+  };
+
+  // Debounced search effect
+  useEffect(() => {
+    if (searchQuery.trim().length >= 2) {
+      const timeoutId = setTimeout(() => {
+        handleUserSearch(searchQuery);
+      }, 500);
+      
+      return () => clearTimeout(timeoutId);
     } else {
+      setSearchResults([]);
       setSearchResult(null);
     }
-  };
+  }, [searchQuery, handleUserSearch]);
 
   // Handle recipient or group from URL params
   useEffect(() => {
@@ -268,8 +334,9 @@ const ChatPageContent = () => {
     }
   }, [searchParams, handleSelectConversation]);
 
-  const handleWalletClick = async (ethAddress: string) => {
-    await handleSelectConversation(ethAddress);
+  const handleWalletClick = async (userIdentifier: string) => {
+    console.log('🔍 Starting conversation with user identifier:', userIdentifier);
+    await handleSelectConversation(userIdentifier);
   };
 
   const handleBackToWallet = () => {
@@ -435,7 +502,7 @@ const ChatPageContent = () => {
                   type="text"
                   value={searchQuery}
                   onChange={handleSearchInputChange}
-                  placeholder="Search messages..."
+                  placeholder="Search users by username..."
                   className="w-full border border-[#ede8e8] focus:border-[#e5e0e0] rounded-lg focus:outline-none pl-10 py-2 text-gray-700 bg-gray-50 hover:bg-gray-100 transition-colors"
                 />
               </div>
@@ -458,8 +525,25 @@ const ChatPageContent = () => {
                   </div>
                 )}
 
-                {/* Show search result as new conversation option (if exists and not already in conversations) */}
-                {searchResult && !filteredConversations.some(conv =>
+                {/* Show server search results */}
+                {searchResults.length > 0 && (
+                  <div className="mb-2">
+                    <div className="text-xs text-gray-400 px-3 py-1 border-b">Search Results</div>
+                    {searchResults.map((user) => (
+                      <MessageList
+                        key={`search-${user.userId || user.ethAddress || user.ensName}`}
+                        bio={user.bio || 'Click to start conversation'}
+                        name={user.displayName || user.ensName || user.name || 'Unknown'}
+                        profilePic={user.profilePic || ''}
+                        ethAddress={user.userId || user.ethAddress || user.ensName}
+                        handleWalletClick={handleWalletClick}
+                      />
+                    ))}
+                  </div>
+                )}
+
+                {/* Show fallback search result as new conversation option (if exists and not already in conversations) */}
+                {searchResult && searchResults.length === 0 && !filteredConversations.some(conv =>
                   conv.peerAddress.toLowerCase() === searchResult.ethAddress.toLowerCase()
                 ) && (
                     <div className="mb-2">
@@ -467,7 +551,7 @@ const ChatPageContent = () => {
                       <MessageList
                         key={`search-${searchResult.ethAddress}`}
                         bio={searchResult.bio}
-                        name={searchResult.name}
+                        name={searchResult.displayName || searchResult.name}
                         profilePic={searchResult.profilePic}
                         ethAddress={searchResult.ethAddress}
                         handleWalletClick={handleWalletClick}
@@ -493,11 +577,11 @@ const ChatPageContent = () => {
                 )}
 
                 {/* Show message when no results found */}
-                {!searchResult && filteredConversations.length === 0 && searchQuery.trim() && (
+                {!searchResult && searchResults.length === 0 && filteredConversations.length === 0 && searchQuery.trim() && !isSearchLoading && (
                   <div className="flex items-center justify-center h-32 text-gray-500">
                     <div className="text-center">
-                      <p>No conversations found</p>
-                      <p className="text-sm text-gray-400">Try entering a complete Ethereum address (0x...)</p>
+                      <p>No users found</p>
+                      <p className="text-sm text-gray-400">Try searching by username, ENS name, or Ethereum address</p>
                     </div>
                   </div>
                 )}

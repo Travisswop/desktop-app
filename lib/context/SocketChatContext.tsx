@@ -1012,7 +1012,7 @@ export function SocketChatProvider({
           } else if (data.senderId && data.senderId !== user?.id) {
             // Create new conversation entry
             let displayName = 'Unknown';
-            let peerAddress = data.senderId;
+            const peerAddress = data.senderId;
 
             // Format display name
             if (peerAddress.startsWith('did:privy:')) {
