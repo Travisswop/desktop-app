@@ -11,6 +11,7 @@ import {
 } from 'react';
 import { io, Socket } from 'socket.io-client';
 import { usePrivy } from '@privy-io/react-auth';
+import { useUser } from '@/lib/UserContext';
 
 // Types for messages and conversations
 export interface ChatMessage {
@@ -273,6 +274,7 @@ export function SocketChatProvider({
   children: ReactNode;
 }) {
   const { user } = usePrivy();
+  const { user: userData } = useUser();
 
   console.log('🚀 ~ SocketChatProvider ~ user:', user);
   const [socket, setSocket] = useState<Socket | null>(null);
@@ -290,7 +292,7 @@ export function SocketChatProvider({
     string | null
   >(null);
   const activeConversationIdRef = useRef<string | null>(null);
-  
+
   // Keep ref in sync with state
   useEffect(() => {
     activeConversationIdRef.current = activeConversationId;
@@ -311,6 +313,10 @@ export function SocketChatProvider({
         (account: any) => account.chainType === 'solana'
       ) as any;
 
+      const ethAccount = user.linkedAccounts?.find(
+        (account: any) => account.chainType === 'ethereum'
+      ) as any;
+
       // Get Google account info
       const googleAccount = user.linkedAccounts?.find(
         (account: any) => account.type === 'google_oauth'
@@ -319,16 +325,17 @@ export function SocketChatProvider({
       // Prepare user data for the server
       const userDataForServer = {
         // Primary identifiers (at least one required)
+        userId: userData?._id,
         privyId: user.id,
-        ethAddress: user.wallet?.address,
-        email: user.email?.address,
+        ethAddress: ethAccount?.address,
+        email: googleAccount?.address,
 
         // Additional identifiers
         solanaAddress: solanaAccount?.address,
 
         // Profile information
-        name: user.google?.name || googleAccount?.name,
-        displayName: user.google?.name || googleAccount?.name,
+        name: googleAccount?.name,
+        displayName: googleAccount?.name,
         bio: '',
         profilePic: '',
         // Preferences
@@ -711,7 +718,9 @@ export function SocketChatProvider({
             lastMessage: message.content,
             lastMessageTime: message.createdAt,
             unreadCount:
-              conversationId === activeConversationIdRef.current ? 0 : 1,
+              conversationId === activeConversationIdRef.current
+                ? 0
+                : 1,
           };
 
           console.log('🔍 Adding new conversation:', newConversation);
