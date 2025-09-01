@@ -33,6 +33,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { useToast } from '@/hooks/use-toast';
 import { resolveEnsToUserId } from '@/lib/api/ensResolver';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { EnhancedFeaturesPanel } from '@/components/wallet/chat/enhanced-features-panel';
 
 const getAvatarSrc = (profilePic?: string) => {
   if (!profilePic) return '/default-avatar.png';
@@ -602,6 +603,11 @@ const ChatPageContent = () => {
               <GroupChatList tokens={walletData} />
             </TabsContent>
           </Tabs>
+          
+          {/* Enhanced Features Panel */}
+          <div className="mt-4">
+            <EnhancedFeaturesPanel />
+          </div>
         </div>
       </div>
 

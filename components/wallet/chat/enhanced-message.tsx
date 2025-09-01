@@ -29,9 +29,11 @@ export const EnhancedMessage: React.FC<EnhancedMessageProps> = ({
   const [editContent, setEditContent] = useState(message.content || '');
   
   const handleReaction = async (emoji: string) => {
+    if (!user?.id) return;
+    
     try {
       // Check if user already reacted with this emoji
-      const existingReaction = message.reactions?.find(r => r.userId === user?.id && r.emoji === emoji);
+      const existingReaction = message.reactions?.find(r => r.userId === user.id && r.emoji === emoji);
       
       if (existingReaction) {
         await removeReaction(message._id, conversationId);
@@ -142,7 +144,7 @@ export const EnhancedMessage: React.FC<EnhancedMessageProps> = ({
               onChange={(e) => setEditContent(e.target.value)}
               className="flex-1 px-2 py-1 border rounded text-sm"
               autoFocus
-              onKeyPress={(e) => e.key === 'Enter' && handleEdit()}
+              onKeyDown={(e) => e.key === 'Enter' && handleEdit()}
             />
             <Button size="sm" onClick={handleEdit}>Save</Button>
             <Button size="sm" variant="outline" onClick={() => setIsEditing(false)}>Cancel</Button>

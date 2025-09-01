@@ -5,6 +5,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { usePrivy } from '@privy-io/react-auth';
 import { useSocketChat, ChatMessage } from '@/lib/context/SocketChatContext';
 import { format } from 'date-fns';
+import { EnhancedMessage } from './enhanced-message';
 
 interface ChatBoxProps {
   conversationId: string;
@@ -197,52 +198,12 @@ const ChatBox: React.FC<ChatBoxProps> = ({
                 const isUserMessage = message.senderId === user?.id;
                 
                 return (
-                  <div
+                  <EnhancedMessage
                     key={message._id}
-                    className={`flex ${isUserMessage ? 'justify-end' : 'justify-start'}`}
-                  >
-                    <div className={`flex items-end gap-2 max-w-[80%] ${isUserMessage ? 'flex-row-reverse' : ''}`}>
-                      <Avatar className="w-8 h-8">
-                        <AvatarImage 
-                          src={message.senderImage || '/default-avatar.png'} 
-                          alt={message.senderName} 
-                        />
-                        <AvatarFallback>
-                          {message.senderName?.substring(0, 1) || 'U'}
-                        </AvatarFallback>
-                      </Avatar>
-                      
-                      <div className={`rounded-2xl px-4 py-2 ${
-                        isUserMessage 
-                          ? 'bg-blue-500 text-white' 
-                          : 'bg-gray-100 text-gray-800'
-                      }`}>
-                        <div className="flex flex-col">
-                          <p className="break-words">{message.content}</p>
-                          
-                          {message.attachment && (
-                            <a 
-                              href={message.attachment} 
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="text-xs underline mt-1"
-                            >
-                              Attachment
-                            </a>
-                          )}
-                          
-                          <div className={`text-xs mt-1 ${
-                            isUserMessage ? 'text-blue-100' : 'text-gray-500'
-                          }`}>
-                            {formatMessageTime(message.createdAt)}
-                            {message.edited && (
-                              <span className="ml-1">(edited)</span>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
+                    message={message}
+                    conversationId={normalizedConversationId}
+                    isOwnMessage={isUserMessage}
+                  />
                 );
               })
             )}
