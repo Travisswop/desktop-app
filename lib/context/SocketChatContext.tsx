@@ -13,30 +13,145 @@ import { io, Socket } from 'socket.io-client';
 import { usePrivy } from '@privy-io/react-auth';
 import { useUser } from '@/lib/UserContext';
 
+// Enhanced message attachment interface
+export interface MessageAttachment {
+  type: 'image' | 'video' | 'file' | 'audio';
+  url: string;
+  filename?: string;
+  size?: number;
+  mimeType?: string;
+  thumbnail?: string;
+  duration?: number; // For audio/video
+}
+
+// Enhanced reaction interface
+export interface MessageReaction {
+  userId: string;
+  emoji: string;
+  createdAt: string;
+}
+
+// Message mention interface
+export interface MessageMention {
+  userId: string;
+  displayName: string;
+  startIndex: number;
+  length: number;
+}
+
+// Message link preview interface  
+export interface MessageLink {
+  url: string;
+  title?: string;
+  description?: string;
+  image?: string;
+  domain: string;
+}
+
+// Message recipient interface for read receipts
+export interface MessageRecipient {
+  userId: string;
+  deliveredAt?: string;
+  readAt?: string;
+}
+
+// Message forward info interface
+export interface MessageForward {
+  messageId: string;
+  originalSender: string;
+  forwardedAt: string;
+}
+
 // Types for messages and conversations
 export interface ChatMessage {
   _id: string;
   senderId: string;
-  senderName: string;
-  senderImage?: string;
-  recipientId: string;
-  conversationId: string;
-  channelId?: string; // For group messages
-  content: string;
-  createdAt: string;
-  messageType?:
+  conversationId?: string;
+  channelId?: string;
+  content?: string;
+  messageType:
     | 'text'
     | 'image'
     | 'video'
     | 'file'
+    | 'audio'
+    | 'location'
+    | 'contact'
+    | 'poll'
+    | 'system'
     | 'bot_command'
     | 'transaction'
     | 'crypto_action';
-  attachment?: string;
-  reactions?: Array<{
-    userId: string;
-    reaction: string;
+  
+  // Enhanced message features (optional for backward compatibility)
+  status?: 'sending' | 'sent' | 'delivered' | 'read' | 'failed';
+  recipients?: MessageRecipient[];
+  attachments?: MessageAttachment[];
+  
+  // Thread support
+  parentMessageId?: string;
+  threadId?: string;
+  replyCount?: number;
+  
+  // Forward/Quote support
+  forwardedFrom?: MessageForward;
+  
+  // Content analysis
+  mentions?: MessageMention[];
+  hashtags?: string[];
+  links?: MessageLink[];
+  
+  // Message management
+  priority?: 'normal' | 'high' | 'urgent';
+  isPinned?: boolean;
+  pinnedAt?: string;
+  pinnedBy?: string;
+  
+  // Edit history
+  editHistory?: Array<{
+    content: string;
+    editedAt: string;
+    reason?: string;
   }>;
+  isEdited?: boolean;
+  lastEditedAt?: string;
+  
+  // Deletion
+  isDeleted?: boolean;
+  deletedAt?: string;
+  deletedBy?: string;
+  deletedFor?: string[]; // User IDs who deleted for themselves
+  
+  // Enhanced reactions
+  reactions?: MessageReaction[];
+  
+  // Read receipts  
+  readReceipts?: Array<{
+    userId: string;
+    readAt: string;
+    platform: 'web' | 'mobile' | 'desktop';
+  }>;
+  
+  // Encryption
+  isEncrypted?: boolean;
+  encryptionVersion?: string;
+  
+  // Temporary messages
+  expiresAt?: string;
+  ttl?: number;
+  
+  // Platform info
+  platform?: 'web' | 'mobile' | 'desktop' | 'api';
+  clientVersion?: string;
+  
+  createdAt: string;
+  updatedAt?: string;
+  
+  // Legacy fields for backward compatibility
+  senderName?: string;
+  senderImage?: string;
+  recipientId?: string;
+  attachment?: string;
   seenBy?: Array<{
     _id: string;
     name: string;
@@ -262,6 +377,18 @@ interface SocketChatContextType {
     conversationId?: string;
     groupId?: string;
   }) => Promise<void>;
+  
+  // Enhanced message features
+  addReaction: (messageId: string, emoji: string, conversationId: string) => Promise<void>;
+  removeReaction: (messageId: string, conversationId: string) => Promise<void>;
+  editMessage: (messageId: string, newContent: string, conversationId: string) => Promise<void>;
+  deleteMessage: (messageId: string, conversationId: string, deleteFor?: 'me' | 'everyone') => Promise<void>;
+  forwardMessage: (originalMessageId: string, recipientId: string, conversationId: string) => Promise<void>;
+  replyToMessage: (parentMessageId: string, content: string, conversationId: string) => Promise<void>;
+  markMessageAsRead: (messageId: string, conversationId: string, platform?: string) => Promise<void>;
+  pinMessage: (messageId: string, conversationId: string) => Promise<void>;
+  unpinMessage: (messageId: string, conversationId: string) => Promise<void>;
+  searchMessages: (query: string, conversationId?: string) => Promise<ChatMessage[]>;
 }
 
 const SocketChatContext = createContext<
@@ -2441,6 +2568,194 @@ export function SocketChatProvider({
     [socket, user?.id]
   );
 
+  // Enhanced message features
+  const addReaction = useCallback(
+    async (messageId: string, emoji: string, conversationId: string) => {
+      if (!socket || !user?.id) return;
+      
+      try {
+        socket.emit('add_reaction', {
+          messageId,
+          userId: user.id,
+          emoji,
+          conversationId,
+        });
+      } catch (error) {
+        console.error('Failed to add reaction:', error);
+      }
+    },
+    [socket, user?.id]
+  );
+
+  const removeReaction = useCallback(
+    async (messageId: string, conversationId: string) => {
+      if (!socket || !user?.id) return;
+      
+      try {
+        socket.emit('remove_reaction', {
+          messageId,
+          userId: user.id,
+          conversationId,
+        });
+      } catch (error) {
+        console.error('Failed to remove reaction:', error);
+      }
+    },
+    [socket, user?.id]
+  );
+
+  const editMessage = useCallback(
+    async (messageId: string, newContent: string, conversationId: string) => {
+      if (!socket || !user?.id) return;
+      
+      try {
+        socket.emit('edit_dm', {
+          messageId,
+          newContent,
+          userId: user.id,
+          conversationId,
+        });
+      } catch (error) {
+        console.error('Failed to edit message:', error);
+      }
+    },
+    [socket, user?.id]
+  );
+
+  const deleteMessage = useCallback(
+    async (messageId: string, conversationId: string, deleteFor: 'me' | 'everyone' = 'me') => {
+      if (!socket || !user?.id) return;
+      
+      try {
+        socket.emit('delete_dm', {
+          messageId,
+          userId: user.id,
+          conversationId,
+          deleteFor,
+        });
+      } catch (error) {
+        console.error('Failed to delete message:', error);
+      }
+    },
+    [socket, user?.id]
+  );
+
+  const forwardMessage = useCallback(
+    async (originalMessageId: string, recipientId: string, conversationId: string) => {
+      if (!socket || !user?.id) return;
+      
+      try {
+        socket.emit('forward_dm', {
+          originalMessageId,
+          senderId: user.id,
+          recipientId,
+          conversationId,
+        });
+      } catch (error) {
+        console.error('Failed to forward message:', error);
+      }
+    },
+    [socket, user?.id]
+  );
+
+  const replyToMessage = useCallback(
+    async (parentMessageId: string, content: string, conversationId: string) => {
+      if (!socket || !user?.id) return;
+      
+      // For now, we'll send a regular message with parentMessageId reference
+      // The server should handle threading logic
+      try {
+        socket.emit('send_dm', {
+          senderId: user.id,
+          recipientId: conversationId.split('_').find(id => id !== user.id) || '',
+          content,
+          messageType: 'text',
+          conversationId,
+          parentMessageId,
+        });
+      } catch (error) {
+        console.error('Failed to reply to message:', error);
+      }
+    },
+    [socket, user?.id]
+  );
+
+  const markMessageAsRead = useCallback(
+    async (messageId: string, conversationId: string, platform: string = 'desktop') => {
+      if (!socket || !user?.id) return;
+      
+      try {
+        socket.emit('mark_as_read', {
+          messageId,
+          userId: user.id,
+          conversationId,
+          platform,
+        });
+      } catch (error) {
+        console.error('Failed to mark message as read:', error);
+      }
+    },
+    [socket, user?.id]
+  );
+
+  const pinMessage = useCallback(
+    async (messageId: string, conversationId: string) => {
+      if (!socket || !user?.id) return;
+      
+      try {
+        socket.emit('pin_message', {
+          messageId,
+          userId: user.id,
+          conversationId,
+        });
+      } catch (error) {
+        console.error('Failed to pin message:', error);
+      }
+    },
+    [socket, user?.id]
+  );
+
+  const unpinMessage = useCallback(
+    async (messageId: string, conversationId: string) => {
+      if (!socket || !user?.id) return;
+      
+      try {
+        socket.emit('unpin_message', {
+          messageId,
+          userId: user.id,
+          conversationId,
+        });
+      } catch (error) {
+        console.error('Failed to unpin message:', error);
+      }
+    },
+    [socket, user?.id]
+  );
+
+  const searchMessages = useCallback(
+    async (query: string, conversationId?: string): Promise<ChatMessage[]> => {
+      if (!socket) return [];
+      
+      return new Promise((resolve) => {
+        try {
+          socket.emit('search_messages', {
+            query,
+            conversationId,
+          });
+          
+          // Listen for search results
+          socket.once('search_results', (results: ChatMessage[]) => {
+            resolve(results);
+          });
+        } catch (error) {
+          console.error('Failed to search messages:', error);
+          resolve([]);
+        }
+      });
+    },
+    [socket]
+  );
+
   const value = {
     socket,
     isConnected,
@@ -2475,6 +2790,18 @@ export function SocketChatProvider({
     getBotCapabilities,
     // Crypto transaction operations
     initiateCryptoTransaction,
+    
+    // Enhanced message features
+    addReaction,
+    removeReaction,
+    editMessage,
+    deleteMessage,
+    forwardMessage,
+    replyToMessage,
+    markMessageAsRead,
+    pinMessage,
+    unpinMessage,
+    searchMessages,
   };
 
   return (
