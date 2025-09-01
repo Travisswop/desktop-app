@@ -313,6 +313,11 @@ export function SocketChatProvider({
         (account: any) => account.chainType === 'solana'
       ) as any;
 
+      console.log(
+        '🚀 ~ registerUserInDatabase ~ solanaAccount:',
+        solanaAccount
+      );
+
       const ethAccount = user.linkedAccounts?.find(
         (account: any) => account.chainType === 'ethereum'
       ) as any;
@@ -322,22 +327,29 @@ export function SocketChatProvider({
         (account: any) => account.type === 'google_oauth'
       ) as any;
 
+      const primaryMicrosite = userData?.microsites?.find(
+        (microsite: any) => microsite.primary
+      ) as any;
+
       // Prepare user data for the server
       const userDataForServer = {
         // Primary identifiers (at least one required)
         userId: userData?._id,
+        email: googleAccount?.address,
+        name: primaryMicrosite?.name || userData?.name,
+        ensName: userData?.ensName,
+        displayName: userData?.ensName || primaryMicrosite?.name,
+        bio: primaryMicrosite?.bio || userData?.bio,
+        profilePic:
+          primaryMicrosite?.profilePic || userData?.profilePic,
         privyId: user.id,
         ethAddress: ethAccount?.address,
-        email: googleAccount?.address,
 
         // Additional identifiers
         solanaAddress: solanaAccount?.address,
 
         // Profile information
-        name: googleAccount?.name,
-        displayName: googleAccount?.name,
-        bio: '',
-        profilePic: '',
+
         // Preferences
         preferences: {
           language: 'en',
