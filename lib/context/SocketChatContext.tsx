@@ -6,11 +6,11 @@ import {
   useState,
   useEffect,
   useCallback,
+  useRef,
   ReactNode,
 } from 'react';
 import { io, Socket } from 'socket.io-client';
 import { usePrivy } from '@privy-io/react-auth';
-import { useUser } from '../UserContext';
 
 // Types for messages and conversations
 export interface ChatMessage {
@@ -289,6 +289,12 @@ export function SocketChatProvider({
   const [activeConversationId, setActiveConversationId] = useState<
     string | null
   >(null);
+  const activeConversationIdRef = useRef<string | null>(null);
+  
+  // Keep ref in sync with state
+  useEffect(() => {
+    activeConversationIdRef.current = activeConversationId;
+  }, [activeConversationId]);
   const [userPresence, setUserPresence] = useState<
     Record<string, { status: string; lastSeen?: number }>
   >({});
@@ -454,12 +460,12 @@ export function SocketChatProvider({
       'private_message_history',
       (messageHistory: ChatMessage[]) => {
         setMessages((prev) => {
-          // Get current active conversation ID from state to avoid dependency warning
-          const currentActiveConversationId = activeConversationId;
-          if (currentActiveConversationId) {
+          // Use the ref to get the current active conversation ID
+          const currentActiveId = activeConversationIdRef.current;
+          if (currentActiveId) {
             return {
               ...prev,
-              [currentActiveConversationId]: messageHistory,
+              [currentActiveId]: messageHistory,
             };
           }
           return prev;
@@ -476,12 +482,12 @@ export function SocketChatProvider({
           messageHistory
         );
         setMessages((prev) => {
-          // Get current active conversation ID from state to avoid dependency warning
-          const currentActiveConversationId = activeConversationId;
-          if (currentActiveConversationId) {
+          // Use the ref to get the current active conversation ID
+          const currentActiveId = activeConversationIdRef.current;
+          if (currentActiveId) {
             return {
               ...prev,
-              [currentActiveConversationId]: messageHistory,
+              [currentActiveId]: messageHistory,
             };
           }
           return prev;
@@ -606,27 +612,7 @@ export function SocketChatProvider({
         return prev;
       });
 
-      // Force a re-render of the component using this conversation
-      if (conversationId === activeConversationId) {
-        console.log('🔄 Forcing re-render for active conversation');
-
-        // This is a more reliable way to force a re-render
-        setTimeout(() => {
-          console.log('🔄 Executing delayed re-render now');
-          setActiveConversationId((oldId) => {
-            console.log(
-              `🔄 Re-render: changing from ${oldId} to ${conversationId} and back`
-            );
-            // Change to a different value and then back to force React to notice the change
-            const tempId = `${conversationId}_temp_${Date.now()}`;
-            setTimeout(
-              () => setActiveConversationId(conversationId),
-              5
-            );
-            return tempId;
-          });
-        }, 10);
-      }
+      // No need to force re-render - React will handle this automatically with state updates
 
       // Update the conversation list with the new message
       setConversations((prev) => {
@@ -650,7 +636,7 @@ export function SocketChatProvider({
             lastMessageTime: message.createdAt,
             // Don't increment unread count if this is the active conversation
             unreadCount:
-              conversationId === activeConversationId
+              conversationId === activeConversationIdRef.current
                 ? 0
                 : (updatedConversations[index].unreadCount || 0) + 1,
           };
@@ -725,7 +711,7 @@ export function SocketChatProvider({
             lastMessage: message.content,
             lastMessageTime: message.createdAt,
             unreadCount:
-              conversationId === activeConversationId ? 0 : 1,
+              conversationId === activeConversationIdRef.current ? 0 : 1,
           };
 
           console.log('🔍 Adding new conversation:', newConversation);
@@ -1168,14 +1154,14 @@ export function SocketChatProvider({
       setSocket(null);
       setIsConnected(false);
     };
-  }, [user, activeConversationId, registerUserInDatabase]);
+  }, [user?.id]);
 
   // Register/update user data when userData changes
   useEffect(() => {
     if (isConnected && socket && user) {
       registerUserInDatabase();
     }
-  }, [isConnected, socket, user, registerUserInDatabase]);
+  }, [isConnected, socket, user?.id, registerUserInDatabase]);
 
   // Initialize user's presence when connected
   useEffect(() => {
@@ -1247,9 +1233,7 @@ export function SocketChatProvider({
         clearTimeout(groupRetryTimer);
       };
     }
-    // We intentionally exclude some dependencies to avoid infinite loops
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user, isConnected, socket]);
+  }, [user?.id, isConnected, socket]);
 
   // Listen for user groups and group messages
   useEffect(() => {
@@ -1362,17 +1346,7 @@ export function SocketChatProvider({
         return newState;
       });
 
-      // Force a re-render if this is the active conversation
-      if (channelId === activeConversationId) {
-        console.log(
-          `🔄 Forcing re-render for active conversation ${channelId}`
-        );
-
-        // This is a trick to force React to re-render the component
-        setTimeout(() => {
-          setActiveConversationId(channelId);
-        }, 10);
-      }
+      // React will automatically re-render when messages state changes
     });
 
     return () => {
@@ -1431,7 +1405,7 @@ export function SocketChatProvider({
 
       return conversationId;
     },
-    [socket, user]
+    [socket, user?.id]
   );
 
   // Join a conversation
@@ -1548,7 +1522,7 @@ export function SocketChatProvider({
         console.error('Error joining conversation:', error);
       }
     },
-    [socket, user, messages, activeConversationId]
+    [socket, user?.id, activeConversationId]
   );
 
   // Send a message
@@ -1783,7 +1757,7 @@ export function SocketChatProvider({
         console.error('Error sending message:', error);
       }
     },
-    [socket, activeConversationId, user]
+    [socket, activeConversationId, user?.id, user?.wallet?.address]
   );
 
   // Leave a conversation
@@ -1847,7 +1821,7 @@ export function SocketChatProvider({
         console.error('Error setting user online:', error);
       }
     },
-    [socket, user]
+    [socket, user?.id]
   );
 
   // Refresh conversation list
@@ -1872,7 +1846,7 @@ export function SocketChatProvider({
       } catch (error) {
         console.error('Error refreshing conversations:', error);
       }
-    }, [socket, user]);
+    }, [socket, user?.id, user?.wallet?.address]);
 
   // Group chat methods
   const createGroup = useCallback(
@@ -1943,7 +1917,7 @@ export function SocketChatProvider({
         }, 10000);
       });
     },
-    [socket, user]
+    [socket, user?.id]
   );
 
   const joinGroup = useCallback(
@@ -1994,7 +1968,7 @@ export function SocketChatProvider({
         }
       });
     },
-    [socket, user]
+    [socket, user?.id]
   );
 
   const leaveGroup = useCallback(
@@ -2064,7 +2038,7 @@ export function SocketChatProvider({
         }, 10000);
       });
     },
-    [socket, user]
+    [socket, user?.id]
   );
 
   const removeGroupMember = useCallback(async (): Promise<void> => {
@@ -2075,7 +2049,7 @@ export function SocketChatProvider({
 
     // This is a placeholder for future implementation
     console.warn('removeGroupMember not fully implemented');
-  }, [socket, user]);
+  }, [socket, user?.id, user?.wallet?.address]);
 
   const searchUsers = useCallback(
     async (
@@ -2237,7 +2211,7 @@ export function SocketChatProvider({
         throw error;
       }
     },
-    [socket, user]
+    [socket, user?.id]
   );
 
   // Bot-specific operations
@@ -2283,7 +2257,7 @@ export function SocketChatProvider({
         throw error;
       }
     },
-    [socket, user]
+    [socket, user?.id]
   );
 
   const getAvailableBots = useCallback(
@@ -2347,7 +2321,7 @@ export function SocketChatProvider({
         }, 10000);
       });
     },
-    [socket, user]
+    [socket, user?.id]
   );
 
   const removeBotFromGroup = useCallback(
@@ -2364,7 +2338,7 @@ export function SocketChatProvider({
         userId: user.id,
       });
     },
-    [socket, user]
+    [socket, user?.id]
   );
 
   const getBotCapabilities = useCallback(
@@ -2450,7 +2424,7 @@ export function SocketChatProvider({
         throw error;
       }
     },
-    [socket, user]
+    [socket, user?.id]
   );
 
   const value = {
