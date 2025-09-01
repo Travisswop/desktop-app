@@ -11,6 +11,7 @@ import { fetchTokensFromLiFi } from "@/actions/lifiForTokenSwap";
 import { usePrivy, useSolanaWallets, useWallets } from "@privy-io/react-auth";
 import { Connection, VersionedTransaction } from "@solana/web3.js";
 import { saveSwapTransaction } from "@/actions/saveTransactionData";
+import Cookies from "js-cookie";
 
 const getChainIcon = (chainName: string) => {
   const chainIcons: Record<string, string> = {
@@ -351,6 +352,8 @@ export default function SwapTokenModal({ tokens }: { tokens: any[] }) {
   const [isQuoteLoading, setIsQuoteLoading] = useState(false);
   const [quoteCountdown, setQuoteCountdown] = useState(10);
   const [lastQuoteTime, setLastQuoteTime] = useState<number | null>(null);
+
+  const [accessToken, setAccessToken] = useState("");
 
   // Refs for intervals
   const quoteRefreshInterval = useRef<NodeJS.Timeout | null>(null);
@@ -1429,24 +1432,21 @@ export default function SwapTokenModal({ tokens }: { tokens: any[] }) {
     );
   };
 
-  const getAccessToken = async (): Promise<string> => {
-    // Example implementation - adjust based on your auth system
-    if (typeof window !== "undefined") {
-      // Client-side: get token from localStorage or auth context
-      const token = localStorage.getItem("access-token");
-      if (token) return token;
+  useEffect(() => {
+    const getAccessToken = async () => {
+      const token = Cookies.get("access-token");
+      if (token) {
+        setAccessToken(token);
+      }
+    };
+    if (window !== undefined) {
+      getAccessToken();
     }
-
-    // Server-side or alternative methods
-    throw new Error("Access token not available");
-  };
+  }, []);
 
   // Add this function to your component
   const saveSwapToDatabase = async (signature: string, quote: any) => {
     try {
-      // Get access token (you'll need to implement this based on your auth system)
-      const accessToken = await getAccessToken(); // Implement this function
-
       const swapDetails = {
         signature,
         solanaAddress: solWallet || "",
