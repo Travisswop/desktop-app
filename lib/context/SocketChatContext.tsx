@@ -276,7 +276,6 @@ export function SocketChatProvider({
   const { user } = usePrivy();
   const { user: userData } = useUser();
 
-  console.log('🚀 ~ SocketChatProvider ~ user:', user);
   const [socket, setSocket] = useState<Socket | null>(null);
   const [isConnected, setIsConnected] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -303,28 +302,18 @@ export function SocketChatProvider({
 
   // Function to register/update user data in the database
   const registerUserInDatabase = useCallback(async () => {
-    if (!socket || !user) {
+    if (!socket || !user || !userData) {
       return;
     }
-
+    console.log('🚀 ~ registerUserInDatabase ~ userData:', userData);
     try {
       // Extract Solana address from Privy linked accounts
       const solanaAccount = user.linkedAccounts?.find(
         (account: any) => account.chainType === 'solana'
       ) as any;
 
-      console.log(
-        '🚀 ~ registerUserInDatabase ~ solanaAccount:',
-        solanaAccount
-      );
-
       const ethAccount = user.linkedAccounts?.find(
         (account: any) => account.chainType === 'ethereum'
-      ) as any;
-
-      // Get Google account info
-      const googleAccount = user.linkedAccounts?.find(
-        (account: any) => account.type === 'google_oauth'
       ) as any;
 
       const primaryMicrosite = userData?.microsites?.find(
@@ -335,7 +324,7 @@ export function SocketChatProvider({
       const userDataForServer = {
         // Primary identifiers (at least one required)
         userId: userData?._id,
-        email: googleAccount?.address,
+        email: userData?.email,
         name: primaryMicrosite?.name || userData?.name,
         ensName: userData?.ensName,
         displayName: userData?.ensName || primaryMicrosite?.name,
@@ -377,11 +366,15 @@ export function SocketChatProvider({
       };
 
       // Emit user registration/update to the server
+      console.log(
+        '📤 Sending user registration data:',
+        userDataForServer
+      );
       socket.emit('register_user', userDataForServer);
     } catch (error) {
       console.error('❌ Error registering user in database:', error);
     }
-  }, [socket, user]);
+  }, [socket, user, userData]);
 
   // Create and initialize socket connection
   useEffect(() => {
