@@ -267,29 +267,12 @@ const SocketChatContext = createContext<
   SocketChatContextType | undefined
 >(undefined);
 
-// Custom hook to safely use UserContext
-function useUserSafely() {
-  try {
-    return useUser();
-  } catch (error) {
-    // UserProvider is not available
-    console.log(
-      'UserProvider not available, proceeding with Privy data only'
-    );
-    return { user: null };
-  }
-}
-
 export function SocketChatProvider({
   children,
 }: {
   children: ReactNode;
 }) {
   const { user } = usePrivy();
-
-  // Safely use useUser hook with error handling
-  const userContext = useUserSafely();
-  const userData = userContext.user;
 
   console.log('🚀 ~ SocketChatProvider ~ user:', user);
   const [socket, setSocket] = useState<Socket | null>(null);
@@ -332,69 +315,34 @@ export function SocketChatProvider({
         // Primary identifiers (at least one required)
         privyId: user.id,
         ethAddress: user.wallet?.address,
-        email: user.email?.address || userData?.email,
+        email: user.email?.address,
 
         // Additional identifiers
-        solanaAddress:
-          solanaAccount?.address || userData?.solanaAddress,
-        userId: userData?._id,
-        ensName: userData?.ensName,
+        solanaAddress: solanaAccount?.address,
 
         // Profile information
-        name:
-          userData?.name || user.google?.name || googleAccount?.name,
-        displayName:
-          userData?.displayName ||
-          userData?.name ||
-          user.google?.name ||
-          googleAccount?.name,
-        bio: userData?.bio || '',
-        profilePic: userData?.profilePic || '',
-
+        name: user.google?.name || googleAccount?.name,
+        displayName: user.google?.name || googleAccount?.name,
+        bio: '',
+        profilePic: '',
         // Preferences
         preferences: {
-          language: userData?.preferences?.language || 'en',
-          currency: userData?.preferences?.currency || 'USD',
-          notifications: userData?.preferences?.notifications ?? true,
+          language: 'en',
+          currency: 'USD',
+          notifications: true,
           privacy: {
-            showOnlineStatus:
-              userData?.preferences?.privacy?.showOnlineStatus ??
-              true,
-            allowBotInteractions:
-              userData?.preferences?.privacy?.allowBotInteractions ??
-              true,
+            showOnlineStatus: true,
+            allowBotInteractions: true,
           },
+          allowBotInteractions: true,
         },
 
         // Wallet connections
-        walletConnections: [
-          ...(user.wallet?.address
-            ? [
-                {
-                  network: 'ethereum',
-                  address: user.wallet.address,
-                  isActive: true,
-                  lastUsed: new Date(),
-                },
-              ]
-            : []),
-          ...(solanaAccount?.address
-            ? [
-                {
-                  network: 'solana',
-                  address: solanaAccount.address,
-                  isActive: true,
-                  lastUsed: new Date(),
-                },
-              ]
-            : []),
-        ],
+        walletConnections: [],
 
         // Social features
-        reputation: userData?.reputation || 0,
-        verificationStatus: user.email?.address
-          ? 'email_verified'
-          : 'unverified',
+        reputation: 0,
+        verificationStatus: '',
 
         // Bot-related fields (default values)
         isBot: false,
@@ -403,19 +351,12 @@ export function SocketChatProvider({
         botMetadata: {},
       };
 
-      console.log('🔄 Registering/updating user in database:', {
-        privyId: userDataForServer.privyId,
-        ethAddress: userDataForServer.ethAddress,
-        email: userDataForServer.email,
-        name: userDataForServer.name,
-      });
-
       // Emit user registration/update to the server
       socket.emit('register_user', userDataForServer);
     } catch (error) {
       console.error('❌ Error registering user in database:', error);
     }
-  }, [socket, user, userData]);
+  }, [socket, user]);
 
   // Create and initialize socket connection
   useEffect(() => {
@@ -1234,7 +1175,7 @@ export function SocketChatProvider({
     if (isConnected && socket && user) {
       registerUserInDatabase();
     }
-  }, [isConnected, socket, user, userData, registerUserInDatabase]);
+  }, [isConnected, socket, user, registerUserInDatabase]);
 
   // Initialize user's presence when connected
   useEffect(() => {
