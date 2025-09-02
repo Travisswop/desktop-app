@@ -191,7 +191,7 @@ const ChatPageContent = () => {
 
   // Handle conversation selection
   const handleSelectConversation = useCallback(
-    async (recipientAddress: string) => {
+    async (recipientAddress: string, conversationData?: any) => {
       if (!recipientAddress || !PrivyUser?.id) {
         console.log(
           '⚠️ [ChatPage] Cannot select conversation - missing params'
@@ -251,47 +251,64 @@ const ChatPageContent = () => {
         setSelectedConversationId(conversationId);
         setSelectedRecipientId(resolvedRecipient);
 
-        // Find user data from search results to use display name and profile info
+        // Use conversation data if available (from existing conversations with ENS names)
         let userData = null;
+        let displayName = 'Unknown';
+        let ensName = '';
 
-        // Look for user in recent search results
-        if (searchResults.length > 0) {
-          userData = searchResults.find(
-            (user) =>
-              user.userId === resolvedRecipient ||
-              user.ethAddress === resolvedRecipient ||
-              user.ensName === recipientAddress
-          );
+        // Priority 1: Use provided conversation data (from socket server with ENS)
+        if (conversationData) {
+          console.log('🎯 [ChatPage] Using conversation data:', conversationData);
+          displayName = conversationData.displayName || conversationData.name;
+          ensName = conversationData.ensName || conversationData.peerEnsName || '';
+          userData = {
+            displayName: conversationData.displayName,
+            name: conversationData.name,
+            ensName: ensName,
+            bio: conversationData.bio || '',
+            profilePic: conversationData.profilePic || '',
+            profileUrl: conversationData.profileUrl || ''
+          };
+        } else {
+          // Priority 2: Look for user in recent search results
+          if (searchResults.length > 0) {
+            userData = searchResults.find(
+              (user) =>
+                user.userId === resolvedRecipient ||
+                user.ethAddress === resolvedRecipient ||
+                user.ensName === recipientAddress
+            );
+          }
+
+          // Priority 3: If not found in search results but we have a single search result, use that
+          if (
+            !userData &&
+            searchResult &&
+            (searchResult.ethAddress === resolvedRecipient ||
+              searchResult.ensName === recipientAddress)
+          ) {
+            userData = searchResult;
+          }
+
+          // Set display name and ENS name
+          if (userData) {
+            displayName = userData.displayName || userData.name || userData.ensName || 'Unknown';
+            ensName = userData.ensName || (isEns ? recipientAddress : '');
+          } else {
+            displayName = isEns
+              ? recipientAddress
+              : `${resolvedRecipient.substring(0, 6)}...${resolvedRecipient.substring(resolvedRecipient.length - 4)}`;
+            ensName = isEns ? recipientAddress : '';
+          }
         }
 
-        // If not found in search results but we have a single search result, use that
-        if (
-          !userData &&
-          searchResult &&
-          (searchResult.ethAddress === resolvedRecipient ||
-            searchResult.ensName === recipientAddress)
-        ) {
-          userData = searchResult;
-        }
-
-        // Display the best available name and info
-        const displayName =
-          userData?.displayName ||
-          userData?.name ||
-          (isEns
-            ? recipientAddress
-            : `${resolvedRecipient.substring(
-                0,
-                6
-              )}...${resolvedRecipient.substring(
-                resolvedRecipient.length - 4
-              )}`);
+        console.log(`🎯 [ChatPage] Setting micrositeData: displayName=${displayName}, ensName=${ensName}`);
 
         setMicrositeData({
           name: displayName,
           ethAddress: resolvedRecipient, // Store the resolved ID
           bio: userData?.bio || '',
-          ens: userData?.ensName || (isEns ? recipientAddress : ''),
+          ens: ensName,
           profilePic: userData?.profilePic || '',
           profileUrl: userData?.profileUrl || '',
         });
@@ -442,12 +459,14 @@ const ChatPageContent = () => {
     }
   }, [searchParams, handleSelectConversation]);
 
-  const handleWalletClick = async (userIdentifier: string) => {
+  const handleWalletClick = async (userIdentifier: string, conversationData?: any) => {
     console.log(
       '🔍 Starting conversation with user identifier:',
-      userIdentifier
+      userIdentifier,
+      'conversationData:',
+      conversationData
     );
-    await handleSelectConversation(userIdentifier);
+    await handleSelectConversation(userIdentifier, conversationData);
   };
 
   const handleBackToWallet = () => {
@@ -685,6 +704,7 @@ const ChatPageContent = () => {
                           user.ensName
                         }
                         handleWalletClick={handleWalletClick}
+                        conversationData={user}
                       />
                     ))}
                   </div>
@@ -712,6 +732,7 @@ const ChatPageContent = () => {
                         profilePic={searchResult.profilePic}
                         ethAddress={searchResult.ethAddress}
                         handleWalletClick={handleWalletClick}
+                        conversationData={searchResult}
                       />
                     </div>
                   )}
@@ -742,6 +763,7 @@ const ChatPageContent = () => {
                         profilePic=""
                         ethAddress={conv.peerAddress}
                         handleWalletClick={handleWalletClick}
+                        conversationData={conv}
                       />
                     ))}
                   </div>
@@ -803,12 +825,14 @@ const MessageList = ({
   profilePic,
   ethAddress,
   handleWalletClick,
+  conversationData,
 }: {
   bio: string;
   name: string;
   profilePic: string;
   ethAddress: string;
-  handleWalletClick: (ethAddress: string) => Promise<void>;
+  handleWalletClick: (ethAddress: string, conversationData?: any) => Promise<void>;
+  conversationData?: any;
 }) => {
   const [resolvedName, setResolvedName] = useState(name);
   const [isResolving, setIsResolving] = useState(false);
@@ -847,7 +871,7 @@ const MessageList = ({
 
   return (
     <div
-      onClick={() => handleWalletClick(ethAddress)}
+      onClick={() => handleWalletClick(ethAddress, conversationData)}
       className="text-black flex items-center justify-between p-3 rounded-lg cursor-pointer border hover:bg-gray-50 transition-colors mb-2"
     >
       <div className="flex items-center gap-3">
