@@ -39,7 +39,7 @@ export interface MessageMention {
   length: number;
 }
 
-// Message link preview interface  
+// Message link preview interface
 export interface MessageLink {
   url: string;
   title?: string;
@@ -82,31 +82,31 @@ export interface ChatMessage {
     | 'bot_command'
     | 'transaction'
     | 'crypto_action';
-  
+
   // Enhanced message features (optional for backward compatibility)
   status?: 'sending' | 'sent' | 'delivered' | 'read' | 'failed';
   recipients?: MessageRecipient[];
   attachments?: MessageAttachment[];
-  
+
   // Thread support
   parentMessageId?: string;
   threadId?: string;
   replyCount?: number;
-  
+
   // Forward/Quote support
   forwardedFrom?: MessageForward;
-  
+
   // Content analysis
   mentions?: MessageMention[];
   hashtags?: string[];
   links?: MessageLink[];
-  
+
   // Message management
   priority?: 'normal' | 'high' | 'urgent';
   isPinned?: boolean;
   pinnedAt?: string;
   pinnedBy?: string;
-  
+
   // Edit history
   editHistory?: Array<{
     content: string;
@@ -115,38 +115,38 @@ export interface ChatMessage {
   }>;
   isEdited?: boolean;
   lastEditedAt?: string;
-  
+
   // Deletion
   isDeleted?: boolean;
   deletedAt?: string;
   deletedBy?: string;
   deletedFor?: string[]; // User IDs who deleted for themselves
-  
+
   // Enhanced reactions
   reactions?: MessageReaction[];
-  
-  // Read receipts  
+
+  // Read receipts
   readReceipts?: Array<{
     userId: string;
     readAt: string;
     platform: 'web' | 'mobile' | 'desktop';
   }>;
-  
+
   // Encryption
   isEncrypted?: boolean;
   encryptionVersion?: string;
-  
+
   // Temporary messages
   expiresAt?: string;
   ttl?: number;
-  
+
   // Platform info
   platform?: 'web' | 'mobile' | 'desktop' | 'api';
   clientVersion?: string;
-  
+
   createdAt: string;
   updatedAt?: string;
-  
+
   // Legacy fields for backward compatibility
   senderName?: string;
   senderImage?: string;
@@ -377,18 +377,54 @@ interface SocketChatContextType {
     conversationId?: string;
     groupId?: string;
   }) => Promise<void>;
-  
+
   // Enhanced message features
-  addReaction: (messageId: string, emoji: string, conversationId: string) => Promise<void>;
-  removeReaction: (messageId: string, conversationId: string) => Promise<void>;
-  editMessage: (messageId: string, newContent: string, conversationId: string) => Promise<void>;
-  deleteMessage: (messageId: string, conversationId: string, deleteFor?: 'me' | 'everyone') => Promise<void>;
-  forwardMessage: (originalMessageId: string, recipientId: string, conversationId: string) => Promise<void>;
-  replyToMessage: (parentMessageId: string, content: string, conversationId: string) => Promise<void>;
-  markMessageAsRead: (messageId: string, conversationId: string, platform?: string) => Promise<void>;
-  pinMessage: (messageId: string, conversationId: string) => Promise<void>;
-  unpinMessage: (messageId: string, conversationId: string) => Promise<void>;
-  searchMessages: (query: string, conversationId?: string) => Promise<ChatMessage[]>;
+  addReaction: (
+    messageId: string,
+    emoji: string,
+    conversationId: string
+  ) => Promise<void>;
+  removeReaction: (
+    messageId: string,
+    conversationId: string
+  ) => Promise<void>;
+  editMessage: (
+    messageId: string,
+    newContent: string,
+    conversationId: string
+  ) => Promise<void>;
+  deleteMessage: (
+    messageId: string,
+    conversationId: string,
+    deleteFor?: 'me' | 'everyone'
+  ) => Promise<void>;
+  forwardMessage: (
+    originalMessageId: string,
+    recipientId: string,
+    conversationId: string
+  ) => Promise<void>;
+  replyToMessage: (
+    parentMessageId: string,
+    content: string,
+    conversationId: string
+  ) => Promise<void>;
+  markMessageAsRead: (
+    messageId: string,
+    conversationId: string,
+    platform?: string
+  ) => Promise<void>;
+  pinMessage: (
+    messageId: string,
+    conversationId: string
+  ) => Promise<void>;
+  unpinMessage: (
+    messageId: string,
+    conversationId: string
+  ) => Promise<void>;
+  searchMessages: (
+    query: string,
+    conversationId?: string
+  ) => Promise<ChatMessage[]>;
 }
 
 const SocketChatContext = createContext<
@@ -643,25 +679,32 @@ export function SocketChatProvider({
       console.log('🔔 Socket ID:', socket?.id);
       console.log('🔔 TIMESTAMP:', new Date().toISOString());
 
-      // IMPORTANT: Ensure we're using the correct conversation ID format
-      let conversationId = message.conversationId;
-
-      // If the conversation ID contains ETH addresses, ensure consistent format
-      if (conversationId.includes('0x')) {
-        const parts = conversationId.split('_');
-        if (parts.length === 2) {
-          // Sort to ensure consistent ordering
-          const sortedParts = [...parts].sort();
-          const sortedConversationId = sortedParts.join('_');
-
-          if (sortedConversationId !== conversationId) {
-            console.log(
-              `Normalizing conversation ID from ${conversationId} to ${sortedConversationId}`
-            );
-            conversationId = sortedConversationId;
+      // Normalize conversation ID consistently
+      const normalizeConversationId = (id: string) => {
+        if (id.includes('0x') && id.includes('_')) {
+          const parts = id.split('_');
+          if (parts.length === 2) {
+            return [...parts].sort().join('_');
           }
         }
+        return id;
+      };
+
+      const conversationId = normalizeConversationId(
+        message.conversationId || ''
+      );
+
+      if (!conversationId) {
+        console.warn(
+          'Received message without valid conversation ID:',
+          message
+        );
+        return;
       }
+
+      console.log(
+        `[RECEIVE_DM] Processing message for conversation: ${conversationId}`
+      );
 
       // Add the message to the messages state
       console.log('🔍 Before updating messages state:', {
@@ -714,7 +757,8 @@ export function SocketChatProvider({
               // as the incoming server message (this means it's a duplicate)
               const isSameSender = msg.senderId === message.senderId;
               const isSameContent =
-                msg.content.trim() === message.content.trim();
+                (msg.content?.trim() ?? '') ===
+                (message.content?.trim() ?? '');
 
               if (isSameSender && isSameContent) {
                 console.log(
@@ -931,7 +975,8 @@ export function SocketChatProvider({
                   const isSameSender =
                     msg.senderId === message.senderId;
                   const isSameContent =
-                    msg.content.trim() === message.content.trim();
+                    (msg.content?.trim() ?? '') ===
+                    (message.content?.trim() ?? '');
 
                   if (isSameSender && isSameContent) {
                     console.log(
@@ -1518,31 +1563,19 @@ export function SocketChatProvider({
         return `temp_${recipientId}_${Date.now()}`;
       }
 
-      // IMPORTANT: Always use ETH addresses for conversation IDs when available
-      // This ensures consistency between different clients and the server
-      const userEthAddress = user.wallet?.address;
-      const recipientEthAddress = recipientId;
-
-      // If recipient is a Privy ID, we need to get its ETH address from the server
-      if (recipientId.startsWith('did:privy:')) {
-        console.log('Recipient is a Privy ID, using as is for now');
-        // We'll rely on the server to handle this correctly
-      }
-      // If user ID is a Privy ID but we have their ETH address, use that
-      else if (user.id.startsWith('did:privy:') && userEthAddress) {
-        console.log(
-          `Using user's ETH address (${userEthAddress}) instead of Privy ID for conversation`
-        );
-      }
-
-      // Create a deterministic conversation ID using the best available IDs
-      // Priority: ETH address > Privy ID
-      const userId = userEthAddress || user.id;
-      const targetId = recipientEthAddress || recipientId;
+      // Create a deterministic conversation ID using available identifiers
+      // Use Privy IDs if available, otherwise use provided IDs
+      const userId = user.id;
+      const targetId = recipientId;
 
       // Sort and join to ensure the same conversation ID regardless of who initiates
       const conversationId = [userId, targetId].sort().join('_');
       console.log('Created conversation ID:', conversationId);
+
+      // Log the IDs being used for debugging
+      console.log(
+        `Creating conversation between ${userId} and ${targetId}`
+      );
 
       return conversationId;
     },
@@ -1704,13 +1737,39 @@ export function SocketChatProvider({
           if (activeConversationId) {
             const parts = activeConversationId.split('_');
             if (parts.length === 2) {
-              // Find the part that's not the sender
-              actualRecipientId =
-                parts[0] === senderId ? parts[1] : parts[0];
+              // Find the part that's not the sender (check both user ID and ETH address)
+              const userEthAddress = user?.wallet?.address;
+              const userId = user?.id;
+
+              if (
+                parts[0] === senderId ||
+                parts[0] === userId ||
+                parts[0] === userEthAddress
+              ) {
+                actualRecipientId = parts[1];
+              } else if (
+                parts[1] === senderId ||
+                parts[1] === userId ||
+                parts[1] === userEthAddress
+              ) {
+                actualRecipientId = parts[0];
+              } else {
+                // If neither part matches current user, use the original recipientId parameter
+                actualRecipientId = recipientId;
+              }
+
               console.log(
-                `Fixed recipient ID: now using ${actualRecipientId}`
+                `Fixed recipient ID: now using ${actualRecipientId} (from conversation ID ${activeConversationId})`
               );
             }
+          }
+
+          // Final check - if still the same, this is an error
+          if (actualRecipientId === actualSenderId) {
+            console.error(
+              'Unable to determine correct recipient ID - aborting message send'
+            );
+            return;
           }
         }
 
@@ -2570,9 +2629,13 @@ export function SocketChatProvider({
 
   // Enhanced message features
   const addReaction = useCallback(
-    async (messageId: string, emoji: string, conversationId: string) => {
+    async (
+      messageId: string,
+      emoji: string,
+      conversationId: string
+    ) => {
       if (!socket || !user?.id) return;
-      
+
       try {
         socket.emit('add_reaction', {
           messageId,
@@ -2590,7 +2653,7 @@ export function SocketChatProvider({
   const removeReaction = useCallback(
     async (messageId: string, conversationId: string) => {
       if (!socket || !user?.id) return;
-      
+
       try {
         socket.emit('remove_reaction', {
           messageId,
@@ -2605,9 +2668,13 @@ export function SocketChatProvider({
   );
 
   const editMessage = useCallback(
-    async (messageId: string, newContent: string, conversationId: string) => {
+    async (
+      messageId: string,
+      newContent: string,
+      conversationId: string
+    ) => {
       if (!socket || !user?.id) return;
-      
+
       try {
         socket.emit('edit_dm', {
           messageId,
@@ -2623,9 +2690,13 @@ export function SocketChatProvider({
   );
 
   const deleteMessage = useCallback(
-    async (messageId: string, conversationId: string, deleteFor: 'me' | 'everyone' = 'me') => {
+    async (
+      messageId: string,
+      conversationId: string,
+      deleteFor: 'me' | 'everyone' = 'me'
+    ) => {
       if (!socket || !user?.id) return;
-      
+
       try {
         socket.emit('delete_dm', {
           messageId,
@@ -2641,9 +2712,13 @@ export function SocketChatProvider({
   );
 
   const forwardMessage = useCallback(
-    async (originalMessageId: string, recipientId: string, conversationId: string) => {
+    async (
+      originalMessageId: string,
+      recipientId: string,
+      conversationId: string
+    ) => {
       if (!socket || !user?.id) return;
-      
+
       try {
         socket.emit('forward_dm', {
           originalMessageId,
@@ -2659,15 +2734,21 @@ export function SocketChatProvider({
   );
 
   const replyToMessage = useCallback(
-    async (parentMessageId: string, content: string, conversationId: string) => {
+    async (
+      parentMessageId: string,
+      content: string,
+      conversationId: string
+    ) => {
       if (!socket || !user?.id) return;
-      
+
       // For now, we'll send a regular message with parentMessageId reference
       // The server should handle threading logic
       try {
         socket.emit('send_dm', {
           senderId: user.id,
-          recipientId: conversationId.split('_').find(id => id !== user.id) || '',
+          recipientId:
+            conversationId.split('_').find((id) => id !== user.id) ||
+            '',
           content,
           messageType: 'text',
           conversationId,
@@ -2681,9 +2762,13 @@ export function SocketChatProvider({
   );
 
   const markMessageAsRead = useCallback(
-    async (messageId: string, conversationId: string, platform: string = 'desktop') => {
+    async (
+      messageId: string,
+      conversationId: string,
+      platform: string = 'desktop'
+    ) => {
       if (!socket || !user?.id) return;
-      
+
       try {
         socket.emit('mark_as_read', {
           messageId,
@@ -2701,7 +2786,7 @@ export function SocketChatProvider({
   const pinMessage = useCallback(
     async (messageId: string, conversationId: string) => {
       if (!socket || !user?.id) return;
-      
+
       try {
         socket.emit('pin_message', {
           messageId,
@@ -2718,7 +2803,7 @@ export function SocketChatProvider({
   const unpinMessage = useCallback(
     async (messageId: string, conversationId: string) => {
       if (!socket || !user?.id) return;
-      
+
       try {
         socket.emit('unpin_message', {
           messageId,
@@ -2733,16 +2818,19 @@ export function SocketChatProvider({
   );
 
   const searchMessages = useCallback(
-    async (query: string, conversationId?: string): Promise<ChatMessage[]> => {
+    async (
+      query: string,
+      conversationId?: string
+    ): Promise<ChatMessage[]> => {
       if (!socket) return [];
-      
+
       return new Promise((resolve) => {
         try {
           socket.emit('search_messages', {
             query,
             conversationId,
           });
-          
+
           // Listen for search results
           socket.once('search_results', (results: ChatMessage[]) => {
             resolve(results);
@@ -2790,7 +2878,7 @@ export function SocketChatProvider({
     getBotCapabilities,
     // Crypto transaction operations
     initiateCryptoTransaction,
-    
+
     // Enhanced message features
     addReaction,
     removeReaction,

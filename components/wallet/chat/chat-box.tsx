@@ -23,21 +23,21 @@ const ChatBox: React.FC<ChatBoxProps> = ({
   const [isLoading, setIsLoading] = useState(false);
   const [isSending, setIsSending] = useState(false);
   const messageEndRef = useRef<HTMLDivElement>(null);
-  // Get the normalized conversation ID (sorted ETH addresses)
-  let normalizedConversationId = conversationId;
-  if (conversationId.includes('0x')) {
-    const parts = conversationId.split('_');
-    if (parts.length === 2) {
-      const sortedParts = [...parts].sort();
-      normalizedConversationId = sortedParts.join('_');
+  // Normalize conversation ID consistently
+  const normalizeConversationId = (id: string) => {
+    if (id.includes('0x') && id.includes('_')) {
+      const parts = id.split('_');
+      if (parts.length === 2) {
+        return [...parts].sort().join('_');
+      }
     }
-  }
+    return id;
+  };
   
-  // Check both the original and normalized conversation IDs for messages
-  const conversationMessages = 
-    messages[conversationId] || 
-    (normalizedConversationId !== conversationId ? messages[normalizedConversationId] : []) || 
-    [];
+  const normalizedConversationId = normalizeConversationId(conversationId);
+  
+  // Always use the normalized conversation ID for consistency
+  const conversationMessages = messages[normalizedConversationId] || [];
   
   // Debug messages
   console.log(`[DEBUG] Rendering ChatBox for conversation: ${conversationId}`);
@@ -67,18 +67,17 @@ const ChatBox: React.FC<ChatBoxProps> = ({
       setIsLoading(true);
       try {
         console.log(`[ChatBox] Setting up conversation: ${normalizedConversationId}`);
-        
-        // Always use the normalized conversation ID
-        if (normalizedConversationId !== conversationId) {
-          console.log(`[ChatBox] Using normalized conversation ID: ${normalizedConversationId} instead of ${conversationId}`);
-        }
+        console.log(`[ChatBox] Original conversation ID: ${conversationId}`);
         
         // Join the conversation with the normalized ID
         await joinConversation(normalizedConversationId);
         
+        // Mark messages as read after joining
         if (user?.id) {
           await markAsRead(normalizedConversationId, user.id);
         }
+        
+        console.log(`[ChatBox] Successfully joined conversation and marked as read`);
     
       } catch (err) {
         console.error('Failed to join conversation:', err);
@@ -101,56 +100,40 @@ const ChatBox: React.FC<ChatBoxProps> = ({
     
     setIsSending(true);
     try {
-      // Normalize conversation ID if it contains ETH addresses
-      let normalizedConversationId = conversationId;
+      // Use the already normalized conversation ID
+      const finalConversationId = normalizedConversationId;
       
-      if (conversationId.includes('0x')) {
-        const parts = conversationId.split('_');
-        if (parts.length === 2) {
-          // Sort to ensure consistent ordering
-          const sortedParts = [...parts].sort();
-          normalizedConversationId = sortedParts.join('_');
-          
-          if (normalizedConversationId !== conversationId) {
-            console.log(`[SendMessage] Normalizing conversation ID from ${conversationId} to ${normalizedConversationId}`);
-          }
-        }
-      }
-      
-      // Validate recipient ID format
+      // Determine the correct recipient ID from the conversation ID
       let validRecipientId = recipientId;
       
-      // If recipient ID is not in the right format, try to extract it from the conversation ID
-      if (!recipientId.startsWith('did:privy:') && !recipientId.startsWith('0x') && normalizedConversationId) {
-        console.log('Attempting to extract valid recipient ID from conversation ID');
-        const parts = normalizedConversationId.split('_');
-        if (parts.length === 2) {
-          validRecipientId = parts[0] === user.id ? parts[1] : parts[0];
-          
-          // If user has an ETH address and it's in the conversation ID, use that to determine recipient
-          if (user.wallet?.address) {
-            validRecipientId = parts[0] === user.wallet.address ? parts[1] : parts[0];
-          }
-          
-          console.log(`Extracted recipient ID from conversation: ${validRecipientId}`);
+      // Extract recipient from conversation ID to ensure it's correct
+      const parts = finalConversationId.split('_');
+      if (parts.length === 2) {
+        // Check which part is NOT the current user
+        const userEthAddress = user.wallet?.address;
+        const userId = user.id;
+        
+        if (parts[0] === userId || parts[0] === userEthAddress) {
+          validRecipientId = parts[1];
+        } else if (parts[1] === userId || parts[1] === userEthAddress) {
+          validRecipientId = parts[0];
+        } else {
+          // If neither part matches, use the first part that's not the sender ID
+          validRecipientId = parts.find(p => p !== user.id && p !== userEthAddress) || parts[0];
         }
+        
+        console.log(`[SendMessage] Determined recipient ID: ${validRecipientId} from conversation ${finalConversationId}`);
       }
       
-      // Send the message with the normalized conversation ID
-      // First, ensure we're joined to the correct conversation
-      if (normalizedConversationId !== conversationId) {
-        console.log(`[SendMessage] Joining normalized conversation: ${normalizedConversationId}`);
-        await joinConversation(normalizedConversationId);
-      }
-      
-      // Then send the message
+      // Send the message with the final conversation ID and recipient ID
       await sendMessage({
         senderId: user.id,
         recipientId: validRecipientId,
-        content: newMessage.trim()
+        content: newMessage.trim(),
+        conversationId: finalConversationId
       });
       
-      console.log(`[SendMessage] Message sent to ${validRecipientId} in conversation ${normalizedConversationId}`);
+      console.log(`[SendMessage] Message sent to ${validRecipientId} in conversation ${finalConversationId}`);
       setNewMessage('');
     } catch (error) {
       console.error('Failed to send message:', error);
