@@ -18,12 +18,9 @@ export const EnhancedMessage: React.FC<EnhancedMessageProps> = ({
 
   // Calculate bubble corner rounding for grouped messages (iPhone style)
   const getBubbleRadius = () => {
-    if (!isGrouped && isLastInGroup) {
-      // Single message - fully rounded
+    if (!isGrouped) {
+      // Single message or first in group - fully rounded
       return 'rounded-2xl';
-    } else if (!isGrouped && !isLastInGroup) {
-      // First in group
-      return isOwnMessage ? 'rounded-2xl rounded-br-md' : 'rounded-2xl rounded-bl-md';
     } else if (isGrouped && !isLastInGroup) {
       // Middle of group
       return isOwnMessage ? 'rounded-l-2xl rounded-tr-2xl rounded-br-md' : 'rounded-r-2xl rounded-tl-2xl rounded-bl-md';
@@ -35,8 +32,8 @@ export const EnhancedMessage: React.FC<EnhancedMessageProps> = ({
 
   return (
     <>
-      {/* Timestamp - show for last message in group with some spacing */}
-      {isLastInGroup && (
+      {/* Timestamp - show for first message in group (not grouped) */}
+      {!isGrouped && (
         <div className="flex justify-center mb-4 mt-6">
           <div className="text-xs text-gray-500 bg-gray-100 dark:bg-gray-800 px-3 py-1 rounded-full">
             {format(new Date(message.createdAt), 'MMM d, h:mm a')}
