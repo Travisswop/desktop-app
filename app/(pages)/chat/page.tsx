@@ -243,10 +243,15 @@ const ChatPageContent = () => {
           resolvedRecipient = userId;
         }
 
-        // Create or find conversation with the resolved recipient ID
-        const conversationId = await createConversation(
-          resolvedRecipient
-        );
+        // Use existing conversation ID if available, otherwise create new one
+        let conversationId;
+        if (conversationData && conversationData.conversationId) {
+          console.log('🎯 [ChatPage] Using existing conversation ID:', conversationData.conversationId);
+          conversationId = conversationData.conversationId;
+        } else {
+          console.log('🎯 [ChatPage] Creating new conversation for:', resolvedRecipient);
+          conversationId = await createConversation(resolvedRecipient);
+        }
 
         setSelectedConversationId(conversationId);
         setSelectedRecipientId(resolvedRecipient);
