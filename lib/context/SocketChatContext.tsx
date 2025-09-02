@@ -759,8 +759,7 @@ export function SocketChatProvider({
             conversation: conversationId,
           });
 
-          // IMPORTANT: Remove any temporary messages with the same content and sender
-          // This prevents duplicate messages when optimistic updates are replaced by server messages
+          // Enhanced deduplication logic for temporary messages
           const filteredMessages = conversationMessages.filter(
             (msg) => {
               // Keep all non-temporary messages
@@ -768,14 +767,20 @@ export function SocketChatProvider({
                 return true;
               }
 
-              // For temporary messages, remove if they have the same sender and content
-              // as the incoming server message (this means it's a duplicate)
+              // For temporary messages, remove if they match the incoming server message
               const isSameSender = msg.senderId === message.senderId;
               const isSameContent =
                 (msg.content?.trim() ?? '') ===
                 (message.content?.trim() ?? '');
+              
+              // Also check for content and timestamp proximity (within 10 seconds)
+              const timeDiff = Math.abs(
+                new Date(msg.createdAt).getTime() - 
+                new Date(message.createdAt).getTime()
+              );
+              const isTemporallyClose = timeDiff < 10000; // 10 seconds
 
-              if (isSameSender && isSameContent) {
+              if (isSameSender && isSameContent && isTemporallyClose) {
                 console.log(
                   `🗑️ Removing temporary message ${msg._id} as it's being replaced by server message ${message._id}`
                 );
@@ -997,7 +1002,7 @@ export function SocketChatProvider({
                 `🟢 Adding broadcast message to conversation ${normalizedConversationId}`
               );
 
-              // Remove any temporary messages with the same content and sender
+              // Enhanced deduplication logic for temporary messages (broadcast)
               const filteredMessages = conversationMessages.filter(
                 (msg) => {
                   // Keep all non-temporary messages
@@ -1005,14 +1010,20 @@ export function SocketChatProvider({
                     return true;
                   }
 
-                  // For temporary messages, remove if they have the same sender and content
-                  const isSameSender =
-                    msg.senderId === message.senderId;
+                  // For temporary messages, remove if they match the incoming server message
+                  const isSameSender = msg.senderId === message.senderId;
                   const isSameContent =
                     (msg.content?.trim() ?? '') ===
                     (message.content?.trim() ?? '');
+                  
+                  // Also check for content and timestamp proximity (within 10 seconds)
+                  const timeDiff = Math.abs(
+                    new Date(msg.createdAt).getTime() - 
+                    new Date(message.createdAt).getTime()
+                  );
+                  const isTemporallyClose = timeDiff < 10000; // 10 seconds
 
-                  if (isSameSender && isSameContent) {
+                  if (isSameSender && isSameContent && isTemporallyClose) {
                     console.log(
                       `🗑️ Removing temporary broadcast message ${msg._id} as it's being replaced by server message ${message._id}`
                     );
