@@ -152,7 +152,7 @@ const GroupChatBox: React.FC<GroupChatBoxProps> = ({ groupId }) => {
         </div>
       ) : (
         <>
-          <div className="flex-1 overflow-y-auto p-4 space-y-4" style={{ height: 'calc(100vh - 300px)' }}>
+          <div className="flex-1 overflow-y-auto bg-black p-4 space-y-4" style={{ height: 'calc(100vh - 300px)' }}>
             {groupMessages.length === 0 ? (
               <div className="flex items-center justify-center h-full">
                 <div className="text-center">
