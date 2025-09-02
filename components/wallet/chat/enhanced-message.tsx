@@ -6,11 +6,15 @@ import { ChatMessage } from '@/lib/context/SocketChatContext';
 interface EnhancedMessageProps {
   message: ChatMessage;
   isOwnMessage: boolean;
+  isGrouped?: boolean;
+  isLastInGroup?: boolean;
 }
 
 export const EnhancedMessage: React.FC<EnhancedMessageProps> = ({
   message,
   isOwnMessage,
+  isGrouped = false,
+  isLastInGroup = true,
 }) => {
   
   // Get display name - prioritize ENS name format
@@ -45,32 +49,37 @@ export const EnhancedMessage: React.FC<EnhancedMessageProps> = ({
   };
 
   return (
-    <div className={`flex gap-3 p-3 hover:bg-gray-50/50 dark:hover:bg-gray-800/50 ${isOwnMessage ? 'flex-row-reverse' : ''}`}>
-      {/* Avatar */}
-      <Avatar className="w-8 h-8 flex-shrink-0">
-        <AvatarImage src={message.senderImage || '/default-avatar.png'} />
-        <AvatarFallback className="bg-blue-100 text-blue-600 text-xs">
-          {getDisplayName().charAt(0).toUpperCase()}
-        </AvatarFallback>
-      </Avatar>
+    <div className={`flex gap-3 hover:bg-gray-50/50 dark:hover:bg-gray-800/50 ${isOwnMessage ? 'flex-row-reverse' : ''} ${
+      isGrouped ? 'pt-1 pb-1' : 'pt-3 pb-1'
+    } px-3`}>
+      {/* Avatar - only show for first message in group */}
+      {!isGrouped ? (
+        <Avatar className="w-8 h-8 flex-shrink-0">
+          <AvatarImage src={message.senderImage || '/default-avatar.png'} />
+          <AvatarFallback className="bg-blue-100 text-blue-600 text-xs">
+            {getDisplayName().charAt(0).toUpperCase()}
+          </AvatarFallback>
+        </Avatar>
+      ) : (
+        <div className="w-8 h-8 flex-shrink-0" />
+      )}
 
       <div className={`flex-1 max-w-[70%] ${isOwnMessage ? 'text-right' : ''}`}>
-        {/* Message header */}
-        <div className={`flex items-center gap-2 mb-1 ${isOwnMessage ? 'justify-end' : ''}`}>
-          <span className="font-medium text-sm text-gray-900 dark:text-gray-100">
-            {getDisplayName()}
-          </span>
-          <span className="text-xs text-gray-500">
-            {format(new Date(message.createdAt), 'HH:mm')}
-          </span>
-        </div>
+        {/* Message header - only show for first message in group */}
+        {!isGrouped && (
+          <div className={`flex items-center gap-2 mb-1 ${isOwnMessage ? 'justify-end' : ''}`}>
+            <span className="font-medium text-sm text-gray-900 dark:text-gray-100">
+              {getDisplayName()}
+            </span>
+          </div>
+        )}
 
         {/* Message content */}
         <div className={`${
           isOwnMessage 
             ? 'bg-blue-500 text-white rounded-l-lg rounded-tr-lg' 
             : 'bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-gray-100 rounded-r-lg rounded-tl-lg'
-        } px-3 py-2 text-sm shadow-sm`}>
+        } px-3 py-2 text-sm shadow-sm ${isGrouped ? 'mb-1' : 'mb-2'}`}>
           <div className="break-words">
             {message.content}
           </div>
@@ -104,6 +113,15 @@ export const EnhancedMessage: React.FC<EnhancedMessageProps> = ({
             </div>
           )}
         </div>
+
+        {/* Timestamp - only show for last message in group */}
+        {isLastInGroup && (
+          <div className={`flex items-center gap-2 ${isOwnMessage ? 'justify-end' : ''}`}>
+            <span className="text-xs text-gray-500">
+              {format(new Date(message.createdAt), 'HH:mm')}
+            </span>
+          </div>
+        )}
       </div>
     </div>
   );

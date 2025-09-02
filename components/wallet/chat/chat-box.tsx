@@ -176,14 +176,29 @@ const ChatBox: React.FC<ChatBoxProps> = ({
               </div>
             ) : (
               <div className="py-2">
-                {conversationMessages.map((message: ChatMessage) => {
+                {conversationMessages.map((message: ChatMessage, index) => {
                   const isUserMessage = message.senderId === user?.id;
+                  
+                  // Check if this message should be grouped with the previous one
+                  const prevMessage = index > 0 ? conversationMessages[index - 1] : null;
+                  const isGrouped = Boolean(prevMessage && 
+                    prevMessage.senderId === message.senderId &&
+                    // Group messages within 5 minutes of each other
+                    new Date(message.createdAt).getTime() - new Date(prevMessage.createdAt).getTime() < 5 * 60 * 1000);
+                  
+                  // Check if this is the last message in a group (next message is from different sender or too far apart)
+                  const nextMessage = index < conversationMessages.length - 1 ? conversationMessages[index + 1] : null;
+                  const isLastInGroup = !nextMessage || 
+                    nextMessage.senderId !== message.senderId ||
+                    new Date(nextMessage.createdAt).getTime() - new Date(message.createdAt).getTime() >= 5 * 60 * 1000;
                   
                   return (
                     <EnhancedMessage
                       key={message._id}
                       message={message}
                       isOwnMessage={isUserMessage}
+                      isGrouped={isGrouped}
+                      isLastInGroup={isLastInGroup}
                     />
                   );
                 })}
