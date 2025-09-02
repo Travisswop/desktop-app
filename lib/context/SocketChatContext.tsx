@@ -679,9 +679,24 @@ export function SocketChatProvider({
       console.log('🔔 Socket ID:', socket?.id);
       console.log('🔔 TIMESTAMP:', new Date().toISOString());
 
-      // Normalize conversation ID consistently
+      // Enhanced conversation ID normalization
       const normalizeConversationId = (id: string) => {
-        if (id.includes('0x') && id.includes('_')) {
+        if (!id) return '';
+        
+        // If it contains both 0x and did:privy:, normalize consistently
+        if (id.includes('0x') && id.includes('did:privy:')) {
+          const parts = id.split('_');
+          if (parts.length === 2) {
+            // Always put ETH address first, then Privy ID
+            const ethPart = parts.find(p => p.startsWith('0x'));
+            const privyPart = parts.find(p => p.startsWith('did:privy:'));
+            if (ethPart && privyPart) {
+              return `${ethPart}_${privyPart}`;
+            }
+          }
+        }
+        // For other cases, sort alphabetically
+        else if (id.includes('_')) {
           const parts = id.split('_');
           if (parts.length === 2) {
             return [...parts].sort().join('_');
@@ -943,12 +958,31 @@ export function SocketChatProvider({
             '🔔 Broadcast message is relevant to current user, processing...'
           );
 
-          // Process it like a normal message
-          const normalizedConversationId = msgConversationId.includes(
-            '_'
-          )
-            ? msgConversationId.split('_').sort().join('_')
-            : msgConversationId;
+          // Process it like a normal message using same normalization
+          const normalizeConversationId = (id: string) => {
+            if (!id) return '';
+            
+            // If it contains both 0x and did:privy:, normalize consistently
+            if (id.includes('0x') && id.includes('did:privy:')) {
+              const parts = id.split('_');
+              if (parts.length === 2) {
+                const ethPart = parts.find(p => p.startsWith('0x'));
+                const privyPart = parts.find(p => p.startsWith('did:privy:'));
+                if (ethPart && privyPart) {
+                  return `${ethPart}_${privyPart}`;
+                }
+              }
+            }
+            else if (id.includes('_')) {
+              const parts = id.split('_');
+              if (parts.length === 2) {
+                return [...parts].sort().join('_');
+              }
+            }
+            return id;
+          };
+          
+          const normalizedConversationId = normalizeConversationId(msgConversationId);
 
           // Add to messages state if not already there
           setMessages((prev) => {
@@ -1564,12 +1598,22 @@ export function SocketChatProvider({
       }
 
       // Create a deterministic conversation ID using available identifiers
-      // Use Privy IDs if available, otherwise use provided IDs
       const userId = user.id;
       const targetId = recipientId;
 
-      // Sort and join to ensure the same conversation ID regardless of who initiates
-      const conversationId = [userId, targetId].sort().join('_');
+      // Enhanced conversation ID creation with consistent format
+      let conversationId;
+      
+      // If one is ETH address and one is Privy ID, use consistent format
+      if ((userId.startsWith('0x') && targetId.startsWith('did:privy:')) ||
+          (userId.startsWith('did:privy:') && targetId.startsWith('0x'))) {
+        const ethId = userId.startsWith('0x') ? userId : targetId;
+        const privyId = userId.startsWith('did:privy:') ? userId : targetId;
+        conversationId = `${ethId}_${privyId}`;
+      } else {
+        // For other cases, sort alphabetically
+        conversationId = [userId, targetId].sort().join('_');
+      }
       console.log('Created conversation ID:', conversationId);
 
       // Log the IDs being used for debugging
@@ -1808,13 +1852,20 @@ export function SocketChatProvider({
             userEthAddress || actualSenderId;
           const recipientIdForConversation = actualRecipientId;
 
-          // Create a deterministic conversation ID
-          conversationIdForMessage = [
-            senderIdForConversation,
-            recipientIdForConversation,
-          ]
-            .sort()
-            .join('_');
+          // Create a deterministic conversation ID with consistent format
+          if ((senderIdForConversation.startsWith('0x') && recipientIdForConversation.startsWith('did:privy:')) ||
+              (senderIdForConversation.startsWith('did:privy:') && recipientIdForConversation.startsWith('0x'))) {
+            const ethId = senderIdForConversation.startsWith('0x') ? senderIdForConversation : recipientIdForConversation;
+            const privyId = senderIdForConversation.startsWith('did:privy:') ? senderIdForConversation : recipientIdForConversation;
+            conversationIdForMessage = `${ethId}_${privyId}`;
+          } else {
+            conversationIdForMessage = [
+              senderIdForConversation,
+              recipientIdForConversation,
+            ]
+              .sort()
+              .join('_');
+          }
           console.log(
             'Created consistent conversation ID for message:',
             conversationIdForMessage
