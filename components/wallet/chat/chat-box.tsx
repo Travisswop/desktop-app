@@ -36,7 +36,9 @@ const ChatBox: React.FC<ChatBoxProps> = ({
   const normalizedConversationId = normalizeConversationId(conversationId);
   
   // Always use the normalized conversation ID for consistency
-  const conversationMessages = messages[normalizedConversationId] || [];
+  const conversationMessages = (messages[normalizedConversationId] || []).sort((a, b) => 
+    new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+  );
   
   // Debug messages
   console.log(`[DEBUG] Rendering ChatBox for conversation: ${conversationId}`);

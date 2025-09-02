@@ -29,8 +29,10 @@ const GroupChatBox: React.FC<GroupChatBoxProps> = ({ groupId }) => {
   const [isManageMembersOpen, setIsManageMembersOpen] = useState(false);
   const messageEndRef = useRef<HTMLDivElement>(null);
   
-  // Get messages for this group
-  const groupMessages = messages[groupId] || [];
+  // Get messages for this group and sort by timestamp
+  const groupMessages = (messages[groupId] || []).sort((a, b) => 
+    new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+  );
   
   // Get group details
   const group = groups.find(g => g.groupId === groupId) || null;
