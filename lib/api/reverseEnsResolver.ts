@@ -21,46 +21,56 @@ export async function resolveAddressToEns(address: string): Promise<string> {
       return address;
     }
     
-    // Try to get user data to find ENS name
-    try {
-      const apiUrl = `${process.env.NEXT_PUBLIC_API_URL}/api/v2/desktop/user/seller/${address}`;
-      console.log(`[Reverse ENS Resolver] Making API call to: ${apiUrl}`);
-      
-      const response = await fetch(apiUrl, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        cache: 'no-store'
-      });
+    // Try multiple API endpoints to find ENS name
+    const apiEndpoints = [
+      `${process.env.NEXT_PUBLIC_API_URL}/api/v2/desktop/user/seller/${address}`,
+      `${process.env.NEXT_PUBLIC_API_URL}/api/v4/wallet/getEnsAddress/${address}` // Try reverse lookup
+    ];
 
-      if (response.ok) {
-        const result = await response.json();
-        console.log('[Reverse ENS Resolver] API Response data:', result);
+    for (const apiUrl of apiEndpoints) {
+      try {
+        console.log(`[Reverse ENS Resolver] Making API call to: ${apiUrl}`);
         
-        // Check for ENS name in the response
-        if (result?.data?.ens) {
-          console.log(`[Reverse ENS Resolver] Found ENS: ${result.data.ens}`);
-          return result.data.ens;
+        const response = await fetch(apiUrl, {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          cache: 'no-store'
+        });
+
+        if (response.ok) {
+          const result = await response.json();
+          console.log('[Reverse ENS Resolver] API Response data:', result);
+          
+          // Check for ENS name in various response fields
+          const ensFields = [
+            result?.data?.ens,
+            result?.data?.ensName,
+            result?.ens,
+            result?.ensName,
+            result?.data?.username,
+            result?.data?.name,
+            result?.username,
+            result?.name
+          ];
+
+          for (const field of ensFields) {
+            if (field && (field.includes('.eth') || field.includes('.swop.id'))) {
+              console.log(`[Reverse ENS Resolver] Found ENS: ${field}`);
+              return field;
+            }
+          }
+
+          // Also check for displayName that might be an ENS
+          if (result?.data?.displayName && (result.data.displayName.includes('.eth') || result.data.displayName.includes('.swop.id'))) {
+            console.log(`[Reverse ENS Resolver] Found displayName as ENS: ${result.data.displayName}`);
+            return result.data.displayName;
+          }
         }
-        
-        if (result?.data?.ensName) {
-          console.log(`[Reverse ENS Resolver] Found ensName: ${result.data.ensName}`);
-          return result.data.ensName;
-        }
-        
-        if (result?.data?.username && (result.data.username.includes('.eth') || result.data.username.includes('.swop.id'))) {
-          console.log(`[Reverse ENS Resolver] Found username as ENS: ${result.data.username}`);
-          return result.data.username;
-        }
-        
-        if (result?.data?.name && (result.data.name.includes('.eth') || result.data.name.includes('.swop.id'))) {
-          console.log(`[Reverse ENS Resolver] Found name as ENS: ${result.data.name}`);
-          return result.data.name;
-        }
+      } catch (error) {
+        console.warn(`[Reverse ENS Resolver] API call to ${apiUrl} failed:`, error);
       }
-    } catch (error) {
-      console.warn(`[Reverse ENS Resolver] API call failed:`, error);
     }
     
     // If we couldn't resolve to ENS, return a formatted version of the address

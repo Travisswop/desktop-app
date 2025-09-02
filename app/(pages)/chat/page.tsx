@@ -816,18 +816,24 @@ const MessageList = ({
   // Resolve address to ENS name on mount if needed
   useEffect(() => {
     const resolveEnsName = async () => {
-      // Only resolve if the current name looks like an address/ID
+      // Always try to resolve if the name looks like an address/ID or contains ellipsis
       if (
         (name.startsWith('did:privy:') || 
          name.startsWith('0x') || 
-         name.includes('...')) &&
+         name.includes('...') ||
+         name.match(/^[a-zA-Z0-9]{8,12}\.\.\./) ||
+         name === 'Unknown') &&
         !name.includes('.eth') &&
         !name.includes('.swop.id')
       ) {
         setIsResolving(true);
         try {
+          console.log(`[MessageList] Resolving ENS for: ${ethAddress} (display: ${name})`);
           const ensName = await resolveAddressToEnsCached(ethAddress);
-          setResolvedName(ensName);
+          console.log(`[MessageList] Resolved to: ${ensName}`);
+          if (ensName !== ethAddress && ensName !== name) {
+            setResolvedName(ensName);
+          }
         } catch (error) {
           console.error('Failed to resolve ENS name:', error);
         } finally {

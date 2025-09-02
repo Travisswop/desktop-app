@@ -879,33 +879,54 @@ export function SocketChatProvider({
               // Fallback: determine from message sender/recipient
               peerAddress =
                 message.senderId !== user.id
-                  ? message.senderId
-                  : message.recipientId;
+                  ? message.senderId || ''
+                  : message.recipientId || '';
             }
           } else {
             // Fallback: determine from message sender/recipient
             peerAddress =
               message.senderId !== user.id
-                ? message.senderId
-                : message.recipientId;
+                ? message.senderId || ''
+                : message.recipientId || '';
           }
 
-          // Create display name
-          if (peerAddress) {
-            if (peerAddress.startsWith('did:privy:')) {
-              displayName = `${peerAddress.substring(
-                0,
-                10
-              )}...${peerAddress.substring(peerAddress.length - 5)}`;
-            } else if (peerAddress.startsWith('0x')) {
-              displayName = `${peerAddress.substring(
-                0,
-                6
-              )}...${peerAddress.substring(peerAddress.length - 4)}`;
-            } else {
-              displayName = peerAddress;
+          // Priority order for display name: message ensName -> message displayName -> formatted address
+          displayName = 
+            (message as any).ensName || 
+            (message as any).senderEnsName ||
+            (message as any).displayName ||
+            (message as any).senderDisplayName;
+            
+          if (!displayName || displayName === 'Unknown') {
+            // If no server-provided name, check if sender user data is included
+            if ((message as any).senderUser) {
+              displayName = 
+                (message as any).senderUser.ensName || 
+                (message as any).senderUser.displayName || 
+                (message as any).senderUser.name;
             }
           }
+
+          // Fallback to formatted address if no ENS/display name available
+          if (!displayName || displayName === 'Unknown') {
+            if (peerAddress) {
+              if (peerAddress.startsWith('did:privy:')) {
+                displayName = `${peerAddress.substring(
+                  0,
+                  10
+                )}...${peerAddress.substring(peerAddress.length - 5)}`;
+              } else if (peerAddress.startsWith('0x')) {
+                displayName = `${peerAddress.substring(
+                  0,
+                  6
+                )}...${peerAddress.substring(peerAddress.length - 4)}`;
+              } else {
+                displayName = peerAddress;
+              }
+            }
+          }
+
+          console.log(`[NewConversation] ${conversationId}: peerAddress=${peerAddress}, displayName=${displayName}, messageEnsName=${(message as any).ensName || (message as any).senderEnsName}`);
 
           const newConversation = {
             conversationId,
@@ -1159,26 +1180,47 @@ export function SocketChatProvider({
               }
             }
 
-            // Create display name
-            if (peerAddress) {
-              if (peerAddress.startsWith('did:privy:')) {
-                displayName = `${peerAddress.substring(
-                  0,
-                  10
-                )}...${peerAddress.substring(
-                  peerAddress.length - 5
-                )}`;
-              } else if (peerAddress.startsWith('0x')) {
-                displayName = `${peerAddress.substring(
-                  0,
-                  6
-                )}...${peerAddress.substring(
-                  peerAddress.length - 4
-                )}`;
-              } else {
-                displayName = peerAddress;
+            // Priority order for display name: ensName -> displayName -> formatted address
+            displayName = 
+              dm.peerEnsName || 
+              dm.peerDisplayName || 
+              dm.ensName || 
+              dm.displayName;
+              
+            if (!displayName || displayName === 'Unknown') {
+              // If no server-provided name, check if peer user data is included
+              if (dm.peerUser) {
+                displayName = 
+                  dm.peerUser.ensName || 
+                  dm.peerUser.displayName || 
+                  dm.peerUser.name;
               }
             }
+
+            // Fallback to formatted address if no ENS/display name available
+            if (!displayName || displayName === 'Unknown') {
+              if (peerAddress) {
+                if (peerAddress.startsWith('did:privy:')) {
+                  displayName = `${peerAddress.substring(
+                    0,
+                    10
+                  )}...${peerAddress.substring(
+                    peerAddress.length - 5
+                  )}`;
+                } else if (peerAddress.startsWith('0x')) {
+                  displayName = `${peerAddress.substring(
+                    0,
+                    6
+                  )}...${peerAddress.substring(
+                    peerAddress.length - 4
+                  )}`;
+                } else {
+                  displayName = peerAddress;
+                }
+              }
+            }
+
+            console.log(`[Conversation] ${dm.conversationId}: peerAddress=${peerAddress}, displayName=${displayName}, ensName=${dm.peerEnsName || dm.ensName}`);
 
             return {
               conversationId: dm.conversationId,
@@ -1231,20 +1273,41 @@ export function SocketChatProvider({
             let displayName = 'Unknown';
             const peerAddress = data.senderId;
 
-            // Format display name
-            if (peerAddress.startsWith('did:privy:')) {
-              displayName = `${peerAddress.substring(
-                0,
-                10
-              )}...${peerAddress.substring(peerAddress.length - 5)}`;
-            } else if (peerAddress.startsWith('0x')) {
-              displayName = `${peerAddress.substring(
-                0,
-                6
-              )}...${peerAddress.substring(peerAddress.length - 4)}`;
-            } else {
-              displayName = peerAddress;
+            // Priority order for display name: data ensName -> data displayName -> formatted address
+            displayName = 
+              (data as any).ensName || 
+              (data as any).senderEnsName ||
+              (data as any).displayName ||
+              (data as any).senderDisplayName;
+              
+            if (!displayName || displayName === 'Unknown') {
+              // If no server-provided name, check if sender user data is included
+              if ((data as any).senderUser) {
+                displayName = 
+                  (data as any).senderUser.ensName || 
+                  (data as any).senderUser.displayName || 
+                  (data as any).senderUser.name;
+              }
             }
+
+            // Fallback to formatted address if no ENS/display name available
+            if (!displayName || displayName === 'Unknown') {
+              if (peerAddress.startsWith('did:privy:')) {
+                displayName = `${peerAddress.substring(
+                  0,
+                  10
+                )}...${peerAddress.substring(peerAddress.length - 5)}`;
+              } else if (peerAddress.startsWith('0x')) {
+                displayName = `${peerAddress.substring(
+                  0,
+                  6
+                )}...${peerAddress.substring(peerAddress.length - 4)}`;
+              } else {
+                displayName = peerAddress;
+              }
+            }
+
+            console.log(`[SingleConversation] ${data.conversationId}: peerAddress=${peerAddress}, displayName=${displayName}, dataEnsName=${(data as any).ensName || (data as any).senderEnsName}`);
 
             const newConversation = {
               conversationId: data.conversationId,
@@ -1280,36 +1343,48 @@ export function SocketChatProvider({
           const formattedConversations: ChatConversation[] =
             conversationList.map((conv: any) => {
               // Format the conversation data
-              let displayName = 'Unknown';
+              let fallbackDisplayName = 'Unknown';
               const peerAddress =
                 conv.peerAddress || conv.recipientId || '';
 
+              // Create fallback display name from address
               if (peerAddress) {
                 if (peerAddress.startsWith('did:privy:')) {
-                  displayName = `${peerAddress.substring(
+                  fallbackDisplayName = `${peerAddress.substring(
                     0,
                     10
                   )}...${peerAddress.substring(
                     peerAddress.length - 5
                   )}`;
                 } else if (peerAddress.startsWith('0x')) {
-                  displayName = `${peerAddress.substring(
+                  fallbackDisplayName = `${peerAddress.substring(
                     0,
                     6
                   )}...${peerAddress.substring(
                     peerAddress.length - 4
                   )}`;
                 } else {
-                  displayName = peerAddress;
+                  fallbackDisplayName = peerAddress;
                 }
               }
+
+              // Priority: ensName -> displayName -> peerUser.ensName -> fallback
+              const displayName = 
+                conv.ensName || 
+                conv.peerEnsName ||
+                conv.displayName || 
+                conv.peerDisplayName ||
+                (conv.peerUser && (conv.peerUser.ensName || conv.peerUser.displayName || conv.peerUser.name)) ||
+                fallbackDisplayName;
+
+              console.log(`[ConversationList] ${conv.conversationId}: peerAddress=${peerAddress}, displayName=${displayName}, ensName=${conv.ensName || conv.peerEnsName}`);
 
               return {
                 conversationId:
                   conv.conversationId ||
                   `${conv.senderId}_${conv.recipientId}`,
                 peerAddress,
-                displayName: conv.displayName || displayName,
+                displayName,
                 lastMessage: conv.lastMessage || '',
                 lastMessageTime:
                   conv.lastMessageTime || new Date().toISOString(),
