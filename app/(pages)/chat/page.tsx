@@ -104,11 +104,26 @@ const ChatPageContent = () => {
     }
   };
 
-  // Filter conversations based on search
+  // Filter and deduplicate conversations based on search
   const filteredConversations = useMemo(() => {
-    if (!searchQuery.trim()) return conversations;
+    // First, deduplicate conversations by peer address
+    const uniqueConversations = conversations.reduce((acc, conv) => {
+      const existingIndex = acc.findIndex(existing => existing.peerAddress === conv.peerAddress);
+      if (existingIndex === -1) {
+        acc.push(conv);
+      } else {
+        // Keep the conversation with more recent activity
+        if (new Date(conv.lastMessageTime || 0) > new Date(acc[existingIndex].lastMessageTime || 0)) {
+          acc[existingIndex] = conv;
+        }
+      }
+      return acc;
+    }, [] as typeof conversations);
 
-    return conversations.filter(conv =>
+    // Then filter by search query
+    if (!searchQuery.trim()) return uniqueConversations;
+
+    return uniqueConversations.filter(conv =>
       conv.peerAddress.toLowerCase().includes(searchQuery.toLowerCase()) ||
       conv.displayName.toLowerCase().includes(searchQuery.toLowerCase())
     );
@@ -566,9 +581,9 @@ const ChatPageContent = () => {
                     {searchQuery.trim() && <div className="text-xs text-gray-400 px-3 py-1 border-b">Existing Conversations</div>}
                     {filteredConversations.map((conv) => (
                       <MessageList
-                        key={conv.peerAddress}
-                        bio={conv.lastMessage || "Existing conversation"}
-                        name={conv.displayName}
+                        key={conv.conversationId || conv.peerAddress}
+                        bio={conv.lastMessage || "Start a conversation"}
+                        name={conv.displayName || `${conv.peerAddress.substring(0, 6)}...${conv.peerAddress.substring(conv.peerAddress.length - 4)}`}
                         profilePic=""
                         ethAddress={conv.peerAddress}
                         handleWalletClick={handleWalletClick}

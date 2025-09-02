@@ -1,10 +1,9 @@
 import React, { useState, useEffect, useRef, KeyboardEvent } from 'react';
-import { Loader, Send, Smile, Paperclip } from 'lucide-react';
+import { Loader, Send } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { usePrivy } from '@privy-io/react-auth';
 import { useSocketChat, ChatMessage } from '@/lib/context/SocketChatContext';
-import { format } from 'date-fns';
 import { EnhancedMessage } from './enhanced-message';
 
 interface ChatBoxProps {
@@ -129,8 +128,7 @@ const ChatBox: React.FC<ChatBoxProps> = ({
       await sendMessage({
         senderId: user.id,
         recipientId: validRecipientId,
-        content: newMessage.trim(),
-        conversationId: finalConversationId
+        content: newMessage.trim()
       });
       
       console.log(`[SendMessage] Message sent to ${validRecipientId} in conversation ${finalConversationId}`);
@@ -154,14 +152,6 @@ const ChatBox: React.FC<ChatBoxProps> = ({
   const recipientStatus = userPresence[recipientId]?.status || 'offline';
   const isRecipientOnline = recipientStatus === 'online';
 
-  // Format message timestamp
-  const formatMessageTime = (timestamp: string) => {
-    try {
-      return format(new Date(timestamp), 'h:mm a');
-    } catch {
-      return '';
-    }
-  };
 
   return (
     <div className="flex flex-col h-full">
@@ -171,81 +161,82 @@ const ChatBox: React.FC<ChatBoxProps> = ({
         </div>
       ) : (
         <>
-          <div className="flex-1 overflow-y-auto p-4 space-y-4" style={{ height: 'calc(100vh - 300px)' }}>
+          <div className="flex-1 overflow-y-auto bg-gray-50/30 dark:bg-gray-900/30" style={{ height: 'calc(100vh - 300px)' }}>
             {conversationMessages.length === 0 ? (
               <div className="flex items-center justify-center h-full">
-                <p className="text-gray-400">No messages yet. Start the conversation!</p>
+                <div className="text-center">
+                  <div className="w-16 h-16 mx-auto mb-4 bg-blue-100 dark:bg-blue-900/20 rounded-full flex items-center justify-center">
+                    <svg className="w-8 h-8 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                    </svg>
+                  </div>
+                  <p className="text-gray-500 font-medium mb-2">No messages yet</p>
+                  <p className="text-gray-400 text-sm">Start the conversation by sending a message!</p>
+                </div>
               </div>
             ) : (
-              conversationMessages.map((message: ChatMessage) => {
-                const isUserMessage = message.senderId === user?.id;
-                
-                return (
-                  <EnhancedMessage
-                    key={message._id}
-                    message={message}
-                    conversationId={normalizedConversationId}
-                    isOwnMessage={isUserMessage}
-                  />
-                );
-              })
+              <div className="py-2">
+                {conversationMessages.map((message: ChatMessage) => {
+                  const isUserMessage = message.senderId === user?.id;
+                  
+                  return (
+                    <EnhancedMessage
+                      key={message._id}
+                      message={message}
+                      isOwnMessage={isUserMessage}
+                    />
+                  );
+                })}
+              </div>
             )}
             <div ref={messageEndRef} />
           </div>
 
-          <div className="border-t p-4">
-            <div className="relative">
-              <textarea
-                value={newMessage}
-                onChange={(e) => setNewMessage(e.target.value)}
-                onKeyDown={handleKeyDown}
-                placeholder="Type a message..."
-                className="w-full border rounded-xl p-3 pr-20 resize-none focus:outline-none focus:ring-1 focus:ring-blue-500"
-                rows={3}
-              />
-              
-              <div className="absolute bottom-3 right-3 flex items-center gap-2">
-                <Button 
-                  variant="ghost" 
-                  size="icon" 
-                  className="h-8 w-8 rounded-full"
-                >
-                  <Smile className="h-5 w-5" />
-                </Button>
-                <Button 
-                  variant="ghost" 
-                  size="icon" 
-                  className="h-8 w-8 rounded-full"
-                >
-                  <Paperclip className="h-5 w-5" />
-                </Button>
+          <div className="border-t bg-white dark:bg-gray-800 p-4">
+            <div className="flex items-end gap-3">
+              <div className="flex-1 relative">
+                <textarea
+                  value={newMessage}
+                  onChange={(e) => setNewMessage(e.target.value)}
+                  onKeyDown={handleKeyDown}
+                  placeholder="Type a message..."
+                  className="w-full border border-gray-200 dark:border-gray-600 rounded-2xl px-4 py-3 pr-12 resize-none focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-gray-50 dark:bg-gray-700 placeholder:text-gray-500 text-sm max-h-32"
+                  rows={1}
+                  style={{
+                    minHeight: '44px',
+                    lineHeight: '20px'
+                  }}
+                />
                 <Button
+                  size="icon"
                   onClick={handleSendMessage}
                   disabled={!newMessage.trim() || isSending}
-                  className="h-8 w-8 rounded-full"
+                  className="absolute right-2 bottom-2 h-8 w-8 bg-blue-500 hover:bg-blue-600 text-white rounded-full shadow-sm disabled:bg-gray-300"
                 >
                   {isSending ? (
-                    <Loader className="h-4 w-4 animate-spin" />
+                    <Loader className="w-4 h-4 animate-spin" />
                   ) : (
-                    <Send className="h-4 w-4" />
+                    <Send className="w-4 h-4" />
                   )}
                 </Button>
               </div>
             </div>
             
-            <div className="flex items-center justify-between mt-2 text-xs text-gray-500">
-              <div className="flex items-center">
-                <span className={`w-2 h-2 rounded-full mr-1 ${
-                  isRecipientOnline ? 'bg-green-500' : 'bg-gray-400'
-                }`}></span>
-                <span>
-                  {isRecipientOnline ? 'Online' : 'Offline'}
-                </span>
+            <div className="mt-2 flex items-center justify-between text-xs text-gray-500">
+              <div className="flex items-center gap-4">
+                {isRecipientOnline ? (
+                  <span className="flex items-center gap-1.5">
+                    <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+                    Online
+                  </span>
+                ) : (
+                  <span className="flex items-center gap-1.5">
+                    <div className="w-2 h-2 bg-gray-400 rounded-full"></div>
+                    Offline
+                  </span>
+                )}
               </div>
-              
-              <div>
-                Press Enter to send, Shift+Enter for new line
-              </div>
+              <span className="text-gray-400">Press Enter to send</span>
             </div>
           </div>
         </>
