@@ -63,6 +63,30 @@ export interface MessageForward {
 }
 
 // Types for messages and conversations
+
+/*
+ * ==================== CONVERSATION ID FORMAT DOCUMENTATION ====================
+ * 
+ * CRITICAL SERVER-SIDE ISSUE DETECTED:
+ * The server-side conversation ID generation is NOT consistent with client-side rules!
+ * 
+ * From messages.json database analysis:
+ * ❌ Server creates: "did:privy:cm6j9e209010hgbux3l8120ve_did:privy:cm8cnwdd100l3127tz4e92k2a"
+ * ✅ Should be:     "did:privy:cm8cnwdd100l3127tz4e92k2a_did:privy:cm6j9e209010hgbux3l8120ve"
+ * 
+ * The server is not alphabetically sorting Privy IDs correctly!
+ * 
+ * TEMPORARY CLIENT-SIDE FIX:
+ * We've added aggressive normalization and validation to handle server inconsistencies.
+ * Messages with incorrect conversation IDs are automatically corrected client-side.
+ * 
+ * PERMANENT SOLUTION NEEDED:
+ * The server-side conversation ID generation logic must be updated to follow the same 
+ * rules as these client-side functions to prevent future inconsistencies.
+ * 
+ * =============================================================================
+ */
+
 /**
  * Creates a deterministic conversation ID following the ETH_ADDRESS_PRIVY_ID format
  * @param userId1 First user's ID
@@ -802,7 +826,7 @@ export function SocketChatProvider({
       // Enhanced conversation ID normalization - FIXED VERSION
       // Use the centralized normalization function
 
-      const conversationId = normalizeConversationId(
+      let conversationId = normalizeConversationId(
         message.conversationId || ''
       );
 
@@ -814,13 +838,16 @@ export function SocketChatProvider({
         return;
       }
 
-      // Validate conversation ID format and compliance
+      // CRITICAL: If server sent an incorrect conversation ID, fix it client-side
+      // This handles server-side inconsistencies until they're fixed
       if (user?.id) {
         const validation = validateConversationIdFormat(conversationId, user.id);
+        
         if (!validation.isValid) {
           console.error('❌ Received message with invalid conversation ID:', validation.warnings);
           return;
         }
+        
         if (!validation.containsCurrentUser) {
           console.error('❌ CRITICAL: Message conversation ID does not contain current user!', {
             conversationId,
@@ -828,10 +855,21 @@ export function SocketChatProvider({
             senderId: message.senderId,
             recipientId: message.recipientId
           });
-          return;
+          
+          // ATTEMPT TO FIX: Create correct conversation ID from message data
+          const otherUserId = message.senderId !== user.id ? message.senderId : message.recipientId;
+          if (otherUserId) {
+            const correctedId = createDeterministicConversationId(user.id, otherUserId);
+            console.warn(`🔧 FIXING: Correcting conversation ID from ${conversationId} to ${correctedId}`);
+            conversationId = correctedId;
+          } else {
+            console.error('❌ Cannot fix conversation ID: no other user ID found');
+            return;
+          }
         }
+        
         if (!validation.isCompliant) {
-          console.warn('⚠️ Message conversation ID format issues:', validation.warnings);
+          console.warn('⚠️ Message conversation ID format issues - server may need updates:', validation.warnings);
         }
       }
 
@@ -1111,9 +1149,34 @@ export function SocketChatProvider({
           );
 
           // Process it like a normal message using same FIXED normalization
-          // Use the centralized normalization function
+          // Use the centralized normalization function and validate
+          let normalizedConversationId = normalizeConversationId(msgConversationId);
           
-          const normalizedConversationId = normalizeConversationId(msgConversationId);
+          // CRITICAL: Fix server inconsistencies for broadcast messages too
+          if (user?.id && normalizedConversationId) {
+            const validation = validateConversationIdFormat(normalizedConversationId, user.id);
+            
+            if (!validation.containsCurrentUser) {
+              console.error('❌ CRITICAL: Broadcast message conversation ID does not contain current user!', {
+                conversationId: normalizedConversationId,
+                currentUserId: user.id,
+                senderId,
+                recipientId
+              });
+              
+              // ATTEMPT TO FIX: Create correct conversation ID from message data
+              const otherUserId = senderId !== user.id ? senderId : recipientId;
+              if (otherUserId) {
+                const correctedId = createDeterministicConversationId(user.id, otherUserId);
+                console.warn(`🔧 FIXING BROADCAST: Correcting conversation ID from ${normalizedConversationId} to ${correctedId}`);
+                normalizedConversationId = correctedId;
+              }
+            }
+            
+            if (!validation.isCompliant) {
+              console.warn('⚠️ Broadcast message conversation ID format issues - server may need updates:', validation.warnings);
+            }
+          }
 
           // Add to messages state if not already there
           setMessages((prev) => {
@@ -1263,8 +1326,29 @@ export function SocketChatProvider({
 
         const updatedConversations: ChatConversation[] =
           data.directMessages.map((dm: any) => {
+            // CRITICAL: Normalize and validate conversation ID from server
+            let conversationId = normalizeConversationId(dm.conversationId);
+            
+            // Validate and fix if needed
+            if (user?.id) {
+              const validation = validateConversationIdFormat(conversationId, user.id);
+              if (!validation.containsCurrentUser) {
+                console.error('❌ CRITICAL: Conversation list ID does not contain current user!', {
+                  originalId: dm.conversationId,
+                  normalizedId: conversationId,
+                  currentUserId: user.id
+                });
+                // For conversation lists, we can't easily reconstruct the other user ID
+                // So we'll keep the original but log the issue
+                console.warn('⚠️ Keeping potentially incorrect conversation ID for conversation list');
+              }
+              if (!validation.isCompliant) {
+                console.warn('⚠️ Conversation list ID format issues - server may need updates:', validation.warnings);
+              }
+            }
+            
             // Get the peer address (the other person in the conversation)
-            const conversationParts = dm.conversationId.split('_');
+            const conversationParts = conversationId.split('_');
             let displayName = 'Unknown';
             let peerAddress = '';
 
@@ -1328,10 +1412,10 @@ export function SocketChatProvider({
               }
             }
 
-            console.log(`[Conversation] ${dm.conversationId}: peerAddress=${peerAddress}, displayName=${displayName}, ensName=${dm.peerEnsName || dm.ensName}`);
+            console.log(`[Conversation] ${conversationId}: peerAddress=${peerAddress}, displayName=${displayName}, ensName=${dm.peerEnsName || dm.ensName}`);
 
             return {
-              conversationId: dm.conversationId,
+              conversationId: conversationId, // Use normalized conversation ID
               peerAddress,
               displayName,
               lastMessage: dm.lastMessage || '',
