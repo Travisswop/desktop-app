@@ -63,6 +63,126 @@ export interface MessageForward {
 }
 
 // Types for messages and conversations
+/**
+ * Creates a deterministic conversation ID following the ETH_ADDRESS_PRIVY_ID format
+ * @param userId1 First user's ID
+ * @param userId2 Second user's ID
+ * @returns Conversation ID in format: ETH_ADDRESS_PRIVY_ID or alphabetically sorted for same types
+ */
+export function createDeterministicConversationId(userId1: string, userId2: string): string {
+  if (!userId1 || !userId2 || userId1 === userId2) {
+    throw new Error(`Invalid user IDs for conversation: ${userId1}, ${userId2}`);
+  }
+
+  // CRITICAL: ETH_ADDRESS_PRIVY_ID format - always put ETH address first
+  if ((userId1.startsWith('0x') && userId2.startsWith('did:privy:')) ||
+      (userId1.startsWith('did:privy:') && userId2.startsWith('0x'))) {
+    const ethId = userId1.startsWith('0x') ? userId1 : userId2;
+    const privyId = userId1.startsWith('did:privy:') ? userId1 : userId2;
+    return `${ethId}_${privyId}`;
+  }
+  
+  // For same types (both ETH or both Privy), sort alphabetically for consistency
+  return [userId1, userId2].sort().join('_');
+}
+
+/**
+ * Normalizes an existing conversation ID to follow the ETH_ADDRESS_PRIVY_ID format
+ * @param conversationId The conversation ID to normalize
+ * @returns Normalized conversation ID
+ */
+export function normalizeConversationId(conversationId: string): string {
+  if (!conversationId) return conversationId;
+  
+  const parts = conversationId.split('_');
+  if (parts.length === 2) {
+    // Apply the same logic as createDeterministicConversationId
+    try {
+      return createDeterministicConversationId(parts[0], parts[1]);
+    } catch (error) {
+      console.warn('Failed to normalize conversation ID:', conversationId, error);
+      return conversationId;
+    }
+  }
+  
+  return conversationId;
+}
+
+/**
+ * Validates that a conversation ID follows the correct format
+ * @param conversationId The conversation ID to validate
+ * @param currentUserId The current user's ID
+ * @returns Validation result with compliance status and details
+ */
+export function validateConversationIdFormat(conversationId: string, currentUserId?: string) {
+  const validation = {
+    isValid: true,
+    isCompliant: true,
+    format: 'unknown' as 'ETH_PRIVY' | 'PRIVY_PRIVY' | 'ETH_ETH' | 'unknown',
+    containsCurrentUser: false,
+    peerUserId: '',
+    warnings: [] as string[]
+  };
+
+  if (!conversationId) {
+    validation.isValid = false;
+    validation.warnings.push('Conversation ID is empty');
+    return validation;
+  }
+
+  const parts = conversationId.split('_');
+  if (parts.length !== 2) {
+    validation.isValid = false;
+    validation.warnings.push('Conversation ID does not have exactly 2 parts separated by underscore');
+    return validation;
+  }
+
+  const [first, second] = parts;
+
+  // Determine format
+  if ((first.startsWith('0x') && second.startsWith('did:privy:')) ||
+      (first.startsWith('did:privy:') && second.startsWith('0x'))) {
+    validation.format = 'ETH_PRIVY';
+    
+    // Check if it's in the correct ETH_PRIVY format
+    if (!first.startsWith('0x') || !second.startsWith('did:privy:')) {
+      validation.isCompliant = false;
+      validation.warnings.push('Mixed ETH/Privy format should have ETH address first, Privy ID second');
+    }
+  } else if (first.startsWith('0x') && second.startsWith('0x')) {
+    validation.format = 'ETH_ETH';
+    
+    // Check alphabetical sorting
+    if (first > second) {
+      validation.isCompliant = false;
+      validation.warnings.push('ETH addresses should be sorted alphabetically');
+    }
+  } else if (first.startsWith('did:privy:') && second.startsWith('did:privy:')) {
+    validation.format = 'PRIVY_PRIVY';
+    
+    // Check alphabetical sorting
+    if (first > second) {
+      validation.isCompliant = false;
+      validation.warnings.push('Privy IDs should be sorted alphabetically');
+    }
+  } else {
+    validation.format = 'unknown';
+    validation.warnings.push('Conversation ID contains unrecognized identifier formats');
+  }
+
+  // Check if current user is part of the conversation
+  if (currentUserId) {
+    if (first === currentUserId || second === currentUserId) {
+      validation.containsCurrentUser = true;
+      validation.peerUserId = first === currentUserId ? second : first;
+    } else {
+      validation.warnings.push('Current user ID not found in conversation ID');
+    }
+  }
+
+  return validation;
+}
+
 export interface ChatMessage {
   _id: string;
   senderId: string;
@@ -680,42 +800,7 @@ export function SocketChatProvider({
       console.log('🔔 TIMESTAMP:', new Date().toISOString());
 
       // Enhanced conversation ID normalization - FIXED VERSION
-      const normalizeConversationId = (id: string) => {
-        if (!id) return '';
-        
-        // If it contains both 0x and did:privy:, normalize consistently
-        if (id.includes('0x') && id.includes('did:privy:')) {
-          const parts = id.split('_');
-          if (parts.length === 2) {
-            // CRITICAL FIX: Always put ETH address first, then Privy ID - regardless of input order
-            const ethPart = parts.find(p => p.startsWith('0x'));
-            const privyPart = parts.find(p => p.startsWith('did:privy:'));
-            if (ethPart && privyPart) {
-              return `${ethPart}_${privyPart}`;
-            }
-          }
-        }
-        // For other cases where both are same type, sort alphabetically
-        else if (id.includes('_')) {
-          const parts = id.split('_');
-          if (parts.length === 2) {
-            // If both are ETH addresses or both are Privy IDs, sort alphabetically
-            if ((parts[0].startsWith('0x') && parts[1].startsWith('0x')) ||
-                (parts[0].startsWith('did:privy:') && parts[1].startsWith('did:privy:'))) {
-              return [...parts].sort().join('_');
-            }
-            // If mixed types but we didn't catch it above, apply the ETH-first rule
-            const ethPart = parts.find(p => p.startsWith('0x'));
-            const privyPart = parts.find(p => p.startsWith('did:privy:'));
-            if (ethPart && privyPart) {
-              return `${ethPart}_${privyPart}`;
-            }
-            // For any other mixed types, sort alphabetically
-            return [...parts].sort().join('_');
-          }
-        }
-        return id;
-      };
+      // Use the centralized normalization function
 
       const conversationId = normalizeConversationId(
         message.conversationId || ''
@@ -727,6 +812,27 @@ export function SocketChatProvider({
           message
         );
         return;
+      }
+
+      // Validate conversation ID format and compliance
+      if (user?.id) {
+        const validation = validateConversationIdFormat(conversationId, user.id);
+        if (!validation.isValid) {
+          console.error('❌ Received message with invalid conversation ID:', validation.warnings);
+          return;
+        }
+        if (!validation.containsCurrentUser) {
+          console.error('❌ CRITICAL: Message conversation ID does not contain current user!', {
+            conversationId,
+            currentUserId: user.id,
+            senderId: message.senderId,
+            recipientId: message.recipientId
+          });
+          return;
+        }
+        if (!validation.isCompliant) {
+          console.warn('⚠️ Message conversation ID format issues:', validation.warnings);
+        }
       }
 
       console.log(
@@ -1005,42 +1111,7 @@ export function SocketChatProvider({
           );
 
           // Process it like a normal message using same FIXED normalization
-          const normalizeConversationId = (id: string) => {
-            if (!id) return '';
-            
-            // If it contains both 0x and did:privy:, normalize consistently
-            if (id.includes('0x') && id.includes('did:privy:')) {
-              const parts = id.split('_');
-              if (parts.length === 2) {
-                // CRITICAL FIX: Always put ETH address first, then Privy ID - regardless of input order
-                const ethPart = parts.find(p => p.startsWith('0x'));
-                const privyPart = parts.find(p => p.startsWith('did:privy:'));
-                if (ethPart && privyPart) {
-                  return `${ethPart}_${privyPart}`;
-                }
-              }
-            }
-            // For other cases where both are same type, sort alphabetically
-            else if (id.includes('_')) {
-              const parts = id.split('_');
-              if (parts.length === 2) {
-                // If both are ETH addresses or both are Privy IDs, sort alphabetically
-                if ((parts[0].startsWith('0x') && parts[1].startsWith('0x')) ||
-                    (parts[0].startsWith('did:privy:') && parts[1].startsWith('did:privy:'))) {
-                  return [...parts].sort().join('_');
-                }
-                // If mixed types but we didn't catch it above, apply the ETH-first rule
-                const ethPart = parts.find(p => p.startsWith('0x'));
-                const privyPart = parts.find(p => p.startsWith('did:privy:'));
-                if (ethPart && privyPart) {
-                  return `${ethPart}_${privyPart}`;
-                }
-                // For any other mixed types, sort alphabetically
-                return [...parts].sort().join('_');
-              }
-            }
-            return id;
-          };
+          // Use the centralized normalization function
           
           const normalizedConversationId = normalizeConversationId(msgConversationId);
 
@@ -1724,20 +1795,18 @@ export function SocketChatProvider({
       const userId = user.id;
       const targetId = recipientId;
 
-      // Enhanced conversation ID creation with consistent format - FIXED VERSION
-      let conversationId;
-      
-      // CRITICAL FIX: If one is ETH address and one is Privy ID, always use ETH first
-      if ((userId.startsWith('0x') && targetId.startsWith('did:privy:')) ||
-          (userId.startsWith('did:privy:') && targetId.startsWith('0x'))) {
-        const ethId = userId.startsWith('0x') ? userId : targetId;
-        const privyId = userId.startsWith('did:privy:') ? userId : targetId;
-        conversationId = `${ethId}_${privyId}`;
-      } else {
-        // For other cases where both are same type, sort alphabetically for consistency
-        conversationId = [userId, targetId].sort().join('_');
-      }
+      // Use centralized function to ensure consistent conversation ID format
+      const conversationId = createDeterministicConversationId(userId, targetId);
       console.log('Created conversation ID:', conversationId);
+
+      // Validate the created conversation ID for compliance
+      const validation = validateConversationIdFormat(conversationId, userId);
+      if (!validation.isCompliant) {
+        console.warn('⚠️ Created conversation ID has compliance issues:', validation.warnings);
+      }
+      if (!validation.containsCurrentUser) {
+        console.error('❌ CRITICAL: Created conversation ID does not contain current user!');
+      }
 
       // Log the IDs being used for debugging
       console.log(
@@ -1824,12 +1893,8 @@ export function SocketChatProvider({
 
           const parts = conversationId.split('_');
           if (parts.length === 2) {
-            // Always put ETH address first, then Privy ID
-            const ethPart = parts.find(p => p.startsWith('0x'));
-            const privyPart = parts.find(p => p.startsWith('did:privy:'));
-            if (ethPart && privyPart) {
-              finalConversationId = `${ethPart}_${privyPart}`;
-            }
+            // Use centralized function for consistency
+            finalConversationId = normalizeConversationId(conversationId);
 
             if (finalConversationId !== conversationId) {
               console.log(
@@ -2019,56 +2084,25 @@ export function SocketChatProvider({
             userEthAddress || actualSenderId;
           const recipientIdForConversation = actualRecipientId;
 
-          // Create a deterministic conversation ID with consistent format - FIXED VERSION
-          if ((senderIdForConversation.startsWith('0x') && recipientIdForConversation.startsWith('did:privy:')) ||
-              (senderIdForConversation.startsWith('did:privy:') && recipientIdForConversation.startsWith('0x'))) {
-            // CRITICAL FIX: Always put ETH address first, then Privy ID
-            const ethId = senderIdForConversation.startsWith('0x') ? senderIdForConversation : recipientIdForConversation;
-            const privyId = senderIdForConversation.startsWith('did:privy:') ? senderIdForConversation : recipientIdForConversation;
-            conversationIdForMessage = `${ethId}_${privyId}`;
-          } else {
-            // For other cases where both are same type, sort alphabetically
-            conversationIdForMessage = [
-              senderIdForConversation,
-              recipientIdForConversation,
-            ]
-              .sort()
-              .join('_');
-          }
+          // Use centralized function to create consistent conversation ID
+          conversationIdForMessage = createDeterministicConversationId(
+            senderIdForConversation,
+            recipientIdForConversation
+          );
           console.log(
             'Created consistent conversation ID for message:',
             conversationIdForMessage
           );
         }
 
-        // Ensure conversation ID is normalized with the FIXED logic
-        if (conversationIdForMessage && conversationIdForMessage.includes('_')) {
-          const parts = conversationIdForMessage.split('_');
-          if (parts.length === 2) {
-            let normalizedId = conversationIdForMessage;
-            
-            // If mixed types (ETH + Privy), always put ETH first
-            if ((parts[0].startsWith('0x') && parts[1].startsWith('did:privy:')) ||
-                (parts[0].startsWith('did:privy:') && parts[1].startsWith('0x'))) {
-              const ethPart = parts.find(p => p.startsWith('0x'));
-              const privyPart = parts.find(p => p.startsWith('did:privy:'));
-              if (ethPart && privyPart) {
-                normalizedId = `${ethPart}_${privyPart}`;
-              }
-            }
-            // If same types, sort alphabetically
-            else if ((parts[0].startsWith('0x') && parts[1].startsWith('0x')) ||
-                     (parts[0].startsWith('did:privy:') && parts[1].startsWith('did:privy:'))) {
-              const sortedParts = [...parts].sort();
-              normalizedId = sortedParts.join('_');
-            }
-
-            if (normalizedId !== conversationIdForMessage) {
-              console.log(
-                `Normalizing conversation ID from ${conversationIdForMessage} to ${normalizedId}`
-              );
-              conversationIdForMessage = normalizedId;
-            }
+        // Ensure conversation ID is normalized using centralized function
+        if (conversationIdForMessage) {
+          const normalizedId = normalizeConversationId(conversationIdForMessage);
+          if (normalizedId !== conversationIdForMessage) {
+            console.log(
+              `Normalizing conversation ID from ${conversationIdForMessage} to ${normalizedId}`
+            );
+            conversationIdForMessage = normalizedId;
           }
         }
 
