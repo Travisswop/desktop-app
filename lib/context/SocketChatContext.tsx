@@ -873,33 +873,41 @@ export function SocketChatProvider({
           let peerAddress = '';
           let displayName = 'Unknown';
 
-          // Try to extract peer from conversation ID
+          // Try to extract peer from conversation ID with strict validation
           const parts = conversationId.split('_');
           if (parts.length === 2) {
-            // Find which part is not the current user
-            if (
-              parts[0] === user.id ||
-              parts[0] === user.wallet?.address
-            ) {
+            // CRITICAL FIX: Use only user.id for matching, not wallet address
+            // This prevents cross-user conversation mixups
+            console.log(`🔍 Resolving peer from conversation ID: ${conversationId}, current user: ${user.id}`);
+            
+            if (parts[0] === user.id) {
               peerAddress = parts[1];
-            } else if (
-              parts[1] === user.id ||
-              parts[1] === user.wallet?.address
-            ) {
+              console.log(`✅ Peer resolved from conversation ID: ${peerAddress} (user is first part)`);
+            } else if (parts[1] === user.id) {
               peerAddress = parts[0];
+              console.log(`✅ Peer resolved from conversation ID: ${peerAddress} (user is second part)`);
             } else {
+              // CRITICAL: This conversation ID doesn't contain the current user
+              console.error('❌ CRITICAL: Conversation ID does not contain current user ID!', {
+                conversationId,
+                currentUserId: user.id,
+                parts
+              });
               // Fallback: determine from message sender/recipient
               peerAddress =
                 message.senderId !== user.id
                   ? message.senderId || ''
                   : message.recipientId || '';
+              console.warn(`⚠️ Using fallback peer resolution: ${peerAddress}`);
             }
           } else {
+            console.warn('⚠️ Invalid conversation ID format:', conversationId);
             // Fallback: determine from message sender/recipient
             peerAddress =
               message.senderId !== user.id
                 ? message.senderId || ''
                 : message.recipientId || '';
+            console.warn(`⚠️ Using fallback peer resolution: ${peerAddress}`);
           }
 
           // Priority order for display name: message ensName -> message displayName -> formatted address
@@ -1189,19 +1197,22 @@ export function SocketChatProvider({
             let displayName = 'Unknown';
             let peerAddress = '';
 
-            // Find which part is not the current user
+            // CRITICAL FIX: Use only user.id for matching, not wallet address
             if (conversationParts.length === 2) {
-              if (
-                conversationParts[0] === user?.id ||
-                conversationParts[0] === user?.wallet?.address
-              ) {
+              console.log(`🔍 [BulkConversations] Resolving peer for: ${dm.conversationId}, user: ${user?.id}`);
+              
+              if (conversationParts[0] === user?.id) {
                 peerAddress = conversationParts[1];
-              } else if (
-                conversationParts[1] === user?.id ||
-                conversationParts[1] === user?.wallet?.address
-              ) {
+                console.log(`✅ [BulkConversations] Peer: ${peerAddress} (user is first)`);
+              } else if (conversationParts[1] === user?.id) {
                 peerAddress = conversationParts[0];
+                console.log(`✅ [BulkConversations] Peer: ${peerAddress} (user is second)`);
               } else {
+                console.error('❌ [BulkConversations] CRITICAL: Conversation does not contain current user!', {
+                  conversationId: dm.conversationId,
+                  currentUserId: user?.id,
+                  parts: conversationParts
+                });
                 peerAddress = conversationParts[0]; // Fallback
               }
             }
@@ -1723,7 +1734,7 @@ export function SocketChatProvider({
         const privyId = userId.startsWith('did:privy:') ? userId : targetId;
         conversationId = `${ethId}_${privyId}`;
       } else {
-        // For other cases where both are same type, sort alphabetically
+        // For other cases where both are same type, sort alphabetically for consistency
         conversationId = [userId, targetId].sort().join('_');
       }
       console.log('Created conversation ID:', conversationId);
@@ -1733,6 +1744,27 @@ export function SocketChatProvider({
         `Creating conversation between ${userId} and ${targetId}`
       );
 
+      // Additional validation: ensure the conversation ID contains both user IDs
+      if (!conversationId.includes(userId) || !conversationId.includes(targetId)) {
+        console.error('❌ CRITICAL: Conversation ID does not contain both user IDs!', {
+          conversationId,
+          userId,
+          targetId
+        });
+        // Fallback: create a simple concatenated ID
+        conversationId = [userId, targetId].sort().join('_');
+      }
+
+      // Final validation: ensure neither user ID is empty or undefined
+      if (!userId || !targetId || userId === targetId) {
+        console.error('❌ CRITICAL: Invalid user IDs for conversation creation!', {
+          userId,
+          targetId
+        });
+        return `error_conversation_${Date.now()}`;
+      }
+
+      console.log('✅ Final validated conversation ID:', conversationId);
       return conversationId;
     },
     [socket, user?.id]
