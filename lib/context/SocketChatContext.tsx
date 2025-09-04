@@ -63,6 +63,190 @@ export interface MessageForward {
 }
 
 // Types for messages and conversations
+
+/*
+ * ==================== CONVERSATION ID FORMAT DOCUMENTATION ====================
+ *
+ * CRITICAL SERVER-SIDE ISSUE DETECTED:
+ * The server-side conversation ID generation is NOT consistent with client-side rules!
+ *
+ * From messages.json database analysis:
+ * ❌ Server creates: "did:privy:cm6j9e209010hgbux3l8120ve_did:privy:cm8cnwdd100l3127tz4e92k2a"
+ * ✅ Should be:     "did:privy:cm8cnwdd100l3127tz4e92k2a_did:privy:cm6j9e209010hgbux3l8120ve"
+ *
+ * The server is not alphabetically sorting Privy IDs correctly!
+ *
+ * TEMPORARY CLIENT-SIDE FIX:
+ * We've added aggressive normalization and validation to handle server inconsistencies.
+ * Messages with incorrect conversation IDs are automatically corrected client-side.
+ *
+ * PERMANENT SOLUTION NEEDED:
+ * The server-side conversation ID generation logic must be updated to follow the same
+ * rules as these client-side functions to prevent future inconsistencies.
+ *
+ * =============================================================================
+ */
+
+/**
+ * Creates a deterministic conversation ID following the ETH_ADDRESS_PRIVY_ID format
+ * @param userId1 First user's ID
+ * @param userId2 Second user's ID
+ * @returns Conversation ID in format: ETH_ADDRESS_PRIVY_ID or alphabetically sorted for same types
+ */
+export function createDeterministicConversationId(
+  userId1: string,
+  userId2: string
+): string {
+  if (!userId1 || !userId2 || userId1 === userId2) {
+    throw new Error(
+      `Invalid user IDs for conversation: ${userId1}, ${userId2}`
+    );
+  }
+
+  // CRITICAL: ETH_ADDRESS_PRIVY_ID format - always put ETH address first
+  if (
+    (userId1.startsWith('0x') && userId2.startsWith('did:privy:')) ||
+    (userId1.startsWith('did:privy:') && userId2.startsWith('0x'))
+  ) {
+    const ethId = userId1.startsWith('0x') ? userId1 : userId2;
+    const privyId = userId1.startsWith('did:privy:')
+      ? userId1
+      : userId2;
+    return `${ethId}_${privyId}`;
+  }
+
+  // For same types (both ETH or both Privy), sort alphabetically for consistency
+  return [userId1, userId2].sort().join('_');
+}
+
+/**
+ * Normalizes an existing conversation ID to follow the ETH_ADDRESS_PRIVY_ID format
+ * @param conversationId The conversation ID to normalize
+ * @returns Normalized conversation ID
+ */
+export function normalizeConversationId(
+  conversationId: string
+): string {
+  if (!conversationId) return conversationId;
+
+  const parts = conversationId.split('_');
+  if (parts.length === 2) {
+    // Apply the same logic as createDeterministicConversationId
+    try {
+      return createDeterministicConversationId(parts[0], parts[1]);
+    } catch (error) {
+      console.warn(
+        'Failed to normalize conversation ID:',
+        conversationId,
+        error
+      );
+      return conversationId;
+    }
+  }
+
+  return conversationId;
+}
+
+/**
+ * Validates that a conversation ID follows the correct format
+ * @param conversationId The conversation ID to validate
+ * @param currentUserId The current user's ID
+ * @returns Validation result with compliance status and details
+ */
+export function validateConversationIdFormat(
+  conversationId: string,
+  currentUserId?: string
+) {
+  const validation = {
+    isValid: true,
+    isCompliant: true,
+    format: 'unknown' as
+      | 'ETH_PRIVY'
+      | 'PRIVY_PRIVY'
+      | 'ETH_ETH'
+      | 'unknown',
+    containsCurrentUser: false,
+    peerUserId: '',
+    warnings: [] as string[],
+  };
+
+  if (!conversationId) {
+    validation.isValid = false;
+    validation.warnings.push('Conversation ID is empty');
+    return validation;
+  }
+
+  const parts = conversationId.split('_');
+  if (parts.length !== 2) {
+    validation.isValid = false;
+    validation.warnings.push(
+      'Conversation ID does not have exactly 2 parts separated by underscore'
+    );
+    return validation;
+  }
+
+  const [first, second] = parts;
+
+  // Determine format
+  if (
+    (first.startsWith('0x') && second.startsWith('did:privy:')) ||
+    (first.startsWith('did:privy:') && second.startsWith('0x'))
+  ) {
+    validation.format = 'ETH_PRIVY';
+
+    // Check if it's in the correct ETH_PRIVY format
+    if (!first.startsWith('0x') || !second.startsWith('did:privy:')) {
+      validation.isCompliant = false;
+      validation.warnings.push(
+        'Mixed ETH/Privy format should have ETH address first, Privy ID second'
+      );
+    }
+  } else if (first.startsWith('0x') && second.startsWith('0x')) {
+    validation.format = 'ETH_ETH';
+
+    // Check alphabetical sorting
+    if (first > second) {
+      validation.isCompliant = false;
+      validation.warnings.push(
+        'ETH addresses should be sorted alphabetically'
+      );
+    }
+  } else if (
+    first.startsWith('did:privy:') &&
+    second.startsWith('did:privy:')
+  ) {
+    validation.format = 'PRIVY_PRIVY';
+
+    // Check alphabetical sorting
+    if (first > second) {
+      validation.isCompliant = false;
+      validation.warnings.push(
+        'Privy IDs should be sorted alphabetically'
+      );
+    }
+  } else {
+    validation.format = 'unknown';
+    validation.warnings.push(
+      'Conversation ID contains unrecognized identifier formats'
+    );
+  }
+
+  // Check if current user is part of the conversation
+  if (currentUserId) {
+    if (first === currentUserId || second === currentUserId) {
+      validation.containsCurrentUser = true;
+      validation.peerUserId =
+        first === currentUserId ? second : first;
+    } else {
+      validation.warnings.push(
+        'Current user ID not found in conversation ID'
+      );
+    }
+  }
+
+  return validation;
+}
+
 export interface ChatMessage {
   _id: string;
   senderId: string;
@@ -679,33 +863,10 @@ export function SocketChatProvider({
       console.log('🔔 Socket ID:', socket?.id);
       console.log('🔔 TIMESTAMP:', new Date().toISOString());
 
-      // Enhanced conversation ID normalization
-      const normalizeConversationId = (id: string) => {
-        if (!id) return '';
-        
-        // If it contains both 0x and did:privy:, normalize consistently
-        if (id.includes('0x') && id.includes('did:privy:')) {
-          const parts = id.split('_');
-          if (parts.length === 2) {
-            // Always put ETH address first, then Privy ID
-            const ethPart = parts.find(p => p.startsWith('0x'));
-            const privyPart = parts.find(p => p.startsWith('did:privy:'));
-            if (ethPart && privyPart) {
-              return `${ethPart}_${privyPart}`;
-            }
-          }
-        }
-        // For other cases, sort alphabetically
-        else if (id.includes('_')) {
-          const parts = id.split('_');
-          if (parts.length === 2) {
-            return [...parts].sort().join('_');
-          }
-        }
-        return id;
-      };
+      // Enhanced conversation ID normalization - FIXED VERSION
+      // Use the centralized normalization function
 
-      const conversationId = normalizeConversationId(
+      let conversationId = normalizeConversationId(
         message.conversationId || ''
       );
 
@@ -715,6 +876,63 @@ export function SocketChatProvider({
           message
         );
         return;
+      }
+
+      // CRITICAL: If server sent an incorrect conversation ID, fix it client-side
+      // This handles server-side inconsistencies until they're fixed
+      if (user?.id) {
+        const validation = validateConversationIdFormat(
+          conversationId,
+          user.id
+        );
+
+        if (!validation.isValid) {
+          console.error(
+            '❌ Received message with invalid conversation ID:',
+            validation.warnings
+          );
+          return;
+        }
+
+        if (!validation.containsCurrentUser) {
+          console.error(
+            '❌ CRITICAL: Message conversation ID does not contain current user!',
+            {
+              conversationId,
+              currentUserId: user.id,
+              senderId: message.senderId,
+              recipientId: message.recipientId,
+            }
+          );
+
+          // ATTEMPT TO FIX: Create correct conversation ID from message data
+          const otherUserId =
+            message.senderId !== user.id
+              ? message.senderId
+              : message.recipientId;
+          if (otherUserId) {
+            const correctedId = createDeterministicConversationId(
+              user.id,
+              otherUserId
+            );
+            console.warn(
+              `🔧 FIXING: Correcting conversation ID from ${conversationId} to ${correctedId}`
+            );
+            conversationId = correctedId;
+          } else {
+            console.error(
+              '❌ Cannot fix conversation ID: no other user ID found'
+            );
+            return;
+          }
+        }
+
+        if (!validation.isCompliant) {
+          console.warn(
+            '⚠️ Message conversation ID format issues - server may need updates:',
+            validation.warnings
+          );
+        }
       }
 
       console.log(
@@ -772,15 +990,19 @@ export function SocketChatProvider({
               const isSameContent =
                 (msg.content?.trim() ?? '') ===
                 (message.content?.trim() ?? '');
-              
+
               // Also check for content and timestamp proximity (within 10 seconds)
               const timeDiff = Math.abs(
-                new Date(msg.createdAt).getTime() - 
-                new Date(message.createdAt).getTime()
+                new Date(msg.createdAt).getTime() -
+                  new Date(message.createdAt).getTime()
               );
               const isTemporallyClose = timeDiff < 10000; // 10 seconds
 
-              if (isSameSender && isSameContent && isTemporallyClose) {
+              if (
+                isSameSender &&
+                isSameContent &&
+                isTemporallyClose
+              ) {
                 console.log(
                   `🗑️ Removing temporary message ${msg._id} as it's being replaced by server message ${message._id}`
                 );
@@ -861,48 +1083,72 @@ export function SocketChatProvider({
           let peerAddress = '';
           let displayName = 'Unknown';
 
-          // Try to extract peer from conversation ID
+          // Try to extract peer from conversation ID with strict validation
           const parts = conversationId.split('_');
           if (parts.length === 2) {
-            // Find which part is not the current user
-            if (
-              parts[0] === user.id ||
-              parts[0] === user.wallet?.address
-            ) {
+            // CRITICAL FIX: Use only user.id for matching, not wallet address
+            // This prevents cross-user conversation mixups
+            console.log(
+              `🔍 Resolving peer from conversation ID: ${conversationId}, current user: ${user.id}`
+            );
+
+            if (parts[0] === user.id) {
               peerAddress = parts[1];
-            } else if (
-              parts[1] === user.id ||
-              parts[1] === user.wallet?.address
-            ) {
+              console.log(
+                `✅ Peer resolved from conversation ID: ${peerAddress} (user is first part)`
+              );
+            } else if (parts[1] === user.id) {
               peerAddress = parts[0];
+              console.log(
+                `✅ Peer resolved from conversation ID: ${peerAddress} (user is second part)`
+              );
             } else {
+              // CRITICAL: This conversation ID doesn't contain the current user
+              console.error(
+                '❌ CRITICAL: Conversation ID does not contain current user ID!',
+                {
+                  conversationId,
+                  currentUserId: user.id,
+                  parts,
+                }
+              );
               // Fallback: determine from message sender/recipient
               peerAddress =
                 message.senderId !== user.id
                   ? message.senderId || ''
                   : message.recipientId || '';
+              console.warn(
+                `⚠️ Using fallback peer resolution: ${peerAddress}`
+              );
             }
           } else {
+            console.warn(
+              '⚠️ Invalid conversation ID format:',
+              conversationId
+            );
             // Fallback: determine from message sender/recipient
             peerAddress =
               message.senderId !== user.id
                 ? message.senderId || ''
                 : message.recipientId || '';
+            console.warn(
+              `⚠️ Using fallback peer resolution: ${peerAddress}`
+            );
           }
 
           // Priority order for display name: message ensName -> message displayName -> formatted address
-          displayName = 
-            (message as any).ensName || 
+          displayName =
+            (message as any).ensName ||
             (message as any).senderEnsName ||
             (message as any).displayName ||
             (message as any).senderDisplayName;
-            
+
           if (!displayName || displayName === 'Unknown') {
             // If no server-provided name, check if sender user data is included
             if ((message as any).senderUser) {
-              displayName = 
-                (message as any).senderUser.ensName || 
-                (message as any).senderUser.displayName || 
+              displayName =
+                (message as any).senderUser.ensName ||
+                (message as any).senderUser.displayName ||
                 (message as any).senderUser.name;
             }
           }
@@ -914,19 +1160,28 @@ export function SocketChatProvider({
                 displayName = `${peerAddress.substring(
                   0,
                   10
-                )}...${peerAddress.substring(peerAddress.length - 5)}`;
+                )}...${peerAddress.substring(
+                  peerAddress.length - 5
+                )}`;
               } else if (peerAddress.startsWith('0x')) {
                 displayName = `${peerAddress.substring(
                   0,
                   6
-                )}...${peerAddress.substring(peerAddress.length - 4)}`;
+                )}...${peerAddress.substring(
+                  peerAddress.length - 4
+                )}`;
               } else {
                 displayName = peerAddress;
               }
             }
           }
 
-          console.log(`[NewConversation] ${conversationId}: peerAddress=${peerAddress}, displayName=${displayName}, messageEnsName=${(message as any).ensName || (message as any).senderEnsName}`);
+          console.log(
+            `[NewConversation] ${conversationId}: peerAddress=${peerAddress}, displayName=${displayName}, messageEnsName=${
+              (message as any).ensName ||
+              (message as any).senderEnsName
+            }`
+          );
 
           const newConversation = {
             conversationId,
@@ -962,6 +1217,138 @@ export function SocketChatProvider({
       }
     });
 
+    // Listen for broadcast messages (fallback delivery method)
+    socketInstance.on(
+      'recived_dm_broadcast',
+      ({
+        message,
+        senderId,
+        recipientId,
+        conversationId: msgConversationId,
+      }) => {
+        console.log('🔔 RECEIVED BROADCAST MESSAGE:', message);
+
+        // Check if this message is relevant to the current user
+        if (
+          user?.id === senderId ||
+          user?.id === recipientId ||
+          user?.wallet?.address === senderId ||
+          user?.wallet?.address === recipientId
+        ) {
+          console.log(
+            '🔔 Broadcast message is relevant to current user, processing...'
+          );
+
+          // Process it like a normal message using same FIXED normalization
+          // Use the centralized normalization function and validate
+          let normalizedConversationId =
+            normalizeConversationId(msgConversationId);
+
+          // CRITICAL: Fix server inconsistencies for broadcast messages too
+          if (user?.id && normalizedConversationId) {
+            const validation = validateConversationIdFormat(
+              normalizedConversationId,
+              user.id
+            );
+
+            if (!validation.containsCurrentUser) {
+              console.error(
+                '❌ CRITICAL: Broadcast message conversation ID does not contain current user!',
+                {
+                  conversationId: normalizedConversationId,
+                  currentUserId: user.id,
+                  senderId,
+                  recipientId,
+                }
+              );
+
+              // ATTEMPT TO FIX: Create correct conversation ID from message data
+              const otherUserId =
+                senderId !== user.id ? senderId : recipientId;
+              if (otherUserId) {
+                const correctedId = createDeterministicConversationId(
+                  user.id,
+                  otherUserId
+                );
+                console.warn(
+                  `🔧 FIXING BROADCAST: Correcting conversation ID from ${normalizedConversationId} to ${correctedId}`
+                );
+                normalizedConversationId = correctedId;
+              }
+            }
+
+            if (!validation.isCompliant) {
+              console.warn(
+                '⚠️ Broadcast message conversation ID format issues - server may need updates:',
+                validation.warnings
+              );
+            }
+          }
+
+          // Add to messages state if not already there
+          setMessages((prev) => {
+            const conversationMessages =
+              prev[normalizedConversationId] || [];
+            const messageExists = conversationMessages.some(
+              (msg) => msg._id === message._id
+            );
+
+            if (!messageExists) {
+              console.log(
+                `🟢 Adding broadcast message to conversation ${normalizedConversationId}`
+              );
+
+              // Enhanced deduplication logic for temporary messages (broadcast)
+              const filteredMessages = conversationMessages.filter(
+                (msg) => {
+                  // Keep all non-temporary messages
+                  if (!msg._id.startsWith('temp_')) {
+                    return true;
+                  }
+
+                  // For temporary messages, remove if they match the incoming server message
+                  const isSameSender =
+                    msg.senderId === message.senderId;
+                  const isSameContent =
+                    (msg.content?.trim() ?? '') ===
+                    (message.content?.trim() ?? '');
+
+                  // Also check for content and timestamp proximity (within 10 seconds)
+                  const timeDiff = Math.abs(
+                    new Date(msg.createdAt).getTime() -
+                      new Date(message.createdAt).getTime()
+                  );
+                  const isTemporallyClose = timeDiff < 10000; // 10 seconds
+
+                  if (
+                    isSameSender &&
+                    isSameContent &&
+                    isTemporallyClose
+                  ) {
+                    console.log(
+                      `🗑️ Removing temporary broadcast message ${msg._id} as it's being replaced by server message ${message._id}`
+                    );
+                    return false; // Remove this temporary message
+                  }
+
+                  return true; // Keep this temporary message
+                }
+              );
+
+              return {
+                ...prev,
+                [normalizedConversationId]: [
+                  ...filteredMessages,
+                  message,
+                ],
+              };
+            }
+
+            return prev;
+          });
+        }
+      }
+    );
 
     // Listen for reaction updates
     socketInstance.on(
@@ -1051,41 +1438,87 @@ export function SocketChatProvider({
 
         const updatedConversations: ChatConversation[] =
           data.directMessages.map((dm: any) => {
+            // CRITICAL: Normalize and validate conversation ID from server
+            let conversationId = normalizeConversationId(
+              dm.conversationId
+            );
+
+            // Validate and fix if needed
+            if (user?.id) {
+              const validation = validateConversationIdFormat(
+                conversationId,
+                user.id
+              );
+              if (!validation.containsCurrentUser) {
+                console.error(
+                  '❌ CRITICAL: Conversation list ID does not contain current user!',
+                  {
+                    originalId: dm.conversationId,
+                    normalizedId: conversationId,
+                    currentUserId: user.id,
+                  }
+                );
+                // For conversation lists, we can't easily reconstruct the other user ID
+                // So we'll keep the original but log the issue
+                console.warn(
+                  '⚠️ Keeping potentially incorrect conversation ID for conversation list'
+                );
+              }
+              if (!validation.isCompliant) {
+                console.warn(
+                  '⚠️ Conversation list ID format issues - server may need updates:',
+                  validation.warnings
+                );
+              }
+            }
+
             // Get the peer address (the other person in the conversation)
-            const conversationParts = dm.conversationId.split('_');
+            const conversationParts = conversationId.split('_');
             let displayName = 'Unknown';
             let peerAddress = '';
 
-            // Find which part is not the current user
+            // CRITICAL FIX: Use only user.id for matching, not wallet address
             if (conversationParts.length === 2) {
-              if (
-                conversationParts[0] === user?.id ||
-                conversationParts[0] === user?.wallet?.address
-              ) {
+              console.log(
+                `🔍 [BulkConversations] Resolving peer for: ${dm.conversationId}, user: ${user?.id}`
+              );
+
+              if (conversationParts[0] === user?.id) {
                 peerAddress = conversationParts[1];
-              } else if (
-                conversationParts[1] === user?.id ||
-                conversationParts[1] === user?.wallet?.address
-              ) {
+                console.log(
+                  `✅ [BulkConversations] Peer: ${peerAddress} (user is first)`
+                );
+              } else if (conversationParts[1] === user?.id) {
                 peerAddress = conversationParts[0];
+                console.log(
+                  `✅ [BulkConversations] Peer: ${peerAddress} (user is second)`
+                );
               } else {
+                console.error(
+                  '❌ [BulkConversations] CRITICAL: Conversation does not contain current user!',
+                  {
+                    conversationId: dm.conversationId,
+                    currentUserId: user?.id,
+                    parts: conversationParts,
+                  }
+                );
                 peerAddress = conversationParts[0]; // Fallback
               }
             }
 
             // Priority order for display name: ensName -> displayName -> formatted address
-            displayName = 
-              dm.peerEnsName || 
-              dm.peerDisplayName || 
-              dm.ensName || 
+            displayName =
+              dm.peerEnsName ||
+              dm.peerDisplayName ||
+              dm.ensName ||
               dm.displayName;
-              
+
             if (!displayName || displayName === 'Unknown') {
               // If no server-provided name, check if peer user data is included
               if (dm.peerUser) {
-                displayName = 
-                  dm.peerUser.ensName || 
-                  dm.peerUser.displayName || 
+                displayName =
+                  dm.peerUser.ensName ||
+                  dm.peerUser.displayName ||
                   dm.peerUser.name;
               }
             }
@@ -1113,10 +1546,14 @@ export function SocketChatProvider({
               }
             }
 
-            console.log(`[Conversation] ${dm.conversationId}: peerAddress=${peerAddress}, displayName=${displayName}, ensName=${dm.peerEnsName || dm.ensName}`);
+            console.log(
+              `[Conversation] ${conversationId}: peerAddress=${peerAddress}, displayName=${displayName}, ensName=${
+                dm.peerEnsName || dm.ensName
+              }`
+            );
 
             return {
-              conversationId: dm.conversationId,
+              conversationId: conversationId, // Use normalized conversation ID
               peerAddress,
               displayName,
               lastMessage: dm.lastMessage || '',
@@ -1167,18 +1604,18 @@ export function SocketChatProvider({
             const peerAddress = data.senderId;
 
             // Priority order for display name: data ensName -> data displayName -> formatted address
-            displayName = 
-              (data as any).ensName || 
+            displayName =
+              (data as any).ensName ||
               (data as any).senderEnsName ||
               (data as any).displayName ||
               (data as any).senderDisplayName;
-              
+
             if (!displayName || displayName === 'Unknown') {
               // If no server-provided name, check if sender user data is included
               if ((data as any).senderUser) {
-                displayName = 
-                  (data as any).senderUser.ensName || 
-                  (data as any).senderUser.displayName || 
+                displayName =
+                  (data as any).senderUser.ensName ||
+                  (data as any).senderUser.displayName ||
                   (data as any).senderUser.name;
               }
             }
@@ -1189,18 +1626,28 @@ export function SocketChatProvider({
                 displayName = `${peerAddress.substring(
                   0,
                   10
-                )}...${peerAddress.substring(peerAddress.length - 5)}`;
+                )}...${peerAddress.substring(
+                  peerAddress.length - 5
+                )}`;
               } else if (peerAddress.startsWith('0x')) {
                 displayName = `${peerAddress.substring(
                   0,
                   6
-                )}...${peerAddress.substring(peerAddress.length - 4)}`;
+                )}...${peerAddress.substring(
+                  peerAddress.length - 4
+                )}`;
               } else {
                 displayName = peerAddress;
               }
             }
 
-            console.log(`[SingleConversation] ${data.conversationId}: peerAddress=${peerAddress}, displayName=${displayName}, dataEnsName=${(data as any).ensName || (data as any).senderEnsName}`);
+            console.log(
+              `[SingleConversation] ${
+                data.conversationId
+              }: peerAddress=${peerAddress}, displayName=${displayName}, dataEnsName=${
+                (data as any).ensName || (data as any).senderEnsName
+              }`
+            );
 
             const newConversation = {
               conversationId: data.conversationId,
@@ -1262,15 +1709,24 @@ export function SocketChatProvider({
               }
 
               // Priority: ensName -> displayName -> peerUser.ensName -> fallback
-              const displayName = 
-                conv.ensName || 
+              const displayName =
+                conv.ensName ||
                 conv.peerEnsName ||
-                conv.displayName || 
+                conv.displayName ||
                 conv.peerDisplayName ||
-                (conv.peerUser && (conv.peerUser.ensName || conv.peerUser.displayName || conv.peerUser.name)) ||
+                (conv.peerUser &&
+                  (conv.peerUser.ensName ||
+                    conv.peerUser.displayName ||
+                    conv.peerUser.name)) ||
                 fallbackDisplayName;
 
-              console.log(`[ConversationList] ${conv.conversationId}: peerAddress=${peerAddress}, displayName=${displayName}, ensName=${conv.ensName || conv.peerEnsName}`);
+              console.log(
+                `[ConversationList] ${
+                  conv.conversationId
+                }: peerAddress=${peerAddress}, displayName=${displayName}, ensName=${
+                  conv.ensName || conv.peerEnsName
+                }`
+              );
 
               return {
                 conversationId:
@@ -1580,26 +2036,68 @@ export function SocketChatProvider({
       const userId = user.id;
       const targetId = recipientId;
 
-      // Enhanced conversation ID creation with consistent format
-      let conversationId;
-      
-      // If one is ETH address and one is Privy ID, use consistent format
-      if ((userId.startsWith('0x') && targetId.startsWith('did:privy:')) ||
-          (userId.startsWith('did:privy:') && targetId.startsWith('0x'))) {
-        const ethId = userId.startsWith('0x') ? userId : targetId;
-        const privyId = userId.startsWith('did:privy:') ? userId : targetId;
-        conversationId = `${ethId}_${privyId}`;
-      } else {
-        // For other cases, sort alphabetically
-        conversationId = [userId, targetId].sort().join('_');
-      }
+      // Use centralized function to ensure consistent conversation ID format
+      let conversationId = createDeterministicConversationId(
+        userId,
+        targetId
+      );
       console.log('Created conversation ID:', conversationId);
+
+      // Validate the created conversation ID for compliance
+      const validation = validateConversationIdFormat(
+        conversationId,
+        userId
+      );
+      if (!validation.isCompliant) {
+        console.warn(
+          '⚠️ Created conversation ID has compliance issues:',
+          validation.warnings
+        );
+      }
+      if (!validation.containsCurrentUser) {
+        console.error(
+          '❌ CRITICAL: Created conversation ID does not contain current user!'
+        );
+      }
 
       // Log the IDs being used for debugging
       console.log(
         `Creating conversation between ${userId} and ${targetId}`
       );
 
+      // Additional validation: ensure the conversation ID contains both user IDs
+      if (
+        !conversationId.includes(userId) ||
+        !conversationId.includes(targetId)
+      ) {
+        console.error(
+          '❌ CRITICAL: Conversation ID does not contain both user IDs!',
+          {
+            conversationId,
+            userId,
+            targetId,
+          }
+        );
+        // Fallback: create a simple concatenated ID
+        conversationId = [userId, targetId].sort().join('_');
+      }
+
+      // Final validation: ensure neither user ID is empty or undefined
+      if (!userId || !targetId || userId === targetId) {
+        console.error(
+          '❌ CRITICAL: Invalid user IDs for conversation creation!',
+          {
+            userId,
+            targetId,
+          }
+        );
+        return `error_conversation_${Date.now()}`;
+      }
+
+      console.log(
+        '✅ Final validated conversation ID:',
+        conversationId
+      );
       return conversationId;
     },
     [socket, user?.id]
@@ -1651,16 +2149,42 @@ export function SocketChatProvider({
         // If so, make sure we're using the correct format consistently
         let finalConversationId = conversationId;
 
-        // If the conversation ID contains ETH addresses, make sure we're using the consistent format
-        if (conversationId.includes('0x')) {
+        // CRITICAL FIX: If the conversation ID contains mixed types, ensure consistent ordering
+        if (
+          conversationId.includes('0x') &&
+          conversationId.includes('did:privy:')
+        ) {
           console.log(
-            'Conversation ID contains ETH addresses, ensuring consistency'
+            'Conversation ID contains mixed ETH address and Privy ID, ensuring consistency'
           );
 
-          // Extract the ETH addresses
           const parts = conversationId.split('_');
           if (parts.length === 2) {
-            // Sort them to ensure consistent ordering
+            // Use centralized function for consistency
+            finalConversationId =
+              normalizeConversationId(conversationId);
+
+            if (finalConversationId !== conversationId) {
+              console.log(
+                `Corrected conversation ID: ${finalConversationId} (was: ${conversationId})`
+              );
+              // Update the active conversation ID
+              setActiveConversationId(finalConversationId);
+            }
+          }
+        }
+        // For same-type pairs (both ETH or both Privy), sort alphabetically
+        else if (
+          conversationId.includes('0x') ||
+          conversationId.includes('did:privy:')
+        ) {
+          console.log(
+            'Conversation ID contains same-type identifiers, ensuring alphabetical sort'
+          );
+
+          const parts = conversationId.split('_');
+          if (parts.length === 2) {
+            // Sort them alphabetically for consistency
             const sortedParts = [...parts].sort();
             finalConversationId = sortedParts.join('_');
 
@@ -1831,42 +2355,28 @@ export function SocketChatProvider({
             userEthAddress || actualSenderId;
           const recipientIdForConversation = actualRecipientId;
 
-          // Create a deterministic conversation ID with consistent format
-          if ((senderIdForConversation.startsWith('0x') && recipientIdForConversation.startsWith('did:privy:')) ||
-              (senderIdForConversation.startsWith('did:privy:') && recipientIdForConversation.startsWith('0x'))) {
-            const ethId = senderIdForConversation.startsWith('0x') ? senderIdForConversation : recipientIdForConversation;
-            const privyId = senderIdForConversation.startsWith('did:privy:') ? senderIdForConversation : recipientIdForConversation;
-            conversationIdForMessage = `${ethId}_${privyId}`;
-          } else {
-            conversationIdForMessage = [
+          // Use centralized function to create consistent conversation ID
+          conversationIdForMessage =
+            createDeterministicConversationId(
               senderIdForConversation,
-              recipientIdForConversation,
-            ]
-              .sort()
-              .join('_');
-          }
+              recipientIdForConversation
+            );
           console.log(
             'Created consistent conversation ID for message:',
             conversationIdForMessage
           );
         }
 
-        // Ensure conversation ID is normalized (sorted) if it contains ETH addresses
-        if (
-          conversationIdForMessage &&
-          conversationIdForMessage.includes('0x')
-        ) {
-          const parts = conversationIdForMessage.split('_');
-          if (parts.length === 2) {
-            const sortedParts = [...parts].sort();
-            const sortedConversationId = sortedParts.join('_');
-
-            if (sortedConversationId !== conversationIdForMessage) {
-              console.log(
-                `Normalizing conversation ID from ${conversationIdForMessage} to ${sortedConversationId}`
-              );
-              conversationIdForMessage = sortedConversationId;
-            }
+        // Ensure conversation ID is normalized using centralized function
+        if (conversationIdForMessage) {
+          const normalizedId = normalizeConversationId(
+            conversationIdForMessage
+          );
+          if (normalizedId !== conversationIdForMessage) {
+            console.log(
+              `Normalizing conversation ID from ${conversationIdForMessage} to ${normalizedId}`
+            );
+            conversationIdForMessage = normalizedId;
           }
         }
 

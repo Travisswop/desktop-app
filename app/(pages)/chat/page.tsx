@@ -243,14 +243,19 @@ const ChatPageContent = () => {
           resolvedRecipient = userId;
         }
 
-        // Use existing conversation ID if available, otherwise create new one
-        let conversationId;
-        if (conversationData && conversationData.conversationId) {
-          console.log('🎯 [ChatPage] Using existing conversation ID:', conversationData.conversationId);
-          conversationId = conversationData.conversationId;
-        } else {
-          console.log('🎯 [ChatPage] Creating new conversation for:', resolvedRecipient);
-          conversationId = await createConversation(resolvedRecipient);
+        // Always create a deterministic conversation ID to ensure consistency
+        // This prevents cross-user message visibility issues
+        console.log('🎯 [ChatPage] Creating deterministic conversation for:', resolvedRecipient);
+        const conversationId = await createConversation(resolvedRecipient);
+        
+        // Log if there was a mismatch between provided and created conversation IDs
+        if (conversationData && conversationData.conversationId && conversationData.conversationId !== conversationId) {
+          console.warn(
+            '⚠️ [ChatPage] Conversation ID mismatch detected:',
+            'provided:', conversationData.conversationId,
+            'created:', conversationId,
+            'Using created ID for security'
+          );
         }
 
         setSelectedConversationId(conversationId);

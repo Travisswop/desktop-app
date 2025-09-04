@@ -22,11 +22,37 @@ const ChatBox: React.FC<ChatBoxProps> = ({
   const [isLoading, setIsLoading] = useState(false);
   const [isSending, setIsSending] = useState(false);
   const messageEndRef = useRef<HTMLDivElement>(null);
-  // Normalize conversation ID consistently
+  // Normalize conversation ID consistently - FIXED VERSION
   const normalizeConversationId = (id: string) => {
-    if (id.includes('0x') && id.includes('_')) {
+    if (!id) return '';
+    
+    // CRITICAL FIX: If it contains both 0x and did:privy:, always put ETH address first
+    if (id.includes('0x') && id.includes('did:privy:')) {
       const parts = id.split('_');
       if (parts.length === 2) {
+        const ethPart = parts.find(p => p.startsWith('0x'));
+        const privyPart = parts.find(p => p.startsWith('did:privy:'));
+        if (ethPart && privyPart) {
+          return `${ethPart}_${privyPart}`;
+        }
+      }
+    }
+    // For other cases where both are same type, sort alphabetically
+    else if (id.includes('_')) {
+      const parts = id.split('_');
+      if (parts.length === 2) {
+        // If both are ETH addresses or both are Privy IDs, sort alphabetically
+        if ((parts[0].startsWith('0x') && parts[1].startsWith('0x')) ||
+            (parts[0].startsWith('did:privy:') && parts[1].startsWith('did:privy:'))) {
+          return [...parts].sort().join('_');
+        }
+        // If mixed types but we didn't catch it above, apply the ETH-first rule
+        const ethPart = parts.find(p => p.startsWith('0x'));
+        const privyPart = parts.find(p => p.startsWith('did:privy:'));
+        if (ethPart && privyPart) {
+          return `${ethPart}_${privyPart}`;
+        }
+        // For any other mixed types, sort alphabetically
         return [...parts].sort().join('_');
       }
     }
