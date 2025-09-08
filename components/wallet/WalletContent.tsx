@@ -322,7 +322,8 @@ const WalletContentInner = () => {
           const result = await TransactionService.handleSolanaSend(
             solanaWallet,
             sendFlow,
-            connection
+            connection,
+            PrivyUser
           );
 
           hash = result;

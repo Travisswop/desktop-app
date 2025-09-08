@@ -146,7 +146,8 @@ export class TransactionService {
   static async handleSolanaSend(
     solanaWallet: any,
     sendFlow: SendFlowState,
-    connection: Connection
+    connection: Connection,
+    user?: any
   ) {
     if (!solanaWallet) throw new Error('No Solana wallet found');
 
@@ -263,7 +264,8 @@ export class TransactionService {
         return await this.submitPrivyNativeSponsoredTransaction(
           tx,
           solanaWallet,
-          connection
+          connection,
+          user
         );
       } else {
         // Regular transaction flow for other tokens
@@ -633,7 +635,8 @@ export class TransactionService {
   static async submitPrivyNativeSponsoredTransaction(
     tx: SolanaTransaction,
     solanaWallet: any,
-    connection: Connection
+    connection: Connection,
+    user?: any
   ) {
     try {
       // Set up transaction with proper blockhash and fee payer
@@ -649,8 +652,25 @@ export class TransactionService {
         signedTx.serialize()
       ).toString('base64');
 
-      // Get the wallet ID
-      const walletId = solanaWallet.id || solanaWallet.address;
+      // Get the correct Solana wallet ID from user's linkedAccounts
+      let walletId: string | null = null;
+      
+      if (user?.linkedAccounts) {
+        // Find the Solana wallet in linkedAccounts
+        const solanaWalletAccount = user.linkedAccounts.find(
+          (account: any) => 
+            account.type === 'wallet' && 
+            account.chainType === 'solana' && 
+            account.address === solanaWallet.address
+        );
+        walletId = solanaWalletAccount?.id;
+      }
+
+      // Fallback to the old method if user object is not provided
+      if (!walletId) {
+        walletId = solanaWallet.id || solanaWallet.address;
+        console.warn('Using fallback wallet ID. Consider passing user object for correct wallet ID.');
+      }
 
       if (!walletId) {
         throw new Error(
