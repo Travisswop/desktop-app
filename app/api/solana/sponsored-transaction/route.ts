@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 
 export async function POST(request: NextRequest) {
   try {
-    const { walletId, transaction, userAuthToken } = await request.json();
+    const { walletId, transaction } = await request.json();
 
     if (!walletId || !transaction) {
       return NextResponse.json(
@@ -26,24 +26,22 @@ export async function POST(request: NextRequest) {
     // Create basic auth header
     const basicAuth = Buffer.from(`${privyAppId}:${privyAppSecret}`).toString('base64');
 
-    // Call Privy's API to sponsor the transaction
+    // Call Privy's API to sponsor the transaction using native gas sponsorship
     const privyResponse = await fetch(`https://api.privy.io/v1/wallets/${walletId}/rpc`, {
       method: 'POST',
       headers: {
         'Authorization': `Basic ${basicAuth}`,
         'privy-app-id': privyAppId,
         'Content-Type': 'application/json',
-        // Note: In production, you would need to generate proper authorization signatures
-        // For now, we'll rely on the basic auth and app-id header
       },
       body: JSON.stringify({
-        method: 'signAndSendTransaction',
+        method: 'sendTransaction',
         caip2: 'solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1', // Solana mainnet
         params: {
           transaction,
           encoding: 'base64',
         },
-        sponsor: true, // This enables gas sponsoring
+        sponsor: true, // This enables native gas sponsoring
       }),
     });
 

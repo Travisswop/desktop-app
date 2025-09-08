@@ -259,20 +259,12 @@ export class TransactionService {
         (sendFlow.token?.address === USDC_ADDRESS ||
           sendFlow.token?.address === SWOP_ADDRESS)
       ) {
-        // Use Privy sponsored transaction for USDC and SWOP
-        const serializedTransaction =
-          await this.createSponsoredTransaction(
-            tx,
-            solanaWallet,
-            connection
-          );
-
-        const result = await this.submitPrivySponsoredTransaction(
-          serializedTransaction,
-          solanaWallet
+        // Use Privy native sponsored transaction for USDC and SWOP
+        return await this.submitPrivyNativeSponsoredTransaction(
+          tx,
+          solanaWallet,
+          connection
         );
-
-        return result;
       } else {
         // Regular transaction flow for other tokens
         const { blockhash } = await connection.getLatestBlockhash();
@@ -636,38 +628,29 @@ export class TransactionService {
   }
 
   /**
-   * Creates a transaction ready for Privy sponsored submission
+   * Submits a transaction using Privy's native gas sponsorship
    */
-  static async createSponsoredTransaction(
+  static async submitPrivyNativeSponsoredTransaction(
     tx: SolanaTransaction,
     solanaWallet: any,
     connection: Connection
   ) {
-    const { blockhash } = await connection.getLatestBlockhash();
-    tx.recentBlockhash = blockhash;
-    tx.feePayer = new PublicKey(solanaWallet.address);
-
-    // Serialize the transaction for Privy API
-    const serializedTransaction = Buffer.from(
-      tx.serialize({ requireAllSignatures: false })
-    ).toString('base64');
-
-    return serializedTransaction;
-  }
-
-  /**
-   * Submits a sponsored transaction through our backend API (which calls Privy's API)
-   */
-  static async submitPrivySponsoredTransaction(
-    serializedTransaction: string,
-    solanaWallet: any
-  ) {
     try {
-      // Get the wallet ID - try different possible properties
-      const walletId =
-        solanaWallet.id ||
-        solanaWallet.address ||
-        solanaWallet.publicKey?.toString();
+      // Set up transaction with proper blockhash and fee payer
+      const { blockhash } = await connection.getLatestBlockhash();
+      tx.recentBlockhash = blockhash;
+      tx.feePayer = new PublicKey(solanaWallet.address);
+
+      // Sign the transaction with the user's wallet
+      const signedTx = await solanaWallet.signTransaction(tx);
+      
+      // Serialize the signed transaction
+      const serializedTransaction = Buffer.from(
+        signedTx.serialize()
+      ).toString('base64');
+
+      // Get the wallet ID
+      const walletId = solanaWallet.id || solanaWallet.address;
 
       if (!walletId) {
         throw new Error(
@@ -675,7 +658,7 @@ export class TransactionService {
         );
       }
 
-      // Call our backend API which will handle the Privy authentication
+      // Call our backend API for Privy native gas sponsorship
       const response = await fetch(
         '/api/solana/sponsored-transaction',
         {
@@ -708,7 +691,7 @@ export class TransactionService {
 
       return result.signature || result.transactionId;
     } catch (error) {
-      console.error('Privy sponsored transaction failed:', error);
+      console.error('Privy native sponsored transaction failed:', error);
       throw new Error(
         'Sponsored transaction failed: ' + (error as Error).message
       );
