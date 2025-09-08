@@ -147,7 +147,8 @@ export class TransactionService {
     solanaWallet: any,
     sendFlow: SendFlowState,
     connection: Connection,
-    user?: any
+    user?: any,
+    generateAuthorizationSignature?: (input: any) => Promise<any>
   ) {
     if (!solanaWallet) throw new Error('No Solana wallet found');
 
@@ -261,11 +262,17 @@ export class TransactionService {
           sendFlow.token?.address === SWOP_ADDRESS)
       ) {
         // Use Privy native sponsored transaction for USDC and SWOP
+        if (!generateAuthorizationSignature) {
+          throw new Error(
+            'generateAuthorizationSignature is required to sponsor transactions'
+          );
+        }
         return await this.submitPrivyNativeSponsoredTransaction(
           tx,
           solanaWallet,
           connection,
-          user
+          user,
+          generateAuthorizationSignature
         );
       } else {
         // Regular transaction flow for other tokens
@@ -636,7 +643,8 @@ export class TransactionService {
     tx: SolanaTransaction,
     solanaWallet: any,
     connection: Connection,
-    user?: any
+    user: any,
+    generateAuthorizationSignature: (input: any) => Promise<any>
   ) {
     try {
       // Set up transaction with proper blockhash and fee payer
@@ -646,7 +654,7 @@ export class TransactionService {
 
       // Sign the transaction with the user's wallet
       const signedTx = await solanaWallet.signTransaction(tx);
-      
+
       // Serialize the signed transaction
       const serializedTransaction = Buffer.from(
         signedTx.serialize()
@@ -654,13 +662,13 @@ export class TransactionService {
 
       // Get the correct Solana wallet ID from user's linkedAccounts
       let walletId: string | null = null;
-      
+
       if (user?.linkedAccounts) {
         // Find the Solana wallet in linkedAccounts
         const solanaWalletAccount = user.linkedAccounts.find(
-          (account: any) => 
-            account.type === 'wallet' && 
-            account.chainType === 'solana' && 
+          (account: any) =>
+            account.type === 'wallet' &&
+            account.chainType === 'solana' &&
             account.address === solanaWallet.address
         );
         walletId = solanaWalletAccount?.id;
@@ -669,7 +677,9 @@ export class TransactionService {
       // Fallback to the old method if user object is not provided
       if (!walletId) {
         walletId = solanaWallet.id || solanaWallet.address;
-        console.warn('Using fallback wallet ID. Consider passing user object for correct wallet ID.');
+        console.warn(
+          'Using fallback wallet ID. Consider passing user object for correct wallet ID.'
+        );
       }
 
       if (!walletId) {
@@ -679,6 +689,40 @@ export class TransactionService {
       }
 
       // Call our backend API for Privy native gas sponsorship
+      // Generate authorization signature client-side to match backend RPC
+      const caip2 =
+        process.env.NEXT_PUBLIC_PRIVY_SOLANA_CAIP2 ||
+        'solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1';
+
+      const input = {
+        version: 1,
+        url: `https://api.privy.io/v1/wallets/${walletId}/rpc`,
+        method: 'POST',
+        headers: {
+          'privy-app-id': process.env.NEXT_PUBLIC_PRIVY_APP_ID,
+        },
+        body: {
+          method: 'signAndSendTransaction',
+          caip2,
+          params: {
+            transaction: serializedTransaction,
+            encoding: 'base64',
+          },
+          sponsor: true,
+        },
+      } as const;
+
+      const sigResult = await generateAuthorizationSignature(input);
+      const authorizationSignature =
+        typeof sigResult === 'string'
+          ? sigResult
+          : sigResult?.authorizationSignature ||
+            sigResult?.signature ||
+            '';
+      if (!authorizationSignature) {
+        throw new Error('Failed to generate authorization signature');
+      }
+
       const response = await fetch(
         '/api/solana/sponsored-transaction',
         {
@@ -689,6 +733,7 @@ export class TransactionService {
           body: JSON.stringify({
             walletId,
             transaction: serializedTransaction,
+            authorizationSignature,
           }),
         }
       );
@@ -711,7 +756,10 @@ export class TransactionService {
 
       return result.signature || result.transactionId;
     } catch (error) {
-      console.error('Privy native sponsored transaction failed:', error);
+      console.error(
+        'Privy native sponsored transaction failed:',
+        error
+      );
       throw new Error(
         'Sponsored transaction failed: ' + (error as Error).message
       );
