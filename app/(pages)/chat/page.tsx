@@ -1,4 +1,4 @@
-'use client';
+"use client";
 import {
   BookUser,
   Loader,
@@ -7,42 +7,28 @@ import {
   ArrowLeft,
   MessageSquare,
   Users,
-} from 'lucide-react';
-import {
-  useCallback,
-  useEffect,
-  useState,
-  useMemo,
-  Suspense,
-} from 'react';
-import {
-  Avatar,
-  AvatarFallback,
-  AvatarImage,
-} from '@/components/ui/avatar';
-import Link from 'next/link';
-import { WalletItem } from '@/types/wallet';
-import { usePrivy } from '@privy-io/react-auth';
-import { useSearchParams, useRouter } from 'next/navigation';
-import WalletManager from '@/components/wallet/wallet-manager';
-import { useSocketChat } from '@/lib/context/SocketChatContext';
-import ChatBox from '@/components/wallet/chat/chat-box';
-import GroupChatBox from '@/components/wallet/chat/group-chat-box';
-import GroupChatList from '@/components/wallet/chat/group-chat-list';
-import { Skeleton } from '@/components/ui/skeleton';
-import { useToast } from '@/hooks/use-toast';
-import { resolveEnsToUserId } from '@/lib/api/ensResolver';
-import { resolveAddressToEnsCached } from '@/lib/api/reverseEnsResolver';
-import {
-  Tabs,
-  TabsContent,
-  TabsList,
-  TabsTrigger,
-} from '@/components/ui/tabs';
+} from "lucide-react";
+import { useCallback, useEffect, useState, useMemo, Suspense } from "react";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import Link from "next/link";
+import { WalletItem } from "@/types/wallet";
+import { usePrivy } from "@privy-io/react-auth";
+import { useSearchParams, useRouter } from "next/navigation";
+import WalletManager from "@/components/wallet/wallet-manager";
+import { useSocketChat } from "@/lib/context/SocketChatContext";
+import ChatBox from "@/components/wallet/chat/chat-box";
+import GroupChatBox from "@/components/wallet/chat/group-chat-box";
+import GroupChatList from "@/components/wallet/chat/group-chat-list";
+import { Skeleton } from "@/components/ui/skeleton";
+import { useToast } from "@/hooks/use-toast";
+import { resolveEnsToUserId } from "@/lib/api/ensResolver";
+import { resolveAddressToEnsCached } from "@/lib/api/reverseEnsResolver";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { getEnsDataUsingEns } from "@/actions/getEnsData";
 
 const getAvatarSrc = (profilePic?: string) => {
-  if (!profilePic) return '/default-avatar.png';
-  return profilePic.startsWith('http')
+  if (!profilePic) return "/default-avatar.png";
+  return profilePic.startsWith("http")
     ? profilePic
     : `/assets/avatar/${profilePic}.png`;
 };
@@ -57,39 +43,36 @@ const ChatPageContent = () => {
     createConversation,
     refreshConversations,
     searchUsers,
-  } = useSocketChat();
+  } = useSocketChat(); // get socket data
+
   const { user: PrivyUser } = usePrivy();
   const searchParams = useSearchParams();
   const router = useRouter();
   const { toast } = useToast();
 
-  const [walletData, setWalletData] = useState<WalletItem[] | null>(
-    null
-  );
-  const [isWalletManagerOpen, setIsWalletManagerOpen] =
-    useState(false);
-  const [searchQuery, setSearchQuery] = useState('');
+  console.log("conversations", conversations);
+
+  const [walletData, setWalletData] = useState<WalletItem[] | null>(null);
+  const [isWalletManagerOpen, setIsWalletManagerOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
   const [isSearchLoading, setIsSearchLoading] = useState(false);
   const [searchResult, setSearchResult] = useState<any | null>(null);
   const [searchResults, setSearchResults] = useState<any[]>([]);
   const [changeConversationLoading, setChangeConversationLoading] =
     useState(false);
-  const [micrositeData, setMicrositeData] = useState<any | null>(
+  const [micrositeData, setMicrositeData] = useState<any | null>(null);
+  const [selectedConversationId, setSelectedConversationId] = useState<
+    string | null
+  >(null);
+  const [selectedRecipientId, setSelectedRecipientId] = useState<string | null>(
     null
   );
-  const [selectedConversationId, setSelectedConversationId] =
-    useState<string | null>(null);
-  const [selectedRecipientId, setSelectedRecipientId] = useState<
-    string | null
-  >(null);
-  const [selectedGroupId, setSelectedGroupId] = useState<
-    string | null
-  >(null);
-  const [activeTab, setActiveTab] = useState<string>('direct');
+  const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<string>("direct");
 
   // Debug Socket state
   useEffect(() => {
-    console.log('🔍 [ChatPage] Socket State:', {
+    console.log("🔍 [ChatPage] Socket State:", {
       hasSocket: !!socket,
       isConnected,
       isLoading: socketLoading,
@@ -98,8 +81,8 @@ const ChatPageContent = () => {
       conversationCount: conversations?.length || 0,
       hasPrivyUser: !!PrivyUser,
       privyWallets:
-        PrivyUser?.linkedAccounts?.filter((a) => a.type === 'wallet')
-          ?.length || 0,
+        PrivyUser?.linkedAccounts?.filter((a) => a.type === "wallet")?.length ||
+        0,
     });
   }, [
     socket,
@@ -112,20 +95,19 @@ const ChatPageContent = () => {
 
   // Manual retry function
   const handleRetryConnection = async () => {
-    console.log('🔄 [ChatPage] Manual socket retry requested');
+    console.log("🔄 [ChatPage] Manual socket retry requested");
     try {
       await refreshConversations();
       toast({
-        title: 'Success',
-        description: 'Chat connection refreshed successfully!',
+        title: "Success",
+        description: "Chat connection refreshed successfully!",
       });
     } catch (error) {
-      console.error('❌ [ChatPage] Manual retry failed:', error);
+      console.error("❌ [ChatPage] Manual retry failed:", error);
       toast({
-        title: 'Error',
-        description:
-          'Failed to refresh chat connection. Please try again.',
-        variant: 'destructive',
+        title: "Error",
+        description: "Failed to refresh chat connection. Please try again.",
+        variant: "destructive",
       });
     }
   };
@@ -156,14 +138,12 @@ const ChatPageContent = () => {
 
     return uniqueConversations.filter(
       (conv) =>
-        conv.peerAddress
-          .toLowerCase()
-          .includes(searchQuery.toLowerCase()) ||
-        conv.displayName
-          .toLowerCase()
-          .includes(searchQuery.toLowerCase())
+        conv.peerAddress.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        conv.displayName.toLowerCase().includes(searchQuery.toLowerCase())
     );
   }, [conversations, searchQuery]);
+
+  console.log("filteredConversations", filteredConversations);
 
   // Initialize wallet data from Privy user
   useEffect(() => {
@@ -171,19 +151,19 @@ const ChatPageContent = () => {
 
     const linkWallet = PrivyUser.linkedAccounts
       .map((item) => {
-        if (item.type !== 'wallet') return null;
+        if (item.type !== "wallet") return null;
 
         return {
           address: item.address,
-          isActive: item.chainType === 'ethereum',
-          isEVM: item.chainType === 'ethereum',
+          isActive: item.chainType === "ethereum",
+          isEVM: item.chainType === "ethereum",
         };
       })
       .filter(Boolean) as WalletItem[];
 
     setWalletData(linkWallet);
 
-    console.log('🔍 [ChatPage] Privy wallet data:', {
+    console.log("🔍 [ChatPage] Privy wallet data:", {
       totalAccounts: PrivyUser.linkedAccounts.length,
       wallets: linkWallet,
     });
@@ -192,15 +172,18 @@ const ChatPageContent = () => {
   // Handle conversation selection
   const handleSelectConversation = useCallback(
     async (recipientAddress: string, conversationData?: any) => {
+      console.log("recipientAddress", recipientAddress);
+      console.log("conversationData", conversationData);
+
       if (!recipientAddress || !PrivyUser?.id) {
         console.log(
-          '⚠️ [ChatPage] Cannot select conversation - missing params'
+          "⚠️ [ChatPage] Cannot select conversation - missing params"
         );
         return;
       }
 
       console.log(
-        '🎯 [ChatPage] Selecting conversation with:',
+        "🎯 [ChatPage] Selecting conversation with:",
         recipientAddress
       );
 
@@ -211,27 +194,24 @@ const ChatPageContent = () => {
         // Check if this is an ENS name that needs resolution
         let resolvedRecipient = recipientAddress;
         const isEns =
-          recipientAddress.includes('.') &&
-          (recipientAddress.endsWith('.eth') ||
-            recipientAddress.endsWith('.swop.id'));
+          recipientAddress.includes(".") &&
+          (recipientAddress.endsWith(".eth") ||
+            recipientAddress.endsWith(".swop.id"));
 
         // Resolve ENS name to actual user ID if needed
         if (isEns) {
-          console.log(
-            '🔍 [ChatPage] Resolving ENS name:',
-            recipientAddress
-          );
+          console.log("🔍 [ChatPage] Resolving ENS name:", recipientAddress);
           const userId = await resolveEnsToUserId(recipientAddress);
 
           if (!userId) {
             console.error(
-              '❌ [ChatPage] Failed to resolve ENS name:',
+              "❌ [ChatPage] Failed to resolve ENS name:",
               recipientAddress
             );
             toast({
-              title: 'Error',
+              title: "Error",
               description: `Could not find user with ENS name: ${recipientAddress}`,
-              variant: 'destructive',
+              variant: "destructive",
             });
             setChangeConversationLoading(false);
             return;
@@ -245,16 +225,25 @@ const ChatPageContent = () => {
 
         // Always create a deterministic conversation ID to ensure consistency
         // This prevents cross-user message visibility issues
-        console.log('🎯 [ChatPage] Creating deterministic conversation for:', resolvedRecipient);
+        console.log(
+          "🎯 [ChatPage] Creating deterministic conversation for:",
+          resolvedRecipient
+        );
         const conversationId = await createConversation(resolvedRecipient);
-        
+
         // Log if there was a mismatch between provided and created conversation IDs
-        if (conversationData && conversationData.conversationId && conversationData.conversationId !== conversationId) {
+        if (
+          conversationData &&
+          conversationData.conversationId &&
+          conversationData.conversationId !== conversationId
+        ) {
           console.warn(
-            '⚠️ [ChatPage] Conversation ID mismatch detected:',
-            'provided:', conversationData.conversationId,
-            'created:', conversationId,
-            'Using created ID for security'
+            "⚠️ [ChatPage] Conversation ID mismatch detected:",
+            "provided:",
+            conversationData.conversationId,
+            "created:",
+            conversationId,
+            "Using created ID for security"
           );
         }
 
@@ -263,21 +252,25 @@ const ChatPageContent = () => {
 
         // Use conversation data if available (from existing conversations with ENS names)
         let userData = null;
-        let displayName = 'Unknown';
-        let ensName = '';
+        let displayName = "Unknown";
+        let ensName = "";
 
         // Priority 1: Use provided conversation data (from socket server with ENS)
         if (conversationData) {
-          console.log('🎯 [ChatPage] Using conversation data:', conversationData);
+          console.log(
+            "🎯 [ChatPage] Using conversation data:",
+            conversationData
+          );
           displayName = conversationData.displayName || conversationData.name;
-          ensName = conversationData.ensName || conversationData.peerEnsName || '';
+          ensName =
+            conversationData.ensName || conversationData.peerEnsName || "";
           userData = {
             displayName: conversationData.displayName,
             name: conversationData.name,
             ensName: ensName,
-            bio: conversationData.bio || '',
-            profilePic: conversationData.profilePic || '',
-            profileUrl: conversationData.profileUrl || ''
+            bio: conversationData.bio || "",
+            profilePic: conversationData.profilePic || "",
+            profileUrl: conversationData.profileUrl || "",
           };
         } else {
           // Priority 2: Look for user in recent search results
@@ -302,47 +295,49 @@ const ChatPageContent = () => {
 
           // Set display name and ENS name
           if (userData) {
-            displayName = userData.displayName || userData.name || userData.ensName || 'Unknown';
-            ensName = userData.ensName || (isEns ? recipientAddress : '');
+            displayName =
+              userData.displayName ||
+              userData.name ||
+              userData.ensName ||
+              "Unknown";
+            ensName = userData.ensName || (isEns ? recipientAddress : "");
           } else {
             displayName = isEns
               ? recipientAddress
-              : `${resolvedRecipient.substring(0, 6)}...${resolvedRecipient.substring(resolvedRecipient.length - 4)}`;
-            ensName = isEns ? recipientAddress : '';
+              : `${resolvedRecipient.substring(
+                  0,
+                  6
+                )}...${resolvedRecipient.substring(
+                  resolvedRecipient.length - 4
+                )}`;
+            ensName = isEns ? recipientAddress : "";
           }
         }
 
-        console.log(`🎯 [ChatPage] Setting micrositeData: displayName=${displayName}, ensName=${ensName}`);
+        console.log(
+          `🎯 [ChatPage] Setting micrositeData: displayName=${displayName}, ensName=${ensName}`
+        );
 
         setMicrositeData({
           name: displayName,
           ethAddress: resolvedRecipient, // Store the resolved ID
-          bio: userData?.bio || '',
+          bio: userData?.bio || "",
           ens: ensName,
-          profilePic: userData?.profilePic || '',
-          profileUrl: userData?.profileUrl || '',
+          profilePic: userData?.profilePic || "",
+          profileUrl: userData?.profileUrl || "",
         });
       } catch (error) {
-        console.error(
-          '❌ [ChatPage] Error selecting conversation:',
-          error
-        );
+        console.error("❌ [ChatPage] Error selecting conversation:", error);
         toast({
-          title: 'Error',
-          description: 'Failed to start conversation',
-          variant: 'destructive',
+          title: "Error",
+          description: "Failed to start conversation",
+          variant: "destructive",
         });
       } finally {
         setChangeConversationLoading(false);
       }
     },
-    [
-      PrivyUser?.id,
-      createConversation,
-      toast,
-      searchResults,
-      searchResult,
-    ]
+    [PrivyUser?.id, createConversation, toast, searchResults, searchResult]
   );
 
   // Handle user search using the socket server
@@ -356,9 +351,9 @@ const ChatPageContent = () => {
 
       setIsSearchLoading(true);
       try {
-        console.log('🔍 Searching for users with query:', query);
+        console.log("🔍 Searching for users with query:", query);
         const results = await searchUsers(query);
-        console.log('🔍 Search results:', results);
+        console.log("🔍 Search results:", results);
 
         if (results && results.length > 0) {
           setSearchResults(results);
@@ -366,7 +361,7 @@ const ChatPageContent = () => {
         } else {
           // If no server results, create a fallback result
           setSearchResults([]);
-          if (query.startsWith('0x') && query.length >= 6) {
+          if (query.startsWith("0x") && query.length >= 6) {
             setSearchResult({
               name:
                 query.length > 10
@@ -381,41 +376,38 @@ const ChatPageContent = () => {
                       query.length - 4
                     )}`
                   : query,
-              bio: 'Click to start conversation',
-              ensName: '',
-              profilePic: '',
+              bio: "Click to start conversation",
+              ensName: "",
+              profilePic: "",
             });
-          } else if (
-            query.includes('.eth') ||
-            query.includes('.swop.id')
-          ) {
+          } else if (query.includes(".eth") || query.includes(".swop.id")) {
             setSearchResult({
               name: query,
               ethAddress: query,
               displayName: query,
-              bio: 'ENS name - Click to start conversation',
+              bio: "ENS name - Click to start conversation",
               ensName: query,
-              profilePic: '',
+              profilePic: "",
             });
           } else {
             setSearchResult({
               name: query,
               ethAddress: query,
               displayName: query,
-              bio: 'Search by username - Click to start conversation',
-              ensName: '',
-              profilePic: '',
+              bio: "Search by username - Click to start conversation",
+              ensName: "",
+              profilePic: "",
             });
           }
         }
       } catch (error) {
-        console.error('Error searching users:', error);
+        console.error("Error searching users:", error);
         setSearchResults([]);
         setSearchResult(null);
         toast({
-          title: 'Search Error',
-          description: 'Unable to search users. Please try again.',
-          variant: 'destructive',
+          title: "Search Error",
+          description: "Unable to search users. Please try again.",
+          variant: "destructive",
         });
       } finally {
         setIsSearchLoading(false);
@@ -425,9 +417,7 @@ const ChatPageContent = () => {
   );
 
   // Handle search input change with debounce
-  const handleSearchInputChange = (
-    e: React.ChangeEvent<HTMLInputElement>
-  ) => {
+  const handleSearchInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value;
     setSearchQuery(value);
 
@@ -439,11 +429,32 @@ const ChatPageContent = () => {
   // Debounced search effect
   useEffect(() => {
     if (searchQuery.trim().length >= 2) {
-      const timeoutId = setTimeout(() => {
-        handleUserSearch(searchQuery);
+      // const getEnsData = async() => {
+      const timeoutId = setTimeout(async () => {
+        setIsSearchLoading(true);
+        // handleUserSearch(searchQuery);
+        const data = await getEnsDataUsingEns(searchQuery);
+        if (!data?.message) {
+          setSearchResult({
+            name: data?.name || data?.domainOwner?.name || "N/A",
+            ethAddress: data?.owner || data?.addresses[60],
+            displayName: data?.name || data?.domainOwner?.name || "N/A",
+            bio:
+              data?.domainOwner?.bio ||
+              "N/A" ||
+              "ENS name - Click to start conversation",
+            ensName: data?.name || searchQuery,
+            profilePic: data?.domainOwner?.avatar,
+          });
+          setIsSearchLoading(false);
+        }
+        setIsSearchLoading(false);
+        console.log("data ens", data);
       }, 500);
 
       return () => clearTimeout(timeoutId);
+      // }
+      // getEnsData()
     } else {
       setSearchResults([]);
       setSearchResult(null);
@@ -452,16 +463,16 @@ const ChatPageContent = () => {
 
   // Handle recipient or group from URL params
   useEffect(() => {
-    const recipient = searchParams?.get('recipient');
-    const groupId = searchParams?.get('groupId');
+    const recipient = searchParams?.get("recipient");
+    const groupId = searchParams?.get("groupId");
 
     if (recipient) {
       handleSelectConversation(recipient);
-      setActiveTab('direct');
+      setActiveTab("direct");
       setSelectedGroupId(null);
     } else if (groupId) {
       setSelectedGroupId(groupId);
-      setActiveTab('groups');
+      setActiveTab("groups");
       // Reset direct chat state
       setSelectedConversationId(null);
       setSelectedRecipientId(null);
@@ -469,34 +480,35 @@ const ChatPageContent = () => {
     }
   }, [searchParams, handleSelectConversation]);
 
-  const handleWalletClick = async (userIdentifier: string, conversationData?: any) => {
+  const handleWalletClick = async (
+    userIdentifier: string,
+    conversationData?: any
+  ) => {
     console.log(
-      '🔍 Starting conversation with user identifier:',
+      "🔍 Starting conversation with user identifier:",
       userIdentifier,
-      'conversationData:',
+      "conversationData:",
       conversationData
     );
     await handleSelectConversation(userIdentifier, conversationData);
   };
 
   const handleBackToWallet = () => {
-    router.push('/wallet');
+    router.push("/wallet");
   };
 
   return (
     <div className="h-full">
       <div className="flex gap-7 items-start h-full">
         <div
-          style={{ height: 'calc(100vh - 150px)' }}
+          style={{ height: "calc(100vh - 150px)" }}
           className="w-[62%] bg-white rounded-xl relative"
         >
           {socketLoading ? (
             <div className="w-full h-full flex items-center justify-center">
               <div className="text-center">
                 <Loader className="w-8 h-8 animate-spin mx-auto mb-3 text-blue-600" />
-                <p className="text-gray-600">
-                  Connecting to chat server...
-                </p>
+                <p className="text-gray-600">Connecting to chat server...</p>
                 <p className="text-xs text-gray-400 mt-2">
                   Check browser console for detailed logs
                 </p>
@@ -521,9 +533,7 @@ const ChatPageContent = () => {
                 </div>
                 <div className="text-xs text-gray-500">
                   <p>Check browser console for detailed error logs</p>
-                  <p>
-                    Make sure your wallet is connected and try again
-                  </p>
+                  <p>Make sure your wallet is connected and try again</p>
                 </div>
               </div>
             </div>
@@ -544,19 +554,15 @@ const ChatPageContent = () => {
                       <>
                         <Avatar>
                           <AvatarImage
-                            src={getAvatarSrc(
-                              micrositeData.profilePic
-                            )}
+                            src={getAvatarSrc(micrositeData.profilePic)}
                             alt={`${micrositeData.name}'s avatar`}
                           />
                           <AvatarFallback>
-                            {micrositeData.name?.slice(0, 2) || 'AN'}
+                            {micrositeData.name?.slice(0, 2) || "AN"}
                           </AvatarFallback>
                         </Avatar>
                         <div>
-                          <h1 className="font-bold">
-                            {micrositeData.name}
-                          </h1>
+                          <h1 className="font-bold">{micrositeData.name}</h1>
                           <p className="text-gray-500 text-xs font-medium">
                             {micrositeData.ens}
                           </p>
@@ -574,8 +580,7 @@ const ChatPageContent = () => {
                       </button>
                       <Link
                         href={
-                          micrositeData.profileUrl ||
-                          `/${micrositeData.ens}`
+                          micrositeData.profileUrl || `/${micrositeData.ens}`
                         }
                         target="_blank"
                         className="w-10 h-10 rounded-full flex items-center justify-center bg-gray-100 hover:bg-gray-200 transition-colors"
@@ -592,9 +597,7 @@ const ChatPageContent = () => {
                   <div className="w-full h-full flex items-center justify-center">
                     <div className="text-center">
                       <Loader className="w-8 h-8 animate-spin mx-auto mb-3 text-blue-600" />
-                      <p className="text-gray-600">
-                        Loading conversation...
-                      </p>
+                      <p className="text-gray-600">Loading conversation...</p>
                     </div>
                   </div>
                 ) : !micrositeData && !selectedGroupId ? (
@@ -636,17 +639,11 @@ const ChatPageContent = () => {
             className="w-full"
           >
             <TabsList className="grid grid-cols-2 mb-4">
-              <TabsTrigger
-                value="direct"
-                className="flex items-center gap-1"
-              >
+              <TabsTrigger value="direct" className="flex items-center gap-1">
                 <MessageSquare size={16} />
                 <span>Direct Messages</span>
               </TabsTrigger>
-              <TabsTrigger
-                value="groups"
-                className="flex items-center gap-1"
-              >
+              <TabsTrigger value="groups" className="flex items-center gap-1">
                 <Users size={16} />
                 <span>Groups</span>
               </TabsTrigger>
@@ -671,10 +668,7 @@ const ChatPageContent = () => {
                 {isSearchLoading && (
                   <div className="space-y-2">
                     {[...Array(3)].map((_, i) => (
-                      <div
-                        key={i}
-                        className="flex items-center gap-2 p-2"
-                      >
+                      <div key={i} className="flex items-center gap-2 p-2">
                         <Skeleton className="h-10 w-10 rounded-full" />
                         <div className="space-y-2">
                           <Skeleton className="h-4 w-[100px]" />
@@ -694,24 +688,18 @@ const ChatPageContent = () => {
                     {searchResults.map((user) => (
                       <MessageList
                         key={`search-${
-                          user.userId ||
-                          user.ethAddress ||
-                          user.ensName
+                          user.userId || user.ethAddress || user.ensName
                         }`}
-                        bio={
-                          user.bio || 'Click to start conversation'
-                        }
+                        bio={user.bio || "Click to start conversation"}
                         name={
                           user.displayName ||
                           user.ensName ||
                           user.name ||
-                          'Unknown'
+                          "Unknown"
                         }
-                        profilePic={user.profilePic || ''}
+                        profilePic={user.profilePic || ""}
                         ethAddress={
-                          user.userId ||
-                          user.ethAddress ||
-                          user.ensName
+                          user.userId || user.ethAddress || user.ensName
                         }
                         handleWalletClick={handleWalletClick}
                         conversationData={user}
@@ -735,10 +723,7 @@ const ChatPageContent = () => {
                       <MessageList
                         key={`search-${searchResult.ethAddress}`}
                         bio={searchResult.bio}
-                        name={
-                          searchResult.displayName ||
-                          searchResult.name
-                        }
+                        name={searchResult.displayName || searchResult.name}
                         profilePic={searchResult.profilePic}
                         ethAddress={searchResult.ethAddress}
                         handleWalletClick={handleWalletClick}
@@ -758,9 +743,7 @@ const ChatPageContent = () => {
                     {filteredConversations.map((conv) => (
                       <MessageList
                         key={conv.conversationId || conv.peerAddress}
-                        bio={
-                          conv.lastMessage || 'No messages yet'
-                        }
+                        bio={conv.lastMessage || "No messages yet"}
                         name={
                           conv.displayName ||
                           `${conv.peerAddress.substring(
@@ -789,25 +772,24 @@ const ChatPageContent = () => {
                       <div className="text-center">
                         <p>No users found</p>
                         <p className="text-sm text-gray-400">
-                          Try searching by username, ENS name, or
-                          Ethereum address
+                          Try searching by username, ENS name, or Ethereum
+                          address
                         </p>
                       </div>
                     </div>
                   )}
 
                 {/* Show message when no conversations exist and no search */}
-                {!searchQuery.trim() &&
-                  filteredConversations.length === 0 && (
-                    <div className="flex items-center justify-center h-32 text-gray-500">
-                      <div className="text-center">
-                        <p>No conversations yet</p>
-                        <p className="text-sm text-gray-400">
-                          Search for an address to start chatting
-                        </p>
-                      </div>
+                {!searchQuery.trim() && filteredConversations.length === 0 && (
+                  <div className="flex items-center justify-center h-32 text-gray-500">
+                    <div className="text-center">
+                      <p>No conversations yet</p>
+                      <p className="text-sm text-gray-400">
+                        Search for an address to start chatting
+                      </p>
                     </div>
-                  )}
+                  </div>
+                )}
               </div>
             </TabsContent>
 
@@ -841,7 +823,10 @@ const MessageList = ({
   name: string;
   profilePic: string;
   ethAddress: string;
-  handleWalletClick: (ethAddress: string, conversationData?: any) => Promise<void>;
+  handleWalletClick: (
+    ethAddress: string,
+    conversationData?: any
+  ) => Promise<void>;
   conversationData?: any;
 }) => {
   const [resolvedName, setResolvedName] = useState(name);
@@ -852,24 +837,26 @@ const MessageList = ({
     const resolveEnsName = async () => {
       // Always try to resolve if the name looks like an address/ID or contains ellipsis
       if (
-        (name.startsWith('did:privy:') || 
-         name.startsWith('0x') || 
-         name.includes('...') ||
-         name.match(/^[a-zA-Z0-9]{8,12}\.\.\./) ||
-         name === 'Unknown') &&
-        !name.includes('.eth') &&
-        !name.includes('.swop.id')
+        (name.startsWith("did:privy:") ||
+          name.startsWith("0x") ||
+          name.includes("...") ||
+          name.match(/^[a-zA-Z0-9]{8,12}\.\.\./) ||
+          name === "Unknown") &&
+        !name.includes(".eth") &&
+        !name.includes(".swop.id")
       ) {
         setIsResolving(true);
         try {
-          console.log(`[MessageList] Resolving ENS for: ${ethAddress} (display: ${name})`);
+          console.log(
+            `[MessageList] Resolving ENS for: ${ethAddress} (display: ${name})`
+          );
           const ensName = await resolveAddressToEnsCached(ethAddress);
           console.log(`[MessageList] Resolved to: ${ensName}`);
           if (ensName !== ethAddress && ensName !== name) {
             setResolvedName(ensName);
           }
         } catch (error) {
-          console.error('Failed to resolve ENS name:', error);
+          console.error("Failed to resolve ENS name:", error);
         } finally {
           setIsResolving(false);
         }
@@ -890,7 +877,7 @@ const MessageList = ({
             src={getAvatarSrc(profilePic)}
             alt={`${resolvedName}'s avatar`}
           />
-          <AvatarFallback>{resolvedName?.slice(0, 2) || 'AN'}</AvatarFallback>
+          <AvatarFallback>{resolvedName?.slice(0, 2) || "AN"}</AvatarFallback>
         </Avatar>
         <div>
           <p className="font-semibold">
@@ -902,8 +889,8 @@ const MessageList = ({
           </p>
           {bio && (
             <p className="text-sm text-gray-500 line-clamp-1">
-              {bio === 'No messages yet' || bio === 'Start a conversation' 
-                ? 'No messages yet' 
+              {bio === "No messages yet" || bio === "Start a conversation"
+                ? "No messages yet"
                 : bio}
             </p>
           )}
