@@ -5,6 +5,7 @@ import {
   usePrivy,
   useWallets,
   useSolanaWallets,
+  useAuthorizationSignature,
 } from '@privy-io/react-auth';
 import { useSolanaWalletContext } from '@/lib/context/SolanaWalletContext';
 import { Connection } from '@solana/web3.js';
@@ -81,6 +82,8 @@ const WalletContentInner = () => {
 
   // Hooks
   const { authenticated, ready, user: PrivyUser } = usePrivy();
+  const { generateAuthorizationSignature } =
+    useAuthorizationSignature();
   console.log(PrivyUser, 'PrivyUser');
   const { wallets: ethWallets } = useWallets();
   console.log(ethWallets, 'ethWallets');
@@ -322,7 +325,9 @@ const WalletContentInner = () => {
           const result = await TransactionService.handleSolanaSend(
             solanaWallet,
             sendFlow,
-            connection
+            connection,
+            PrivyUser,
+            generateAuthorizationSignature
           );
 
           hash = result;

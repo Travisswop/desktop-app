@@ -172,7 +172,8 @@ const PaymentShipping: React.FC<{
       const hash = await TransactionService.handleSolanaSend(
         solanaWallet,
         sendFlow,
-        connection
+        connection,
+        null // Public profile page doesn't have access to Privy user object
       );
 
       setTransactionHash(hash);

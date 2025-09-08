@@ -146,7 +146,9 @@ export class TransactionService {
   static async handleSolanaSend(
     solanaWallet: any,
     sendFlow: SendFlowState,
-    connection: Connection
+    connection: Connection,
+    user?: any,
+    generateAuthorizationSignature?: (input: any) => Promise<any>
   ) {
     if (!solanaWallet) throw new Error('No Solana wallet found');
 
@@ -259,20 +261,19 @@ export class TransactionService {
         (sendFlow.token?.address === USDC_ADDRESS ||
           sendFlow.token?.address === SWOP_ADDRESS)
       ) {
-        // Use Privy sponsored transaction for USDC and SWOP
-        const serializedTransaction =
-          await this.createSponsoredTransaction(
-            tx,
-            solanaWallet,
-            connection
+        // Use Privy native sponsored transaction for USDC and SWOP
+        if (!generateAuthorizationSignature) {
+          throw new Error(
+            'generateAuthorizationSignature is required to sponsor transactions'
           );
-
-        const result = await this.submitPrivySponsoredTransaction(
-          serializedTransaction,
-          solanaWallet
+        }
+        return await this.submitPrivyNativeSponsoredTransaction(
+          tx,
+          solanaWallet,
+          connection,
+          user,
+          generateAuthorizationSignature
         );
-
-        return result;
       } else {
         // Regular transaction flow for other tokens
         const { blockhash } = await connection.getLatestBlockhash();
@@ -636,38 +637,50 @@ export class TransactionService {
   }
 
   /**
-   * Creates a transaction ready for Privy sponsored submission
+   * Submits a transaction using Privy's native gas sponsorship
    */
-  static async createSponsoredTransaction(
+  static async submitPrivyNativeSponsoredTransaction(
     tx: SolanaTransaction,
     solanaWallet: any,
-    connection: Connection
-  ) {
-    const { blockhash } = await connection.getLatestBlockhash();
-    tx.recentBlockhash = blockhash;
-    tx.feePayer = new PublicKey(solanaWallet.address);
-
-    // Serialize the transaction for Privy API
-    const serializedTransaction = Buffer.from(
-      tx.serialize({ requireAllSignatures: false })
-    ).toString('base64');
-
-    return serializedTransaction;
-  }
-
-  /**
-   * Submits a sponsored transaction through our backend API (which calls Privy's API)
-   */
-  static async submitPrivySponsoredTransaction(
-    serializedTransaction: string,
-    solanaWallet: any
+    connection: Connection,
+    user: any,
+    generateAuthorizationSignature: (input: any) => Promise<any>
   ) {
     try {
-      // Get the wallet ID - try different possible properties
-      const walletId =
-        solanaWallet.id ||
-        solanaWallet.address ||
-        solanaWallet.publicKey?.toString();
+      // Set up transaction with proper blockhash and fee payer
+      const { blockhash } = await connection.getLatestBlockhash();
+      tx.recentBlockhash = blockhash;
+      tx.feePayer = new PublicKey(solanaWallet.address);
+
+      // Sign the transaction with the user's wallet
+      const signedTx = await solanaWallet.signTransaction(tx);
+
+      // Serialize the signed transaction
+      const serializedTransaction = Buffer.from(
+        signedTx.serialize()
+      ).toString('base64');
+
+      // Get the correct Solana wallet ID from user's linkedAccounts
+      let walletId: string | null = null;
+
+      if (user?.linkedAccounts) {
+        // Find the Solana wallet in linkedAccounts
+        const solanaWalletAccount = user.linkedAccounts.find(
+          (account: any) =>
+            account.type === 'wallet' &&
+            account.chainType === 'solana' &&
+            account.address === solanaWallet.address
+        );
+        walletId = solanaWalletAccount?.id;
+      }
+
+      // Fallback to the old method if user object is not provided
+      if (!walletId) {
+        walletId = solanaWallet.id || solanaWallet.address;
+        console.warn(
+          'Using fallback wallet ID. Consider passing user object for correct wallet ID.'
+        );
+      }
 
       if (!walletId) {
         throw new Error(
@@ -675,7 +688,41 @@ export class TransactionService {
         );
       }
 
-      // Call our backend API which will handle the Privy authentication
+      // Call our backend API for Privy native gas sponsorship
+      // Generate authorization signature client-side to match backend RPC
+      const caip2 =
+        process.env.NEXT_PUBLIC_PRIVY_SOLANA_CAIP2 ||
+        'solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1';
+
+      const input = {
+        version: 1,
+        url: `https://api.privy.io/v1/wallets/${walletId}/rpc`,
+        method: 'POST',
+        headers: {
+          'privy-app-id': process.env.NEXT_PUBLIC_PRIVY_APP_ID,
+        },
+        body: {
+          method: 'signAndSendTransaction',
+          caip2,
+          params: {
+            transaction: serializedTransaction,
+            encoding: 'base64',
+          },
+          sponsor: true,
+        },
+      } as const;
+
+      const sigResult = await generateAuthorizationSignature(input);
+      const authorizationSignature =
+        typeof sigResult === 'string'
+          ? sigResult
+          : sigResult?.authorizationSignature ||
+            sigResult?.signature ||
+            '';
+      if (!authorizationSignature) {
+        throw new Error('Failed to generate authorization signature');
+      }
+
       const response = await fetch(
         '/api/solana/sponsored-transaction',
         {
@@ -686,6 +733,7 @@ export class TransactionService {
           body: JSON.stringify({
             walletId,
             transaction: serializedTransaction,
+            authorizationSignature,
           }),
         }
       );
@@ -708,7 +756,10 @@ export class TransactionService {
 
       return result.signature || result.transactionId;
     } catch (error) {
-      console.error('Privy sponsored transaction failed:', error);
+      console.error(
+        'Privy native sponsored transaction failed:',
+        error
+      );
       throw new Error(
         'Sponsored transaction failed: ' + (error as Error).message
       );
