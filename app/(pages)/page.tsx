@@ -1,6 +1,4 @@
 import FeedMain from "@/components/feed/FeedMain";
-import Header from "@/components/Header";
-import Sidenav from "@/components/Sidenav";
 import { Suspense } from "react";
 import TabSwitcher from "@/components/feed/TabSwitcher";
 import {
