@@ -54,9 +54,8 @@ export async function POST(request: NextRequest) {
           params: {
             transaction,
             encoding: 'base64',
-            sponsor: true,
           },
-          //sponsor: true, // Enable native gas sponsoring
+          sponsor: true, // Enable native gas sponsoring
         }),
       }
     );
