@@ -6,7 +6,9 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "test": "jest",
+    "test:watch": "jest --watch"
   },
   "dependencies": {
     "@emotion/react": "^11.14.0",
@@ -124,6 +126,7 @@
   },
   "devDependencies": {
     "@types/draft-js": "^0.11.18",
+    "@types/jest": "^29.5.12",
     "@types/js-cookie": "^3.0.6",
     "@types/json2csv": "^5.0.7",
     "@types/lodash": "^4.17.20",
@@ -135,8 +138,12 @@
     "@types/vcards-js": "^2.10.5",
     "eslint": "^8",
     "eslint-config-next": "15.0.1",
+    "jest": "^29.7.0",
+    "jest-environment-node": "^29.7.0",
     "postcss": "^8",
+    "socket.io-client": "^4.8.1",
     "tailwindcss": "^3.4.1",
+    "ts-jest": "^29.2.5",
     "typescript": "^5",
     "webpack": "^5.97.0"
   },
