@@ -30,9 +30,7 @@ export async function POST(request: NextRequest) {
     ).toString('base64');
 
     // Determine Solana network via CAIP-2. Default to Devnet if not provided via env.
-    const caip2 =
-      process.env.PRIVY_SOLANA_CAIP2 ||
-      'solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1';
+    const caip2 = 'solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1';
 
     // Call Privy's API to sponsor the transaction using native gas sponsorship
     const privyResponse = await fetch(

@@ -43,6 +43,9 @@ const ChatPageContent = () => {
     createConversation,
     refreshConversations,
     searchUsers,
+    // New socket methods from chat-test-ui.html
+    searchContacts,
+    getConversations,
   } = useSocketChat(); // get socket data
 
   const { user: PrivyUser } = usePrivy();
@@ -93,11 +96,19 @@ const ChatPageContent = () => {
     PrivyUser,
   ]);
 
-  // Manual retry function
+  // Manual retry function with enhanced conversation loading
   const handleRetryConnection = async () => {
     console.log("🔄 [ChatPage] Manual socket retry requested");
     try {
-      await refreshConversations();
+      // Try the new getConversations method first
+      const conversationsResult = await getConversations(1, 20);
+      if (conversationsResult.success) {
+        console.log("🔄 [ChatPage] Conversations loaded via new method");
+      } else {
+        // Fallback to original method
+        await refreshConversations();
+      }
+      
       toast({
         title: "Success",
         description: "Chat connection refreshed successfully!",
@@ -340,81 +351,6 @@ const ChatPageContent = () => {
     [PrivyUser?.id, createConversation, toast, searchResults, searchResult]
   );
 
-  // Handle user search using the socket server
-  const handleUserSearch = useCallback(
-    async (query: string) => {
-      if (!query.trim() || query.length < 2) {
-        setSearchResults([]);
-        setSearchResult(null);
-        return;
-      }
-
-      setIsSearchLoading(true);
-      try {
-        console.log("🔍 Searching for users with query:", query);
-        const results = await searchUsers(query);
-        console.log("🔍 Search results:", results);
-
-        if (results && results.length > 0) {
-          setSearchResults(results);
-          setSearchResult(null); // Clear single search result
-        } else {
-          // If no server results, create a fallback result
-          setSearchResults([]);
-          if (query.startsWith("0x") && query.length >= 6) {
-            setSearchResult({
-              name:
-                query.length > 10
-                  ? `${query.substring(0, 6)}...${query.substring(
-                      query.length - 4
-                    )}`
-                  : query,
-              ethAddress: query,
-              displayName:
-                query.length > 10
-                  ? `${query.substring(0, 6)}...${query.substring(
-                      query.length - 4
-                    )}`
-                  : query,
-              bio: "Click to start conversation",
-              ensName: "",
-              profilePic: "",
-            });
-          } else if (query.includes(".eth") || query.includes(".swop.id")) {
-            setSearchResult({
-              name: query,
-              ethAddress: query,
-              displayName: query,
-              bio: "ENS name - Click to start conversation",
-              ensName: query,
-              profilePic: "",
-            });
-          } else {
-            setSearchResult({
-              name: query,
-              ethAddress: query,
-              displayName: query,
-              bio: "Search by username - Click to start conversation",
-              ensName: "",
-              profilePic: "",
-            });
-          }
-        }
-      } catch (error) {
-        console.error("Error searching users:", error);
-        setSearchResults([]);
-        setSearchResult(null);
-        toast({
-          title: "Search Error",
-          description: "Unable to search users. Please try again.",
-          variant: "destructive",
-        });
-      } finally {
-        setIsSearchLoading(false);
-      }
-    },
-    [searchUsers, toast]
-  );
 
   // Handle search input change with debounce
   const handleSearchInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -426,40 +362,68 @@ const ChatPageContent = () => {
     setSearchResult(null);
   };
 
-  // Debounced search effect
+  // Debounced search effect with enhanced socket search
   useEffect(() => {
     if (searchQuery.trim().length >= 2) {
-      // const getEnsData = async() => {
       const timeoutId = setTimeout(async () => {
         setIsSearchLoading(true);
-        // handleUserSearch(searchQuery);
-        const data = await getEnsDataUsingEns(searchQuery);
-        if (!data?.message) {
-          setSearchResult({
-            name: data?.name || data?.domainOwner?.name || "N/A",
-            ethAddress: data?.owner || data?.addresses[60],
-            displayName: data?.name || data?.domainOwner?.name || "N/A",
-            bio:
-              data?.domainOwner?.bio ||
-              "N/A" ||
-              "ENS name - Click to start conversation",
-            ensName: data?.name || searchQuery,
-            profilePic: data?.domainOwner?.avatar,
-          });
+        
+        try {
+          // Try the new socket-based search first
+          const contactsResult = await searchContacts(searchQuery, 8);
+          if (contactsResult.success && contactsResult.results && contactsResult.results.length > 0) {
+            console.log("Socket search results:", contactsResult.results);
+            setSearchResults(contactsResult.results);
+            setSearchResult(null);
+          } else {
+            // Fallback to ENS search if socket search fails or returns no results
+            console.log("Falling back to ENS search");
+            const data = await getEnsDataUsingEns(searchQuery);
+            if (!data?.message) {
+              setSearchResult({
+                name: data?.name || data?.domainOwner?.name || "N/A",
+                ethAddress: data?.owner || data?.addresses[60],
+                displayName: data?.name || data?.domainOwner?.name || "N/A",
+                bio:
+                  data?.domainOwner?.bio ||
+                  "N/A" ||
+                  "ENS name - Click to start conversation",
+                ensName: data?.name || searchQuery,
+                profilePic: data?.domainOwner?.avatar,
+              });
+            }
+            setSearchResults([]);
+            console.log("ENS search result:", data);
+          }
+        } catch (error) {
+          console.error("Search failed:", error);
+          // Fallback to ENS search on error
+          const data = await getEnsDataUsingEns(searchQuery);
+          if (!data?.message) {
+            setSearchResult({
+              name: data?.name || data?.domainOwner?.name || "N/A",
+              ethAddress: data?.owner || data?.addresses[60],
+              displayName: data?.name || data?.domainOwner?.name || "N/A",
+              bio:
+                data?.domainOwner?.bio ||
+                "N/A" ||
+                "ENS name - Click to start conversation",
+              ensName: data?.name || searchQuery,
+              profilePic: data?.domainOwner?.avatar,
+            });
+          }
+          setSearchResults([]);
+        } finally {
           setIsSearchLoading(false);
         }
-        setIsSearchLoading(false);
-        console.log("data ens", data);
       }, 500);
 
       return () => clearTimeout(timeoutId);
-      // }
-      // getEnsData()
     } else {
       setSearchResults([]);
       setSearchResult(null);
     }
-  }, [searchQuery, handleUserSearch]);
+  }, [searchQuery, searchContacts]);
 
   // Handle recipient or group from URL params
   useEffect(() => {
