@@ -19,11 +19,20 @@ const ChatBox: React.FC<ChatBoxProps> = ({ conversationId, recipientId }) => {
     markAsRead,
     userPresence,
     socket,
+    // New socket methods from chat-test-ui.html
+    joinConversationRoom,
+    sendDirectMessage,
+    getConversationHistory,
+    markMessagesRead,
+    startTyping,
+    stopTyping,
   } = useSocketChat();
 
   const [newMessage, setNewMessage] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [isSending, setIsSending] = useState(false);
+  const [typingTimer, setTypingTimer] = useState<NodeJS.Timeout | null>(null);
+  const [isTyping, setIsTyping] = useState(false);
   const messageEndRef = useRef<HTMLDivElement>(null);
   // Normalize conversation ID consistently - FIXED VERSION
   const normalizeConversationId = (id: string) => {
@@ -115,12 +124,30 @@ const ChatBox: React.FC<ChatBoxProps> = ({ conversationId, recipientId }) => {
         );
         console.log(`[ChatBox] Original conversation ID: ${conversationId}`);
 
-        // Join the conversation with the normalized ID
-        await joinConversation(normalizedConversationId);
-
-        // Mark messages as read after joining
-        if (user?.id) {
-          await markAsRead(normalizedConversationId, user.id);
+        // Use the new joinConversationRoom method for better socket handling
+        const joinResult = await joinConversationRoom(recipientId);
+        if (joinResult.success) {
+          console.log(`[ChatBox] Successfully joined conversation room`);
+          
+          // Load conversation history using the new method
+          const historyResult = await getConversationHistory(recipientId, 1, 20);
+          if (historyResult.success && historyResult.messages) {
+            console.log(`[ChatBox] Loaded ${historyResult.messages.length} messages from history`);
+          }
+          
+          // Mark messages as read using the new method
+          const readResult = await markMessagesRead(recipientId);
+          if (readResult.success) {
+            console.log(`[ChatBox] Messages marked as read`);
+          }
+        } else {
+          console.error(`[ChatBox] Failed to join conversation: ${joinResult.error}`);
+          
+          // Fallback to old method
+          await joinConversation(normalizedConversationId);
+          if (user?.id) {
+            await markAsRead(normalizedConversationId, user.id);
+          }
         }
 
         console.log(
@@ -137,7 +164,11 @@ const ChatBox: React.FC<ChatBoxProps> = ({ conversationId, recipientId }) => {
   }, [
     conversationId,
     normalizedConversationId,
+    recipientId,
     joinConversation,
+    joinConversationRoom,
+    getConversationHistory,
+    markMessagesRead,
     user?.id,
     markAsRead,
     socket,
@@ -153,57 +184,103 @@ const ChatBox: React.FC<ChatBoxProps> = ({ conversationId, recipientId }) => {
     if (!newMessage.trim() || !user?.id) return;
 
     setIsSending(true);
+    const messageContent = newMessage.trim();
+    
     try {
-      // Use the already normalized conversation ID
-      const finalConversationId = normalizedConversationId;
-
-      console.log("finalConversationId", finalConversationId);
-
-      // Determine the correct recipient ID from the conversation ID
-      let validRecipientId = recipientId;
-
-      console.log("validRecipientId", validRecipientId);
-
-      // Extract recipient from conversation ID to ensure it's correct
-      const parts = finalConversationId.split("_");
-      if (parts.length === 2) {
-        // Check which part is NOT the current user
-        const userEthAddress = user.wallet?.address;
-        const userId = user.id;
-
-        if (parts[0] === userId || parts[0] === userEthAddress) {
-          validRecipientId = parts[1];
-        } else if (parts[1] === userId || parts[1] === userEthAddress) {
-          validRecipientId = parts[0];
-        } else {
-          // If neither part matches, use the first part that's not the sender ID
-          validRecipientId =
-            parts.find((p) => p !== user.id && p !== userEthAddress) ||
-            parts[0];
-        }
-
-        console.log(
-          `[SendMessage] Determined recipient ID: ${validRecipientId} from conversation ${finalConversationId}`
-        );
+      // Stop typing when sending message
+      if (isTyping) {
+        stopTyping(recipientId);
+        setIsTyping(false);
       }
 
-      // Send the message with the final conversation ID and recipient ID
-      const result = await sendMessage({
-        senderId: user.id,
-        recipientId: validRecipientId,
-        content: newMessage.trim(),
-      });
+      // Try the new sendDirectMessage method first
+      const directResult = await sendDirectMessage(recipientId, messageContent, 'text');
+      
+      if (directResult.success) {
+        console.log("[ChatBox] Message sent successfully via direct method");
+        setNewMessage("");
+      } else {
+        console.error(`[ChatBox] Direct message failed: ${directResult.error}`);
+        
+        // Fallback to original method
+        const finalConversationId = normalizedConversationId;
+        
+        // Determine the correct recipient ID from the conversation ID
+        let validRecipientId = recipientId;
+        const parts = finalConversationId.split("_");
+        if (parts.length === 2) {
+          const userEthAddress = user.wallet?.address;
+          const userId = user.id;
 
-      console.log("result", result);
+          if (parts[0] === userId || parts[0] === userEthAddress) {
+            validRecipientId = parts[1];
+          } else if (parts[1] === userId || parts[1] === userEthAddress) {
+            validRecipientId = parts[0];
+          } else {
+            validRecipientId =
+              parts.find((p) => p !== user.id && p !== userEthAddress) ||
+              parts[0];
+          }
+        }
 
-      console.log(
-        `[SendMessage] Message sent to ${validRecipientId} in conversation ${finalConversationId}`
-      );
-      setNewMessage("");
+        // Fallback to original sendMessage method
+        const result = await sendMessage({
+          senderId: user.id,
+          recipientId: validRecipientId,
+          content: messageContent,
+        });
+
+        console.log("[ChatBox] Fallback message result:", result);
+        if (result) {
+          setNewMessage("");
+        }
+      }
     } catch (error) {
-      console.error("Failed to send message:", error);
+      console.error("[ChatBox] Failed to send message:", error);
     } finally {
       setIsSending(false);
+    }
+  };
+
+  // Handle typing indicators
+  const handleTyping = () => {
+    if (!isTyping) {
+      setIsTyping(true);
+      startTyping(recipientId);
+    }
+
+    // Clear existing timer
+    if (typingTimer) {
+      clearTimeout(typingTimer);
+    }
+
+    // Set new timer to stop typing after 1 second of inactivity
+    const timer = setTimeout(() => {
+      setIsTyping(false);
+      stopTyping(recipientId);
+    }, 1000);
+
+    setTypingTimer(timer);
+  };
+
+  const handleStopTyping = () => {
+    if (isTyping) {
+      setIsTyping(false);
+      stopTyping(recipientId);
+    }
+    if (typingTimer) {
+      clearTimeout(typingTimer);
+      setTypingTimer(null);
+    }
+  };
+
+  // Handle input change with typing detection
+  const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    setNewMessage(e.target.value);
+    if (e.target.value.trim()) {
+      handleTyping();
+    } else {
+      handleStopTyping();
     }
   };
 
@@ -306,7 +383,7 @@ const ChatBox: React.FC<ChatBoxProps> = ({ conversationId, recipientId }) => {
               <div className="flex-1 relative">
                 <textarea
                   value={newMessage}
-                  onChange={(e) => setNewMessage(e.target.value)}
+                  onChange={handleInputChange}
                   onKeyDown={handleKeyDown}
                   placeholder="Type a message..."
                   className="w-full border border-gray-200 dark:border-gray-600 rounded-2xl px-4 py-3 pr-12 resize-none focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-gray-50 dark:bg-gray-700 placeholder:text-gray-500 text-sm max-h-32"

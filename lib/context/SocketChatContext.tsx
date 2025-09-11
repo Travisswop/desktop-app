@@ -529,6 +529,16 @@ interface SocketChatContextType {
     currentGroupId?: string
   ) => Promise<any[]>;
   getGroupMembers: (groupId: string) => Promise<GroupMember[]>;
+  // New socket events from chat-test-ui.html
+  resolveContact: (query: string) => Promise<{ success: boolean; userId?: string; displayName?: string }>;
+  searchContacts: (query: string, limit?: number) => Promise<{ success: boolean; results?: any[] }>;
+  getConversations: (page?: number, limit?: number) => Promise<{ success: boolean; conversations?: any[] }>;
+  joinConversationRoom: (receiverId: string) => Promise<{ success: boolean; receiverOnline?: boolean; error?: string }>;
+  sendDirectMessage: (receiverId: string, message: string, messageType?: string) => Promise<{ success: boolean; error?: string }>;
+  getConversationHistory: (receiverId: string, page?: number, limit?: number) => Promise<{ success: boolean; messages?: any[]; error?: string }>;
+  markMessagesRead: (senderId: string) => Promise<{ success: boolean; error?: string }>;
+  startTyping: (receiverId: string) => void;
+  stopTyping: (receiverId: string) => void;
   sendGroupMessage: (params: {
     groupId: string;
     content: string;
@@ -1439,7 +1449,7 @@ export function SocketChatProvider({
         const updatedConversations: ChatConversation[] =
           data.directMessages.map((dm: any) => {
             // CRITICAL: Normalize and validate conversation ID from server
-            let conversationId = normalizeConversationId(
+            const conversationId = normalizeConversationId(
               dm.conversationId
             );
 
@@ -2004,9 +2014,72 @@ export function SocketChatProvider({
       // React will automatically re-render when messages state changes
     });
 
+    // New socket listeners from chat-test-ui.html
+    socket.on('new_message', (data) => {
+      if (!data || !data.message) return;
+      const msg = data.message;
+      const senderId = msg.sender && (msg.sender._id || msg.sender);
+      const isSentByMe = user?.id && senderId && String(senderId) === String(user.id);
+
+      if (isSentByMe) {
+        // Avoid duplicating optimistic message bubble
+        console.log('Message delivered - sent by current user');
+        return;
+      }
+
+      // Handle the message similar to receive_message but for direct messages
+      const conversationId = msg.conversationId || createDeterministicConversationId(msg.sender, msg.receiver);
+      
+      setMessages((prev) => {
+        const existingMessages = prev[conversationId] || [];
+        
+        // Avoid duplicates
+        const messageExists = existingMessages.some(
+          (existing) => existing._id === msg._id || 
+          (existing.content === msg.content && Math.abs(new Date(existing.createdAt).getTime() - new Date(msg.createdAt).getTime()) < 1000)
+        );
+        
+        if (messageExists) return prev;
+        
+        return {
+          ...prev,
+          [conversationId]: [...existingMessages, msg]
+        };
+      });
+    });
+
+    socket.on('conversation_updated', (payload) => {
+      console.log('Conversation updated:', payload);
+      // Refresh conversation list if needed
+    });
+
+    socket.on('typing_started', (data) => {
+      if (data.userId !== user?.id) {
+        console.log(`User ${data.userId} started typing`);
+        // Update UI to show typing indicator
+      }
+    });
+
+    socket.on('typing_stopped', (data) => {
+      if (data.userId !== user?.id) {
+        console.log(`User ${data.userId} stopped typing`);
+        // Update UI to hide typing indicator
+      }
+    });
+
+    socket.on('messages_read', (data) => {
+      console.log('Messages marked as read:', data);
+      // Update read status of sent messages
+    });
+
     return () => {
       socket.off('user_groups');
       socket.off('receive_message');
+      socket.off('new_message');
+      socket.off('conversation_updated');
+      socket.off('typing_started');
+      socket.off('typing_stopped');
+      socket.off('messages_read');
     };
   }, [socket, activeConversationId, user?.id]);
 
@@ -3384,6 +3457,165 @@ export function SocketChatProvider({
     [socket]
   );
 
+  // New socket events from chat-test-ui.html
+  const resolveContact = useCallback(
+    async (query: string): Promise<{ success: boolean; userId?: string; displayName?: string }> => {
+      if (!socket) return { success: false };
+
+      return new Promise((resolve) => {
+        try {
+          socket.emit('resolve_contact', { query }, (response: { success: boolean; userId?: string; displayName?: string }) => {
+            resolve(response);
+          });
+        } catch (error) {
+          console.error('Failed to resolve contact:', error);
+          resolve({ success: false });
+        }
+      });
+    },
+    [socket]
+  );
+
+  const searchContacts = useCallback(
+    async (query: string, limit: number = 8): Promise<{ success: boolean; results?: any[] }> => {
+      if (!socket) return { success: false };
+
+      return new Promise((resolve) => {
+        try {
+          socket.emit('search_contacts', { query, limit }, (response: { success: boolean; results?: any[] }) => {
+            resolve(response);
+          });
+        } catch (error) {
+          console.error('Failed to search contacts:', error);
+          resolve({ success: false });
+        }
+      });
+    },
+    [socket]
+  );
+
+  const getConversations = useCallback(
+    async (page: number = 1, limit: number = 20): Promise<{ success: boolean; conversations?: any[] }> => {
+      if (!socket) return { success: false };
+
+      return new Promise((resolve) => {
+        try {
+          socket.emit('get_conversations', { page, limit }, (response: { success: boolean; conversations?: any[] }) => {
+            resolve(response);
+          });
+        } catch (error) {
+          console.error('Failed to get conversations:', error);
+          resolve({ success: false });
+        }
+      });
+    },
+    [socket]
+  );
+
+  const joinConversationRoom = useCallback(
+    async (receiverId: string): Promise<{ success: boolean; receiverOnline?: boolean; error?: string }> => {
+      if (!socket) return { success: false };
+
+      return new Promise((resolve) => {
+        try {
+          socket.emit('join_conversation', { receiverId }, (response: { success: boolean; receiverOnline?: boolean; error?: string }) => {
+            resolve(response);
+          });
+        } catch (error) {
+          console.error('Failed to join conversation room:', error);
+          resolve({ success: false });
+        }
+      });
+    },
+    [socket]
+  );
+
+  const sendDirectMessage = useCallback(
+    async (receiverId: string, message: string, messageType: string = 'text'): Promise<{ success: boolean; error?: string }> => {
+      if (!socket) return { success: false };
+
+      return new Promise((resolve) => {
+        try {
+          socket.emit('send_message', {
+            receiverId,
+            message,
+            messageType
+          }, (response: { success: boolean; error?: string }) => {
+            resolve(response);
+          });
+        } catch (error) {
+          console.error('Failed to send direct message:', error);
+          resolve({ success: false });
+        }
+      });
+    },
+    [socket]
+  );
+
+  const getConversationHistory = useCallback(
+    async (receiverId: string, page: number = 1, limit: number = 20): Promise<{ success: boolean; messages?: any[]; error?: string }> => {
+      if (!socket) return { success: false };
+
+      return new Promise((resolve) => {
+        try {
+          socket.emit('get_conversation_history', {
+            receiverId,
+            page,
+            limit
+          }, (response: { success: boolean; messages?: any[]; error?: string }) => {
+            resolve(response);
+          });
+        } catch (error) {
+          console.error('Failed to get conversation history:', error);
+          resolve({ success: false });
+        }
+      });
+    },
+    [socket]
+  );
+
+  const markMessagesRead = useCallback(
+    async (senderId: string): Promise<{ success: boolean; error?: string }> => {
+      if (!socket) return { success: false };
+
+      return new Promise((resolve) => {
+        try {
+          socket.emit('mark_messages_read', { senderId }, (response: { success: boolean; error?: string }) => {
+            resolve(response);
+          });
+        } catch (error) {
+          console.error('Failed to mark messages as read:', error);
+          resolve({ success: false });
+        }
+      });
+    },
+    [socket]
+  );
+
+  const startTyping = useCallback(
+    (receiverId: string): void => {
+      if (!socket) return;
+      try {
+        socket.emit('typing_start', { receiverId });
+      } catch (error) {
+        console.error('Failed to start typing:', error);
+      }
+    },
+    [socket]
+  );
+
+  const stopTyping = useCallback(
+    (receiverId: string): void => {
+      if (!socket) return;
+      try {
+        socket.emit('typing_stop', { receiverId });
+      } catch (error) {
+        console.error('Failed to stop typing:', error);
+      }
+    },
+    [socket]
+  );
+
   const value = {
     socket,
     isConnected,
@@ -3430,6 +3662,16 @@ export function SocketChatProvider({
     pinMessage,
     unpinMessage,
     searchMessages,
+    // New socket events from chat-test-ui.html
+    resolveContact,
+    searchContacts,
+    getConversations,
+    joinConversationRoom,
+    sendDirectMessage,
+    getConversationHistory,
+    markMessagesRead,
+    startTyping,
+    stopTyping,
   };
 
   return (
