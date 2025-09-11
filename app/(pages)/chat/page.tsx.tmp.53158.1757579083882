@@ -124,25 +124,19 @@ const ChatPageContent = () => {
   const filteredConversations = useMemo(() => {
     if (!searchQuery.trim()) return conversations;
 
-    return conversations.filter(
-      (conv) => {
-        const participant = conv.participant || conv.participants?.[0];
-        const name = participant?.name || conv.title || '';
-        const email = participant?.email || '';
-        const micrositeName = conv.microsite?.name || '';
-        const micrositeUsername = conv.microsite?.username || '';
-        const micrositeEns = conv.microsite?.ens || '';
-        
-        const query = searchQuery.toLowerCase();
-        return (
-          name.toLowerCase().includes(query) ||
-          email.toLowerCase().includes(query) ||
-          micrositeName.toLowerCase().includes(query) ||
-          micrositeUsername.toLowerCase().includes(query) ||
-          micrositeEns.toLowerCase().includes(query)
-        );
-      }
-    );
+    return conversations.filter((conv) => {
+      const participantName = conv.participant?.name || conv.microsite?.name || '';
+      const participantEmail = conv.participant?.email || '';
+      const username = conv.microsite?.username || '';
+      const ens = conv.microsite?.ens || '';
+      
+      return (
+        participantName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        participantEmail.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        username.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        ens.toLowerCase().includes(searchQuery.toLowerCase())
+      );
+    });
   }, [conversations, searchQuery]);
 
   console.log("filteredConversations", filteredConversations);
@@ -225,13 +219,13 @@ const ChatPageContent = () => {
           resolvedRecipient = userId;
         }
 
-        // For the new backend, we don't need to create conversations upfront
-        // The backend will handle conversation creation automatically when sending messages
+        // Always create a deterministic conversation ID to ensure consistency
+        // This prevents cross-user message visibility issues
         console.log(
-          "🎯 [ChatPage] Selecting conversation with:",
+          "🎯 [ChatPage] Creating deterministic conversation for:",
           resolvedRecipient
         );
-        const conversationId = `${PrivyUser.id}_${resolvedRecipient}`;
+        const conversationId = await createConversation(resolvedRecipient);
 
         // Log if there was a mismatch between provided and created conversation IDs
         if (
@@ -574,9 +568,9 @@ const ChatPageContent = () => {
                 ) : isConnected &&
                   selectedConversationId &&
                   selectedRecipientId ? (
-                  <NewChatBox
+                  <ChatBox
                     conversationId={selectedConversationId}
-                    receiverId={selectedRecipientId}
+                    recipientId={selectedRecipientId}
                   />
                 ) : isConnected && selectedGroupId ? (
                   <GroupChatBox groupId={selectedGroupId} />
@@ -695,25 +689,25 @@ const ChatPageContent = () => {
                         Existing Conversations
                       </div>
                     )}
-                    {filteredConversations.map((conv) => {
-                      const participant = conv.participant || conv.participants?.[0];
-                      const displayName = participant?.name || conv.microsite?.name || conv.title || 'Unknown';
-                      const lastMessage = conv.lastMessage?.message || "No messages yet";
-                      const profilePic = participant?.profilePic || conv.microsite?.profilePic || "";
-                      const userIdentifier = participant?._id || conv.microsite?.parentId || conv._id;
-                      
-                      return (
-                        <MessageList
-                          key={conv._id}
-                          bio={lastMessage}
-                          name={displayName}
-                          profilePic={profilePic}
-                          ethAddress={userIdentifier}
-                          handleWalletClick={handleWalletClick}
-                          conversationData={conv}
-                        />
-                      );
-                    })}
+                    {filteredConversations.map((conv) => (
+                      <MessageList
+                        key={conv.conversationId || conv.peerAddress}
+                        bio={conv.lastMessage || "No messages yet"}
+                        name={
+                          conv.displayName ||
+                          `${conv.peerAddress.substring(
+                            0,
+                            6
+                          )}...${conv.peerAddress.substring(
+                            conv.peerAddress.length - 4
+                          )}`
+                        }
+                        profilePic=""
+                        ethAddress={conv.peerAddress}
+                        handleWalletClick={handleWalletClick}
+                        conversationData={conv}
+                      />
+                    ))}
                   </div>
                 )}
 

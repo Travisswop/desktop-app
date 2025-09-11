@@ -4,7 +4,7 @@ import { UserProvider } from '@/lib/UserContext';
 
 import { Figtree, Inter } from 'next/font/google';
 import { Toaster } from 'react-hot-toast';
-import { SocketChatProvider } from '@/lib/context/SocketChatContext';
+import { SocketChatProvider } from '@/lib/context/NewSocketChatContext';
 import { WalletProvider } from '@/providers/SyncedWalletProvider';
 import { LiFiWalletProvider } from '@/providers/WalletManagementProvider';
 import { Metadata } from 'next';
