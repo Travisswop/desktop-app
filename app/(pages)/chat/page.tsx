@@ -1,4 +1,4 @@
-"use client";
+'use client';
 import {
   BookUser,
   Loader,
@@ -7,28 +7,43 @@ import {
   ArrowLeft,
   MessageSquare,
   Users,
-} from "lucide-react";
-import { useCallback, useEffect, useState, useMemo, Suspense } from "react";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import Link from "next/link";
-import { WalletItem } from "@/types/wallet";
-import { usePrivy } from "@privy-io/react-auth";
-import { useSearchParams, useRouter } from "next/navigation";
-import WalletManager from "@/components/wallet/wallet-manager";
-import { useNewSocketChat } from "@/lib/context/NewSocketChatContext";
-import NewChatBox from "@/components/wallet/chat/new-chat-box";
-import GroupChatBox from "@/components/wallet/chat/group-chat-box";
-import GroupChatList from "@/components/wallet/chat/group-chat-list";
-import { Skeleton } from "@/components/ui/skeleton";
-import { useToast } from "@/hooks/use-toast";
-import { resolveEnsToUserId } from "@/lib/api/ensResolver";
-import { resolveAddressToEnsCached } from "@/lib/api/reverseEnsResolver";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { getEnsDataUsingEns } from "@/actions/getEnsData";
+} from 'lucide-react';
+import {
+  useCallback,
+  useEffect,
+  useState,
+  useMemo,
+  Suspense,
+} from 'react';
+import {
+  Avatar,
+  AvatarFallback,
+  AvatarImage,
+} from '@/components/ui/avatar';
+import Link from 'next/link';
+import { WalletItem } from '@/types/wallet';
+import { usePrivy } from '@privy-io/react-auth';
+import { useSearchParams, useRouter } from 'next/navigation';
+import WalletManager from '@/components/wallet/wallet-manager';
+import { useNewSocketChat } from '@/lib/context/NewSocketChatContext';
+import NewChatBox from '@/components/wallet/chat/new-chat-box';
+import GroupChatBox from '@/components/wallet/chat/group-chat-box';
+import GroupChatList from '@/components/wallet/chat/group-chat-list';
+import { Skeleton } from '@/components/ui/skeleton';
+import { useToast } from '@/hooks/use-toast';
+import { resolveEnsToUserId } from '@/lib/api/ensResolver';
+import { resolveAddressToEnsCached } from '@/lib/api/reverseEnsResolver';
+import {
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+} from '@/components/ui/tabs';
+import { getEnsDataUsingEns } from '@/actions/getEnsData';
 
 const getAvatarSrc = (profilePic?: string) => {
-  if (!profilePic) return "/default-avatar.png";
-  return profilePic.startsWith("http")
+  if (!profilePic) return '/default-avatar.png';
+  return profilePic.startsWith('http')
     ? profilePic
     : `/assets/avatar/${profilePic}.png`;
 };
@@ -50,29 +65,35 @@ const ChatPageContent = () => {
   const router = useRouter();
   const { toast } = useToast();
 
-  console.log("conversations", conversations);
+  console.log('conversations', conversations);
 
-  const [walletData, setWalletData] = useState<WalletItem[] | null>(null);
-  const [isWalletManagerOpen, setIsWalletManagerOpen] = useState(false);
-  const [searchQuery, setSearchQuery] = useState("");
+  const [walletData, setWalletData] = useState<WalletItem[] | null>(
+    null
+  );
+  const [isWalletManagerOpen, setIsWalletManagerOpen] =
+    useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
   const [isSearchLoading, setIsSearchLoading] = useState(false);
   const [searchResult, setSearchResult] = useState<any | null>(null);
   const [searchResults, setSearchResults] = useState<any[]>([]);
   const [changeConversationLoading, setChangeConversationLoading] =
     useState(false);
-  const [micrositeData, setMicrositeData] = useState<any | null>(null);
-  const [selectedConversationId, setSelectedConversationId] = useState<
-    string | null
-  >(null);
-  const [selectedRecipientId, setSelectedRecipientId] = useState<string | null>(
+  const [micrositeData, setMicrositeData] = useState<any | null>(
     null
   );
-  const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<string>("direct");
+  const [selectedConversationId, setSelectedConversationId] =
+    useState<string | null>(null);
+  const [selectedRecipientId, setSelectedRecipientId] = useState<
+    string | null
+  >(null);
+  const [selectedGroupId, setSelectedGroupId] = useState<
+    string | null
+  >(null);
+  const [activeTab, setActiveTab] = useState<string>('direct');
 
   // Debug Socket state
   useEffect(() => {
-    console.log("🔍 [ChatPage] Socket State:", {
+    console.log('🔍 [ChatPage] Socket State:', {
       hasSocket: !!socket,
       isConnected,
       isLoading: socketLoading,
@@ -81,8 +102,8 @@ const ChatPageContent = () => {
       conversationCount: conversations?.length || 0,
       hasPrivyUser: !!PrivyUser,
       privyWallets:
-        PrivyUser?.linkedAccounts?.filter((a) => a.type === "wallet")?.length ||
-        0,
+        PrivyUser?.linkedAccounts?.filter((a) => a.type === 'wallet')
+          ?.length || 0,
     });
   }, [
     socket,
@@ -93,29 +114,49 @@ const ChatPageContent = () => {
     PrivyUser,
   ]);
 
+  // Periodic conversation refresh when connected (every 30s), with immediate load
+  useEffect(() => {
+    if (!isConnected) return;
+    let intervalId: NodeJS.Timeout | null = null;
+
+    // immediate refresh mirroring reference HTML behavior
+    refreshConversations();
+
+    intervalId = setInterval(() => {
+      refreshConversations();
+    }, 30000);
+
+    return () => {
+      if (intervalId) clearInterval(intervalId);
+    };
+  }, [isConnected, refreshConversations]);
+
   // Manual retry function with enhanced conversation loading
   const handleRetryConnection = async () => {
-    console.log("🔄 [ChatPage] Manual socket retry requested");
+    console.log('🔄 [ChatPage] Manual socket retry requested');
     try {
       // Try the new getConversations method first
       const conversationsResult = await getConversations(1, 20);
       if (conversationsResult.success) {
-        console.log("🔄 [ChatPage] Conversations loaded via new method");
+        console.log(
+          '🔄 [ChatPage] Conversations loaded via new method'
+        );
       } else {
         // Fallback to original method
         await refreshConversations();
       }
-      
+
       toast({
-        title: "Success",
-        description: "Chat connection refreshed successfully!",
+        title: 'Success',
+        description: 'Chat connection refreshed successfully!',
       });
     } catch (error) {
-      console.error("❌ [ChatPage] Manual retry failed:", error);
+      console.error('❌ [ChatPage] Manual retry failed:', error);
       toast({
-        title: "Error",
-        description: "Failed to refresh chat connection. Please try again.",
-        variant: "destructive",
+        title: 'Error',
+        description:
+          'Failed to refresh chat connection. Please try again.',
+        variant: 'destructive',
       });
     }
   };
@@ -124,28 +165,26 @@ const ChatPageContent = () => {
   const filteredConversations = useMemo(() => {
     if (!searchQuery.trim()) return conversations;
 
-    return conversations.filter(
-      (conv) => {
-        const participant = conv.participant || conv.participants?.[0];
-        const name = participant?.name || conv.title || '';
-        const email = participant?.email || '';
-        const micrositeName = conv.microsite?.name || '';
-        const micrositeUsername = conv.microsite?.username || '';
-        const micrositeEns = conv.microsite?.ens || '';
-        
-        const query = searchQuery.toLowerCase();
-        return (
-          name.toLowerCase().includes(query) ||
-          email.toLowerCase().includes(query) ||
-          micrositeName.toLowerCase().includes(query) ||
-          micrositeUsername.toLowerCase().includes(query) ||
-          micrositeEns.toLowerCase().includes(query)
-        );
-      }
-    );
+    return conversations.filter((conv) => {
+      const participant = conv.participant || conv.participants?.[0];
+      const name = participant?.name || conv.title || '';
+      const email = participant?.email || '';
+      const micrositeName = conv.microsite?.name || '';
+      const micrositeUsername = conv.microsite?.username || '';
+      const micrositeEns = conv.microsite?.ens || '';
+
+      const query = searchQuery.toLowerCase();
+      return (
+        name.toLowerCase().includes(query) ||
+        email.toLowerCase().includes(query) ||
+        micrositeName.toLowerCase().includes(query) ||
+        micrositeUsername.toLowerCase().includes(query) ||
+        micrositeEns.toLowerCase().includes(query)
+      );
+    });
   }, [conversations, searchQuery]);
 
-  console.log("filteredConversations", filteredConversations);
+  console.log('filteredConversations', filteredConversations);
 
   // Initialize wallet data from Privy user
   useEffect(() => {
@@ -153,19 +192,19 @@ const ChatPageContent = () => {
 
     const linkWallet = PrivyUser.linkedAccounts
       .map((item) => {
-        if (item.type !== "wallet") return null;
+        if (item.type !== 'wallet') return null;
 
         return {
           address: item.address,
-          isActive: item.chainType === "ethereum",
-          isEVM: item.chainType === "ethereum",
+          isActive: item.chainType === 'ethereum',
+          isEVM: item.chainType === 'ethereum',
         };
       })
       .filter(Boolean) as WalletItem[];
 
     setWalletData(linkWallet);
 
-    console.log("🔍 [ChatPage] Privy wallet data:", {
+    console.log('🔍 [ChatPage] Privy wallet data:', {
       totalAccounts: PrivyUser.linkedAccounts.length,
       wallets: linkWallet,
     });
@@ -174,18 +213,18 @@ const ChatPageContent = () => {
   // Handle conversation selection
   const handleSelectConversation = useCallback(
     async (recipientAddress: string, conversationData?: any) => {
-      console.log("recipientAddress", recipientAddress);
-      console.log("conversationData", conversationData);
+      console.log('recipientAddress', recipientAddress);
+      console.log('conversationData', conversationData);
 
       if (!recipientAddress || !PrivyUser?.id) {
         console.log(
-          "⚠️ [ChatPage] Cannot select conversation - missing params"
+          '⚠️ [ChatPage] Cannot select conversation - missing params'
         );
         return;
       }
 
       console.log(
-        "🎯 [ChatPage] Selecting conversation with:",
+        '🎯 [ChatPage] Selecting conversation with:',
         recipientAddress
       );
 
@@ -196,24 +235,27 @@ const ChatPageContent = () => {
         // Check if this is an ENS name that needs resolution
         let resolvedRecipient = recipientAddress;
         const isEns =
-          recipientAddress.includes(".") &&
-          (recipientAddress.endsWith(".eth") ||
-            recipientAddress.endsWith(".swop.id"));
+          recipientAddress.includes('.') &&
+          (recipientAddress.endsWith('.eth') ||
+            recipientAddress.endsWith('.swop.id'));
 
         // Resolve ENS name to actual user ID if needed
         if (isEns) {
-          console.log("🔍 [ChatPage] Resolving ENS name:", recipientAddress);
+          console.log(
+            '🔍 [ChatPage] Resolving ENS name:',
+            recipientAddress
+          );
           const userId = await resolveEnsToUserId(recipientAddress);
 
           if (!userId) {
             console.error(
-              "❌ [ChatPage] Failed to resolve ENS name:",
+              '❌ [ChatPage] Failed to resolve ENS name:',
               recipientAddress
             );
             toast({
-              title: "Error",
+              title: 'Error',
               description: `Could not find user with ENS name: ${recipientAddress}`,
-              variant: "destructive",
+              variant: 'destructive',
             });
             setChangeConversationLoading(false);
             return;
@@ -228,7 +270,7 @@ const ChatPageContent = () => {
         // For the new backend, we don't need to create conversations upfront
         // The backend will handle conversation creation automatically when sending messages
         console.log(
-          "🎯 [ChatPage] Selecting conversation with:",
+          '🎯 [ChatPage] Selecting conversation with:',
           resolvedRecipient
         );
         const conversationId = `${PrivyUser.id}_${resolvedRecipient}`;
@@ -240,12 +282,12 @@ const ChatPageContent = () => {
           conversationData.conversationId !== conversationId
         ) {
           console.warn(
-            "⚠️ [ChatPage] Conversation ID mismatch detected:",
-            "provided:",
+            '⚠️ [ChatPage] Conversation ID mismatch detected:',
+            'provided:',
             conversationData.conversationId,
-            "created:",
+            'created:',
             conversationId,
-            "Using created ID for security"
+            'Using created ID for security'
           );
         }
 
@@ -254,25 +296,28 @@ const ChatPageContent = () => {
 
         // Use conversation data if available (from existing conversations with ENS names)
         let userData = null;
-        let displayName = "Unknown";
-        let ensName = "";
+        let displayName = 'Unknown';
+        let ensName = '';
 
         // Priority 1: Use provided conversation data (from socket server with ENS)
         if (conversationData) {
           console.log(
-            "🎯 [ChatPage] Using conversation data:",
+            '🎯 [ChatPage] Using conversation data:',
             conversationData
           );
-          displayName = conversationData.displayName || conversationData.name;
+          displayName =
+            conversationData.displayName || conversationData.name;
           ensName =
-            conversationData.ensName || conversationData.peerEnsName || "";
+            conversationData.ensName ||
+            conversationData.peerEnsName ||
+            '';
           userData = {
             displayName: conversationData.displayName,
             name: conversationData.name,
             ensName: ensName,
-            bio: conversationData.bio || "",
-            profilePic: conversationData.profilePic || "",
-            profileUrl: conversationData.profileUrl || "",
+            bio: conversationData.bio || '',
+            profilePic: conversationData.profilePic || '',
+            profileUrl: conversationData.profileUrl || '',
           };
         } else {
           // Priority 2: Look for user in recent search results
@@ -301,8 +346,9 @@ const ChatPageContent = () => {
               userData.displayName ||
               userData.name ||
               userData.ensName ||
-              "Unknown";
-            ensName = userData.ensName || (isEns ? recipientAddress : "");
+              'Unknown';
+            ensName =
+              userData.ensName || (isEns ? recipientAddress : '');
           } else {
             displayName = isEns
               ? recipientAddress
@@ -312,7 +358,7 @@ const ChatPageContent = () => {
                 )}...${resolvedRecipient.substring(
                   resolvedRecipient.length - 4
                 )}`;
-            ensName = isEns ? recipientAddress : "";
+            ensName = isEns ? recipientAddress : '';
           }
         }
 
@@ -323,28 +369,32 @@ const ChatPageContent = () => {
         setMicrositeData({
           name: displayName,
           ethAddress: resolvedRecipient, // Store the resolved ID
-          bio: userData?.bio || "",
+          bio: userData?.bio || '',
           ens: ensName,
-          profilePic: userData?.profilePic || "",
-          profileUrl: userData?.profileUrl || "",
+          profilePic: userData?.profilePic || '',
+          profileUrl: userData?.profileUrl || '',
         });
       } catch (error) {
-        console.error("❌ [ChatPage] Error selecting conversation:", error);
+        console.error(
+          '❌ [ChatPage] Error selecting conversation:',
+          error
+        );
         toast({
-          title: "Error",
-          description: "Failed to start conversation",
-          variant: "destructive",
+          title: 'Error',
+          description: 'Failed to start conversation',
+          variant: 'destructive',
         });
       } finally {
         setChangeConversationLoading(false);
       }
     },
-    [PrivyUser?.id, createConversation, toast, searchResults, searchResult]
+    [PrivyUser?.id, toast, searchResults, searchResult]
   );
 
-
   // Handle search input change with debounce
-  const handleSearchInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleSearchInputChange = (
+    e: React.ChangeEvent<HTMLInputElement>
+  ) => {
     const value = e.target.value;
     setSearchQuery(value);
 
@@ -358,47 +408,56 @@ const ChatPageContent = () => {
     if (searchQuery.trim().length >= 2) {
       const timeoutId = setTimeout(async () => {
         setIsSearchLoading(true);
-        
+
         try {
           // Try the new socket-based search first
           const contactsResult = await searchContacts(searchQuery, 8);
-          if (contactsResult.success && contactsResult.results && contactsResult.results.length > 0) {
-            console.log("Socket search results:", contactsResult.results);
+          if (
+            contactsResult.success &&
+            contactsResult.results &&
+            contactsResult.results.length > 0
+          ) {
+            console.log(
+              'Socket search results:',
+              contactsResult.results
+            );
             setSearchResults(contactsResult.results);
             setSearchResult(null);
           } else {
             // Fallback to ENS search if socket search fails or returns no results
-            console.log("Falling back to ENS search");
+            console.log('Falling back to ENS search');
             const data = await getEnsDataUsingEns(searchQuery);
             if (!data?.message) {
               setSearchResult({
-                name: data?.name || data?.domainOwner?.name || "N/A",
+                name: data?.name || data?.domainOwner?.name || 'N/A',
                 ethAddress: data?.owner || data?.addresses[60],
-                displayName: data?.name || data?.domainOwner?.name || "N/A",
+                displayName:
+                  data?.name || data?.domainOwner?.name || 'N/A',
                 bio:
                   data?.domainOwner?.bio ||
-                  "N/A" ||
-                  "ENS name - Click to start conversation",
+                  'N/A' ||
+                  'ENS name - Click to start conversation',
                 ensName: data?.name || searchQuery,
                 profilePic: data?.domainOwner?.avatar,
               });
             }
             setSearchResults([]);
-            console.log("ENS search result:", data);
+            console.log('ENS search result:', data);
           }
         } catch (error) {
-          console.error("Search failed:", error);
+          console.error('Search failed:', error);
           // Fallback to ENS search on error
           const data = await getEnsDataUsingEns(searchQuery);
           if (!data?.message) {
             setSearchResult({
-              name: data?.name || data?.domainOwner?.name || "N/A",
+              name: data?.name || data?.domainOwner?.name || 'N/A',
               ethAddress: data?.owner || data?.addresses[60],
-              displayName: data?.name || data?.domainOwner?.name || "N/A",
+              displayName:
+                data?.name || data?.domainOwner?.name || 'N/A',
               bio:
                 data?.domainOwner?.bio ||
-                "N/A" ||
-                "ENS name - Click to start conversation",
+                'N/A' ||
+                'ENS name - Click to start conversation',
               ensName: data?.name || searchQuery,
               profilePic: data?.domainOwner?.avatar,
             });
@@ -418,16 +477,16 @@ const ChatPageContent = () => {
 
   // Handle recipient or group from URL params
   useEffect(() => {
-    const recipient = searchParams?.get("recipient");
-    const groupId = searchParams?.get("groupId");
+    const recipient = searchParams?.get('recipient');
+    const groupId = searchParams?.get('groupId');
 
     if (recipient) {
       handleSelectConversation(recipient);
-      setActiveTab("direct");
+      setActiveTab('direct');
       setSelectedGroupId(null);
     } else if (groupId) {
       setSelectedGroupId(groupId);
-      setActiveTab("groups");
+      setActiveTab('groups');
       // Reset direct chat state
       setSelectedConversationId(null);
       setSelectedRecipientId(null);
@@ -440,30 +499,32 @@ const ChatPageContent = () => {
     conversationData?: any
   ) => {
     console.log(
-      "🔍 Starting conversation with user identifier:",
+      '🔍 Starting conversation with user identifier:',
       userIdentifier,
-      "conversationData:",
+      'conversationData:',
       conversationData
     );
     await handleSelectConversation(userIdentifier, conversationData);
   };
 
   const handleBackToWallet = () => {
-    router.push("/wallet");
+    router.push('/wallet');
   };
 
   return (
     <div className="h-full">
       <div className="flex gap-7 items-start h-full">
         <div
-          style={{ height: "calc(100vh - 150px)" }}
+          style={{ height: 'calc(100vh - 150px)' }}
           className="w-[62%] bg-white rounded-xl relative"
         >
           {socketLoading ? (
             <div className="w-full h-full flex items-center justify-center">
               <div className="text-center">
                 <Loader className="w-8 h-8 animate-spin mx-auto mb-3 text-blue-600" />
-                <p className="text-gray-600">Connecting to chat server...</p>
+                <p className="text-gray-600">
+                  Connecting to chat server...
+                </p>
                 <p className="text-xs text-gray-400 mt-2">
                   Check browser console for detailed logs
                 </p>
@@ -488,7 +549,9 @@ const ChatPageContent = () => {
                 </div>
                 <div className="text-xs text-gray-500">
                   <p>Check browser console for detailed error logs</p>
-                  <p>Make sure your wallet is connected and try again</p>
+                  <p>
+                    Make sure your wallet is connected and try again
+                  </p>
                 </div>
               </div>
             </div>
@@ -509,15 +572,19 @@ const ChatPageContent = () => {
                       <>
                         <Avatar>
                           <AvatarImage
-                            src={getAvatarSrc(micrositeData.profilePic)}
+                            src={getAvatarSrc(
+                              micrositeData.profilePic
+                            )}
                             alt={`${micrositeData.name}'s avatar`}
                           />
                           <AvatarFallback>
-                            {micrositeData.name?.slice(0, 2) || "AN"}
+                            {micrositeData.name?.slice(0, 2) || 'AN'}
                           </AvatarFallback>
                         </Avatar>
                         <div>
-                          <h1 className="font-bold">{micrositeData.name}</h1>
+                          <h1 className="font-bold">
+                            {micrositeData.name}
+                          </h1>
                           <p className="text-gray-500 text-xs font-medium">
                             {micrositeData.ens}
                           </p>
@@ -535,7 +602,8 @@ const ChatPageContent = () => {
                       </button>
                       <Link
                         href={
-                          micrositeData.profileUrl || `/${micrositeData.ens}`
+                          micrositeData.profileUrl ||
+                          `/${micrositeData.ens}`
                         }
                         target="_blank"
                         className="w-10 h-10 rounded-full flex items-center justify-center bg-gray-100 hover:bg-gray-200 transition-colors"
@@ -552,7 +620,9 @@ const ChatPageContent = () => {
                   <div className="w-full h-full flex items-center justify-center">
                     <div className="text-center">
                       <Loader className="w-8 h-8 animate-spin mx-auto mb-3 text-blue-600" />
-                      <p className="text-gray-600">Loading conversation...</p>
+                      <p className="text-gray-600">
+                        Loading conversation...
+                      </p>
                     </div>
                   </div>
                 ) : !micrositeData && !selectedGroupId ? (
@@ -594,11 +664,17 @@ const ChatPageContent = () => {
             className="w-full"
           >
             <TabsList className="grid grid-cols-2 mb-4">
-              <TabsTrigger value="direct" className="flex items-center gap-1">
+              <TabsTrigger
+                value="direct"
+                className="flex items-center gap-1"
+              >
                 <MessageSquare size={16} />
                 <span>Direct Messages</span>
               </TabsTrigger>
-              <TabsTrigger value="groups" className="flex items-center gap-1">
+              <TabsTrigger
+                value="groups"
+                className="flex items-center gap-1"
+              >
                 <Users size={16} />
                 <span>Groups</span>
               </TabsTrigger>
@@ -623,7 +699,10 @@ const ChatPageContent = () => {
                 {isSearchLoading && (
                   <div className="space-y-2">
                     {[...Array(3)].map((_, i) => (
-                      <div key={i} className="flex items-center gap-2 p-2">
+                      <div
+                        key={i}
+                        className="flex items-center gap-2 p-2"
+                      >
                         <Skeleton className="h-10 w-10 rounded-full" />
                         <div className="space-y-2">
                           <Skeleton className="h-4 w-[100px]" />
@@ -643,18 +722,24 @@ const ChatPageContent = () => {
                     {searchResults.map((user) => (
                       <MessageList
                         key={`search-${
-                          user.userId || user.ethAddress || user.ensName
+                          user.userId ||
+                          user.ethAddress ||
+                          user.ensName
                         }`}
-                        bio={user.bio || "Click to start conversation"}
+                        bio={
+                          user.bio || 'Click to start conversation'
+                        }
                         name={
                           user.displayName ||
                           user.ensName ||
                           user.name ||
-                          "Unknown"
+                          'Unknown'
                         }
-                        profilePic={user.profilePic || ""}
+                        profilePic={user.profilePic || ''}
                         ethAddress={
-                          user.userId || user.ethAddress || user.ensName
+                          user.userId ||
+                          user.ethAddress ||
+                          user.ensName
                         }
                         handleWalletClick={handleWalletClick}
                         conversationData={user}
@@ -666,11 +751,21 @@ const ChatPageContent = () => {
                 {/* Show fallback search result as new conversation option (if exists and not already in conversations) */}
                 {searchResult &&
                   searchResults.length === 0 &&
-                  !filteredConversations.some(
-                    (conv) =>
-                      conv.peerAddress.toLowerCase() ===
-                      searchResult.ethAddress.toLowerCase()
-                  ) && (
+                  !filteredConversations.some((conv) => {
+                    const participant =
+                      conv.participant || conv.participants?.[0];
+                    const id =
+                      (participant?._id as unknown as string) ||
+                      (conv.microsite
+                        ?.parentId as unknown as string) ||
+                      '';
+                    return (
+                      typeof id === 'string' &&
+                      typeof searchResult.ethAddress === 'string' &&
+                      id.toLowerCase() ===
+                        searchResult.ethAddress.toLowerCase()
+                    );
+                  }) && (
                     <div className="mb-2">
                       <div className="text-xs text-gray-400 px-3 py-1 border-b">
                         New Conversation
@@ -678,7 +773,10 @@ const ChatPageContent = () => {
                       <MessageList
                         key={`search-${searchResult.ethAddress}`}
                         bio={searchResult.bio}
-                        name={searchResult.displayName || searchResult.name}
+                        name={
+                          searchResult.displayName ||
+                          searchResult.name
+                        }
                         profilePic={searchResult.profilePic}
                         ethAddress={searchResult.ethAddress}
                         handleWalletClick={handleWalletClick}
@@ -696,12 +794,25 @@ const ChatPageContent = () => {
                       </div>
                     )}
                     {filteredConversations.map((conv) => {
-                      const participant = conv.participant || conv.participants?.[0];
-                      const displayName = participant?.name || conv.microsite?.name || conv.title || 'Unknown';
-                      const lastMessage = conv.lastMessage?.message || "No messages yet";
-                      const profilePic = participant?.profilePic || conv.microsite?.profilePic || "";
-                      const userIdentifier = participant?._id || conv.microsite?.parentId || conv._id;
-                      
+                      const participant =
+                        conv.participant || conv.participants?.[0];
+                      const displayName =
+                        participant?.name ||
+                        conv.microsite?.name ||
+                        conv.title ||
+                        'Unknown';
+                      const lastMessage =
+                        conv.lastMessage?.message ||
+                        'No messages yet';
+                      const profilePic =
+                        participant?.profilePic ||
+                        conv.microsite?.profilePic ||
+                        '';
+                      const userIdentifier =
+                        participant?._id ||
+                        conv.microsite?.parentId ||
+                        conv._id;
+
                       return (
                         <MessageList
                           key={conv._id}
@@ -727,24 +838,25 @@ const ChatPageContent = () => {
                       <div className="text-center">
                         <p>No users found</p>
                         <p className="text-sm text-gray-400">
-                          Try searching by username, ENS name, or Ethereum
-                          address
+                          Try searching by username, ENS name, or
+                          Ethereum address
                         </p>
                       </div>
                     </div>
                   )}
 
                 {/* Show message when no conversations exist and no search */}
-                {!searchQuery.trim() && filteredConversations.length === 0 && (
-                  <div className="flex items-center justify-center h-32 text-gray-500">
-                    <div className="text-center">
-                      <p>No conversations yet</p>
-                      <p className="text-sm text-gray-400">
-                        Search for an address to start chatting
-                      </p>
+                {!searchQuery.trim() &&
+                  filteredConversations.length === 0 && (
+                    <div className="flex items-center justify-center h-32 text-gray-500">
+                      <div className="text-center">
+                        <p>No conversations yet</p>
+                        <p className="text-sm text-gray-400">
+                          Search for an address to start chatting
+                        </p>
+                      </div>
                     </div>
-                  </div>
-                )}
+                  )}
               </div>
             </TabsContent>
 
@@ -792,13 +904,13 @@ const MessageList = ({
     const resolveEnsName = async () => {
       // Always try to resolve if the name looks like an address/ID or contains ellipsis
       if (
-        (name.startsWith("did:privy:") ||
-          name.startsWith("0x") ||
-          name.includes("...") ||
+        (name.startsWith('did:privy:') ||
+          name.startsWith('0x') ||
+          name.includes('...') ||
           name.match(/^[a-zA-Z0-9]{8,12}\.\.\./) ||
-          name === "Unknown") &&
-        !name.includes(".eth") &&
-        !name.includes(".swop.id")
+          name === 'Unknown') &&
+        !name.includes('.eth') &&
+        !name.includes('.swop.id')
       ) {
         setIsResolving(true);
         try {
@@ -811,7 +923,7 @@ const MessageList = ({
             setResolvedName(ensName);
           }
         } catch (error) {
-          console.error("Failed to resolve ENS name:", error);
+          console.error('Failed to resolve ENS name:', error);
         } finally {
           setIsResolving(false);
         }
@@ -832,7 +944,9 @@ const MessageList = ({
             src={getAvatarSrc(profilePic)}
             alt={`${resolvedName}'s avatar`}
           />
-          <AvatarFallback>{resolvedName?.slice(0, 2) || "AN"}</AvatarFallback>
+          <AvatarFallback>
+            {resolvedName?.slice(0, 2) || 'AN'}
+          </AvatarFallback>
         </Avatar>
         <div>
           <p className="font-semibold">
@@ -844,8 +958,9 @@ const MessageList = ({
           </p>
           {bio && (
             <p className="text-sm text-gray-500 line-clamp-1">
-              {bio === "No messages yet" || bio === "Start a conversation"
-                ? "No messages yet"
+              {bio === 'No messages yet' ||
+              bio === 'Start a conversation'
+                ? 'No messages yet'
                 : bio}
             </p>
           )}

@@ -100,6 +100,7 @@
             flex-direction: column;
             background: #e5ddd5;
             position: relative;
+            height: calc(100vh - 120px); /* Fixed height accounting for header and setup panel */
         }
 
         /* Chat Header */
@@ -137,13 +138,17 @@
 
         /* Messages Area */
         .messages-area {
-            flex: 1;
             padding: 20px;
             overflow-y: auto;
             display: flex;
             flex-direction: column;
             gap: 8px;
             background-image: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100" fill="%23f0f2f5" opacity="0.1"><circle cx="50" cy="50" r="2"/></svg>');
+            position: fixed;
+            top: 180px; /* Below header and chat header */
+            bottom: 70px; /* Above input area */
+            left: 260px; /* Account for sidebar */
+            right: 0;
         }
 
         /* Message Styles */
@@ -259,6 +264,11 @@
             align-items: center;
             gap: 10px;
             border-top: 1px solid #e0e0e0;
+            position: fixed;
+            bottom: 0;
+            left: 260px; /* Account for sidebar width */
+            right: 0;
+            z-index: 1000;
         }
 
         .message-input {
@@ -334,6 +344,28 @@
             .message {
                 max-width: 85%;
             }
+
+            /* Mobile layout adjustments */
+            .chat-container > div[style*="position:fixed"]:first-child {
+                display: none; /* Hide sidebar on mobile */
+            }
+
+            .chat-header {
+                margin-left: 0 !important;
+                left: 0 !important;
+            }
+
+            .messages-area {
+                left: 0 !important;
+            }
+
+            .input-area {
+                left: 0 !important;
+            }
+
+            .typing-indicator {
+                left: 20px !important;
+            }
         }
     </style>
 </head>
@@ -356,7 +388,7 @@
 
     <!-- Chat Container -->
     <div class="chat-container">
-        <div style="position:absolute; left:0; top:0; bottom:0; width:260px; background:#fff; border-right:1px solid #e0e0e0; overflow-y:auto; padding:10px;">
+        <div style="position:fixed; left:0; top:120px; bottom:0; width:260px; background:#fff; border-right:1px solid #e0e0e0; overflow-y:auto; padding:10px; z-index:1001;">
             <div style="font-weight:600; color:#111; margin-bottom:8px;">Recent Chats</div>
             <div style="display:flex; gap:6px; margin-bottom:10px;">
                 <input id="newChatUserId" placeholder="Search ENS / username / name" style="flex:1; padding:6px 8px; border:1px solid #ddd; border-radius:6px; font-size:12px;">
@@ -366,7 +398,7 @@
             <div id="conversationList" style="display:flex; flex-direction:column; gap:6px;"></div>
         </div>
         <!-- Chat Header -->
-        <div class="chat-header" style="margin-left:260px;">
+        <div class="chat-header" style="margin-left:260px; position: fixed; top: 120px; left: 0; right: 0; z-index: 999;">
             <div class="chat-avatar" id="chatAvatar">?</div>
             <div class="chat-info">
                 <h3 id="chatName">Select a user to chat</h3>
@@ -375,14 +407,14 @@
         </div>
 
         <!-- Messages Area -->
-        <div class="messages-area" id="messagesArea" style="margin-left:260px;">
+        <div class="messages-area" id="messagesArea">
             <div class="system-message">
                 🚀 Welcome to the chat tester! Enter your credentials above and connect to start chatting.
             </div>
         </div>
 
         <!-- Typing Indicator -->
-        <div class="typing-indicator" id="typingIndicator" style="display: none;">
+        <div class="typing-indicator" id="typingIndicator" style="display: none; position: fixed; bottom: 80px; left: 280px; z-index: 998;">
             <div class="typing-bubble">
                 <div class="typing-dots">
                     <span></span>
@@ -393,7 +425,7 @@
         </div>
 
         <!-- Input Area -->
-        <div class="input-area" style="margin-left:260px;">
+        <div class="input-area">
             <textarea class="message-input" id="messageInput" placeholder="Type a message..."
                       onkeydown="handleKeyDown(event)" onkeyup="handleTyping()" disabled></textarea>
             <button class="send-button" onclick="sendMessage()" id="sendBtn" disabled>
@@ -577,6 +609,15 @@
 
                     const otherUserId = String(other && (other._id || other));
                     receiverId = otherUserId;
+
+                    // Debug logging
+                    console.log('🔍 Conversation selected:', {
+                        displayName,
+                        otherUserId,
+                        receiverId,
+                        other: other,
+                        conversationData: c
+                    });
 
                     // Update chat header
                     document.getElementById('chatName').textContent = displayName;
@@ -869,28 +910,49 @@
                 if (!data || !data.message) return;
                 const msg = data.message;
                 const senderId = msg.sender && (msg.sender._id || msg.sender);
+                const messageReceiverId = msg.receiver && (msg.receiver._id || msg.receiver);
                 const isSentByMe = currentUser && senderId && String(senderId) === String(currentUser);
 
-                if (isSentByMe) {
-                    // Avoid duplicating my optimistic message bubble
-                    addSystemMessage('Message delivered');
-                    return;
-                }
+                // Debug logging
+                console.log('🔍 New message debug:', {
+                    senderId,
+                    messageReceiverId, 
+                    currentUser,
+                    receiverId,
+                    isSentByMe,
+                    message: msg.message
+                });
 
-                // Only show the message if we're currently viewing this conversation
-                const messageReceiverId = msg.receiver && (msg.receiver._id || msg.receiver);
+                // Check if this message belongs to the current conversation
+                // For sent messages: messageReceiverId should match receiverId
+                // For received messages: senderId should match receiverId
                 const currentlyViewing = receiverId && (
-                    String(senderId) === String(receiverId) ||
-                    String(messageReceiverId) === String(receiverId)
+                    (isSentByMe && String(messageReceiverId) === String(receiverId)) ||
+                    (!isSentByMe && String(senderId) === String(receiverId))
                 );
 
+                console.log('🔍 Currently viewing check:', {
+                    currentlyViewing,
+                    receiverId,
+                    condition1: isSentByMe && String(messageReceiverId) === String(receiverId),
+                    condition2: !isSentByMe && String(senderId) === String(receiverId)
+                });
+
                 if (currentlyViewing) {
-                    addMessage(msg.message, false, msg);
-                    addSystemMessage('New message received');
+                    // Always show the message, regardless of who sent it
+                    addMessage(msg.message, isSentByMe, msg);
+                    if (isSentByMe) {
+                        addSystemMessage('Message delivered and displayed');
+                    } else {
+                        addSystemMessage('New message received');
+                    }
                 } else {
-                    // Show a brief notification for messages from other conversations
-                    const senderName = (msg.sender && msg.sender.name) || 'Someone';
-                    addSystemMessage(`New message from ${senderName}`);
+                    // Debug why message is not showing
+                    console.log('❌ Message not displayed - not in current conversation');
+                    if (!isSentByMe) {
+                        const senderName = (msg.sender && msg.sender.name) || 'Someone';
+                        addSystemMessage(`New message from ${senderName}`);
+                    }
                 }
 
                 // Always refresh conversation list to update last message and unread counts
@@ -945,26 +1007,27 @@
 
             if (!message || !socket || !receiverId) return;
 
-            // Add message to UI immediately
-            addMessage(message, true);
+            // Clear input immediately for better UX
+            input.value = '';
+            stopTyping();
 
-            // Send via socket
+            // Send via socket - the message will appear when new_message event is received
             socket.emit('send_message', {
                 receiverId: receiverId,
                 message: message,
                 messageType: 'text'
             }, (response) => {
                 if (response.success) {
-                    addSystemMessage('Message delivered');
+                    // Message will appear via new_message event
+                    // addSystemMessage('Message sent successfully');
                     // Refresh conversation list to update last message
                     refreshConversationList();
                 } else {
                     addSystemMessage(`Send failed: ${response.error}`);
+                    // If failed, put the message back in the input
+                    input.value = message;
                 }
             });
-
-            input.value = '';
-            stopTyping();
         }
 
         function getHistory() {
