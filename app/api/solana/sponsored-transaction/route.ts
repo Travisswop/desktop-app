@@ -31,6 +31,17 @@ export async function POST(request: NextRequest) {
 
     const caip2 = 'solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp';
 
+    // Validate authorization signature is provided
+    if (!authorizationSignature) {
+      return NextResponse.json(
+        { 
+          error: 'Missing authorization signature',
+          details: 'Authorization signature is required for sponsored transactions'
+        },
+        { status: 400 }
+      );
+    }
+
     // Call Privy's API to sponsor the transaction using native gas sponsorship
     const privyResponse = await fetch(
       `https://api.privy.io/v1/wallets/${walletId}/rpc`,
@@ -39,12 +50,7 @@ export async function POST(request: NextRequest) {
         headers: {
           Authorization: `Basic ${basicAuth}`,
           'privy-app-id': privyAppId,
-          ...(authorizationSignature
-            ? {
-                'privy-authorization-signature':
-                  authorizationSignature,
-              }
-            : {}),
+          'privy-authorization-signature': authorizationSignature,
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({

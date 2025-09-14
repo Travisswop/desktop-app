@@ -690,9 +690,7 @@ export class TransactionService {
 
       // Call our backend API for Privy native gas sponsorship
       // Generate authorization signature client-side to match backend RPC
-      const caip2 =
-        process.env.NEXT_PUBLIC_PRIVY_SOLANA_CAIP2 ||
-        'solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1';
+      const caip2 = 'solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp';
 
       const input = {
         version: 1,
@@ -712,16 +710,24 @@ export class TransactionService {
         },
       } as const;
 
+      console.log('Generating authorization signature for input:', JSON.stringify(input, null, 2));
+      
       const sigResult = await generateAuthorizationSignature(input);
+      console.log('Authorization signature result:', sigResult);
+      
       const authorizationSignature =
         typeof sigResult === 'string'
           ? sigResult
           : sigResult?.authorizationSignature ||
             sigResult?.signature ||
             '';
+            
       if (!authorizationSignature) {
+        console.error('Failed to extract authorization signature from result:', sigResult);
         throw new Error('Failed to generate authorization signature');
       }
+      
+      console.log('Using authorization signature:', authorizationSignature);
 
       const response = await fetch(
         '/api/solana/sponsored-transaction',
@@ -740,6 +746,11 @@ export class TransactionService {
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => null);
+        console.error('Sponsored transaction API error:', {
+          status: response.status,
+          statusText: response.statusText,
+          errorData
+        });
         throw new Error(
           errorData?.error ||
             `API error: ${response.status} ${response.statusText}`
