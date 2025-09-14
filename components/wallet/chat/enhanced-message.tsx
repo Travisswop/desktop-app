@@ -1,6 +1,6 @@
 import React from 'react';
 import { format } from 'date-fns';
-import { ChatMessage } from '@/lib/context/SocketChatContext';
+import { ChatMessage } from '@/lib/context/NewSocketChatContext';
 
 interface EnhancedMessageProps {
   message: ChatMessage;

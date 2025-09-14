@@ -6,7 +6,6 @@ import {
   Wallet,
   ArrowLeft,
   MessageSquare,
-  Users,
 } from 'lucide-react';
 import {
   useCallback,
@@ -27,18 +26,10 @@ import { useSearchParams, useRouter } from 'next/navigation';
 import WalletManager from '@/components/wallet/wallet-manager';
 import { useNewSocketChat } from '@/lib/context/NewSocketChatContext';
 import NewChatBox from '@/components/wallet/chat/new-chat-box';
-import GroupChatBox from '@/components/wallet/chat/group-chat-box';
-import GroupChatList from '@/components/wallet/chat/group-chat-list';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useToast } from '@/hooks/use-toast';
 import { resolveEnsToUserId } from '@/lib/api/ensResolver';
 import { resolveAddressToEnsCached } from '@/lib/api/reverseEnsResolver';
-import {
-  Tabs,
-  TabsContent,
-  TabsList,
-  TabsTrigger,
-} from '@/components/ui/tabs';
 import { getEnsDataUsingEns } from '@/actions/getEnsData';
 
 const getAvatarSrc = (profilePic?: string) => {
@@ -86,10 +77,6 @@ const ChatPageContent = () => {
   const [selectedRecipientId, setSelectedRecipientId] = useState<
     string | null
   >(null);
-  const [selectedGroupId, setSelectedGroupId] = useState<
-    string | null
-  >(null);
-  const [activeTab, setActiveTab] = useState<string>('direct');
 
   // Debug Socket state
   useEffect(() => {
@@ -475,22 +462,12 @@ const ChatPageContent = () => {
     }
   }, [searchQuery, searchContacts]);
 
-  // Handle recipient or group from URL params
+  // Handle recipient from URL params
   useEffect(() => {
     const recipient = searchParams?.get('recipient');
-    const groupId = searchParams?.get('groupId');
 
     if (recipient) {
       handleSelectConversation(recipient);
-      setActiveTab('direct');
-      setSelectedGroupId(null);
-    } else if (groupId) {
-      setSelectedGroupId(groupId);
-      setActiveTab('groups');
-      // Reset direct chat state
-      setSelectedConversationId(null);
-      setSelectedRecipientId(null);
-      setMicrositeData(null);
     }
   }, [searchParams, handleSelectConversation]);
 
@@ -558,7 +535,7 @@ const ChatPageContent = () => {
           ) : (
             <div className="w-full overflow-x-hidden h-full">
               {/* Show back button if a chat is selected */}
-              {(micrositeData || selectedGroupId) && (
+              {micrositeData && (
                 <div className="flex items-center gap-3 justify-between border rounded-xl border-gray-300 bg-white px-4 py-2 sticky top-0 left-0 mb-2 shadow-sm">
                   <div className="flex items-center flex-1 gap-3">
                     <button
@@ -625,7 +602,7 @@ const ChatPageContent = () => {
                       </p>
                     </div>
                   </div>
-                ) : !micrositeData && !selectedGroupId ? (
+                ) : !micrositeData ? (
                   <div className="w-full h-full flex items-center justify-center text-gray-500">
                     <div className="text-center">
                       <p className="mb-2">
@@ -648,8 +625,6 @@ const ChatPageContent = () => {
                     conversationId={selectedConversationId}
                     receiverId={selectedRecipientId}
                   />
-                ) : isConnected && selectedGroupId ? (
-                  <GroupChatBox groupId={selectedGroupId} />
                 ) : null}
               </div>
             </div>
@@ -657,30 +632,11 @@ const ChatPageContent = () => {
         </div>
 
         <div className="w-[38%] bg-white rounded-xl px-4 py-4 flex gap-3 flex-col">
-          <Tabs
-            defaultValue={activeTab}
-            value={activeTab}
-            onValueChange={setActiveTab}
-            className="w-full"
-          >
-            <TabsList className="grid grid-cols-2 mb-4">
-              <TabsTrigger
-                value="direct"
-                className="flex items-center gap-1"
-              >
-                <MessageSquare size={16} />
-                <span>Direct Messages</span>
-              </TabsTrigger>
-              <TabsTrigger
-                value="groups"
-                className="flex items-center gap-1"
-              >
-                <Users size={16} />
-                <span>Groups</span>
-              </TabsTrigger>
-            </TabsList>
-
-            <TabsContent value="direct" className="mt-0">
+          <div className="w-full">
+            <div className="flex items-center gap-1 mb-4 px-3 py-2 bg-gray-100 rounded-lg">
+              <MessageSquare size={16} />
+              <span className="font-medium">Direct Messages</span>
+            </div>
               <div className="relative">
                 <Search
                   className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-600"
@@ -858,12 +814,7 @@ const ChatPageContent = () => {
                     </div>
                   )}
               </div>
-            </TabsContent>
-
-            <TabsContent value="groups" className="mt-0">
-              <GroupChatList tokens={walletData} />
-            </TabsContent>
-          </Tabs>
+          </div>
         </div>
       </div>
 

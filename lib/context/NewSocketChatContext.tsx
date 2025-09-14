@@ -56,7 +56,7 @@ export interface Conversation {
     profilePic?: string;
     email: string;
   }>;
-  conversationType: 'direct' | 'group' | 'agent';
+  conversationType: 'direct';
   title?: string;
   description?: string;
   lastMessage?: ChatMessage;
@@ -121,6 +121,7 @@ interface SocketChatContextType {
   conversations: Conversation[];
   messages: Record<string, ChatMessage[]>;
   unreadCount: number;
+  userPresence: Record<string, { status: string; lastSeen?: Date }>;
   
   // Chat methods
   sendMessage: (receiverId: string, message: string, messageType?: string, attachments?: any) => Promise<boolean>;
@@ -132,6 +133,10 @@ interface SocketChatContextType {
   searchContacts: (query: string, limit?: number) => Promise<{ success: boolean; results?: SearchContact[]; error?: string }>;
   blockUser: (userId: string) => Promise<boolean>;
   unblockUser: (userId: string) => Promise<boolean>;
+  
+  // Typing indicators
+  startTyping: (receiverId: string) => void;
+  stopTyping: (receiverId: string) => void;
   
   // Utility methods
   refreshConversations: () => Promise<void>;
@@ -161,6 +166,7 @@ export const SocketChatProvider = ({ children }: SocketChatProviderProps) => {
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [messages, setMessages] = useState<Record<string, ChatMessage[]>>({});
   const [unreadCount, setUnreadCount] = useState(0);
+  const [userPresence, setUserPresence] = useState<Record<string, { status: string; lastSeen?: Date }>>({});
   
   const socketRef = useRef<Socket | null>(null);
   const reconnectTimeoutRef = useRef<NodeJS.Timeout>();
@@ -573,6 +579,19 @@ export const SocketChatProvider = ({ children }: SocketChatProviderProps) => {
     }
   }, [socket, refreshConversations]);
 
+  // Typing indicators
+  const startTyping = useCallback((receiverId: string) => {
+    if (socket && isConnected) {
+      socket.emit('typing_start', { receiverId });
+    }
+  }, [socket, isConnected]);
+
+  const stopTyping = useCallback((receiverId: string) => {
+    if (socket && isConnected) {
+      socket.emit('typing_stop', { receiverId });
+    }
+  }, [socket, isConnected]);
+
   // Effects
   useEffect(() => {
     if (privyUser?.id && !socket) {
@@ -609,6 +628,7 @@ export const SocketChatProvider = ({ children }: SocketChatProviderProps) => {
     conversations,
     messages,
     unreadCount,
+    userPresence,
     
     // Chat methods
     sendMessage,
@@ -620,6 +640,10 @@ export const SocketChatProvider = ({ children }: SocketChatProviderProps) => {
     searchContacts,
     blockUser,
     unblockUser,
+    
+    // Typing indicators
+    startTyping,
+    stopTyping,
     
     // Utility methods
     refreshConversations,

@@ -7,7 +7,8 @@ import { Avatar, AvatarFallback, AvatarImage } from '../ui/avatar';
 import { Card, CardContent, CardHeader } from '../ui/card';
 import { MessageCircle, Search } from 'lucide-react';
 import { useRouter } from 'next/navigation';
-import { useSocketChat } from '@/lib/context/SocketChatContext';
+import { useNewSocketChat } from '@/lib/context/NewSocketChatContext';
+import { useUser } from '@/lib/UserContext';
 import { resolveEnsToUserId } from '@/lib/api/ensResolver';
 
 interface MessageProps {
@@ -21,7 +22,13 @@ interface MessageProps {
 }
 
 const MessageList = ({ tokens }: { tokens: any }) => {
-  const { conversations, loading: chatLoading, isConnected, error } = useSocketChat();
+  const {
+    conversations,
+    loading: chatLoading,
+    isConnected,
+    error,
+  } = useNewSocketChat();
+  const { user } = useUser();
   const [searchQuery, setSearchQuery] = useState('');
   const [isSearchLoading] = useState(false);
   const [searchResult, setSearchResult] = useState<any | null>(null);
@@ -30,18 +37,29 @@ const MessageList = ({ tokens }: { tokens: any }) => {
   const formatDisplayName = useCallback((address: string) => {
     if (!address || typeof address !== 'string') return 'Unknown';
     if (address.length <= 12) return address;
-    return `${address.substring(0, 6)}...${address.substring(address.length - 4)}`;
+    return `${address.substring(0, 6)}...${address.substring(
+      address.length - 4
+    )}`;
   }, []);
 
   // Prepare conversation data for display
   const chatList = useMemo(() => {
-    return conversations.map(conv => ({
-      ethAddress: conv.peerAddress,
-      name: conv.displayName || formatDisplayName(conv.peerAddress),
-      bio: conv.lastMessage || 'No messages yet',
-      profilePic: ''
-    }));
-  }, [conversations, formatDisplayName]);
+    return conversations.map((conv) => {
+      // For direct conversations, get the other participant
+      const otherParticipant = conv.participants.find(
+        (p) => p._id !== user?._id
+      );
+      return {
+        ethAddress: otherParticipant?._id || conv._id,
+        name:
+          otherParticipant?.name ||
+          conv.title ||
+          formatDisplayName(conv._id),
+        bio: conv.lastMessage?.message || 'No messages yet',
+        profilePic: otherParticipant?.profilePic || '',
+      };
+    });
+  }, [conversations, formatDisplayName, user?._id]);
 
   // Filter conversations based on search
   const filteredPeerData = useMemo(() => {
@@ -49,14 +67,20 @@ const MessageList = ({ tokens }: { tokens: any }) => {
 
     return chatList.filter(
       (peer) =>
-        peer.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        peer.name
+          ?.toLowerCase()
+          .includes(searchQuery.toLowerCase()) ||
         peer.bio?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        peer.ethAddress?.toLowerCase().includes(searchQuery.toLowerCase())
+        peer.ethAddress
+          ?.toLowerCase()
+          .includes(searchQuery.toLowerCase())
     );
   }, [chatList, searchQuery]);
 
   // Handle search input changes
-  const handleSearchInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleSearchInputChange = (
+    e: React.ChangeEvent<HTMLInputElement>
+  ) => {
     const value = e.target.value;
     setSearchQuery(value);
 
@@ -68,21 +92,28 @@ const MessageList = ({ tokens }: { tokens: any }) => {
           name: formatDisplayName(value),
           bio: 'Start conversation with address',
           profilePic: '',
-          isEns: false
+          isEns: false,
         });
-      } 
+      }
       // Check if the input looks like an ENS username (especially .swop.id)
-      else if (value.includes('.') && (value.endsWith('.eth') || value.endsWith('.swop.id'))) {
+      else if (
+        value.includes('.') &&
+        (value.endsWith('.eth') || value.endsWith('.swop.id'))
+      ) {
         setSearchResult({
           ethAddress: value, // We'll use the ENS name directly as the address for now, resolve before sending
           name: value,
           bio: 'Start conversation with ENS user',
           profilePic: '',
-          isEns: true // Mark as ENS so we know to resolve it
+          isEns: true, // Mark as ENS so we know to resolve it
         });
       }
       // Check if the input could be a username that needs .swop.id appended
-      else if (value.length >= 3 && !value.includes('.') && !value.includes(' ')) {
+      else if (
+        value.length >= 3 &&
+        !value.includes('.') &&
+        !value.includes(' ')
+      ) {
         // Suggest the username with .swop.id
         const ensName = `${value}.swop.id`;
         setSearchResult({
@@ -90,7 +121,7 @@ const MessageList = ({ tokens }: { tokens: any }) => {
           name: ensName,
           bio: 'Start conversation with Swop user',
           profilePic: '',
-          isEns: true // Mark as ENS so we know to resolve it
+          isEns: true, // Mark as ENS so we know to resolve it
         });
       } else {
         setSearchResult(null);
@@ -150,8 +181,16 @@ const MessageList = ({ tokens }: { tokens: any }) => {
             </h3>
           </div>
           <div className="flex items-center gap-2">
-            <div className={`w-2 h-2 rounded-full ${isConnected ? 'bg-green-500' : 'bg-red-500'}`}></div>
-            <span className={`text-xs ${isConnected ? 'text-green-600' : 'text-red-600'}`}>
+            <div
+              className={`w-2 h-2 rounded-full ${
+                isConnected ? 'bg-green-500' : 'bg-red-500'
+              }`}
+            ></div>
+            <span
+              className={`text-xs ${
+                isConnected ? 'text-green-600' : 'text-red-600'
+              }`}
+            >
               {isConnected ? 'Connected' : 'Disconnected'}
             </span>
           </div>
@@ -188,15 +227,25 @@ const MessageList = ({ tokens }: { tokens: any }) => {
           {/* Search results section */}
           {searchResult && (
             <div>
-              <div className="text-xs text-gray-500 px-3 py-1 border-b mb-2">Search Result</div>
-              <MessageCard {...searchResult} tokens={tokens} isSearchResult={true} />
+              <div className="text-xs text-gray-500 px-3 py-1 border-b mb-2">
+                Search Result
+              </div>
+              <MessageCard
+                {...searchResult}
+                tokens={tokens}
+                isSearchResult={true}
+              />
             </div>
           )}
-          
+
           {/* Existing conversations section */}
           {filteredPeerData.length > 0 && (
-            <div className={searchResult ? "mt-4" : ""}>
-              {searchResult && <div className="text-xs text-gray-500 px-3 py-1 border-b mb-2">Existing Conversations</div>}
+            <div className={searchResult ? 'mt-4' : ''}>
+              {searchResult && (
+                <div className="text-xs text-gray-500 px-3 py-1 border-b mb-2">
+                  Existing Conversations
+                </div>
+              )}
               {filteredPeerData.map((person) => (
                 <MessageCard
                   key={person.ethAddress}
@@ -207,7 +256,7 @@ const MessageList = ({ tokens }: { tokens: any }) => {
               ))}
             </div>
           )}
-          
+
           {/* No results message */}
           {filteredPeerData.length === 0 && !searchResult && (
             <p className="text-center text-gray-500">
@@ -232,8 +281,10 @@ const MessageCard = ({
 }: MessageProps & { tokens: any }) => {
   const router = useRouter();
   const [isResolving, setIsResolving] = useState(false);
-  const [resolvedUserId, setResolvedUserId] = useState<string | null>(resolvedId || null);
-  
+  const [resolvedUserId, setResolvedUserId] = useState<string | null>(
+    resolvedId || null
+  );
+
   // Handle clicking on a chat item
   const handleWalletClick = useCallback(async () => {
     try {
@@ -241,33 +292,43 @@ const MessageCard = ({
       if (isEns && !resolvedUserId) {
         setIsResolving(true);
         console.log(`Resolving ENS name: ${ethAddress}`);
-        
+
         // Resolve the ENS name to get the actual user ID
         const userId = await resolveEnsToUserId(ethAddress);
         setResolvedUserId(userId);
-        
+
         if (!userId) {
           console.error(`Failed to resolve ENS name: ${ethAddress}`);
-          alert(`Could not find a user with the ENS name: ${ethAddress}`);
+          alert(
+            `Could not find a user with the ENS name: ${ethAddress}`
+          );
           setIsResolving(false);
           return;
         }
-        
-        console.log(`Resolved ENS ${ethAddress} to user ID: ${userId}`);
-        
+
+        console.log(
+          `Resolved ENS ${ethAddress} to user ID: ${userId}`
+        );
+
         // Store token data in sessionStorage instead of passing it in URL
         if (tokens && tokens.length > 0) {
-          sessionStorage.setItem('chatTokenData', JSON.stringify(tokens));
+          sessionStorage.setItem(
+            'chatTokenData',
+            JSON.stringify(tokens)
+          );
         }
-        
+
         // Use the resolved user ID as the recipient
         router.push(`/chat?recipient=${userId}`);
       } else {
         // For regular addresses or already resolved ENS names, proceed directly
         if (tokens && tokens.length > 0) {
-          sessionStorage.setItem('chatTokenData', JSON.stringify(tokens));
+          sessionStorage.setItem(
+            'chatTokenData',
+            JSON.stringify(tokens)
+          );
         }
-        
+
         // Use resolved ID if available, otherwise use the ethAddress directly
         const recipient = resolvedUserId || ethAddress;
         router.push(`/chat?recipient=${recipient}`);
@@ -288,10 +349,17 @@ const MessageCard = ({
   }, [profilePic]);
 
   // Determine if this is an ENS name
-  const isENS = ethAddress?.includes('.') && (ethAddress?.endsWith('.eth') || ethAddress?.endsWith('.swop.id'));
+  const isENS =
+    ethAddress?.includes('.') &&
+    (ethAddress?.endsWith('.eth') ||
+      ethAddress?.endsWith('.swop.id'));
 
   return (
-    <Card className={`p-4 rounded-xl shadow-md mb-2 ${isSearchResult ? 'border-blue-100 bg-blue-50' : ''}`}>
+    <Card
+      className={`p-4 rounded-xl shadow-md mb-2 ${
+        isSearchResult ? 'border-blue-100 bg-blue-50' : ''
+      }`}
+    >
       <div className="flex items-center justify-between">
         <div className="flex items-center space-x-3">
           <div className="relative h-10 w-10">
@@ -318,16 +386,21 @@ const MessageCard = ({
           </div>
         </div>
         <Button
-          variant={isSearchResult ? "default" : "secondary"}
+          variant={isSearchResult ? 'default' : 'secondary'}
           size="sm"
           onClick={handleWalletClick}
           disabled={isResolving}
-          className={isSearchResult 
-            ? "bg-blue-500 hover:bg-blue-600 text-white font-semibold" 
-            : "bg-gray-100 hover:bg-gray-200 font-semibold"
+          className={
+            isSearchResult
+              ? 'bg-blue-500 hover:bg-blue-600 text-white font-semibold'
+              : 'bg-gray-100 hover:bg-gray-200 font-semibold'
           }
         >
-          {isResolving ? "Resolving..." : isSearchResult ? "Start Chat" : "View"}
+          {isResolving
+            ? 'Resolving...'
+            : isSearchResult
+            ? 'Start Chat'
+            : 'View'}
         </Button>
       </div>
     </Card>

@@ -1,92 +1,117 @@
-import React, { useState, useEffect, useRef, KeyboardEvent } from "react";
-import { Loader, Send } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { usePrivy } from "@privy-io/react-auth";
-import { useSocketChat, ChatMessage } from "@/lib/context/SocketChatContext";
-import { EnhancedMessage } from "./enhanced-message";
+import React, {
+  useState,
+  useEffect,
+  useRef,
+  KeyboardEvent,
+} from 'react';
+import { Loader, Send } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { usePrivy } from '@privy-io/react-auth';
+import {
+  useNewSocketChat,
+  ChatMessage,
+} from '@/lib/context/NewSocketChatContext';
+import { EnhancedMessage } from './enhanced-message';
 
 interface ChatBoxProps {
   conversationId: string;
   recipientId: string;
 }
 
-const ChatBox: React.FC<ChatBoxProps> = ({ conversationId, recipientId }) => {
+const ChatBox: React.FC<ChatBoxProps> = ({
+  conversationId,
+  recipientId,
+}) => {
   const { user } = usePrivy();
   const {
     messages,
     sendMessage,
     joinConversation,
-    markAsRead,
-    userPresence,
+    markMessagesAsRead,
     socket,
-    // New socket methods from chat-test-ui.html
-    joinConversationRoom,
-    sendDirectMessage,
-    getConversationHistory,
-    markMessagesRead,
+    isConnected,
+    getConversation,
+    userPresence,
     startTyping,
     stopTyping,
-  } = useSocketChat();
+  } = useNewSocketChat();
 
-  const [newMessage, setNewMessage] = useState("");
+  const [newMessage, setNewMessage] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [isSending, setIsSending] = useState(false);
-  const [typingTimer, setTypingTimer] = useState<NodeJS.Timeout | null>(null);
+  const [typingTimer, setTypingTimer] =
+    useState<NodeJS.Timeout | null>(null);
   const [isTyping, setIsTyping] = useState(false);
   const messageEndRef = useRef<HTMLDivElement>(null);
   // Normalize conversation ID consistently - FIXED VERSION
   const normalizeConversationId = (id: string) => {
-    if (!id) return "";
+    if (!id) return '';
 
     // CRITICAL FIX: If it contains both 0x and did:privy:, always put ETH address first
-    if (id.includes("0x") && id.includes("did:privy:")) {
-      const parts = id.split("_");
+    if (id.includes('0x') && id.includes('did:privy:')) {
+      const parts = id.split('_');
       if (parts.length === 2) {
-        const ethPart = parts.find((p) => p.startsWith("0x"));
-        const privyPart = parts.find((p) => p.startsWith("did:privy:"));
+        const ethPart = parts.find((p) => p.startsWith('0x'));
+        const privyPart = parts.find((p) =>
+          p.startsWith('did:privy:')
+        );
         if (ethPart && privyPart) {
           return `${ethPart}_${privyPart}`;
         }
       }
     }
     // For other cases where both are same type, sort alphabetically
-    else if (id.includes("_")) {
-      const parts = id.split("_");
+    else if (id.includes('_')) {
+      const parts = id.split('_');
       if (parts.length === 2) {
         // If both are ETH addresses or both are Privy IDs, sort alphabetically
         if (
-          (parts[0].startsWith("0x") && parts[1].startsWith("0x")) ||
-          (parts[0].startsWith("did:privy:") &&
-            parts[1].startsWith("did:privy:"))
+          (parts[0].startsWith('0x') && parts[1].startsWith('0x')) ||
+          (parts[0].startsWith('did:privy:') &&
+            parts[1].startsWith('did:privy:'))
         ) {
-          return [...parts].sort().join("_");
+          return [...parts].sort().join('_');
         }
         // If mixed types but we didn't catch it above, apply the ETH-first rule
-        const ethPart = parts.find((p) => p.startsWith("0x"));
-        const privyPart = parts.find((p) => p.startsWith("did:privy:"));
+        const ethPart = parts.find((p) => p.startsWith('0x'));
+        const privyPart = parts.find((p) =>
+          p.startsWith('did:privy:')
+        );
         if (ethPart && privyPart) {
           return `${ethPart}_${privyPart}`;
         }
         // For any other mixed types, sort alphabetically
-        return [...parts].sort().join("_");
+        return [...parts].sort().join('_');
       }
     }
     return id;
   };
 
-  const normalizedConversationId = normalizeConversationId(conversationId);
+  const normalizedConversationId =
+    normalizeConversationId(conversationId);
 
   // Always use the normalized conversation ID for consistency
-  const conversationMessages = (messages[normalizedConversationId] || []).sort(
-    (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+  const conversationMessages = (
+    messages[normalizedConversationId] || []
+  ).sort(
+    (a, b) =>
+      new Date(a.createdAt).getTime() -
+      new Date(b.createdAt).getTime()
   );
 
   // Debug messages
-  console.log(`[DEBUG] Rendering ChatBox for conversation: ${conversationId}`);
-  console.log(`[DEBUG] Messages count: ${conversationMessages.length}`);
+  console.log(
+    `[DEBUG] Rendering ChatBox for conversation: ${conversationId}`
+  );
+  console.log(
+    `[DEBUG] Messages count: ${conversationMessages.length}`
+  );
   console.log(
     `[DEBUG] All conversations:`,
-    Object.keys(messages).map((id) => ({ id, count: messages[id].length }))
+    Object.keys(messages).map((id) => ({
+      id,
+      count: messages[id].length,
+    }))
   );
 
   // More detailed debugging
@@ -97,11 +122,11 @@ const ChatBox: React.FC<ChatBoxProps> = ({ conversationId, recipientId }) => {
   );
 
   // Check if we have the correct conversation ID format
-  if (conversationId.includes("0x")) {
-    const parts = conversationId.split("_");
+  if (conversationId.includes('0x')) {
+    const parts = conversationId.split('_');
     if (parts.length === 2) {
       const sortedParts = [...parts].sort();
-      const sortedId = sortedParts.join("_");
+      const sortedId = sortedParts.join('_');
       if (sortedId !== conversationId) {
         console.warn(
           `[WARNING] Conversation ID might be in wrong order: ${conversationId}, should be: ${sortedId}`
@@ -117,126 +142,63 @@ const ChatBox: React.FC<ChatBoxProps> = ({ conversationId, recipientId }) => {
   // Join conversation when component mounts
   useEffect(() => {
     const setupConversation = async () => {
+      if (!isConnected || !user?.id || !recipientId) return;
+      
       setIsLoading(true);
       try {
-        console.log(
-          `[ChatBox] Setting up conversation: ${normalizedConversationId}`
-        );
-        console.log(`[ChatBox] Original conversation ID: ${conversationId}`);
+        console.log(`[ChatBox] Setting up conversation with recipient: ${recipientId}`);
 
-        // Use the new joinConversationRoom method for better socket handling
-        const joinResult = await joinConversationRoom(recipientId);
+        // Join conversation room using proper backend method
+        const joinResult = await joinConversation(recipientId);
         if (joinResult.success) {
           console.log(`[ChatBox] Successfully joined conversation room`);
-          
-          // Load conversation history using the new method
-          const historyResult = await getConversationHistory(recipientId, 1, 20);
-          if (historyResult.success && historyResult.messages) {
-            console.log(`[ChatBox] Loaded ${historyResult.messages.length} messages from history`);
+
+          // Load conversation history 
+          const historyResult = await getConversation(recipientId, 1, 50);
+          if (historyResult.success) {
+            console.log(`[ChatBox] Loaded conversation history`);
           }
-          
-          // Mark messages as read using the new method
-          const readResult = await markMessagesRead(recipientId);
-          if (readResult.success) {
-            console.log(`[ChatBox] Messages marked as read`);
-          }
+
+          // Mark messages as read
+          await markMessagesAsRead(recipientId);
+          console.log(`[ChatBox] Messages marked as read`);
         } else {
           console.error(`[ChatBox] Failed to join conversation: ${joinResult.error}`);
-          
-          // Fallback to old method
-          await joinConversation(normalizedConversationId);
-          if (user?.id) {
-            await markAsRead(normalizedConversationId, user.id);
-          }
         }
-
-        console.log(
-          `[ChatBox] Successfully joined conversation and marked as read`
-        );
       } catch (err) {
-        console.error("Failed to join conversation:", err);
+        console.error('Failed to setup conversation:', err);
       } finally {
         setIsLoading(false);
       }
     };
 
     setupConversation();
-  }, [
-    conversationId,
-    normalizedConversationId,
-    recipientId,
-    joinConversation,
-    joinConversationRoom,
-    getConversationHistory,
-    markMessagesRead,
-    user?.id,
-    markAsRead,
-    socket,
-  ]);
+  }, [isConnected, user?.id, recipientId, joinConversation, getConversation, markMessagesAsRead]);
 
   // Auto-scroll to bottom when messages change
   useEffect(() => {
-    messageEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    messageEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
   // Handle sending a message
   const handleSendMessage = async () => {
-    if (!newMessage.trim() || !user?.id) return;
+    if (!newMessage.trim() || !user?.id || !isConnected) return;
 
     setIsSending(true);
     const messageContent = newMessage.trim();
-    
+
     try {
-      // Stop typing when sending message
-      if (isTyping) {
-        stopTyping(recipientId);
-        setIsTyping(false);
-      }
+      // Send message using the proper backend method
+      const success = await sendMessage(recipientId, messageContent, 'text');
 
-      // Try the new sendDirectMessage method first
-      const directResult = await sendDirectMessage(recipientId, messageContent, 'text');
-      
-      if (directResult.success) {
-        console.log("[ChatBox] Message sent successfully via direct method");
-        setNewMessage("");
+      if (success) {
+        console.log('[ChatBox] Message sent successfully');
+        setNewMessage('');
       } else {
-        console.error(`[ChatBox] Direct message failed: ${directResult.error}`);
-        
-        // Fallback to original method
-        const finalConversationId = normalizedConversationId;
-        
-        // Determine the correct recipient ID from the conversation ID
-        let validRecipientId = recipientId;
-        const parts = finalConversationId.split("_");
-        if (parts.length === 2) {
-          const userEthAddress = user.wallet?.address;
-          const userId = user.id;
-
-          if (parts[0] === userId || parts[0] === userEthAddress) {
-            validRecipientId = parts[1];
-          } else if (parts[1] === userId || parts[1] === userEthAddress) {
-            validRecipientId = parts[0];
-          } else {
-            validRecipientId =
-              parts.find((p) => p !== user.id && p !== userEthAddress) ||
-              parts[0];
-          }
-        }
-
-        // Fallback to original sendMessage method
-        const result = await sendMessage({
-          senderId: user.id,
-          recipientId: validRecipientId,
-          content: messageContent,
-        });
-
-        console.log("[ChatBox] Fallback message result:", result);
-        if (result) {
-          setNewMessage("");
-        }
+        console.error('[ChatBox] Failed to send message');
       }
     } catch (error) {
-      console.error("[ChatBox] Failed to send message:", error);
+      console.error('[ChatBox] Failed to send message:', error);
     } finally {
       setIsSending(false);
     }
@@ -275,7 +237,9 @@ const ChatBox: React.FC<ChatBoxProps> = ({ conversationId, recipientId }) => {
   };
 
   // Handle input change with typing detection
-  const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+  const handleInputChange = (
+    e: React.ChangeEvent<HTMLTextAreaElement>
+  ) => {
     setNewMessage(e.target.value);
     if (e.target.value.trim()) {
       handleTyping();
@@ -286,15 +250,16 @@ const ChatBox: React.FC<ChatBoxProps> = ({ conversationId, recipientId }) => {
 
   // Handle pressing Enter to send message
   const handleKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
-    if (e.key === "Enter" && !e.shiftKey) {
+    if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       handleSendMessage();
     }
   };
 
   // Get user online status
-  const recipientStatus = userPresence[recipientId]?.status || "offline";
-  const isRecipientOnline = recipientStatus === "online";
+  const recipientStatus =
+    userPresence[recipientId]?.status || 'offline';
+  const isRecipientOnline = recipientStatus === 'online';
 
   return (
     <div className="flex flex-col h-full">
@@ -306,7 +271,7 @@ const ChatBox: React.FC<ChatBoxProps> = ({ conversationId, recipientId }) => {
         <>
           <div
             className="flex-1 overflow-y-auto bg-gray-50/30 dark:bg-gray-900/30"
-            style={{ height: "calc(100vh - 300px)" }}
+            style={{ height: 'calc(100vh - 300px)' }}
           >
             {conversationMessages.length === 0 ? (
               <div className="flex items-center justify-center h-full">
@@ -336,43 +301,48 @@ const ChatBox: React.FC<ChatBoxProps> = ({ conversationId, recipientId }) => {
               </div>
             ) : (
               <div className="py-4">
-                {conversationMessages.map((message: ChatMessage, index) => {
-                  const isUserMessage = message.senderId === user?.id;
+                {conversationMessages.map(
+                  (message: ChatMessage, index) => {
+                    const isUserMessage =
+                      message.sender._id === user?.id;
 
-                  // Check if this message should be grouped with the previous one
-                  const prevMessage =
-                    index > 0 ? conversationMessages[index - 1] : null;
-                  const isGrouped = Boolean(
-                    prevMessage &&
-                      prevMessage.senderId === message.senderId &&
-                      // Group messages within 5 minutes of each other
-                      new Date(message.createdAt).getTime() -
-                        new Date(prevMessage.createdAt).getTime() <
-                        5 * 60 * 1000
-                  );
+                    // Check if this message should be grouped with the previous one
+                    const prevMessage =
+                      index > 0
+                        ? conversationMessages[index - 1]
+                        : null;
+                    const isGrouped = Boolean(
+                      prevMessage &&
+                        prevMessage.sender._id === message.sender._id &&
+                        // Group messages within 5 minutes of each other
+                        new Date(message.createdAt).getTime() -
+                          new Date(prevMessage.createdAt).getTime() <
+                          5 * 60 * 1000
+                    );
 
-                  // Check if this is the last message in a group (next message is from different sender or too far apart)
-                  const nextMessage =
-                    index < conversationMessages.length - 1
-                      ? conversationMessages[index + 1]
-                      : null;
-                  const isLastInGroup =
-                    !nextMessage ||
-                    nextMessage.senderId !== message.senderId ||
-                    new Date(nextMessage.createdAt).getTime() -
-                      new Date(message.createdAt).getTime() >=
-                      5 * 60 * 1000;
+                    // Check if this is the last message in a group (next message is from different sender or too far apart)
+                    const nextMessage =
+                      index < conversationMessages.length - 1
+                        ? conversationMessages[index + 1]
+                        : null;
+                    const isLastInGroup =
+                      !nextMessage ||
+                      nextMessage.sender._id !== message.sender._id ||
+                      new Date(nextMessage.createdAt).getTime() -
+                        new Date(message.createdAt).getTime() >=
+                        5 * 60 * 1000;
 
-                  return (
-                    <EnhancedMessage
-                      key={message._id}
-                      message={message}
-                      isOwnMessage={isUserMessage}
-                      isGrouped={isGrouped}
-                      isLastInGroup={isLastInGroup}
-                    />
-                  );
-                })}
+                    return (
+                      <EnhancedMessage
+                        key={message._id}
+                        message={message}
+                        isOwnMessage={isUserMessage}
+                        isGrouped={isGrouped}
+                        isLastInGroup={isLastInGroup}
+                      />
+                    );
+                  }
+                )}
               </div>
             )}
             <div ref={messageEndRef} />
@@ -389,8 +359,8 @@ const ChatBox: React.FC<ChatBoxProps> = ({ conversationId, recipientId }) => {
                   className="w-full border border-gray-200 dark:border-gray-600 rounded-2xl px-4 py-3 pr-12 resize-none focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-gray-50 dark:bg-gray-700 placeholder:text-gray-500 text-sm max-h-32"
                   rows={1}
                   style={{
-                    minHeight: "44px",
-                    lineHeight: "20px",
+                    minHeight: '44px',
+                    lineHeight: '20px',
                   }}
                 />
                 <Button
@@ -422,7 +392,9 @@ const ChatBox: React.FC<ChatBoxProps> = ({ conversationId, recipientId }) => {
                   </span>
                 )}
               </div>
-              <span className="text-gray-400">Press Enter to send</span>
+              <span className="text-gray-400">
+                Press Enter to send
+              </span>
             </div>
           </div>
         </>
