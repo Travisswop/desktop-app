@@ -1055,7 +1055,7 @@ export default function SwapTokenModal({
       }
 
       const solanaWallet = solWallets[0];
-      console.log(solanaWallet, 'solanaWallet');
+      console.log('solanaWallet', solanaWallet);
 
       setSwapStatus('Getting swap transaction...');
 
@@ -1087,7 +1087,7 @@ export default function SwapTokenModal({
 
       // Use sponsored transaction for Jupiter swaps
       const sponsorResponse = await fetch(
-        '/api/solana/sponsored-transaction',
+        `${process.env.NEXT_PUBLIC_API_URL}/api/v5/wallet/sponsored-transaction`,
         {
           method: 'POST',
           headers: {
@@ -1250,6 +1250,8 @@ export default function SwapTokenModal({
 
       const solanaWallet = solWallets[0];
 
+      console.log('solanaWallet', solanaWallet);
+
       const { transactionRequest } = quote;
       const rawTx =
         transactionRequest?.transaction || transactionRequest?.data;
@@ -1279,7 +1281,7 @@ export default function SwapTokenModal({
 
       // Use sponsored transaction for LiFi swaps
       const sponsorResponse = await fetch(
-        '/api/solana/sponsored-transaction',
+        `${process.env.NEXT_PUBLIC_API_URL}/api/v5/wallet/sponsored-transaction`,
         {
           method: 'POST',
           headers: {
@@ -1295,6 +1297,7 @@ export default function SwapTokenModal({
 
       if (!sponsorResponse.ok) {
         const errorData = await sponsorResponse.json();
+        console.log(errorData, 'errorData');
         throw new Error(
           errorData.error || 'Failed to submit sponsored transaction'
         );
