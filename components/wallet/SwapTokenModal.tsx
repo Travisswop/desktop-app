@@ -12,6 +12,7 @@ import {
   usePrivy,
   useSolanaWallets,
   useWallets,
+  useAuthorizationSignature,
 } from '@privy-io/react-auth';
 import { Connection, VersionedTransaction } from '@solana/web3.js';
 import { saveSwapTransaction } from '@/actions/saveTransactionData';
@@ -407,6 +408,7 @@ export default function SwapTokenModal({
   const [swapStatus, setSwapStatus] = useState<string | null>(null);
 
   const { authenticated, ready, user: PrivyUser } = usePrivy();
+  const { generateAuthorizationSignature } = useAuthorizationSignature();
 
   // Helper function to get correct wallet ID from user's linkedAccounts
   const getSolanaWalletId = (solanaWallet: any, user: any): string => {
@@ -1085,26 +1087,44 @@ export default function SwapTokenModal({
 
       setSwapStatus('Submitting sponsored transaction...');
 
-      // Get authorization signature
+      // Get correct wallet ID from user's linkedAccounts
+      const walletId = getSolanaWalletId(solanaWallet, PrivyUser);
+
+      // Generate proper authorization signature using Privy's method
       let authorizationSignature = '';
       try {
-        if (solanaWallet.signMessage) {
-          const message = new TextEncoder().encode(
-            'Authorize sponsored transaction'
-          );
-          const signature = await solanaWallet.signMessage(message);
-          authorizationSignature =
-            Buffer.from(signature).toString('base64');
+        const caip2 = 'solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp';
+        const input = {
+          version: 1,
+          url: `https://api.privy.io/v1/wallets/${walletId}/rpc`,
+          method: 'POST' as const,
+          headers: {
+            'privy-app-id': process.env.NEXT_PUBLIC_PRIVY_APP_ID || '',
+          },
+          body: {
+            method: 'signAndSendTransaction',
+            caip2,
+            params: {
+              transaction: swapData.swapTransaction,
+              encoding: 'base64',
+            },
+            sponsor: true,
+          },
+        };
+
+        const sigResult = await generateAuthorizationSignature(input);
+        authorizationSignature = sigResult;
+
+        if (!authorizationSignature) {
+          throw new Error('Failed to generate authorization signature');
         }
       } catch (signError) {
         console.warn(
           'Failed to get authorization signature:',
           signError
         );
+        throw new Error('Failed to generate authorization signature');
       }
-
-      // Get correct wallet ID from user's linkedAccounts
-      const walletId = getSolanaWalletId(solanaWallet, PrivyUser);
 
       // Use sponsored transaction for Jupiter swaps
       const sponsorResponse = await fetch(
@@ -1282,26 +1302,44 @@ export default function SwapTokenModal({
 
       setSwapStatus('Submitting sponsored transaction...');
 
-      // Get authorization signature
+      // Get correct wallet ID from user's linkedAccounts
+      const walletId = getSolanaWalletId(solanaWallet, PrivyUser);
+
+      // Generate proper authorization signature using Privy's method
       let authorizationSignature = '';
       try {
-        if (solanaWallet.signMessage) {
-          const message = new TextEncoder().encode(
-            'Authorize sponsored transaction'
-          );
-          const signature = await solanaWallet.signMessage(message);
-          authorizationSignature =
-            Buffer.from(signature).toString('base64');
+        const caip2 = 'solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp';
+        const input = {
+          version: 1,
+          url: `https://api.privy.io/v1/wallets/${walletId}/rpc`,
+          method: 'POST' as const,
+          headers: {
+            'privy-app-id': process.env.NEXT_PUBLIC_PRIVY_APP_ID || '',
+          },
+          body: {
+            method: 'signAndSendTransaction',
+            caip2,
+            params: {
+              transaction: rawTx,
+              encoding: 'base64',
+            },
+            sponsor: true,
+          },
+        };
+
+        const sigResult = await generateAuthorizationSignature(input);
+        authorizationSignature = sigResult;
+
+        if (!authorizationSignature) {
+          throw new Error('Failed to generate authorization signature');
         }
       } catch (signError) {
         console.warn(
           'Failed to get authorization signature:',
           signError
         );
+        throw new Error('Failed to generate authorization signature');
       }
-
-      // Get correct wallet ID from user's linkedAccounts
-      const walletId = getSolanaWalletId(solanaWallet, PrivyUser);
 
       // Use sponsored transaction for LiFi swaps
       const sponsorResponse = await fetch(
