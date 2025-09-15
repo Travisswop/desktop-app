@@ -710,27 +710,36 @@ export class TransactionService {
         },
       } as const;
 
-      console.log('Generating authorization signature for input:', JSON.stringify(input, null, 2));
-      
+      console.log(
+        'Generating authorization signature for input:',
+        JSON.stringify(input, null, 2)
+      );
+
       const sigResult = await generateAuthorizationSignature(input);
       console.log('Authorization signature result:', sigResult);
-      
+
       const authorizationSignature =
         typeof sigResult === 'string'
           ? sigResult
           : sigResult?.authorizationSignature ||
             sigResult?.signature ||
             '';
-            
+
       if (!authorizationSignature) {
-        console.error('Failed to extract authorization signature from result:', sigResult);
+        console.error(
+          'Failed to extract authorization signature from result:',
+          sigResult
+        );
         throw new Error('Failed to generate authorization signature');
       }
-      
-      console.log('Using authorization signature:', authorizationSignature);
+
+      console.log(
+        'Using authorization signature:',
+        authorizationSignature
+      );
 
       const response = await fetch(
-        '/api/solana/sponsored-transaction',
+        `${process.env.NEXT_PUBLIC_API_URL}/api/v5/wallet/sponsored-transaction`,
         {
           method: 'POST',
           headers: {
@@ -749,7 +758,7 @@ export class TransactionService {
         console.error('Sponsored transaction API error:', {
           status: response.status,
           statusText: response.statusText,
-          errorData
+          errorData,
         });
         throw new Error(
           errorData?.error ||
