@@ -993,13 +993,6 @@ export default function SwapTokenModal({ tokens }: { tokens: any[] }) {
 
       const solanaWallet = solWallets[0];
 
-      const rpcUrl =
-        process.env.NEXT_PUBLIC_HELIUS_API_URL ||
-        process.env.NEXT_PUBLIC_ALCHEMY_SOLANA_URL ||
-        process.env.NEXT_PUBLIC_QUICKNODE_SOLANA_URL;
-
-      const connection = new Connection(rpcUrl, "confirmed");
-
       setSwapStatus("Getting swap transaction...");
 
       const swapData = await getJupiterSwapTransaction(jupiterQuote);
@@ -1008,18 +1001,71 @@ export default function SwapTokenModal({ tokens }: { tokens: any[] }) {
         throw new Error("No swap transaction received from Jupiter");
       }
 
-      setSwapStatus("Waiting for confirmation...");
+      setSwapStatus("Submitting sponsored transaction...");
 
-      const txBuffer = Buffer.from(swapData.swapTransaction, "base64");
-      const tx = VersionedTransaction.deserialize(txBuffer);
+      // Get authorization signature
+      let authorizationSignature = "";
+      try {
+        if (solanaWallet.signMessage) {
+          const message = new TextEncoder().encode("Authorize sponsored transaction");
+          const signature = await solanaWallet.signMessage(message);
+          authorizationSignature = Buffer.from(signature).toString("base64");
+        }
+      } catch (signError) {
+        console.warn("Failed to get authorization signature:", signError);
+      }
 
-      const txId = await solanaWallet.sendTransaction(tx, connection);
+      // Use sponsored transaction for Jupiter swaps
+      const sponsorResponse = await fetch("/api/solana/sponsored-transaction", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          walletId: solanaWallet.meta?.id || solanaWallet.address,
+          transaction: swapData.swapTransaction,
+          authorizationSignature,
+        }),
+      });
+
+      if (!sponsorResponse.ok) {
+        const errorData = await sponsorResponse.json();
+        throw new Error(errorData.error || "Failed to submit sponsored transaction");
+      }
+
+      const result = await sponsorResponse.json();
+      const txId = result.signature || result.transactionId;
+
+      if (!txId) {
+        throw new Error("No transaction ID received from sponsored transaction");
+      }
 
       setTxHash(txId);
       setSwapStatus("Transaction submitted! Waiting for confirmation...");
 
-      await connection.confirmTransaction(txId, "confirmed");
-      setSwapStatus("Transaction confirmed");
+      // Wait a bit for the transaction to propagate
+      await new Promise(resolve => setTimeout(resolve, 2000));
+
+      const rpcUrl =
+        process.env.NEXT_PUBLIC_HELIUS_API_URL ||
+        process.env.NEXT_PUBLIC_ALCHEMY_SOLANA_URL ||
+        process.env.NEXT_PUBLIC_QUICKNODE_SOLANA_URL;
+
+      if (rpcUrl) {
+        const connection = new Connection(rpcUrl, "confirmed");
+
+        // Check transaction status
+        try {
+          await connection.confirmTransaction(txId, "confirmed");
+          setSwapStatus("Transaction confirmed");
+        } catch (confirmError) {
+          console.warn("Transaction confirmation check failed:", confirmError);
+          setSwapStatus("Transaction submitted successfully");
+        }
+      } else {
+        setSwapStatus("Transaction submitted successfully");
+      }
+
       // Save to database after confirmation
       await saveSwapToDatabase(txId, jupiterQuote);
     } catch (error: any) {
@@ -1027,7 +1073,7 @@ export default function SwapTokenModal({ tokens }: { tokens: any[] }) {
 
       // Apply user-friendly error formatting
       const userFriendlyError = formatUserFriendlyError(
-        error.message || error.toString() || "Swap failed"
+        error?.message || error?.toString() || "Swap failed"
       );
       setSwapError(userFriendlyError);
     } finally {
@@ -1119,37 +1165,85 @@ export default function SwapTokenModal({ tokens }: { tokens: any[] }) {
 
       const solanaWallet = solWallets[0];
 
-      const rpcUrl =
-        process.env.NEXT_PUBLIC_HELIUS_API_URL ||
-        process.env.NEXT_PUBLIC_ALCHEMY_SOLANA_URL ||
-        process.env.NEXT_PUBLIC_QUICKNODE_SOLANA_URL;
-
-      const connection = new Connection(rpcUrl, "confirmed");
-
       const { transactionRequest } = quote;
       const rawTx = transactionRequest?.transaction || transactionRequest?.data;
       if (!rawTx) {
         throw new Error("No transactionRequest found in LiFi quote");
       }
 
-      const txBuffer = Buffer.from(rawTx, "base64");
-      const tx = VersionedTransaction.deserialize(txBuffer);
+      setSwapStatus("Submitting sponsored transaction...");
 
-      const txId = await solanaWallet.sendTransaction(tx, connection);
+      // Get authorization signature
+      let authorizationSignature = "";
+      try {
+        if (solanaWallet.signMessage) {
+          const message = new TextEncoder().encode("Authorize sponsored transaction");
+          const signature = await solanaWallet.signMessage(message);
+          authorizationSignature = Buffer.from(signature).toString("base64");
+        }
+      } catch (signError) {
+        console.warn("Failed to get authorization signature:", signError);
+      }
+
+      // Use sponsored transaction for LiFi swaps
+      const sponsorResponse = await fetch("/api/solana/sponsored-transaction", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          walletId: solanaWallet.meta?.id || solanaWallet.address,
+          transaction: rawTx,
+          authorizationSignature,
+        }),
+      });
+
+      if (!sponsorResponse.ok) {
+        const errorData = await sponsorResponse.json();
+        throw new Error(errorData.error || "Failed to submit sponsored transaction");
+      }
+
+      const result = await sponsorResponse.json();
+      const txId = result.signature || result.transactionId;
+
+      if (!txId) {
+        throw new Error("No transaction ID received from sponsored transaction");
+      }
 
       setTxHash(txId);
       setSwapStatus("Transaction submitted! Waiting for confirmation...");
 
-      await connection.confirmTransaction(txId, "confirmed");
-      setSwapStatus("Transaction confirmed");
+      // Wait a bit for the transaction to propagate
+      await new Promise(resolve => setTimeout(resolve, 2000));
+
+      const rpcUrl =
+        process.env.NEXT_PUBLIC_HELIUS_API_URL ||
+        process.env.NEXT_PUBLIC_ALCHEMY_SOLANA_URL ||
+        process.env.NEXT_PUBLIC_QUICKNODE_SOLANA_URL;
+
+      if (rpcUrl) {
+        const connection = new Connection(rpcUrl, "confirmed");
+
+        // Check transaction status
+        try {
+          await connection.confirmTransaction(txId, "confirmed");
+          setSwapStatus("Transaction confirmed");
+        } catch (confirmError) {
+          console.warn("Transaction confirmation check failed:", confirmError);
+          setSwapStatus("Transaction submitted successfully");
+        }
+      } else {
+        setSwapStatus("Transaction submitted successfully");
+      }
+
       // Save to database after confirmation
       await saveSwapToDatabase(txId, quote);
-    } catch (error) {
+    } catch (error: any) {
       console.error("Solana swap failed:", error);
 
       // Apply user-friendly error formatting
       const userFriendlyError = formatUserFriendlyError(
-        error.message || error.toString() || "Transaction failed"
+        error?.message || error?.toString() || "Transaction failed"
       );
       setSwapError(userFriendlyError);
     } finally {
