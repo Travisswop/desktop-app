@@ -408,6 +408,24 @@ export default function SwapTokenModal({
 
   const { authenticated, ready, user: PrivyUser } = usePrivy();
 
+  // Helper function to get correct wallet ID from user's linkedAccounts
+  const getSolanaWalletId = (solanaWallet: any, user: any): string => {
+    if (user?.linkedAccounts) {
+      // Find the Solana wallet in linkedAccounts
+      const solanaWalletAccount = user.linkedAccounts.find(
+        (account: any) =>
+          account.type === 'wallet' &&
+          account.chainType === 'solana' &&
+          account.address === solanaWallet.address
+      );
+      if (solanaWalletAccount?.id) {
+        return solanaWalletAccount.id;
+      }
+    }
+    // Fallback to the old method if user object is not provided
+    return solanaWallet.meta?.id || solanaWallet.address;
+  };
+
   // Add this helper function to filter tokens by chain
   const filterTokensByChain = (
     tokens: any[],
@@ -1085,6 +1103,9 @@ export default function SwapTokenModal({
         );
       }
 
+      // Get correct wallet ID from user's linkedAccounts
+      const walletId = getSolanaWalletId(solanaWallet, PrivyUser);
+
       // Use sponsored transaction for Jupiter swaps
       const sponsorResponse = await fetch(
         `${process.env.NEXT_PUBLIC_API_URL}/api/v5/wallet/sponsored-transaction`,
@@ -1094,7 +1115,7 @@ export default function SwapTokenModal({
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
-            walletId: solanaWallet.meta?.id || solanaWallet.address,
+            walletId,
             transaction: swapData.swapTransaction,
             authorizationSignature,
           }),
@@ -1279,6 +1300,9 @@ export default function SwapTokenModal({
         );
       }
 
+      // Get correct wallet ID from user's linkedAccounts
+      const walletId = getSolanaWalletId(solanaWallet, PrivyUser);
+
       // Use sponsored transaction for LiFi swaps
       const sponsorResponse = await fetch(
         `${process.env.NEXT_PUBLIC_API_URL}/api/v5/wallet/sponsored-transaction`,
@@ -1288,7 +1312,7 @@ export default function SwapTokenModal({
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
-            walletId: solanaWallet.meta?.id || solanaWallet.address,
+            walletId,
             transaction: rawTx,
             authorizationSignature,
           }),
