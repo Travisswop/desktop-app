@@ -408,10 +408,14 @@ export default function SwapTokenModal({
   const [swapStatus, setSwapStatus] = useState<string | null>(null);
 
   const { authenticated, ready, user: PrivyUser } = usePrivy();
-  const { generateAuthorizationSignature } = useAuthorizationSignature();
+  const { generateAuthorizationSignature } =
+    useAuthorizationSignature();
 
   // Helper function to get correct wallet ID from user's linkedAccounts
-  const getSolanaWalletId = (solanaWallet: any, user: any): string => {
+  const getSolanaWalletId = (
+    solanaWallet: any,
+    user: any
+  ): string => {
     if (user?.linkedAccounts) {
       // Find the Solana wallet in linkedAccounts
       const solanaWalletAccount = user.linkedAccounts.find(
@@ -1090,22 +1094,51 @@ export default function SwapTokenModal({
       // Get correct wallet ID from user's linkedAccounts
       const walletId = getSolanaWalletId(solanaWallet, PrivyUser);
 
+      // Set up RPC connection for getting blockhash
+      const rpcUrl =
+        process.env.NEXT_PUBLIC_HELIUS_API_URL ||
+        process.env.NEXT_PUBLIC_ALCHEMY_SOLANA_URL ||
+        process.env.NEXT_PUBLIC_QUICKNODE_SOLANA_URL;
+
+      if (!rpcUrl) {
+        throw new Error('No Solana RPC URL configured');
+      }
+
+      const connection = new Connection(rpcUrl, 'confirmed');
+
+      // Deserialize the Jupiter transaction
+      const swapTransactionBuffer = Buffer.from(swapData.swapTransaction, 'base64');
+      const transaction = VersionedTransaction.deserialize(swapTransactionBuffer);
+
+      // Get latest blockhash and update the transaction
+      const { blockhash } = await connection.getLatestBlockhash();
+
+      // Update transaction with fresh blockhash
+      transaction.message.recentBlockhash = blockhash;
+
+      // Sign the versioned transaction with user's wallet
+      const signedTx = await solanaWallet.signTransaction(transaction);
+
+      // Serialize the signed transaction
+      const serializedTransaction = Buffer.from(signedTx.serialize()).toString('base64');
+
       // Generate proper authorization signature using Privy's method
       let authorizationSignature = '';
       try {
         const caip2 = 'solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp';
         const input = {
-          version: 1,
+          version: 1 as const,
           url: `https://api.privy.io/v1/wallets/${walletId}/rpc`,
           method: 'POST' as const,
           headers: {
-            'privy-app-id': process.env.NEXT_PUBLIC_PRIVY_APP_ID || '',
+            'privy-app-id':
+              process.env.NEXT_PUBLIC_PRIVY_APP_ID || '',
           },
           body: {
             method: 'signAndSendTransaction',
             caip2,
             params: {
-              transaction: swapData.swapTransaction,
+              transaction: serializedTransaction,
               encoding: 'base64',
             },
             sponsor: true,
@@ -1113,10 +1146,18 @@ export default function SwapTokenModal({
         };
 
         const sigResult = await generateAuthorizationSignature(input);
-        authorizationSignature = sigResult;
+        const authSig = typeof sigResult === 'string'
+          ? sigResult
+          : (sigResult as any)?.authorizationSignature ||
+            (sigResult as any)?.signature ||
+            '';
+
+        authorizationSignature = authSig;
 
         if (!authorizationSignature) {
-          throw new Error('Failed to generate authorization signature');
+          throw new Error(
+            'Failed to generate authorization signature'
+          );
         }
       } catch (signError) {
         console.warn(
@@ -1136,7 +1177,7 @@ export default function SwapTokenModal({
           },
           body: JSON.stringify({
             walletId,
-            transaction: swapData.swapTransaction,
+            transaction: serializedTransaction,
             authorizationSignature,
           }),
         }
@@ -1167,17 +1208,17 @@ export default function SwapTokenModal({
       // Wait a bit for the transaction to propagate
       await new Promise((resolve) => setTimeout(resolve, 2000));
 
-      const rpcUrl =
+      const confirmationRpcUrl =
         process.env.NEXT_PUBLIC_HELIUS_API_URL ||
         process.env.NEXT_PUBLIC_ALCHEMY_SOLANA_URL ||
         process.env.NEXT_PUBLIC_QUICKNODE_SOLANA_URL;
 
-      if (rpcUrl) {
-        const connection = new Connection(rpcUrl, 'confirmed');
+      if (confirmationRpcUrl) {
+        const confirmationConnection = new Connection(confirmationRpcUrl, 'confirmed');
 
         // Check transaction status
         try {
-          await connection.confirmTransaction(txId, 'confirmed');
+          await confirmationConnection.confirmTransaction(txId, 'confirmed');
           setSwapStatus('Transaction confirmed');
         } catch (confirmError) {
           console.warn(
@@ -1305,22 +1346,51 @@ export default function SwapTokenModal({
       // Get correct wallet ID from user's linkedAccounts
       const walletId = getSolanaWalletId(solanaWallet, PrivyUser);
 
+      // Set up RPC connection for getting blockhash
+      const solanaRpcUrl =
+        process.env.NEXT_PUBLIC_HELIUS_API_URL ||
+        process.env.NEXT_PUBLIC_ALCHEMY_SOLANA_URL ||
+        process.env.NEXT_PUBLIC_QUICKNODE_SOLANA_URL;
+
+      if (!solanaRpcUrl) {
+        throw new Error('No Solana RPC URL configured');
+      }
+
+      const connection = new Connection(solanaRpcUrl, 'confirmed');
+
+      // Deserialize the LiFi transaction
+      const swapTransactionBuffer = Buffer.from(rawTx, 'base64');
+      const transaction = VersionedTransaction.deserialize(swapTransactionBuffer);
+
+      // Get latest blockhash and update the transaction
+      const { blockhash } = await connection.getLatestBlockhash();
+
+      // Update transaction with fresh blockhash
+      transaction.message.recentBlockhash = blockhash;
+
+      // Sign the versioned transaction with user's wallet
+      const signedTx = await solanaWallet.signTransaction(transaction);
+
+      // Serialize the signed transaction
+      const serializedTransaction = Buffer.from(signedTx.serialize()).toString('base64');
+
       // Generate proper authorization signature using Privy's method
       let authorizationSignature = '';
       try {
         const caip2 = 'solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp';
         const input = {
-          version: 1,
+          version: 1 as const,
           url: `https://api.privy.io/v1/wallets/${walletId}/rpc`,
           method: 'POST' as const,
           headers: {
-            'privy-app-id': process.env.NEXT_PUBLIC_PRIVY_APP_ID || '',
+            'privy-app-id':
+              process.env.NEXT_PUBLIC_PRIVY_APP_ID || '',
           },
           body: {
             method: 'signAndSendTransaction',
             caip2,
             params: {
-              transaction: rawTx,
+              transaction: serializedTransaction,
               encoding: 'base64',
             },
             sponsor: true,
@@ -1328,10 +1398,18 @@ export default function SwapTokenModal({
         };
 
         const sigResult = await generateAuthorizationSignature(input);
-        authorizationSignature = sigResult;
+        const authSig = typeof sigResult === 'string'
+          ? sigResult
+          : (sigResult as any)?.authorizationSignature ||
+            (sigResult as any)?.signature ||
+            '';
+
+        authorizationSignature = authSig;
 
         if (!authorizationSignature) {
-          throw new Error('Failed to generate authorization signature');
+          throw new Error(
+            'Failed to generate authorization signature'
+          );
         }
       } catch (signError) {
         console.warn(
@@ -1351,7 +1429,7 @@ export default function SwapTokenModal({
           },
           body: JSON.stringify({
             walletId,
-            transaction: rawTx,
+            transaction: serializedTransaction,
             authorizationSignature,
           }),
         }
