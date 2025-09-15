@@ -84,26 +84,23 @@ const WalletContentInner = () => {
   const { authenticated, ready, user: PrivyUser } = usePrivy();
   const { generateAuthorizationSignature } =
     useAuthorizationSignature();
-  console.log(PrivyUser, 'PrivyUser');
+
   const { wallets: ethWallets } = useWallets();
-  console.log(ethWallets, 'ethWallets');
+
   const {
     wallets: directSolanaWallets,
     createWallet: createSolanaWallet,
   } = useSolanaWallets();
-  console.log(directSolanaWallets, 'directSolanaWallets');
+
   const { createWallet, solanaWallets } = useSolanaWalletContext();
   const { toast } = useToast();
   const { user } = useUser();
-
-  console.log('user', user);
   // Custom hooks
   const walletData = useWalletData(authenticated, ready, PrivyUser);
   const { solWalletAddress, evmWalletAddress } =
     useWalletAddresses(walletData);
   const { payload } = useTransactionPayload(user);
   const { wallets: ethWalletsData } = useWallets();
-  console.log(ethWalletsData, 'ethWalletsData');
 
   const {
     sendFlow,

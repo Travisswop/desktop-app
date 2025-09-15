@@ -1,111 +1,115 @@
-"use client";
+'use client';
 
-import { useEffect, useState, useCallback, useRef } from "react";
-import { Card } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { ArrowUpDown, Info, Settings } from "lucide-react";
-import Image from "next/image";
-import { chain, debounce } from "lodash";
-import { fetchTokensFromLiFi } from "@/actions/lifiForTokenSwap";
-import { usePrivy, useSolanaWallets, useWallets } from "@privy-io/react-auth";
-import { Connection, VersionedTransaction } from "@solana/web3.js";
-import { saveSwapTransaction } from "@/actions/saveTransactionData";
-import Cookies from "js-cookie";
+import { useEffect, useState, useCallback, useRef } from 'react';
+import { Card } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { ArrowUpDown, Info, Settings } from 'lucide-react';
+import Image from 'next/image';
+import { chain, debounce } from 'lodash';
+import { fetchTokensFromLiFi } from '@/actions/lifiForTokenSwap';
+import {
+  usePrivy,
+  useSolanaWallets,
+  useWallets,
+} from '@privy-io/react-auth';
+import { Connection, VersionedTransaction } from '@solana/web3.js';
+import { saveSwapTransaction } from '@/actions/saveTransactionData';
+import Cookies from 'js-cookie';
 
 const getChainIcon = (chainName: string) => {
   const chainIcons: Record<string, string> = {
-    SOLANA: "/images/IconShop/solana@2x.png",
-    ETHEREUM: "/images/IconShop/eTH@3x.png",
-    BSC: "/images/IconShop/binance-smart-chain.png",
-    POLYGON: "/images/IconShop/polygon.png",
-    ARBITRUM: "/images/IconShop/arbitrum.png",
-    BASE: "https://www.base.org/document/safari-pinned-tab.svg",
+    SOLANA: '/images/IconShop/solana@2x.png',
+    ETHEREUM: '/images/IconShop/eTH@3x.png',
+    BSC: '/images/IconShop/binance-smart-chain.png',
+    POLYGON: '/images/IconShop/polygon.png',
+    ARBITRUM: '/images/IconShop/arbitrum.png',
+    BASE: 'https://www.base.org/document/safari-pinned-tab.svg',
   };
   return chainIcons[chainName.toUpperCase()] || null;
 };
 
 const getChainId = (chainName: string) => {
   const chainIds: Record<string, string> = {
-    SOLANA: "1151111081099710",
-    ETHEREUM: "1",
-    BSC: "56",
-    POLYGON: "137",
-    ARBITRUM: "42161",
-    BASE: "8453",
+    SOLANA: '1151111081099710',
+    ETHEREUM: '1',
+    BSC: '56',
+    POLYGON: '137',
+    ARBITRUM: '42161',
+    BASE: '8453',
   };
-  return chainIds[chainName.toUpperCase()] || "1";
+  return chainIds[chainName.toUpperCase()] || '1';
 };
 
 const getExplorerUrl = (chainId: string, txHash: string): string => {
   const explorerUrls: Record<string, string> = {
-    "1151111081099710": `https://solscan.io/tx/${txHash}`,
-    "1": `https://etherscan.io/tx/${txHash}`,
-    "56": `https://bscscan.com/tx/${txHash}`,
-    "137": `https://polygonscan.com/tx/${txHash}`,
-    "42161": `https://arbiscan.io/tx/${txHash}`,
-    "8453": `https://basescan.org/tx/${txHash}`,
+    '1151111081099710': `https://solscan.io/tx/${txHash}`,
+    '1': `https://etherscan.io/tx/${txHash}`,
+    '56': `https://bscscan.com/tx/${txHash}`,
+    '137': `https://polygonscan.com/tx/${txHash}`,
+    '42161': `https://arbiscan.io/tx/${txHash}`,
+    '8453': `https://basescan.org/tx/${txHash}`,
   };
   return explorerUrls[chainId] || `https://etherscan.io/tx/${txHash}`;
 };
 
 const PAY_CHAINS = [
   {
-    id: "all",
-    name: "All",
-    fullName: "All Chains",
+    id: 'all',
+    name: 'All',
+    fullName: 'All Chains',
     icon: null, // We'll handle this differently
   },
   {
-    id: "1151111081099710",
-    name: "SOL",
-    fullName: "Solana",
-    icon: "/images/IconShop/solana@2x.png",
+    id: '1151111081099710',
+    name: 'SOL',
+    fullName: 'Solana',
+    icon: '/images/IconShop/solana@2x.png',
   },
   {
-    id: "1",
-    name: "ETH",
-    fullName: "Ethereum",
-    icon: "/images/IconShop/outline-icons/light/ethereum-outline@3x.png",
+    id: '1',
+    name: 'ETH',
+    fullName: 'Ethereum',
+    icon: '/images/IconShop/outline-icons/light/ethereum-outline@3x.png',
   },
   {
-    id: "137",
-    name: "POL",
-    fullName: "Polygon",
-    icon: "/images/IconShop/polygon.png",
+    id: '137',
+    name: 'POL',
+    fullName: 'Polygon',
+    icon: '/images/IconShop/polygon.png',
   },
   {
-    id: "8453",
-    name: "BASE",
-    fullName: "Base",
-    icon: "https://www.base.org/document/safari-pinned-tab.svg",
+    id: '8453',
+    name: 'BASE',
+    fullName: 'Base',
+    icon: 'https://www.base.org/document/safari-pinned-tab.svg',
   },
 ];
 
 const RECEIVER_CHAINS = [
   {
-    id: "1",
-    name: "ETH",
-    fullName: "Ethereum",
-    icon: "/images/IconShop/outline-icons/light/ethereum-outline@3x.png",
+    id: '1',
+    name: 'ETH',
+    fullName: 'Ethereum',
+    icon: '/images/IconShop/outline-icons/light/ethereum-outline@3x.png',
   },
   {
-    id: "1151111081099710",
-    name: "SOL",
-    fullName: "Solana",
-    icon: "/images/IconShop/solana@2x.png",
+    id: '1151111081099710',
+    name: 'SOL',
+    fullName: 'Solana',
+    icon: '/images/IconShop/solana@2x.png',
   },
   {
-    id: "137",
-    name: "POL",
-    fullName: "Polygon",
-    icon: "/images/IconShop/polygon.png",
+    id: '137',
+    name: 'POL',
+    fullName: 'Polygon',
+    icon: '/images/IconShop/polygon.png',
   },
   {
-    id: "8453",
-    name: "BASE",
-    fullName: "Base",
-    icon: "https://www.base.org/document/safari-pinned-tab.svg",
+    id: '8453',
+    name: 'BASE',
+    fullName: 'Base',
+    icon: 'https://www.base.org/document/safari-pinned-tab.svg',
   },
 ];
 //custom error message
@@ -114,246 +118,264 @@ const formatUserFriendlyError = (error: string): string => {
 
   // Network and connection errors
   if (
-    lowerError.includes("network error") ||
-    lowerError.includes("fetch failed") ||
-    lowerError.includes("network request failed")
+    lowerError.includes('network error') ||
+    lowerError.includes('fetch failed') ||
+    lowerError.includes('network request failed')
   ) {
-    return "Network connection issue. Please check your internet connection and try again.";
+    return 'Network connection issue. Please check your internet connection and try again.';
   }
 
   if (
-    lowerError.includes("timeout") ||
-    lowerError.includes("request timeout")
+    lowerError.includes('timeout') ||
+    lowerError.includes('request timeout')
   ) {
-    return "Request timed out. Please try again in a moment.";
+    return 'Request timed out. Please try again in a moment.';
   }
 
   // Wallet errors
   if (
-    lowerError.includes("user rejected") ||
-    lowerError.includes("rejected by user") ||
-    lowerError.includes("user denied")
+    lowerError.includes('user rejected') ||
+    lowerError.includes('rejected by user') ||
+    lowerError.includes('user denied')
   ) {
-    return "Transaction was cancelled. Please try again when ready.";
+    return 'Transaction was cancelled. Please try again when ready.';
   }
 
   if (
-    lowerError.includes("insufficient funds") ||
-    lowerError.includes("insufficient balance")
+    lowerError.includes('insufficient funds') ||
+    lowerError.includes('insufficient balance')
   ) {
-    return "Insufficient balance to complete this transaction.";
+    return 'Insufficient balance to complete this transaction.';
   }
 
   if (
-    lowerError.includes("wallet not connected") ||
-    lowerError.includes("no wallet")
+    lowerError.includes('wallet not connected') ||
+    lowerError.includes('no wallet')
   ) {
-    return "Please connect your wallet to continue.";
+    return 'Please connect your wallet to continue.';
   }
 
   // Quote and routing errors
   if (
-    lowerError.includes("route not found") ||
-    lowerError.includes("no route found")
+    lowerError.includes('route not found') ||
+    lowerError.includes('no route found')
   ) {
-    return "No swap route available for this token pair. Try selecting different tokens.";
+    return 'No swap route available for this token pair. Try selecting different tokens.';
   }
 
   if (
-    lowerError.includes("invalid token") ||
-    lowerError.includes("token not found")
+    lowerError.includes('invalid token') ||
+    lowerError.includes('token not found')
   ) {
-    return "Selected token is not supported. Please choose a different token.";
+    return 'Selected token is not supported. Please choose a different token.';
   }
 
   if (
-    lowerError.includes("amount too small") ||
-    lowerError.includes("minimum amount")
+    lowerError.includes('amount too small') ||
+    lowerError.includes('minimum amount')
   ) {
-    return "Amount is too small. Please enter a larger amount.";
+    return 'Amount is too small. Please enter a larger amount.';
   }
 
   if (
-    lowerError.includes("amount too large") ||
-    lowerError.includes("maximum amount")
+    lowerError.includes('amount too large') ||
+    lowerError.includes('maximum amount')
   ) {
-    return "Amount exceeds maximum limit. Please enter a smaller amount.";
+    return 'Amount exceeds maximum limit. Please enter a smaller amount.';
   }
 
-  if (lowerError.includes("slippage") || lowerError.includes("price impact")) {
-    return "Price impact is too high. Try adjusting slippage settings or reducing the amount.";
+  if (
+    lowerError.includes('slippage') ||
+    lowerError.includes('price impact')
+  ) {
+    return 'Price impact is too high. Try adjusting slippage settings or reducing the amount.';
   }
 
   // API and rate limiting errors
   if (
-    lowerError.includes("rate limit") ||
-    lowerError.includes("too many requests")
+    lowerError.includes('rate limit') ||
+    lowerError.includes('too many requests')
   ) {
-    return "Too many requests. Please wait a moment and try again.";
+    return 'Too many requests. Please wait a moment and try again.';
   }
 
   if (
-    lowerError.includes("api error") ||
-    lowerError.includes("service unavailable")
+    lowerError.includes('api error') ||
+    lowerError.includes('service unavailable')
   ) {
-    return "Service temporarily unavailable. Please try again in a few moments.";
+    return 'Service temporarily unavailable. Please try again in a few moments.';
   }
 
   if (
-    lowerError.includes("invalid parameters") ||
-    lowerError.includes("bad request")
+    lowerError.includes('invalid parameters') ||
+    lowerError.includes('bad request')
   ) {
-    return "Invalid request. Please check your inputs and try again.";
+    return 'Invalid request. Please check your inputs and try again.';
   }
 
   // Transaction errors
   if (
-    lowerError.includes("transaction failed") ||
-    lowerError.includes("tx failed")
+    lowerError.includes('transaction failed') ||
+    lowerError.includes('tx failed')
   ) {
-    return "Transaction failed. Please try again with adjusted settings.";
+    return 'Transaction failed. Please try again with adjusted settings.';
   }
 
-  if (lowerError.includes("gas") && lowerError.includes("limit")) {
-    return "Transaction requires more gas. Please try again.";
+  if (lowerError.includes('gas') && lowerError.includes('limit')) {
+    return 'Transaction requires more gas. Please try again.';
   }
 
   if (
-    lowerError.includes("nonce") ||
-    lowerError.includes("replacement transaction")
+    lowerError.includes('nonce') ||
+    lowerError.includes('replacement transaction')
   ) {
-    return "Transaction conflict detected. Please try again.";
+    return 'Transaction conflict detected. Please try again.';
   }
 
   // Jupiter specific errors
   if (
-    lowerError.includes("jupiter") &&
-    (lowerError.includes("quote") || lowerError.includes("swap"))
+    lowerError.includes('jupiter') &&
+    (lowerError.includes('quote') || lowerError.includes('swap'))
   ) {
-    return "Swap service temporarily unavailable. Please try again shortly.";
+    return 'Swap service temporarily unavailable. Please try again shortly.';
   }
 
   // LiFi specific errors
-  if (lowerError.includes("lifi") || lowerError.includes("li.fi")) {
-    return "Cross-chain swap service unavailable. Please try again later.";
+  if (lowerError.includes('lifi') || lowerError.includes('li.fi')) {
+    return 'Cross-chain swap service unavailable. Please try again later.';
   }
 
   // Solana specific errors
   if (
-    lowerError.includes("blockhash not found") ||
-    lowerError.includes("recent blockhash")
+    lowerError.includes('blockhash not found') ||
+    lowerError.includes('recent blockhash')
   ) {
-    return "Network is busy. Please wait a moment and try again.";
+    return 'Network is busy. Please wait a moment and try again.';
   }
 
   if (
-    lowerError.includes("account not found") ||
-    lowerError.includes("invalid account")
+    lowerError.includes('account not found') ||
+    lowerError.includes('invalid account')
   ) {
-    return "Account error. Please reconnect your wallet and try again.";
+    return 'Account error. Please reconnect your wallet and try again.';
   }
 
   // Generic fallbacks for common patterns
   if (
-    lowerError.includes("failed to fetch") ||
-    lowerError.includes("fetch error")
+    lowerError.includes('failed to fetch') ||
+    lowerError.includes('fetch error')
   ) {
-    return "Unable to connect to swap service. Please check your connection and try again.";
-  }
-
-  if (lowerError.includes("unauthorized") || lowerError.includes("forbidden")) {
-    return "Access denied. Please reconnect your wallet and try again.";
+    return 'Unable to connect to swap service. Please check your connection and try again.';
   }
 
   if (
-    lowerError.includes("not supported") ||
-    lowerError.includes("unsupported")
+    lowerError.includes('unauthorized') ||
+    lowerError.includes('forbidden')
   ) {
-    return "This operation is not supported. Please try a different token pair.";
+    return 'Access denied. Please reconnect your wallet and try again.';
+  }
+
+  if (
+    lowerError.includes('not supported') ||
+    lowerError.includes('unsupported')
+  ) {
+    return 'This operation is not supported. Please try a different token pair.';
   }
 
   // If no specific error pattern matches, return a generic professional message
   if (error.length > 100) {
-    return "Transaction failed. Please try again or contact support if the issue persists.";
+    return 'Transaction failed. Please try again or contact support if the issue persists.';
   }
 
   // For shorter, more specific errors, clean them up but keep some detail
-  return error.charAt(0).toUpperCase() + error.slice(1).replace(/[._]/g, " ");
+  return (
+    error.charAt(0).toUpperCase() +
+    error.slice(1).replace(/[._]/g, ' ')
+  );
 };
 
 const NATIVE_TOKENS_AND_USDC = {
   // Ethereum
-  "1": [
+  '1': [
     {
-      symbol: "ETH",
+      symbol: 'ETH',
     },
     {
-      symbol: "USDC",
+      symbol: 'USDC',
     },
   ],
   // Solana
-  "1151111081099710": [
+  '1151111081099710': [
     {
-      symbol: "SOL",
+      symbol: 'SOL',
     },
     {
-      symbol: "USDC",
+      symbol: 'USDC',
     },
   ],
   // Polygon
-  "137": [
+  '137': [
     {
-      symbol: "POL",
+      symbol: 'POL',
     },
     {
-      symbol: "USDC",
+      symbol: 'USDC',
     },
   ],
   // Base
-  "8453": [
+  '8453': [
     {
-      symbol: "ETH",
+      symbol: 'ETH',
     },
     {
-      symbol: "USDC",
+      symbol: 'USDC',
     },
   ],
 };
 
-export default function SwapTokenModal({ tokens }: { tokens: any[] }) {
+export default function SwapTokenModal({
+  tokens,
+}: {
+  tokens: any[];
+}) {
   // State management
   const [payToken, setPayToken] = useState<any>(tokens?.[0] || null);
   const [receiveToken, setReceiveToken] = useState<any>(null);
-  const [payAmount, setPayAmount] = useState("");
-  const [receiveAmount, setReceiveAmount] = useState("");
+  const [payAmount, setPayAmount] = useState('');
+  const [receiveAmount, setReceiveAmount] = useState('');
   const [openDrawer, setOpenDrawer] = useState(false);
-  const [selecting, setSelecting] = useState<"pay" | "receive" | null>(null);
+  const [selecting, setSelecting] = useState<
+    'pay' | 'receive' | null
+  >(null);
   const [availableTokens, setAvailableTokens] = useState<any[]>([]);
-  const [filteredReceivedTokens, setFilteredReceivedTokens] = useState<any[]>(
-    []
-  );
-  const [searchQuery, setSearchQuery] = useState("");
+  const [filteredReceivedTokens, setFilteredReceivedTokens] =
+    useState<any[]>([]);
+  const [searchQuery, setSearchQuery] = useState('');
   const [isLoadingTokens, setIsLoadingTokens] = useState(false);
   const [isCalculating, setIsCalculating] = useState(false);
-  const [chainId, setChainId] = useState("1151111081099710");
-  const [receiverChainId, setReceiverChainId] = useState("137");
-  const [selectedReceiverChain, setSelectedReceiverChain] = useState("137");
+  const [chainId, setChainId] = useState('1151111081099710');
+  const [receiverChainId, setReceiverChainId] = useState('137');
+  const [selectedReceiverChain, setSelectedReceiverChain] =
+    useState('137');
   const [quote, setQuote] = useState<any>(null);
   const [jupiterQuote, setJupiterQuote] = useState<any>(null);
   const [swapError, setSwapError] = useState<string | null>(null);
   const [txHash, setTxHash] = useState<string | null>(null);
   const [slippage, setSlippage] = useState(0.5);
-  const [showSlippageSettings, setShowSlippageSettings] = useState(false);
-  const [customSlippage, setCustomSlippage] = useState("");
+  const [showSlippageSettings, setShowSlippageSettings] =
+    useState(false);
+  const [customSlippage, setCustomSlippage] = useState('');
   const [showSlippageModal, setShowSlippageModal] = useState(false);
-  const [selectedPayChain, setSelectedPayChain] = useState("all");
+  const [selectedPayChain, setSelectedPayChain] = useState('all');
 
   // New states for loading and auto-refresh
   const [isQuoteLoading, setIsQuoteLoading] = useState(false);
   const [quoteCountdown, setQuoteCountdown] = useState(10);
-  const [lastQuoteTime, setLastQuoteTime] = useState<number | null>(null);
+  const [lastQuoteTime, setLastQuoteTime] = useState<number | null>(
+    null
+  );
 
-  const [accessToken, setAccessToken] = useState("");
+  const [accessToken, setAccessToken] = useState('');
 
   // Refs for intervals
   const quoteRefreshInterval = useRef<NodeJS.Timeout | null>(null);
@@ -362,20 +384,24 @@ export default function SwapTokenModal({ tokens }: { tokens: any[] }) {
   const { wallets } = useWallets();
   const { wallets: solWallets } = useSolanaWallets();
 
-  console.log("receiveToken", receiveToken);
-  console.log("payToken", payToken);
-  console.log("payAmount", payAmount);
-  console.log("availableTokens", availableTokens);
-  console.log("chainId", chainId);
-  console.log("receiverChainId", receiverChainId);
-  console.log("filteredReceivedTokens", filteredReceivedTokens);
-  console.log("selecting", selecting);
+  console.log('receiveToken', receiveToken);
+  console.log('payToken', payToken);
+  console.log('payAmount', payAmount);
+  console.log('availableTokens', availableTokens);
+  console.log('chainId', chainId);
+  console.log('receiverChainId', receiverChainId);
+  console.log('filteredReceivedTokens', filteredReceivedTokens);
+  console.log('selecting', selecting);
 
   const ethWallet = wallets[0]?.address;
   const solWallet = solWallets[0]?.address;
 
-  const [fromWalletAddress, setFromWalletAddress] = useState(solWallet || "");
-  const [toWalletAddress, setToWalletAddress] = useState(solWallet || "");
+  const [fromWalletAddress, setFromWalletAddress] = useState(
+    solWallet || ''
+  );
+  const [toWalletAddress, setToWalletAddress] = useState(
+    solWallet || ''
+  );
 
   const [isSwapping, setIsSwapping] = useState(false);
   const [swapStatus, setSwapStatus] = useState<string | null>(null);
@@ -383,8 +409,11 @@ export default function SwapTokenModal({ tokens }: { tokens: any[] }) {
   const { authenticated, ready, user: PrivyUser } = usePrivy();
 
   // Add this helper function to filter tokens by chain
-  const filterTokensByChain = (tokens: any[], chainFilter: string) => {
-    if (chainFilter === "all") {
+  const filterTokensByChain = (
+    tokens: any[],
+    chainFilter: string
+  ) => {
+    if (chainFilter === 'all') {
       return tokens;
     }
 
@@ -397,9 +426,9 @@ export default function SwapTokenModal({ tokens }: { tokens: any[] }) {
   // Add this function to handle pay chain selection
   const handlePayChainSelect = (chainId: string) => {
     setSelectedPayChain(chainId);
-    setSearchQuery("");
+    setSearchQuery('');
 
-    if (chainId === "all") {
+    if (chainId === 'all') {
       setAvailableTokens(tokens);
     } else {
       const filteredTokens = filterTokensByChain(tokens, chainId);
@@ -414,7 +443,7 @@ export default function SwapTokenModal({ tokens }: { tokens: any[] }) {
       let baseTokens = tokens;
 
       // First filter by selected chain
-      if (selectedPayChain !== "all") {
+      if (selectedPayChain !== 'all') {
         baseTokens = filterTokensByChain(tokens, selectedPayChain);
       }
 
@@ -427,7 +456,7 @@ export default function SwapTokenModal({ tokens }: { tokens: any[] }) {
 
       setAvailableTokens(results); // Show all results without slicing
     } catch (error) {
-      console.error("Error filtering tokens:", error);
+      console.error('Error filtering tokens:', error);
     } finally {
       setIsLoadingTokens(false);
     }
@@ -435,11 +464,14 @@ export default function SwapTokenModal({ tokens }: { tokens: any[] }) {
 
   // Update the useEffect that sets available tokens for pay selection
   useEffect(() => {
-    if (openDrawer && selecting === "pay") {
-      if (selectedPayChain === "all") {
+    if (openDrawer && selecting === 'pay') {
+      if (selectedPayChain === 'all') {
         setAvailableTokens(tokens); // Show all tokens without slicing
       } else {
-        const filteredTokens = filterTokensByChain(tokens, selectedPayChain);
+        const filteredTokens = filterTokensByChain(
+          tokens,
+          selectedPayChain
+        );
         setAvailableTokens(filteredTokens); // Show all filtered tokens
       }
     }
@@ -451,21 +483,22 @@ export default function SwapTokenModal({ tokens }: { tokens: any[] }) {
       setFilteredReceivedTokens(availableTokens);
     } else {
       setIsLoadingTokens(true);
-      const symbols = NATIVE_TOKENS_AND_USDC[receiverChainId as string]; // e.g. [{symbol: "SOL"}, {symbol: "USDC"}]
+      const symbols =
+        NATIVE_TOKENS_AND_USDC[receiverChainId as string]; // e.g. [{symbol: "SOL"}, {symbol: "USDC"}]
 
-      console.log("symbols", symbols);
+      console.log('symbols', symbols);
 
       // Extract the plain symbol strings into a Set for faster lookup
       const symbolSet = new Set(symbols.map((s) => s.symbol));
 
-      console.log("symbolSet", symbolSet);
+      console.log('symbolSet', symbolSet);
 
       // Filter availableTokens where the symbol is in symbolSet
       const filtered = availableTokens.filter((avail) =>
         symbolSet.has(avail.symbol)
       );
 
-      console.log("filtered", filtered);
+      console.log('filtered', filtered);
 
       setFilteredReceivedTokens(filtered);
       setIsLoadingTokens(false);
@@ -524,19 +557,21 @@ export default function SwapTokenModal({ tokens }: { tokens: any[] }) {
     decimals: number | bigint
   ): string => {
     // always convert decimals to number
-    const dec = typeof decimals === "bigint" ? Number(decimals) : decimals;
+    const dec =
+      typeof decimals === 'bigint' ? Number(decimals) : decimals;
 
-    const [whole, fractionRaw = ""] = amount.toString().split(".");
+    const [whole, fractionRaw = ''] = amount.toString().split('.');
     const fraction = fractionRaw.toString();
 
-    const fractionPadded = (fraction + "0".repeat(dec)).slice(0, dec);
+    const fractionPadded = (fraction + '0'.repeat(dec)).slice(0, dec);
     const raw = whole + fractionPadded;
 
     return BigInt(raw).toString();
   };
 
   const validateBalance = () => {
-    if (!payToken?.balance || !payAmount) return { isValid: true, error: null };
+    if (!payToken?.balance || !payAmount)
+      return { isValid: true, error: null };
 
     const balance = parseFloat(payToken.balance);
     const amount = parseFloat(payAmount);
@@ -544,16 +579,16 @@ export default function SwapTokenModal({ tokens }: { tokens: any[] }) {
     if (amount > balance) {
       return {
         isValid: false,
-        error: `Insufficient balance. Available: ${balance.toFixed(6)} ${
-          payToken.symbol
-        }`,
+        error: `Insufficient balance. Available: ${balance.toFixed(
+          6
+        )} ${payToken.symbol}`,
       };
     }
 
     if (amount <= 0) {
       return {
         isValid: false,
-        error: "Amount must be greater than 0",
+        error: 'Amount must be greater than 0',
       };
     }
 
@@ -562,21 +597,21 @@ export default function SwapTokenModal({ tokens }: { tokens: any[] }) {
 
   const isSolanaToSolanaSwap = () => {
     return (
-      payToken?.chain === "SOLANA" &&
-      (receiveToken?.chain === "SOLANA" ||
-        receiverChainId === "1151111081099710")
+      payToken?.chain === 'SOLANA' &&
+      (receiveToken?.chain === 'SOLANA' ||
+        receiverChainId === '1151111081099710')
     );
   };
 
   const getJupiterQuote = async () => {
     try {
       if (!payToken || !receiveToken || !payAmount) {
-        throw new Error("Missing required parameters");
+        throw new Error('Missing required parameters');
       }
 
       const getTokenMint = (token: any) => {
-        if (token.symbol === "SOL") {
-          return "So11111111111111111111111111111111111111112";
+        if (token.symbol === 'SOL') {
+          return 'So11111111111111111111111111111111111111112';
         }
         return token.address;
       };
@@ -585,7 +620,7 @@ export default function SwapTokenModal({ tokens }: { tokens: any[] }) {
       const outputMint = getTokenMint(receiveToken);
 
       if (!inputMint || !outputMint) {
-        throw new Error("Invalid token addresses");
+        throw new Error('Invalid token addresses');
       }
 
       const amountInSmallestUnit = formatTokenAmount(
@@ -597,43 +632,46 @@ export default function SwapTokenModal({ tokens }: { tokens: any[] }) {
 
       const url = `https://quote-api.jup.ag/v6/quote?inputMint=${inputMint}&outputMint=${outputMint}&amount=${amountInSmallestUnit}&slippageBps=${slippageBps}&restrictIntermediateTokens=true&platformFeeBps=${platfromFeeBps}&useWsol=false`;
 
-      console.log("Jupiter Quote URL:", url);
+      console.log('Jupiter Quote URL:', url);
 
       const response = await fetch(url);
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => null);
-        console.error("Jupiter API Error:", errorData);
+        console.error('Jupiter API Error:', errorData);
 
         // Create more specific error messages based on status
         let errorMessage;
         if (response.status === 429) {
-          errorMessage = "Service is busy. Please wait a moment and try again.";
+          errorMessage =
+            'Service is busy. Please wait a moment and try again.';
         } else if (response.status === 404) {
-          errorMessage = "This token pair is not available for swapping.";
+          errorMessage =
+            'This token pair is not available for swapping.';
         } else if (response.status >= 500) {
           errorMessage =
-            "Swap service is temporarily down. Please try again later.";
+            'Swap service is temporarily down. Please try again later.';
         } else {
           errorMessage =
-            errorData?.error || "Unable to get price quote. Please try again.";
+            errorData?.error ||
+            'Unable to get price quote. Please try again.';
         }
 
         throw new Error(errorMessage);
       }
 
       const jupiterQuote = await response.json();
-      console.log("Jupiter Quote:", jupiterQuote);
+      console.log('Jupiter Quote:', jupiterQuote);
 
       if (!jupiterQuote || !jupiterQuote.outAmount) {
         throw new Error(
-          "Unable to calculate swap price. Please try different amounts or tokens."
+          'Unable to calculate swap price. Please try different amounts or tokens.'
         );
       }
 
       return jupiterQuote;
     } catch (error) {
-      console.error("Error getting Jupiter quote:", error);
+      console.error('Error getting Jupiter quote:', error);
       throw error; // Will be handled by formatUserFriendlyError in calling function
     }
   };
@@ -641,33 +679,38 @@ export default function SwapTokenModal({ tokens }: { tokens: any[] }) {
   const getJupiterSwapTransaction = async (quoteResponse: any) => {
     try {
       if (!solWallet) {
-        throw new Error("Solana wallet not connected");
+        throw new Error('Solana wallet not connected');
       }
 
-      const swapResponse = await fetch("https://quote-api.jup.ag/v6/swap", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          quoteResponse,
-          userPublicKey: solWallet,
-          wrapAndUnwrapSol: true,
-          dynamicComputeUnitLimit: true,
-          prioritizationFeeLamports: "auto",
-          platformFeeBps: 50,
-        }),
-      });
+      const swapResponse = await fetch(
+        'https://quote-api.jup.ag/v6/swap',
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            quoteResponse,
+            userPublicKey: solWallet,
+            wrapAndUnwrapSol: true,
+            dynamicComputeUnitLimit: true,
+            prioritizationFeeLamports: 'auto',
+            platformFeeBps: 50,
+          }),
+        }
+      );
 
       if (!swapResponse.ok) {
         const errorData = await swapResponse.json().catch(() => null);
-        throw new Error(errorData?.error || "Failed to get swap transaction");
+        throw new Error(
+          errorData?.error || 'Failed to get swap transaction'
+        );
       }
 
       const swapData = await swapResponse.json();
       return swapData;
     } catch (error) {
-      console.error("Error getting Jupiter swap transaction:", error);
+      console.error('Error getting Jupiter swap transaction:', error);
       throw error;
     }
   };
@@ -676,101 +719,117 @@ export default function SwapTokenModal({ tokens }: { tokens: any[] }) {
     try {
       const queryParams = new URLSearchParams();
 
-      const fromAmount = formatTokenAmount(payAmount, payToken.decimals || 6);
+      const fromAmount = formatTokenAmount(
+        payAmount,
+        payToken.decimals || 6
+      );
 
-      console.log("fromAmount2", fromAmount);
+      console.log('fromAmount2', fromAmount);
 
-      if (fromAmount === "0" || !fromAmount) {
-        throw new Error("Invalid amount");
+      if (fromAmount === '0' || !fromAmount) {
+        throw new Error('Invalid amount');
       }
 
       let fromTokenAddress;
-      if (chainId === "1151111081099710") {
-        if (payToken?.symbol === "SOL") {
-          fromTokenAddress = "So11111111111111111111111111111111111111112";
+      if (chainId === '1151111081099710') {
+        if (payToken?.symbol === 'SOL') {
+          fromTokenAddress =
+            'So11111111111111111111111111111111111111112';
         } else if (payToken?.address) {
           fromTokenAddress = payToken.address;
         } else {
-          throw new Error("Invalid Solana token");
+          throw new Error('Invalid Solana token');
         }
       } else {
-        if (payToken?.symbol === "ETH" || payToken?.symbol === "POL") {
-          fromTokenAddress = "0x0000000000000000000000000000000000000000";
+        if (
+          payToken?.symbol === 'ETH' ||
+          payToken?.symbol === 'POL'
+        ) {
+          fromTokenAddress =
+            '0x0000000000000000000000000000000000000000';
         } else if (payToken?.address) {
           fromTokenAddress = payToken.address;
         } else {
-          throw new Error("Invalid EVM token");
+          throw new Error('Invalid EVM token');
         }
       }
 
       let toTokenAddress;
-      if (receiverChainId === "1151111081099710") {
-        if (receiveToken?.symbol === "SOL") {
-          toTokenAddress = "So11111111111111111111111111111111111111112";
+      if (receiverChainId === '1151111081099710') {
+        if (receiveToken?.symbol === 'SOL') {
+          toTokenAddress =
+            'So11111111111111111111111111111111111111112';
         } else if (receiveToken?.address) {
           toTokenAddress = receiveToken.address;
         } else {
-          throw new Error("Invalid Solana receive token");
+          throw new Error('Invalid Solana receive token');
         }
       } else {
-        if (receiveToken?.symbol === "ETH" || receiveToken?.symbol === "POL") {
-          toTokenAddress = "0x0000000000000000000000000000000000000000";
+        if (
+          receiveToken?.symbol === 'ETH' ||
+          receiveToken?.symbol === 'POL'
+        ) {
+          toTokenAddress =
+            '0x0000000000000000000000000000000000000000';
         } else if (receiveToken?.address) {
           toTokenAddress = receiveToken.address;
         } else {
-          throw new Error("Invalid EVM receive token");
+          throw new Error('Invalid EVM receive token');
         }
       }
 
       if (!fromWalletAddress || !toWalletAddress) {
-        throw new Error("Wallet addresses not available");
+        throw new Error('Wallet addresses not available');
       }
 
-      queryParams.append("fromChain", chainId.toString());
-      queryParams.append("toChain", receiverChainId.toString());
-      queryParams.append("fromToken", fromTokenAddress);
-      queryParams.append("toToken", toTokenAddress);
-      queryParams.append("fromAddress", fromWalletAddress);
-      queryParams.append("toAddress", toWalletAddress);
-      queryParams.append("fromAmount", fromAmount);
-      queryParams.append("slippage", (slippage / 100).toString());
-      queryParams.append("integrator", "SWOP");
-      queryParams.append("fee", "0.005");
+      queryParams.append('fromChain', chainId.toString());
+      queryParams.append('toChain', receiverChainId.toString());
+      queryParams.append('fromToken', fromTokenAddress);
+      queryParams.append('toToken', toTokenAddress);
+      queryParams.append('fromAddress', fromWalletAddress);
+      queryParams.append('toAddress', toWalletAddress);
+      queryParams.append('fromAmount', fromAmount);
+      queryParams.append('slippage', (slippage / 100).toString());
+      queryParams.append('integrator', 'SWOP');
+      queryParams.append('fee', '0.005');
 
       const lifiApiKey =
         process.env.NEXT_PUBLIC_LIFI_API_KEY ||
-        "7923d347-6f3d-4a14-a255-900c41eb3014.b23bf79f-23e8-401c-af60-2fa01ab79650";
+        '7923d347-6f3d-4a14-a255-900c41eb3014.b23bf79f-23e8-401c-af60-2fa01ab79650';
 
-      const response = await fetch(`https://li.quest/v1/quote?${queryParams}`, {
-        method: "GET",
-        headers: {
-          Accept: "application/json",
-          "Content-Type": "application/json",
-          "x-lifi-api-key": lifiApiKey,
-        },
-      });
+      const response = await fetch(
+        `https://li.quest/v1/quote?${queryParams}`,
+        {
+          method: 'GET',
+          headers: {
+            Accept: 'application/json',
+            'Content-Type': 'application/json',
+            'x-lifi-api-key': lifiApiKey,
+          },
+        }
+      );
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => null);
-        console.error("LiFi API Error:", errorData);
+        console.error('LiFi API Error:', errorData);
 
         // More specific error messages
         let errorMessage;
         if (response.status === 404) {
           errorMessage =
-            "This cross-chain swap route is not supported. Please try different tokens.";
+            'This cross-chain swap route is not supported. Please try different tokens.';
         } else if (response.status === 400) {
           errorMessage =
-            "Invalid swap parameters. Please check your token selection and amounts.";
+            'Invalid swap parameters. Please check your token selection and amounts.';
         } else if (response.status === 429) {
           errorMessage =
-            "Service rate limit reached. Please wait a moment and try again.";
+            'Service rate limit reached. Please wait a moment and try again.';
         } else if (response.status >= 500) {
           errorMessage =
-            "Cross-chain service is temporarily unavailable. Please try again later.";
+            'Cross-chain service is temporarily unavailable. Please try again later.';
         } else {
           errorMessage =
-            "Unable to find swap route. Please try different tokens or amounts.";
+            'Unable to find swap route. Please try different tokens or amounts.';
         }
 
         throw new Error(errorMessage);
@@ -780,13 +839,13 @@ export default function SwapTokenModal({ tokens }: { tokens: any[] }) {
 
       if (!quote || !quote.estimate) {
         throw new Error(
-          "Unable to calculate cross-chain swap price. Please try again."
+          'Unable to calculate cross-chain swap price. Please try again.'
         );
       }
 
       return quote;
     } catch (error) {
-      console.error("Error getting LiFi quote:", error);
+      console.error('Error getting LiFi quote:', error);
       throw error; // Will be handled by formatUserFriendlyError in calling function
     }
   };
@@ -816,31 +875,31 @@ export default function SwapTokenModal({ tokens }: { tokens: any[] }) {
         setSwapError(null);
 
         if (isSolanaToSolanaSwap()) {
-          console.log("Using Jupiter for Solana-to-Solana swap");
+          console.log('Using Jupiter for Solana-to-Solana swap');
           const jupiterQuote = await getJupiterQuote();
 
           setJupiterQuote(jupiterQuote);
           setQuote(null);
-          console.log("Jupiter quote received:", jupiterQuote);
+          console.log('Jupiter quote received:', jupiterQuote);
         } else {
-          console.log("Using Li.Fi for cross-chain swap");
+          console.log('Using Li.Fi for cross-chain swap');
           const lifiQuote = await getLifiQuote();
 
           setQuote(lifiQuote);
           setJupiterQuote(null);
-          console.log("Li.Fi quote received:", lifiQuote);
+          console.log('Li.Fi quote received:', lifiQuote);
         }
 
         // Set timestamp for auto-refresh
         setLastQuoteTime(Date.now());
       } catch (error: any) {
-        console.error("Quote fetch error:", error);
+        console.error('Quote fetch error:', error);
         setQuote(null);
         setJupiterQuote(null);
 
         // Apply user-friendly error formatting
         const userFriendlyError = formatUserFriendlyError(
-          error.message || error.toString() || "Failed to get quote"
+          error.message || error.toString() || 'Failed to get quote'
         );
         setSwapError(userFriendlyError);
         setLastQuoteTime(null);
@@ -915,7 +974,7 @@ export default function SwapTokenModal({ tokens }: { tokens: any[] }) {
       try {
         let toAmount;
 
-        console.log("gggg2", toAmount);
+        console.log('gggg2', toAmount);
 
         if (jupiterQuote) {
           toAmount = jupiterQuote.outAmount;
@@ -925,21 +984,25 @@ export default function SwapTokenModal({ tokens }: { tokens: any[] }) {
 
         if (toAmount && receiveToken.decimals) {
           const decimals = receiveToken.decimals;
-          const readableAmount = Number(toAmount) / Math.pow(10, decimals);
+          const readableAmount =
+            Number(toAmount) / Math.pow(10, decimals);
           const formattedAmount = readableAmount
             .toFixed(8)
-            .replace(/\.?0+$/, "");
+            .replace(/\.?0+$/, '');
 
           setReceiveAmount(formattedAmount);
         } else {
-          setReceiveAmount("0");
+          setReceiveAmount('0');
         }
       } catch (error) {
-        console.error("Error calculating receive amount from quote:", error);
-        setReceiveAmount("Error");
+        console.error(
+          'Error calculating receive amount from quote:',
+          error
+        );
+        setReceiveAmount('Error');
       }
     } else {
-      setReceiveAmount("");
+      setReceiveAmount('');
     }
   }, [quote, jupiterQuote, receiveToken]);
 
@@ -949,7 +1012,7 @@ export default function SwapTokenModal({ tokens }: { tokens: any[] }) {
       setIsSwapping(true);
       setSwapError(null);
       setTxHash(null);
-      setSwapStatus("Preparing transaction...");
+      setSwapStatus('Preparing transaction...');
 
       const balanceCheck = validateBalance();
       if (!balanceCheck.isValid) {
@@ -964,11 +1027,11 @@ export default function SwapTokenModal({ tokens }: { tokens: any[] }) {
         await executeLiFiSwap();
       }
     } catch (error: any) {
-      console.error("Swap error:", error);
+      console.error('Swap error:', error);
 
       // Apply user-friendly error formatting
       const userFriendlyError = formatUserFriendlyError(
-        error.message || error.toString() || "Swap failed"
+        error.message || error.toString() || 'Swap failed'
       );
 
       setSwapError(userFriendlyError);
@@ -980,71 +1043,88 @@ export default function SwapTokenModal({ tokens }: { tokens: any[] }) {
   const executeJupiterSwap = async () => {
     try {
       if (!jupiterQuote) {
-        setSwapError("No Jupiter quote available");
+        setSwapError('No Jupiter quote available');
         setIsSwapping(false);
         return;
       }
 
       if (!solWallets || solWallets.length === 0) {
-        setSwapError("No Solana wallet connected");
+        setSwapError('No Solana wallet connected');
         setIsSwapping(false);
         return;
       }
 
       const solanaWallet = solWallets[0];
+      console.log(solanaWallet, 'solanaWallet');
 
-      setSwapStatus("Getting swap transaction...");
+      setSwapStatus('Getting swap transaction...');
 
       const swapData = await getJupiterSwapTransaction(jupiterQuote);
 
       if (!swapData.swapTransaction) {
-        throw new Error("No swap transaction received from Jupiter");
+        throw new Error('No swap transaction received from Jupiter');
       }
 
-      setSwapStatus("Submitting sponsored transaction...");
+      setSwapStatus('Submitting sponsored transaction...');
 
       // Get authorization signature
-      let authorizationSignature = "";
+      let authorizationSignature = '';
       try {
         if (solanaWallet.signMessage) {
-          const message = new TextEncoder().encode("Authorize sponsored transaction");
+          const message = new TextEncoder().encode(
+            'Authorize sponsored transaction'
+          );
           const signature = await solanaWallet.signMessage(message);
-          authorizationSignature = Buffer.from(signature).toString("base64");
+          authorizationSignature =
+            Buffer.from(signature).toString('base64');
         }
       } catch (signError) {
-        console.warn("Failed to get authorization signature:", signError);
+        console.warn(
+          'Failed to get authorization signature:',
+          signError
+        );
       }
 
       // Use sponsored transaction for Jupiter swaps
-      const sponsorResponse = await fetch("/api/solana/sponsored-transaction", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          walletId: solanaWallet.meta?.id || solanaWallet.address,
-          transaction: swapData.swapTransaction,
-          authorizationSignature,
-        }),
-      });
+      const sponsorResponse = await fetch(
+        '/api/solana/sponsored-transaction',
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            walletId: solanaWallet.meta?.id || solanaWallet.address,
+            transaction: swapData.swapTransaction,
+            authorizationSignature,
+          }),
+        }
+      );
 
       if (!sponsorResponse.ok) {
         const errorData = await sponsorResponse.json();
-        throw new Error(errorData.error || "Failed to submit sponsored transaction");
+        console.log(errorData, 'errorData');
+        throw new Error(
+          errorData.error || 'Failed to submit sponsored transaction'
+        );
       }
 
       const result = await sponsorResponse.json();
       const txId = result.signature || result.transactionId;
 
       if (!txId) {
-        throw new Error("No transaction ID received from sponsored transaction");
+        throw new Error(
+          'No transaction ID received from sponsored transaction'
+        );
       }
 
       setTxHash(txId);
-      setSwapStatus("Transaction submitted! Waiting for confirmation...");
+      setSwapStatus(
+        'Transaction submitted! Waiting for confirmation...'
+      );
 
       // Wait a bit for the transaction to propagate
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      await new Promise((resolve) => setTimeout(resolve, 2000));
 
       const rpcUrl =
         process.env.NEXT_PUBLIC_HELIUS_API_URL ||
@@ -1052,28 +1132,31 @@ export default function SwapTokenModal({ tokens }: { tokens: any[] }) {
         process.env.NEXT_PUBLIC_QUICKNODE_SOLANA_URL;
 
       if (rpcUrl) {
-        const connection = new Connection(rpcUrl, "confirmed");
+        const connection = new Connection(rpcUrl, 'confirmed');
 
         // Check transaction status
         try {
-          await connection.confirmTransaction(txId, "confirmed");
-          setSwapStatus("Transaction confirmed");
+          await connection.confirmTransaction(txId, 'confirmed');
+          setSwapStatus('Transaction confirmed');
         } catch (confirmError) {
-          console.warn("Transaction confirmation check failed:", confirmError);
-          setSwapStatus("Transaction submitted successfully");
+          console.warn(
+            'Transaction confirmation check failed:',
+            confirmError
+          );
+          setSwapStatus('Transaction submitted successfully');
         }
       } else {
-        setSwapStatus("Transaction submitted successfully");
+        setSwapStatus('Transaction submitted successfully');
       }
 
       // Save to database after confirmation
       await saveSwapToDatabase(txId, jupiterQuote);
     } catch (error: any) {
-      console.error("Jupiter swap failed:", error);
+      console.error('Jupiter swap failed:', error);
 
       // Apply user-friendly error formatting
       const userFriendlyError = formatUserFriendlyError(
-        error?.message || error?.toString() || "Swap failed"
+        error?.message || error?.toString() || 'Swap failed'
       );
       setSwapError(userFriendlyError);
     } finally {
@@ -1084,7 +1167,7 @@ export default function SwapTokenModal({ tokens }: { tokens: any[] }) {
   const executeLiFiSwap = async () => {
     try {
       if (!quote) {
-        setSwapError("No Li.Fi quote available");
+        setSwapError('No Li.Fi quote available');
         setIsSwapping(false);
         return;
       }
@@ -1097,13 +1180,13 @@ export default function SwapTokenModal({ tokens }: { tokens: any[] }) {
         const allAccounts = PrivyUser?.linkedAccounts || [];
         const ethereumAccount = allAccounts.find(
           (account: any) =>
-            account.chainType === "ethereum" &&
-            account.type === "wallet" &&
+            account.chainType === 'ethereum' &&
+            account.type === 'wallet' &&
             account.address
         );
 
         if (!ethereumAccount) {
-          setSwapError("No Ethereum wallet connected");
+          setSwapError('No Ethereum wallet connected');
           setIsSwapping(false);
           return;
         }
@@ -1115,38 +1198,40 @@ export default function SwapTokenModal({ tokens }: { tokens: any[] }) {
         );
 
         if (!wallet) {
-          setSwapError("Wallet not found");
+          setSwapError('Wallet not found');
           setIsSwapping(false);
           return;
         }
 
         const provider = await wallet.getEthereumProvider();
         if (!provider) {
-          setSwapError("Failed to get wallet provider");
+          setSwapError('Failed to get wallet provider');
           setIsSwapping(false);
           return;
         }
 
-        setSwapStatus("Waiting for confirmation...");
+        setSwapStatus('Waiting for confirmation...');
 
         const txHash = await provider.request({
-          method: "eth_sendTransaction",
+          method: 'eth_sendTransaction',
           params: [quote.transactionRequest],
         });
 
-        console.log("Transaction hash:", txHash);
+        console.log('Transaction hash:', txHash);
         setTxHash(txHash);
-        setSwapStatus("Transaction submitted! Waiting for confirmation...");
-        setSwapStatus("Swap completed successfully!");
+        setSwapStatus(
+          'Transaction submitted! Waiting for confirmation...'
+        );
+        setSwapStatus('Swap completed successfully!');
         // Save to database
         await saveSwapToDatabase(txHash, quote);
       }
     } catch (error: any) {
-      console.error("Li.Fi swap error:", error);
+      console.error('Li.Fi swap error:', error);
 
       // Apply user-friendly error formatting
       const userFriendlyError = formatUserFriendlyError(
-        error.message || error.toString() || "Cross-chain swap failed"
+        error.message || error.toString() || 'Cross-chain swap failed'
       );
       setSwapError(userFriendlyError);
       throw new Error(userFriendlyError); // Re-throw with friendly message
@@ -1158,7 +1243,7 @@ export default function SwapTokenModal({ tokens }: { tokens: any[] }) {
   const executeSolanaSwap = async () => {
     try {
       if (!solWallets || solWallets.length === 0) {
-        setSwapError("No Solana wallet connected");
+        setSwapError('No Solana wallet connected');
         setIsSwapping(false);
         return;
       }
@@ -1166,55 +1251,71 @@ export default function SwapTokenModal({ tokens }: { tokens: any[] }) {
       const solanaWallet = solWallets[0];
 
       const { transactionRequest } = quote;
-      const rawTx = transactionRequest?.transaction || transactionRequest?.data;
+      const rawTx =
+        transactionRequest?.transaction || transactionRequest?.data;
       if (!rawTx) {
-        throw new Error("No transactionRequest found in LiFi quote");
+        throw new Error('No transactionRequest found in LiFi quote');
       }
 
-      setSwapStatus("Submitting sponsored transaction...");
+      setSwapStatus('Submitting sponsored transaction...');
 
       // Get authorization signature
-      let authorizationSignature = "";
+      let authorizationSignature = '';
       try {
         if (solanaWallet.signMessage) {
-          const message = new TextEncoder().encode("Authorize sponsored transaction");
+          const message = new TextEncoder().encode(
+            'Authorize sponsored transaction'
+          );
           const signature = await solanaWallet.signMessage(message);
-          authorizationSignature = Buffer.from(signature).toString("base64");
+          authorizationSignature =
+            Buffer.from(signature).toString('base64');
         }
       } catch (signError) {
-        console.warn("Failed to get authorization signature:", signError);
+        console.warn(
+          'Failed to get authorization signature:',
+          signError
+        );
       }
 
       // Use sponsored transaction for LiFi swaps
-      const sponsorResponse = await fetch("/api/solana/sponsored-transaction", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          walletId: solanaWallet.meta?.id || solanaWallet.address,
-          transaction: rawTx,
-          authorizationSignature,
-        }),
-      });
+      const sponsorResponse = await fetch(
+        '/api/solana/sponsored-transaction',
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            walletId: solanaWallet.meta?.id || solanaWallet.address,
+            transaction: rawTx,
+            authorizationSignature,
+          }),
+        }
+      );
 
       if (!sponsorResponse.ok) {
         const errorData = await sponsorResponse.json();
-        throw new Error(errorData.error || "Failed to submit sponsored transaction");
+        throw new Error(
+          errorData.error || 'Failed to submit sponsored transaction'
+        );
       }
 
       const result = await sponsorResponse.json();
       const txId = result.signature || result.transactionId;
 
       if (!txId) {
-        throw new Error("No transaction ID received from sponsored transaction");
+        throw new Error(
+          'No transaction ID received from sponsored transaction'
+        );
       }
 
       setTxHash(txId);
-      setSwapStatus("Transaction submitted! Waiting for confirmation...");
+      setSwapStatus(
+        'Transaction submitted! Waiting for confirmation...'
+      );
 
       // Wait a bit for the transaction to propagate
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      await new Promise((resolve) => setTimeout(resolve, 2000));
 
       const rpcUrl =
         process.env.NEXT_PUBLIC_HELIUS_API_URL ||
@@ -1222,28 +1323,31 @@ export default function SwapTokenModal({ tokens }: { tokens: any[] }) {
         process.env.NEXT_PUBLIC_QUICKNODE_SOLANA_URL;
 
       if (rpcUrl) {
-        const connection = new Connection(rpcUrl, "confirmed");
+        const connection = new Connection(rpcUrl, 'confirmed');
 
         // Check transaction status
         try {
-          await connection.confirmTransaction(txId, "confirmed");
-          setSwapStatus("Transaction confirmed");
+          await connection.confirmTransaction(txId, 'confirmed');
+          setSwapStatus('Transaction confirmed');
         } catch (confirmError) {
-          console.warn("Transaction confirmation check failed:", confirmError);
-          setSwapStatus("Transaction submitted successfully");
+          console.warn(
+            'Transaction confirmation check failed:',
+            confirmError
+          );
+          setSwapStatus('Transaction submitted successfully');
         }
       } else {
-        setSwapStatus("Transaction submitted successfully");
+        setSwapStatus('Transaction submitted successfully');
       }
 
       // Save to database after confirmation
       await saveSwapToDatabase(txId, quote);
     } catch (error: any) {
-      console.error("Solana swap failed:", error);
+      console.error('Solana swap failed:', error);
 
       // Apply user-friendly error formatting
       const userFriendlyError = formatUserFriendlyError(
-        error?.message || error?.toString() || "Transaction failed"
+        error?.message || error?.toString() || 'Transaction failed'
       );
       setSwapError(userFriendlyError);
     } finally {
@@ -1265,16 +1369,16 @@ export default function SwapTokenModal({ tokens }: { tokens: any[] }) {
   }, [payToken]);
 
   useEffect(() => {
-    if (payToken && payToken?.chain === "SOLANA") {
+    if (payToken && payToken?.chain === 'SOLANA') {
       setFromWalletAddress(solWallet);
     } else {
       setFromWalletAddress(ethWallet);
     }
     if (!receiveToken) {
-      setToWalletAddress("");
+      setToWalletAddress('');
     } else if (
       receiveToken &&
-      (receiveToken?.chain === "SOLANA" ||
+      (receiveToken?.chain === 'SOLANA' ||
         receiveToken?.chainId == 1151111081099710)
     ) {
       setToWalletAddress(solWallet);
@@ -1295,11 +1399,13 @@ export default function SwapTokenModal({ tokens }: { tokens: any[] }) {
         if (query) {
           const lowerQuery = query.toLowerCase();
           result = [...tokens].sort((a, b) => {
-            const aSymbol = a.symbol?.toLowerCase() || "";
-            const bSymbol = b.symbol?.toLowerCase() || "";
+            const aSymbol = a.symbol?.toLowerCase() || '';
+            const bSymbol = b.symbol?.toLowerCase() || '';
 
-            if (aSymbol === lowerQuery && bSymbol !== lowerQuery) return -1;
-            if (bSymbol === lowerQuery && aSymbol !== lowerQuery) return 1;
+            if (aSymbol === lowerQuery && bSymbol !== lowerQuery)
+              return -1;
+            if (bSymbol === lowerQuery && aSymbol !== lowerQuery)
+              return 1;
             if (
               aSymbol.startsWith(lowerQuery) &&
               !bSymbol.startsWith(lowerQuery)
@@ -1310,9 +1416,15 @@ export default function SwapTokenModal({ tokens }: { tokens: any[] }) {
               !aSymbol.startsWith(lowerQuery)
             )
               return 1;
-            if (aSymbol.includes(lowerQuery) && !bSymbol.includes(lowerQuery))
+            if (
+              aSymbol.includes(lowerQuery) &&
+              !bSymbol.includes(lowerQuery)
+            )
               return -1;
-            if (bSymbol.includes(lowerQuery) && !aSymbol.includes(lowerQuery))
+            if (
+              bSymbol.includes(lowerQuery) &&
+              !aSymbol.includes(lowerQuery)
+            )
               return 1;
             return 0;
           });
@@ -1320,7 +1432,7 @@ export default function SwapTokenModal({ tokens }: { tokens: any[] }) {
 
         setAvailableTokens(result.slice(0, 20));
       } catch (error) {
-        console.error("Error fetching tokens:", error);
+        console.error('Error fetching tokens:', error);
       } finally {
         setIsLoadingTokens(false);
       }
@@ -1332,12 +1444,12 @@ export default function SwapTokenModal({ tokens }: { tokens: any[] }) {
     setSelectedReceiverChain(chainId);
     setReceiverChainId(chainId);
     setReceiveToken(null);
-    setSearchQuery("");
-    debouncedSearch("", chainId);
+    setSearchQuery('');
+    debouncedSearch('', chainId);
   };
 
   useEffect(() => {
-    if (openDrawer && selecting === "receive") {
+    if (openDrawer && selecting === 'receive') {
       debouncedSearch(searchQuery, selectedReceiverChain);
     }
     return () => debouncedSearch.cancel();
@@ -1350,7 +1462,7 @@ export default function SwapTokenModal({ tokens }: { tokens: any[] }) {
   ]);
 
   useEffect(() => {
-    if (openDrawer && selecting === "pay") {
+    if (openDrawer && selecting === 'pay') {
       setAvailableTokens(tokens.slice(0, 20));
     }
   }, [openDrawer, selecting, tokens]);
@@ -1362,7 +1474,9 @@ export default function SwapTokenModal({ tokens }: { tokens: any[] }) {
     []
   );
 
-  const handlePayAmountChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handlePayAmountChange = (
+    e: React.ChangeEvent<HTMLInputElement>
+  ) => {
     const value = e.target.value;
     setPayAmount(value);
     // Set loading immediately when user types
@@ -1389,7 +1503,9 @@ export default function SwapTokenModal({ tokens }: { tokens: any[] }) {
 
   const handlePercentageClick = (percentage: number) => {
     if (payToken?.balance) {
-      const amount = (parseFloat(payToken.balance) * percentage).toString();
+      const amount = (
+        parseFloat(payToken.balance) * percentage
+      ).toString();
       setPayAmount(amount);
 
       // Set loading immediately when percentage is clicked
@@ -1399,29 +1515,32 @@ export default function SwapTokenModal({ tokens }: { tokens: any[] }) {
     }
   };
 
-  const handleTokenSelect = (token: any, type: "pay" | "receive") => {
-    if (type === "pay") {
+  const handleTokenSelect = (token: any, type: 'pay' | 'receive') => {
+    if (type === 'pay') {
       setPayToken(token);
     } else {
       setReceiveToken(token);
     }
     setOpenDrawer(false);
-    setSearchQuery("");
+    setSearchQuery('');
 
     // Trigger quote loading if we have both tokens and amount
     if (
       payAmount &&
-      ((type === "pay" && receiveToken) || (type === "receive" && payToken))
+      ((type === 'pay' && receiveToken) ||
+        (type === 'receive' && payToken))
     ) {
       setIsQuoteLoading(true);
     }
   };
 
-  const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleSearchChange = (
+    e: React.ChangeEvent<HTMLInputElement>
+  ) => {
     const query = e.target.value;
     setSearchQuery(query);
 
-    if (selecting === "pay") {
+    if (selecting === 'pay') {
       handlePayTokenSearch(query);
     }
   };
@@ -1436,7 +1555,7 @@ export default function SwapTokenModal({ tokens }: { tokens: any[] }) {
     try {
       let fromAmount, toAmount;
 
-      console.log("gggg", fromAmount);
+      console.log('gggg', fromAmount);
 
       if (jupiterQuote) {
         fromAmount = jupiterQuote.inAmount;
@@ -1462,7 +1581,10 @@ export default function SwapTokenModal({ tokens }: { tokens: any[] }) {
       const rate = toAmountReadable / fromAmountReadable;
       return rate;
     } catch (error) {
-      console.error("Error calculating exchange rate from quote:", error);
+      console.error(
+        'Error calculating exchange rate from quote:',
+        error
+      );
       return null;
     }
   };
@@ -1479,7 +1601,8 @@ export default function SwapTokenModal({ tokens }: { tokens: any[] }) {
       fees = jupiterQuote.platformFee || null;
       priceImpact = jupiterQuote.priceImpactPct || null;
     } else {
-      fromAmountUSD = quote.estimate?.fromAmountUSD || quote.fromAmountUSD;
+      fromAmountUSD =
+        quote.estimate?.fromAmountUSD || quote.fromAmountUSD;
       toAmountUSD = quote.estimate?.toAmountUSD || quote.toAmountUSD;
       fees = quote.estimate?.gasCosts || quote.gasCosts;
 
@@ -1501,7 +1624,7 @@ export default function SwapTokenModal({ tokens }: { tokens: any[] }) {
 
   const handleSlippageChange = (newSlippage: number) => {
     setSlippage(newSlippage);
-    setCustomSlippage("");
+    setCustomSlippage('');
   };
 
   const handleCustomSlippageChange = (value: string) => {
@@ -1528,7 +1651,7 @@ export default function SwapTokenModal({ tokens }: { tokens: any[] }) {
 
   useEffect(() => {
     const getAccessToken = async () => {
-      const token = Cookies.get("access-token");
+      const token = Cookies.get('access-token');
       if (token) {
         setAccessToken(token);
       }
@@ -1539,38 +1662,44 @@ export default function SwapTokenModal({ tokens }: { tokens: any[] }) {
   }, []);
 
   // Add this function to your component
-  const saveSwapToDatabase = async (signature: string, quote: any) => {
+  const saveSwapToDatabase = async (
+    signature: string,
+    quote: any
+  ) => {
     try {
       const swapDetails = {
         signature,
-        solanaAddress: solWallet || "",
+        solanaAddress: solWallet || '',
         inputToken: {
           symbol: payToken?.symbol || quote.inputMint,
           amount: parseFloat(payAmount),
           decimals: payToken?.decimals || 6,
           mint: payToken?.address || quote.inputMint,
-          price: payToken?.price || payToken?.usdPrice || "0",
-          logo: payToken?.logoURI || payToken?.symbol || "",
+          price: payToken?.price || payToken?.usdPrice || '0',
+          logo: payToken?.logoURI || payToken?.symbol || '',
         },
         outputToken: {
           symbol: receiveToken?.symbol || quote.outputMint,
           amount: parseFloat(receiveAmount),
           decimals: receiveToken?.decimals || 6,
           mint: receiveToken?.address || quote.outputMint,
-          price: receiveToken?.price || receiveToken?.usdPrice || "0",
-          logo: receiveToken?.logoURI || receiveToken?.symbol || "",
+          price: receiveToken?.price || receiveToken?.usdPrice || '0',
+          logo: receiveToken?.logoURI || receiveToken?.symbol || '',
         },
         slippageBps: Math.floor(slippage * 100),
         platformFeeBps: 50,
         timestamp: Date.now(),
       };
 
-      const result = await saveSwapTransaction(swapDetails, accessToken);
-      console.log("result add in db", result);
+      const result = await saveSwapTransaction(
+        swapDetails,
+        accessToken
+      );
+      console.log('result add in db', result);
 
-      console.log("Swap transaction saved to database");
+      console.log('Swap transaction saved to database');
     } catch (error) {
-      console.error("Failed to save swap transaction:", error);
+      console.error('Failed to save swap transaction:', error);
       // Don't throw error here to avoid disrupting the swap flow
     }
   };
@@ -1586,11 +1715,17 @@ export default function SwapTokenModal({ tokens }: { tokens: any[] }) {
 
     // Generate initials from symbol
     const initials = token.symbol.slice(0, 2).toUpperCase();
-    const colors = ["#FF6B6B", "#4ECDC4", "#45B7D1", "#F9A826", "#6C5CE7"];
+    const colors = [
+      '#FF6B6B',
+      '#4ECDC4',
+      '#45B7D1',
+      '#F9A826',
+      '#6C5CE7',
+    ];
     const colorIndex = token.symbol.length % colors.length;
 
     const svg = `
-    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" 
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none"
       xmlns="http://www.w3.org/2000/svg">
       <rect width="24" height="24" fill="${colors[colorIndex]}" rx="12"/>
       <text x="12" y="16" text-anchor="middle" fill="white" font-size="10" font-weight="bold">
@@ -1607,7 +1742,9 @@ export default function SwapTokenModal({ tokens }: { tokens: any[] }) {
       <Card className="w-full max-w-md p-4 rounded-2xl shadow-lg bg-white text-black">
         {/* Header with Settings */}
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-semibold text-center flex-1">Swap</h2>
+          <h2 className="text-lg font-semibold text-center flex-1">
+            Swap
+          </h2>
           <button
             onClick={() => setShowSlippageModal(true)}
             className="p-2 hover:bg-gray-100 rounded-full transition-colors"
@@ -1639,7 +1776,7 @@ export default function SwapTokenModal({ tokens }: { tokens: any[] }) {
               <div className="flex items-center gap-1">
                 <Info className="w-4 h-4 text-gray-400" />
                 <span className="text-sm text-gray-600">
-                  {slippage === 0.5 ? "Auto" : `${slippage}%`}
+                  {slippage === 0.5 ? 'Auto' : `${slippage}%`}
                 </span>
               </div>
             </div>
@@ -1649,8 +1786,8 @@ export default function SwapTokenModal({ tokens }: { tokens: any[] }) {
                 onClick={() => handleSlippageChange(0.1)}
                 className={`py-2 px-2 text-sm rounded-lg transition-all ${
                   slippage === 0.1 && !customSlippage
-                    ? "bg-black text-white"
-                    : "bg-white border border-gray-200 hover:bg-gray-100"
+                    ? 'bg-black text-white'
+                    : 'bg-white border border-gray-200 hover:bg-gray-100'
                 }`}
               >
                 0.1%
@@ -1659,8 +1796,8 @@ export default function SwapTokenModal({ tokens }: { tokens: any[] }) {
                 onClick={() => handleSlippageChange(0.5)}
                 className={`py-2 px-2 text-sm rounded-lg transition-all ${
                   slippage === 0.5 && !customSlippage
-                    ? "bg-black text-white"
-                    : "bg-white border border-gray-200 hover:bg-gray-100"
+                    ? 'bg-black text-white'
+                    : 'bg-white border border-gray-200 hover:bg-gray-100'
                 }`}
               >
                 Auto
@@ -1669,8 +1806,8 @@ export default function SwapTokenModal({ tokens }: { tokens: any[] }) {
                 onClick={() => handleSlippageChange(1.0)}
                 className={`py-2 px-2 text-sm rounded-lg transition-all ${
                   slippage === 1.0 && !customSlippage
-                    ? "bg-black text-white"
-                    : "bg-white border border-gray-200 hover:bg-gray-100"
+                    ? 'bg-black text-white'
+                    : 'bg-white border border-gray-200 hover:bg-gray-100'
                 }`}
               >
                 1%
@@ -1679,8 +1816,8 @@ export default function SwapTokenModal({ tokens }: { tokens: any[] }) {
                 onClick={() => handleSlippageChange(2.0)}
                 className={`py-2 px-2 text-sm rounded-lg transition-all ${
                   slippage === 2.0 && !customSlippage
-                    ? "bg-black text-white"
-                    : "bg-white border border-gray-200 hover:bg-gray-100"
+                    ? 'bg-black text-white'
+                    : 'bg-white border border-gray-200 hover:bg-gray-100'
                 }`}
               >
                 2%
@@ -1692,8 +1829,8 @@ export default function SwapTokenModal({ tokens }: { tokens: any[] }) {
                 onClick={() => handleSlippageChange(3.0)}
                 className={`py-2 px-2 text-sm rounded-lg transition-all ${
                   slippage === 3.0 && !customSlippage
-                    ? "bg-black text-white"
-                    : "bg-white border border-gray-200 hover:bg-gray-100"
+                    ? 'bg-black text-white'
+                    : 'bg-white border border-gray-200 hover:bg-gray-100'
                 }`}
               >
                 3%
@@ -1702,8 +1839,8 @@ export default function SwapTokenModal({ tokens }: { tokens: any[] }) {
                 onClick={() => handleSlippageChange(5.0)}
                 className={`py-2 px-2 text-sm rounded-lg transition-all ${
                   slippage === 5.0 && !customSlippage
-                    ? "bg-black text-white"
-                    : "bg-white border border-gray-200 hover:bg-gray-100"
+                    ? 'bg-black text-white'
+                    : 'bg-white border border-gray-200 hover:bg-gray-100'
                 }`}
               >
                 5%
@@ -1712,8 +1849,8 @@ export default function SwapTokenModal({ tokens }: { tokens: any[] }) {
                 onClick={() => handleSlippageChange(10.0)}
                 className={`py-2 px-2 text-sm rounded-lg transition-all ${
                   slippage === 10.0 && !customSlippage
-                    ? "bg-black text-white"
-                    : "bg-white border border-gray-200 hover:bg-gray-100"
+                    ? 'bg-black text-white'
+                    : 'bg-white border border-gray-200 hover:bg-gray-100'
                 }`}
               >
                 10%
@@ -1722,8 +1859,8 @@ export default function SwapTokenModal({ tokens }: { tokens: any[] }) {
                 onClick={() => handleSlippageChange(15.0)}
                 className={`py-2 px-2 text-sm rounded-lg transition-all ${
                   slippage === 15.0 && !customSlippage
-                    ? "bg-black text-white"
-                    : "bg-white border border-gray-200 hover:bg-gray-100"
+                    ? 'bg-black text-white'
+                    : 'bg-white border border-gray-200 hover:bg-gray-100'
                 }`}
               >
                 15%
@@ -1734,12 +1871,14 @@ export default function SwapTokenModal({ tokens }: { tokens: any[] }) {
               <input
                 type="number"
                 value={customSlippage}
-                onChange={(e) => handleCustomSlippageChange(e.target.value)}
+                onChange={(e) =>
+                  handleCustomSlippageChange(e.target.value)
+                }
                 placeholder="Custom slippage"
                 className={`w-full py-2 px-3 text-sm rounded-lg border transition-all ${
                   customSlippage
-                    ? "bg-black text-white border-black placeholder-gray-300"
-                    : "bg-white border-gray-200 placeholder-gray-400"
+                    ? 'bg-black text-white border-black placeholder-gray-300'
+                    : 'bg-white border-gray-200 placeholder-gray-400'
                 } focus:outline-none focus:ring-2 focus:ring-black focus:ring-opacity-20`}
                 step="0.01"
                 min="0.01"
@@ -1747,7 +1886,7 @@ export default function SwapTokenModal({ tokens }: { tokens: any[] }) {
               />
               <span
                 className={`absolute right-3 top-2 text-sm pointer-events-none ${
-                  customSlippage ? "text-gray-300" : "text-gray-400"
+                  customSlippage ? 'text-gray-300' : 'text-gray-400'
                 }`}
               >
                 %
@@ -1760,7 +1899,7 @@ export default function SwapTokenModal({ tokens }: { tokens: any[] }) {
         {payToken && receiveToken && (
           <div className="text-center mb-4">
             <span className="text-xs px-2 py-1 rounded-full bg-gray-100 text-gray-600">
-              {isSolanaToSolanaSwap() ? "Via Jupiter" : "Via Li.Fi"}
+              {isSolanaToSolanaSwap() ? 'Via Jupiter' : 'Via Li.Fi'}
             </span>
           </div>
         )}
@@ -1772,14 +1911,14 @@ export default function SwapTokenModal({ tokens }: { tokens: any[] }) {
               <span>You Pay</span>
               <span
                 className={`${
-                  !balanceValidation.isValid ? "text-red-500" : ""
+                  !balanceValidation.isValid ? 'text-red-500' : ''
                 }`}
               >
                 {payToken?.balance
                   ? `${parseFloat(payToken.balance).toFixed(4)} ${
                       payToken.symbol
                     }`
-                  : "0"}
+                  : '0'}
               </span>
             </div>
             <div className="flex items-center justify-between gap-3">
@@ -1793,9 +1932,9 @@ export default function SwapTokenModal({ tokens }: { tokens: any[] }) {
               />
               <button
                 onClick={() => {
-                  setSelecting("pay");
+                  setSelecting('pay');
                   setOpenDrawer(true);
-                  setSearchQuery("");
+                  setSearchQuery('');
                 }}
                 className="flex items-center gap-2 px-3 py-2 rounded-xl bg-white shadow-sm hover:bg-gray-100 transition-colors"
               >
@@ -1824,7 +1963,7 @@ export default function SwapTokenModal({ tokens }: { tokens: any[] }) {
                   </div>
                   <div className="flex items-center ml-2">
                     <span className="font-medium">
-                      {payToken ? payToken.symbol : "Select"}
+                      {payToken ? payToken.symbol : 'Select'}
                     </span>
                     <svg
                       xmlns="http://www.w3.org/2000/svg"
@@ -1846,11 +1985,13 @@ export default function SwapTokenModal({ tokens }: { tokens: any[] }) {
             </div>
 
             {/* USD Value */}
-            {payAmount && payToken && getQuoteInfo()?.fromAmountUSD && (
-              <div className="text-sm text-gray-500 mt-2">
-                ${getQuoteInfo()?.fromAmountUSD?.toFixed(2)}
-              </div>
-            )}
+            {payAmount &&
+              payToken &&
+              getQuoteInfo()?.fromAmountUSD && (
+                <div className="text-sm text-gray-500 mt-2">
+                  ${getQuoteInfo()?.fromAmountUSD?.toFixed(2)}
+                </div>
+              )}
 
             <div className="flex gap-2 mt-3">
               <Button
@@ -1893,8 +2034,8 @@ export default function SwapTokenModal({ tokens }: { tokens: any[] }) {
                       receiveToken.symbol
                     }`
                   : receiveToken
-                  ? "0"
-                  : ""}
+                  ? '0'
+                  : ''}
               </span>
             </div>
             <div className="flex items-center justify-between gap-3">
@@ -1903,16 +2044,16 @@ export default function SwapTokenModal({ tokens }: { tokens: any[] }) {
                   {isCalculating || isQuoteLoading ? (
                     <div className="animate-pulse bg-gray-200 h-8 w-32 rounded"></div>
                   ) : (
-                    receiveAmount || "0.00"
+                    receiveAmount || '0.00'
                   )}
                 </div>
               </div>
 
               <button
                 onClick={() => {
-                  setSelecting("receive");
+                  setSelecting('receive');
                   setOpenDrawer(true);
-                  setSearchQuery("");
+                  setSearchQuery('');
                 }}
                 className="flex items-center gap-2 px-3 py-2 rounded-xl bg-white shadow-sm hover:bg-gray-100 transition-colors"
               >
@@ -1931,27 +2072,27 @@ export default function SwapTokenModal({ tokens }: { tokens: any[] }) {
                       {(() => {
                         const chainName = (() => {
                           switch (receiverChainId) {
-                            case "1151111081099710":
-                              return "SOLANA";
-                            case "1":
-                              return "ETHEREUM";
-                            case "56":
-                              return "BSC";
-                            case "137":
-                              return "POLYGON";
-                            case "42161":
-                              return "ARBITRUM";
-                            case "8453":
-                              return "BASE";
+                            case '1151111081099710':
+                              return 'SOLANA';
+                            case '1':
+                              return 'ETHEREUM';
+                            case '56':
+                              return 'BSC';
+                            case '137':
+                              return 'POLYGON';
+                            case '42161':
+                              return 'ARBITRUM';
+                            case '8453':
+                              return 'BASE';
                             default:
-                              return receiveToken.chain || "SOLANA";
+                              return receiveToken.chain || 'SOLANA';
                           }
                         })();
 
                         return (
                           <div className="absolute -bottom-1 -right-1 bg-white rounded-full p-0.5 flex items-center justify-center w-4 h-4 border border-gray-200">
                             <Image
-                              src={getChainIcon(chainName) || ""}
+                              src={getChainIcon(chainName) || ''}
                               alt={chainName}
                               width={120}
                               height={120}
@@ -1963,7 +2104,9 @@ export default function SwapTokenModal({ tokens }: { tokens: any[] }) {
                       })()}
                     </div>
                     <div className="flex items-center ml-2">
-                      <span className="font-medium">{receiveToken.symbol}</span>
+                      <span className="font-medium">
+                        {receiveToken.symbol}
+                      </span>
                       <svg
                         xmlns="http://www.w3.org/2000/svg"
                         className="h-4 w-4 ml-1 text-gray-400"
@@ -2003,11 +2146,13 @@ export default function SwapTokenModal({ tokens }: { tokens: any[] }) {
             </div>
 
             {/* USD Value */}
-            {receiveAmount && receiveToken && getQuoteInfo()?.toAmountUSD && (
-              <div className="text-sm text-gray-500 mt-2">
-                ${getQuoteInfo()?.toAmountUSD?.toFixed(2)}
-              </div>
-            )}
+            {receiveAmount &&
+              receiveToken &&
+              getQuoteInfo()?.toAmountUSD && (
+                <div className="text-sm text-gray-500 mt-2">
+                  ${getQuoteInfo()?.toAmountUSD?.toFixed(2)}
+                </div>
+              )}
           </div>
 
           {/* Pricing Information - Phantom Style */}
@@ -2018,7 +2163,7 @@ export default function SwapTokenModal({ tokens }: { tokens: any[] }) {
               const quoteInfo = getQuoteInfo();
               const exchangeRate = quoteInfo?.exchangeRate;
 
-              console.log("quote info", quoteInfo);
+              console.log('quote info', quoteInfo);
 
               return (
                 exchangeRate && (
@@ -2030,13 +2175,13 @@ export default function SwapTokenModal({ tokens }: { tokens: any[] }) {
                         <Info className="w-4 h-4" />
                       </div>
                       <div className="text-right text-gray-900">
-                        1 {payToken.symbol} ≈{" "}
+                        1 {payToken.symbol} ≈{' '}
                         {exchangeRate < 0.000001
                           ? exchangeRate.toExponential(4)
                           : exchangeRate.toLocaleString(undefined, {
                               minimumFractionDigits: 2,
                               maximumFractionDigits: 8,
-                            })}{" "}
+                            })}{' '}
                         {receiveToken.symbol}
                       </div>
                     </div>
@@ -2048,7 +2193,9 @@ export default function SwapTokenModal({ tokens }: { tokens: any[] }) {
                         <Info className="w-4 h-4" />
                       </div>
                       <span className="text-gray-900">
-                        {customSlippage ? `${customSlippage}%` : `${slippage}%`}
+                        {customSlippage
+                          ? `${customSlippage}%`
+                          : `${slippage}%`}
                       </span>
                     </div>
 
@@ -2060,19 +2207,19 @@ export default function SwapTokenModal({ tokens }: { tokens: any[] }) {
                       </div>
                       <span className="text-gray-900">
                         {quoteInfo &&
-                        typeof quoteInfo?.priceImpact === "number" ? (
+                        typeof quoteInfo?.priceImpact === 'number' ? (
                           <span
                             className={
                               quoteInfo.priceImpact < -3
-                                ? "text-red-500"
-                                : "text-gray-900"
+                                ? 'text-red-500'
+                                : 'text-gray-900'
                             }
                           >
-                            {quoteInfo.priceImpact >= 0 ? "+" : ""}
+                            {quoteInfo.priceImpact >= 0 ? '+' : ''}
                             {quoteInfo.priceImpact.toFixed(2)}%
                           </span>
                         ) : (
-                          "-"
+                          '-'
                         )}
                       </span>
                     </div>
@@ -2084,7 +2231,7 @@ export default function SwapTokenModal({ tokens }: { tokens: any[] }) {
                         <Info className="w-4 h-4" />
                       </div>
                       <span className="text-gray-900">
-                        {isSolanaToSolanaSwap() ? "0.5%" : "0.5%"}
+                        {isSolanaToSolanaSwap() ? '0.5%' : '0.5%'}
                       </span>
                     </div>
 
@@ -2100,7 +2247,9 @@ export default function SwapTokenModal({ tokens }: { tokens: any[] }) {
             })()}
 
           {/* Error/Status Display */}
-          {(swapError || swapStatus || !balanceValidation.isValid) && (
+          {(swapError ||
+            swapStatus ||
+            !balanceValidation.isValid) && (
             <div className="p-3 rounded-lg bg-red-50 border border-red-200">
               {!balanceValidation.isValid && (
                 <div className="text-red-600 text-sm mb-2 text-center">
@@ -2128,14 +2277,14 @@ export default function SwapTokenModal({ tokens }: { tokens: any[] }) {
               {swapStatus && (
                 <div
                   className={`text-sm text-center flex items-center justify-center gap-2 ${
-                    swapStatus.includes("completed successfully") ||
-                    swapStatus.includes("Transaction confirmed")
-                      ? "text-green-600 bg-green-50 border-green-200"
-                      : "text-blue-600 bg-blue-50 border-blue-200"
+                    swapStatus.includes('completed successfully') ||
+                    swapStatus.includes('Transaction confirmed')
+                      ? 'text-green-600 bg-green-50 border-green-200'
+                      : 'text-blue-600 bg-blue-50 border-blue-200'
                   }`}
                 >
-                  {swapStatus.includes("completed successfully") ||
-                  swapStatus.includes("Transaction confirmed") ? (
+                  {swapStatus.includes('completed successfully') ||
+                  swapStatus.includes('Transaction confirmed') ? (
                     <svg
                       className="w-4 h-4"
                       fill="none"
@@ -2193,58 +2342,58 @@ export default function SwapTokenModal({ tokens }: { tokens: any[] }) {
           {/* Swap Button */}
           <Button
             onClick={
-              swapStatus === "Swap completed successfully!" ||
-              swapStatus?.includes("Transaction confirmed")
+              swapStatus === 'Swap completed successfully!' ||
+              swapStatus?.includes('Transaction confirmed')
                 ? () => {
                     setSwapStatus(null);
                     setSwapError(null);
                     setTxHash(null);
-                    setPayAmount("");
-                    setReceiveAmount("");
+                    setPayAmount('');
+                    setReceiveAmount('');
                     setLastQuoteTime(null);
                   }
                 : executeCrossChainSwap
             }
             className={`w-full py-4 font-semibold rounded-xl ${
-              swapStatus === "Swap completed successfully!" ||
-              swapStatus?.includes("Transaction confirmed")
-                ? "bg-green-600 hover:bg-green-700"
-                : "bg-black hover:bg-gray-800"
+              swapStatus === 'Swap completed successfully!' ||
+              swapStatus?.includes('Transaction confirmed')
+                ? 'bg-green-600 hover:bg-green-700'
+                : 'bg-black hover:bg-gray-800'
             } disabled:opacity-50 transition-colors`}
             disabled={
               isSwapping ||
               (!balanceValidation.isValid &&
                 !(
-                  swapStatus === "Swap completed successfully!" ||
-                  swapStatus?.includes("Transaction confirmed")
+                  swapStatus === 'Swap completed successfully!' ||
+                  swapStatus?.includes('Transaction confirmed')
                 )) ||
               (isSwapButtonLoading() &&
                 !(
-                  swapStatus === "Swap completed successfully!" ||
-                  swapStatus?.includes("Transaction confirmed")
+                  swapStatus === 'Swap completed successfully!' ||
+                  swapStatus?.includes('Transaction confirmed')
                 )) ||
               !payToken ||
               !receiveToken
             }
           >
-            {swapStatus === "Swap completed successfully!" ||
-            swapStatus?.includes("Transaction confirmed") ? (
-              "New Swap"
+            {swapStatus === 'Swap completed successfully!' ||
+            swapStatus?.includes('Transaction confirmed') ? (
+              'New Swap'
             ) : isSwapping ? (
-              "Swapping..."
+              'Swapping...'
             ) : !balanceValidation.isValid ? (
-              "Insufficient Balance"
+              'Insufficient Balance'
             ) : isSwapButtonLoading() ? (
               <div className="flex items-center justify-center gap-2">
                 <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-current"></div>
                 Getting Quote...
               </div>
             ) : !payAmount || !receiveAmount ? (
-              "Enter Amount"
+              'Enter Amount'
             ) : !receiveToken ? (
-              "Select Token"
+              'Select Token'
             ) : (
-              "Swap"
+              'Swap'
             )}
           </Button>
 
@@ -2256,7 +2405,7 @@ export default function SwapTokenModal({ tokens }: { tokens: any[] }) {
                   <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-black"></div>
                 </div>
                 <p className="text-center text-gray-700">
-                  {swapStatus || "Processing swap..."}
+                  {swapStatus || 'Processing swap...'}
                 </p>
               </div>
             </div>
@@ -2271,30 +2420,32 @@ export default function SwapTokenModal({ tokens }: { tokens: any[] }) {
             className="fixed inset-0 bg-black bg-opacity-50"
             onClick={() => {
               setOpenDrawer(false);
-              setSearchQuery("");
+              setSearchQuery('');
             }}
           />
           <div className="w-full max-w-[30rem] bg-white rounded-2xl shadow-lg p-6 max-h-[80vh] z-50 mx-4">
             <div className="mb-4">
               <p className="font-semibold text-lg mb-3">
-                {selecting === "pay"
-                  ? "Select Token to Pay"
-                  : "Select Token to Receive"}
+                {selecting === 'pay'
+                  ? 'Select Token to Pay'
+                  : 'Select Token to Receive'}
               </p>
 
               {/* Chain Selection Tabs - Show for both pay and receive tokens */}
               <div className="mb-4">
                 <div className="flex gap-2 mb-4">
-                  {selecting === "pay"
+                  {selecting === 'pay'
                     ? // Pay token chain selection
                       PAY_CHAINS.map((chain) => (
                         <button
                           key={chain.id}
-                          onClick={() => handlePayChainSelect(chain.id)}
+                          onClick={() =>
+                            handlePayChainSelect(chain.id)
+                          }
                           className={`flex items-center gap-2 px-3 py-2 rounded-lg border transition-all ${
                             selectedPayChain === chain.id
-                              ? "bg-black text-white border-black"
-                              : "bg-white border-gray-200 hover:bg-gray-100"
+                              ? 'bg-black text-white border-black'
+                              : 'bg-white border-gray-200 hover:bg-gray-100'
                           }`}
                         >
                           {chain.icon ? (
@@ -2323,11 +2474,13 @@ export default function SwapTokenModal({ tokens }: { tokens: any[] }) {
                       RECEIVER_CHAINS.map((chain) => (
                         <button
                           key={chain.id}
-                          onClick={() => handleReceiverChainSelect(chain.id)}
+                          onClick={() =>
+                            handleReceiverChainSelect(chain.id)
+                          }
                           className={`flex items-center gap-2 px-3 py-2 rounded-lg border transition-all ${
                             selectedReceiverChain === chain.id
-                              ? "bg-black text-white border-black"
-                              : "bg-white border-gray-200 hover:bg-gray-100"
+                              ? 'bg-black text-white border-black'
+                              : 'bg-white border-gray-200 hover:bg-gray-100'
                           }`}
                         >
                           <Image
@@ -2359,22 +2512,24 @@ export default function SwapTokenModal({ tokens }: { tokens: any[] }) {
               </div>
             ) : (
               <div className="space-y-0 overflow-y-auto max-h-[300px]">
-                {selecting === "pay" ? (
+                {selecting === 'pay' ? (
                   <>
                     {availableTokens
                       .filter((token: any) =>
-                        selecting === "pay"
+                        selecting === 'pay'
                           ? token.address !== receiveToken?.address
                           : token.address !== payToken?.address
                       )
                       .map((token: any) => (
                         <button
                           key={token.address}
-                          onClick={() => handleTokenSelect(token, selecting!)}
+                          onClick={() =>
+                            handleTokenSelect(token, selecting!)
+                          }
                           className="flex items-center gap-3 w-full px-3 py-3 rounded-lg hover:bg-gray-100 transition-colors"
                         >
                           <div className="relative w-8 h-8">
-                            {token.symbol === "SWOP" ? (
+                            {token.symbol === 'SWOP' ? (
                               <Image
                                 src={token.logoURI}
                                 alt={token.symbol}
@@ -2400,7 +2555,9 @@ export default function SwapTokenModal({ tokens }: { tokens: any[] }) {
                             {token.chain && (
                               <div className="absolute -bottom-1 -right-1 bg-white rounded-full p-0.5 flex items-center justify-center w-4 h-4 border border-gray-200">
                                 <Image
-                                  src={getChainIcon(token.chain) || ""}
+                                  src={
+                                    getChainIcon(token.chain) || ''
+                                  }
                                   alt={token.chain}
                                   width={120}
                                   height={120}
@@ -2412,7 +2569,9 @@ export default function SwapTokenModal({ tokens }: { tokens: any[] }) {
                           </div>
                           <div className="flex justify-between w-full items-center">
                             <div className="text-left">
-                              <p className="font-semibold">{token.symbol}</p>
+                              <p className="font-semibold">
+                                {token.symbol}
+                              </p>
                               <p className="text-xs text-gray-500">
                                 {token.name}
                               </p>
@@ -2430,18 +2589,20 @@ export default function SwapTokenModal({ tokens }: { tokens: any[] }) {
                   <>
                     {filteredReceivedTokens
                       .filter((token: any) =>
-                        selecting === "pay"
+                        selecting === 'pay'
                           ? token.address !== receiveToken?.address
                           : token.address !== payToken?.address
                       )
                       .map((token: any) => (
                         <button
                           key={token.address}
-                          onClick={() => handleTokenSelect(token, selecting!)}
+                          onClick={() =>
+                            handleTokenSelect(token, selecting!)
+                          }
                           className="flex items-center gap-3 w-full px-3 py-3 rounded-lg hover:bg-gray-100 transition-colors"
                         >
                           <div className="relative w-8 h-8">
-                            {token.symbol === "SWOP" ? (
+                            {token.symbol === 'SWOP' ? (
                               <Image
                                 src={token.logoURI}
                                 alt={token.symbol}
@@ -2467,7 +2628,9 @@ export default function SwapTokenModal({ tokens }: { tokens: any[] }) {
                             {token.chain && (
                               <div className="absolute -bottom-1 -right-1 bg-white rounded-full p-0.5 flex items-center justify-center w-4 h-4 border border-gray-200">
                                 <Image
-                                  src={getChainIcon(token.chain) || ""}
+                                  src={
+                                    getChainIcon(token.chain) || ''
+                                  }
                                   alt={token.chain}
                                   width={120}
                                   height={120}
@@ -2479,7 +2642,9 @@ export default function SwapTokenModal({ tokens }: { tokens: any[] }) {
                           </div>
                           <div className="flex justify-between w-full items-center">
                             <div className="text-left">
-                              <p className="font-semibold">{token.symbol}</p>
+                              <p className="font-semibold">
+                                {token.symbol}
+                              </p>
                               <p className="text-xs text-gray-500">
                                 {token.name}
                               </p>
@@ -2497,7 +2662,9 @@ export default function SwapTokenModal({ tokens }: { tokens: any[] }) {
 
                 {!isLoadingTokens && availableTokens.length === 0 && (
                   <div className="text-center py-8 text-gray-500">
-                    <div className="mb-2">No tokens found for this Chain</div>
+                    <div className="mb-2">
+                      No tokens found for this Chain
+                    </div>
                     <div className="text-xs">
                       Try adjusting your search or chain filter
                     </div>
@@ -2517,7 +2684,9 @@ export default function SwapTokenModal({ tokens }: { tokens: any[] }) {
             onClick={() => setShowSlippageModal(false)}
           />
           <div className="relative bg-white rounded-2xl p-6 w-full max-w-md mx-4 z-50">
-            <h3 className="text-lg font-semibold mb-4">Slippage Settings</h3>
+            <h3 className="text-lg font-semibold mb-4">
+              Slippage Settings
+            </h3>
 
             <div className="mb-4">
               <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -2529,12 +2698,12 @@ export default function SwapTokenModal({ tokens }: { tokens: any[] }) {
                 <button
                   onClick={() => {
                     setSlippage(0.1);
-                    setCustomSlippage("");
+                    setCustomSlippage('');
                   }}
                   className={`py-2 px-2 text-sm rounded-lg transition-all ${
                     slippage === 0.1 && !customSlippage
-                      ? "bg-purple-600 text-white"
-                      : "bg-gray-100 hover:bg-gray-200"
+                      ? 'bg-purple-600 text-white'
+                      : 'bg-gray-100 hover:bg-gray-200'
                   }`}
                 >
                   0.1%
@@ -2542,12 +2711,12 @@ export default function SwapTokenModal({ tokens }: { tokens: any[] }) {
                 <button
                   onClick={() => {
                     setSlippage(0.5);
-                    setCustomSlippage("");
+                    setCustomSlippage('');
                   }}
                   className={`py-2 px-2 text-sm rounded-lg transition-all ${
                     slippage === 0.5 && !customSlippage
-                      ? "bg-purple-600 text-white"
-                      : "bg-gray-100 hover:bg-gray-200"
+                      ? 'bg-purple-600 text-white'
+                      : 'bg-gray-100 hover:bg-gray-200'
                   }`}
                 >
                   0.5%
@@ -2555,12 +2724,12 @@ export default function SwapTokenModal({ tokens }: { tokens: any[] }) {
                 <button
                   onClick={() => {
                     setSlippage(1.0);
-                    setCustomSlippage("");
+                    setCustomSlippage('');
                   }}
                   className={`py-2 px-2 text-sm rounded-lg transition-all ${
                     slippage === 1.0 && !customSlippage
-                      ? "bg-purple-600 text-white"
-                      : "bg-gray-100 hover:bg-gray-200"
+                      ? 'bg-purple-600 text-white'
+                      : 'bg-gray-100 hover:bg-gray-200'
                   }`}
                 >
                   1.0%
@@ -2568,12 +2737,12 @@ export default function SwapTokenModal({ tokens }: { tokens: any[] }) {
                 <button
                   onClick={() => {
                     setSlippage(2.0);
-                    setCustomSlippage("");
+                    setCustomSlippage('');
                   }}
                   className={`py-2 px-2 text-sm rounded-lg transition-all ${
                     slippage === 2.0 && !customSlippage
-                      ? "bg-purple-600 text-white"
-                      : "bg-gray-100 hover:bg-gray-200"
+                      ? 'bg-purple-600 text-white'
+                      : 'bg-gray-100 hover:bg-gray-200'
                   }`}
                 >
                   2.0%
@@ -2589,7 +2758,11 @@ export default function SwapTokenModal({ tokens }: { tokens: any[] }) {
                     const value = e.target.value;
                     setCustomSlippage(value);
                     const numValue = parseFloat(value);
-                    if (!isNaN(numValue) && numValue >= 0.1 && numValue <= 50) {
+                    if (
+                      !isNaN(numValue) &&
+                      numValue >= 0.1 &&
+                      numValue <= 50
+                    ) {
                       setSlippage(numValue);
                     }
                   }}
@@ -2608,8 +2781,8 @@ export default function SwapTokenModal({ tokens }: { tokens: any[] }) {
             <div className="text-sm text-gray-600 mb-4">
               <p className="flex items-center gap-1">
                 <Info className="w-4 h-4" />
-                Your transaction will revert if the price changes unfavorably by
-                more than this percentage.
+                Your transaction will revert if the price changes
+                unfavorably by more than this percentage.
               </p>
             </div>
 
