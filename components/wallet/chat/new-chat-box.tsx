@@ -348,10 +348,10 @@ const NewChatBox: React.FC<NewChatBoxProps> = ({
         >
           {/* Message bubble */}
           <div
-            className={`group relative px-4 py-2 rounded-2xl break-words ${
+            className={`group relative px-3 py-2 max-w-full break-words shadow-sm ${
               isOwnMessage
-                ? 'bg-blue-500 text-white'
-                : 'bg-gray-100 text-gray-900 dark:bg-gray-700 dark:text-white'
+                ? 'bg-green-500 text-white rounded-lg rounded-br-sm'
+                : 'bg-white text-gray-900 border border-gray-200 rounded-lg rounded-bl-sm'
             }`}
           >
             {isEditing ? (
@@ -491,7 +491,7 @@ const NewChatBox: React.FC<NewChatBoxProps> = ({
         <>
           {/* Messages area */}
           <div
-            className="flex-1 overflow-y-auto bg-gray-50/30 dark:bg-gray-900/30 px-4"
+            className="flex-1 overflow-y-auto bg-gray-50/50 px-4"
             style={{ height: 'calc(100vh - 300px)' }}
           >
             {conversationMessages.length === 0 ? (
@@ -548,7 +548,7 @@ const NewChatBox: React.FC<NewChatBoxProps> = ({
                   onChange={handleInputChange}
                   onKeyDown={handleKeyDown}
                   placeholder="Type a message..."
-                  className="w-full border border-gray-200 dark:border-gray-600 rounded-2xl px-4 py-3 pr-12 resize-none focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-gray-50 dark:bg-gray-700 placeholder:text-gray-500 text-sm max-h-[120px] overflow-hidden"
+                  className="w-full border-0 bg-white rounded-3xl px-4 py-3 pr-12 resize-none focus:outline-none focus:ring-2 focus:ring-green-500 shadow-sm placeholder:text-gray-400 text-sm max-h-[120px] overflow-hidden"
                   rows={1}
                   style={{
                     minHeight: '44px',
@@ -559,7 +559,7 @@ const NewChatBox: React.FC<NewChatBoxProps> = ({
                   size="icon"
                   onClick={handleSendMessage}
                   disabled={!newMessage.trim() || isSending}
-                  className="absolute right-2 bottom-2 h-8 w-8 rounded-full"
+                  className="absolute right-2 bottom-2 h-8 w-8 rounded-full bg-green-500 hover:bg-green-600 border-0 shadow-sm"
                 >
                   {isSending ? (
                     <Loader className="h-4 w-4 animate-spin" />

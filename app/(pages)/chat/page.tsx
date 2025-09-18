@@ -26,6 +26,7 @@ import { useSearchParams, useRouter } from 'next/navigation';
 import WalletManager from '@/components/wallet/wallet-manager';
 import { useNewSocketChat } from '@/lib/context/NewSocketChatContext';
 import NewChatBox from '@/components/wallet/chat/new-chat-box';
+import GroupChatBox from '@/components/wallet/chat/group-chat-box';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useToast } from '@/hooks/use-toast';
 import { resolveEnsToUserId } from '@/lib/api/ensResolver';
@@ -46,9 +47,18 @@ const ChatPageContent = () => {
     loading: socketLoading,
     error: socketError,
     conversations,
+    groups,
     refreshConversations,
+    refreshGroups,
     searchContacts,
     getConversations,
+    getUserGroups,
+    createGroup,
+    selectGroup,
+    currentChatType,
+    currentGroupId,
+    currentGroupInfo,
+    isInGroupWithBots,
   } = useNewSocketChat(); // get socket data
 
   const { user: PrivyUser } = usePrivy();
@@ -57,6 +67,7 @@ const ChatPageContent = () => {
   const { toast } = useToast();
 
   console.log('conversations', conversations);
+  console.log('groups', groups);
 
   const [walletData, setWalletData] = useState<WalletItem[] | null>(
     null
@@ -133,6 +144,15 @@ const ChatPageContent = () => {
         await refreshConversations();
       }
 
+      // Also load groups
+      const groupsResult = await getUserGroups(1, 20);
+      if (groupsResult.success) {
+        console.log('🔄 [ChatPage] Groups loaded via new method');
+      } else {
+        // Fallback to original method
+        await refreshGroups();
+      }
+
       toast({
         title: 'Success',
         description: 'Chat connection refreshed successfully!',
@@ -148,30 +168,72 @@ const ChatPageContent = () => {
     }
   };
 
-  // Filter conversations based on search
-  const filteredConversations = useMemo(() => {
-    if (!searchQuery.trim()) return conversations;
+  // Combine and filter conversations and groups based on search
+  const combinedChats = useMemo(() => {
+    // Combine conversations and groups into a unified list
+    const allItems: Array<{
+      type: 'direct' | 'group';
+      data: any;
+      lastActivity: Date;
+    }> = [];
 
-    return conversations.filter((conv) => {
-      const participant = conv.participant || conv.participants?.[0];
-      const name = participant?.name || conv.title || '';
-      const email = participant?.email || '';
-      const micrositeName = conv.microsite?.name || '';
-      const micrositeUsername = conv.microsite?.username || '';
-      const micrositeEns = conv.microsite?.ens || '';
-
-      const query = searchQuery.toLowerCase();
-      return (
-        name.toLowerCase().includes(query) ||
-        email.toLowerCase().includes(query) ||
-        micrositeName.toLowerCase().includes(query) ||
-        micrositeUsername.toLowerCase().includes(query) ||
-        micrositeEns.toLowerCase().includes(query)
-      );
+    // Add conversations
+    conversations.forEach(c => {
+      allItems.push({
+        type: 'direct',
+        data: c,
+        lastActivity: c.lastMessage?.createdAt ? new Date(c.lastMessage.createdAt) : new Date(0)
+      });
     });
-  }, [conversations, searchQuery]);
 
-  console.log('filteredConversations', filteredConversations);
+    // Add groups
+    groups.forEach(g => {
+      allItems.push({
+        type: 'group',
+        data: g,
+        lastActivity: g.lastMessage?.createdAt ? new Date(g.lastMessage.createdAt) : new Date(0)
+      });
+    });
+
+    // Sort by last activity (most recent first)
+    allItems.sort((a, b) => b.lastActivity.getTime() - a.lastActivity.getTime());
+
+    return allItems;
+  }, [conversations, groups]);
+
+  const filteredChats = useMemo(() => {
+    if (!searchQuery.trim()) return combinedChats;
+
+    return combinedChats.filter((item) => {
+      if (item.type === 'direct') {
+        const conv = item.data;
+        const participant = conv.participant || conv.participants?.[0];
+        const name = participant?.name || conv.title || '';
+        const email = participant?.email || '';
+        const micrositeName = conv.microsite?.name || '';
+        const micrositeUsername = conv.microsite?.username || '';
+        const micrositeEns = conv.microsite?.ens || '';
+
+        const query = searchQuery.toLowerCase();
+        return (
+          name.toLowerCase().includes(query) ||
+          email.toLowerCase().includes(query) ||
+          micrositeName.toLowerCase().includes(query) ||
+          micrositeUsername.toLowerCase().includes(query) ||
+          micrositeEns.toLowerCase().includes(query)
+        );
+      } else {
+        const group = item.data;
+        const query = searchQuery.toLowerCase();
+        return (
+          group.name.toLowerCase().includes(query) ||
+          (group.description && group.description.toLowerCase().includes(query))
+        );
+      }
+    });
+  }, [combinedChats, searchQuery]);
+
+  console.log('filteredChats', filteredChats);
 
   // Initialize wallet data from Privy user
   useEffect(() => {
@@ -484,6 +546,40 @@ const ChatPageContent = () => {
     await handleSelectConversation(userIdentifier, conversationData);
   };
 
+  const handleGroupClick = async (group: any) => {
+    console.log('🔍 Selecting group:', group);
+
+    try {
+      setChangeConversationLoading(true);
+
+      // Set group as selected using context method
+      selectGroup(group);
+
+      // Update microsite data for group chat header
+      setMicrositeData({
+        name: group.name,
+        ethAddress: group._id,
+        bio: group.description || `Group with ${group.participants?.length || 0} members`,
+        ens: '',
+        profilePic: '',
+        profileUrl: '',
+      });
+
+      setSelectedConversationId(group._id);
+      setSelectedRecipientId(null); // Clear direct recipient for group chat
+
+    } catch (error) {
+      console.error('❌ [ChatPage] Error selecting group:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to select group',
+        variant: 'destructive',
+      });
+    } finally {
+      setChangeConversationLoading(false);
+    }
+  };
+
   const handleBackToWallet = () => {
     router.push('/wallet');
   };
@@ -493,7 +589,7 @@ const ChatPageContent = () => {
       <div className="flex gap-7 items-start h-full">
         <div
           style={{ height: 'calc(100vh - 150px)' }}
-          className="w-[62%] bg-white rounded-xl relative"
+          className="w-[62%] bg-white rounded-xl relative shadow-sm border border-gray-100"
         >
           {socketLoading ? (
             <div className="w-full h-full flex items-center justify-center">
@@ -534,65 +630,79 @@ const ChatPageContent = () => {
             </div>
           ) : (
             <div className="w-full overflow-x-hidden h-full">
-              {/* Show back button if a chat is selected */}
+              {/* WhatsApp-style chat header */}
               {micrositeData && (
-                <div className="flex items-center gap-3 justify-between border rounded-xl border-gray-300 bg-white px-4 py-2 sticky top-0 left-0 mb-2 shadow-sm">
+                <div className="flex items-center gap-3 justify-between border-b border-gray-200 bg-white px-4 py-3 sticky top-0 left-0 z-10 shadow-sm">
                   <div className="flex items-center flex-1 gap-3">
                     <button
                       onClick={handleBackToWallet}
-                      className="w-10 h-10 rounded-full flex items-center justify-center bg-gray-100 hover:bg-gray-200 transition-colors"
+                      className="w-9 h-9 rounded-full flex items-center justify-center bg-transparent hover:bg-gray-100 transition-colors"
                       title="Back to Wallet"
                     >
-                      <ArrowLeft className="w-5 h-5" />
+                      <ArrowLeft className="w-5 h-5 text-gray-600" />
                     </button>
                     {micrositeData && (
                       <>
-                        <Avatar>
-                          <AvatarImage
-                            src={getAvatarSrc(
-                              micrositeData.profilePic
-                            )}
-                            alt={`${micrositeData.name}'s avatar`}
-                          />
-                          <AvatarFallback>
-                            {micrositeData.name?.slice(0, 2) || 'AN'}
-                          </AvatarFallback>
-                        </Avatar>
-                        <div>
-                          <h1 className="font-bold">
+                        <div className="relative">
+                          <Avatar className="h-10 w-10">
+                            <AvatarImage
+                              src={getAvatarSrc(
+                                micrositeData.profilePic
+                              )}
+                              alt={`${micrositeData.name}'s avatar`}
+                            />
+                            <AvatarFallback className="bg-blue-500 text-white font-medium">
+                              {micrositeData.name?.slice(0, 2) || 'AN'}
+                            </AvatarFallback>
+                          </Avatar>
+                          {currentChatType === 'group' && isInGroupWithBots && (
+                            <div className="absolute -top-1 -right-1 bg-blue-500 text-white rounded-full w-4 h-4 flex items-center justify-center text-xs">
+                              🤖
+                            </div>
+                          )}
+                        </div>
+                        <div className="flex-1">
+                          <h1 className="font-semibold text-gray-900 leading-tight">
                             {micrositeData.name}
                           </h1>
-                          <p className="text-gray-500 text-xs font-medium">
-                            {micrositeData.ens}
+                          <p className="text-green-600 text-xs font-medium">
+                            {currentChatType === 'group'
+                              ? `${currentGroupInfo?.participants?.length || 0} members`
+                              : micrositeData.ens || 'online'
+                            }
                           </p>
                         </div>
                       </>
                     )}
                   </div>
                   {micrositeData && (
-                    <div className="flex gap-2">
+                    <div className="flex gap-1">
                       <button
                         onClick={() => setIsWalletManagerOpen(true)}
-                        className="w-10 h-10 rounded-full flex items-center justify-center bg-gray-100 hover:bg-gray-200 transition-colors"
+                        className="w-9 h-9 rounded-full flex items-center justify-center bg-transparent hover:bg-gray-100 transition-colors"
+                        title="Wallet Manager"
                       >
-                        <Wallet className="w-5 h-5" />
+                        <Wallet className="w-5 h-5 text-gray-600" />
                       </button>
-                      <Link
-                        href={
-                          micrositeData.profileUrl ||
-                          `/${micrositeData.ens}`
-                        }
-                        target="_blank"
-                        className="w-10 h-10 rounded-full flex items-center justify-center bg-gray-100 hover:bg-gray-200 transition-colors"
-                      >
-                        <BookUser className="w-5 h-5" />
-                      </Link>
+                      {currentChatType !== 'group' && (
+                        <Link
+                          href={
+                            micrositeData.profileUrl ||
+                            `/${micrositeData.ens}`
+                          }
+                          target="_blank"
+                          className="w-9 h-9 rounded-full flex items-center justify-center bg-transparent hover:bg-gray-100 transition-colors"
+                          title="View Profile"
+                        >
+                          <BookUser className="w-5 h-5 text-gray-600" />
+                        </Link>
+                      )}
                     </div>
                   )}
                 </div>
               )}
 
-              <div className="h-[calc(100vh-200px)]">
+              <div className="h-[calc(100vh-200px)] bg-gray-50/30">
                 {changeConversationLoading ? (
                   <div className="w-full h-full flex items-center justify-center">
                     <div className="text-center">
@@ -618,40 +728,59 @@ const ChatPageContent = () => {
                       )}
                     </div>
                   </div>
-                ) : isConnected &&
-                  selectedConversationId &&
-                  selectedRecipientId ? (
-                  <NewChatBox
-                    conversationId={selectedConversationId}
-                    receiverId={selectedRecipientId}
-                  />
+                ) : isConnected && selectedConversationId ? (
+                  currentChatType === 'group' && currentGroupId ? (
+                    <GroupChatBox groupId={currentGroupId} />
+                  ) : selectedRecipientId ? (
+                    <NewChatBox
+                      conversationId={selectedConversationId}
+                      receiverId={selectedRecipientId}
+                    />
+                  ) : null
                 ) : null}
               </div>
             </div>
           )}
         </div>
 
-        <div className="w-[38%] bg-white rounded-xl px-4 py-4 flex gap-3 flex-col">
-          <div className="w-full">
-            <div className="flex items-center gap-1 mb-4 px-3 py-2 bg-gray-100 rounded-lg">
-              <MessageSquare size={16} />
-              <span className="font-medium">Direct Messages</span>
+        <div className="w-[38%] bg-white rounded-xl shadow-sm border border-gray-100 flex flex-col">
+          <div className="flex flex-col h-full">
+            {/* WhatsApp-style sidebar header */}
+            <div className="flex items-center justify-between px-4 py-4 border-b border-gray-200">
+              <h2 className="text-xl font-semibold text-gray-900">Chats</h2>
+              <button
+                onClick={() => {
+                  toast({
+                    title: 'Create Group',
+                    description: 'Group creation feature coming soon!',
+                  });
+                }}
+                className="w-9 h-9 rounded-full flex items-center justify-center bg-green-500 hover:bg-green-600 transition-colors text-white"
+                title="New Group"
+              >
+                ➕
+              </button>
             </div>
+
+            {/* Search bar */}
+            <div className="px-4 py-3">
               <div className="relative">
                 <Search
-                  className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-600"
-                  size={18}
+                  className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500"
+                  size={16}
                 />
                 <input
                   type="text"
                   value={searchQuery}
                   onChange={handleSearchInputChange}
-                  placeholder="Search users by username..."
-                  className="w-full border border-[#ede8e8] focus:border-[#e5e0e0] rounded-lg focus:outline-none pl-10 py-2 text-gray-700 bg-gray-50 hover:bg-gray-100 transition-colors"
+                  placeholder="Search or start new chat"
+                  className="w-full border-0 bg-gray-100 rounded-full focus:outline-none pl-10 pr-4 py-2.5 text-sm text-gray-700 placeholder:text-gray-500 focus:bg-white focus:ring-2 focus:ring-green-500 transition-all"
                 />
               </div>
+            </div>
 
-              <div className="h-[calc(100vh-300px)] overflow-y-auto mt-4">
+            {/* Chat list */}
+            <div className="flex-1 overflow-y-auto">
                 {isSearchLoading && (
                   <div className="space-y-2">
                     {[...Array(3)].map((_, i) => (
@@ -672,7 +801,7 @@ const ChatPageContent = () => {
                 {/* Show server search results */}
                 {searchResults.length > 0 && (
                   <div className="mb-2">
-                    <div className="text-xs text-gray-400 px-3 py-1 border-b">
+                    <div className="text-xs text-gray-500 px-4 py-2 bg-gray-50 font-medium">
                       Search Results
                     </div>
                     {searchResults.map((user) => (
@@ -707,7 +836,9 @@ const ChatPageContent = () => {
                 {/* Show fallback search result as new conversation option (if exists and not already in conversations) */}
                 {searchResult &&
                   searchResults.length === 0 &&
-                  !filteredConversations.some((conv) => {
+                  !filteredChats.some((item) => {
+                    if (item.type !== 'direct') return false;
+                    const conv = item.data;
                     const participant =
                       conv.participant || conv.participants?.[0];
                     const id =
@@ -723,7 +854,7 @@ const ChatPageContent = () => {
                     );
                   }) && (
                     <div className="mb-2">
-                      <div className="text-xs text-gray-400 px-3 py-1 border-b">
+                      <div className="text-xs text-gray-500 px-4 py-2 bg-gray-50 font-medium">
                         New Conversation
                       </div>
                       <MessageList
@@ -741,45 +872,67 @@ const ChatPageContent = () => {
                     </div>
                   )}
 
-                {/* Show existing conversations */}
-                {filteredConversations.length > 0 && (
+                {/* Show existing conversations and groups */}
+                {filteredChats.length > 0 && (
                   <div className="mb-2">
                     {searchQuery.trim() && (
-                      <div className="text-xs text-gray-400 px-3 py-1 border-b">
-                        Existing Conversations
+                      <div className="text-xs text-gray-500 px-4 py-2 bg-gray-50 font-medium">
+                        Recent Chats
                       </div>
                     )}
-                    {filteredConversations.map((conv) => {
-                      const participant =
-                        conv.participant || conv.participants?.[0];
-                      const displayName =
-                        participant?.name ||
-                        conv.microsite?.name ||
-                        conv.title ||
-                        'Unknown';
-                      const lastMessage =
-                        conv.lastMessage?.message ||
-                        'No messages yet';
-                      const profilePic =
-                        participant?.profilePic ||
-                        conv.microsite?.profilePic ||
-                        '';
-                      const userIdentifier =
-                        participant?._id ||
-                        conv.microsite?.parentId ||
-                        conv._id;
+                    {filteredChats.map((item, index) => {
+                      if (item.type === 'direct') {
+                        const conv = item.data;
+                        const participant =
+                          conv.participant || conv.participants?.[0];
+                        const displayName =
+                          participant?.name ||
+                          conv.microsite?.name ||
+                          conv.title ||
+                          'Unknown';
+                        const lastMessage =
+                          conv.lastMessage?.message ||
+                          'No messages yet';
+                        const profilePic =
+                          participant?.profilePic ||
+                          conv.microsite?.profilePic ||
+                          '';
+                        const userIdentifier =
+                          participant?._id ||
+                          conv.microsite?.parentId ||
+                          conv._id;
 
-                      return (
-                        <MessageList
-                          key={conv._id}
-                          bio={lastMessage}
-                          name={displayName}
-                          profilePic={profilePic}
-                          ethAddress={userIdentifier}
-                          handleWalletClick={handleWalletClick}
-                          conversationData={conv}
-                        />
-                      );
+                        return (
+                          <MessageList
+                            key={`direct-${conv._id}`}
+                            bio={lastMessage}
+                            name={displayName}
+                            profilePic={profilePic}
+                            ethAddress={userIdentifier}
+                            handleWalletClick={handleWalletClick}
+                            conversationData={conv}
+                          />
+                        );
+                      } else {
+                        const group = item.data;
+                        const memberCount = group.participants?.length || 0;
+                        const hasBot = group.botUsers && group.botUsers.length > 0;
+                        const lastMessage = group.lastMessage
+                          ? `${group.lastMessage.sender?.name || 'Someone'}: ${group.lastMessage.message}`
+                          : 'No messages yet';
+
+                        return (
+                          <GroupList
+                            key={`group-${group._id}`}
+                            group={group}
+                            memberCount={memberCount}
+                            hasBot={hasBot}
+                            lastMessage={lastMessage}
+                            handleGroupClick={handleGroupClick}
+                            isSelected={currentGroupId === group._id}
+                          />
+                        );
+                      }
                     })}
                   </div>
                 )}
@@ -787,15 +940,14 @@ const ChatPageContent = () => {
                 {/* Show message when no results found */}
                 {!searchResult &&
                   searchResults.length === 0 &&
-                  filteredConversations.length === 0 &&
+                  filteredChats.length === 0 &&
                   searchQuery.trim() &&
                   !isSearchLoading && (
-                    <div className="flex items-center justify-center h-32 text-gray-500">
+                    <div className="flex items-center justify-center h-32 text-gray-500 px-4">
                       <div className="text-center">
-                        <p>No users found</p>
-                        <p className="text-sm text-gray-400">
-                          Try searching by username, ENS name, or
-                          Ethereum address
+                        <p className="text-sm">No chats found</p>
+                        <p className="text-xs text-gray-400 mt-1">
+                          Try searching by username, group name, or ENS
                         </p>
                       </div>
                     </div>
@@ -803,17 +955,17 @@ const ChatPageContent = () => {
 
                 {/* Show message when no conversations exist and no search */}
                 {!searchQuery.trim() &&
-                  filteredConversations.length === 0 && (
-                    <div className="flex items-center justify-center h-32 text-gray-500">
+                  filteredChats.length === 0 && (
+                    <div className="flex items-center justify-center h-32 text-gray-500 px-4">
                       <div className="text-center">
-                        <p>No conversations yet</p>
-                        <p className="text-sm text-gray-400">
-                          Search for an address to start chatting
+                        <p className="text-sm">No chats yet</p>
+                        <p className="text-xs text-gray-400 mt-1">
+                          Search for a user to start chatting
                         </p>
                       </div>
                     </div>
                   )}
-              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -887,34 +1039,106 @@ const MessageList = ({
   return (
     <div
       onClick={() => handleWalletClick(ethAddress, conversationData)}
-      className="text-black flex items-center justify-between p-3 rounded-lg cursor-pointer border hover:bg-gray-50 transition-colors mb-2"
+      className="text-black flex items-center justify-between px-4 py-3 cursor-pointer hover:bg-gray-50 transition-colors border-b border-gray-100/50 last:border-b-0"
     >
-      <div className="flex items-center gap-3">
-        <Avatar>
-          <AvatarImage
-            src={getAvatarSrc(profilePic)}
-            alt={`${resolvedName}'s avatar`}
-          />
-          <AvatarFallback>
-            {resolvedName?.slice(0, 2) || 'AN'}
-          </AvatarFallback>
-        </Avatar>
-        <div>
-          <p className="font-semibold">
-            {isResolving ? (
-              <span className="text-gray-400">Resolving...</span>
-            ) : (
-              resolvedName
-            )}
-          </p>
+      <div className="flex items-center gap-3 flex-1">
+        <div className="relative">
+          <Avatar className="h-12 w-12">
+            <AvatarImage
+              src={getAvatarSrc(profilePic)}
+              alt={`${resolvedName}'s avatar`}
+            />
+            <AvatarFallback className="bg-gray-300 text-gray-700 font-medium">
+              {resolvedName?.slice(0, 2) || 'AN'}
+            </AvatarFallback>
+          </Avatar>
+        </div>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center justify-between">
+            <p className="font-medium text-gray-900 truncate">
+              {isResolving ? (
+                <span className="text-gray-400">Resolving...</span>
+              ) : (
+                resolvedName
+              )}
+            </p>
+            <span className="text-xs text-gray-500 ml-2">12:34</span>
+          </div>
           {bio && (
-            <p className="text-sm text-gray-500 line-clamp-1">
+            <p className="text-sm text-gray-500 truncate mt-0.5">
               {bio === 'No messages yet' ||
               bio === 'Start a conversation'
-                ? 'No messages yet'
+                ? 'Tap to start chatting'
                 : bio}
             </p>
           )}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const GroupList = ({
+  group,
+  memberCount,
+  hasBot,
+  lastMessage,
+  handleGroupClick,
+  isSelected = false,
+}: {
+  group: any;
+  memberCount: number;
+  hasBot: boolean;
+  lastMessage: string;
+  handleGroupClick: (group: any) => Promise<void>;
+  isSelected?: boolean;
+}) => {
+  // Generate group avatar color
+  const groupColors = ['#ff9800', '#9c27b0', '#e91e63', '#f44336', '#ff5722', '#795548', '#607d8b'];
+  const colorIndex = group.name.charCodeAt(0) % groupColors.length;
+  const groupBgColor = groupColors[colorIndex];
+
+  return (
+    <div
+      onClick={() => handleGroupClick(group)}
+      className={`text-black flex items-center justify-between px-4 py-3 cursor-pointer transition-colors border-b border-gray-100/50 last:border-b-0 ${
+        isSelected ? 'bg-green-50 border-l-4 border-l-green-500' : 'hover:bg-gray-50'
+      }`}
+    >
+      <div className="flex items-center gap-3 flex-1">
+        <div className="relative">
+          <div
+            style={{ backgroundColor: groupBgColor }}
+            className="w-12 h-12 rounded-full flex items-center justify-center text-white font-semibold text-lg"
+          >
+            👥
+          </div>
+          {hasBot && (
+            <div className="absolute -top-1 -right-1 bg-blue-500 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs">
+              🤖
+            </div>
+          )}
+          {group.settings?.isPublic && (
+            <div className="absolute bottom-0 right-0 w-4 h-4 rounded-full border-2 border-white bg-orange-400 flex items-center justify-center">
+              <span className="text-xs">🌍</span>
+            </div>
+          )}
+        </div>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2 flex-1">
+              <p className="font-medium text-gray-900 truncate">{group.name}</p>
+              {hasBot && (
+                <span className="text-xs bg-blue-100 text-blue-600 px-1.5 py-0.5 rounded">
+                  Bot
+                </span>
+              )}
+            </div>
+            <span className="text-xs text-gray-500 ml-2">12:34</span>
+          </div>
+          <p className="text-sm text-gray-500 truncate mt-0.5">
+            {memberCount} members • {lastMessage === 'No messages yet' ? 'Tap to start chatting' : lastMessage}
+          </p>
         </div>
       </div>
     </div>

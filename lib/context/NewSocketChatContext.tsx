@@ -93,6 +93,78 @@ export interface Conversation {
   unreadCount: number;
 }
 
+export interface GroupChat {
+  _id: string;
+  name: string;
+  description?: string;
+  participants: Array<{
+    userId: {
+      _id: string;
+      name: string;
+      username?: string;
+      profilePic?: string;
+      email: string;
+    };
+    role: 'admin' | 'member';
+    joinedAt: Date;
+  }>;
+  botUsers?: Array<{
+    botId: string;
+    name: string;
+    permissions: {
+      canExecuteCommands: boolean;
+      canReadMessages: boolean;
+    };
+    addedAt: Date;
+  }>;
+  settings: {
+    isPublic: boolean;
+    allowMemberInvite: boolean;
+    allowFileShare: boolean;
+  };
+  lastMessage?: {
+    _id: string;
+    message: string;
+    sender: {
+      _id: string;
+      name: string;
+      isBot?: boolean;
+    };
+    createdAt: Date;
+  };
+  activeMembers?: number;
+  createdBy: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface GroupMessage {
+  _id: string;
+  groupId: string;
+  sender: {
+    _id: string;
+    name: string;
+    username?: string;
+    profilePic?: string;
+    isBot?: boolean;
+  };
+  message: string;
+  messageType: 'text' | 'image' | 'file';
+  fileUrl?: string;
+  fileName?: string;
+  fileSize?: number;
+  isDeleted: boolean;
+  deletedAt?: Date;
+  editedAt?: Date;
+  replyTo?: {
+    _id: string;
+    message: string;
+    sender: string;
+  };
+  createdAt: Date;
+  updatedAt: Date;
+}
+
 export interface SearchContact {
   userId: string;
   displayName: string;
@@ -116,14 +188,22 @@ interface SocketChatContextType {
   isConnected: boolean;
   loading: boolean;
   error: Error | null;
-  
+
   // Chat data
   conversations: Conversation[];
+  groups: GroupChat[];
   messages: Record<string, ChatMessage[]>;
+  groupMessages: Record<string, GroupMessage[]>;
   unreadCount: number;
   userPresence: Record<string, { status: string; lastSeen?: Date }>;
-  
-  // Chat methods
+
+  // Chat type state
+  currentChatType: 'direct' | 'group';
+  currentGroupId: string | null;
+  currentGroupInfo: GroupChat | null;
+  isInGroupWithBots: boolean;
+
+  // Direct chat methods
   sendMessage: (receiverId: string, message: string, messageType?: string, attachments?: any) => Promise<boolean>;
   getConversation: (receiverId: string, page?: number, limit?: number) => Promise<{ success: boolean; data?: any; error?: string }>;
   getConversations: (page?: number, limit?: number) => Promise<{ success: boolean; data?: any; error?: string }>;
@@ -133,14 +213,33 @@ interface SocketChatContextType {
   searchContacts: (query: string, limit?: number) => Promise<{ success: boolean; results?: SearchContact[]; error?: string }>;
   blockUser: (userId: string) => Promise<boolean>;
   unblockUser: (userId: string) => Promise<boolean>;
-  
+
+  // Group chat methods
+  createGroup: (groupData: { name: string; description?: string; isPublic: boolean; members?: string[] }) => Promise<{ success: boolean; group?: GroupChat; error?: string }>;
+  getUserGroups: (page?: number, limit?: number) => Promise<{ success: boolean; groups?: GroupChat[]; error?: string }>;
+  joinGroup: (groupId: string) => Promise<{ success: boolean; error?: string }>;
+  leaveGroup: (groupId: string) => Promise<{ success: boolean; error?: string }>;
+  sendGroupMessage: (groupId: string, message: string, messageType?: string, attachments?: any) => Promise<boolean>;
+  getGroupHistory: (groupId: string, page?: number, limit?: number) => Promise<{ success: boolean; data?: any; error?: string }>;
+  addGroupMember: (groupId: string, userIdToAdd: string, role?: string) => Promise<{ success: boolean; error?: string }>;
+  removeGroupMember: (groupId: string, userIdToRemove: string) => Promise<{ success: boolean; error?: string }>;
+  updateGroup: (groupId: string, updateData: { name?: string; description?: string }) => Promise<{ success: boolean; error?: string }>;
+  deleteGroup: (groupId: string) => Promise<{ success: boolean; error?: string }>;
+  searchGroups: (query: string, limit?: number) => Promise<{ success: boolean; groups?: GroupChat[]; error?: string }>;
+
+  // Bot commands
+  sendBotCommand: (command: string, parameters: string, groupId: string, botId?: string) => Promise<{ success: boolean; error?: string }>;
+  addGroupBot: (groupId: string, botId: string, permissions: any) => Promise<{ success: boolean; error?: string }>;
+
   // Typing indicators
   startTyping: (receiverId: string) => void;
   stopTyping: (receiverId: string) => void;
-  
+
   // Utility methods
   refreshConversations: () => Promise<void>;
+  refreshGroups: () => Promise<void>;
   joinConversation: (receiverId: string) => Promise<{ success: boolean; error?: string }>;
+  selectGroup: (group: GroupChat) => void;
   connect: () => void;
   disconnect: () => void;
 }
@@ -164,9 +263,17 @@ export const SocketChatProvider = ({ children }: SocketChatProviderProps) => {
   
   // Chat data
   const [conversations, setConversations] = useState<Conversation[]>([]);
+  const [groups, setGroups] = useState<GroupChat[]>([]);
   const [messages, setMessages] = useState<Record<string, ChatMessage[]>>({});
+  const [groupMessages, setGroupMessages] = useState<Record<string, GroupMessage[]>>({});
   const [unreadCount, setUnreadCount] = useState(0);
   const [userPresence, setUserPresence] = useState<Record<string, { status: string; lastSeen?: Date }>>({});
+
+  // Chat type state
+  const [currentChatType, setCurrentChatType] = useState<'direct' | 'group'>('direct');
+  const [currentGroupId, setCurrentGroupId] = useState<string | null>(null);
+  const [currentGroupInfo, setCurrentGroupInfo] = useState<GroupChat | null>(null);
+  const [isInGroupWithBots, setIsInGroupWithBots] = useState(false);
   
   const socketRef = useRef<Socket | null>(null);
   const reconnectTimeoutRef = useRef<NodeJS.Timeout>();
@@ -288,6 +395,67 @@ export const SocketChatProvider = ({ children }: SocketChatProviderProps) => {
       newSocket.on('typing_stopped', (data: { userId: string }) => {
         console.log('⌨️ [NewSocketChat] User stopped typing:', data);
         // Handle typing indicators if needed
+      });
+
+      // Group chat event handlers
+      newSocket.on('new_group_message', (data: { message: GroupMessage }) => {
+        console.log('📨 [NewSocketChat] New group message received:', data);
+
+        if (!data?.message) return;
+        const message = data.message;
+
+        // Add message to the appropriate group
+        setGroupMessages(prev => ({
+          ...prev,
+          [message.groupId]: [...(prev[message.groupId] || []), message]
+        }));
+
+        // Update groups list
+        refreshGroups();
+      });
+
+      newSocket.on('group_updated', (data: { groupId: string; group?: GroupChat }) => {
+        console.log('🔄 [NewSocketChat] Group updated:', data);
+        if (data.group) {
+          setGroups(prev => prev.map(g => g._id === data.groupId ? data.group! : g));
+          if (currentGroupId === data.groupId) {
+            setCurrentGroupInfo(data.group);
+          }
+        }
+        refreshGroups();
+      });
+
+      newSocket.on('group_member_added', (data: { groupId: string; member: any }) => {
+        console.log('👥 [NewSocketChat] Group member added:', data);
+        refreshGroups();
+      });
+
+      newSocket.on('group_member_removed', (data: { groupId: string; member: any }) => {
+        console.log('👥 [NewSocketChat] Group member removed:', data);
+        refreshGroups();
+      });
+
+      newSocket.on('group_deleted', (data: { groupId: string; deletedBy: string }) => {
+        console.log('🗑️ [NewSocketChat] Group deleted:', data);
+        setGroups(prev => prev.filter(g => g._id !== data.groupId));
+        if (currentGroupId === data.groupId) {
+          setCurrentGroupId(null);
+          setCurrentGroupInfo(null);
+          setCurrentChatType('direct');
+        }
+      });
+
+      newSocket.on('group_bot_added', (data: { groupId: string; botId: string }) => {
+        console.log('🤖 [NewSocketChat] Bot added to group:', data);
+        refreshGroups();
+        if (currentGroupId === data.groupId) {
+          setIsInGroupWithBots(true);
+        }
+      });
+
+      newSocket.on('bot_command_response', (data: { response: any; botId: string; success: boolean }) => {
+        console.log('🤖 [NewSocketChat] Bot command response:', data);
+        // Handle bot responses - could add to group messages if needed
       });
 
       socketRef.current = newSocket;
@@ -471,6 +639,312 @@ export const SocketChatProvider = ({ children }: SocketChatProviderProps) => {
     }
   }, [getConversations]);
 
+  // Group chat methods
+  const createGroup = useCallback(async (
+    groupData: { name: string; description?: string; isPublic: boolean; members?: string[] }
+  ): Promise<{ success: boolean; group?: GroupChat; error?: string }> => {
+    if (!socket || !isConnected) {
+      return { success: false, error: 'Socket not connected' };
+    }
+
+    return new Promise((resolve) => {
+      socket.emit('create_group', groupData, (response: { success: boolean; group?: GroupChat; error?: string }) => {
+        if (response?.success && response.group) {
+          setGroups(prev => [...prev, response.group!]);
+          resolve({ success: true, group: response.group });
+        } else {
+          resolve({ success: false, error: response?.error || 'Failed to create group' });
+        }
+      });
+    });
+  }, [socket, isConnected]);
+
+  const getUserGroups = useCallback(async (
+    page = 1,
+    limit = 20
+  ): Promise<{ success: boolean; groups?: GroupChat[]; error?: string }> => {
+    if (!socket || !isConnected) {
+      return { success: false, error: 'Socket not connected' };
+    }
+
+    return new Promise((resolve) => {
+      socket.emit('get_user_groups', { page, limit }, (response: { success: boolean; groups?: GroupChat[]; error?: string }) => {
+        if (response?.success && response.groups) {
+          setGroups(response.groups);
+          resolve({ success: true, groups: response.groups });
+        } else {
+          resolve({ success: false, error: response?.error || 'Failed to load groups' });
+        }
+      });
+    });
+  }, [socket, isConnected]);
+
+  const refreshGroups = useCallback(async () => {
+    const result = await getUserGroups();
+    if (result.success) {
+      console.log('🔄 [NewSocketChat] Groups refreshed');
+    }
+  }, [getUserGroups]);
+
+  const joinGroup = useCallback(async (groupId: string): Promise<{ success: boolean; error?: string }> => {
+    if (!socket || !isConnected) {
+      return { success: false, error: 'Socket not connected' };
+    }
+
+    return new Promise((resolve) => {
+      socket.emit('join_group', { groupId }, (response: { success: boolean; error?: string }) => {
+        if (response?.success) {
+          resolve({ success: true });
+        } else {
+          resolve({ success: false, error: response?.error || 'Failed to join group' });
+        }
+      });
+    });
+  }, [socket, isConnected]);
+
+  const leaveGroup = useCallback(async (groupId: string): Promise<{ success: boolean; error?: string }> => {
+    if (!socket || !isConnected) {
+      return { success: false, error: 'Socket not connected' };
+    }
+
+    return new Promise((resolve) => {
+      socket.emit('leave_group', { groupId }, (response: { success: boolean; error?: string }) => {
+        if (response?.success) {
+          setGroups(prev => prev.filter(g => g._id !== groupId));
+          if (currentGroupId === groupId) {
+            setCurrentGroupId(null);
+            setCurrentGroupInfo(null);
+            setCurrentChatType('direct');
+          }
+          resolve({ success: true });
+        } else {
+          resolve({ success: false, error: response?.error || 'Failed to leave group' });
+        }
+      });
+    });
+  }, [socket, isConnected, currentGroupId]);
+
+  const sendGroupMessage = useCallback(async (
+    groupId: string,
+    message: string,
+    messageType = 'text',
+    attachments?: any
+  ): Promise<boolean> => {
+    if (!socket || !isConnected) {
+      return false;
+    }
+
+    return new Promise((resolve) => {
+      const messageData = {
+        groupId,
+        message,
+        messageType,
+        ...(attachments && {
+          fileUrl: attachments.fileUrl,
+          fileName: attachments.fileName,
+          fileSize: attachments.fileSize
+        })
+      };
+
+      socket.emit('send_group_message', messageData, (response: { success: boolean; error?: string }) => {
+        if (response?.success) {
+          console.log('✅ [NewSocketChat] Group message sent successfully');
+          resolve(true);
+        } else {
+          console.error('❌ [NewSocketChat] Failed to send group message:', response?.error);
+          resolve(false);
+        }
+      });
+    });
+  }, [socket, isConnected]);
+
+  const getGroupHistory = useCallback(async (
+    groupId: string,
+    page = 1,
+    limit = 50
+  ): Promise<{ success: boolean; data?: any; error?: string }> => {
+    if (!socket || !isConnected) {
+      return { success: false, error: 'Socket not connected' };
+    }
+
+    return new Promise((resolve) => {
+      socket.emit('get_group_messages', {
+        groupId,
+        page,
+        limit
+      }, (response: { success: boolean; messages?: GroupMessage[]; error?: string }) => {
+        if (response?.success && response.messages) {
+          setGroupMessages(prev => ({
+            ...prev,
+            [groupId]: response.messages || []
+          }));
+          resolve({ success: true, data: { messages: response.messages } });
+        } else {
+          resolve({ success: false, error: response?.error || 'Failed to load group history' });
+        }
+      });
+    });
+  }, [socket, isConnected]);
+
+  const addGroupMember = useCallback(async (
+    groupId: string,
+    userIdToAdd: string,
+    role = 'member'
+  ): Promise<{ success: boolean; error?: string }> => {
+    if (!socket || !isConnected) {
+      return { success: false, error: 'Socket not connected' };
+    }
+
+    return new Promise((resolve) => {
+      socket.emit('add_group_member', { groupId, userIdToAdd, role }, (response: { success: boolean; error?: string }) => {
+        if (response?.success) {
+          refreshGroups();
+          resolve({ success: true });
+        } else {
+          resolve({ success: false, error: response?.error || 'Failed to add member' });
+        }
+      });
+    });
+  }, [socket, isConnected, refreshGroups]);
+
+  const removeGroupMember = useCallback(async (
+    groupId: string,
+    userIdToRemove: string
+  ): Promise<{ success: boolean; error?: string }> => {
+    if (!socket || !isConnected) {
+      return { success: false, error: 'Socket not connected' };
+    }
+
+    return new Promise((resolve) => {
+      socket.emit('remove_group_member', { groupId, userIdToRemove }, (response: { success: boolean; error?: string }) => {
+        if (response?.success) {
+          refreshGroups();
+          resolve({ success: true });
+        } else {
+          resolve({ success: false, error: response?.error || 'Failed to remove member' });
+        }
+      });
+    });
+  }, [socket, isConnected, refreshGroups]);
+
+  const updateGroup = useCallback(async (
+    groupId: string,
+    updateData: { name?: string; description?: string }
+  ): Promise<{ success: boolean; error?: string }> => {
+    if (!socket || !isConnected) {
+      return { success: false, error: 'Socket not connected' };
+    }
+
+    return new Promise((resolve) => {
+      socket.emit('update_group', { groupId, ...updateData }, (response: { success: boolean; error?: string }) => {
+        if (response?.success) {
+          refreshGroups();
+          resolve({ success: true });
+        } else {
+          resolve({ success: false, error: response?.error || 'Failed to update group' });
+        }
+      });
+    });
+  }, [socket, isConnected, refreshGroups]);
+
+  const deleteGroup = useCallback(async (groupId: string): Promise<{ success: boolean; error?: string }> => {
+    if (!socket || !isConnected) {
+      return { success: false, error: 'Socket not connected' };
+    }
+
+    return new Promise((resolve) => {
+      socket.emit('delete_group', { groupId }, (response: { success: boolean; error?: string }) => {
+        if (response?.success) {
+          setGroups(prev => prev.filter(g => g._id !== groupId));
+          if (currentGroupId === groupId) {
+            setCurrentGroupId(null);
+            setCurrentGroupInfo(null);
+            setCurrentChatType('direct');
+          }
+          resolve({ success: true });
+        } else {
+          resolve({ success: false, error: response?.error || 'Failed to delete group' });
+        }
+      });
+    });
+  }, [socket, isConnected, currentGroupId]);
+
+  const searchGroups = useCallback(async (
+    query: string,
+    limit = 10
+  ): Promise<{ success: boolean; groups?: GroupChat[]; error?: string }> => {
+    if (!socket || !isConnected) {
+      return { success: false, error: 'Socket not connected' };
+    }
+
+    return new Promise((resolve) => {
+      socket.emit('search_groups', { query, limit }, (response: { success: boolean; groups?: GroupChat[]; error?: string }) => {
+        if (response?.success) {
+          resolve({ success: true, groups: response.groups });
+        } else {
+          resolve({ success: false, error: response?.error || 'Search failed' });
+        }
+      });
+    });
+  }, [socket, isConnected]);
+
+  const sendBotCommand = useCallback(async (
+    command: string,
+    parameters: string,
+    groupId: string,
+    botId = 'sendai_bot'
+  ): Promise<{ success: boolean; error?: string }> => {
+    if (!socket || !isConnected) {
+      return { success: false, error: 'Socket not connected' };
+    }
+
+    return new Promise((resolve) => {
+      socket.emit('send_bot_command', {
+        command,
+        parameters,
+        groupId,
+        botId
+      }, (response: { success: boolean; error?: string }) => {
+        if (response?.success) {
+          resolve({ success: true });
+        } else {
+          resolve({ success: false, error: response?.error || 'Bot command failed' });
+        }
+      });
+    });
+  }, [socket, isConnected]);
+
+  const addGroupBot = useCallback(async (
+    groupId: string,
+    botId: string,
+    permissions: any
+  ): Promise<{ success: boolean; error?: string }> => {
+    if (!socket || !isConnected) {
+      return { success: false, error: 'Socket not connected' };
+    }
+
+    return new Promise((resolve) => {
+      socket.emit('add_group_bot', { groupId, botId, permissions }, (response: { success: boolean; error?: string }) => {
+        if (response?.success) {
+          refreshGroups();
+          if (currentGroupId === groupId) {
+            setIsInGroupWithBots(true);
+          }
+          resolve({ success: true });
+        } else {
+          resolve({ success: false, error: response?.error || 'Failed to add bot' });
+        }
+      });
+    });
+  }, [socket, isConnected, refreshGroups, currentGroupId]);
+
+  const selectGroup = useCallback((group: GroupChat) => {
+    setCurrentChatType('group');
+    setCurrentGroupId(group._id);
+    setCurrentGroupInfo(group);
+    setIsInGroupWithBots(group.botUsers ? group.botUsers.length > 0 : false);
+  }, []);
+
   const markMessagesAsRead = useCallback(async (senderId: string): Promise<boolean> => {
     if (!socket || !isConnected) {
       return false;
@@ -607,7 +1081,8 @@ export const SocketChatProvider = ({ children }: SocketChatProviderProps) => {
   useEffect(() => {
     if (isConnected) {
       refreshConversations();
-      
+      refreshGroups();
+
       // Get unread count
       chatApiService.getUnreadCount().then((response) => {
         if (response.status === 'success') {
@@ -615,7 +1090,7 @@ export const SocketChatProvider = ({ children }: SocketChatProviderProps) => {
         }
       }).catch(console.error);
     }
-  }, [isConnected, refreshConversations]);
+  }, [isConnected, refreshConversations, refreshGroups]);
 
   const contextValue: SocketChatContextType = {
     // Connection state
@@ -623,14 +1098,22 @@ export const SocketChatProvider = ({ children }: SocketChatProviderProps) => {
     isConnected,
     loading,
     error,
-    
+
     // Chat data
     conversations,
+    groups,
     messages,
+    groupMessages,
     unreadCount,
     userPresence,
-    
-    // Chat methods
+
+    // Chat type state
+    currentChatType,
+    currentGroupId,
+    currentGroupInfo,
+    isInGroupWithBots,
+
+    // Direct chat methods
     sendMessage,
     getConversation,
     getConversations,
@@ -640,13 +1123,32 @@ export const SocketChatProvider = ({ children }: SocketChatProviderProps) => {
     searchContacts,
     blockUser,
     unblockUser,
-    
+
+    // Group chat methods
+    createGroup,
+    getUserGroups,
+    joinGroup,
+    leaveGroup,
+    sendGroupMessage,
+    getGroupHistory,
+    addGroupMember,
+    removeGroupMember,
+    updateGroup,
+    deleteGroup,
+    searchGroups,
+
+    // Bot commands
+    sendBotCommand,
+    addGroupBot,
+
     // Typing indicators
     startTyping,
     stopTyping,
-    
+
     // Utility methods
     refreshConversations,
+    refreshGroups,
+    selectGroup,
     joinConversation: useCallback(async (receiverId: string): Promise<{ success: boolean; error?: string }> => {
       if (!socket || !isConnected) {
         return { success: false, error: 'Socket not connected' };
