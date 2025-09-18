@@ -291,13 +291,22 @@ export const SocketChatProvider = ({ children }: SocketChatProviderProps) => {
     try {
       // Get JWT token from cookies (access-token)
       const getTokenFromCookies = () => {
+        if (typeof document === 'undefined') return null;
+
         const cookies = document.cookie.split(';');
+        console.log('🍪 [NewSocketChat] Available cookies:', cookies);
+
         for (let cookie of cookies) {
           const [name, value] = cookie.trim().split('=');
+          console.log('🍪 [NewSocketChat] Checking cookie:', { name, value });
           if (name === 'access-token') {
-            return decodeURIComponent(value);
+            const decodedValue = decodeURIComponent(value);
+            console.log('✅ [NewSocketChat] Found access-token:', decodedValue.substring(0, 20) + '...');
+            return decodedValue;
           }
         }
+
+        console.log('❌ [NewSocketChat] access-token cookie not found');
         return null;
       };
 
