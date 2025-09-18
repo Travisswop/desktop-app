@@ -569,7 +569,7 @@ export const SocketChatProvider = ({ children }: SocketChatProviderProps) => {
     messageType = 'text',
     attachments?: any
   ): Promise<boolean> => {
-    if (!socket || !isConnected) {
+    if (!socketRef.current || !isConnected) {
       console.error('❌ [NewSocketChat] Socket not connected');
       return false;
     }
@@ -579,15 +579,15 @@ export const SocketChatProvider = ({ children }: SocketChatProviderProps) => {
         receiverId,
         message,
         messageType,
-        ...(attachments && { 
+        ...(attachments && {
           fileUrl: attachments.fileUrl,
           fileName: attachments.fileName,
-          fileSize: attachments.fileSize 
+          fileSize: attachments.fileSize
         })
       };
 
       // Emit through socket with callback (matching HTML test pattern)
-      socket.emit('send_message', messageData, (response: { success: boolean; error?: string }) => {
+      socketRef.current!.emit('send_message', messageData, (response: { success: boolean; error?: string }) => {
         if (response?.success) {
           console.log('✅ [NewSocketChat] Message sent successfully');
           resolve(true);
@@ -597,7 +597,7 @@ export const SocketChatProvider = ({ children }: SocketChatProviderProps) => {
         }
       });
     });
-  }, [socket, isConnected]);
+  }, [isConnected]); // Remove socket from dependencies
 
   const getConversation = useCallback(async (
     receiverId: string,
@@ -635,13 +635,13 @@ export const SocketChatProvider = ({ children }: SocketChatProviderProps) => {
     page = 1,
     limit = 20
   ): Promise<{ success: boolean; data?: any; error?: string }> => {
-    if (!socket || !isConnected) {
+    if (!socketRef.current || !isConnected) {
       return { success: false, error: 'Socket not connected' };
     }
 
     return new Promise((resolve) => {
       // Use socket method like in HTML test
-      socket.emit('get_conversations', { page, limit }, (response: { success: boolean; conversations?: any[]; error?: string }) => {
+      socketRef.current!.emit('get_conversations', { page, limit }, (response: { success: boolean; conversations?: any[]; error?: string }) => {
         if (response?.success && response.conversations) {
           setConversations(response.conversations);
           resolve({ success: true, data: { conversations: response.conversations } });
@@ -650,7 +650,7 @@ export const SocketChatProvider = ({ children }: SocketChatProviderProps) => {
         }
       });
     });
-  }, [socket, isConnected]);
+  }, [isConnected]); // Remove socket from dependencies
 
   const refreshConversations = useCallback(async () => {
     const result = await getConversations();
@@ -683,12 +683,12 @@ export const SocketChatProvider = ({ children }: SocketChatProviderProps) => {
     page = 1,
     limit = 20
   ): Promise<{ success: boolean; groups?: GroupChat[]; error?: string }> => {
-    if (!socket || !isConnected) {
+    if (!socketRef.current || !isConnected) {
       return { success: false, error: 'Socket not connected' };
     }
 
     return new Promise((resolve) => {
-      socket.emit('get_user_groups', { page, limit }, (response: { success: boolean; groups?: GroupChat[]; error?: string }) => {
+      socketRef.current!.emit('get_user_groups', { page, limit }, (response: { success: boolean; groups?: GroupChat[]; error?: string }) => {
         if (response?.success && response.groups) {
           setGroups(response.groups);
           resolve({ success: true, groups: response.groups });
@@ -697,7 +697,7 @@ export const SocketChatProvider = ({ children }: SocketChatProviderProps) => {
         }
       });
     });
-  }, [socket, isConnected]);
+  }, [isConnected]); // Remove socket from dependencies
 
   const refreshGroups = useCallback(async () => {
     const result = await getUserGroups();
@@ -750,7 +750,7 @@ export const SocketChatProvider = ({ children }: SocketChatProviderProps) => {
     messageType = 'text',
     attachments?: any
   ): Promise<boolean> => {
-    if (!socket || !isConnected) {
+    if (!socketRef.current || !isConnected) {
       return false;
     }
 
@@ -766,7 +766,7 @@ export const SocketChatProvider = ({ children }: SocketChatProviderProps) => {
         })
       };
 
-      socket.emit('send_group_message', messageData, (response: { success: boolean; error?: string }) => {
+      socketRef.current!.emit('send_group_message', messageData, (response: { success: boolean; error?: string }) => {
         if (response?.success) {
           console.log('✅ [NewSocketChat] Group message sent successfully');
           resolve(true);
@@ -776,7 +776,7 @@ export const SocketChatProvider = ({ children }: SocketChatProviderProps) => {
         }
       });
     });
-  }, [socket, isConnected]);
+  }, [isConnected]); // Remove socket from dependencies
 
   const getGroupHistory = useCallback(async (
     groupId: string,
@@ -1088,14 +1088,14 @@ export const SocketChatProvider = ({ children }: SocketChatProviderProps) => {
 
   // Effects
   useEffect(() => {
-    if (privyUser?.id && !socket) {
+    if (privyUser?.id && !socketRef.current) {
       connect();
     }
 
     return () => {
       disconnect();
     };
-  }, [privyUser?.id, connect, disconnect, socket]);
+  }, [privyUser?.id]); // Remove connect, disconnect, and socket from dependencies
 
   // Load initial data
   useEffect(() => {
@@ -1110,7 +1110,7 @@ export const SocketChatProvider = ({ children }: SocketChatProviderProps) => {
         }
       }).catch(console.error);
     }
-  }, [isConnected, refreshConversations, refreshGroups]);
+  }, [isConnected]); // Remove function dependencies since they're now stable
 
   const contextValue: SocketChatContextType = {
     // Connection state
