@@ -7,9 +7,6 @@ import React, {
 import {
   Loader,
   Send,
-  MoreHorizontal,
-  Edit3,
-  Trash2,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { usePrivy } from '@privy-io/react-auth';
@@ -23,12 +20,6 @@ import {
   AvatarImage,
 } from '@/components/ui/avatar';
 import { format, isToday, isYesterday } from 'date-fns';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
 
 interface GroupChatBoxProps {
   groupId: string;
@@ -43,20 +34,14 @@ const GroupChatBox: React.FC<GroupChatBoxProps> = ({ groupId }) => {
     joinGroup,
     sendBotCommand,
     isConnected,
-    socket,
-    currentGroupInfo,
     isInGroupWithBots,
   } = useNewSocketChat();
 
   const [newMessage, setNewMessage] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [isSending, setIsSending] = useState(false);
-  const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
-  const [editingContent, setEditingContent] = useState('');
   const messageEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const typingTimerRef = useRef<NodeJS.Timeout | null>(null);
-  const isTypingRef = useRef(false);
 
   // Get group messages
   const groupMessagesList = (groupMessages[groupId] || []).sort(

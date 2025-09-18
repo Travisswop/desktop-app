@@ -267,7 +267,7 @@ export const SocketChatProvider = ({ children }: SocketChatProviderProps) => {
   const [messages, setMessages] = useState<Record<string, ChatMessage[]>>({});
   const [groupMessages, setGroupMessages] = useState<Record<string, GroupMessage[]>>({});
   const [unreadCount, setUnreadCount] = useState(0);
-  const [userPresence, setUserPresence] = useState<Record<string, { status: string; lastSeen?: Date }>>({});
+  const [userPresence] = useState<Record<string, { status: string; lastSeen?: Date }>>({});
 
   // Chat type state
   const [currentChatType, setCurrentChatType] = useState<'direct' | 'group'>('direct');
@@ -289,11 +289,22 @@ export const SocketChatProvider = ({ children }: SocketChatProviderProps) => {
     setError(null);
 
     try {
-      // Get JWT token from localStorage or wherever you store it
-      const jwtToken = localStorage.getItem('authToken') || localStorage.getItem('jwt_token') || localStorage.getItem('accessToken');
-      
+      // Get JWT token from cookies (access-token)
+      const getTokenFromCookies = () => {
+        const cookies = document.cookie.split(';');
+        for (let cookie of cookies) {
+          const [name, value] = cookie.trim().split('=');
+          if (name === 'access-token') {
+            return decodeURIComponent(value);
+          }
+        }
+        return null;
+      };
+
+      const jwtToken = getTokenFromCookies();
+
       if (!jwtToken) {
-        console.error('❌ [NewSocketChat] No JWT token available for socket authentication');
+        console.error('❌ [NewSocketChat] No JWT token available in cookies for socket authentication');
         setError(new Error('No authentication token available. Please log in again.'));
         setLoading(false);
         return;

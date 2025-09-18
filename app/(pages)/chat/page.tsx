@@ -5,7 +5,6 @@ import {
   Search,
   Wallet,
   ArrowLeft,
-  MessageSquare,
 } from 'lucide-react';
 import {
   useCallback,
@@ -53,7 +52,6 @@ const ChatPageContent = () => {
     searchContacts,
     getConversations,
     getUserGroups,
-    createGroup,
     selectGroup,
     currentChatType,
     currentGroupId,
@@ -880,7 +878,7 @@ const ChatPageContent = () => {
                         Recent Chats
                       </div>
                     )}
-                    {filteredChats.map((item, index) => {
+                    {filteredChats.map((item) => {
                       if (item.type === 'direct') {
                         const conv = item.data;
                         const participant =
