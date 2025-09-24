@@ -708,27 +708,61 @@ export default function SwapTokenModal({
 
       // Get fee account for the input token mint from backend
       const inputMint = quoteResponse.inputMint;
+      const outputMint = quoteResponse.outputMint;
 
-      const feeAccountResponse = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL}/api/v5/wallet/tokenAccount/${inputMint}`,
-        {
-          method: 'GET',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-        }
-      );
+      console.log('Creating token accounts for swap:', { inputMint, outputMint });
+
+      // Create both input (fee account) and output token accounts in parallel
+      const [feeAccountResponse, outputAccountResponse] = await Promise.all([
+        fetch(
+          `${process.env.NEXT_PUBLIC_API_URL}/api/v5/wallet/tokenAccount/${inputMint}`,
+          {
+            method: 'GET',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+          }
+        ),
+        fetch(
+          `${process.env.NEXT_PUBLIC_API_URL}/api/v5/wallet/tokenAccount/${outputMint}`,
+          {
+            method: 'GET',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+          }
+        )
+      ]);
 
       if (!feeAccountResponse.ok) {
-        throw new Error('Failed to get fee account from backend');
+        const errorText = await feeAccountResponse.text();
+        console.error('Fee account creation failed:', errorText);
+        throw new Error(`Failed to get fee account from backend: ${errorText}`);
       }
 
-      const feeAccountData = await feeAccountResponse.json();
+      if (!outputAccountResponse.ok) {
+        const errorText = await outputAccountResponse.text();
+        console.error('Output account creation failed:', errorText);
+        throw new Error(`Failed to get output account from backend: ${errorText}`);
+      }
+
+      const [feeAccountData, outputAccountData] = await Promise.all([
+        feeAccountResponse.json(),
+        outputAccountResponse.json()
+      ]);
+
       const feeAccount = feeAccountData.tokenAccount;
+      const outputAccount = outputAccountData.tokenAccount;
 
       if (!feeAccount) {
         throw new Error('No fee account received from backend');
       }
+
+      if (!outputAccount) {
+        throw new Error('No output account received from backend');
+      }
+
+      console.log('Token accounts created successfully:', { feeAccount, outputAccount });
 
       const swapResponse = await fetch(
         'https://quote-api.jup.ag/v6/swap',
