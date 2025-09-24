@@ -1163,11 +1163,13 @@ export default function SwapTokenModal({
       const sponsorEligibleTokens = [USDC_MINT, SWOP_MINT];
 
       const inputMint = jupiterQuote.inputMint;
+      const outputMint = jupiterQuote.outputMint;
       const isEligibleForSponsorship =
         sponsorEligibleTokens.includes(inputMint);
 
       console.log('Swap eligibility:', {
         inputMint,
+        outputMint,
         isEligibleForSponsorship,
         tokenSymbol: payToken?.symbol,
       });
