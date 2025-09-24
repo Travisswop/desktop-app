@@ -710,45 +710,53 @@ export default function SwapTokenModal({
       const inputMint = quoteResponse.inputMint;
       const outputMint = quoteResponse.outputMint;
 
-      console.log('Creating token accounts for swap:', { inputMint, outputMint });
+      console.log('Creating token accounts for swap:', {
+        inputMint,
+        outputMint,
+      });
 
       // Create both input (fee account) and output token accounts in parallel
-      const [feeAccountResponse, outputAccountResponse] = await Promise.all([
-        fetch(
-          `${process.env.NEXT_PUBLIC_API_URL}/api/v5/wallet/tokenAccount/${inputMint}`,
-          {
-            method: 'GET',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-          }
-        ),
-        fetch(
-          `${process.env.NEXT_PUBLIC_API_URL}/api/v5/wallet/tokenAccount/${outputMint}`,
-          {
-            method: 'GET',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-          }
-        )
-      ]);
+      const [feeAccountResponse, outputAccountResponse] =
+        await Promise.all([
+          fetch(
+            `${process.env.NEXT_PUBLIC_API_URL}/api/v5/wallet/tokenAccount/${inputMint}`,
+            {
+              method: 'GET',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+            }
+          ),
+          fetch(
+            `${process.env.NEXT_PUBLIC_API_URL}/api/v5/wallet/tokenAccount/${outputMint}`,
+            {
+              method: 'GET',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+            }
+          ),
+        ]);
 
       if (!feeAccountResponse.ok) {
         const errorText = await feeAccountResponse.text();
         console.error('Fee account creation failed:', errorText);
-        throw new Error(`Failed to get fee account from backend: ${errorText}`);
+        throw new Error(
+          `Failed to get fee account from backend: ${errorText}`
+        );
       }
 
       if (!outputAccountResponse.ok) {
         const errorText = await outputAccountResponse.text();
         console.error('Output account creation failed:', errorText);
-        throw new Error(`Failed to get output account from backend: ${errorText}`);
+        throw new Error(
+          `Failed to get output account from backend: ${errorText}`
+        );
       }
 
       const [feeAccountData, outputAccountData] = await Promise.all([
         feeAccountResponse.json(),
-        outputAccountResponse.json()
+        outputAccountResponse.json(),
       ]);
 
       const feeAccount = feeAccountData.tokenAccount;
@@ -762,7 +770,10 @@ export default function SwapTokenModal({
         throw new Error('No output account received from backend');
       }
 
-      console.log('Token accounts created successfully:', { feeAccount, outputAccount });
+      console.log('Token accounts created successfully:', {
+        feeAccount,
+        outputAccount,
+      });
 
       const swapResponse = await fetch(
         'https://quote-api.jup.ag/v6/swap',
@@ -1166,8 +1177,13 @@ export default function SwapTokenModal({
       const connection = new Connection(rpcUrl, 'confirmed');
 
       // Deserialize the Jupiter transaction
-      const swapTransactionBuffer = Buffer.from(swapData.swapTransaction, 'base64');
-      const transaction = VersionedTransaction.deserialize(swapTransactionBuffer);
+      const swapTransactionBuffer = Buffer.from(
+        swapData.swapTransaction,
+        'base64'
+      );
+      const transaction = VersionedTransaction.deserialize(
+        swapTransactionBuffer
+      );
 
       // Get latest blockhash and update the transaction
       const { blockhash } = await connection.getLatestBlockhash();
@@ -1176,10 +1192,31 @@ export default function SwapTokenModal({
       transaction.message.recentBlockhash = blockhash;
 
       // Sign the versioned transaction with user's wallet
-      const signedTx = await solanaWallet.signTransaction(transaction);
+      const signedTx = await solanaWallet.signTransaction(
+        transaction
+      );
 
       // Serialize the signed transaction
-      const serializedTransaction = Buffer.from(signedTx.serialize()).toString('base64');
+      const serializedTransaction = Buffer.from(
+        signedTx.serialize()
+      ).toString('base64');
+
+      console.log('Jupiter transaction details:', {
+        inputMint: jupiterQuote?.inputMint,
+        outputMint: jupiterQuote?.outputMint,
+        transactionSize: serializedTransaction.length,
+        walletId,
+        swapAmount: payAmount,
+        tokenSymbols: `${payToken?.symbol} → ${receiveToken?.symbol}`,
+      });
+
+      // Check transaction size (Privy has limits)
+      if (serializedTransaction.length > 1500) {
+        console.warn(
+          '⚠️ Transaction size may be too large for sponsorship:',
+          serializedTransaction.length
+        );
+      }
 
       // Generate proper authorization signature using Privy's method
       let authorizationSignature = '';
@@ -1205,11 +1242,12 @@ export default function SwapTokenModal({
         };
 
         const sigResult = await generateAuthorizationSignature(input);
-        const authSig = typeof sigResult === 'string'
-          ? sigResult
-          : (sigResult as any)?.authorizationSignature ||
-            (sigResult as any)?.signature ||
-            '';
+        const authSig =
+          typeof sigResult === 'string'
+            ? sigResult
+            : (sigResult as any)?.authorizationSignature ||
+              (sigResult as any)?.signature ||
+              '';
 
         authorizationSignature = authSig;
 
@@ -1245,8 +1283,14 @@ export default function SwapTokenModal({
       if (!sponsorResponse.ok) {
         const errorData = await sponsorResponse.json();
         console.log(errorData, 'errorData');
+
+        // If sponsored transaction fails with Token-2022 tokens, suggest trying without platform fee
+        if (jupiterQuote?.inputMint === 'XsDoVfqeBukxuZHWhdvWHBhgEHjGNst4MLodqsJHzoB') {
+          console.warn('Tesla token sponsored transaction failed, this may be due to Token-2022 complexity');
+        }
+
         throw new Error(
-          errorData.error || 'Failed to submit sponsored transaction'
+          errorData.error || `Failed to submit sponsored transaction (${errorData.privyStatus || 'Unknown error'})`
         );
       }
 
@@ -1273,11 +1317,17 @@ export default function SwapTokenModal({
         process.env.NEXT_PUBLIC_QUICKNODE_SOLANA_URL;
 
       if (confirmationRpcUrl) {
-        const confirmationConnection = new Connection(confirmationRpcUrl, 'confirmed');
+        const confirmationConnection = new Connection(
+          confirmationRpcUrl,
+          'confirmed'
+        );
 
         // Check transaction status
         try {
-          await confirmationConnection.confirmTransaction(txId, 'confirmed');
+          await confirmationConnection.confirmTransaction(
+            txId,
+            'confirmed'
+          );
           setSwapStatus('Transaction confirmed');
         } catch (confirmError) {
           console.warn(
@@ -1419,7 +1469,9 @@ export default function SwapTokenModal({
 
       // Deserialize the LiFi transaction
       const swapTransactionBuffer = Buffer.from(rawTx, 'base64');
-      const transaction = VersionedTransaction.deserialize(swapTransactionBuffer);
+      const transaction = VersionedTransaction.deserialize(
+        swapTransactionBuffer
+      );
 
       // Get latest blockhash and update the transaction
       const { blockhash } = await connection.getLatestBlockhash();
@@ -1428,10 +1480,14 @@ export default function SwapTokenModal({
       transaction.message.recentBlockhash = blockhash;
 
       // Sign the versioned transaction with user's wallet
-      const signedTx = await solanaWallet.signTransaction(transaction);
+      const signedTx = await solanaWallet.signTransaction(
+        transaction
+      );
 
       // Serialize the signed transaction
-      const serializedTransaction = Buffer.from(signedTx.serialize()).toString('base64');
+      const serializedTransaction = Buffer.from(
+        signedTx.serialize()
+      ).toString('base64');
 
       // Generate proper authorization signature using Privy's method
       let authorizationSignature = '';
@@ -1457,11 +1513,12 @@ export default function SwapTokenModal({
         };
 
         const sigResult = await generateAuthorizationSignature(input);
-        const authSig = typeof sigResult === 'string'
-          ? sigResult
-          : (sigResult as any)?.authorizationSignature ||
-            (sigResult as any)?.signature ||
-            '';
+        const authSig =
+          typeof sigResult === 'string'
+            ? sigResult
+            : (sigResult as any)?.authorizationSignature ||
+              (sigResult as any)?.signature ||
+              '';
 
         authorizationSignature = authSig;
 
