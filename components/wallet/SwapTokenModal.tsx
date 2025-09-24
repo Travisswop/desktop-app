@@ -385,14 +385,14 @@ export default function SwapTokenModal({
   const { wallets } = useWallets();
   const { wallets: solWallets } = useSolanaWallets();
 
-  console.log('receiveToken', receiveToken);
-  console.log('payToken', payToken);
-  console.log('payAmount', payAmount);
-  console.log('availableTokens', availableTokens);
-  console.log('chainId', chainId);
-  console.log('receiverChainId', receiverChainId);
-  console.log('filteredReceivedTokens', filteredReceivedTokens);
-  console.log('selecting', selecting);
+  // console.log('receiveToken', receiveToken);
+  // console.log('payToken', payToken);
+  // console.log('payAmount', payAmount);
+  // console.log('availableTokens', availableTokens);
+  // console.log('chainId', chainId);
+  // console.log('receiverChainId', receiverChainId);
+  // console.log('filteredReceivedTokens', filteredReceivedTokens);
+  // console.log('selecting', selecting);
 
   const ethWallet = wallets[0]?.address;
   const solWallet = solWallets[0]?.address;
@@ -1151,6 +1151,23 @@ export default function SwapTokenModal({
       const solanaWallet = solWallets[0];
       console.log('solanaWallet', solanaWallet);
 
+      // Define tokens eligible for sponsored transactions
+      const USDC_MINT =
+        'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v';
+      const SWOP_MINT =
+        'GAehkgN1ZDNvavX81FmzCcwRnzekKMkSyUNq8WkMsjX1'; // Replace with actual SWOP token mint
+      const sponsorEligibleTokens = [USDC_MINT, SWOP_MINT];
+
+      const inputMint = jupiterQuote.inputMint;
+      const isEligibleForSponsorship =
+        sponsorEligibleTokens.includes(inputMint);
+
+      console.log('Swap eligibility:', {
+        inputMint,
+        isEligibleForSponsorship,
+        tokenSymbol: payToken?.symbol,
+      });
+
       setSwapStatus('Getting swap transaction...');
 
       const swapData = await getJupiterSwapTransaction(jupiterQuote);
@@ -1158,11 +1175,6 @@ export default function SwapTokenModal({
       if (!swapData.swapTransaction) {
         throw new Error('No swap transaction received from Jupiter');
       }
-
-      setSwapStatus('Submitting sponsored transaction...');
-
-      // Get correct wallet ID from user's linkedAccounts
-      const walletId = getSolanaWalletId(solanaWallet, PrivyUser);
 
       // Set up RPC connection for getting blockhash
       const rpcUrl =
@@ -1205,102 +1217,143 @@ export default function SwapTokenModal({
         inputMint: jupiterQuote?.inputMint,
         outputMint: jupiterQuote?.outputMint,
         transactionSize: serializedTransaction.length,
-        walletId,
         swapAmount: payAmount,
         tokenSymbols: `${payToken?.symbol} → ${receiveToken?.symbol}`,
+        isEligibleForSponsorship,
       });
 
-      // Check transaction size (Privy has limits)
-      if (serializedTransaction.length > 1500) {
-        console.warn(
-          '⚠️ Transaction size may be too large for sponsorship:',
-          serializedTransaction.length
-        );
-      }
+      let txId: string;
 
-      // Generate proper authorization signature using Privy's method
-      let authorizationSignature = '';
-      try {
-        const caip2 = 'solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp';
-        const input = {
-          version: 1 as const,
-          url: `https://api.privy.io/v1/wallets/${walletId}/rpc`,
-          method: 'POST' as const,
-          headers: {
-            'privy-app-id':
-              process.env.NEXT_PUBLIC_PRIVY_APP_ID || '',
-          },
-          body: {
-            method: 'signAndSendTransaction',
-            caip2,
-            params: {
-              transaction: serializedTransaction,
-              encoding: 'base64',
+      if (isEligibleForSponsorship) {
+        // Use sponsored transaction for SWOP and USDC tokens
+        setSwapStatus('Submitting sponsored transaction...');
+
+        const walletId = getSolanaWalletId(solanaWallet, PrivyUser);
+
+        // Check transaction size (Privy has limits)
+        if (serializedTransaction.length > 1500) {
+          console.warn(
+            '⚠️ Transaction size may be too large for sponsorship:',
+            serializedTransaction.length
+          );
+        }
+
+        // Generate proper authorization signature using Privy's method
+        let authorizationSignature = '';
+        try {
+          const caip2 = 'solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp';
+          const input = {
+            version: 1 as const,
+            url: `https://api.privy.io/v1/wallets/${walletId}/rpc`,
+            method: 'POST' as const,
+            headers: {
+              'privy-app-id':
+                process.env.NEXT_PUBLIC_PRIVY_APP_ID || '',
             },
-            sponsor: true,
-          },
-        };
+            body: {
+              method: 'signAndSendTransaction',
+              caip2,
+              params: {
+                transaction: serializedTransaction,
+                encoding: 'base64',
+              },
+              sponsor: true,
+            },
+          };
 
-        const sigResult = await generateAuthorizationSignature(input);
-        const authSig =
-          typeof sigResult === 'string'
-            ? sigResult
-            : (sigResult as any)?.authorizationSignature ||
-              (sigResult as any)?.signature ||
-              '';
+          const sigResult = await generateAuthorizationSignature(
+            input
+          );
+          const authSig =
+            typeof sigResult === 'string'
+              ? sigResult
+              : (sigResult as any)?.authorizationSignature ||
+                (sigResult as any)?.signature ||
+                '';
 
-        authorizationSignature = authSig;
+          authorizationSignature = authSig;
 
-        if (!authorizationSignature) {
+          if (!authorizationSignature) {
+            throw new Error(
+              'Failed to generate authorization signature'
+            );
+          }
+        } catch (signError) {
+          console.warn(
+            'Failed to get authorization signature:',
+            signError
+          );
           throw new Error(
             'Failed to generate authorization signature'
           );
         }
-      } catch (signError) {
-        console.warn(
-          'Failed to get authorization signature:',
-          signError
+
+        // Use sponsored transaction for Jupiter swaps
+        const sponsorResponse = await fetch(
+          `${process.env.NEXT_PUBLIC_API_URL}/api/v5/wallet/sponsored-transaction`,
+          {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              walletId,
+              transaction: serializedTransaction,
+              authorizationSignature,
+            }),
+          }
         );
-        throw new Error('Failed to generate authorization signature');
-      }
 
-      // Use sponsored transaction for Jupiter swaps
-      const sponsorResponse = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL}/api/v5/wallet/sponsored-transaction`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            walletId,
-            transaction: serializedTransaction,
-            authorizationSignature,
-          }),
-        }
-      );
+        if (!sponsorResponse.ok) {
+          const errorData = await sponsorResponse.json();
+          console.log(errorData, 'errorData');
 
-      if (!sponsorResponse.ok) {
-        const errorData = await sponsorResponse.json();
-        console.log(errorData, 'errorData');
-
-        // If sponsored transaction fails with Token-2022 tokens, suggest trying without platform fee
-        if (jupiterQuote?.inputMint === 'XsDoVfqeBukxuZHWhdvWHBhgEHjGNst4MLodqsJHzoB') {
-          console.warn('Tesla token sponsored transaction failed, this may be due to Token-2022 complexity');
+          throw new Error(
+            errorData.error ||
+              `Failed to submit sponsored transaction (${
+                errorData.privyStatus || 'Unknown error'
+              })`
+          );
         }
 
-        throw new Error(
-          errorData.error || `Failed to submit sponsored transaction (${errorData.privyStatus || 'Unknown error'})`
-        );
-      }
+        const result = await sponsorResponse.json();
+        txId = result.signature || result.transactionId;
 
-      const result = await sponsorResponse.json();
-      const txId = result.signature || result.transactionId;
+        if (!txId) {
+          throw new Error(
+            'No transaction ID received from sponsored transaction'
+          );
+        }
+      } else {
+        // Use direct wallet transaction for other tokens (like Tesla token)
+        setSwapStatus('Submitting transaction...');
 
-      if (!txId) {
-        throw new Error(
-          'No transaction ID received from sponsored transaction'
+        console.log(
+          'Using direct wallet transaction (not sponsored)'
         );
+
+        try {
+          // Send the signed transaction directly
+          const rawTransaction = signedTx.serialize();
+          const signature = await connection.sendRawTransaction(
+            rawTransaction,
+            {
+              skipPreflight: false,
+              preflightCommitment: 'confirmed',
+            }
+          );
+
+          txId = signature;
+          console.log('Direct transaction sent:', signature);
+        } catch (sendError: any) {
+          console.error(
+            'Failed to send direct transaction:',
+            sendError
+          );
+          throw new Error(
+            `Transaction failed: ${sendError.message || sendError}`
+          );
+        }
       }
 
       setTxHash(txId);
