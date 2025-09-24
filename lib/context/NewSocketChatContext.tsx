@@ -15,6 +15,76 @@ import { usePrivy } from '@privy-io/react-auth';
 import { chatApiService } from '@/lib/api/chatService';
 
 // Message interfaces based on backend models
+// Wallet operation types for agentic messaging
+export interface WalletOperationData {
+  type: 'token_transfer' | 'token_swap' | 'nft_transfer';
+  status: 'pending' | 'processing' | 'completed' | 'failed' | 'cancelled';
+  transactionHash?: string;
+  network: 'solana' | 'ethereum' | 'polygon' | 'base';
+
+  // Token transfer specific data
+  tokenTransfer?: {
+    tokenMint: string;
+    tokenSymbol: string;
+    tokenName?: string;
+    tokenIcon?: string;
+    amount: string;
+    decimals: number;
+    recipientAddress: string;
+    senderAddress: string;
+    estimatedFee?: string;
+    actualFee?: string;
+  };
+
+  // Token swap specific data
+  tokenSwap?: {
+    inputToken: {
+      mint: string;
+      symbol: string;
+      name?: string;
+      icon?: string;
+      amount: string;
+      decimals: number;
+    };
+    outputToken: {
+      mint: string;
+      symbol: string;
+      name?: string;
+      icon?: string;
+      amount: string;
+      decimals: number;
+    };
+    slippage: number;
+    estimatedFee?: string;
+    actualFee?: string;
+    priceImpact?: number;
+    route?: any; // Jupiter route data
+  };
+
+  // NFT transfer specific data
+  nftTransfer?: {
+    mintAddress: string;
+    name: string;
+    image?: string;
+    collection?: string;
+    recipientAddress: string;
+    senderAddress: string;
+    estimatedFee?: string;
+    actualFee?: string;
+  };
+
+  // Common operation data
+  estimatedTimeMs?: number;
+  actualTimeMs?: number;
+  errorMessage?: string;
+  createdAt: Date;
+  completedAt?: Date;
+  agentInitiated: boolean; // True if initiated by Solana Agent Kit
+  requiresUserApproval: boolean;
+  userApproved?: boolean;
+  approvedAt?: Date;
+}
+
 export interface ChatMessage {
   _id: string;
   sender: {
@@ -30,10 +100,23 @@ export interface ChatMessage {
     email: string;
   };
   message: string;
-  messageType: 'text' | 'image' | 'file';
+  messageType: 'text' | 'image' | 'file' | 'wallet_operation';
   fileUrl?: string;
   fileName?: string;
   fileSize?: number;
+
+  // Wallet operation data
+  walletOperation?: WalletOperationData;
+
+  // Legacy attachment support
+  attachment?: string;
+  attachments?: Array<{
+    filename: string;
+    url: string;
+    size?: number;
+    type?: string;
+  }>;
+
   isRead: boolean;
   readAt?: Date;
   isDeleted: boolean;
@@ -149,10 +232,14 @@ export interface GroupMessage {
     isBot?: boolean;
   };
   message: string;
-  messageType: 'text' | 'image' | 'file';
+  messageType: 'text' | 'image' | 'file' | 'wallet_operation';
   fileUrl?: string;
   fileName?: string;
   fileSize?: number;
+
+  // Wallet operation data
+  walletOperation?: WalletOperationData;
+
   isDeleted: boolean;
   deletedAt?: Date;
   editedAt?: Date;
@@ -234,6 +321,41 @@ interface SocketChatContextType {
   // Typing indicators
   startTyping: (receiverId: string) => void;
   stopTyping: (receiverId: string) => void;
+
+  // Wallet operation methods
+  sendTokenTransfer: (
+    receiverId: string,
+    tokenMint: string,
+    amount: string,
+    recipientAddress: string,
+    network?: string
+  ) => Promise<{ success: boolean; operationId?: string; error?: string }>;
+
+  sendTokenSwap: (
+    receiverId: string,
+    inputTokenMint: string,
+    outputTokenMint: string,
+    inputAmount: string,
+    slippage?: number,
+    network?: string
+  ) => Promise<{ success: boolean; operationId?: string; error?: string }>;
+
+  sendNftTransfer: (
+    receiverId: string,
+    nftMint: string,
+    recipientAddress: string,
+    network?: string
+  ) => Promise<{ success: boolean; operationId?: string; error?: string }>;
+
+  approveWalletOperation: (operationId: string) => Promise<{ success: boolean; error?: string }>;
+  cancelWalletOperation: (operationId: string) => Promise<{ success: boolean; error?: string }>;
+
+  // Agent operation methods
+  executeAgentCommand: (
+    receiverId: string,
+    command: string,
+    parameters: any
+  ) => Promise<{ success: boolean; operationId?: string; error?: string }>;
 
   // Utility methods
   refreshConversations: () => Promise<void>;
@@ -478,6 +600,46 @@ export const SocketChatProvider = ({ children }: SocketChatProviderProps) => {
         // Handle bot responses - could add to group messages if needed
       });
 
+      // Wallet operation event handlers
+      newSocket.on('wallet_operation_started', (data: { operationId: string; operation: WalletOperationData }) => {
+        console.log('💰 [NewSocketChat] Wallet operation started:', data);
+        // Update UI to show operation has started
+        updateWalletOperationStatus(data.operationId, 'processing', data.operation);
+      });
+
+      newSocket.on('wallet_operation_completed', (data: { operationId: string; transactionHash: string; operation: WalletOperationData }) => {
+        console.log('✅ [NewSocketChat] Wallet operation completed:', data);
+        // Update UI to show operation completion
+        updateWalletOperationStatus(data.operationId, 'completed', {
+          ...data.operation,
+          transactionHash: data.transactionHash,
+          completedAt: new Date()
+        });
+      });
+
+      newSocket.on('wallet_operation_failed', (data: { operationId: string; error: string; operation: WalletOperationData }) => {
+        console.log('❌ [NewSocketChat] Wallet operation failed:', data);
+        // Update UI to show operation failure
+        updateWalletOperationStatus(data.operationId, 'failed', {
+          ...data.operation,
+          errorMessage: data.error
+        });
+      });
+
+      newSocket.on('wallet_operation_approval_required', (data: { operationId: string; operation: WalletOperationData }) => {
+        console.log('🔐 [NewSocketChat] Wallet operation requires approval:', data);
+        // Show approval dialog
+        updateWalletOperationStatus(data.operationId, 'pending', {
+          ...data.operation,
+          requiresUserApproval: true
+        });
+      });
+
+      newSocket.on('agent_command_executed', (data: { operationId: string; result: any; success: boolean }) => {
+        console.log('🤖 [NewSocketChat] Agent command executed:', data);
+        // Handle agent command results
+      });
+
       socketRef.current = newSocket;
       setSocket(newSocket);
 
@@ -556,10 +718,57 @@ export const SocketChatProvider = ({ children }: SocketChatProviderProps) => {
     const conversationKey = getConversationKey(editedMessage.sender._id, editedMessage.receiver._id);
     setMessages(prev => ({
       ...prev,
-      [conversationKey]: prev[conversationKey]?.map(msg => 
+      [conversationKey]: prev[conversationKey]?.map(msg =>
         msg._id === editedMessage._id ? editedMessage : msg
       ) || []
     }));
+  };
+
+  const updateWalletOperationStatus = (
+    operationId: string,
+    status: WalletOperationData['status'],
+    operationData: Partial<WalletOperationData>
+  ) => {
+    setMessages(prev => {
+      const updated = { ...prev };
+      Object.keys(updated).forEach(conversationKey => {
+        updated[conversationKey] = updated[conversationKey].map(msg => {
+          if (msg.walletOperation && (msg._id === operationId || msg.walletOperation === operationData)) {
+            return {
+              ...msg,
+              walletOperation: {
+                ...msg.walletOperation,
+                status,
+                ...operationData
+              }
+            };
+          }
+          return msg;
+        });
+      });
+      return updated;
+    });
+
+    // Also update group messages
+    setGroupMessages(prev => {
+      const updated = { ...prev };
+      Object.keys(updated).forEach(groupId => {
+        updated[groupId] = updated[groupId].map(msg => {
+          if (msg.walletOperation && (msg._id === operationId || msg.walletOperation === operationData)) {
+            return {
+              ...msg,
+              walletOperation: {
+                ...msg.walletOperation,
+                status,
+                ...operationData
+              }
+            };
+          }
+          return msg;
+        });
+      });
+      return updated;
+    });
   };
 
   // Chat methods

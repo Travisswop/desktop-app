@@ -706,6 +706,30 @@ export default function SwapTokenModal({
         throw new Error('Solana wallet not connected');
       }
 
+      // Get fee account for the input token mint from backend
+      const inputMint = quoteResponse.inputMint;
+
+      const feeAccountResponse = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL}/api/v5/wallet/tokenAccount/${inputMint}`,
+        {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+        }
+      );
+
+      if (!feeAccountResponse.ok) {
+        throw new Error('Failed to get fee account from backend');
+      }
+
+      const feeAccountData = await feeAccountResponse.json();
+      const feeAccount = feeAccountData.tokenAccount;
+
+      if (!feeAccount) {
+        throw new Error('No fee account received from backend');
+      }
+
       const swapResponse = await fetch(
         'https://quote-api.jup.ag/v6/swap',
         {
@@ -720,6 +744,7 @@ export default function SwapTokenModal({
             dynamicComputeUnitLimit: true,
             prioritizationFeeLamports: 'auto',
             platformFeeBps: 50,
+            feeAccount: feeAccount,
           }),
         }
       );
