@@ -715,9 +715,10 @@ export default function SwapTokenModal({
         outputMint,
       });
 
-      // Create both input (fee account) and output token accounts in parallel
+      // Create all necessary token accounts: platform accounts for fees AND user accounts for the swap
       const [feeAccountResponse, outputAccountResponse] =
         await Promise.all([
+          // Platform fee account (for collecting platform fees in input token)
           fetch(
             `${process.env.NEXT_PUBLIC_API_URL}/api/v5/wallet/tokenAccount/${inputMint}`,
             {
@@ -727,6 +728,7 @@ export default function SwapTokenModal({
               },
             }
           ),
+          // Platform output account (for receiving output tokens if needed)
           fetch(
             `${process.env.NEXT_PUBLIC_API_URL}/api/v5/wallet/tokenAccount/${outputMint}`,
             {
@@ -737,6 +739,10 @@ export default function SwapTokenModal({
             }
           ),
         ]);
+
+      console.log(
+        'Platform token accounts created for fee collection'
+      );
 
       if (!feeAccountResponse.ok) {
         const errorText = await feeAccountResponse.text();
@@ -1068,8 +1074,6 @@ export default function SwapTokenModal({
       try {
         let toAmount;
 
-        console.log('gggg2', toAmount);
-
         if (jupiterQuote) {
           toAmount = jupiterQuote.outAmount;
         } else if (quote) {
@@ -1335,21 +1339,51 @@ export default function SwapTokenModal({
         try {
           // Send the signed transaction directly
           const rawTransaction = signedTx.serialize();
+
+          console.log('Sending direct transaction:', {
+            transactionSize: rawTransaction.length,
+            inputMint,
+            outputMint,
+            userWallet: solWallet,
+          });
+
           const signature = await connection.sendRawTransaction(
             rawTransaction,
             {
               skipPreflight: false,
               preflightCommitment: 'confirmed',
+              maxRetries: 3,
             }
           );
 
           txId = signature;
-          console.log('Direct transaction sent:', signature);
+          console.log(
+            'Direct transaction sent successfully:',
+            signature
+          );
         } catch (sendError: any) {
           console.error(
             'Failed to send direct transaction:',
             sendError
           );
+          console.error('Error details:', {
+            name: sendError.name,
+            message: sendError.message,
+            logs: sendError.logs || 'No logs available',
+          });
+
+          // For Token-2022 tokens, provide more specific error message
+          if (
+            inputMint ===
+            'XsDoVfqeBukxuZHWhdvWHBhgEHjGNst4MLodqsJHzoB'
+          ) {
+            throw new Error(
+              `Tesla Token (Token-2022) swap failed: ${
+                sendError.message || sendError
+              }. This may require creating associated token accounts first.`
+            );
+          }
+
           throw new Error(
             `Transaction failed: ${sendError.message || sendError}`
           );
@@ -1866,8 +1900,6 @@ export default function SwapTokenModal({
 
     try {
       let fromAmount, toAmount;
-
-      console.log('gggg', fromAmount);
 
       if (jupiterQuote) {
         fromAmount = jupiterQuote.inAmount;
@@ -2474,8 +2506,6 @@ export default function SwapTokenModal({
             (() => {
               const quoteInfo = getQuoteInfo();
               const exchangeRate = quoteInfo?.exchangeRate;
-
-              console.log('quote info', quoteInfo);
 
               return (
                 exchangeRate && (
