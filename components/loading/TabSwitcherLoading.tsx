@@ -91,7 +91,7 @@ export const FeedMainContentDataLoading = () => {
 
 export const FeedHomepageLoading = () => {
   return (
-    <div className="flex gap-2 mx-auto w-[80%] xl:w-[34%]">
+    <div className="flex gap-2 mx-auto w-[80%] xl:w-[30%]">
       <FeedMainComponentLoading />
     </div>
   );

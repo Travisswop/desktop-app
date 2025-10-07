@@ -1,7 +1,7 @@
-'use client';
+"use client";
 
-import { getUserFeed } from '@/actions/postFeed';
-import Image from 'next/image';
+import { getUserFeed } from "@/actions/postFeed";
+import Image from "next/image";
 import React, {
   useState,
   useEffect,
@@ -9,30 +9,30 @@ import React, {
   useCallback,
   memo,
   useMemo,
-} from 'react';
-import { GoDotFill } from 'react-icons/go';
-import dayjs from 'dayjs';
-import PostTypeMedia from './view/PostTypeMedia';
-import { HiDotsHorizontal } from 'react-icons/hi';
+} from "react";
+import { GoDotFill } from "react-icons/go";
+import dayjs from "dayjs";
+import PostTypeMedia from "./view/PostTypeMedia";
+import { HiDotsHorizontal } from "react-icons/hi";
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
   useDisclosure,
-} from '@nextui-org/react';
-import relativeTime from 'dayjs/plugin/relativeTime';
-import Reaction from './view/Reaction';
-import Link from 'next/link';
-import { FiPlusCircle } from 'react-icons/fi';
-import DeleteFeedModal from './DeleteFeedModal';
-import isUrl from '@/lib/isUrl';
-import RedeemClaimModal from '../modal/RedeemClaim';
-import { useRouter } from 'next/navigation';
-import IndividualFeedContent from './IndividualFeedContent';
-import { FeedMainContentDataLoading } from '../loading/TabSwitcherLoading';
-import FeedLoading from '../loading/FeedLoading';
-import logger from '@/utils/logger';
-import FeedItem from './FeedItem';
+} from "@nextui-org/react";
+import relativeTime from "dayjs/plugin/relativeTime";
+import Reaction from "./view/Reaction";
+import Link from "next/link";
+import { FiPlusCircle } from "react-icons/fi";
+import DeleteFeedModal from "./DeleteFeedModal";
+import isUrl from "@/lib/isUrl";
+import RedeemClaimModal from "../modal/RedeemClaim";
+import { useRouter } from "next/navigation";
+import IndividualFeedContent from "./IndividualFeedContent";
+import { FeedMainContentDataLoading } from "../loading/TabSwitcherLoading";
+import FeedLoading from "../loading/FeedLoading";
+import logger from "@/utils/logger";
+import FeedItem from "./FeedItem";
 
 dayjs.extend(relativeTime);
 
@@ -77,10 +77,7 @@ const MemoizedFeedItem = memo(
     onRepostSuccess: () => void;
     onDeleteSuccess: () => void;
     renderTransactionContent: (feed: any) => JSX.Element;
-    onPostInteraction: (
-      postId: string,
-      updates: Partial<FeedItemType>
-    ) => void;
+    onPostInteraction: (postId: string, updates: Partial<FeedItemType>) => void;
   }) => {
     return (
       <FeedItem
@@ -110,7 +107,7 @@ const MemoizedFeedItem = memo(
   }
 );
 
-MemoizedFeedItem.displayName = 'MemoizedFeedItem';
+MemoizedFeedItem.displayName = "MemoizedFeedItem";
 
 const Feed = memo(
   ({
@@ -188,19 +185,13 @@ const Feed = memo(
             5
           )}...${receiver_wallet_address.slice(-5)}`;
 
-      if (transaction_type === 'nft') {
+      if (transaction_type === "nft") {
         return (
           <div>
             <p className="text-gray-600 text-sm">
-              Sent NFT{' '}
-              <span className="font-medium text-base">
-                {name || 'item'}
-              </span>{' '}
-              to{' '}
-              <span className="font-medium text-base">
-                {recipientDisplay}
-              </span>
-              .
+              Sent NFT{" "}
+              <span className="font-medium text-base">{name || "item"}</span> to{" "}
+              <span className="font-medium text-base">{recipientDisplay}</span>.
             </p>
             {image && (
               <div className="w-52">
@@ -212,34 +203,33 @@ const Feed = memo(
                   className="w-full h-auto"
                 />
                 <p className="text-sm text-gray-600 font-medium mt-0.5 text-center">
-                  {amount} {currency || 'NFT'}
+                  {amount} {currency || "NFT"}
                 </p>
               </div>
             )}
           </div>
         );
-      } else if (transaction_type === 'token') {
+      } else if (transaction_type === "token") {
         return (
           <p className="text-gray-600 text-sm">
-            Transferred{' '}
+            Transferred{" "}
             <span className="font-medium">
               {amount.toFixed(2)} {token}
-            </span>{' '}
+            </span>{" "}
             {tokenPrice && (
               <span className="text-sm text-gray-600 font-medium mt-0.5">
                 (${Number(tokenPrice).toFixed(2)})
               </span>
-            )}{' '}
-            tokens to{' '}
-            <span className="font-medium">{recipientDisplay}</span> on
+            )}{" "}
+            tokens to <span className="font-medium">{recipientDisplay}</span> on
             the {chain}.
           </p>
         );
       } else {
         return (
           <p className="text-gray-600 text-sm">
-            Executed a {transaction_type} transaction involving{' '}
-            {amount} {currency}.
+            Executed a {transaction_type} transaction involving {amount}{" "}
+            {currency}.
           </p>
         );
       }
@@ -253,7 +243,7 @@ const Feed = memo(
 
         try {
           const currentPage = reset ? 1 : pageRef.current;
-          const url = `${API_URL}/api/v1/feed/user/connect/${userId}?page=${currentPage}&limit=5`;
+          const url = `${API_URL}/api/v1/feed/user/connect/post/${userId}?page=${currentPage}&limit=5`;
           const newFeedData = await getUserFeed(url, accessToken);
 
           if (!newFeedData?.data) {
@@ -280,7 +270,7 @@ const Feed = memo(
 
           setInitialLoading(false);
         } catch (error) {
-          console.error('Error fetching feed data:', error);
+          console.error("Error fetching feed data:", error);
           setHasMore(false);
         } finally {
           setIsPostLoading(false);
@@ -310,9 +300,7 @@ const Feed = memo(
     useEffect(() => {
       if (!hasMore) return;
 
-      const observerCallback = (
-        entries: IntersectionObserverEntry[]
-      ) => {
+      const observerCallback = (entries: IntersectionObserverEntry[]) => {
         if (entries[0].isIntersecting && !isFetching.current) {
           fetchFeedData();
         }
@@ -320,7 +308,7 @@ const Feed = memo(
 
       const observer = new IntersectionObserver(observerCallback, {
         root: null,
-        rootMargin: '0px',
+        rootMargin: "0px",
         threshold: 1.0,
       });
 
@@ -363,11 +351,7 @@ const Feed = memo(
           {memoizedFeedItems}
           {hasMore && (
             <div ref={observerRef}>
-              {initiaLoading ? (
-                <FeedMainContentDataLoading />
-              ) : (
-                <FeedLoading />
-              )}
+              {initiaLoading ? <FeedMainContentDataLoading /> : <FeedLoading />}
             </div>
           )}
         </div>
@@ -383,6 +367,6 @@ const Feed = memo(
   }
 );
 
-Feed.displayName = 'Feed';
+Feed.displayName = "Feed";
 
 export default Feed;

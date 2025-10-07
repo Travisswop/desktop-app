@@ -11,7 +11,6 @@ import React, {
 import Feed from "./Feed";
 import Timeline from "./Timeline";
 import Transaction from "./Transaction";
-import PostFeed from "./PostFeed";
 import { useUser } from "@/lib/UserContext";
 import { useSearchParams } from "next/navigation";
 import Connections from "./Connections";
@@ -21,7 +20,7 @@ import SpotlightMap from "./SpotlightMap";
 
 // Constants to avoid duplication
 const CONTAINER_HEIGHT = "calc(100vh - 150px)";
-const CONTAINER_WIDTH = "w-[90%] sm:w-[70%] xl:w-[36%]";
+const CONTAINER_WIDTH = "w-[90%] sm:w-[70%] xl:w-[30%]";
 const AUTH_FALLBACK_DELAY = 300;
 
 type AuthData = {
