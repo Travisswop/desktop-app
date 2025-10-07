@@ -4,12 +4,12 @@ import { SidebarProvider } from "@/components/ui/sidebar";
 
 const PageLayout = ({ children }: { children: React.ReactNode }) => {
   return (
-    <div id="emoji-portal-root" className="relative h-screen flex flex-col">
+    <div id="emoji-portal-root" className="flex flex-col">
       <SidebarProvider>
         {/* <Sidenav /> */}
         <div className="flex flex-col w-full">
           <Header />
-          <main className="container mx-auto px-6 py-6 max-w-7xl 2xl:max-w-full flex-1 overflow-y-hidden">
+          <main className="container mx-auto px-6 py-6 max-w-7xl 2xl:max-w-full flex-1">
             {children}
           </main>
           <BottomNavContent />

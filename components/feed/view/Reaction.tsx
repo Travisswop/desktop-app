@@ -310,7 +310,7 @@ const Reaction = memo(
             onOpenChange={(open) => setIsRepostPopOpen(open)}
           >
             <PopoverTrigger>
-              <div className="relative">
+              <div className="z-0">
                 <Tooltip
                   className="text-xs font-medium"
                   placement="bottom"

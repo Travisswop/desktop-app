@@ -14,7 +14,7 @@ export const TabSwitcherLoading = () => {
 
 export const FeedMainComponentLoading = () => {
   return (
-    <div className="flex h-screen w-3/5 bg-background">
+    <div className="flex w-full bg-background">
       {/* Main Content */}
       <div className="flex-1 flex flex-col">
         {/* Feed Content Skeleton */}
@@ -91,13 +91,8 @@ export const FeedMainContentDataLoading = () => {
 
 export const FeedHomepageLoading = () => {
   return (
-    <div className="flex gap-2">
+    <div className="flex gap-2 mx-auto w-[80%] xl:w-[34%]">
       <FeedMainComponentLoading />
-      <div className="flex-1 mt-6 flex flex-col gap-4 mx-4">
-        <Skeleton className="flex rounded-lg w-32 h-6" />
-        <Skeleton className="flex rounded-lg w-full h-8" />
-        <ConnectionLoading />
-      </div>
     </div>
   );
 };

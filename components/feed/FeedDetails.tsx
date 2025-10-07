@@ -371,7 +371,7 @@ const FeedDetails = ({ feedData, feedDetails, accessToken }: any) => {
                       <div className="flex flex-col gap-3 border rounded-xl p-4 bg-white hover:bg-gray-50 transition-colors shadow-sm">
                         <div className="flex items-center justify-between">
                           <div className="flex items-center gap-2">
-                            <div className="relative flex items-center">
+                            <div className="relative flex items-center !z-0">
                               <Image
                                 src={
                                   feedData.content.inputToken.tokenImg.startsWith(
