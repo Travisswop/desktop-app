@@ -17,6 +17,7 @@ import Connections from "./Connections";
 import Cookies from "js-cookie";
 import { FeedHomepageLoading } from "../loading/TabSwitcherLoading";
 import SpotlightMap from "./SpotlightMap";
+import Ledger from "./Ledger";
 
 // Constants to avoid duplication
 const CONTAINER_HEIGHT = "calc(100vh - 150px)";
@@ -114,7 +115,7 @@ const RightSidebar = memo(
         style={{ height: CONTAINER_HEIGHT }}
         className="flex-1 overflow-y-auto"
       >
-        <SpotlightMap token={spotlightMapToken} />
+        <SpotlightMap />
         <Connections {...connectionsProps} />
       </div>
     );
@@ -193,6 +194,8 @@ const MainContent = memo(
         feed: Feed,
         timeline: Timeline,
         transaction: Transaction,
+        ledger: Ledger,
+        map: SpotlightMap,
       }),
       []
     );
@@ -315,13 +318,13 @@ const FeedMain = memo(({ isFromHome = false }: FeedMainProps) => {
   const tab = useMemo(() => searchParams?.get("tab") || "feed", [searchParams]);
 
   // Stable props for RightSidebar to prevent re-renders
-  const rightSidebarProps = useMemo(
-    () => ({
-      accessToken: accessToken as string,
-      userId: userId as string,
-    }),
-    [accessToken, userId]
-  );
+  // const rightSidebarProps = useMemo(
+  //   () => ({
+  //     accessToken: accessToken as string,
+  //     userId: userId as string,
+  //   }),
+  //   [accessToken, userId]
+  // );
 
   // Stable props for MainContent
   const mainContentProps = useMemo(

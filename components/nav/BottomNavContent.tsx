@@ -8,60 +8,69 @@ import smartsite from "@/public/images/nav/smartsite.png";
 import wallet from "@/public/images/nav/wallet.png";
 import Link from "next/link";
 import { BiSolidEdit } from "react-icons/bi";
-import { useState } from "react";
+import { useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
 
 const BottomNavContent = () => {
   const pathname = usePathname();
+  const searchParams = useSearchParams();
   console.log("pathname", pathname);
-  const [feedType, setFeedType] = useState("feed");
+  const [isCreateFeed, setIsCreateFeed] = useState(true);
+  const tab = useMemo(
+    () => searchParams && searchParams.get("tab"),
+    [searchParams]
+  );
 
   return (
     <div className="w-[19rem] fixed bottom-2 left-1/2 transform -translate-x-1/2 ">
       {pathname === "/" && (
         <div className="flex text-sm font-medium w-[84%] bg-white p-3 rounded-xl shadow-large items-center justify-between mb-2 mx-auto">
-          <button
-            onClick={() => setFeedType("feed")}
+          <Link
+            href={"/?tab=feed"}
+            // onClick={() => setFeedType("feed")}
             className="flex flex-col gap-1 items-center"
           >
             <div
               className={`${
-                feedType === "feed" && "bg-gray-100"
+                (tab === "feed" || !tab) && "bg-gray-100"
               } rounded-full px-3 py-1`}
             >
               <p>Feed</p>
             </div>
-          </button>
-          <button
-            onClick={() => setFeedType("ledger")}
+          </Link>
+          <Link
+            href={"/?tab=ledger"}
+            // onClick={() => setFeedType("ledger")}
             className="flex flex-col gap-1 items-center"
           >
             <div
               className={`${
-                feedType === "ledger" && "bg-gray-100"
+                tab === "ledger" && "bg-gray-100"
               } rounded-full px-3 py-1`}
             >
               <p>Ledger</p>
             </div>
-          </button>
-          <button
-            onClick={() => setFeedType("map")}
+          </Link>
+          <Link
+            // onClick={() => setFeedType("map")}
+            href={"/?tab=map"}
             className="flex flex-col gap-1 items-center"
           >
             <div
               className={`${
-                feedType === "map" && "bg-gray-100"
+                tab === "map" && "bg-gray-100"
               } rounded-full px-3 py-1`}
             >
               <p>Map</p>
             </div>
-          </button>
+          </Link>
           <button
-            onClick={() => setFeedType("create-feed")}
+            onClick={() => setIsCreateFeed(!isCreateFeed)}
             className="flex flex-col gap-1 items-center"
           >
             <div
               className={`${
-                feedType === "create-feed" && "bg-gray-100"
+                isCreateFeed && "bg-gray-100"
               } rounded-full px-3 py-1`}
             >
               <BiSolidEdit size={18} />
