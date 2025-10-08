@@ -10,12 +10,13 @@ import Link from "next/link";
 import { BiSolidEdit } from "react-icons/bi";
 import { useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
+import { useModalStore } from "@/zustandStore/modalstore";
 
 const BottomNavContent = () => {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   console.log("pathname", pathname);
-  const [isCreateFeed, setIsCreateFeed] = useState(true);
+  const { isOpen, openModal, closeModal, toggleModal } = useModalStore();
   const tab = useMemo(
     () => searchParams && searchParams.get("tab"),
     [searchParams]
@@ -65,12 +66,12 @@ const BottomNavContent = () => {
             </div>
           </Link>
           <button
-            onClick={() => setIsCreateFeed(!isCreateFeed)}
+            onClick={openModal}
             className="flex flex-col gap-1 items-center"
           >
             <div
               className={`${
-                isCreateFeed && "bg-gray-100"
+                tab === "create-feed" && "bg-gray-100"
               } rounded-full px-3 py-1`}
             >
               <BiSolidEdit size={18} />

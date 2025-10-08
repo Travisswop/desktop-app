@@ -18,6 +18,9 @@ import Cookies from "js-cookie";
 import { FeedHomepageLoading } from "../loading/TabSwitcherLoading";
 import SpotlightMap from "./SpotlightMap";
 import Ledger from "./Ledger";
+import PostFeed from "./PostFeed";
+import CustomModal from "../modal/CustomModal";
+import { useModalStore } from "@/zustandStore/modalstore";
 
 // Constants to avoid duplication
 const CONTAINER_HEIGHT = "calc(100vh - 150px)";
@@ -284,19 +287,43 @@ const MainContentInner = memo(
       [stablePostFeedProps, setIsPosting, setIsPostLoading]
     );
 
+    console.log("postFeedProps", postFeedProps);
+
     const renderComponent = useMemo(() => {
       const Component =
         tabComponents[tab as keyof typeof tabComponents] || Feed;
       return <Component {...feedComponentProps} />;
     }, [tab, tabComponents, feedComponentProps]);
 
+    const [isModalOpen, setIsModalOpen] = useState(false);
+
+    const searchParams = useSearchParams();
+
+    const tabs = useMemo(
+      () => searchParams && searchParams.get("tab"),
+      [searchParams]
+    );
+
+    const { isOpen, openModal, closeModal, toggleModal } = useModalStore();
+
+    useEffect(() => {
+      if (tabs === "create-feed") {
+        setIsModalOpen(true);
+      } else {
+        setIsModalOpen(false);
+      }
+    }, [tabs]);
+
     return (
       <div
         // style={{ height: CONTAINER_HEIGHT }}
         className={`${CONTAINER_WIDTH} overflow-y-auto`}
       >
-        {/* <PostFeed {...postFeedProps} />
-        <hr /> */}
+        {/* post new feed Modal */}
+        <CustomModal isOpen={isOpen} onClose={closeModal} title="Create Post">
+          <PostFeed {...postFeedProps} />
+        </CustomModal>
+        {/* <hr /> */}
 
         <Suspense fallback={<div>Loading feed...</div>}>
           {renderComponent}
