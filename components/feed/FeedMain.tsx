@@ -344,15 +344,6 @@ const FeedMain = memo(({ isFromHome = false }: FeedMainProps) => {
 
   const tab = useMemo(() => searchParams?.get("tab") || "feed", [searchParams]);
 
-  // Stable props for RightSidebar to prevent re-renders
-  // const rightSidebarProps = useMemo(
-  //   () => ({
-  //     accessToken: accessToken as string,
-  //     userId: userId as string,
-  //   }),
-  //   [accessToken, userId]
-  // );
-
   // Stable props for MainContent
   const mainContentProps = useMemo(
     () => ({

@@ -17,6 +17,8 @@ import { sendCloudinaryVideo } from "@/lib/sendCloudinaryVideo";
 import UserImageAvatar from "../util/Avatar";
 import isUrl from "@/lib/isUrl";
 import toast from "react-hot-toast";
+import { useRouter } from "next/navigation";
+import { useModalStore } from "@/zustandStore/modalstore";
 
 const PostFeed = ({
   primaryMicrositeImg,
@@ -31,7 +33,9 @@ const PostFeed = ({
   setIsPosting: any;
   setIsPostLoading: any;
 }) => {
-  const { user, loading, error: userError }: any = useUser();
+  const { user }: any = useUser();
+  const router = useRouter();
+  const { closeModal } = useModalStore();
   const [postLoading, setPostLoading] = useState<boolean>(false);
   const [primaryMicrosite, setPrimaryMicrosite] = useState<string>("");
 
@@ -116,14 +120,12 @@ const PostFeed = ({
       console.log("feed post response", data);
 
       if (data?.state === "success") {
-        // toast({
-        //   title: "Success",
-        //   description: "You posted successfully!",
-        // });
         toast.success("You posted successfully!");
         setMediaFiles([]);
         setPostContent("");
         setIsPosting(true);
+        router.push("/?tab=feed");
+        closeModal();
       }
       if (data?.state === "not-allowed") {
         // toast({
@@ -168,10 +170,10 @@ const PostFeed = ({
             }
           />
           <div>
-            <p className="font-semibold">
+            <p className="font-medium">
               {primaryMicrositeDetails && primaryMicrositeDetails.name}
             </p>
-            <p className="text-sm font-medium">
+            <p className="text-sm text-gray-700">
               {(primaryMicrositeDetails && primaryMicrositeDetails.ens) ||
                 primaryMicrositeDetails?.ensData?.name}
             </p>
@@ -199,33 +201,27 @@ const PostFeed = ({
           {mediaFiles.length > 0 && (
             <div className="mt-4 w-full flex justify-center">
               {mediaFiles.length === 1 && (
-                <div className="relative max-h-[30rem] overflow-hidden rounded-2xl w-max">
+                <div className="relative overflow-hidden rounded-2xl w-1/2">
                   <button
                     onClick={() => handleRemoveMedia(0)}
-                    className="absolute top-2 right-2 bg-black/50 p-1 rounded-full hover:bg-black/70 z-50 text-white"
+                    className="absolute top-2 right-2 bg-black p-1 rounded-full"
                   >
-                    <AiOutlineClose size={20} />
+                    <AiOutlineClose size={14} color="white" />
                   </button>
                   {mediaFiles[0].type === "image" ||
                   mediaFiles[0].type === "gif" ? (
-                    <div className="flex items-center justify-center h-full">
-                      <Image
-                        src={mediaFiles[0].src}
-                        alt="media"
-                        width={1600}
-                        height={1600}
-                        className="object-contain max-h-[30rem] w-auto"
-                        style={{
-                          maxWidth: "100%",
-                          height: "auto",
-                        }}
-                      />
-                    </div>
+                    <Image
+                      src={mediaFiles[0].src}
+                      alt="media"
+                      width={1600}
+                      height={1200}
+                      className="w-full h-auto"
+                    />
                   ) : (
                     <video
                       src={mediaFiles[0].src}
                       controls
-                      className="w-full h-auto max-h-[30rem] rounded-2xl"
+                      className="w-full h-auto max-h-[10rem] rounded-2xl"
                     />
                   )}
                 </div>
@@ -233,17 +229,17 @@ const PostFeed = ({
 
               {/* Display for 2 media items */}
               {mediaFiles.length === 2 && (
-                <div className="w-full grid grid-cols-2 gap-1 border rounded-2xl overflow-hidden relative h-auto sm:h-72 md:h-96 xl:h-[28rem]">
+                <div className="w-full grid grid-cols-2 gap-1 overflow-hidden h-[9rem]">
                   {mediaFiles.map((file, index) => (
                     <div
                       key={index}
-                      className="relative w-full h-full aspect-[4/3] overflow-hidden"
+                      className="relative w-full h-full overflow-hidden rounded-xl"
                     >
                       <button
                         onClick={() => handleRemoveMedia(index)}
-                        className="absolute top-2 right-2 bg-white p-1 rounded-full hover:bg-gray-300 z-50"
+                        className="absolute top-2 right-2 bg-black p-1 rounded-full z-10"
                       >
-                        <AiOutlineClose size={20} className="text-gray-600" />
+                        <AiOutlineClose size={14} color="white" />
                       </button>
                       {file.type === "image" || file.type === "gif" ? (
                         <Image
@@ -267,17 +263,17 @@ const PostFeed = ({
 
               {/* Display for 3 media items */}
               {mediaFiles.length === 3 && (
-                <div className="w-full grid grid-cols-3 gap-1 border rounded-2xl overflow-hidden relative h-auto sm:h-72 md:h-96">
+                <div className="w-full grid grid-cols-3 gap-1 overflow-hidden relative h-[8rem]">
                   {mediaFiles.map((file, index) => (
                     <div
                       key={index}
-                      className="relative w-full h-full aspect-[4/3] overflow-hidden"
+                      className="relative w-full h-full overflow-hidden rounded-xl"
                     >
                       <button
                         onClick={() => handleRemoveMedia(index)}
-                        className="absolute top-2 right-2 bg-white p-1 rounded-full hover:bg-gray-300 z-50"
+                        className="absolute top-2 right-2 bg-black p-1 rounded-full z-10"
                       >
-                        <AiOutlineClose size={20} className="text-gray-600" />
+                        <AiOutlineClose size={14} color="white" />
                       </button>
                       {file.type === "image" || file.type === "gif" ? (
                         <Image
@@ -301,17 +297,17 @@ const PostFeed = ({
 
               {/* Display for 4 media items */}
               {mediaFiles.length === 4 && (
-                <div className="grid grid-cols-2 gap-1 border rounded-2xl overflow-hidden relative h-auto sm:h-72 md:h-96 xl:h-[30rem]">
+                <div className="grid w-full grid-cols-2 gap-1 overflow-hidden h-[18rem]">
                   {mediaFiles.map((file, index) => (
                     <div
                       key={index}
-                      className="relative w-full h-full aspect-[4/3] overflow-hidden"
+                      className="relative w-full h-full aspect-[4/3] overflow-hidden rounded-xl"
                     >
                       <button
                         onClick={() => handleRemoveMedia(index)}
-                        className="absolute top-2 right-2 bg-white p-1 rounded-full hover:bg-gray-300 z-50"
+                        className="absolute top-2 right-2 bg-black p-1 rounded-full z-10"
                       >
-                        <AiOutlineClose size={20} className="text-gray-600" />
+                        <AiOutlineClose size={14} color="white" />
                       </button>
                       {file.type === "image" || file.type === "gif" ? (
                         <Image

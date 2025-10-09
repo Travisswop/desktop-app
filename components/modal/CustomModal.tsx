@@ -50,7 +50,7 @@ const CustomModal: React.FC<CustomModalProps> = ({
         </div>
 
         {/* Content */}
-        <div className="p-4 overflow-y-auto max-h-[80vh]">{children}</div>
+        <div className="overflow-y-auto max-h-[80vh]">{children}</div>
       </div>
     </div>
   );

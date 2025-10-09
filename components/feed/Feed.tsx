@@ -159,8 +159,6 @@ const Feed = memo(
       []
     );
 
-    const router = useRouter();
-
     // Memoized transaction content renderer
     const renderTransactionContent = useCallback((feed: any) => {
       const {
