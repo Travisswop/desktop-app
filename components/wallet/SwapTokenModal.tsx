@@ -710,77 +710,174 @@ export default function SwapTokenModal({
       const inputMint = quoteResponse.inputMint;
       const outputMint = quoteResponse.outputMint;
 
-      console.log('Creating token accounts for swap:', {
+      console.log('Getting fee account for swap:', {
         inputMint,
         outputMint,
       });
 
-      // Create all necessary token accounts: platform accounts for fees AND user accounts for the swap
-      const [feeAccountResponse, outputAccountResponse] =
-        await Promise.all([
-          // Platform fee account (for collecting platform fees in input token)
-          fetch(
-            `${process.env.NEXT_PUBLIC_API_URL}/api/v5/wallet/tokenAccount/${inputMint}`,
-            {
-              method: 'GET',
-              headers: {
-                'Content-Type': 'application/json',
-              },
-            }
-          ),
-          // Platform output account (for receiving output tokens if needed)
-          fetch(
-            `${process.env.NEXT_PUBLIC_API_URL}/api/v5/wallet/tokenAccount/${outputMint}`,
-            {
-              method: 'GET',
-              headers: {
-                'Content-Type': 'application/json',
-              },
-            }
-          ),
-        ]);
-
-      console.log(
-        'Platform token accounts created for fee collection'
+      // Only get the fee account for platform fees
+      const feeAccountResponse = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL}/api/v5/wallet/tokenAccount/${inputMint}`,
+        {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+        }
       );
 
       if (!feeAccountResponse.ok) {
         const errorText = await feeAccountResponse.text();
-        console.error('Fee account creation failed:', errorText);
-        throw new Error(
-          `Failed to get fee account from backend: ${errorText}`
+        console.error('Fee account fetch failed:', errorText);
+        console.warn('Proceeding without platform fee account');
+
+        // Proceed without fee account if it fails - Jupiter will handle the swap
+        const swapResponse = await fetch(
+          'https://lite-api.jup.ag/swap/v1/swap',
+          {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              quoteResponse,
+              userPublicKey: solWallet,
+              wrapAndUnwrapSol: true,
+              dynamicComputeUnitLimit: true,
+              prioritizationFeeLamports: 'auto',
+            }),
+          }
         );
+
+        if (!swapResponse.ok) {
+          const errorData = await swapResponse.json().catch(() => null);
+          throw new Error(
+            errorData?.error || 'Failed to get swap transaction'
+          );
+        }
+
+        return await swapResponse.json();
       }
 
-      if (!outputAccountResponse.ok) {
-        const errorText = await outputAccountResponse.text();
-        console.error('Output account creation failed:', errorText);
-        throw new Error(
-          `Failed to get output account from backend: ${errorText}`
-        );
-      }
-
-      const [feeAccountData, outputAccountData] = await Promise.all([
-        feeAccountResponse.json(),
-        outputAccountResponse.json(),
-      ]);
-
+      const feeAccountData = await feeAccountResponse.json();
       const feeAccount = feeAccountData.tokenAccount;
-      const outputAccount = outputAccountData.tokenAccount;
 
       if (!feeAccount) {
-        throw new Error('No fee account received from backend');
+        console.warn('No fee account received, proceeding without platform fee');
+
+        // Proceed without platform fee
+        const swapResponse = await fetch(
+          'https://lite-api.jup.ag/swap/v1/swap',
+          {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              quoteResponse,
+              userPublicKey: solWallet,
+              wrapAndUnwrapSol: true,
+              dynamicComputeUnitLimit: true,
+              prioritizationFeeLamports: 'auto',
+            }),
+          }
+        );
+
+        if (!swapResponse.ok) {
+          const errorData = await swapResponse.json().catch(() => null);
+          throw new Error(
+            errorData?.error || 'Failed to get swap transaction'
+          );
+        }
+
+        return await swapResponse.json();
       }
 
-      if (!outputAccount) {
-        throw new Error('No output account received from backend');
+      console.log('Fee account retrieved:', feeAccount);
+
+      // Verify the fee account is a valid token account on-chain
+      const rpcUrl =
+        process.env.NEXT_PUBLIC_HELIUS_API_URL ||
+        process.env.NEXT_PUBLIC_ALCHEMY_SOLANA_URL ||
+        process.env.NEXT_PUBLIC_QUICKNODE_SOLANA_URL;
+
+      if (!rpcUrl) {
+        throw new Error('No Solana RPC URL configured');
       }
 
-      console.log('Token accounts created successfully:', {
-        feeAccount,
-        outputAccount,
-      });
+      const connection = new Connection(rpcUrl, 'confirmed');
 
+      try {
+        // Verify the fee account exists and has valid data
+        const accountInfo = await connection.getAccountInfo(
+          new (await import('@solana/web3.js')).PublicKey(feeAccount)
+        );
+
+        if (!accountInfo || accountInfo.data.length === 0) {
+          console.warn('Fee account not initialized on-chain, proceeding without platform fee');
+
+          // Proceed without platform fee if account is invalid
+          const swapResponse = await fetch(
+            'https://lite-api.jup.ag/swap/v1/swap',
+            {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                quoteResponse,
+                userPublicKey: solWallet,
+                wrapAndUnwrapSol: true,
+                dynamicComputeUnitLimit: true,
+                prioritizationFeeLamports: 'auto',
+              }),
+            }
+          );
+
+          if (!swapResponse.ok) {
+            const errorData = await swapResponse.json().catch(() => null);
+            throw new Error(
+              errorData?.error || 'Failed to get swap transaction'
+            );
+          }
+
+          return await swapResponse.json();
+        }
+
+        console.log('Fee account verified on-chain');
+      } catch (verifyError) {
+        console.error('Failed to verify fee account:', verifyError);
+        console.warn('Proceeding without platform fee due to verification failure');
+
+        // Fallback: proceed without fee
+        const swapResponse = await fetch(
+          'https://lite-api.jup.ag/swap/v1/swap',
+          {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              quoteResponse,
+              userPublicKey: solWallet,
+              wrapAndUnwrapSol: true,
+              dynamicComputeUnitLimit: true,
+              prioritizationFeeLamports: 'auto',
+            }),
+          }
+        );
+
+        if (!swapResponse.ok) {
+          const errorData = await swapResponse.json().catch(() => null);
+          throw new Error(
+            errorData?.error || 'Failed to get swap transaction'
+          );
+        }
+
+        return await swapResponse.json();
+      }
+
+      // Try with fee account since it's valid
       const swapResponse = await fetch(
         'https://lite-api.jup.ag/swap/v1/swap',
         {
