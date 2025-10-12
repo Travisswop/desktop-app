@@ -1,34 +1,31 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useRef } from "react";
 import GifPicker from "gif-picker-react";
-import { HiOutlineGif } from "react-icons/hi2";
 
 interface GifProps {
   mediaFilesLength: any;
   setMediaFiles: any;
   setFileError: any;
+  showGifPicker: boolean;
+  setShowGifPicker: (show: boolean) => void;
 }
 
 const GifPickerContent = ({
   mediaFilesLength,
   setMediaFiles,
   setFileError,
+  showGifPicker,
+  setShowGifPicker,
 }: GifProps) => {
-  const [showPicker, setShowPicker] = useState(false);
   const pickerRef = useRef<HTMLDivElement>(null);
-  const buttonRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
     if (mediaFilesLength > 4) {
       setFileError("You can select a maximum of 4 files.");
     }
     if (mediaFilesLength === 4) {
-      setShowPicker(false);
+      setShowGifPicker(false);
     }
-  }, [mediaFilesLength, setFileError]);
-
-  const toggleGif = () => {
-    setShowPicker(!showPicker);
-  };
+  }, [mediaFilesLength, setFileError, setShowGifPicker]);
 
   const handleGifClick = (gifData: any) => {
     setMediaFiles((prevMediaFiles: any) => [
@@ -40,52 +37,38 @@ const GifPickerContent = ({
     ]);
   };
 
+  // Close picker when clicking outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (
         pickerRef.current &&
-        !pickerRef.current.contains(event.target as Node) &&
-        buttonRef.current &&
-        !buttonRef.current.contains(event.target as Node)
+        !pickerRef.current.contains(event.target as Node)
       ) {
-        setShowPicker(false);
+        setShowGifPicker(false);
       }
     };
 
-    if (showPicker) {
-      document.addEventListener("mousedown", handleClickOutside);
-    } else {
-      document.removeEventListener("mousedown", handleClickOutside);
+    if (showGifPicker) {
+      // Add a small delay to prevent immediate closure when opening
+      setTimeout(() => {
+        document.addEventListener("mousedown", handleClickOutside);
+      }, 0);
     }
 
     return () => {
       document.removeEventListener("mousedown", handleClickOutside);
     };
-  }, [showPicker]);
+  }, [showGifPicker, setShowGifPicker]);
+
+  if (!showGifPicker) return null;
 
   return (
-    <div className="relative flex items-center">
-      <button
-        ref={buttonRef}
-        type="button"
-        onClick={mediaFilesLength !== 4 ? toggleGif : () => {}}
-        className={`${mediaFilesLength > 3 && "cursor-not-allowed disabled"}`}
-      >
-        <HiOutlineGif
-          size={23}
-          className={`${
-            mediaFilesLength > 3 ? "text-gray-400" : "text-gray-700"
-          }`}
-        />
-      </button>
-      {showPicker && (
-        <div ref={pickerRef} className="absolute top-full mt-2 z-50">
-          <GifPicker
-            onGifClick={handleGifClick}
-            tenorApiKey={"AIzaSyA-Xn0TwTUBNXY4EBbDCmnAs7o1XYIoZgU"}
-          />
-        </div>
-      )}
+    <div ref={pickerRef} onClick={(e) => e.stopPropagation()}>
+      <GifPicker
+        onGifClick={handleGifClick}
+        tenorApiKey={"AIzaSyA-Xn0TwTUBNXY4EBbDCmnAs7o1XYIoZgU"}
+        width="100%"
+      />
     </div>
   );
 };

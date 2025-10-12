@@ -18,6 +18,7 @@ import toast from "react-hot-toast";
 import { useRouter } from "next/navigation";
 import { useModalStore } from "@/zustandStore/modalstore";
 import { GrEmoji } from "react-icons/gr";
+import { HiOutlineGif } from "react-icons/hi2";
 
 const PostFeed = ({
   primaryMicrositeImg,
@@ -38,6 +39,7 @@ const PostFeed = ({
   const [postLoading, setPostLoading] = useState<boolean>(false);
   const [primaryMicrosite, setPrimaryMicrosite] = useState<string>("");
 
+  const [showGifPicker, setShowGifPicker] = useState(false);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
 
   // console.log("user123", user);
@@ -344,15 +346,32 @@ const PostFeed = ({
                 setMediaFiles={setMediaFiles}
                 mediaFilesLength={mediaFiles.length}
               />
-              <GifPickerContent
-                mediaFilesLength={mediaFiles.length}
-                setMediaFiles={setMediaFiles}
-                setFileError={setFileError}
-              />
+
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (mediaFiles.length !== 4) {
+                    setShowGifPicker(!showGifPicker);
+                    setShowEmojiPicker(false); // Close emoji picker when opening gif
+                  }
+                }}
+                className={`${
+                  mediaFiles.length > 3 && "cursor-not-allowed disabled"
+                }`}
+              >
+                <HiOutlineGif
+                  size={23}
+                  className={`${
+                    mediaFiles.length > 3 ? "text-gray-400" : "text-gray-700"
+                  }`}
+                />
+              </button>
               <button
                 onClick={(e) => {
                   e.stopPropagation();
                   setShowEmojiPicker(!showEmojiPicker);
+                  setShowGifPicker(false); // Close gif picker when opening emoji
                 }}
               >
                 <GrEmoji size={22} className="text-gray-800" />
@@ -391,15 +410,24 @@ const PostFeed = ({
           </div>
 
           {/* Emoji Picker - Renders below the buttons */}
-          {showEmojiPicker && (
-            <div className="mt-4">
+          <div className="mt-4">
+            {showEmojiPicker && (
               <Emoji
                 onEmojiSelect={handleEmojiSelect}
                 showEmojiPicker={showEmojiPicker}
                 setShowEmojiPicker={setShowEmojiPicker}
               />
-            </div>
-          )}
+            )}
+            {showGifPicker && (
+              <GifPickerContent
+                mediaFilesLength={mediaFiles.length}
+                setMediaFiles={setMediaFiles}
+                setFileError={setFileError}
+                showGifPicker={showGifPicker}
+                setShowGifPicker={setShowGifPicker}
+              />
+            )}
+          </div>
         </div>
       </div>
     </div>
