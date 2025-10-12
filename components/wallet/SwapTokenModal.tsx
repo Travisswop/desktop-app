@@ -1302,7 +1302,145 @@ export default function SwapTokenModal({
         }`
       );
 
-      // Step 3: Get swap transaction from Jupiter
+      // Step 3: Set up RPC connection first
+      const rpcUrl =
+        process.env.NEXT_PUBLIC_HELIUS_API_URL ||
+        process.env.NEXT_PUBLIC_ALCHEMY_SOLANA_URL ||
+        process.env.NEXT_PUBLIC_QUICKNODE_SOLANA_URL;
+
+      if (!rpcUrl) {
+        throw new Error(
+          'No Solana RPC URL configured in environment variables'
+        );
+      }
+
+      const connection = new Connection(rpcUrl, 'confirmed');
+      console.log('✅ [SWAP] RPC connection established');
+
+      // Step 4: Ensure user has required token accounts (ATAs)
+      setSwapStatus('Checking token accounts...');
+      console.log('🔍 [SWAP] Ensuring user token accounts exist');
+
+      // Import required Solana SPL token utilities
+      const {
+        PublicKey,
+        Transaction,
+      } = await import('@solana/web3.js');
+      const {
+        getAssociatedTokenAddress,
+        createAssociatedTokenAccountInstruction,
+      } = await import('@solana/spl-token');
+
+      // Check and create ATAs if needed
+      const walletPubkey = new PublicKey(solWallet);
+      const inputMintPubkey = new PublicKey(inputMint);
+      const outputMintPubkey = new PublicKey(outputMint);
+
+      console.log('🔍 [SWAP] Checking ATAs for:', {
+        wallet: walletPubkey.toBase58(),
+        inputMint: inputMintPubkey.toBase58(),
+        outputMint: outputMintPubkey.toBase58(),
+      });
+
+      // Get ATA addresses
+      const inputATA = await getAssociatedTokenAddress(
+        inputMintPubkey,
+        walletPubkey
+      );
+      const outputATA = await getAssociatedTokenAddress(
+        outputMintPubkey,
+        walletPubkey
+      );
+
+      console.log('📍 [SWAP] Expected ATAs:', {
+        inputATA: inputATA.toBase58(),
+        outputATA: outputATA.toBase58(),
+      });
+
+      // Check if ATAs exist
+      const [inputAccountInfo, outputAccountInfo] =
+        await Promise.all([
+          connection.getAccountInfo(inputATA),
+          connection.getAccountInfo(outputATA),
+        ]);
+
+      const needsInputATA = !inputAccountInfo;
+      const needsOutputATA = !outputAccountInfo;
+
+      console.log('🔍 [SWAP] ATA status:', {
+        inputExists: !needsInputATA,
+        outputExists: !needsOutputATA,
+      });
+
+      // Create ATAs if needed
+      if (needsInputATA || needsOutputATA) {
+        console.log(
+          '⚠️ [SWAP] Missing ATAs detected, creating them...'
+        );
+        setSwapStatus('Creating token accounts...');
+
+        const transaction = new Transaction();
+
+        if (needsInputATA) {
+          console.log('➕ [SWAP] Adding input ATA creation instruction');
+          transaction.add(
+            createAssociatedTokenAccountInstruction(
+              walletPubkey,
+              inputATA,
+              walletPubkey,
+              inputMintPubkey
+            )
+          );
+        }
+
+        if (needsOutputATA) {
+          console.log(
+            '➕ [SWAP] Adding output ATA creation instruction'
+          );
+          transaction.add(
+            createAssociatedTokenAccountInstruction(
+              walletPubkey,
+              outputATA,
+              walletPubkey,
+              outputMintPubkey
+            )
+          );
+        }
+
+        try {
+          // Get recent blockhash
+          const { blockhash } = await connection.getLatestBlockhash();
+          transaction.recentBlockhash = blockhash;
+          transaction.feePayer = walletPubkey;
+
+          // Sign and send
+          console.log('🔐 [SWAP] Signing ATA creation transaction');
+          const signedTx = await solanaWallet.signTransaction(
+            transaction
+          );
+          const signature = await connection.sendRawTransaction(
+            signedTx.serialize()
+          );
+
+          console.log(
+            '⏳ [SWAP] Confirming ATA creation:',
+            signature
+          );
+          await connection.confirmTransaction(signature, 'confirmed');
+          console.log('✅ [SWAP] ATAs created successfully');
+        } catch (ataError: any) {
+          console.error('❌ [SWAP] Failed to create ATAs:', ataError);
+          throw new Error(
+            `Failed to create token accounts: ${
+              ataError.message || ataError
+            }`
+          );
+        }
+      } else {
+        console.log('✅ [SWAP] All required ATAs exist');
+      }
+
+      // Step 5: Get swap transaction from Jupiter
       setSwapStatus('Preparing swap transaction...');
       console.log(
         '📡 [SWAP] Requesting swap transaction from Jupiter'
@@ -1318,22 +1456,7 @@ export default function SwapTokenModal({
 
       console.log('✅ [SWAP] Received swap transaction from Jupiter');
 
-      // Step 4: Set up RPC connection
-      const rpcUrl =
-        process.env.NEXT_PUBLIC_HELIUS_API_URL ||
-        process.env.NEXT_PUBLIC_ALCHEMY_SOLANA_URL ||
-        process.env.NEXT_PUBLIC_QUICKNODE_SOLANA_URL;
-
-      if (!rpcUrl) {
-        throw new Error(
-          'No Solana RPC URL configured in environment variables'
-        );
-      }
-
-      const connection = new Connection(rpcUrl, 'confirmed');
-      console.log('✅ [SWAP] RPC connection established');
-
-      // Step 5: Deserialize and sign transaction
+      // Step 6: Deserialize and sign transaction
       setSwapStatus('Signing transaction...');
       console.log('🔐 [SWAP] Deserializing transaction');
 
@@ -1368,7 +1491,7 @@ export default function SwapTokenModal({
           .length,
       });
 
-      // Step 6: Submit transaction (sponsored or direct)
+      // Step 7: Submit transaction (sponsored or direct)
       let txId: string;
 
       if (isEligibleForSponsorship) {
@@ -1547,7 +1670,7 @@ export default function SwapTokenModal({
         }
       }
 
-      // Step 7: Transaction confirmation
+      // Step 8: Transaction confirmation
       setTxHash(txId);
       setSwapStatus(
         'Transaction submitted! Waiting for confirmation...'
@@ -1558,7 +1681,7 @@ export default function SwapTokenModal({
       console.log('⏳ [SWAP] Waiting 2s for network propagation');
       await new Promise((resolve) => setTimeout(resolve, 2000));
 
-      // Step 8: Confirm transaction
+      // Step 9: Confirm transaction
       const confirmationRpcUrl =
         process.env.NEXT_PUBLIC_HELIUS_API_URL ||
         process.env.NEXT_PUBLIC_ALCHEMY_SOLANA_URL ||
@@ -1592,7 +1715,7 @@ export default function SwapTokenModal({
         setSwapStatus('Transaction submitted successfully');
       }
 
-      // Step 9: Save to database
+      // Step 10: Save to database
       console.log('💾 [SWAP] Saving transaction to database');
       try {
         await saveSwapToDatabase(txId, jupiterQuote);
