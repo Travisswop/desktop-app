@@ -4,13 +4,11 @@ import { MdOutlineDateRange, MdOutlineLocationOn } from "react-icons/md";
 import Emoji from "./Emoji";
 import GifPickerContent from "./GifPicker";
 import Image from "next/image";
-// import "react-photo-album/styles.css";
 import ImageContent from "./ImageSelect";
 import { AiOutlineClose } from "react-icons/ai"; // Icon for close button
 import { Spinner } from "@nextui-org/react";
 import { postFeed } from "@/actions/postFeed";
 import { useUser } from "@/lib/UserContext";
-// import { useToast } from "@/hooks/use-toast";
 import DynamicPrimaryBtn from "../ui/Button/DynamicPrimaryBtn";
 import { sendCloudinaryImage } from "@/lib/SendCloudinaryImage";
 import { sendCloudinaryVideo } from "@/lib/sendCloudinaryVideo";
@@ -19,6 +17,7 @@ import isUrl from "@/lib/isUrl";
 import toast from "react-hot-toast";
 import { useRouter } from "next/navigation";
 import { useModalStore } from "@/zustandStore/modalstore";
+import { GrEmoji } from "react-icons/gr";
 
 const PostFeed = ({
   primaryMicrositeImg,
@@ -39,12 +38,14 @@ const PostFeed = ({
   const [postLoading, setPostLoading] = useState<boolean>(false);
   const [primaryMicrosite, setPrimaryMicrosite] = useState<string>("");
 
-  console.log("user123", user);
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+
+  // console.log("user123", user);
 
   const [primaryMicrositeDetails, setPrimaryMicrositeDetails] =
     useState<any>(null);
 
-  console.log("primaryMicrositeDetails", primaryMicrositeDetails);
+  // console.log("primaryMicrositeDetails", primaryMicrositeDetails);
 
   const [postContent, setPostContent] = useState<string>("");
   const [fileError, setFileError] = useState<string>("");
@@ -57,6 +58,11 @@ const PostFeed = ({
   const handleEmojiSelect = (emoji: string) => {
     setPostContent((prevContent) => prevContent + emoji);
   };
+
+  // Callback function to handle emoji selection
+  // const handleEmojiSelect = (emojiData: EmojiClickData) => {
+  //   setPostContent((prevContent) => prevContent + emojiData.emoji);
+  // };
 
   useEffect(() => {
     if (fileError) {
@@ -114,10 +120,10 @@ const PostFeed = ({
           post_content: updatedMediaFiles,
         },
       };
-      console.log("feed post payload", payload);
+      // console.log("feed post payload", payload);
 
       const data = await postFeed(payload, token);
-      console.log("feed post response", data);
+      // console.log("feed post response", data);
 
       if (data?.state === "success") {
         toast.success("You posted successfully!");
@@ -343,7 +349,14 @@ const PostFeed = ({
                 setMediaFiles={setMediaFiles}
                 setFileError={setFileError}
               />
-              <Emoji onEmojiSelect={handleEmojiSelect} />
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setShowEmojiPicker(!showEmojiPicker);
+                }}
+              >
+                <GrEmoji size={22} className="text-gray-800" />
+              </button>
               <button className="cursor-not-allowed">
                 <MdOutlineDateRange size={22} className="text-gray-400" />
               </button>
@@ -376,6 +389,17 @@ const PostFeed = ({
               </div>
             </DynamicPrimaryBtn>
           </div>
+
+          {/* Emoji Picker - Renders below the buttons */}
+          {showEmojiPicker && (
+            <div className="mt-4">
+              <Emoji
+                onEmojiSelect={handleEmojiSelect}
+                showEmojiPicker={showEmojiPicker}
+                setShowEmojiPicker={setShowEmojiPicker}
+              />
+            </div>
+          )}
         </div>
       </div>
     </div>
