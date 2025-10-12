@@ -654,7 +654,7 @@ export default function SwapTokenModal({
       const slippageBps = Math.floor(slippage * 100);
       const platfromFeeBps = 50;
 
-      const url = `https://quote-api.jup.ag/v6/quote?inputMint=${inputMint}&outputMint=${outputMint}&amount=${amountInSmallestUnit}&slippageBps=${slippageBps}&restrictIntermediateTokens=true&platformFeeBps=${platfromFeeBps}&useWsol=false`;
+      const url = `https://lite-api.jup.ag/swap/v1/quote?inputMint=${inputMint}&outputMint=${outputMint}&amount=${amountInSmallestUnit}&slippageBps=${slippageBps}&restrictIntermediateTokens=true&platformFeeBps=${platfromFeeBps}`;
 
       console.log('Jupiter Quote URL:', url);
 
@@ -782,7 +782,7 @@ export default function SwapTokenModal({
       });
 
       const swapResponse = await fetch(
-        'https://quote-api.jup.ag/v6/swap',
+        'https://lite-api.jup.ag/swap/v1/swap',
         {
           method: 'POST',
           headers: {
