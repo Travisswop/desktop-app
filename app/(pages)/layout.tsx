@@ -1,6 +1,7 @@
 import Header from "@/components/Header";
 import BottomNavContent from "@/components/nav/BottomNavContent";
 import { SidebarProvider } from "@/components/ui/sidebar";
+import { Suspense } from "react";
 
 const PageLayout = ({ children }: { children: React.ReactNode }) => {
   return (
@@ -12,7 +13,9 @@ const PageLayout = ({ children }: { children: React.ReactNode }) => {
           <main className="container mx-auto px-6 py-6 max-w-7xl 2xl:max-w-full flex-1">
             {children}
           </main>
-          <BottomNavContent />
+          <Suspense fallback={""}>
+            <BottomNavContent />
+          </Suspense>
         </div>
       </SidebarProvider>
     </div>
