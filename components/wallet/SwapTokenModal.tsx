@@ -1182,7 +1182,7 @@ export default function SwapTokenModal({
         throw new Error('No swap transaction received from Jupiter');
       }
 
-      // Set up RPC connection for getting blockhash
+      // Set up RPC connection for transaction sending
       const rpcUrl =
         process.env.NEXT_PUBLIC_HELIUS_API_URL ||
         process.env.NEXT_PUBLIC_ALCHEMY_SOLANA_URL ||
@@ -1203,13 +1203,8 @@ export default function SwapTokenModal({
         swapTransactionBuffer
       );
 
-      // Get latest blockhash and update the transaction
-      const { blockhash } = await connection.getLatestBlockhash();
-
-      // Update transaction with fresh blockhash
-      transaction.message.recentBlockhash = blockhash;
-
       // Sign the versioned transaction with user's wallet
+      // Note: Jupiter transaction already has a fresh blockhash, don't modify it
       const signedTx = await solanaWallet.signTransaction(
         transaction
       );
