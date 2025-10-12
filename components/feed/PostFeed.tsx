@@ -19,6 +19,7 @@ import { useRouter } from "next/navigation";
 import { useModalStore } from "@/zustandStore/modalstore";
 import { GrEmoji } from "react-icons/gr";
 import { HiOutlineGif } from "react-icons/hi2";
+import { motion } from "framer-motion";
 
 const PostFeed = ({
   primaryMicrositeImg,
@@ -410,24 +411,30 @@ const PostFeed = ({
           </div>
 
           {/* Emoji Picker - Renders below the buttons */}
-          <div className="mt-4">
+          {/* Emoji / GIF Pickers with layout animation */}
+          <motion.div layout transition={{ duration: 0.28, ease: "easeInOut" }}>
             {showEmojiPicker && (
-              <Emoji
-                onEmojiSelect={handleEmojiSelect}
-                showEmojiPicker={showEmojiPicker}
-                setShowEmojiPicker={setShowEmojiPicker}
-              />
+              <div className="mt-4">
+                <Emoji
+                  onEmojiSelect={handleEmojiSelect}
+                  showEmojiPicker={showEmojiPicker}
+                  setShowEmojiPicker={setShowEmojiPicker}
+                />
+              </div>
             )}
+
             {showGifPicker && (
-              <GifPickerContent
-                mediaFilesLength={mediaFiles.length}
-                setMediaFiles={setMediaFiles}
-                setFileError={setFileError}
-                showGifPicker={showGifPicker}
-                setShowGifPicker={setShowGifPicker}
-              />
+              <div className="mt-4">
+                <GifPickerContent
+                  mediaFilesLength={mediaFiles.length}
+                  setMediaFiles={setMediaFiles}
+                  setFileError={setFileError}
+                  showGifPicker={showGifPicker}
+                  setShowGifPicker={setShowGifPicker}
+                />
+              </div>
             )}
-          </div>
+          </motion.div>
         </div>
       </div>
     </div>
