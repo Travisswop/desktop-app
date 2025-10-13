@@ -652,11 +652,43 @@ export default function SwapTokenModal({
         payToken.decimals || 6
       );
       const slippageBps = Math.floor(slippage * 100);
-      const platfromFeeBps = 50;
 
-      // Use Jupiter v1 API (current stable version)
-      // Note: Platform fees included in quote, but will be conditionally applied based on token type
-      const url = `https://lite-api.jup.ag/swap/v1/quote?inputMint=${inputMint}&outputMint=${outputMint}&amount=${amountInSmallestUnit}&slippageBps=${slippageBps}&restrictIntermediateTokens=true&platformFeeBps=${platfromFeeBps}`;
+      // Check if input token is Token-2022 by calling backend
+      // Jupiter platform fees don't support Token-2022, so we need to know upfront
+      let isToken2022 = false;
+      try {
+        const tokenCheckResponse = await fetch(
+          `${process.env.NEXT_PUBLIC_API_URL}/api/v5/wallet/tokenAccount/${inputMint}`,
+          {
+            method: 'GET',
+            headers: { 'Content-Type': 'application/json' },
+          }
+        );
+
+        if (tokenCheckResponse.ok) {
+          const tokenData = await tokenCheckResponse.json();
+          const { TOKEN_2022_PROGRAM_ID } = await import('@solana/spl-token');
+          isToken2022 = tokenData.tokenProgramId === TOKEN_2022_PROGRAM_ID.toString();
+          console.log('Token program check:', {
+            inputMint,
+            programId: tokenData.tokenProgramId,
+            isToken2022
+          });
+        }
+      } catch (error) {
+        console.warn('Could not check token program, assuming SPL:', error);
+      }
+
+      // Build quote URL - exclude platformFeeBps for Token-2022
+      let url = `https://lite-api.jup.ag/swap/v1/quote?inputMint=${inputMint}&outputMint=${outputMint}&amount=${amountInSmallestUnit}&slippageBps=${slippageBps}&restrictIntermediateTokens=true`;
+
+      if (!isToken2022) {
+        // Only add platform fee for SPL tokens
+        url += `&platformFeeBps=50`;
+        console.log('SPL token detected - requesting quote WITH platform fee');
+      } else {
+        console.log('Token-2022 detected - requesting quote WITHOUT platform fee');
+      }
 
       console.log('Jupiter Quote URL:', url);
 
