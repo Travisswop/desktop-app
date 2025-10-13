@@ -654,9 +654,11 @@ export default function SwapTokenModal({
       const slippageBps = Math.floor(slippage * 100);
       const platfromFeeBps = 50;
 
-      const url = `https://lite-api.jup.ag/swap/v1/quote?inputMint=${inputMint}&outputMint=${outputMint}&amount=${amountInSmallestUnit}&slippageBps=${slippageBps}&restrictIntermediateTokens=true&platformFeeBps=${platfromFeeBps}`;
+      // Use Jupiter v6 API for better Token-2022 support
+      // v6 handles Token-2022 account creation correctly with platform fees
+      const url = `https://quote-api.jup.ag/v6/quote?inputMint=${inputMint}&outputMint=${outputMint}&amount=${amountInSmallestUnit}&slippageBps=${slippageBps}&platformFeeBps=${platfromFeeBps}`;
 
-      console.log('Jupiter Quote URL:', url);
+      console.log('Jupiter Quote URL (v6):', url);
 
       const response = await fetch(url);
 
@@ -733,7 +735,7 @@ export default function SwapTokenModal({
 
         // Proceed without fee account if it fails - Jupiter will handle the swap
         const swapResponse = await fetch(
-          'https://lite-api.jup.ag/swap/v1/swap',
+          'https://quote-api.jup.ag/v6/swap',
           {
             method: 'POST',
             headers: {
@@ -744,7 +746,10 @@ export default function SwapTokenModal({
               userPublicKey: solWallet,
               wrapAndUnwrapSol: true,
               dynamicComputeUnitLimit: true,
-              prioritizationFeeLamports: 'auto',
+              computeUnitPriceMicroLamports: 'auto',
+              prioritizationFeeLamports: {
+                autoMultiplier: 2,
+              },
             }),
           }
         );
@@ -772,7 +777,7 @@ export default function SwapTokenModal({
 
         // Proceed without platform fee
         const swapResponse = await fetch(
-          'https://lite-api.jup.ag/swap/v1/swap',
+          'https://quote-api.jup.ag/v6/swap',
           {
             method: 'POST',
             headers: {
@@ -783,7 +788,10 @@ export default function SwapTokenModal({
               userPublicKey: solWallet,
               wrapAndUnwrapSol: true,
               dynamicComputeUnitLimit: true,
-              prioritizationFeeLamports: 'auto',
+              computeUnitPriceMicroLamports: 'auto',
+              prioritizationFeeLamports: {
+                autoMultiplier: 2,
+              },
             }),
           }
         );
@@ -842,7 +850,7 @@ export default function SwapTokenModal({
 
           // Proceed without platform fee if account is invalid
           const swapResponse = await fetch(
-            'https://lite-api.jup.ag/swap/v1/swap',
+            'https://quote-api.jup.ag/v6/swap',
             {
               method: 'POST',
               headers: {
@@ -853,7 +861,10 @@ export default function SwapTokenModal({
                 userPublicKey: solWallet,
                 wrapAndUnwrapSol: true,
                 dynamicComputeUnitLimit: true,
-                prioritizationFeeLamports: 'auto',
+                computeUnitPriceMicroLamports: 'auto',
+                prioritizationFeeLamports: {
+                  autoMultiplier: 2,
+                },
               }),
             }
           );
@@ -879,7 +890,7 @@ export default function SwapTokenModal({
 
         // Fallback: proceed without fee
         const swapResponse = await fetch(
-          'https://lite-api.jup.ag/swap/v1/swap',
+          'https://quote-api.jup.ag/v6/swap',
           {
             method: 'POST',
             headers: {
@@ -890,7 +901,10 @@ export default function SwapTokenModal({
               userPublicKey: solWallet,
               wrapAndUnwrapSol: true,
               dynamicComputeUnitLimit: true,
-              prioritizationFeeLamports: 'auto',
+              computeUnitPriceMicroLamports: 'auto',
+              prioritizationFeeLamports: {
+                autoMultiplier: 2,
+              },
             }),
           }
         );
@@ -908,8 +922,23 @@ export default function SwapTokenModal({
       }
 
       // Try with fee account since it's valid
+      // Check if this is a Token-2022 token for logging
+      const { TOKEN_2022_PROGRAM_ID } = await import('@solana/spl-token');
+      const isToken2022 = tokenProgramId === TOKEN_2022_PROGRAM_ID.toString();
+
+      console.log('Preparing swap transaction with fee account:', {
+        feeAccount,
+        tokenProgramId,
+        isToken2022,
+        platformFeeBps: 50
+      });
+
+      // Use Jupiter v6 API for all swaps (better Token-2022 support)
+      // v6 properly handles Token-2022 account creation with platform fees
+      console.log('Using Jupiter v6 API for swap transaction');
+
       const swapResponse = await fetch(
-        'https://lite-api.jup.ag/swap/v1/swap',
+        'https://quote-api.jup.ag/v6/swap',
         {
           method: 'POST',
           headers: {
@@ -919,9 +948,11 @@ export default function SwapTokenModal({
             quoteResponse,
             userPublicKey: solWallet,
             wrapAndUnwrapSol: true,
+            computeUnitPriceMicroLamports: 'auto',
             dynamicComputeUnitLimit: true,
-            prioritizationFeeLamports: 'auto',
-            platformFeeBps: 50,
+            prioritizationFeeLamports: {
+              autoMultiplier: 2,
+            },
             feeAccount: feeAccount,
           }),
         }
@@ -929,6 +960,7 @@ export default function SwapTokenModal({
 
       if (!swapResponse.ok) {
         const errorData = await swapResponse.json().catch(() => null);
+        console.error('Jupiter v6 API error:', errorData);
         throw new Error(
           errorData?.error || 'Failed to get swap transaction'
         );
