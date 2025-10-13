@@ -654,7 +654,7 @@ export default function SwapTokenModal({
       const slippageBps = Math.floor(slippage * 100);
       const platfromFeeBps = 50;
 
-      const url = `https://quote-api.jup.ag/v6/quote?inputMint=${inputMint}&outputMint=${outputMint}&amount=${amountInSmallestUnit}&slippageBps=${slippageBps}&restrictIntermediateTokens=true&platformFeeBps=${platfromFeeBps}&useWsol=false`;
+      const url = `https://lite-api.jup.ag/swap/v1/quote?inputMint=${inputMint}&outputMint=${outputMint}&amount=${amountInSmallestUnit}&slippageBps=${slippageBps}&restrictIntermediateTokens=true&platformFeeBps=${platfromFeeBps}`;
 
       console.log('Jupiter Quote URL:', url);
 
@@ -710,79 +710,206 @@ export default function SwapTokenModal({
       const inputMint = quoteResponse.inputMint;
       const outputMint = quoteResponse.outputMint;
 
-      console.log('Creating token accounts for swap:', {
+      console.log('Getting fee account for swap:', {
         inputMint,
         outputMint,
       });
 
-      // Create all necessary token accounts: platform accounts for fees AND user accounts for the swap
-      const [feeAccountResponse, outputAccountResponse] =
-        await Promise.all([
-          // Platform fee account (for collecting platform fees in input token)
-          fetch(
-            `${process.env.NEXT_PUBLIC_API_URL}/api/v5/wallet/tokenAccount/${inputMint}`,
-            {
-              method: 'GET',
-              headers: {
-                'Content-Type': 'application/json',
-              },
-            }
-          ),
-          // Platform output account (for receiving output tokens if needed)
-          fetch(
-            `${process.env.NEXT_PUBLIC_API_URL}/api/v5/wallet/tokenAccount/${outputMint}`,
-            {
-              method: 'GET',
-              headers: {
-                'Content-Type': 'application/json',
-              },
-            }
-          ),
-        ]);
-
-      console.log(
-        'Platform token accounts created for fee collection'
+      // Only get the fee account for platform fees
+      const feeAccountResponse = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL}/api/v5/wallet/tokenAccount/${inputMint}`,
+        {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+        }
       );
 
       if (!feeAccountResponse.ok) {
         const errorText = await feeAccountResponse.text();
-        console.error('Fee account creation failed:', errorText);
-        throw new Error(
-          `Failed to get fee account from backend: ${errorText}`
+        console.error('Fee account fetch failed:', errorText);
+        console.warn('Proceeding without platform fee account');
+
+        // Proceed without fee account if it fails - Jupiter will handle the swap
+        const swapResponse = await fetch(
+          'https://lite-api.jup.ag/swap/v1/swap',
+          {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              quoteResponse,
+              userPublicKey: solWallet,
+              wrapAndUnwrapSol: true,
+              dynamicComputeUnitLimit: true,
+              prioritizationFeeLamports: 'auto',
+            }),
+          }
         );
+
+        if (!swapResponse.ok) {
+          const errorData = await swapResponse
+            .json()
+            .catch(() => null);
+          throw new Error(
+            errorData?.error || 'Failed to get swap transaction'
+          );
+        }
+
+        return await swapResponse.json();
       }
 
-      if (!outputAccountResponse.ok) {
-        const errorText = await outputAccountResponse.text();
-        console.error('Output account creation failed:', errorText);
-        throw new Error(
-          `Failed to get output account from backend: ${errorText}`
-        );
-      }
-
-      const [feeAccountData, outputAccountData] = await Promise.all([
-        feeAccountResponse.json(),
-        outputAccountResponse.json(),
-      ]);
-
+      const feeAccountData = await feeAccountResponse.json();
       const feeAccount = feeAccountData.tokenAccount;
-      const outputAccount = outputAccountData.tokenAccount;
+      const tokenProgramId = feeAccountData.tokenProgramId;
 
       if (!feeAccount) {
-        throw new Error('No fee account received from backend');
+        console.warn(
+          'No fee account received, proceeding without platform fee'
+        );
+
+        // Proceed without platform fee
+        const swapResponse = await fetch(
+          'https://lite-api.jup.ag/swap/v1/swap',
+          {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              quoteResponse,
+              userPublicKey: solWallet,
+              wrapAndUnwrapSol: true,
+              dynamicComputeUnitLimit: true,
+              prioritizationFeeLamports: 'auto',
+            }),
+          }
+        );
+
+        if (!swapResponse.ok) {
+          const errorData = await swapResponse
+            .json()
+            .catch(() => null);
+          throw new Error(
+            errorData?.error || 'Failed to get swap transaction'
+          );
+        }
+
+        return await swapResponse.json();
       }
 
-      if (!outputAccount) {
-        throw new Error('No output account received from backend');
+      console.log('Fee account retrieved:', feeAccount, 'Program ID:', tokenProgramId);
+
+      // Verify the fee account is a valid token account on-chain
+      const rpcUrl =
+        process.env.NEXT_PUBLIC_HELIUS_API_URL ||
+        process.env.NEXT_PUBLIC_ALCHEMY_SOLANA_URL ||
+        process.env.NEXT_PUBLIC_QUICKNODE_SOLANA_URL;
+
+      if (!rpcUrl) {
+        throw new Error('No Solana RPC URL configured');
       }
 
-      console.log('Token accounts created successfully:', {
-        feeAccount,
-        outputAccount,
-      });
+      const connection = new Connection(rpcUrl, 'confirmed');
 
+      try {
+        // Import SPL token utilities to verify with correct program ID
+        const { PublicKey } = await import('@solana/web3.js');
+        const { getAccount, TOKEN_PROGRAM_ID, TOKEN_2022_PROGRAM_ID } = await import('@solana/spl-token');
+
+        // Determine which program ID to use for verification
+        const programId = tokenProgramId === TOKEN_2022_PROGRAM_ID.toString()
+          ? TOKEN_2022_PROGRAM_ID
+          : TOKEN_PROGRAM_ID;
+
+        console.log(`Verifying fee account with program: ${programId.toString()}`);
+
+        // Verify the fee account exists with the correct token program
+        const feeAccountPubkey = new PublicKey(feeAccount);
+        const accountInfo = await getAccount(
+          connection,
+          feeAccountPubkey,
+          undefined,
+          programId
+        );
+
+        if (!accountInfo) {
+          console.warn(
+            'Fee account not found on-chain, proceeding without platform fee'
+          );
+
+          // Proceed without platform fee if account is invalid
+          const swapResponse = await fetch(
+            'https://lite-api.jup.ag/swap/v1/swap',
+            {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                quoteResponse,
+                userPublicKey: solWallet,
+                wrapAndUnwrapSol: true,
+                dynamicComputeUnitLimit: true,
+                prioritizationFeeLamports: 'auto',
+              }),
+            }
+          );
+
+          if (!swapResponse.ok) {
+            const errorData = await swapResponse
+              .json()
+              .catch(() => null);
+            throw new Error(
+              errorData?.error || 'Failed to get swap transaction'
+            );
+          }
+
+          return await swapResponse.json();
+        }
+
+        console.log('Fee account verified on-chain with correct program ID');
+      } catch (verifyError) {
+        console.error('Failed to verify fee account:', verifyError);
+        console.warn(
+          'Proceeding without platform fee due to verification failure'
+        );
+
+        // Fallback: proceed without fee
+        const swapResponse = await fetch(
+          'https://lite-api.jup.ag/swap/v1/swap',
+          {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              quoteResponse,
+              userPublicKey: solWallet,
+              wrapAndUnwrapSol: true,
+              dynamicComputeUnitLimit: true,
+              prioritizationFeeLamports: 'auto',
+            }),
+          }
+        );
+
+        if (!swapResponse.ok) {
+          const errorData = await swapResponse
+            .json()
+            .catch(() => null);
+          throw new Error(
+            errorData?.error || 'Failed to get swap transaction'
+          );
+        }
+
+        return await swapResponse.json();
+      }
+
+      // Try with fee account since it's valid
       const swapResponse = await fetch(
-        'https://quote-api.jup.ag/v6/swap',
+        'https://lite-api.jup.ag/swap/v1/swap',
         {
           method: 'POST',
           headers: {
@@ -1139,62 +1266,214 @@ export default function SwapTokenModal({
   };
 
   const executeJupiterSwap = async () => {
+    console.log('🔄 [SWAP] Starting Jupiter swap execution');
+
     try {
+      // Step 1: Validate prerequisites
       if (!jupiterQuote) {
-        setSwapError('No Jupiter quote available');
+        const errorMsg = 'No Jupiter quote available';
+        console.error('❌ [SWAP] Validation failed:', errorMsg);
+        setSwapError(errorMsg);
         setIsSwapping(false);
         return;
       }
 
       if (!solWallets || solWallets.length === 0) {
-        setSwapError('No Solana wallet connected');
+        const errorMsg = 'No Solana wallet connected';
+        console.error('❌ [SWAP] Validation failed:', errorMsg);
+        setSwapError(errorMsg);
         setIsSwapping(false);
         return;
       }
 
       const solanaWallet = solWallets[0];
-      console.log('solanaWallet', solanaWallet);
+      const inputMint = jupiterQuote.inputMint;
+      const outputMint = jupiterQuote.outputMint;
 
-      // Define tokens eligible for sponsored transactions
+      console.log('✅ [SWAP] Prerequisites validated:', {
+        walletAddress: solanaWallet.address,
+        inputMint,
+        outputMint,
+        inputToken: payToken?.symbol,
+        outputToken: receiveToken?.symbol,
+        amount: payAmount,
+      });
+
+      // Step 2: Determine sponsorship eligibility
       const USDC_MINT =
         'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v';
       const SWOP_MINT =
-        'GAehkgN1ZDNvavX81FmzCcwRnzekKMkSyUNq8WkMsjX1'; // Replace with actual SWOP token mint
+        'GAehkgN1ZDNvavX81FmzCcwRnzekKMkSyUNq8WkMsjX1';
       const sponsorEligibleTokens = [USDC_MINT, SWOP_MINT];
-
-      const inputMint = jupiterQuote.inputMint;
-      const outputMint = jupiterQuote.outputMint;
       const isEligibleForSponsorship =
         sponsorEligibleTokens.includes(inputMint);
 
-      console.log('Swap eligibility:', {
-        inputMint,
-        outputMint,
-        isEligibleForSponsorship,
-        tokenSymbol: payToken?.symbol,
-      });
+      console.log(
+        `💰 [SWAP] Transaction will be ${
+          isEligibleForSponsorship
+            ? 'SPONSORED'
+            : 'DIRECT (user pays gas)'
+        }`
+      );
 
-      setSwapStatus('Getting swap transaction...');
-
-      const swapData = await getJupiterSwapTransaction(jupiterQuote);
-
-      if (!swapData.swapTransaction) {
-        throw new Error('No swap transaction received from Jupiter');
-      }
-
-      // Set up RPC connection for getting blockhash
+      // Step 3: Set up RPC connection first
       const rpcUrl =
         process.env.NEXT_PUBLIC_HELIUS_API_URL ||
         process.env.NEXT_PUBLIC_ALCHEMY_SOLANA_URL ||
         process.env.NEXT_PUBLIC_QUICKNODE_SOLANA_URL;
 
       if (!rpcUrl) {
-        throw new Error('No Solana RPC URL configured');
+        throw new Error(
+          'No Solana RPC URL configured in environment variables'
+        );
       }
 
       const connection = new Connection(rpcUrl, 'confirmed');
+      console.log('✅ [SWAP] RPC connection established');
 
-      // Deserialize the Jupiter transaction
+      // Step 4: Ensure user has required token accounts (ATAs)
+      setSwapStatus('Checking token accounts...');
+      console.log('🔍 [SWAP] Ensuring user token accounts exist');
+
+      // Import required Solana SPL token utilities
+      const {
+        PublicKey,
+        Transaction,
+      } = await import('@solana/web3.js');
+      const {
+        getAssociatedTokenAddress,
+        createAssociatedTokenAccountInstruction,
+      } = await import('@solana/spl-token');
+
+      // Check and create ATAs if needed
+      const walletPubkey = new PublicKey(solWallet);
+      const inputMintPubkey = new PublicKey(inputMint);
+      const outputMintPubkey = new PublicKey(outputMint);
+
+      console.log('🔍 [SWAP] Checking ATAs for:', {
+        wallet: walletPubkey.toBase58(),
+        inputMint: inputMintPubkey.toBase58(),
+        outputMint: outputMintPubkey.toBase58(),
+      });
+
+      // Get ATA addresses
+      const inputATA = await getAssociatedTokenAddress(
+        inputMintPubkey,
+        walletPubkey
+      );
+      const outputATA = await getAssociatedTokenAddress(
+        outputMintPubkey,
+        walletPubkey
+      );
+
+      console.log('📍 [SWAP] Expected ATAs:', {
+        inputATA: inputATA.toBase58(),
+        outputATA: outputATA.toBase58(),
+      });
+
+      // Check if ATAs exist
+      const [inputAccountInfo, outputAccountInfo] =
+        await Promise.all([
+          connection.getAccountInfo(inputATA),
+          connection.getAccountInfo(outputATA),
+        ]);
+
+      const needsInputATA = !inputAccountInfo;
+      const needsOutputATA = !outputAccountInfo;
+
+      console.log('🔍 [SWAP] ATA status:', {
+        inputExists: !needsInputATA,
+        outputExists: !needsOutputATA,
+      });
+
+      // Create ATAs if needed
+      if (needsInputATA || needsOutputATA) {
+        console.log(
+          '⚠️ [SWAP] Missing ATAs detected, creating them...'
+        );
+        setSwapStatus('Creating token accounts...');
+
+        const transaction = new Transaction();
+
+        if (needsInputATA) {
+          console.log('➕ [SWAP] Adding input ATA creation instruction');
+          transaction.add(
+            createAssociatedTokenAccountInstruction(
+              walletPubkey,
+              inputATA,
+              walletPubkey,
+              inputMintPubkey
+            )
+          );
+        }
+
+        if (needsOutputATA) {
+          console.log(
+            '➕ [SWAP] Adding output ATA creation instruction'
+          );
+          transaction.add(
+            createAssociatedTokenAccountInstruction(
+              walletPubkey,
+              outputATA,
+              walletPubkey,
+              outputMintPubkey
+            )
+          );
+        }
+
+        try {
+          // Get recent blockhash
+          const { blockhash } = await connection.getLatestBlockhash();
+          transaction.recentBlockhash = blockhash;
+          transaction.feePayer = walletPubkey;
+
+          // Sign and send
+          console.log('🔐 [SWAP] Signing ATA creation transaction');
+          const signedTx = await solanaWallet.signTransaction(
+            transaction
+          );
+          const signature = await connection.sendRawTransaction(
+            signedTx.serialize()
+          );
+
+          console.log(
+            '⏳ [SWAP] Confirming ATA creation:',
+            signature
+          );
+          await connection.confirmTransaction(signature, 'confirmed');
+          console.log('✅ [SWAP] ATAs created successfully');
+        } catch (ataError: any) {
+          console.error('❌ [SWAP] Failed to create ATAs:', ataError);
+          throw new Error(
+            `Failed to create token accounts: ${
+              ataError.message || ataError
+            }`
+          );
+        }
+      } else {
+        console.log('✅ [SWAP] All required ATAs exist');
+      }
+
+      // Step 5: Get swap transaction from Jupiter
+      setSwapStatus('Preparing swap transaction...');
+      console.log(
+        '📡 [SWAP] Requesting swap transaction from Jupiter'
+      );
+
+      const swapData = await getJupiterSwapTransaction(jupiterQuote);
+
+      if (!swapData?.swapTransaction) {
+        throw new Error(
+          'No swap transaction received from Jupiter API'
+        );
+      }
+
+      console.log('✅ [SWAP] Received swap transaction from Jupiter');
+
+      // Step 6: Deserialize and sign transaction
+      setSwapStatus('Signing transaction...');
+      console.log('🔐 [SWAP] Deserializing transaction');
+
       const swapTransactionBuffer = Buffer.from(
         swapData.swapTransaction,
         'base64'
@@ -1203,49 +1482,49 @@ export default function SwapTokenModal({
         swapTransactionBuffer
       );
 
-      // Get latest blockhash and update the transaction
-      const { blockhash } = await connection.getLatestBlockhash();
+      console.log('📝 [SWAP] Transaction structure:', {
+        version: transaction.version,
+        signaturesCount: transaction.signatures.length,
+        addressTableLookupsCount:
+          transaction.message.addressTableLookups?.length || 0,
+      });
 
-      // Update transaction with fresh blockhash
-      transaction.message.recentBlockhash = blockhash;
-
-      // Sign the versioned transaction with user's wallet
+      console.log('🔐 [SWAP] Requesting wallet signature');
       const signedTx = await solanaWallet.signTransaction(
         transaction
       );
+      console.log('✅ [SWAP] Transaction signed successfully');
 
-      // Serialize the signed transaction
       const serializedTransaction = Buffer.from(
         signedTx.serialize()
       ).toString('base64');
 
-      console.log('Jupiter transaction details:', {
-        inputMint: jupiterQuote?.inputMint,
-        outputMint: jupiterQuote?.outputMint,
-        transactionSize: serializedTransaction.length,
-        swapAmount: payAmount,
-        tokenSymbols: `${payToken?.symbol} → ${receiveToken?.symbol}`,
-        isEligibleForSponsorship,
+      console.log('📦 [SWAP] Transaction serialized:', {
+        size: serializedTransaction.length,
+        sizeInBytes: Buffer.from(serializedTransaction, 'base64')
+          .length,
       });
 
+      // Step 7: Submit transaction (sponsored or direct)
       let txId: string;
 
       if (isEligibleForSponsorship) {
-        // Use sponsored transaction for SWOP and USDC tokens
+        console.log('💰 [SWAP] Submitting as sponsored transaction');
         setSwapStatus('Submitting sponsored transaction...');
 
         const walletId = getSolanaWalletId(solanaWallet, PrivyUser);
 
-        // Check transaction size (Privy has limits)
         if (serializedTransaction.length > 1500) {
           console.warn(
-            '⚠️ Transaction size may be too large for sponsorship:',
+            '⚠️ [SWAP] Transaction size may exceed Privy limits:',
             serializedTransaction.length
           );
         }
 
-        // Generate proper authorization signature using Privy's method
+        // Generate authorization signature
+        console.log('🔐 [SWAP] Generating authorization signature');
         let authorizationSignature = '';
+
         try {
           const caip2 = 'solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp';
           const input = {
@@ -1270,31 +1549,33 @@ export default function SwapTokenModal({
           const sigResult = await generateAuthorizationSignature(
             input
           );
-          const authSig =
+          authorizationSignature =
             typeof sigResult === 'string'
               ? sigResult
               : (sigResult as any)?.authorizationSignature ||
                 (sigResult as any)?.signature ||
                 '';
 
-          authorizationSignature = authSig;
-
           if (!authorizationSignature) {
-            throw new Error(
-              'Failed to generate authorization signature'
-            );
+            throw new Error('Empty authorization signature received');
           }
-        } catch (signError) {
-          console.warn(
-            'Failed to get authorization signature:',
+
+          console.log('✅ [SWAP] Authorization signature generated');
+        } catch (signError: any) {
+          console.error(
+            '❌ [SWAP] Failed to generate authorization signature:',
             signError
           );
           throw new Error(
-            'Failed to generate authorization signature'
+            `Authorization signature failed: ${
+              signError.message || signError
+            }`
           );
         }
 
-        // Use sponsored transaction for Jupiter swaps
+        // Submit to backend for sponsorship
+        console.log('📡 [SWAP] Sending to backend for sponsorship');
+
         const sponsorResponse = await fetch(
           `${process.env.NEXT_PUBLIC_API_URL}/api/v5/wallet/sponsored-transaction`,
           {
@@ -1310,40 +1591,50 @@ export default function SwapTokenModal({
           }
         );
 
-        if (!sponsorResponse.ok) {
-          const errorData = await sponsorResponse.json();
-          console.log(errorData, 'errorData');
+        const responseData = await sponsorResponse
+          .json()
+          .catch(() => ({}));
 
+        if (!sponsorResponse.ok) {
+          console.error(
+            '❌ [SWAP] Sponsored transaction failed:',
+            responseData
+          );
           throw new Error(
-            errorData.error ||
-              `Failed to submit sponsored transaction (${
-                errorData.privyStatus || 'Unknown error'
-              })`
+            responseData.error ||
+              `Sponsored transaction failed (${
+                sponsorResponse.status
+              }: ${responseData.privyStatus || 'Unknown error'})`
           );
         }
 
-        const result = await sponsorResponse.json();
-        txId = result.signature || result.transactionId;
+        txId = responseData.signature || responseData.transactionId;
 
         if (!txId) {
+          console.error(
+            '❌ [SWAP] No transaction ID in response:',
+            responseData
+          );
           throw new Error(
             'No transaction ID received from sponsored transaction'
           );
         }
-      } else {
-        // Use direct wallet transaction for other tokens (like Tesla token)
-        setSwapStatus('Submitting transaction...');
 
         console.log(
-          'Using direct wallet transaction (not sponsored)'
+          '✅ [SWAP] Sponsored transaction submitted:',
+          txId
         );
+      } else {
+        console.log(
+          '💳 [SWAP] Submitting as direct transaction (user pays gas)'
+        );
+        setSwapStatus('Submitting transaction...');
 
         try {
-          // Send the signed transaction directly
           const rawTransaction = signedTx.serialize();
 
-          console.log('Sending direct transaction:', {
-            transactionSize: rawTransaction.length,
+          console.log('📡 [SWAP] Sending transaction to network:', {
+            size: rawTransaction.length,
             inputMint,
             outputMint,
             userWallet: solWallet,
@@ -1360,87 +1651,115 @@ export default function SwapTokenModal({
 
           txId = signature;
           console.log(
-            'Direct transaction sent successfully:',
-            signature
+            '✅ [SWAP] Transaction sent successfully:',
+            txId
           );
         } catch (sendError: any) {
           console.error(
-            'Failed to send direct transaction:',
+            '❌ [SWAP] Direct transaction failed:',
             sendError
           );
-          console.error('Error details:', {
+          console.error('❌ [SWAP] Error details:', {
             name: sendError.name,
             message: sendError.message,
             logs: sendError.logs || 'No logs available',
+            code: sendError.code,
           });
 
-          // For Token-2022 tokens, provide more specific error message
-          if (
-            inputMint ===
-            'XsDoVfqeBukxuZHWhdvWHBhgEHjGNst4MLodqsJHzoB'
-          ) {
-            throw new Error(
-              `Tesla Token (Token-2022) swap failed: ${
-                sendError.message || sendError
-              }. This may require creating associated token accounts first.`
+          // Parse error logs for better error messages
+          if (sendError.logs && Array.isArray(sendError.logs)) {
+            const errorLog = sendError.logs.find((log: string) =>
+              log.includes('Error:')
             );
+            if (errorLog) {
+              console.error('❌ [SWAP] Program error:', errorLog);
+            }
           }
 
           throw new Error(
-            `Transaction failed: ${sendError.message || sendError}`
+            `Transaction simulation/send failed: ${
+              sendError.message || 'Unknown error'
+            }`
           );
         }
       }
 
+      // Step 8: Transaction confirmation
       setTxHash(txId);
       setSwapStatus(
         'Transaction submitted! Waiting for confirmation...'
       );
+      console.log('✅ [SWAP] Transaction hash set:', txId);
 
-      // Wait a bit for the transaction to propagate
+      // Wait for transaction propagation
+      console.log('⏳ [SWAP] Waiting 2s for network propagation');
       await new Promise((resolve) => setTimeout(resolve, 2000));
 
+      // Step 9: Confirm transaction
       const confirmationRpcUrl =
         process.env.NEXT_PUBLIC_HELIUS_API_URL ||
         process.env.NEXT_PUBLIC_ALCHEMY_SOLANA_URL ||
         process.env.NEXT_PUBLIC_QUICKNODE_SOLANA_URL;
 
       if (confirmationRpcUrl) {
+        console.log('🔍 [SWAP] Checking transaction confirmation');
         const confirmationConnection = new Connection(
           confirmationRpcUrl,
           'confirmed'
         );
 
-        // Check transaction status
         try {
           await confirmationConnection.confirmTransaction(
             txId,
             'confirmed'
           );
           setSwapStatus('Transaction confirmed');
-        } catch (confirmError) {
+          console.log('✅ [SWAP] Transaction confirmed on-chain');
+        } catch (confirmError: any) {
           console.warn(
-            'Transaction confirmation check failed:',
-            confirmError
+            '⚠️ [SWAP] Confirmation check failed (tx may still succeed):',
+            confirmError.message || confirmError
           );
           setSwapStatus('Transaction submitted successfully');
         }
       } else {
+        console.warn(
+          '⚠️ [SWAP] No RPC URL for confirmation, skipping'
+        );
         setSwapStatus('Transaction submitted successfully');
       }
 
-      // Save to database after confirmation
-      await saveSwapToDatabase(txId, jupiterQuote);
+      // Step 10: Save to database
+      console.log('💾 [SWAP] Saving transaction to database');
+      try {
+        await saveSwapToDatabase(txId, jupiterQuote);
+        console.log('✅ [SWAP] Transaction saved to database');
+      } catch (dbError: any) {
+        console.error(
+          '❌ [SWAP] Failed to save to database:',
+          dbError
+        );
+        // Don't fail the swap if database save fails
+      }
+
+      console.log('🎉 [SWAP] Swap completed successfully!');
     } catch (error: any) {
-      console.error('Jupiter swap failed:', error);
+      console.error('❌ [SWAP] Swap execution failed:', error);
+      console.error('❌ [SWAP] Error stack:', error.stack);
 
       // Apply user-friendly error formatting
       const userFriendlyError = formatUserFriendlyError(
         error?.message || error?.toString() || 'Swap failed'
       );
+
+      console.error(
+        '❌ [SWAP] User-friendly error:',
+        userFriendlyError
+      );
       setSwapError(userFriendlyError);
     } finally {
       setIsSwapping(false);
+      console.log('🏁 [SWAP] Swap execution ended');
     }
   };
 
@@ -2298,7 +2617,7 @@ export default function SwapTokenModal({
                     {payToken?.chain && (
                       <div className="absolute -bottom-1 -right-1 bg-white rounded-full p-0.5 flex items-center justify-center w-4 h-4 border border-gray-200">
                         <Image
-                          src={getChainIcon(payToken.chain)}
+                          src={getChainIcon(payToken.chain || '')}
                           alt={payToken.chain}
                           width={12}
                           height={12}
