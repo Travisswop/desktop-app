@@ -763,6 +763,7 @@ export default function SwapTokenModal({
 
       const feeAccountData = await feeAccountResponse.json();
       const feeAccount = feeAccountData.tokenAccount;
+      const tokenProgramId = feeAccountData.tokenProgramId;
 
       if (!feeAccount) {
         console.warn(
@@ -799,7 +800,7 @@ export default function SwapTokenModal({
         return await swapResponse.json();
       }
 
-      console.log('Fee account retrieved:', feeAccount);
+      console.log('Fee account retrieved:', feeAccount, 'Program ID:', tokenProgramId);
 
       // Verify the fee account is a valid token account on-chain
       const rpcUrl =
@@ -814,16 +815,29 @@ export default function SwapTokenModal({
       const connection = new Connection(rpcUrl, 'confirmed');
 
       try {
-        // Verify the fee account exists and has valid data
-        const accountInfo = await connection.getAccountInfo(
-          new (
-            await import('@solana/web3.js')
-          ).PublicKey(feeAccount)
+        // Import SPL token utilities to verify with correct program ID
+        const { PublicKey } = await import('@solana/web3.js');
+        const { getAccount, TOKEN_PROGRAM_ID, TOKEN_2022_PROGRAM_ID } = await import('@solana/spl-token');
+
+        // Determine which program ID to use for verification
+        const programId = tokenProgramId === TOKEN_2022_PROGRAM_ID.toString()
+          ? TOKEN_2022_PROGRAM_ID
+          : TOKEN_PROGRAM_ID;
+
+        console.log(`Verifying fee account with program: ${programId.toString()}`);
+
+        // Verify the fee account exists with the correct token program
+        const feeAccountPubkey = new PublicKey(feeAccount);
+        const accountInfo = await getAccount(
+          connection,
+          feeAccountPubkey,
+          undefined,
+          programId
         );
 
-        if (!accountInfo || accountInfo.data.length === 0) {
+        if (!accountInfo) {
           console.warn(
-            'Fee account not initialized on-chain, proceeding without platform fee'
+            'Fee account not found on-chain, proceeding without platform fee'
           );
 
           // Proceed without platform fee if account is invalid
@@ -856,7 +870,7 @@ export default function SwapTokenModal({
           return await swapResponse.json();
         }
 
-        console.log('Fee account verified on-chain');
+        console.log('Fee account verified on-chain with correct program ID');
       } catch (verifyError) {
         console.error('Failed to verify fee account:', verifyError);
         console.warn(
