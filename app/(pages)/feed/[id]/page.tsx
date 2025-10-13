@@ -1,6 +1,5 @@
 import { getFeedDetails } from "@/actions/postFeed";
 import FeedDetails from "@/components/feed/FeedDetails";
-import TabSwitcher from "@/components/feed/TabSwitcher";
 import FeedLoading from "@/components/loading/FeedLoading";
 import { cookies } from "next/headers";
 import Link from "next/link";
@@ -134,11 +133,11 @@ const FeedDetailsPage = async ({
   console.log("feed data", feedData);
 
   return (
-    <div className="relative">
-      <div className="bg-white rounded-xl w-2/3 2xl:w-[54%] py-4 px-6">
-        <div className="pb-6 border-b border-gray-200 pt-2">
+    <div className="relative flex flex-col items-center">
+      <div className="w-[90%] sm:w-[70%] xl:w-[30%] overflow-y-auto">
+        {/* <div className="pb-6 border-b border-gray-200 pt-2">
           <TabSwitcher />
-        </div>
+        </div> */}
         <Suspense fallback={<FeedLoading />}>
           {feedData && (
             <FeedDetails

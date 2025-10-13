@@ -11,8 +11,6 @@ import Link from "next/link";
 import { FiPlusCircle } from "react-icons/fi";
 import Reaction from "./view/Reaction";
 import IndividualFeedContentForFeedDetails from "./IndividualFeedContentForFeedDetails";
-import done from "@/public/images/done.png";
-import { IoMdSwap } from "react-icons/io";
 import { useRouter } from "next/navigation";
 
 dayjs.extend(relativeTime);
@@ -95,7 +93,7 @@ const FeedDetails = ({ feedData, feedDetails, accessToken }: any) => {
   return (
     <div className="w-full flex gap-10 pt-6">
       <div className="w-full flex flex-col gap-4">
-        <div className="flex gap-2 border-b border-gray-200 pb-4">
+        <div className="flex gap-2  pb-4">
           <div className="w-10 xl:w-12 h-10 xl:h-12 bg-gray-400 border border-gray-300 rounded-full overflow-hidden flex items-center justify-center">
             {(() => {
               const profilePic =
@@ -240,124 +238,6 @@ const FeedDetails = ({ feedData, feedDetails, accessToken }: any) => {
                   renderTransactionContent(feedData)}
 
                 {feedData.postType === "swapTransaction" && (
-                  // <div className="flex justify-start mt-1">
-                  //   <button
-                  //     className="w-full max-w-xl"
-                  //     style={{
-                  //       background: "transparent",
-                  //       border: "none",
-                  //       padding: 0,
-                  //     }}
-                  //   >
-                  //     <div className="flex flex-col items-center gap-3 p-4 bg-white hover:bg-gray-50 transition-colors shadow-small rounded-xl">
-                  //       <div className="flex flex-col items-center">
-                  //         <Image
-                  //           src={done}
-                  //           alt="done-image"
-                  //           unoptimized
-                  //           quality={100}
-                  //           className="w-24 h-24"
-                  //         />
-                  //         <div>
-                  //           <h3 className="font-semibold">Swapped!</h3>
-                  //           <div className="text-sm text-gray-700">
-                  //             <p>Transaction completed, you can</p>
-                  //             <p>
-                  //               see more details in{" "}
-                  //               <a
-                  //                 className="text-[#B396FF] font-medium"
-                  //                 onClick={(e) => e.stopPropagation()}
-                  //                 href={`https://solscan.io/tx/${feedData.content.signature}`}
-                  //                 target="_blank"
-                  //               >
-                  //                 Trade History
-                  //               </a>
-                  //             </p>
-                  //           </div>
-                  //         </div>
-                  //       </div>
-                  //       <div className="flex gap-6 items-center justify-between">
-                  //         <div className="flex items-center gap-1">
-                  //           <Image
-                  //             src={
-                  //               feedData.content.inputToken.tokenImg.startsWith(
-                  //                 "https"
-                  //               )
-                  //                 ? feedData.content.inputToken.tokenImg
-                  //                 : `/assets/crypto-icons/${feedData.content.inputToken.symbol}.png`
-                  //             }
-                  //             alt={feedData.content.inputToken.symbol}
-                  //             width={120}
-                  //             height={120}
-                  //             className="w-10 h-10 rounded-full border-2 border-white shadow-sm z-10"
-                  //           />
-                  //           <div className="flex flex-col">
-                  //             <p className="text-xs text-gray-600 font-medium text-start">
-                  //               Send
-                  //             </p>
-                  //             <p className="text-base font-semibold text-red-600">
-                  //               {Number(
-                  //                 feedData.content.inputToken.amount
-                  //               ).toFixed(2)}{" "}
-                  //               {feedData.content.inputToken.symbol}
-                  //             </p>
-                  //           </div>
-                  //         </div>
-                  //         <IoMdSwap size={20} />
-                  //         <div className="flex items-center gap-1">
-                  //           <Image
-                  //             src={
-                  //               feedData.content.outputToken.tokenImg.startsWith(
-                  //                 "https"
-                  //               )
-                  //                 ? feedData.content.outputToken.tokenImg
-                  //                 : `/assets/crypto-icons/${feedData.content.outputToken.symbol}.png`
-                  //             }
-                  //             alt={feedData.content.outputToken.symbol}
-                  //             width={120}
-                  //             height={120}
-                  //             className="w-10 h-10 rounded-full border-2 border-white shadow-sm"
-                  //           />
-                  //           <div>
-                  //             <p className="text-xs text-gray-600 font-medium text-start">
-                  //               Received
-                  //             </p>
-                  //             <p className="text-base font-semibold text-green-600">
-                  //               {Number(
-                  //                 feedData.content.outputToken.amount
-                  //               ).toFixed(2)}{" "}
-                  //               {feedData.content.outputToken.symbol}
-                  //             </p>
-                  //           </div>
-                  //         </div>
-                  //       </div>
-                  //       <div className="flex items-center justify-between mt-2 gap-2 text-base">
-                  //         {feedData.content.signature && (
-                  //           <a
-                  //             onClick={(e) => e.stopPropagation()}
-                  //             href={`https://solscan.io/tx/${feedData.content.signature}`}
-                  //             target="_blank"
-                  //             rel="noopener noreferrer"
-                  //             className="text-sm text-black block bg-gray-200 px-4 py-2 rounded-full font-semibold"
-                  //           >
-                  //             View Details
-                  //           </a>
-                  //         )}
-                  //         <button
-                  //           onClick={(e) => {
-                  //             e.stopPropagation();
-                  //             router.push(
-                  //               `/wallet?inputToken=${feedData.content.inputToken.symbol}&outputToken=${feedData.content.outputToken.symbol}&amount=${feedData.content.inputToken.amount}`
-                  //             );
-                  //           }}
-                  //           className="text-sm text-white block bg-black px-4 py-2 rounded-full font-semibold"
-                  //         >
-                  //           Copy Trade
-                  //         </button>
-                  //       </div>
-                  //     </div>
-                  //   </button>
-                  // </div>
                   <div className="w-full flex justify-start mt-1">
                     <button
                       onClick={() => router.push(`/feed/${feedData._id}`)}
@@ -492,31 +372,6 @@ const FeedDetails = ({ feedData, feedDetails, accessToken }: any) => {
                   </div>
                 )}
               </div>
-              {/* {userId === feed.userId && (
-                  <div>
-                    <Popover
-                      backdrop="opaque"
-                      placement="bottom-end"
-                      showArrow
-                      style={{ zIndex: 10 }}
-                    >
-                      <PopoverTrigger>
-                        <button type="button">
-                          <HiDotsHorizontal size={20} />
-                        </button>
-                      </PopoverTrigger>
-                      <PopoverContent>
-                        <div className="px-1 py-2 flex flex-col">
-                          <DeleteFeedModal
-                            postId={feed._id}
-                            token={accessToken}
-                            setIsPosting={setIsPosting}
-                          />
-                        </div>
-                      </PopoverContent>
-                    </Popover>
-                  </div>
-                )} */}
             </div>
             <div>
               {feedData.postType === "post" &&
@@ -555,7 +410,7 @@ const FeedDetails = ({ feedData, feedDetails, accessToken }: any) => {
               commentCount={feedData.commentCount}
               repostCount={feedData.repostCount}
               viewsCount={feedData.viewsCount}
-              setIsPosting={() => {}}
+              // setIsPosting={() => {}}
             />
           </div>
         </div>

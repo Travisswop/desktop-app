@@ -23,7 +23,7 @@ const BottomNavContent = () => {
 
   return (
     <div className="w-[19rem] fixed bottom-2 left-1/2 transform -translate-x-1/2 ">
-      {pathname === "/" && (
+      {(pathname === "/" || pathname?.startsWith("/feed")) && (
         <div className="flex text-sm font-medium w-[84%] bg-white p-3 rounded-xl shadow-large items-center justify-between mb-2 mx-auto">
           <Link
             href={"/?tab=feed"}
