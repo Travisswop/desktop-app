@@ -8,15 +8,14 @@ import smartsite from "@/public/images/nav/smartsite.png";
 import wallet from "@/public/images/nav/wallet.png";
 import Link from "next/link";
 import { BiSolidEdit } from "react-icons/bi";
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import { useSearchParams } from "next/navigation";
 import { useModalStore } from "@/zustandStore/modalstore";
 
 const BottomNavContent = () => {
   const pathname = usePathname();
   const searchParams = useSearchParams();
-  console.log("pathname", pathname);
-  const { isOpen, openModal, closeModal, toggleModal } = useModalStore();
+  const { openModal } = useModalStore();
   const tab = useMemo(
     () => searchParams && searchParams.get("tab"),
     [searchParams]
