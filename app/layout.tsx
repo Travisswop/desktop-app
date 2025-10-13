@@ -4,7 +4,9 @@ import { UserProvider } from '@/lib/UserContext';
 
 import { Figtree, Inter } from 'next/font/google';
 import { Toaster } from 'react-hot-toast';
+import { Toaster as SonnerToaster } from 'sonner';
 import { SocketChatProvider } from '@/lib/context/NewSocketChatContext';
+import { NotificationProvider } from '@/lib/context/NotificationContext';
 import { WalletProvider } from '@/providers/SyncedWalletProvider';
 import { LiFiWalletProvider } from '@/providers/WalletManagementProvider';
 import { Metadata } from 'next';
@@ -60,12 +62,15 @@ export default function RootLayout({
     >
       <body className={`font-[figtree] bg-[#F7F7F9]`}>
         <Toaster position="top-center" reverseOrder={false} />
+        <SonnerToaster position="top-right" richColors />
 
         <PrivyProvider>
           <WalletProvider>
             <LiFiWalletProvider>
               <UserProvider>
-                <SocketChatProvider>{children}</SocketChatProvider>
+                <NotificationProvider>
+                  <SocketChatProvider>{children}</SocketChatProvider>
+                </NotificationProvider>
               </UserProvider>
             </LiFiWalletProvider>
           </WalletProvider>

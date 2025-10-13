@@ -17,6 +17,7 @@ import {
 import { Connection, VersionedTransaction } from '@solana/web3.js';
 import { saveSwapTransaction } from '@/actions/saveTransactionData';
 import Cookies from 'js-cookie';
+import { sendSwapNotification } from '@/lib/notificationTriggers';
 
 const getChainIcon = (chainName: string) => {
   const chainIcons: Record<string, string> = {
@@ -2482,6 +2483,19 @@ export default function SwapTokenModal({
       console.log('result add in db', result);
 
       console.log('Swap transaction saved to database');
+
+      // Send notification
+      if (accessToken) {
+        await sendSwapNotification(accessToken, {
+          fromToken: swapDetails.inputToken.symbol,
+          toToken: swapDetails.outputToken.symbol,
+          fromAmount: swapDetails.inputToken.amount.toString(),
+          toAmount: swapDetails.outputToken.amount.toString(),
+          transactionHash: signature,
+          network: payToken?.chain || 'SOLANA',
+          protocol: 'Jupiter',
+        });
+      }
     } catch (error) {
       console.error('Failed to save swap transaction:', error);
       // Don't throw error here to avoid disrupting the swap flow

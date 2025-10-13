@@ -29,6 +29,7 @@ import bellIcon from "@/public/images/bell-icon.png";
 import { BiMessageRoundedDots, BiMessageSquareDots } from "react-icons/bi";
 import { useSolanaWallets } from "@privy-io/react-auth/solana";
 import { AiOutlineMessage } from "react-icons/ai";
+import { NotificationBell } from "@/components/notifications";
 
 export default function Header() {
   const { user, loading, logout: userLogout } = useUser();
@@ -137,8 +138,8 @@ export default function Header() {
           </Button> */}
             </Link>
           </div>
-          <div className="bg-[#f6f6fd] p-2 rounded-full mx-2">
-            <Image src={bellIcon} alt="bell icon" className="w-7 h-7" />
+          <div className="mx-2">
+            <NotificationBell />
           </div>
           {user && (
             <DropdownMenu>
