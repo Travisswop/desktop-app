@@ -17,7 +17,6 @@ const BottomNavContent = () => {
   const searchParams = useSearchParams();
   const { openModal } = useModalStore();
   const tab = useMemo(
-    //use memo for search params
     () => searchParams && searchParams.get("tab"),
     [searchParams]
   );
