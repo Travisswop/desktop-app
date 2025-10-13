@@ -1426,6 +1426,9 @@ export default function SwapTokenModal({
       const {
         getAssociatedTokenAddress,
         createAssociatedTokenAccountInstruction,
+        TOKEN_PROGRAM_ID,
+        TOKEN_2022_PROGRAM_ID,
+        getMint,
       } = await import('@solana/spl-token');
 
       // Check and create ATAs if needed
@@ -1439,14 +1442,40 @@ export default function SwapTokenModal({
         outputMint: outputMintPubkey.toBase58(),
       });
 
-      // Get ATA addresses
+      // Detect which token program each mint uses
+      const detectTokenProgram = async (mintPubkey: typeof PublicKey.prototype) => {
+        try {
+          // Try Token-2022 first
+          await getMint(connection, mintPubkey, undefined, TOKEN_2022_PROGRAM_ID);
+          return TOKEN_2022_PROGRAM_ID;
+        } catch (e) {
+          // Fall back to legacy SPL Token
+          return TOKEN_PROGRAM_ID;
+        }
+      };
+
+      const [inputTokenProgram, outputTokenProgram] = await Promise.all([
+        detectTokenProgram(inputMintPubkey),
+        detectTokenProgram(outputMintPubkey),
+      ]);
+
+      console.log('🔍 [SWAP] Token programs detected:', {
+        inputProgram: inputTokenProgram.toBase58(),
+        outputProgram: outputTokenProgram.toBase58(),
+      });
+
+      // Get ATA addresses with correct token programs
       const inputATA = await getAssociatedTokenAddress(
         inputMintPubkey,
-        walletPubkey
+        walletPubkey,
+        false,
+        inputTokenProgram
       );
       const outputATA = await getAssociatedTokenAddress(
         outputMintPubkey,
-        walletPubkey
+        walletPubkey,
+        false,
+        outputTokenProgram
       );
 
       console.log('📍 [SWAP] Expected ATAs:', {
@@ -1479,27 +1508,34 @@ export default function SwapTokenModal({
         const transaction = new Transaction();
 
         if (needsInputATA) {
-          console.log('➕ [SWAP] Adding input ATA creation instruction');
+          console.log('➕ [SWAP] Adding input ATA creation instruction', {
+            tokenProgram: inputTokenProgram.toBase58(),
+          });
           transaction.add(
             createAssociatedTokenAccountInstruction(
               walletPubkey,
               inputATA,
               walletPubkey,
-              inputMintPubkey
+              inputMintPubkey,
+              inputTokenProgram  // Pass correct token program
             )
           );
         }
 
         if (needsOutputATA) {
           console.log(
-            '➕ [SWAP] Adding output ATA creation instruction'
+            '➕ [SWAP] Adding output ATA creation instruction',
+            {
+              tokenProgram: outputTokenProgram.toBase58(),
+            }
           );
           transaction.add(
             createAssociatedTokenAccountInstruction(
               walletPubkey,
               outputATA,
               walletPubkey,
-              outputMintPubkey
+              outputMintPubkey,
+              outputTokenProgram  // Pass correct token program
             )
           );
         }
