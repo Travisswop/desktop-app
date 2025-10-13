@@ -25,7 +25,7 @@ const WalletPageLoading = () => {
         <div className="w-[1%] flex items-start justify-center">
           <hr className="w-px h-[1300px] bg-gray-300 border-0" />
         </div>
-        <div className="w-[34%]">
+        <div className="w-[32%]">
           <Skeleton className="flex rounded-lg w-full h-[800px]" />
         </div>
       </div>

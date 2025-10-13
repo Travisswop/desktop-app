@@ -23,6 +23,7 @@ const UserImageAvatar = ({
         alt={alt}
         width={width}
         height={height}
+        quality={100}
         className="w-full h-full"
       />
     </div>

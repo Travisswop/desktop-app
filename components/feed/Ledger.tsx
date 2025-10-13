@@ -10,28 +10,13 @@ import React, {
   memo,
   useMemo,
 } from "react";
-import { GoDotFill } from "react-icons/go";
 import dayjs from "dayjs";
-import PostTypeMedia from "./view/PostTypeMedia";
-import { HiDotsHorizontal } from "react-icons/hi";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-  useDisclosure,
-} from "@nextui-org/react";
+import { useDisclosure } from "@nextui-org/react";
 import relativeTime from "dayjs/plugin/relativeTime";
-import Reaction from "./view/Reaction";
-import Link from "next/link";
-import { FiPlusCircle } from "react-icons/fi";
-import DeleteFeedModal from "./DeleteFeedModal";
-import isUrl from "@/lib/isUrl";
 import RedeemClaimModal from "../modal/RedeemClaim";
 import { useRouter } from "next/navigation";
-import IndividualFeedContent from "./IndividualFeedContent";
 import { FeedMainContentDataLoading } from "../loading/TabSwitcherLoading";
 import FeedLoading from "../loading/FeedLoading";
-import logger from "@/utils/logger";
 import FeedItem from "./FeedItem";
 
 dayjs.extend(relativeTime);
@@ -109,7 +94,7 @@ const MemoizedFeedItem = memo(
 
 MemoizedFeedItem.displayName = "MemoizedFeedItem";
 
-const Feed = memo(
+const Ledger = memo(
   ({
     accessToken,
     userId,
@@ -158,6 +143,8 @@ const Feed = memo(
       },
       []
     );
+
+    const router = useRouter();
 
     // Memoized transaction content renderer
     const renderTransactionContent = useCallback((feed: any) => {
@@ -241,7 +228,7 @@ const Feed = memo(
 
         try {
           const currentPage = reset ? 1 : pageRef.current;
-          const url = `${API_URL}/api/v1/feed/user/connect/post/${userId}?page=${currentPage}&limit=5`;
+          const url = `${API_URL}/api/v1/feed/user/connect/non-post/${userId}?page=${currentPage}&limit=5`;
           const newFeedData = await getUserFeed(url, accessToken);
 
           if (!newFeedData?.data) {
@@ -365,6 +352,6 @@ const Feed = memo(
   }
 );
 
-Feed.displayName = "Feed";
+Ledger.displayName = "Ledger";
 
-export default Feed;
+export default Ledger;

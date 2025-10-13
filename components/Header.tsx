@@ -23,11 +23,12 @@ import { Skeleton } from "./ui/skeleton";
 import { useRouter } from "next/navigation";
 import isUrl from "@/lib/isUrl";
 import { useState } from "react";
-import logo from "@/public/logo.png";
+import swopLogo from "@/public/images/swop.png";
+import swopWorldLogo from "@/public/images/swop-world.png";
 import bellIcon from "@/public/images/bell-icon.png";
-import { BiMessageSquareDots } from "react-icons/bi";
+import { BiMessageRoundedDots, BiMessageSquareDots } from "react-icons/bi";
 import { useSolanaWallets } from "@privy-io/react-auth/solana";
-import { SidebarTrigger } from "./ui/sidebar";
+import { AiOutlineMessage } from "react-icons/ai";
 
 export default function Header() {
   const { user, loading, logout: userLogout } = useUser();
@@ -117,14 +118,18 @@ export default function Header() {
   }
 
   return (
-    <div className="bg-white border-b">
-      <header className="sticky top-0 z-30 h-20 bg-white pr-4 ml-4 flex items-center justify-between">
-        <SidebarTrigger />
+    <div className="bg-white rounded-b-xl shadow-small sticky top-0 z-10">
+      <header className="h-24 bg-white mx-8 flex items-center justify-between">
+        {/* <SidebarTrigger /> */}
+        <Link href={"/"} className="flex items-center gap-2.5">
+          <Image src={swopWorldLogo} alt="swop" className="h-8 w-auto" />
+          <Image src={swopLogo} alt="swop" className="h-6 w-auto" />
+        </Link>
         <div className=" flex items-center justify-end">
           <div>
             <Link href="/chat">
               <button className="rounded-full w-[38px] h-[38px] bg-black flex items-center justify-center">
-                <BiMessageSquareDots color="white" size={19} />
+                <AiOutlineMessage color="white" size={19} />
               </button>
               {/* <Button variant="black" className="gap-2 font-bold rounded-xl">
             <Image src={filePlus} alt="file-plus" className="w-6 h-6" />
