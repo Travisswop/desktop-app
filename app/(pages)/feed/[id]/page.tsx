@@ -6,6 +6,7 @@ import { cookies } from "next/headers";
 import Link from "next/link";
 import React, { Suspense } from "react";
 import type { Metadata, ResolvingMetadata } from "next";
+import isUrl from "@/lib/isUrl";
 
 type Props = {
   params: { id: string } | Promise<{ id: string }>;
@@ -22,7 +23,7 @@ export async function generateMetadata(
   );
 
   const feed = feedData?.data;
-  console.log("feed dta", feed);
+  console.log("feedrr", feed);
 
   if (!feed) {
     return {
@@ -31,64 +32,85 @@ export async function generateMetadata(
     };
   }
 
-  // Description fallback: first 150 chars of first content src or text
+  // Get post content array
+  const postContent = feed.content?.post_content || [];
+  const firstMedia = postContent[0];
 
-  const firstMedia = feed.post_content?.[0];
-  const isVideo = firstMedia?.type === "video";
-  const isImage = firstMedia?.type === "image";
+  // Determine media type
+  const mediaType = firstMedia?.type; // 'video', 'image', or 'gif'
+  const isVideo = mediaType === "video";
+  const isImage = mediaType === "image";
+  const isGif = mediaType === "gif";
 
-  const imageUrl = isImage ? firstMedia.src : feed.smartsiteProfilePic; // fallback to profile pic
+  // For metadata purposes, treat GIFs as images
+  const hasVisualMedia = isImage || isGif || isVideo;
+
+  // Get the media URL
+  let mediaUrl = "";
+  if (hasVisualMedia && firstMedia?.src) {
+    mediaUrl = firstMedia.src;
+  } else if (feed.smartsiteProfilePic) {
+    // Fallback to profile pic if no media
+    mediaUrl = isUrl(feed.smartsiteProfilePic)
+      ? feed.smartsiteProfilePic
+      : `${process.env.NEXT_PUBLIC_APP_URL}/images/user_avator/${feed.smartsiteProfilePic}@3x.png`; // Adjust this URL
+  }
+
+  // Create title and description
+  const title =
+    feed.content?.title || feed.smartsiteUserName || "Swop Feed Post";
+  const description =
+    feed.description ||
+    feed.content?.description ||
+    `Check out this post by ${feed.smartsiteUserName || "Swop user"}!`;
 
   return {
-    title: feed.content.title || "Feed Post",
-    description:
-      feed?.description ||
-      feed?.content?.description ||
-      "Check out this feed post!",
+    title,
+    description,
     openGraph: {
-      title: feed.content.title || "Feed Post",
-      description:
-        feed?.description ||
-        feed?.content?.description ||
-        "Check out this feed post!",
+      title,
+      description,
       url: `https://www.swopme.app/feed/${feed._id}`,
+      siteName: "Swop",
       type: isVideo ? "video.other" : "article",
-      images: imageUrl
+      images: mediaUrl
         ? [
             {
-              url: imageUrl,
-              width: 800,
-              height: 600,
-              alt: feed.title || "Feed Image",
+              url: mediaUrl,
+              width: 1200,
+              height: 630,
+              alt: title,
             },
           ]
         : [],
-      videos: isVideo
-        ? [
+      ...(isVideo &&
+        firstMedia?.src && {
+          videos: [
             {
               url: firstMedia.src,
               width: 1280,
               height: 720,
             },
-          ]
-        : [],
+          ],
+        }),
     },
-    // twitter: {
-    //   card: "summary_large_image",
-    //   title: feed.title || "Feed Post",
-    //   description: feed.description || "Check out this feed post!",
-    //   images: feed.imageUrl ? [feed.imageUrl] : [],
-    // },
-
     twitter: {
       card: isVideo ? "player" : "summary_large_image",
-      title: feed.title || "Feed Post",
-      description:
-        feed?.description ||
-        feed?.content?.description ||
-        "Check out this feed post!",
-      images: imageUrl ? [imageUrl] : [],
-      player: isVideo ? firstMedia.src : undefined,
+      title,
+      description,
+      site: "@swopme", // Add your Twitter handle
+      creator: feed.smartsiteUserName
+        ? `@${feed.smartsiteUserName}`
+        : undefined,
+      images: mediaUrl ? [mediaUrl] : [],
+      ...(isVideo &&
+        firstMedia?.src && {
+          player: {
+            url: firstMedia.src,
+            width: 1280,
+            height: 720,
+          },
+        }),
     },
   };
 }
