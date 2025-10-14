@@ -105,6 +105,12 @@ const WalletContentInner = () => {
   const { socket: chatSocket, isConnected: socketConnected } =
     useNewSocketChat();
   const socket = chatSocket;
+
+  console.log('🔌 [WalletContent] Socket status:', {
+    socketId: socket?.id,
+    connected: socketConnected,
+    socketExists: !!socket,
+  });
   // Custom hooks
   const walletData = useWalletData(authenticated, ready, PrivyUser);
   const { solWalletAddress, evmWalletAddress } =
@@ -431,16 +437,32 @@ const WalletContentInner = () => {
       }
 
       // Send success notification via Socket.IO
+      console.log('🔔 [WalletContent] Attempting to send notification...', {
+        hasSocket: !!socket,
+        socketConnected: socket?.connected,
+        hasHash: !!result.hash,
+        socketId: socket?.id,
+        hasNFT: !!sendFlow.nft,
+        hasToken: !!sendFlow.token,
+      });
+
       if (socket && socket.connected && result.hash) {
         try {
+          console.log('🔔 [WalletContent] Socket is connected, preparing notification...');
           const notificationService =
             getWalletNotificationService(socket);
+
+          console.log('🔔 [WalletContent] Notification service initialized:', {
+            serviceExists: !!notificationService,
+            isConnected: notificationService.isConnected(),
+          });
 
           if (sendFlow.nft) {
             // NFT transfer notification
             const networkName =
               sendFlow.network?.toUpperCase() || 'SOLANA';
-            notificationService.emitNFTSent({
+
+            const nftData = {
               nftName: sendFlow.nft.name || 'NFT',
               nftImage: sendFlow.nft.image,
               recipientAddress: sendFlow.recipient.address,
@@ -451,7 +473,10 @@ const WalletContentInner = () => {
               network: networkName,
               tokenId: sendFlow.nft.tokenId,
               collectionName: sendFlow.nft.collection?.collectionName,
-            });
+            };
+
+            console.log('🔔 [WalletContent] Emitting NFT sent notification:', nftData);
+            notificationService.emitNFTSent(nftData);
 
             console.log(
               '✅ NFT transfer notification sent via Socket.IO'
@@ -468,7 +493,7 @@ const WalletContentInner = () => {
                 )
               : undefined;
 
-            notificationService.emitTokenSent({
+            const tokenData = {
               tokenSymbol: sendFlow.token.symbol,
               tokenName: sendFlow.token.name,
               amount: amount,
@@ -478,10 +503,12 @@ const WalletContentInner = () => {
                 sendFlow.recipient.address,
               txSignature: result.hash,
               network: networkName,
-              tokenLogo:
-                sendFlow.token.logoURI || sendFlow.token.logoURI,
+              tokenLogo: sendFlow.token.logoURI,
               usdValue: usdValue,
-            });
+            };
+
+            console.log('🔔 [WalletContent] Emitting token sent notification:', tokenData);
+            notificationService.emitTokenSent(tokenData);
 
             console.log(
               '✅ Token transfer notification sent via Socket.IO'
@@ -489,13 +516,18 @@ const WalletContentInner = () => {
           }
         } catch (notifError) {
           console.error(
-            'Failed to send transfer notification:',
+            '❌ [WalletContent] Failed to send transfer notification:',
             notifError
           );
         }
       } else {
         console.warn(
-          '⚠️ Socket not connected, transfer notification not sent'
+          '⚠️ [WalletContent] Socket not connected or missing data, transfer notification not sent:',
+          {
+            hasSocket: !!socket,
+            socketConnected: socket?.connected,
+            hasHash: !!result.hash,
+          }
         );
       }
 
