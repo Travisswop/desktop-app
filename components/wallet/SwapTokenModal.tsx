@@ -17,7 +17,7 @@ import {
 import { Connection, VersionedTransaction } from '@solana/web3.js';
 import { saveSwapTransaction } from '@/actions/saveTransactionData';
 import Cookies from 'js-cookie';
-import { useNotifications } from '@/lib/context/NotificationContext';
+import { useNewSocketChat } from '@/lib/context/NewSocketChatContext';
 import {
   getWalletNotificationService,
   formatUSDValue,
@@ -389,8 +389,16 @@ export default function SwapTokenModal({
 
   const { wallets } = useWallets();
   const { wallets: solWallets } = useSolanaWallets();
-  const notificationContext = useNotifications();
-  const socket = notificationContext?.socketRef?.current;
+
+  // Use NewSocketChatContext for wallet notifications (where wallet handlers are registered)
+  const { socket: chatSocket, isConnected: socketConnected } = useNewSocketChat();
+  const socket = chatSocket; // This socket has wallet notification handlers registered
+
+  console.log('🔌 [SwapTokenModal] Using socket from NewSocketChatContext:', {
+    socketId: socket?.id,
+    connected: socketConnected,
+    socketExists: !!socket
+  });
 
   // console.log('receiveToken', receiveToken);
   // console.log('payToken', payToken);
