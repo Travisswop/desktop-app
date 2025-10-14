@@ -44,21 +44,27 @@ const MessageList = ({ tokens }: { tokens: any }) => {
 
   // Prepare conversation data for display
   const chatList = useMemo(() => {
-    return conversations.map((conv) => {
-      // For direct conversations, get the other participant
-      const otherParticipant = conv.participants.find(
-        (p) => p._id !== user?._id
-      );
-      return {
-        ethAddress: otherParticipant?._id || conv._id,
-        name:
-          otherParticipant?.name ||
-          conv.title ||
-          formatDisplayName(conv._id),
-        bio: conv.lastMessage?.message || 'No messages yet',
-        profilePic: otherParticipant?.profilePic || '',
-      };
-    });
+    if (!conversations || conversations.length === 0) {
+      return [];
+    }
+
+    return conversations
+      .filter((conv) => conv && conv.participants) // Filter out invalid conversations
+      .map((conv) => {
+        // For direct conversations, get the other participant
+        const otherParticipant = conv.participants?.find(
+          (p) => p._id !== user?._id
+        );
+        return {
+          ethAddress: otherParticipant?._id || conv._id,
+          name:
+            otherParticipant?.name ||
+            conv.title ||
+            formatDisplayName(conv._id),
+          bio: conv.lastMessage?.message || 'No messages yet',
+          profilePic: otherParticipant?.profilePic || '',
+        };
+      });
   }, [conversations, formatDisplayName, user?._id]);
 
   // Filter conversations based on search

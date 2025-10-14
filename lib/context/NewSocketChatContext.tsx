@@ -892,9 +892,13 @@ export const SocketChatProvider = ({ children }: SocketChatProviderProps) => {
       // Use socket method like in HTML test
       socketRef.current!.emit('get_conversations', { page, limit }, (response: { success: boolean; conversations?: any[]; error?: string }) => {
         if (response?.success && response.conversations) {
+          console.log('📋 [NewSocketChat] Received conversations:', response.conversations.length);
+          console.log('📋 [NewSocketChat] First conversation sample:', response.conversations[0]);
+
           setConversations(response.conversations);
           resolve({ success: true, data: { conversations: response.conversations } });
         } else {
+          console.error('❌ [NewSocketChat] Failed to load conversations:', response?.error);
           resolve({ success: false, error: response?.error || 'Failed to load conversations' });
         }
       });
