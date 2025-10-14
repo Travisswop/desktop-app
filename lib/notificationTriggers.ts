@@ -22,7 +22,7 @@ export async function sendSwapNotification(
   }
 ) {
   try {
-    const response = await fetch(`${API_BASE_URL}/api/v5/notifications/test`, {
+    const response = await fetch(`${API_BASE_URL}/api/v5/notifications`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -59,7 +59,7 @@ export async function sendTokenReceivedNotification(
   }
 ) {
   try {
-    const response = await fetch(`${API_BASE_URL}/api/v5/notifications/test`, {
+    const response = await fetch(`${API_BASE_URL}/api/v5/notifications`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -90,7 +90,7 @@ export async function sendMessageNotification(
   }
 ) {
   try {
-    const response = await fetch(`${API_BASE_URL}/api/v5/notifications/test`, {
+    const response = await fetch(`${API_BASE_URL}/api/v5/notifications`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
