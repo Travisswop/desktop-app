@@ -17,7 +17,11 @@ import {
 import { Connection, VersionedTransaction } from '@solana/web3.js';
 import { saveSwapTransaction } from '@/actions/saveTransactionData';
 import Cookies from 'js-cookie';
-import { sendSwapNotification } from '@/lib/notificationTriggers';
+import { useNotifications } from '@/lib/context/NotificationContext';
+import {
+  getWalletNotificationService,
+  formatUSDValue,
+} from '@/lib/utils/walletNotifications';
 
 const getChainIcon = (chainName: string) => {
   const chainIcons: Record<string, string> = {
@@ -385,6 +389,8 @@ export default function SwapTokenModal({
 
   const { wallets } = useWallets();
   const { wallets: solWallets } = useSolanaWallets();
+  const notificationContext = useNotifications();
+  const socket = notificationContext?.socketRef?.current;
 
   // console.log('receiveToken', receiveToken);
   // console.log('payToken', payToken);
@@ -1877,6 +1883,27 @@ export default function SwapTokenModal({
         userFriendlyError
       );
       setSwapError(userFriendlyError);
+
+      // Send swap failed notification via Socket.IO
+      if (socket && socket.connected) {
+        try {
+          const notificationService = getWalletNotificationService(socket);
+
+          notificationService.emitSwapFailed({
+            inputTokenSymbol: payToken?.symbol || jupiterQuote?.inputMint.slice(0, 4) || 'Unknown',
+            inputAmount: payAmount || '0',
+            outputTokenSymbol: receiveToken?.symbol || jupiterQuote?.outputMint.slice(0, 4) || 'Unknown',
+            network: 'SOLANA',
+            reason: userFriendlyError,
+          });
+
+          console.log('✅ Swap failed notification sent via Socket.IO');
+        } catch (notifError) {
+          console.error('Failed to send swap failed notification:', notifError);
+        }
+      } else {
+        console.warn('⚠️ Socket not connected, swap failed notification not sent');
+      }
     } finally {
       setIsSwapping(false);
       console.log('🏁 [SWAP] Swap execution ended');
@@ -1953,6 +1980,39 @@ export default function SwapTokenModal({
         error.message || error.toString() || 'Cross-chain swap failed'
       );
       setSwapError(userFriendlyError);
+
+      // Send swap failed notification via Socket.IO
+      if (socket && socket.connected) {
+        try {
+          const notificationService = getWalletNotificationService(socket);
+          const fromChainId = parseInt(chainId);
+          const networkName =
+            fromChainId === 1151111081099710
+              ? 'SOLANA'
+              : fromChainId === 1
+              ? 'ETHEREUM'
+              : fromChainId === 137
+              ? 'POLYGON'
+              : fromChainId === 8453
+              ? 'BASE'
+              : 'Unknown';
+
+          notificationService.emitSwapFailed({
+            inputTokenSymbol: payToken?.symbol || 'Unknown',
+            inputAmount: payAmount || '0',
+            outputTokenSymbol: receiveToken?.symbol || 'Unknown',
+            network: networkName,
+            reason: userFriendlyError,
+          });
+
+          console.log('✅ LiFi swap failed notification sent via Socket.IO');
+        } catch (notifError) {
+          console.error('Failed to send swap failed notification:', notifError);
+        }
+      } else {
+        console.warn('⚠️ Socket not connected, swap failed notification not sent');
+      }
+
       throw new Error(userFriendlyError); // Re-throw with friendly message
     } finally {
       setIsSwapping(false);
@@ -2137,6 +2197,27 @@ export default function SwapTokenModal({
         error?.message || error?.toString() || 'Transaction failed'
       );
       setSwapError(userFriendlyError);
+
+      // Send swap failed notification via Socket.IO
+      if (socket && socket.connected) {
+        try {
+          const notificationService = getWalletNotificationService(socket);
+
+          notificationService.emitSwapFailed({
+            inputTokenSymbol: payToken?.symbol || 'Unknown',
+            inputAmount: payAmount || '0',
+            outputTokenSymbol: receiveToken?.symbol || 'Unknown',
+            network: 'SOLANA',
+            reason: userFriendlyError,
+          });
+
+          console.log('✅ Solana swap failed notification sent via Socket.IO');
+        } catch (notifError) {
+          console.error('Failed to send swap failed notification:', notifError);
+        }
+      } else {
+        console.warn('⚠️ Socket not connected, swap failed notification not sent');
+      }
     } finally {
       setIsSwapping(false);
     }
@@ -2484,17 +2565,36 @@ export default function SwapTokenModal({
 
       console.log('Swap transaction saved to database');
 
-      // Send notification
-      if (accessToken) {
-        await sendSwapNotification(accessToken, {
-          fromToken: swapDetails.inputToken.symbol,
-          toToken: swapDetails.outputToken.symbol,
-          fromAmount: swapDetails.inputToken.amount.toString(),
-          toAmount: swapDetails.outputToken.amount.toString(),
-          transactionHash: signature,
-          network: payToken?.chain || 'SOLANA',
-          protocol: 'Jupiter',
-        });
+      // Send notification via Socket.IO
+      if (socket && socket.connected) {
+        try {
+          const notificationService = getWalletNotificationService(socket);
+
+          notificationService.emitSwapCompleted({
+            inputTokenSymbol: swapDetails.inputToken.symbol,
+            inputAmount: swapDetails.inputToken.amount.toFixed(6),
+            outputTokenSymbol: swapDetails.outputToken.symbol,
+            outputAmount: swapDetails.outputToken.amount.toFixed(6),
+            txSignature: signature,
+            network: payToken?.chain || 'SOLANA',
+            inputTokenLogo: swapDetails.inputToken.logo,
+            outputTokenLogo: swapDetails.outputToken.logo,
+            inputUsdValue: formatUSDValue(
+              swapDetails.inputToken.amount,
+              swapDetails.inputToken.price
+            ),
+            outputUsdValue: formatUSDValue(
+              swapDetails.outputToken.amount,
+              swapDetails.outputToken.price
+            ),
+          });
+
+          console.log('✅ Swap notification sent via Socket.IO');
+        } catch (notifError) {
+          console.error('Failed to send swap notification:', notifError);
+        }
+      } else {
+        console.warn('⚠️ Socket not connected, notification not sent');
       }
     } catch (error) {
       console.error('Failed to save swap transaction:', error);

@@ -172,6 +172,9 @@ export interface NotificationContextType {
     channel: string,
     value: boolean
   ) => Promise<void>;
+
+  // Socket connection
+  socketRef: React.MutableRefObject<any>;
 }
 
 // Notification icon mapping

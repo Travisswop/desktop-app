@@ -71,12 +71,35 @@ export const NotificationProvider: React.FC<{
     });
 
     socket.on('connect', () => {
-      console.log('Notification socket connected');
+      console.log('✅ Notification socket connected');
       isConnectedRef.current = true;
     });
 
     socket.on('disconnect', (reason) => {
-      console.log('Notification socket disconnected:', reason);
+      console.log('⚠️ Notification socket disconnected:', reason);
+      isConnectedRef.current = false;
+    });
+
+    socket.on('connect_error', (error) => {
+      console.error('❌ Socket connection error:', error.message);
+      isConnectedRef.current = false;
+    });
+
+    socket.on('reconnect', (attemptNumber) => {
+      console.log(`🔄 Socket reconnected after ${attemptNumber} attempts`);
+      isConnectedRef.current = true;
+    });
+
+    socket.on('reconnect_attempt', (attemptNumber) => {
+      console.log(`🔄 Socket reconnection attempt ${attemptNumber}...`);
+    });
+
+    socket.on('reconnect_error', (error) => {
+      console.error('❌ Socket reconnection error:', error.message);
+    });
+
+    socket.on('reconnect_failed', () => {
+      console.error('❌ Socket reconnection failed after all attempts');
       isConnectedRef.current = false;
     });
 
@@ -427,6 +450,7 @@ export const NotificationProvider: React.FC<{
     fetchPreferences,
     updatePreferences,
     updateSpecificPreference,
+    socketRef,
   };
 
   return (
