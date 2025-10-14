@@ -211,6 +211,20 @@ const WalletContentInner = () => {
     []
   );
 
+  // Helper function to convert relative URLs to absolute URLs
+  const convertToAbsoluteUrl = useCallback((imageUrl: string | undefined): string | undefined => {
+    if (!imageUrl) return undefined;
+
+    // If already absolute URL, return as is
+    if (imageUrl.startsWith('http://') || imageUrl.startsWith('https://')) {
+      return imageUrl;
+    }
+
+    // Convert relative path to absolute URL using API base URL
+    const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+    return `${apiUrl}${imageUrl.startsWith('/') ? '' : '/'}${imageUrl}`;
+  }, []);
+
   // Optimized transaction execution
   const executeTransaction = useCallback(async () => {
     try {
@@ -464,7 +478,7 @@ const WalletContentInner = () => {
 
             const nftData = {
               nftName: sendFlow.nft.name || 'NFT',
-              nftImage: sendFlow.nft.image,
+              nftImage: convertToAbsoluteUrl(sendFlow.nft.image),
               recipientAddress: sendFlow.recipient.address,
               recipientEnsName:
                 sendFlow.recipient.ensName ||
@@ -503,7 +517,7 @@ const WalletContentInner = () => {
                 sendFlow.recipient.address,
               txSignature: result.hash,
               network: networkName,
-              tokenLogo: sendFlow.token.logoURI,
+              tokenLogo: convertToAbsoluteUrl(sendFlow.token.logoURI),
               usdValue: usdValue,
             };
 
@@ -597,6 +611,7 @@ const WalletContentInner = () => {
     accessToken,
     currentWalletAddress,
     calculateTransactionAmount,
+    convertToAbsoluteUrl,
     toast,
     resetSendFlow,
     setSendFlow,
