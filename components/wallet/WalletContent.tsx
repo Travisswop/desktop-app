@@ -58,6 +58,11 @@ import WalletBalanceChartForWalletPage from './WalletBalanceChart';
 import Cookies from 'js-cookie';
 import { createTransactionPayload } from '@/lib/utils/transactionUtils';
 import { Loader2 } from 'lucide-react';
+import { useNewSocketChat } from '@/lib/context/NewSocketChatContext';
+import {
+  getWalletNotificationService,
+  formatUSDValue,
+} from '@/lib/utils/walletNotifications';
 
 export default function WalletContent() {
   return <WalletContentInner />;
@@ -95,6 +100,11 @@ const WalletContentInner = () => {
   const { createWallet, solanaWallets } = useSolanaWalletContext();
   const { toast } = useToast();
   const { user } = useUser();
+
+  // Socket connection for wallet notifications
+  const { socket: chatSocket, isConnected: socketConnected } =
+    useNewSocketChat();
+  const socket = chatSocket;
   // Custom hooks
   const walletData = useWalletData(authenticated, ready, PrivyUser);
   const { solWalletAddress, evmWalletAddress } =
@@ -420,6 +430,75 @@ const WalletContentInner = () => {
         await postFeed(transactionPayload, accessToken);
       }
 
+      // Send success notification via Socket.IO
+      if (socket && socket.connected && result.hash) {
+        try {
+          const notificationService =
+            getWalletNotificationService(socket);
+
+          if (sendFlow.nft) {
+            // NFT transfer notification
+            const networkName =
+              sendFlow.network?.toUpperCase() || 'SOLANA';
+            notificationService.emitNFTSent({
+              nftName: sendFlow.nft.name || 'NFT',
+              nftImage: sendFlow.nft.image,
+              recipientAddress: sendFlow.recipient.address,
+              recipientEnsName:
+                sendFlow.recipient.ensName ||
+                sendFlow.recipient.address,
+              txSignature: result.hash,
+              network: networkName,
+              tokenId: sendFlow.nft.tokenId,
+              collectionName: sendFlow.nft.collection?.collectionName,
+            });
+
+            console.log(
+              '✅ NFT transfer notification sent via Socket.IO'
+            );
+          } else if (sendFlow.token) {
+            // Token transfer notification
+            const amount = calculateTransactionAmount(sendFlow);
+            const networkName =
+              sendFlow.token.chain?.toUpperCase() || 'SOLANA';
+            const usdValue = sendFlow.token.marketData?.price
+              ? formatUSDValue(
+                  amount,
+                  sendFlow.token.marketData.price
+                )
+              : undefined;
+
+            notificationService.emitTokenSent({
+              tokenSymbol: sendFlow.token.symbol,
+              tokenName: sendFlow.token.name,
+              amount: amount,
+              recipientAddress: sendFlow.recipient.address,
+              recipientEnsName:
+                sendFlow.recipient.ensName ||
+                sendFlow.recipient.address,
+              txSignature: result.hash,
+              network: networkName,
+              tokenLogo:
+                sendFlow.token.logoURI || sendFlow.token.logoURI,
+              usdValue: usdValue,
+            });
+
+            console.log(
+              '✅ Token transfer notification sent via Socket.IO'
+            );
+          }
+        } catch (notifError) {
+          console.error(
+            'Failed to send transfer notification:',
+            notifError
+          );
+        }
+      } else {
+        console.warn(
+          '⚠️ Socket not connected, transfer notification not sent'
+        );
+      }
+
       // Update UI state
       setSendFlow((prev) => ({
         ...prev,
@@ -428,6 +507,43 @@ const WalletContentInner = () => {
       }));
     } catch (error) {
       console.error('Error sending token/NFT:', error);
+
+      // Send failure notification via Socket.IO
+      if (socket && socket.connected) {
+        try {
+          const notificationService =
+            getWalletNotificationService(socket);
+          const errorMessage =
+            error instanceof Error
+              ? error.message
+              : ERROR_MESSAGES.SEND_TRANSACTION_FAILED;
+
+          if (sendFlow.nft) {
+            // For NFT failures, we can emit a generic failure event
+            // Since walletNotifications.ts doesn't have a specific NFT failure handler,
+            // we'll log it for now
+            console.log('❌ NFT transfer failed:', {
+              nft: sendFlow.nft.name,
+              recipient: sendFlow.recipient?.address,
+              reason: errorMessage,
+            });
+          } else if (sendFlow.token) {
+            // For token transfers, we can log the failure
+            console.log('❌ Token transfer failed:', {
+              token: sendFlow.token.symbol,
+              amount: sendFlow.amount,
+              recipient: sendFlow.recipient?.address,
+              reason: errorMessage,
+            });
+          }
+        } catch (notifError) {
+          console.error(
+            'Failed to send failure notification:',
+            notifError
+          );
+        }
+      }
+
       toast({
         variant: 'destructive',
         title: 'Error',
@@ -452,6 +568,7 @@ const WalletContentInner = () => {
     toast,
     resetSendFlow,
     setSendFlow,
+    socket,
   ]);
 
   // Memoized event handlers
