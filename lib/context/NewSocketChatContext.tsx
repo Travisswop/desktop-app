@@ -416,19 +416,29 @@ export const SocketChatProvider = ({ children }: SocketChatProviderProps) => {
         if (typeof document === 'undefined') return null;
 
         const cookies = document.cookie.split(';');
-        console.log('🍪 [NewSocketChat] Available cookies:', cookies);
+        console.log('🍪 [NewSocketChat] Available cookies:', cookies.length);
 
         for (let cookie of cookies) {
           const [name, value] = cookie.trim().split('=');
-          console.log('🍪 [NewSocketChat] Checking cookie:', { name, value });
           if (name === 'access-token') {
             const decodedValue = decodeURIComponent(value);
-            console.log('✅ [NewSocketChat] Found access-token:', decodedValue.substring(0, 20) + '...');
+            console.log('✅ [NewSocketChat] Found access-token (first 20 chars):', decodedValue.substring(0, 20) + '...');
+
+            // Validate token format
+            const parts = decodedValue.split('.');
+            if (parts.length !== 3) {
+              console.error('❌ [NewSocketChat] Invalid JWT format - expected 3 parts, got', parts.length);
+              return null;
+            }
+
             return decodedValue;
           }
         }
 
         console.log('❌ [NewSocketChat] access-token cookie not found');
+        console.log('🍪 [NewSocketChat] Available cookie names:',
+          cookies.map(c => c.trim().split('=')[0]).join(', ')
+        );
         return null;
       };
 
@@ -436,12 +446,14 @@ export const SocketChatProvider = ({ children }: SocketChatProviderProps) => {
 
       if (!jwtToken) {
         console.error('❌ [NewSocketChat] No JWT token available in cookies for socket authentication');
+        console.error('💡 [NewSocketChat] Please ensure you are logged in and the access-token cookie is set');
         setError(new Error('No authentication token available. Please log in again.'));
         setLoading(false);
         return;
       }
 
       console.log('🔑 [NewSocketChat] Using JWT token for authentication');
+      console.log('🔑 [NewSocketChat] Token length:', jwtToken.length);
 
       const newSocket = io(SOCKET_URL, {
         auth: {
@@ -450,21 +462,34 @@ export const SocketChatProvider = ({ children }: SocketChatProviderProps) => {
         extraHeaders: {
           'ngrok-skip-browser-warning': 'true'
         },
-        transports: ['websocket', 'polling'],
+        transports: ['polling', 'websocket'], // Try polling first, then upgrade to websocket
         timeout: 20000,
+        reconnectionDelay: 1000,
+        reconnectionDelayMax: 5000,
+        reconnectionAttempts: 5,
         forceNew: true,
+        withCredentials: true, // Important for CORS with credentials
+        upgrade: true, // Allow transport upgrade
+        rememberUpgrade: true,
       });
 
       // Connection event handlers
       newSocket.on('connect', () => {
         console.log('✅ [NewSocketChat] Connected to server');
+        console.log('✅ [NewSocketChat] Transport:', newSocket.io.engine.transport.name);
+        console.log('✅ [NewSocketChat] Socket ID:', newSocket.id);
         setIsConnected(true);
         setLoading(false);
         setError(null);
         reconnectAttempts.current = 0;
-        
+
         // Join user to their personal room
         newSocket.emit('join_user_room', privyUser.id);
+      });
+
+      // Log transport upgrades
+      newSocket.io.engine.on('upgrade', (transport: any) => {
+        console.log('🔄 [NewSocketChat] Transport upgraded to:', transport.name);
       });
 
       newSocket.on('disconnect', (reason) => {
@@ -480,6 +505,21 @@ export const SocketChatProvider = ({ children }: SocketChatProviderProps) => {
 
       newSocket.on('connect_error', (err) => {
         console.error('🚨 [NewSocketChat] Connection error:', err);
+        console.error('🚨 [NewSocketChat] Error details:', {
+          message: err.message,
+          type: err.type,
+          description: err.description,
+          context: err.context
+        });
+
+        // Check for specific error types
+        if (err.message.includes('websocket error')) {
+          console.error('🚨 [NewSocketChat] WebSocket connection failed - trying polling transport');
+        }
+        if (err.message.includes('xhr poll error')) {
+          console.error('🚨 [NewSocketChat] Polling connection failed - check CORS and server availability');
+        }
+
         setError(new Error(`Connection failed: ${err.message}`));
         setLoading(false);
         scheduleReconnect();
