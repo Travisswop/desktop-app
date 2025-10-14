@@ -7,6 +7,8 @@ import {
 import { PriorityLevel } from './PriorityFeeSelector';
 import { saveSwapTransaction } from '@/actions/saveTransactionData';
 import logger from '@/utils/logger';
+import { getWalletNotificationService, formatUSDValue } from '@/lib/utils/walletNotifications';
+import { Socket } from 'socket.io-client';
 
 /**
  * Jupiter Error Code 6014 (0x177e) - Common Solutions:
@@ -189,6 +191,7 @@ export async function handleSwap({
   outputToken,
   platformFeeBps = 100, // Default to 1%
   accessToken,
+  socket,
 }: {
   quote: any;
   solanaAddress: string;
@@ -205,6 +208,7 @@ export async function handleSwap({
   outputToken?: any;
   platformFeeBps?: number;
   accessToken: string;
+  socket?: Socket | null;
 }) {
   if (!quote || !solanaAddress) return;
   // const adminFeeOwner = new PublicKey("FG4n7rVKzYyM9QGjUu6Mae8JGmQYJjsi6FJvmJHeM9HP");
@@ -546,13 +550,17 @@ export async function handleSwap({
     logger.log(`✅ Success: https://solscan.io/tx/${signature}`);
 
     try {
+      // Calculate amounts with proper decimal handling
+      const inputAmount = quote.inAmount / 10 ** (inputToken?.decimals || 6);
+      const outputAmount = quote.outAmount / 10 ** (outputToken?.decimals || 6);
+
       // Format the swap details for saving
       const swapDetails = {
         signature,
         solanaAddress,
         inputToken: {
           symbol: inputToken?.symbol || quote.inputMint,
-          amount: quote.inAmount / 10 ** (inputToken?.decimals || 6),
+          amount: inputAmount,
           decimals: inputToken?.decimals || 6,
           mint: quote.inputMint,
           price: inputToken?.price || inputToken?.usdPrice || '0', // Include token price in USD'
@@ -560,8 +568,7 @@ export async function handleSwap({
         },
         outputToken: {
           symbol: outputToken?.symbol || quote.outputMint,
-          amount:
-            quote.outAmount / 10 ** (outputToken?.decimals || 6),
+          amount: outputAmount,
           decimals: outputToken?.decimals || 6,
           mint: quote.outputMint,
           price: outputToken?.price || outputToken?.usdPrice || '0', // Include token price in USD
@@ -574,6 +581,34 @@ export async function handleSwap({
 
       // Save to database
       saveSwapTransaction(swapDetails, accessToken);
+
+      // Emit Socket.IO notification for swap completion
+      if (socket) {
+        try {
+          const notificationService = getWalletNotificationService(socket);
+
+          const inputPrice = inputToken?.price || inputToken?.usdPrice || '0';
+          const outputPrice = outputToken?.price || outputToken?.usdPrice || '0';
+
+          notificationService.emitSwapCompleted({
+            inputTokenSymbol: inputToken?.symbol || quote.inputMint.slice(0, 4),
+            inputAmount: inputAmount.toFixed(6),
+            outputTokenSymbol: outputToken?.symbol || quote.outputMint.slice(0, 4),
+            outputAmount: outputAmount.toFixed(6),
+            txSignature: signature,
+            network: 'SOLANA',
+            inputTokenLogo: inputToken?.icon,
+            outputTokenLogo: outputToken?.icon,
+            inputUsdValue: formatUSDValue(inputAmount, inputPrice),
+            outputUsdValue: formatUSDValue(outputAmount, outputPrice),
+          });
+
+          logger.log('Swap notification emitted via Socket.IO');
+        } catch (notificationError) {
+          logger.error('Failed to emit swap notification:', notificationError);
+          // Don't fail the swap due to notification error
+        }
+      }
 
       // Call onSuccess callback with both signature and feed data
       if (onSuccess) {
@@ -659,6 +694,26 @@ export async function handleSwap({
 
     if (onError) {
       onError(errorMessage);
+    }
+
+    // Emit Socket.IO notification for swap failure
+    if (socket) {
+      try {
+        const notificationService = getWalletNotificationService(socket);
+        const inputAmount = quote?.inAmount / 10 ** (inputToken?.decimals || 6);
+
+        notificationService.emitSwapFailed({
+          inputTokenSymbol: inputToken?.symbol || quote?.inputMint?.slice(0, 4) || 'Unknown',
+          inputAmount: inputAmount?.toFixed(6) || '0',
+          outputTokenSymbol: outputToken?.symbol || quote?.outputMint?.slice(0, 4) || 'Unknown',
+          network: 'SOLANA',
+          reason: errorMessage,
+        });
+
+        logger.log('Swap failure notification emitted via Socket.IO');
+      } catch (notificationError) {
+        logger.error('Failed to emit swap failure notification:', notificationError);
+      }
     }
 
     return null;
