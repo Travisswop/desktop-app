@@ -1,30 +1,26 @@
-'use client';
+"use client";
 
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
-} from '@/components/ui/dialog';
-import { Button } from '@/components/ui/button';
-import {
-  HelpCircle,
-  Wallet,
-  ArrowDown,
-  AlertCircle,
-} from 'lucide-react';
+} from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import { HelpCircle, Wallet, ArrowDown, AlertCircle } from "lucide-react";
 import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
-} from '@/components/ui/tooltip';
-import { NFT } from '@/types/nft';
-import Image from 'next/image';
-import { Network } from '@/types/wallet-types';
-import { TokenData } from '@/types/token';
-import { useEffect, useState } from 'react';
-import { calculateEVMGasFee } from '../tools/gas_fee_evm';
+} from "@/components/ui/tooltip";
+import { NFT } from "@/types/nft";
+import Image from "next/image";
+import { Network } from "@/types/wallet-types";
+import { TokenData } from "@/types/token";
+import { useEffect, useState } from "react";
+import { calculateEVMGasFee } from "../tools/gas_fee_evm";
+import CustomModal from "@/components/modal/CustomModal";
 
 interface SendConfirmationProps {
   open: boolean;
@@ -58,16 +54,16 @@ export default function SendConfirmation({
   nativeTokenPrice,
 }: SendConfirmationProps) {
   const [gasFeeUSD, setGasFeeUSD] = useState(0);
-  if (token.chain === 'SOLANA') {
-    networkFee = '0.000005';
+  if (token.chain === "SOLANA") {
+    networkFee = "0.000005";
   }
 
   useEffect(() => {
     const fetchGasFee = async () => {
-      if (token.chain === 'SOLANA') {
-        const networkFeeUSD = (
-          Number(networkFee) * nativeTokenPrice
-        ).toFixed(5);
+      if (token.chain === "SOLANA") {
+        const networkFeeUSD = (Number(networkFee) * nativeTokenPrice).toFixed(
+          5
+        );
         setGasFeeUSD(Number(networkFeeUSD));
       } else {
         const gasFee = await calculateEVMGasFee(network);
@@ -79,16 +75,16 @@ export default function SendConfirmation({
   }, [network, nativeTokenPrice, networkFee, token.chain]);
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className=" p-6 rounded-3xl">
-        <DialogHeader>
-          <DialogTitle className="text-xl font-semibold text-center">
+    <CustomModal isOpen={open} onCloseModal={onOpenChange} title="Send">
+      <div className="p-4">
+        <div>
+          <p className="text-xl font-semibold text-center">
             Confirm Transaction
-          </DialogTitle>
+          </p>
           <p className="text-center text-sm text-gray-500 mt-1">
             Please review the transaction details carefully
           </p>
-        </DialogHeader>
+        </div>
 
         <div className="space-y-6 mt-6">
           {/* Transaction Overview */}
@@ -99,9 +95,7 @@ export default function SendConfirmation({
               <div className="flex flex-col items-center">
                 {nft ? (
                   <div className="text-center space-y-3">
-                    <div className="text-xl font-semibold">
-                      {nft.name}
-                    </div>
+                    <div className="text-xl font-semibold">{nft.name}</div>
                     <Image
                       src={nft.image}
                       alt={nft.name}
@@ -123,8 +117,8 @@ export default function SendConfirmation({
                                 parseFloat(amount) /
                                 parseFloat(token.marketData.price)
                               ).toFixed(2)
-                            : '0.00'
-                          : parseFloat(amount).toFixed(2)}{' '}
+                            : "0.00"
+                          : parseFloat(amount).toFixed(2)}{" "}
                         {token.symbol}
                       </div>
                       {token.marketData?.price && (
@@ -155,7 +149,7 @@ export default function SendConfirmation({
                   </div>
                   <div>
                     <div className="font-medium">
-                      {recipientName || 'Recipient'}
+                      {recipientName || "Recipient"}
                     </div>
                     <div className="text-sm text-gray-500 break-all">
                       {recipient}
@@ -175,9 +169,7 @@ export default function SendConfirmation({
             <div className="bg-white p-4 rounded-xl border border-gray-100">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <span className="text-sm text-gray-600">
-                    Network Fee
-                  </span>
+                  <span className="text-sm text-gray-600">Network Fee</span>
                   <TooltipProvider>
                     <Tooltip>
                       <TooltipTrigger>
@@ -185,11 +177,10 @@ export default function SendConfirmation({
                       </TooltipTrigger>
                       <TooltipContent className="max-w-xs">
                         <p>
-                          {token.chain === 'SOLANA' &&
-                          (token.symbol === 'SWOP' ||
-                            token.symbol === 'USDC')
-                            ? 'Network fees are subsidized by SWOP for SWOP and USDC transactions on Solana.'
-                            : 'Network fees are required to process your transaction on the blockchain. These fees vary based on network congestion.'}
+                          {token.chain === "SOLANA" &&
+                          (token.symbol === "SWOP" || token.symbol === "USDC")
+                            ? "Network fees are subsidized by SWOP for SWOP and USDC transactions on Solana."
+                            : "Network fees are required to process your transaction on the blockchain. These fees vary based on network congestion."}
                         </p>
                       </TooltipContent>
                     </Tooltip>
@@ -197,24 +188,22 @@ export default function SendConfirmation({
                 </div>
                 <div className="text-right">
                   <div className="font-medium">
-                    {token.chain === 'SOLANA' &&
-                    (token.symbol === 'SWOP' ||
-                      token.symbol === 'USDC')
-                      ? '0.000000'
-                      : networkFee}{' '}
-                    {token.chain === 'SOLANA'
-                      ? 'SOL'
-                      : token.chain === 'ETHEREUM'
-                      ? 'ETH'
-                      : token.chain === 'POLYGON'
-                      ? 'MATIC'
-                      : 'BASE'}
+                    {token.chain === "SOLANA" &&
+                    (token.symbol === "SWOP" || token.symbol === "USDC")
+                      ? "0.000000"
+                      : networkFee}{" "}
+                    {token.chain === "SOLANA"
+                      ? "SOL"
+                      : token.chain === "ETHEREUM"
+                      ? "ETH"
+                      : token.chain === "POLYGON"
+                      ? "MATIC"
+                      : "BASE"}
                   </div>
                   <div className="text-sm text-gray-500">
-                    {token.chain === 'SOLANA' &&
-                    (token.symbol === 'SWOP' ||
-                      token.symbol === 'USDC')
-                      ? '$ 0.00'
+                    {token.chain === "SOLANA" &&
+                    (token.symbol === "SWOP" || token.symbol === "USDC")
+                      ? "$ 0.00"
                       : `$ ${gasFeeUSD}`}
                   </div>
                 </div>
@@ -225,8 +214,8 @@ export default function SendConfirmation({
             <div className="bg-yellow-50 p-4 rounded-xl flex items-start gap-3">
               <AlertCircle className="w-5 h-5 text-yellow-600 flex-shrink-0 mt-0.5" />
               <div className="text-sm text-yellow-700">
-                Transactions cannot be reversed after confirmation.
-                Please ensure the recipient address is correct.
+                Transactions cannot be reversed after confirmation. Please
+                ensure the recipient address is correct.
               </div>
             </div>
           </div>
@@ -237,12 +226,10 @@ export default function SendConfirmation({
             className="w-full bg-black text-white hover:bg-gray-800 rounded-xl py-6 text-lg font-medium transition-colors"
             disabled={loading}
           >
-            {loading
-              ? 'Processing Transaction...'
-              : 'Confirm Transaction'}
+            {loading ? "Processing Transaction..." : "Confirm Transaction"}
           </Button>
         </div>
-      </DialogContent>
-    </Dialog>
+      </div>
+    </CustomModal>
   );
 }
