@@ -174,17 +174,6 @@ const PostFeed = ({
     setPostContent(value);
   };
 
-  const {
-    isOpen: isPollModalOpen,
-    openModal: openPollModalOpen,
-    closeModal: closePollModal,
-    toggleModal: togglePollModal,
-  } = useModalStore();
-
-  // <CustomModal isOpen={isOpen} onClose={closeModal} title="Create Post">
-  //           <PostFeed {...postFeedProps} />
-  //         </CustomModal>
-
   return (
     <div className="p-6">
       <div className="flex flex-col gap-2">
@@ -468,7 +457,7 @@ const PostFeed = ({
               onCloseModal={setIsCreatePollModalOpen}
               title="Create Poll"
             >
-              <CreatePoll />
+              <CreatePoll setIsCreatePollModalOpen={setIsCreatePollModalOpen} />
             </CustomModal>
           )}
         </div>

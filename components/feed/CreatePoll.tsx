@@ -5,13 +5,32 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { Card, CardContent } from "@/components/ui/card";
+import { useModalStore } from "@/zustandStore/modalstore";
+import { postFeed } from "@/actions/postFeed";
+import { useUser } from "@/lib/UserContext";
+import toast from "react-hot-toast";
+import { Loader } from "lucide-react";
+import { useRouter } from "next/navigation";
 
-export default function CreatePoll() {
+export default function CreatePoll({ setIsCreatePollModalOpen }: any) {
   const [question, setQuestion] = useState("");
   const [options, setOptions] = useState(["", ""]);
   const [allowMultiple, setAllowMultiple] = useState(false);
   const [durationDays, setDurationDays] = useState<number | "">("");
   const [durationHours, setDurationHours] = useState<number | "">("");
+  const [isCreatePollLoading, setIsCreatePollLoading] =
+    useState<boolean>(false);
+
+  const {
+    isOpen: isPollModalOpen,
+    openModal: openPollModalOpen,
+    closeModal: closePollModal,
+    toggleModal: togglePollModal,
+  } = useModalStore();
+
+  const { user, accessToken } = useUser();
+
+  const router = useRouter();
 
   const handleOptionChange = (index: number, value: string) => {
     const updated = [...options];
@@ -28,11 +47,19 @@ export default function CreatePoll() {
   const handleSubmit = async () => {
     removeEmptyOptions();
     if (!question.trim() || options.length < 2) {
-      alert("Please enter a question and at least 2 options.");
+      toast.error("Please enter a question and at least 2 options.");
       return;
     }
 
+    if (!user || !user?.primaryMicrosite || !user?._id) {
+      toast.error("Please login first");
+    }
+
+    setIsCreatePollLoading(true);
+
     const payload = {
+      smartsiteId: user?.primaryMicrosite,
+      userId: user?._id,
       postType: "poll",
       content: {
         question,
@@ -44,9 +71,13 @@ export default function CreatePoll() {
     };
 
     console.log("📤 Submitting poll:", payload);
-
-    // Example POST
-    // await fetch("/api/feed", { method: "POST", body: JSON.stringify(payload) });
+    const response = await postFeed(payload, accessToken || "");
+    console.log("response", response);
+    toast.success("poll created");
+    setIsCreatePollModalOpen(false);
+    closePollModal();
+    setIsCreatePollLoading(false);
+    router.push("/?tab=feed");
   };
 
   return (
@@ -134,10 +165,14 @@ export default function CreatePoll() {
 
           {/* Continue button */}
           <Button
-            className="w-full bg-gray-100 text-gray-700 hover:text-white rounded-xl mt-4"
+            className="w-full bg-black text-white rounded-xl mt-4"
             onClick={handleSubmit}
           >
-            Continue
+            {isCreatePollLoading ? (
+              <Loader className="w-8 h-8 animate-spin mx-auto text-white" />
+            ) : (
+              "Create"
+            )}
           </Button>
         </CardContent>
       </Card>
