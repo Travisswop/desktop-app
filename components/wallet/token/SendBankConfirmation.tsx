@@ -1,31 +1,27 @@
-'use client';
+"use client";
 
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
-} from '@/components/ui/dialog';
-import { Button } from '@/components/ui/button';
-import {
-  HelpCircle,
-  Wallet,
-  ArrowDown,
-  AlertCircle,
-} from 'lucide-react';
+} from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import { HelpCircle, Wallet, ArrowDown, AlertCircle } from "lucide-react";
 import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
-} from '@/components/ui/tooltip';
-import { NFT } from '@/types/nft';
-import Image from 'next/image';
-import { Network } from '@/types/wallet-types';
-import { TokenData } from '@/types/token';
-import { useEffect, useState } from 'react';
-import { calculateEVMGasFee } from '../tools/gas_fee_evm';
-import { useTokenSendStore } from '@/zustandStore/TokenSendInfo';
+} from "@/components/ui/tooltip";
+import { NFT } from "@/types/nft";
+import Image from "next/image";
+import { Network } from "@/types/wallet-types";
+import { TokenData } from "@/types/token";
+import { useEffect, useState } from "react";
+import { calculateEVMGasFee } from "../tools/gas_fee_evm";
+import { useTokenSendStore } from "@/zustandStore/TokenSendInfo";
+import CustomModal from "@/components/modal/CustomModal";
 
 interface SendConfirmationProps {
   open: boolean;
@@ -60,8 +56,8 @@ export default function SendBankConfirmation({
 }: SendConfirmationProps) {
   const [gasFeeUSD, setGasFeeUSD] = useState(0);
   const { tokenContent } = useTokenSendStore();
-  if (token.chain === 'SOLANA') {
-    networkFee = '0.000005';
+  if (token.chain === "SOLANA") {
+    networkFee = "0.000005";
   }
 
   if (tokenContent.walletAddress) {
@@ -70,10 +66,10 @@ export default function SendBankConfirmation({
 
   useEffect(() => {
     const fetchGasFee = async () => {
-      if (token.chain === 'SOLANA') {
-        const networkFeeUSD = (
-          Number(networkFee) * nativeTokenPrice
-        ).toFixed(5);
+      if (token.chain === "SOLANA") {
+        const networkFeeUSD = (Number(networkFee) * nativeTokenPrice).toFixed(
+          5
+        );
         setGasFeeUSD(Number(networkFeeUSD));
       } else {
         const gasFee = await calculateEVMGasFee(network);
@@ -85,16 +81,16 @@ export default function SendBankConfirmation({
   }, [network, nativeTokenPrice, networkFee, token.chain]);
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className=" p-6 rounded-3xl">
-        <DialogHeader>
-          <DialogTitle className="text-xl font-semibold text-center">
+    <CustomModal isOpen={open} onCloseModal={onOpenChange} title="Create Poll">
+      <div className="p-4">
+        <div>
+          <h3 className="text-xl font-semibold text-center">
             Confirm Transaction
-          </DialogTitle>
+          </h3>
           <p className="text-center text-sm text-gray-500 mt-1">
             Please review the transaction details carefully
           </p>
-        </DialogHeader>
+        </div>
 
         <div className="space-y-6 mt-6">
           {/* Transaction Overview */}
@@ -105,9 +101,7 @@ export default function SendBankConfirmation({
               <div className="flex flex-col items-center">
                 {nft ? (
                   <div className="text-center space-y-3">
-                    <div className="text-xl font-semibold">
-                      {nft.name}
-                    </div>
+                    <div className="text-xl font-semibold">{nft.name}</div>
                     <Image
                       src={nft.image}
                       alt={nft.name}
@@ -129,8 +123,8 @@ export default function SendBankConfirmation({
                                 parseFloat(amount) /
                                 parseFloat(token.marketData.price)
                               ).toFixed(2)
-                            : '0.00'
-                          : parseFloat(amount).toFixed(2)}{' '}
+                            : "0.00"
+                          : parseFloat(amount).toFixed(2)}{" "}
                         {token.symbol}
                       </div>
                       {token.marketData?.price && (
@@ -161,7 +155,7 @@ export default function SendBankConfirmation({
                   </div>
                   <div>
                     <div className="font-medium">
-                      {recipientName || 'Recipient'}
+                      {recipientName || "Recipient"}
                     </div>
                     <div className="text-sm text-gray-500 break-all">
                       {recipient}
@@ -181,9 +175,7 @@ export default function SendBankConfirmation({
             <div className="bg-white p-4 rounded-xl border border-gray-100">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <span className="text-sm text-gray-600">
-                    Network Fee
-                  </span>
+                  <span className="text-sm text-gray-600">Network Fee</span>
                   <TooltipProvider>
                     <Tooltip>
                       <TooltipTrigger>
@@ -191,9 +183,9 @@ export default function SendBankConfirmation({
                       </TooltipTrigger>
                       <TooltipContent className="max-w-xs">
                         <p>
-                          Network fees are required to process your
-                          transaction on the blockchain. These fees
-                          vary based on network congestion.
+                          Network fees are required to process your transaction
+                          on the blockchain. These fees vary based on network
+                          congestion.
                         </p>
                       </TooltipContent>
                     </Tooltip>
@@ -201,18 +193,16 @@ export default function SendBankConfirmation({
                 </div>
                 <div className="text-right">
                   <div className="font-medium">
-                    {networkFee}{' '}
-                    {token.chain === 'SOLANA'
-                      ? 'SOL'
-                      : token.chain === 'ETHEREUM'
-                      ? 'ETH'
-                      : token.chain === 'POLYGON'
-                      ? 'MATIC'
-                      : 'BASE'}
+                    {networkFee}{" "}
+                    {token.chain === "SOLANA"
+                      ? "SOL"
+                      : token.chain === "ETHEREUM"
+                      ? "ETH"
+                      : token.chain === "POLYGON"
+                      ? "MATIC"
+                      : "BASE"}
                   </div>
-                  <div className="text-sm text-gray-500">
-                    $ {gasFeeUSD}
-                  </div>
+                  <div className="text-sm text-gray-500">$ {gasFeeUSD}</div>
                 </div>
               </div>
             </div>
@@ -221,8 +211,8 @@ export default function SendBankConfirmation({
             <div className="bg-yellow-50 p-4 rounded-xl flex items-start gap-3">
               <AlertCircle className="w-5 h-5 text-yellow-600 flex-shrink-0 mt-0.5" />
               <div className="text-sm text-yellow-700">
-                Transactions cannot be reversed after confirmation.
-                Please ensure the recipient address is correct.
+                Transactions cannot be reversed after confirmation. Please
+                ensure the recipient address is correct.
               </div>
             </div>
           </div>
@@ -233,12 +223,10 @@ export default function SendBankConfirmation({
             className="w-full bg-black text-white hover:bg-gray-800 rounded-xl py-6 text-lg font-medium transition-colors"
             disabled={loading}
           >
-            {loading
-              ? 'Processing Transaction...'
-              : 'Confirm Transaction'}
+            {loading ? "Processing Transaction..." : "Confirm Transaction"}
           </Button>
         </div>
-      </DialogContent>
-    </Dialog>
+      </div>
+    </CustomModal>
   );
 }

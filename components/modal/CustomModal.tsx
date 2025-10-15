@@ -5,7 +5,8 @@ import { motion, AnimatePresence } from "framer-motion";
 
 interface CustomModalProps {
   isOpen: boolean;
-  onClose: () => void;
+  onClose?: () => void;
+  onCloseModal?: any;
   children: React.ReactNode;
   title?: string;
   width?: string;
@@ -14,6 +15,7 @@ interface CustomModalProps {
 const CustomModal: React.FC<CustomModalProps> = ({
   isOpen,
   onClose,
+  onCloseModal,
   children,
   title,
   width = "max-w-lg",
@@ -33,7 +35,15 @@ const CustomModal: React.FC<CustomModalProps> = ({
     if (
       mouseDownOnBackdrop &&
       modalRef.current &&
-      !modalRef.current.contains(e.target as Node)
+      !modalRef.current.contains(e.target as Node) &&
+      onCloseModal
+    ) {
+      onCloseModal();
+    } else if (
+      mouseDownOnBackdrop &&
+      modalRef.current &&
+      !modalRef.current.contains(e.target as Node) &&
+      onClose
     ) {
       onClose();
     }
@@ -69,7 +79,7 @@ const CustomModal: React.FC<CustomModalProps> = ({
             <div className="flex items-center justify-between border-b px-4 py-3">
               {title && <h2 className="text-lg font-semibold">{title}</h2>}
               <button
-                onClick={onClose}
+                onClick={onCloseModal ? () => onCloseModal() : onClose}
                 className="p-2 rounded-full hover:bg-gray-100 transition"
               >
                 <X size={20} />

@@ -20,6 +20,9 @@ import { useModalStore } from "@/zustandStore/modalstore";
 import { GrEmoji } from "react-icons/gr";
 import { HiOutlineGif } from "react-icons/hi2";
 import { motion } from "framer-motion";
+import { PiChartBarHorizontalBold } from "react-icons/pi";
+import CreatePoll from "./CreatePoll";
+import CustomModal from "../modal/CustomModal";
 
 const PostFeed = ({
   primaryMicrositeImg,
@@ -56,6 +59,10 @@ const PostFeed = ({
     { type: "image" | "video" | "gif"; src: string }[]
   >([]);
   const [error, setError] = useState("");
+
+  const [isCreatePollModalOpen, setIsCreatePollModalOpen] = useState(false);
+
+  console.log("isCreatePollModalOpen", isCreatePollModalOpen);
 
   // Callback function to handle emoji selection
   const handleEmojiSelect = (emoji: string) => {
@@ -166,6 +173,17 @@ const PostFeed = ({
 
     setPostContent(value);
   };
+
+  const {
+    isOpen: isPollModalOpen,
+    openModal: openPollModalOpen,
+    closeModal: closePollModal,
+    toggleModal: togglePollModal,
+  } = useModalStore();
+
+  // <CustomModal isOpen={isOpen} onClose={closeModal} title="Create Post">
+  //           <PostFeed {...postFeedProps} />
+  //         </CustomModal>
 
   return (
     <div className="p-6">
@@ -371,6 +389,14 @@ const PostFeed = ({
               <button
                 onClick={(e) => {
                   e.stopPropagation();
+                  setIsCreatePollModalOpen(true);
+                }}
+              >
+                <PiChartBarHorizontalBold size={22} className="text-gray-800" />
+              </button>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
                   setShowEmojiPicker(!showEmojiPicker);
                   setShowGifPicker(false); // Close gif picker when opening emoji
                 }}
@@ -435,6 +461,16 @@ const PostFeed = ({
               </div>
             )}
           </motion.div>
+
+          {isCreatePollModalOpen && (
+            <CustomModal
+              isOpen={isCreatePollModalOpen}
+              onCloseModal={setIsCreatePollModalOpen}
+              title="Create Poll"
+            >
+              <CreatePoll />
+            </CustomModal>
+          )}
         </div>
       </div>
     </div>
