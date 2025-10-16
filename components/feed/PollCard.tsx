@@ -5,6 +5,7 @@ import { cn } from "@/lib/utils";
 import { Progress } from "@nextui-org/react";
 import { AddPollVote } from "@/actions/postFeed";
 import { useUser } from "@/lib/UserContext";
+import toast from "react-hot-toast";
 
 interface PollCardProps {
   poll: any;
@@ -25,10 +26,18 @@ export default function PollCard({
   const [selectedOption, setSelectedOption] = useState<number | null>(null);
   const [voting, setVoting] = useState(false);
 
-  // find which option the user has voted for (if any)
-  const userPreviousVote = localPoll?.options?.findIndex((opt: any) =>
-    opt.voters?.includes(userId)
-  );
+  // Get all options the user has voted for
+  const getUserVotedOptions = () => {
+    return (
+      localPoll?.options
+        ?.map((opt: any, idx: number) =>
+          opt.voters?.includes(userId) ? idx : -1
+        )
+        .filter((idx: number) => idx !== -1) || []
+    );
+  };
+
+  const userVotedOptions = getUserVotedOptions();
 
   const totalVotes =
     localPoll?.options?.reduce(
@@ -42,28 +51,69 @@ export default function PollCard({
     setVoting(true);
     setSelectedOption(optionIndex);
 
-    // ⚡ Optimistic update
     const updatedPoll = { ...localPoll, options: [...localPoll.options] };
 
-    // 1️⃣ Remove previous vote if exists
-    if (userPreviousVote !== -1 && userPreviousVote !== optionIndex) {
-      const prevOpt = updatedPoll.options[userPreviousVote];
-      prevOpt.votes = Math.max((prevOpt.votes || 1) - 1, 0);
-      prevOpt.voters = prevOpt.voters?.filter(
-        (v: string) => v.toString() !== userId.toString()
+    if (localPoll?.allowMultiple) {
+      // Multiple vote mode: toggle the selected option
+      const selectedOpt = updatedPoll.options[optionIndex];
+      const hasVoted = selectedOpt.voters?.includes(userId);
+
+      if (hasVoted) {
+        // Remove vote
+        selectedOpt.votes = Math.max((selectedOpt.votes || 1) - 1, 0);
+        selectedOpt.voters = selectedOpt.voters?.filter(
+          (v: string) => v.toString() !== userId.toString()
+        );
+
+        // Remove from totalVoters if user has no more votes
+        const stillHasVotes = updatedPoll.options.some(
+          (opt: any, idx: number) =>
+            idx !== optionIndex && opt.voters?.includes(userId)
+        );
+        if (!stillHasVotes) {
+          updatedPoll.totalVoters = updatedPoll.totalVoters?.filter(
+            (v: string) => v.toString() !== userId.toString()
+          );
+        }
+      } else {
+        // Add vote
+        selectedOpt.votes = (selectedOpt.votes || 0) + 1;
+        selectedOpt.voters = [...(selectedOpt.voters || []), userId];
+
+        // Add user to totalVoters if first time voting
+        if (!updatedPoll.totalVoters?.includes(userId)) {
+          updatedPoll.totalVoters = [
+            ...(updatedPoll.totalVoters || []),
+            userId,
+          ];
+        }
+      }
+    } else {
+      // Single vote mode: replace previous vote
+      const userPreviousVote = localPoll?.options?.findIndex((opt: any) =>
+        opt.voters?.includes(userId)
       );
-    }
 
-    // 2️⃣ Add new vote
-    const selectedOpt = updatedPoll.options[optionIndex];
-    if (!selectedOpt.voters?.includes(userId)) {
-      selectedOpt.votes = (selectedOpt.votes || 0) + 1;
-      selectedOpt.voters = [...(selectedOpt.voters || []), userId];
-    }
+      // Remove previous vote if exists
+      if (userPreviousVote !== -1 && userPreviousVote !== optionIndex) {
+        const prevOpt = updatedPoll.options[userPreviousVote];
+        prevOpt.votes = Math.max((prevOpt.votes || 1) - 1, 0);
+        prevOpt.voters = prevOpt.voters?.filter(
+          (v: string) => v.toString() !== userId.toString()
+        );
+      }
 
-    // 3️⃣ Add user to totalVoters if first time voting
-    if (!updatedPoll.totalVoters?.includes(userId)) {
-      updatedPoll.totalVoters = [...(updatedPoll.totalVoters || []), userId];
+      // Add new vote
+      const selectedOpt = updatedPoll.options[optionIndex];
+      if (!selectedOpt.voters?.includes(userId)) {
+        selectedOpt.votes = (selectedOpt.votes || 0) + 1;
+        selectedOpt.voters = [...(selectedOpt.voters || []), userId];
+      }
+
+      // Add user to totalVoters if first time voting
+      if (!updatedPoll.totalVoters?.includes(userId)) {
+        updatedPoll.totalVoters = [...(updatedPoll.totalVoters || []), userId];
+      }
     }
 
     setLocalPoll(updatedPoll);
@@ -80,11 +130,12 @@ export default function PollCard({
         setLocalPoll(data.data.content || updatedPoll);
         onVoteSuccess?.(data.data);
       } else {
-        alert(data.message);
+        toast.error(data.message);
+        setLocalPoll(poll.content); // rollback
       }
     } catch (err) {
       console.error(err);
-      alert("Something went wrong while voting.");
+      toast.error("Something went wrong while voting.");
       setLocalPoll(poll.content); // rollback
     } finally {
       setVoting(false);
@@ -101,7 +152,7 @@ export default function PollCard({
         {localPoll?.options?.map((option: any, index: number) => {
           const percent =
             totalVotes > 0 ? Math.round((option.votes / totalVotes) * 100) : 0;
-          const userSelected = userPreviousVote === index;
+          const userSelected = userVotedOptions.includes(index);
 
           return (
             <button
@@ -112,11 +163,38 @@ export default function PollCard({
                 "w-full text-left border rounded-xl p-2 text-sm relative group transition-all duration-200",
                 userSelected
                   ? "bg-blue-100 border-blue-400"
-                  : "hover:bg-gray-100 active:scale-[0.98]"
+                  : "hover:bg-gray-100 active:scale-[0.98]",
+                localPoll?.isExpired && "opacity-60 cursor-not-allowed"
               )}
             >
               <div className="flex justify-between items-center">
-                <p className="font-medium text-gray-700">{option.text}</p>
+                <div className="flex items-center gap-2">
+                  {localPoll?.allowMultiple && (
+                    <div
+                      className={cn(
+                        "w-4 h-4 rounded border-2 flex items-center justify-center transition-colors",
+                        userSelected
+                          ? "bg-blue-500 border-blue-500"
+                          : "border-gray-400"
+                      )}
+                    >
+                      {userSelected && (
+                        <svg
+                          className="w-3 h-3 text-white"
+                          fill="none"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth="2"
+                          viewBox="0 0 24 24"
+                          stroke="currentColor"
+                        >
+                          <path d="M5 13l4 4L19 7"></path>
+                        </svg>
+                      )}
+                    </div>
+                  )}
+                  <p className="font-medium text-gray-700">{option.text}</p>
+                </div>
                 <p className="text-xs text-gray-600 font-medium">{percent}%</p>
               </div>
 
@@ -150,7 +228,7 @@ export default function PollCard({
 
       {localPoll?.allowMultiple && (
         <p className="mt-1 text-[11px] text-gray-400 italic">
-          Multiple answers allowed
+          ✓ Multiple answers allowed
         </p>
       )}
     </div>
