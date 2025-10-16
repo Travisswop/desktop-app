@@ -231,3 +231,22 @@ export async function isPostLiked(payload: any, token: string) {
 }
 
 //poll
+export async function AddPollVote(payload: any, token: string) {
+  try {
+    const response = await fetch(
+      `${process.env.NEXT_PUBLIC_API_URL}/api/v1/feed/vote-poll`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(payload),
+      }
+    );
+    const data = await response.json();
+    return data;
+  } catch (error) {
+    logger.error("Error from posting poll vote:", error);
+  }
+}

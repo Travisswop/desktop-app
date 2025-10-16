@@ -1,23 +1,20 @@
-'use client';
-import React, { memo, useCallback } from 'react';
-import Image from 'next/image';
-import Link from 'next/link';
-import dayjs from 'dayjs';
-import { useRouter } from 'next/navigation';
-import { GoDotFill } from 'react-icons/go';
-import { HiDotsHorizontal } from 'react-icons/hi';
-import { FiPlusCircle } from 'react-icons/fi';
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from '@nextui-org/react';
-import PostTypeMedia from './view/PostTypeMedia';
-import Reaction from './view/Reaction';
-import DeleteFeedModal from './DeleteFeedModal';
-import IndividualFeedContent from './IndividualFeedContent';
-import SwapTransactionCard from './SwapTransactionCard';
-import isUrl from '@/lib/isUrl';
+"use client";
+import React, { memo, useCallback } from "react";
+import Image from "next/image";
+import Link from "next/link";
+import dayjs from "dayjs";
+import { useRouter } from "next/navigation";
+import { GoDotFill } from "react-icons/go";
+import { HiDotsHorizontal } from "react-icons/hi";
+import { FiPlusCircle } from "react-icons/fi";
+import { Popover, PopoverContent, PopoverTrigger } from "@nextui-org/react";
+import PostTypeMedia from "./view/PostTypeMedia";
+import Reaction from "./view/Reaction";
+import DeleteFeedModal from "./DeleteFeedModal";
+import IndividualFeedContent from "./IndividualFeedContent";
+import SwapTransactionCard from "./SwapTransactionCard";
+import isUrl from "@/lib/isUrl";
+import PollCard from "./PollCard";
 
 // Assuming FeedItemType is (or will be) available globally or can be imported.
 // For now, using 'any' as a placeholder if FeedItemType is not directly accessible here.
@@ -38,10 +35,7 @@ interface FeedItemProps {
   onRepostSuccess: () => void;
   onDeleteSuccess: () => void;
   renderTransactionContent: (feed: any) => JSX.Element;
-  onPostInteraction?: (
-    postId: string,
-    updates: Partial<FeedItemType>
-  ) => void;
+  onPostInteraction?: (postId: string, updates: Partial<FeedItemType>) => void;
 }
 
 const FeedItem = memo(
@@ -72,18 +66,13 @@ const FeedItem = memo(
     const profilePic =
       feed?.smartsiteId?.profilePic || feed?.smartsiteProfilePic;
     const userName =
-      feed?.smartsiteId?.name ||
-      feed?.smartsiteUserName ||
-      'Anonymous';
-    const ensName =
-      feed?.smartsiteId?.ens || feed?.smartsiteEnsName || 'n/a';
+      feed?.smartsiteId?.name || feed?.smartsiteUserName || "Anonymous";
+    const ensName = feed?.smartsiteId?.ens || feed?.smartsiteEnsName || "n/a";
 
     return (
       <div className="flex gap-2 border-b border-gray-200 pb-4">
         <Link
-          href={`/sp/${
-            feed?.smartsiteId?.ens || feed?.smartsiteEnsName
-          }`}
+          href={`/sp/${feed?.smartsiteId?.ens || feed?.smartsiteEnsName}`}
           className="w-10 xl:w-12 h-10 xl:h-12 bg-gray-400 border border-gray-300 rounded-full overflow-hidden flex items-center justify-center"
         >
           {profilePic && isUrl(profilePic) ? (
@@ -115,9 +104,7 @@ const FeedItem = memo(
                 href={`/feed/${feed._id}`}
                 className="flex items-center gap-1"
               >
-                <p className="text-gray-700 font-semibold">
-                  {userName}
-                </p>
+                <p className="text-gray-700 font-semibold">{userName}</p>
                 <GoDotFill size={10} />
                 <p className="text-gray-500 font-normal">{ensName}</p>
                 <GoDotFill size={10} />
@@ -127,15 +114,14 @@ const FeedItem = memo(
               </Link>
 
               {/* Render Post Content */}
-              {(feed.postType === 'post' ||
-                feed.postType === 'repost') &&
+              {(feed.postType === "post" || feed.postType === "repost") &&
                 feed.content.title && (
                   <button
                     onClick={handleFeedClick}
                     className="w-full text-start"
                   >
                     {feed.content.title
-                      .split('\n')
+                      .split("\n")
                       .map((line: string, index: number) => (
                         <p className="break-text" key={index}>
                           {line}
@@ -145,7 +131,7 @@ const FeedItem = memo(
                 )}
 
               {/* Swap Transaction Content */}
-              {feed.postType === 'swapTransaction' && (
+              {feed.postType === "swapTransaction" && (
                 <SwapTransactionCard
                   feed={feed}
                   onFeedClick={handleFeedClick}
@@ -153,11 +139,10 @@ const FeedItem = memo(
               )}
 
               {/* Repost Content */}
-              {feed.postType === 'repost' &&
-              feed.repostedPostDetails ? (
+              {feed.postType === "repost" && feed.repostedPostDetails ? (
                 <IndividualFeedContent feed={feed} />
               ) : (
-                feed.postType === 'repost' &&
+                feed.postType === "repost" &&
                 !feed.repostedPostDetails && (
                   <div className="p-4 bg-blue-50 rounded-lg border border-blue-100 text-blue-800 text-sm mt-1">
                     <div className="flex items-start">
@@ -184,12 +169,11 @@ const FeedItem = memo(
               )}
 
               {/* Redeem Content */}
-              {feed.postType === 'redeem' && (
+              {feed.postType === "redeem" && (
                 <div className="flex flex-col gap-2 text-gray-600 text-sm">
                   <div>
                     <p>
-                      Created a new {feed.content.redeemName}{' '}
-                      Redeemable Link -{' '}
+                      Created a new {feed.content.redeemName} Redeemable Link -{" "}
                       <button
                         onClick={handleRedeemClick}
                         className="text-blue-500 underline"
@@ -218,9 +202,9 @@ const FeedItem = memo(
               )}
 
               {/* Connection Content */}
-              {feed.postType === 'connection' && (
+              {feed.postType === "connection" && (
                 <p className="text-gray-600 text-sm">
-                  Connected with{' '}
+                  Connected with{" "}
                   <span className="text-gray-700 font-medium text-base">
                     {feed.content.connectedSmartsiteName}
                   </span>
@@ -228,17 +212,30 @@ const FeedItem = memo(
               )}
 
               {/* ENS Claim Content */}
-              {feed.postType === 'ensClaim' && (
+              {feed.postType === "ensClaim" && (
                 <p className="text-gray-600 text-sm">
-                  Claim a new ENS{' '}
+                  Claim a new ENS{" "}
                   <span className="text-gray-700 font-medium text-base">
                     {feed.content.claimEnsName}
                   </span>
                 </p>
               )}
 
+              {feed.postType === "poll" && (
+                <PollCard
+                  poll={feed}
+                  userId={userId}
+                  token={accessToken}
+                  onVoteSuccess={(updated) => {
+                    if (onPostInteraction) {
+                      onPostInteraction(feed._id, updated);
+                    }
+                  }}
+                />
+              )}
+
               {/* Transaction Content */}
-              {feed.postType === 'transaction' &&
+              {feed.postType === "transaction" &&
                 renderTransactionContent(feed)}
             </div>
 
@@ -252,10 +249,7 @@ const FeedItem = memo(
                   style={{ zIndex: 10 }}
                 >
                   <PopoverTrigger>
-                    <button
-                      onClick={(e) => e.stopPropagation()}
-                      type="button"
-                    >
+                    <button onClick={(e) => e.stopPropagation()} type="button">
                       <HiDotsHorizontal size={20} />
                     </button>
                   </PopoverTrigger>
@@ -275,13 +269,11 @@ const FeedItem = memo(
 
           {/* Post Media */}
           <div>
-            {feed.postType === 'post' &&
+            {feed.postType === "post" &&
               feed.content.post_content.length > 0 && (
-                <PostTypeMedia
-                  mediaFiles={feed.content.post_content}
-                />
+                <PostTypeMedia mediaFiles={feed.content.post_content} />
               )}
-            {feed.postType === 'minting' && (
+            {feed.postType === "minting" && (
               <div className="w-max">
                 <p>{feed.content.title}</p>
                 <div className="shadow-medium bg-white rounded-lg mt-2 p-2 relative">
@@ -326,6 +318,6 @@ const FeedItem = memo(
   }
 );
 
-FeedItem.displayName = 'FeedItem';
+FeedItem.displayName = "FeedItem";
 
 export default FeedItem;
