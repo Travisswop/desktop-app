@@ -19,6 +19,7 @@ export type NotificationType =
   | 'product_sold'
   | 'payment_confirmed'
   | 'payment_failed'
+  | 'order_created'
   | 'order_confirmed'
   | 'order_processing'
   | 'order_shipped'
@@ -26,6 +27,9 @@ export type NotificationType =
   | 'order_delivered'
   | 'order_cancelled'
   | 'order_refunded'
+  | 'order_completed'
+  | 'nft_minted'
+  | 'funds_released'
   // Disputes
   | 'dispute_created'
   | 'dispute_resolved'

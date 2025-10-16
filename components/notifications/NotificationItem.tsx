@@ -51,6 +51,7 @@ const getNotificationIcon = (type: NotificationType) => {
     product_sold: <ShoppingBag className="h-5 w-5 text-green-500" />,
     payment_confirmed: <CreditCard className="h-5 w-5 text-green-500" />,
     payment_failed: <CreditCard className="h-5 w-5 text-red-500" />,
+    order_created: <Package className="h-5 w-5 text-blue-500" />,
     order_confirmed: <Package className="h-5 w-5 text-blue-500" />,
     order_processing: <Package className="h-5 w-5 text-yellow-500" />,
     order_shipped: <Package className="h-5 w-5 text-blue-500" />,
@@ -58,6 +59,9 @@ const getNotificationIcon = (type: NotificationType) => {
     order_delivered: <Package className="h-5 w-5 text-green-500" />,
     order_cancelled: <Package className="h-5 w-5 text-gray-500" />,
     order_refunded: <Package className="h-5 w-5 text-orange-500" />,
+    order_completed: <Package className="h-5 w-5 text-green-500" />,
+    nft_minted: <ImageIcon className="h-5 w-5 text-purple-500" />,
+    funds_released: <Wallet className="h-5 w-5 text-green-500" />,
     // Disputes
     dispute_created: <AlertTriangle className="h-5 w-5 text-red-500" />,
     dispute_resolved: <AlertTriangle className="h-5 w-5 text-green-500" />,
