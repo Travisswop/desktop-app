@@ -23,7 +23,7 @@ export default function PollCard({
   const { accessToken } = useUser();
 
   const [localPoll, setLocalPoll] = useState(poll?.content || {});
-  const [selectedOption, setSelectedOption] = useState<number | null>(null);
+  // const [selectedOption, setSelectedOption] = useState<number | null>(null);
   const [voting, setVoting] = useState(false);
 
   // Get all options the user has voted for
@@ -49,7 +49,7 @@ export default function PollCard({
     if (localPoll?.isExpired || voting) return;
 
     setVoting(true);
-    setSelectedOption(optionIndex);
+    // setSelectedOption(optionIndex);
 
     const updatedPoll = { ...localPoll, options: [...localPoll.options] };
 
