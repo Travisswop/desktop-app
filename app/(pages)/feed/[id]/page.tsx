@@ -22,7 +22,7 @@ export async function generateMetadata(
   );
 
   const feed = feedData?.data;
-  console.log("feedrr", feed);
+  // console.log("feedrr", feed);
 
   if (!feed) {
     return {
