@@ -36,7 +36,7 @@ export async function generateMetadata(
   const firstMedia = postContent[0];
 
   // Determine media type
-  const mediaType = firstMedia?.type; // 'video', 'image', or 'gif'
+  const mediaType = firstMedia?.type;
   const isVideo = mediaType === "video";
   const isImage = mediaType === "image";
   const isGif = mediaType === "gif";
@@ -49,10 +49,9 @@ export async function generateMetadata(
   if (hasVisualMedia && firstMedia?.src) {
     mediaUrl = firstMedia.src;
   } else if (feed.smartsiteProfilePic) {
-    // Fallback to profile pic if no media
     mediaUrl = isUrl(feed.smartsiteProfilePic)
       ? feed.smartsiteProfilePic
-      : `${process.env.NEXT_PUBLIC_APP_URL}/images/user_avator/${feed.smartsiteProfilePic}@3x.png`; // Adjust this URL
+      : `${process.env.NEXT_PUBLIC_APP_URL}/images/user_avator/${feed.smartsiteProfilePic}@3x.png`;
   }
 
   // Create title and description
@@ -72,12 +71,11 @@ export async function generateMetadata(
       url: `https://www.swopme.app/feed/${feed._id}`,
       siteName: "Swop",
       type: isVideo ? "video.other" : "article",
+      // Remove fixed dimensions - let platforms handle responsive sizing
       images: mediaUrl
         ? [
             {
               url: mediaUrl,
-              width: 1200,
-              height: 630,
               alt: title,
             },
           ]
@@ -87,8 +85,6 @@ export async function generateMetadata(
           videos: [
             {
               url: firstMedia.src,
-              width: 1280,
-              height: 720,
             },
           ],
         }),
@@ -97,7 +93,7 @@ export async function generateMetadata(
       card: isVideo ? "player" : "summary_large_image",
       title,
       description,
-      site: "@swopme", // Add your Twitter handle
+      site: "@swopme",
       creator: feed.smartsiteUserName
         ? `@${feed.smartsiteUserName}`
         : undefined,
@@ -106,8 +102,6 @@ export async function generateMetadata(
         firstMedia?.src && {
           player: {
             url: firstMedia.src,
-            width: 1280,
-            height: 720,
           },
         }),
     },
@@ -135,9 +129,6 @@ const FeedDetailsPage = async ({
   return (
     <div className="relative flex flex-col items-center">
       <div className="w-[90%] sm:w-[70%] xl:w-[30%] overflow-y-auto">
-        {/* <div className="pb-6 border-b border-gray-200 pt-2">
-          <TabSwitcher />
-        </div> */}
         <Suspense fallback={<FeedLoading />}>
           {feedData && (
             <FeedDetails
@@ -150,7 +141,7 @@ const FeedDetailsPage = async ({
       </div>
       {!accessToken && (
         <div className="text-white bg-blue-500 py-4 w-full z-50 flex items-center gap-4 justify-between px-8 fixed bottom-0 left-0">
-          <p className="text-lg font-bold">Don’t miss what’s happening</p>
+          <p className="text-lg font-bold">{`Don't miss what's happening`}</p>
           <Link
             href={"/login"}
             className="border border-white rounded-full px-4 py-1 hover:bg-white hover:text-black font-medium"
