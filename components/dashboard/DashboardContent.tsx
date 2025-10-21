@@ -65,65 +65,6 @@ export default function DashboardContent() {
       {/* CashflowChart */}
       <WalletBalanceChart />
 
-      {/* Followers Section */}
-      {followersLoading ? (
-        <div className="my-6 p-6 bg-white rounded-xl">
-          <Skeleton className="h-8 w-48 mb-4" />
-          <Skeleton className="h-24 w-full" />
-        </div>
-      ) : followersData && followersData.data.totalFollowers > 0 ? (
-        <div className="my-6 p-6 bg-white rounded-xl">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-xl font-semibold">
-              Followers ({followersData.data.totalFollowers})
-            </h2>
-            {followersData.data.source && (
-              <span className="text-sm text-gray-500 capitalize">
-                Source: {followersData.data.source}
-              </span>
-            )}
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-            {followersData.data.followers
-              .slice(0, 8)
-              .map((follower) => (
-                <div
-                  key={follower.account._id}
-                  className="flex items-center gap-3 p-3 border rounded-lg hover:shadow-md transition-shadow"
-                >
-                  <img
-                    src={
-                      follower.account.profilePic ||
-                      '/default-avatar.png'
-                    }
-                    alt={follower.account.name}
-                    className="w-12 h-12 rounded-full object-cover"
-                  />
-                  <div className="flex-1 min-w-0">
-                    <p className="font-medium text-sm truncate">
-                      {follower.account.name}
-                    </p>
-                    {follower.account.username && (
-                      <p className="text-xs text-gray-500 truncate">
-                        @{follower.account.username}
-                      </p>
-                    )}
-                  </div>
-                </div>
-              ))}
-          </div>
-
-          {followersData.data.pagination.totalPages > 1 && (
-            <div className="mt-4 text-center">
-              <button className="text-sm text-blue-600 hover:underline">
-                View all {followersData.data.totalFollowers} followers
-              </button>
-            </div>
-          )}
-        </div>
-      ) : null}
-
       {/* <TestChart /> */}
       <DashboardAnalytics data={user} />
     </div>
