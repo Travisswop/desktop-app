@@ -6,7 +6,10 @@ import ProfileHeader from './profile-header';
 import DashboardAnalytics from './analytics';
 import WalletBalanceChart from './walletBalanceChart';
 import { useQuery } from '@tanstack/react-query';
-import { getFollowers, followersQueryKey } from '@/services/followers-service';
+import {
+  getFollowers,
+  followersQueryKey,
+} from '@/services/followers-service';
 // import CashflowChart from "./walletBalanceChart";
 // import TestChart from "./test-chart";
 
@@ -47,6 +50,7 @@ export default function DashboardContent() {
       source: followersData.data.source,
       count: followersData.data.followers.length,
       pagination: followersData.data.pagination,
+      followers: followersData.data.followers,
     });
   }
 
@@ -81,28 +85,33 @@ export default function DashboardContent() {
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-            {followersData.data.followers.slice(0, 8).map((follower) => (
-              <div
-                key={follower.account._id}
-                className="flex items-center gap-3 p-3 border rounded-lg hover:shadow-md transition-shadow"
-              >
-                <img
-                  src={follower.account.profilePic || '/default-avatar.png'}
-                  alt={follower.account.name}
-                  className="w-12 h-12 rounded-full object-cover"
-                />
-                <div className="flex-1 min-w-0">
-                  <p className="font-medium text-sm truncate">
-                    {follower.account.name}
-                  </p>
-                  {follower.account.username && (
-                    <p className="text-xs text-gray-500 truncate">
-                      @{follower.account.username}
+            {followersData.data.followers
+              .slice(0, 8)
+              .map((follower) => (
+                <div
+                  key={follower.account._id}
+                  className="flex items-center gap-3 p-3 border rounded-lg hover:shadow-md transition-shadow"
+                >
+                  <img
+                    src={
+                      follower.account.profilePic ||
+                      '/default-avatar.png'
+                    }
+                    alt={follower.account.name}
+                    className="w-12 h-12 rounded-full object-cover"
+                  />
+                  <div className="flex-1 min-w-0">
+                    <p className="font-medium text-sm truncate">
+                      {follower.account.name}
                     </p>
-                  )}
+                    {follower.account.username && (
+                      <p className="text-xs text-gray-500 truncate">
+                        @{follower.account.username}
+                      </p>
+                    )}
+                  </div>
                 </div>
-              </div>
-            ))}
+              ))}
           </div>
 
           {followersData.data.pagination.totalPages > 1 && (
