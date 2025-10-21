@@ -1,5 +1,5 @@
 "use client";
-import React, { memo, useCallback } from "react";
+import React, { memo, useCallback, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import dayjs from "dayjs";
@@ -15,6 +15,8 @@ import IndividualFeedContent from "./IndividualFeedContent";
 import SwapTransactionCard from "./SwapTransactionCard";
 import isUrl from "@/lib/isUrl";
 import PollCard from "./PollCard";
+import tipImg from "@/public/images/tip.png";
+import TipContentModal from "./TipContent";
 
 // Assuming FeedItemType is (or will be) available globally or can be imported.
 // For now, using 'any' as a placeholder if FeedItemType is not directly accessible here.
@@ -50,6 +52,7 @@ const FeedItem = memo(
     onPostInteraction,
   }: FeedItemProps) => {
     const router = useRouter();
+    const [isTipModalOpen, setIsTipModalOpen] = useState(false);
 
     const handleFeedClick = useCallback(() => {
       router.push(`/feed/${feed._id}`);
@@ -68,6 +71,13 @@ const FeedItem = memo(
     const userName =
       feed?.smartsiteId?.name || feed?.smartsiteUserName || "Anonymous";
     const ensName = feed?.smartsiteId?.ens || feed?.smartsiteEnsName || "n/a";
+
+    const handleTipOpen = (e: any) => {
+      e.preventDefault();
+      e.stopPropagation();
+      console.log("open tip");
+      setIsTipModalOpen(true);
+    };
 
     return (
       <div className="flex gap-2 border-b border-gray-200 pb-4">
@@ -100,18 +110,36 @@ const FeedItem = memo(
           {/* User and Feed Info */}
           <div className="w-full flex items-start justify-between">
             <div className="w-full">
-              <Link
-                href={`/feed/${feed._id}`}
-                className="flex items-center gap-1"
-              >
-                <p className="text-gray-700 font-semibold">{userName}</p>
-                <GoDotFill size={10} />
-                <p className="text-gray-500 font-normal">{ensName}</p>
-                <GoDotFill size={10} />
-                <p className="text-gray-500 font-normal">
-                  {dayjs(feed.createdAt).fromNow()}
-                </p>
-              </Link>
+              <div className="flex items-center gap-1">
+                <Link
+                  href={`/feed/${feed._id}`}
+                  className="flex items-center gap-1"
+                >
+                  <p className="text-gray-700 font-semibold">{userName}</p>
+                  <GoDotFill size={10} />
+                  <p className="text-gray-500 font-normal">{ensName}</p>
+                  <GoDotFill size={10} />
+                  <p className="text-gray-500 font-normal">
+                    {dayjs(feed.createdAt).fromNow()}
+                  </p>
+                </Link>
+                <button onClick={(e) => handleTipOpen(e)}>
+                  <Image
+                    src={tipImg}
+                    alt="tip"
+                    className="w-5 h-auto"
+                    quality={100}
+                  />
+                </button>
+              </div>
+
+              {isTipModalOpen && (
+                <TipContentModal
+                  isOpen={isTipModalOpen}
+                  onCloseModal={setIsTipModalOpen}
+                  feedItem={feed}
+                />
+              )}
 
               {/* Render Post Content */}
               {(feed.postType === "post" || feed.postType === "repost") &&
