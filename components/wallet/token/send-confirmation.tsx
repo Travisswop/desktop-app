@@ -1,11 +1,5 @@
 "use client";
 
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { HelpCircle, Wallet, ArrowDown, AlertCircle } from "lucide-react";
 import {
@@ -57,6 +51,13 @@ export default function SendConfirmation({
   if (token.chain === "SOLANA") {
     networkFee = "0.000005";
   }
+
+  console.log("recipient", recipient);
+  console.log("recipientName", recipientName);
+  console.log("networkFee", networkFee);
+  console.log("network", network);
+  console.log("isUSD", isUSD);
+  console.log("nativeTokenPrice", nativeTokenPrice);
 
   useEffect(() => {
     const fetchGasFee = async () => {
