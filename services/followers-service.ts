@@ -81,7 +81,7 @@ export async function getFollowers({
       limit: limit.toString(),
     });
 
-    const url = `${API_BASE_URL}/api/v1/users/${userId}/followers?${queryParams}`;
+    const url = `${API_BASE_URL}/api/v1/user/followers/${userId}?${queryParams}`;
 
     const headers: HeadersInit = {
       'Content-Type': 'application/json',
