@@ -343,6 +343,7 @@ const TipContentModal: React.FC<TipContentModalProps> = ({
   );
 
   const [selectedToken, setSelectedToken] = useState<any>(null);
+  console.log("selectedToken", selectedToken);
 
   // Get access token
   useEffect(() => {
@@ -524,7 +525,13 @@ const TipContentModal: React.FC<TipContentModalProps> = ({
     try {
       // 🔹 1. Get recipient wallet address using ENS
       const ensData = await getEnsDataUsingEns(feedItem.smartsiteId?.ens);
-      const recipientWalletAddress = ensData?.addresses?.[501]; // ← correct source
+      console.log("ens dta", ensData);
+
+      const recipientWalletAddress =
+        ensData?.addresses?.[
+          selectedToken.chain?.toUpperCase() === "SOLANA" ? 501 : 60
+        ];
+      // ← correct source
 
       if (!recipientWalletAddress) {
         throw new Error("Recipient wallet address not found via ENS.");
