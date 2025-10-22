@@ -43,6 +43,7 @@ import {
 } from "../wallet/constants";
 import TipConfirmation from "./TipConfirmationModal";
 import { getEnsDataUsingEns } from "@/actions/getEnsData";
+import { useTransactionPayload } from "../wallet/hooks/useTransactionPayload";
 
 interface TipContentModalProps {
   isOpen: boolean;
@@ -73,6 +74,8 @@ const TipContentModal: React.FC<TipContentModalProps> = ({
 
   const { socket: chatSocket, isConnected: socketConnected } =
     useNewSocketChat();
+
+  const { payload } = useTransactionPayload(user);
 
   const walletData = useWalletData(authenticated, ready, PrivyUser);
   const { solWalletAddress, evmWalletAddress } = useWalletAddresses(walletData);
@@ -463,14 +466,6 @@ const TipContentModal: React.FC<TipContentModalProps> = ({
         });
         return;
       }
-
-      // Post to feed (existing code)
-      const payload = {
-        userId: user?._id,
-        userName: user?.name,
-        userProfilePic: user?.profilePic,
-        smartsiteId: user?.primaryMicrosite,
-      };
 
       if (result.hash && accessToken) {
         const tipPayload = createTransactionPayload({
