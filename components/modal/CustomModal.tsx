@@ -76,7 +76,11 @@ const CustomModal: React.FC<CustomModalProps> = ({
             style={{ maxHeight: "90vh" }}
           >
             {/* Header */}
-            <div className="flex items-center justify-between border-b px-4 py-3">
+            <div
+              className={`flex items-center ${
+                title ? "border-b px-4 py-3 justify-between" : "justify-end"
+              } `}
+            >
               {title && <h2 className="text-lg font-semibold">{title}</h2>}
               <button
                 onClick={onCloseModal ? () => onCloseModal() : onClose}
