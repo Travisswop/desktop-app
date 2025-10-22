@@ -123,14 +123,16 @@ const FeedItem = memo(
                     {dayjs(feed.createdAt).fromNow()}
                   </p>
                 </Link>
-                <button onClick={(e) => handleTipOpen(e)}>
-                  <Image
-                    src={tipImg}
-                    alt="tip"
-                    className="w-5 h-auto"
-                    quality={100}
-                  />
-                </button>
+                {userId !== feed.userId && (
+                  <button onClick={(e) => handleTipOpen(e)}>
+                    <Image
+                      src={tipImg}
+                      alt="tip"
+                      className="w-5 h-auto"
+                      quality={100}
+                    />
+                  </button>
+                )}
               </div>
 
               {isTipModalOpen && (
