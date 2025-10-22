@@ -391,14 +391,18 @@ export default function SwapTokenModal({
   const { wallets: solWallets } = useSolanaWallets();
 
   // Use NewSocketChatContext for wallet notifications (where wallet handlers are registered)
-  const { socket: chatSocket, isConnected: socketConnected } = useNewSocketChat();
+  const { socket: chatSocket, isConnected: socketConnected } =
+    useNewSocketChat();
   const socket = chatSocket; // This socket has wallet notification handlers registered
 
-  console.log('🔌 [SwapTokenModal] Using socket from NewSocketChatContext:', {
-    socketId: socket?.id,
-    connected: socketConnected,
-    socketExists: !!socket
-  });
+  console.log(
+    '🔌 [SwapTokenModal] Using socket from NewSocketChatContext:',
+    {
+      socketId: socket?.id,
+      connected: socketConnected,
+      socketExists: !!socket,
+    }
+  );
 
   // console.log('receiveToken', receiveToken);
   // console.log('payToken', payToken);
@@ -667,43 +671,11 @@ export default function SwapTokenModal({
         payToken.decimals || 6
       );
       const slippageBps = Math.floor(slippage * 100);
+      const platformFeeBps = 50;
 
-      // Check if input token is Token-2022 by calling backend
-      // Jupiter platform fees don't support Token-2022, so we need to know upfront
-      let isToken2022 = false;
-      try {
-        const tokenCheckResponse = await fetch(
-          `${process.env.NEXT_PUBLIC_API_URL}/api/v5/wallet/tokenAccount/${inputMint}`,
-          {
-            method: 'GET',
-            headers: { 'Content-Type': 'application/json' },
-          }
-        );
-
-        if (tokenCheckResponse.ok) {
-          const tokenData = await tokenCheckResponse.json();
-          const { TOKEN_2022_PROGRAM_ID } = await import('@solana/spl-token');
-          isToken2022 = tokenData.tokenProgramId === TOKEN_2022_PROGRAM_ID.toString();
-          console.log('Token program check:', {
-            inputMint,
-            programId: tokenData.tokenProgramId,
-            isToken2022
-          });
-        }
-      } catch (error) {
-        console.warn('Could not check token program, assuming SPL:', error);
-      }
-
-      // Build quote URL - exclude platformFeeBps for Token-2022
-      let url = `https://lite-api.jup.ag/swap/v1/quote?inputMint=${inputMint}&outputMint=${outputMint}&amount=${amountInSmallestUnit}&slippageBps=${slippageBps}&restrictIntermediateTokens=true`;
-
-      if (!isToken2022) {
-        // Only add platform fee for SPL tokens
-        url += `&platformFeeBps=50`;
-        console.log('SPL token detected - requesting quote WITH platform fee');
-      } else {
-        console.log('Token-2022 detected - requesting quote WITHOUT platform fee');
-      }
+      // Build quote URL with platform fees for all tokens (SPL and Token-2022)
+      // Jupiter supports both token types with platform fees
+      const url = `https://lite-api.jup.ag/swap/v1/quote?inputMint=${inputMint}&outputMint=${outputMint}&amount=${amountInSmallestUnit}&slippageBps=${slippageBps}&restrictIntermediateTokens=true&platformFeeBps=${platformFeeBps}`;
 
       console.log('Jupiter Quote URL:', url);
 
@@ -849,7 +821,12 @@ export default function SwapTokenModal({
         return await swapResponse.json();
       }
 
-      console.log('Fee account retrieved:', feeAccount, 'Program ID:', tokenProgramId);
+      console.log(
+        'Fee account retrieved:',
+        feeAccount,
+        'Program ID:',
+        tokenProgramId
+      );
 
       // Verify the fee account is a valid token account on-chain
       const rpcUrl =
@@ -866,14 +843,21 @@ export default function SwapTokenModal({
       try {
         // Import SPL token utilities to verify with correct program ID
         const { PublicKey } = await import('@solana/web3.js');
-        const { getAccount, TOKEN_PROGRAM_ID, TOKEN_2022_PROGRAM_ID } = await import('@solana/spl-token');
+        const {
+          getAccount,
+          TOKEN_PROGRAM_ID,
+          TOKEN_2022_PROGRAM_ID,
+        } = await import('@solana/spl-token');
 
         // Determine which program ID to use for verification
-        const programId = tokenProgramId === TOKEN_2022_PROGRAM_ID.toString()
-          ? TOKEN_2022_PROGRAM_ID
-          : TOKEN_PROGRAM_ID;
+        const programId =
+          tokenProgramId === TOKEN_2022_PROGRAM_ID.toString()
+            ? TOKEN_2022_PROGRAM_ID
+            : TOKEN_PROGRAM_ID;
 
-        console.log(`Verifying fee account with program: ${programId.toString()}`);
+        console.log(
+          `Verifying fee account with program: ${programId.toString()}`
+        );
 
         // Verify the fee account exists with the correct token program
         const feeAccountPubkey = new PublicKey(feeAccount);
@@ -919,7 +903,9 @@ export default function SwapTokenModal({
           return await swapResponse.json();
         }
 
-        console.log('Fee account verified on-chain with correct program ID');
+        console.log(
+          'Fee account verified on-chain with correct program ID'
+        );
       } catch (verifyError) {
         console.error('Failed to verify fee account:', verifyError);
         console.warn(
@@ -957,53 +943,23 @@ export default function SwapTokenModal({
       }
 
       // Check if this is a Token-2022 token
-      const { TOKEN_2022_PROGRAM_ID } = await import('@solana/spl-token');
-      const isToken2022 = tokenProgramId === TOKEN_2022_PROGRAM_ID.toString();
+      const { TOKEN_2022_PROGRAM_ID } = await import(
+        '@solana/spl-token'
+      );
+      const isToken2022 =
+        tokenProgramId === TOKEN_2022_PROGRAM_ID.toString();
 
       console.log('Preparing swap transaction:', {
         feeAccount,
         tokenProgramId,
-        isToken2022
+        isToken2022,
       });
 
-      // IMPORTANT: Jupiter platform fees do NOT support Token-2022 tokens
-      // Reference: https://dev.jup.ag/docs/swap-api/add-fees-to-swap
-      // For Token-2022, we must skip platform fees
-      if (isToken2022) {
-        console.warn('Token-2022 detected - Jupiter platform fees not supported, proceeding without fees');
-        console.log('Input mint:', inputMint, 'Program:', tokenProgramId);
-
-        const swapResponse = await fetch(
-          'https://lite-api.jup.ag/swap/v1/swap',
-          {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              quoteResponse,
-              userPublicKey: solWallet,
-              wrapAndUnwrapSol: true,
-              dynamicComputeUnitLimit: true,
-              prioritizationFeeLamports: 'auto',
-              // NO platformFeeBps or feeAccount for Token-2022
-            }),
-          }
-        );
-
-        if (!swapResponse.ok) {
-          const errorData = await swapResponse.json().catch(() => null);
-          console.error('Jupiter swap API error:', errorData);
-          throw new Error(
-            errorData?.error || 'Failed to get swap transaction'
-          );
-        }
-
-        return await swapResponse.json();
-      }
-
-      // For standard SPL tokens, include platform fees
-      console.log('SPL token detected - including platform fee (0.5%)');
+      // Try platform fees for all tokens (SPL and Token-2022)
+      // The ATA creation fix ensures correct token program is used
+      console.log(
+        `Processing swap with platform fee (0.5%) - Token type: ${isToken2022 ? 'Token-2022' : 'SPL'}`
+      );
 
       const swapResponse = await fetch(
         'https://lite-api.jup.ag/swap/v1/swap',
@@ -1434,10 +1390,9 @@ export default function SwapTokenModal({
       console.log('🔍 [SWAP] Ensuring user token accounts exist');
 
       // Import required Solana SPL token utilities
-      const {
-        PublicKey,
-        Transaction,
-      } = await import('@solana/web3.js');
+      const { PublicKey, Transaction } = await import(
+        '@solana/web3.js'
+      );
       const {
         getAssociatedTokenAddress,
         createAssociatedTokenAccountInstruction,
@@ -1458,10 +1413,17 @@ export default function SwapTokenModal({
       });
 
       // Detect which token program each mint uses
-      const detectTokenProgram = async (mintPubkey: typeof PublicKey.prototype) => {
+      const detectTokenProgram = async (
+        mintPubkey: typeof PublicKey.prototype
+      ) => {
         try {
           // Try Token-2022 first
-          await getMint(connection, mintPubkey, undefined, TOKEN_2022_PROGRAM_ID);
+          await getMint(
+            connection,
+            mintPubkey,
+            undefined,
+            TOKEN_2022_PROGRAM_ID
+          );
           return TOKEN_2022_PROGRAM_ID;
         } catch (e) {
           // Fall back to legacy SPL Token
@@ -1469,10 +1431,11 @@ export default function SwapTokenModal({
         }
       };
 
-      const [inputTokenProgram, outputTokenProgram] = await Promise.all([
-        detectTokenProgram(inputMintPubkey),
-        detectTokenProgram(outputMintPubkey),
-      ]);
+      const [inputTokenProgram, outputTokenProgram] =
+        await Promise.all([
+          detectTokenProgram(inputMintPubkey),
+          detectTokenProgram(outputMintPubkey),
+        ]);
 
       console.log('🔍 [SWAP] Token programs detected:', {
         inputProgram: inputTokenProgram.toBase58(),
@@ -1499,11 +1462,12 @@ export default function SwapTokenModal({
       });
 
       // Check if ATAs exist
-      const [inputAccountInfo, outputAccountInfo] =
-        await Promise.all([
+      const [inputAccountInfo, outputAccountInfo] = await Promise.all(
+        [
           connection.getAccountInfo(inputATA),
           connection.getAccountInfo(outputATA),
-        ]);
+        ]
+      );
 
       const needsInputATA = !inputAccountInfo;
       const needsOutputATA = !outputAccountInfo;
@@ -1523,16 +1487,19 @@ export default function SwapTokenModal({
         const transaction = new Transaction();
 
         if (needsInputATA) {
-          console.log('➕ [SWAP] Adding input ATA creation instruction', {
-            tokenProgram: inputTokenProgram.toBase58(),
-          });
+          console.log(
+            '➕ [SWAP] Adding input ATA creation instruction',
+            {
+              tokenProgram: inputTokenProgram.toBase58(),
+            }
+          );
           transaction.add(
             createAssociatedTokenAccountInstruction(
               walletPubkey,
               inputATA,
               walletPubkey,
               inputMintPubkey,
-              inputTokenProgram  // Pass correct token program
+              inputTokenProgram // Pass correct token program
             )
           );
         }
@@ -1550,7 +1517,7 @@ export default function SwapTokenModal({
               outputATA,
               walletPubkey,
               outputMintPubkey,
-              outputTokenProgram  // Pass correct token program
+              outputTokenProgram // Pass correct token program
             )
           );
         }
@@ -1895,22 +1862,36 @@ export default function SwapTokenModal({
       // Send swap failed notification via Socket.IO
       if (socket && socket.connected) {
         try {
-          const notificationService = getWalletNotificationService(socket);
+          const notificationService =
+            getWalletNotificationService(socket);
 
           notificationService.emitSwapFailed({
-            inputTokenSymbol: payToken?.symbol || jupiterQuote?.inputMint.slice(0, 4) || 'Unknown',
+            inputTokenSymbol:
+              payToken?.symbol ||
+              jupiterQuote?.inputMint.slice(0, 4) ||
+              'Unknown',
             inputAmount: payAmount || '0',
-            outputTokenSymbol: receiveToken?.symbol || jupiterQuote?.outputMint.slice(0, 4) || 'Unknown',
+            outputTokenSymbol:
+              receiveToken?.symbol ||
+              jupiterQuote?.outputMint.slice(0, 4) ||
+              'Unknown',
             network: 'SOLANA',
             reason: userFriendlyError,
           });
 
-          console.log('✅ Swap failed notification sent via Socket.IO');
+          console.log(
+            '✅ Swap failed notification sent via Socket.IO'
+          );
         } catch (notifError) {
-          console.error('Failed to send swap failed notification:', notifError);
+          console.error(
+            'Failed to send swap failed notification:',
+            notifError
+          );
         }
       } else {
-        console.warn('⚠️ Socket not connected, swap failed notification not sent');
+        console.warn(
+          '⚠️ Socket not connected, swap failed notification not sent'
+        );
       }
     } finally {
       setIsSwapping(false);
@@ -1992,7 +1973,8 @@ export default function SwapTokenModal({
       // Send swap failed notification via Socket.IO
       if (socket && socket.connected) {
         try {
-          const notificationService = getWalletNotificationService(socket);
+          const notificationService =
+            getWalletNotificationService(socket);
           const fromChainId = parseInt(chainId);
           const networkName =
             fromChainId === 1151111081099710
@@ -2013,12 +1995,19 @@ export default function SwapTokenModal({
             reason: userFriendlyError,
           });
 
-          console.log('✅ LiFi swap failed notification sent via Socket.IO');
+          console.log(
+            '✅ LiFi swap failed notification sent via Socket.IO'
+          );
         } catch (notifError) {
-          console.error('Failed to send swap failed notification:', notifError);
+          console.error(
+            'Failed to send swap failed notification:',
+            notifError
+          );
         }
       } else {
-        console.warn('⚠️ Socket not connected, swap failed notification not sent');
+        console.warn(
+          '⚠️ Socket not connected, swap failed notification not sent'
+        );
       }
 
       throw new Error(userFriendlyError); // Re-throw with friendly message
@@ -2209,7 +2198,8 @@ export default function SwapTokenModal({
       // Send swap failed notification via Socket.IO
       if (socket && socket.connected) {
         try {
-          const notificationService = getWalletNotificationService(socket);
+          const notificationService =
+            getWalletNotificationService(socket);
 
           notificationService.emitSwapFailed({
             inputTokenSymbol: payToken?.symbol || 'Unknown',
@@ -2219,12 +2209,19 @@ export default function SwapTokenModal({
             reason: userFriendlyError,
           });
 
-          console.log('✅ Solana swap failed notification sent via Socket.IO');
+          console.log(
+            '✅ Solana swap failed notification sent via Socket.IO'
+          );
         } catch (notifError) {
-          console.error('Failed to send swap failed notification:', notifError);
+          console.error(
+            'Failed to send swap failed notification:',
+            notifError
+          );
         }
       } else {
-        console.warn('⚠️ Socket not connected, swap failed notification not sent');
+        console.warn(
+          '⚠️ Socket not connected, swap failed notification not sent'
+        );
       }
     } finally {
       setIsSwapping(false);
@@ -2576,7 +2573,8 @@ export default function SwapTokenModal({
       // Send notification via Socket.IO
       if (socket && socket.connected) {
         try {
-          const notificationService = getWalletNotificationService(socket);
+          const notificationService =
+            getWalletNotificationService(socket);
 
           notificationService.emitSwapCompleted({
             inputTokenSymbol: swapDetails.inputToken.symbol,
@@ -2599,10 +2597,15 @@ export default function SwapTokenModal({
 
           console.log('✅ Swap notification sent via Socket.IO');
         } catch (notifError) {
-          console.error('Failed to send swap notification:', notifError);
+          console.error(
+            'Failed to send swap notification:',
+            notifError
+          );
         }
       } else {
-        console.warn('⚠️ Socket not connected, notification not sent');
+        console.warn(
+          '⚠️ Socket not connected, notification not sent'
+        );
       }
     } catch (error) {
       console.error('Failed to save swap transaction:', error);
