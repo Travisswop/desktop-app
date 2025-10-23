@@ -895,7 +895,7 @@ export default function SwapTokenModal({
 
         // Fallback: proceed without fee
         const swapResponse = await fetch(
-          'https://lite-api.jup.ag/swap/v1/swap',
+          'https://api.jup.ag/swap/v1/swap',
           {
             method: 'POST',
             headers: {
@@ -1699,43 +1699,7 @@ export default function SwapTokenModal({
       const userFriendlyError = formatUserFriendlyError(
         error?.message || error?.toString() || 'Swap failed'
       );
-
-      console.error(
-        '❌ [SWAP] User-friendly error:',
-        userFriendlyError
-      );
       setSwapError(userFriendlyError);
-
-      // Send swap failed notification via Socket.IO
-      if (socket && socket.connected) {
-        try {
-          const notificationService =
-            getWalletNotificationService(socket);
-
-          notificationService.emitSwapFailed({
-            inputTokenSymbol:
-              payToken?.symbol ||
-              jupiterQuote?.inputMint.slice(0, 4) ||
-              'Unknown',
-            inputAmount: payAmount || '0',
-            outputTokenSymbol:
-              receiveToken?.symbol ||
-              jupiterQuote?.outputMint.slice(0, 4) ||
-              'Unknown',
-            network: 'SOLANA',
-            reason: userFriendlyError,
-          });
-        } catch (notifError) {
-          console.error(
-            'Failed to send swap failed notification:',
-            notifError
-          );
-        }
-      } else {
-        console.warn(
-          '⚠️ Socket not connected, swap failed notification not sent'
-        );
-      }
     } finally {
       setIsSwapping(false);
     }
