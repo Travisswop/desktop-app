@@ -958,7 +958,9 @@ export default function SwapTokenModal({
       // Try platform fees for all tokens (SPL and Token-2022)
       // The ATA creation fix ensures correct token program is used
       console.log(
-        `Processing swap with platform fee (0.5%) - Token type: ${isToken2022 ? 'Token-2022' : 'SPL'}`
+        `Processing swap with platform fee (0.5%) - Token type: ${
+          isToken2022 ? 'Token-2022' : 'SPL'
+        }`
       );
 
       const swapResponse = await fetch(
@@ -2026,8 +2028,6 @@ export default function SwapTokenModal({
 
       const solanaWallet = solWallets[0];
 
-      console.log('solanaWallet', solanaWallet);
-
       const { transactionRequest } = quote;
       const rawTx =
         transactionRequest?.transaction || transactionRequest?.data;
@@ -2035,12 +2035,9 @@ export default function SwapTokenModal({
         throw new Error('No transactionRequest found in LiFi quote');
       }
 
-      setSwapStatus('Submitting sponsored transaction...');
+      setSwapStatus('Submitting transaction...');
 
-      // Get correct wallet ID from user's linkedAccounts
-      const walletId = getSolanaWalletId(solanaWallet, PrivyUser);
-
-      // Set up RPC connection for getting blockhash
+      // Set up RPC connection
       const solanaRpcUrl =
         process.env.NEXT_PUBLIC_HELIUS_API_URL ||
         process.env.NEXT_PUBLIC_ALCHEMY_SOLANA_URL ||
@@ -2065,95 +2062,27 @@ export default function SwapTokenModal({
       transaction.message.recentBlockhash = blockhash;
 
       // Sign the versioned transaction with user's wallet
+      setSwapStatus('Signing transaction...');
       const signedTx = await solanaWallet.signTransaction(
         transaction
       );
 
-      // Serialize the signed transaction
-      const serializedTransaction = Buffer.from(
-        signedTx.serialize()
-      ).toString('base64');
+      // Send the transaction directly
+      setSwapStatus('Sending transaction...');
+      const rawTransaction = signedTx.serialize();
 
-      // Generate proper authorization signature using Privy's method
-      let authorizationSignature = '';
-      try {
-        const caip2 = 'solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp';
-        const input = {
-          version: 1 as const,
-          url: `https://api.privy.io/v1/wallets/${walletId}/rpc`,
-          method: 'POST' as const,
-          headers: {
-            'privy-app-id':
-              process.env.NEXT_PUBLIC_PRIVY_APP_ID || '',
-          },
-          body: {
-            method: 'signAndSendTransaction',
-            caip2,
-            params: {
-              transaction: serializedTransaction,
-              encoding: 'base64',
-            },
-            sponsor: true,
-          },
-        };
-
-        const sigResult = await generateAuthorizationSignature(input);
-        const authSig =
-          typeof sigResult === 'string'
-            ? sigResult
-            : (sigResult as any)?.authorizationSignature ||
-              (sigResult as any)?.signature ||
-              '';
-
-        authorizationSignature = authSig;
-
-        if (!authorizationSignature) {
-          throw new Error(
-            'Failed to generate authorization signature'
-          );
-        }
-      } catch (signError) {
-        console.warn(
-          'Failed to get authorization signature:',
-          signError
-        );
-        throw new Error('Failed to generate authorization signature');
-      }
-
-      // Use sponsored transaction for LiFi swaps
-      const sponsorResponse = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL}/api/v5/wallet/sponsored-transaction`,
+      const signature = await connection.sendRawTransaction(
+        rawTransaction,
         {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            walletId,
-            transaction: serializedTransaction,
-            authorizationSignature,
-          }),
+          skipPreflight: false,
+          preflightCommitment: 'confirmed',
+          maxRetries: 3,
         }
       );
 
-      if (!sponsorResponse.ok) {
-        const errorData = await sponsorResponse.json();
-        console.log(errorData, 'errorData');
-        throw new Error(
-          errorData.error || 'Failed to submit sponsored transaction'
-        );
-      }
+      console.log('Transaction sent successfully:', signature);
 
-      const result = await sponsorResponse.json();
-      const txId = result.signature || result.transactionId;
-
-      if (!txId) {
-        throw new Error(
-          'No transaction ID received from sponsored transaction'
-        );
-      }
-
-      setTxHash(txId);
+      setTxHash(signature);
       setSwapStatus(
         'Transaction submitted! Waiting for confirmation...'
       );
@@ -2161,31 +2090,20 @@ export default function SwapTokenModal({
       // Wait a bit for the transaction to propagate
       await new Promise((resolve) => setTimeout(resolve, 2000));
 
-      const rpcUrl =
-        process.env.NEXT_PUBLIC_HELIUS_API_URL ||
-        process.env.NEXT_PUBLIC_ALCHEMY_SOLANA_URL ||
-        process.env.NEXT_PUBLIC_QUICKNODE_SOLANA_URL;
-
-      if (rpcUrl) {
-        const connection = new Connection(rpcUrl, 'confirmed');
-
-        // Check transaction status
-        try {
-          await connection.confirmTransaction(txId, 'confirmed');
-          setSwapStatus('Transaction confirmed');
-        } catch (confirmError) {
-          console.warn(
-            'Transaction confirmation check failed:',
-            confirmError
-          );
-          setSwapStatus('Transaction submitted successfully');
-        }
-      } else {
+      // Check transaction status
+      try {
+        await connection.confirmTransaction(signature, 'confirmed');
+        setSwapStatus('Transaction confirmed');
+      } catch (confirmError) {
+        console.warn(
+          'Transaction confirmation check failed:',
+          confirmError
+        );
         setSwapStatus('Transaction submitted successfully');
       }
 
       // Save to database after confirmation
-      await saveSwapToDatabase(txId, quote);
+      await saveSwapToDatabase(signature, quote);
     } catch (error: any) {
       console.error('Solana swap failed:', error);
 
