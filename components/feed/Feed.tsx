@@ -10,34 +10,15 @@ import React, {
   memo,
   useMemo,
 } from "react";
-import { GoDotFill } from "react-icons/go";
 import dayjs from "dayjs";
-import PostTypeMedia from "./view/PostTypeMedia";
-import { HiDotsHorizontal } from "react-icons/hi";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-  useDisclosure,
-} from "@nextui-org/react";
+import { useDisclosure } from "@nextui-org/react";
 import relativeTime from "dayjs/plugin/relativeTime";
-import Reaction from "./view/Reaction";
-import Link from "next/link";
-import { FiPlusCircle } from "react-icons/fi";
-import DeleteFeedModal from "./DeleteFeedModal";
-import isUrl from "@/lib/isUrl";
 import RedeemClaimModal from "../modal/RedeemClaim";
-import { useRouter } from "next/navigation";
-import IndividualFeedContent from "./IndividualFeedContent";
 import { FeedMainContentDataLoading } from "../loading/TabSwitcherLoading";
 import FeedLoading from "../loading/FeedLoading";
-import logger from "@/utils/logger";
 import FeedItem from "./FeedItem";
 
 dayjs.extend(relativeTime);
-
-// Define a basic type for FeedItem. Ideally, this should be more comprehensive
-// and possibly imported from a central types definition file.
 interface FeedItemType {
   _id: string;
   likeCount?: number;

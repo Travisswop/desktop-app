@@ -32,9 +32,9 @@ type AuthData = {
   accessToken: string;
 };
 
-interface FeedMainProps {
-  isFromHome?: boolean;
-}
+// interface FeedMainProps {
+//   isFromHome?: boolean;
+// }
 
 // Custom hook to manage authentication data
 const useAuthData = (userId?: string) => {
@@ -111,7 +111,7 @@ const RightSidebar = memo(
     );
 
     // Create stable token prop for SpotlightMap
-    const spotlightMapToken = useMemo(() => accessToken, [accessToken]);
+    // const spotlightMapToken = useMemo(() => accessToken, [accessToken]);
 
     return (
       <div
@@ -287,7 +287,7 @@ const MainContentInner = memo(
       [stablePostFeedProps, setIsPosting, setIsPostLoading]
     );
 
-    console.log("postFeedProps", postFeedProps);
+    // console.log("postFeedProps", postFeedProps);
 
     const renderComponent = useMemo(() => {
       const Component =
@@ -295,24 +295,24 @@ const MainContentInner = memo(
       return <Component {...feedComponentProps} />;
     }, [tab, tabComponents, feedComponentProps]);
 
-    const [isModalOpen, setIsModalOpen] = useState(false);
+    // const [isModalOpen, setIsModalOpen] = useState(false);
 
-    const searchParams = useSearchParams();
+    // const searchParams = useSearchParams();
 
-    const tabs = useMemo(
-      () => searchParams && searchParams.get("tab"),
-      [searchParams]
-    );
+    // const tabs = useMemo(
+    //   () => searchParams && searchParams.get("tab"),
+    //   [searchParams]
+    // );
 
-    const { isOpen, openModal, closeModal, toggleModal } = useModalStore();
+    const { isOpen, closeModal } = useModalStore();
 
-    useEffect(() => {
-      if (tabs === "create-feed") {
-        setIsModalOpen(true);
-      } else {
-        setIsModalOpen(false);
-      }
-    }, [tabs]);
+    // useEffect(() => {
+    //   if (tabs === "create-feed") {
+    //     setIsModalOpen(true);
+    //   } else {
+    //     setIsModalOpen(false);
+    //   }
+    // }, [tabs]);
 
     return (
       <div
@@ -335,7 +335,7 @@ const MainContentInner = memo(
 
 MainContentInner.displayName = "MainContentInner";
 
-const FeedMain = memo(({ isFromHome = false }: FeedMainProps) => {
+const FeedMain = memo(() => {
   const { user, loading: userLoading } = useUser();
   const searchParams = useSearchParams();
   const authData = useAuthData(user?._id);
