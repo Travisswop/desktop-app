@@ -19,9 +19,6 @@ import FeedLoading from "../loading/FeedLoading";
 import FeedItem from "./FeedItem";
 
 dayjs.extend(relativeTime);
-
-// Define a basic type for FeedItem. Ideally, this should be more comprehensive
-// and possibly imported from a central types definition file.
 interface FeedItemType {
   _id: string;
   likeCount?: number;
