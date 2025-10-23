@@ -926,6 +926,7 @@ export default function SwapTokenModal({
               wrapAndUnwrapSol: true,
               dynamicComputeUnitLimit: true,
               prioritizationFeeLamports: 'auto',
+              feeAccount: feeAccount,
             }),
           }
         );
