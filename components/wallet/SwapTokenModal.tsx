@@ -672,8 +672,6 @@ export default function SwapTokenModal({
       // Jupiter supports both token types with platform fees
       const url = `https://lite-api.jup.ag/swap/v1/quote?inputMint=${inputMint}&outputMint=${outputMint}&amount=${amountInSmallestUnit}&slippageBps=${slippageBps}&restrictIntermediateTokens=true&platformFeeBps=${platformFeeBps}`;
 
-      console.log('Jupiter Quote URL:', url);
-
       const response = await fetch(url);
 
       if (!response.ok) {
@@ -701,7 +699,6 @@ export default function SwapTokenModal({
       }
 
       const jupiterQuote = await response.json();
-      console.log('Jupiter Quote:', jupiterQuote);
 
       if (!jupiterQuote || !jupiterQuote.outAmount) {
         throw new Error(
@@ -810,13 +807,6 @@ export default function SwapTokenModal({
         return await swapResponse.json();
       }
 
-      console.log(
-        'Fee account retrieved:',
-        feeAccount,
-        'Program ID:',
-        tokenProgramId
-      );
-
       // Verify the fee account is a valid token account on-chain
       const rpcUrl =
         process.env.NEXT_PUBLIC_HELIUS_API_URL ||
@@ -835,10 +825,6 @@ export default function SwapTokenModal({
           tokenProgramId === TOKEN_2022_PROGRAM_ID.toString()
             ? TOKEN_2022_PROGRAM_ID
             : TOKEN_PROGRAM_ID;
-
-        console.log(
-          `Verifying fee account with program: ${programId.toString()}`
-        );
 
         // Verify the fee account exists with the correct token program
         const feeAccountPubkey = new PublicKey(feeAccount);
@@ -883,16 +869,7 @@ export default function SwapTokenModal({
 
           return await swapResponse.json();
         }
-
-        console.log(
-          'Fee account verified on-chain with correct program ID'
-        );
       } catch (verifyError) {
-        console.error('Failed to verify fee account:', verifyError);
-        console.warn(
-          'Proceeding without platform fee due to verification failure'
-        );
-
         // Fallback: proceed without fee
         const swapResponse = await fetch(
           'https://api.jup.ag/swap/v1/swap',
@@ -927,7 +904,7 @@ export default function SwapTokenModal({
       // Check if this is a Token-2022 token
       const isToken2022 =
         tokenProgramId === TOKEN_2022_PROGRAM_ID.toString();
-
+      console.log('isToken2022', isToken2022);
       const swapResponse = await fetch(
         'https://lite-api.jup.ag/swap/v1/swap',
         {
@@ -1123,19 +1100,13 @@ export default function SwapTokenModal({
         setSwapError(null);
 
         if (isSolanaToSolanaSwap()) {
-          console.log('Using Jupiter for Solana-to-Solana swap');
           const jupiterQuote = await getJupiterQuote();
-
           setJupiterQuote(jupiterQuote);
           setQuote(null);
-          console.log('Jupiter quote received:', jupiterQuote);
         } else {
-          console.log('Using Li.Fi for cross-chain swap');
           const lifiQuote = await getLifiQuote();
-
           setQuote(lifiQuote);
           setJupiterQuote(null);
-          console.log('Li.Fi quote received:', lifiQuote);
         }
 
         // Set timestamp for auto-refresh
