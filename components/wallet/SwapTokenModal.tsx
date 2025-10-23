@@ -1363,6 +1363,7 @@ export default function SwapTokenModal({
       const sponsorEligibleTokens = [USDC_MINT, SWOP_MINT];
       const isEligibleForSponsorship =
         sponsorEligibleTokens.includes(inputMint);
+      const doSponsorship = false;
 
       console.log(
         `💰 [SWAP] Transaction will be ${
@@ -1611,7 +1612,7 @@ export default function SwapTokenModal({
       // Step 7: Submit transaction (sponsored or direct)
       let txId: string;
 
-      if (isEligibleForSponsorship) {
+      if (isEligibleForSponsorship && doSponsorship) {
         console.log('💰 [SWAP] Submitting as sponsored transaction');
         setSwapStatus('Submitting sponsored transaction...');
 
