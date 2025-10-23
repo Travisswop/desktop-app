@@ -78,9 +78,9 @@ const SelectTokenModal: React.FC<SelectTokenModalProps> = ({
                     "/icons/default.png"
                   }
                   alt={token.name}
-                  width={36}
-                  height={36}
-                  className="rounded-full"
+                  width={120}
+                  height={120}
+                  className="rounded-full w-9 h-9"
                 />
                 <div className="text-left">
                   <p className="font-medium">{token.name}</p>
