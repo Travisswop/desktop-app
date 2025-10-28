@@ -5,7 +5,6 @@ import GroupMenu from "./GroupMenu";
 import Image from "next/image";
 import isUrl from "@/lib/isUrl";
 import { GoDotFill } from "react-icons/go";
-import { Button } from "../ui/button";
 import { IoSend } from "react-icons/io5";
 // import GroupMenu from "./GroupMenu";
 
@@ -263,9 +262,9 @@ export default function ChatArea({
   }
 
   return (
-    <div className="flex-1 flex flex-col bg-whatsapp-bg-primary">
+    <div className="flex-1 flex flex-col bg-white rounded-xl">
       {/* Chat Header */}
-      <div className="bg-whatsapp-bg-secondary px-6 py-4 border-b border-whatsapp-border flex items-center justify-between">
+      <div className="px-6 py-4 shadow flex items-center justify-between rounded-xl">
         <div className="flex items-center gap-2">
           {selectedChat?.microsite?.profilePic ||
           selectedChat?.participant?.profilePic ? (
@@ -378,7 +377,7 @@ export default function ChatArea({
             onChange={(e) => setNewMessage(e.target.value)}
             onKeyDown={handleKeyDown}
             placeholder="Type a message..."
-            className="flex-1 bg-whatsapp-input-bg text-whatsapp-text-primary px-4 py-3 rounded-lg border-none focus:outline-none resize-none"
+            className="flex-1 px-4 py-3 rounded-lg border-none focus:outline-none resize-none bg-slate-100"
             rows={1}
           />
           <button

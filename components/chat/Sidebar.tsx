@@ -69,17 +69,13 @@ export default function Sidebar({
   };
 
   return (
-    <div className="w-80 bg-whatsapp-sidebar border-r border-whatsapp-border flex flex-col">
+    <div className="w-80 bg-white flex flex-col rounded-2xl overflow-hidden">
       {/* Header */}
-      <div className="p-4 border-b border-whatsapp-border">
+      <div className="p-4 border-b flex items-center gap-2 justify-between">
         <h2 className="text-xl font-semibold">Chats</h2>
-      </div>
-
-      {/* Actions */}
-      <div className="p-4 border-b border-whatsapp-border">
         <button
           onClick={() => setShowGroupModal(true)}
-          className="w-full bg-whatsapp-green hover:bg-whatsapp-green-dark text-blacks py-2 px-4 rounded-lg flex items-center justify-center gap-2"
+          className="py-1.5 px-3 rounded-lg flex items-center justify-center gap-2 bg-black text-white text-sm"
         >
           <span>+</span>
           New Group
@@ -89,7 +85,7 @@ export default function Sidebar({
       {/* Search */}
       <div className="p-4 relative">
         <div className="relative">
-          <div className="absolute left-3 top-1/2 transform -translate-y-1/2 text-whatsapp-text-secondary">
+          <div className="absolute left-3 top-1/2 transform -translate-y-1/2">
             <FcSearch size={18} />
           </div>
           <input
@@ -97,7 +93,7 @@ export default function Sidebar({
             value={searchQuery}
             onChange={(e) => handleSearch(e.target.value)}
             placeholder="Search or start a new chat"
-            className="w-full bg-whatsapp-input-bg text-whatsapp-text-primary pl-10 pr-4 py-2 rounded-lg border-none focus:outline-none"
+            className="w-full pl-10 pr-4 py-2 rounded-lg bg-slate-100 focus:outline-none"
           />
           {searchQuery && (
             <button

@@ -70,7 +70,7 @@ export default function ChatContainer({ socket, currentUser, setUnreadCount }) {
   };
 
   return (
-    <div className="flex h-[calc(100vh-140px)]">
+    <div className="flex h-[calc(100vh-144px)] gap-4">
       <Sidebar
         conversations={conversations}
         groups={groups}

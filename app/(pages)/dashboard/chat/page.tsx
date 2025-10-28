@@ -48,7 +48,7 @@ export default function Home() {
   }
 
   return (
-    <div className="min-h-screen bg-whatsapp-bg-primary">
+    <div className="">
       {/* <Header connectionStatus={connectionStatus} unreadCount={unreadCount} /> */}
 
       {/* <SetupPanel
