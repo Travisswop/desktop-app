@@ -23,6 +23,7 @@ export default function Sidebar({
   const [showGroupModal, setShowGroupModal] = useState(false);
 
   console.log("searchResults", searchResults);
+  console.log("conversations", conversations);
 
   const allItems = [...conversations, ...groups]
     .map((item) => ({
@@ -273,7 +274,7 @@ function ConversationItem({ item, isSelected, onClick, currentUser }) {
 
           {/* Unread count */}
           {info.unreadCount > 0 && (
-            <div className="absolute -top-1 -right-1 bg-whatsapp-green text-white rounded-full w-5 h-5 flex items-center justify-center text-xs font-bold">
+            <div className="absolute -top-1 -right-1 bg-black text-white rounded-full w-5 h-5 flex items-center justify-center text-xs font-bold">
               {info.unreadCount > 99 ? "99+" : info.unreadCount}
             </div>
           )}
@@ -282,7 +283,10 @@ function ConversationItem({ item, isSelected, onClick, currentUser }) {
         {/* Content */}
         <div className="flex-1 min-w-0">
           <div className="flex justify-between items-start mb-1">
-            <h3 className="font-medium truncate">{info.name}</h3>
+            <div className="flex items-center gap-1">
+              <h3 className="font-medium truncate">{info.name}</h3>
+              {isGroup && <div>{item.settings.isPublic ? "🌏" : "🔒"}</div>}
+            </div>
             <span className="text-xs text-whatsapp-text-secondary whitespace-nowrap">
               {lastTime}
             </span>
