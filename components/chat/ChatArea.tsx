@@ -1,73 +1,169 @@
-// app/components/ChatArea.js
+// app/components/ChatArea.tsx
 "use client";
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import GroupMenu from "./GroupMenu";
 import Image from "next/image";
 import isUrl from "@/lib/isUrl";
 import { GoDotFill } from "react-icons/go";
 import { IoSend } from "react-icons/io5";
-// import GroupMenu from "./GroupMenu";
+
+// ==================== TYPE DEFINITIONS ====================
+
+interface User {
+  _id: string;
+  name: string;
+  profilePic?: string;
+}
+
+interface Microsite {
+  _id: string;
+  name: string;
+  ens: string;
+  profilePic?: string;
+}
+
+interface Participant {
+  userId: User;
+  role?: string;
+  joinedAt?: string;
+}
+
+interface GroupSettings {
+  groupInfo?: {
+    groupPicture?: string;
+    description?: string;
+  };
+}
+
+interface Message {
+  _id: string;
+  message: string;
+  sender: User;
+  receiver?: User | null;
+  groupId?: string | null;
+  messageType: "text" | "image" | "file";
+  createdAt: string;
+  status?: "sending" | "sent" | "failed";
+  readBy?: string[];
+}
+
+interface SelectedChat {
+  _id: string;
+  name?: string;
+  microsite?: Microsite;
+  participant?: User;
+  participants?: Participant[];
+  settings?: GroupSettings;
+  isGroup?: boolean;
+}
+
+interface ChatAreaProps {
+  selectedChat: SelectedChat | null;
+  chatType: "private" | "group";
+  currentUser: string;
+  socket: any; // You can use Socket from socket.io-client if you have it
+}
+
+interface SocketResponse {
+  success: boolean;
+  messages?: Message[];
+  message?: Message;
+  error?: string;
+}
+
+interface TypingData {
+  userId: string;
+  user: User;
+  groupId?: string;
+  isTyping: boolean;
+}
+
+// ==================== MAIN COMPONENT ====================
 
 export default function ChatArea({
   selectedChat,
   chatType,
   currentUser,
   socket,
-}) {
-  const [messages, setMessages] = useState([]);
-  const [newMessage, setNewMessage] = useState("");
-  const [isTyping, setIsTyping] = useState(false);
-  const [typingUsers, setTypingUsers] = useState(new Map());
-  const messagesEndRef = useRef(null);
+}: ChatAreaProps) {
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [newMessage, setNewMessage] = useState<string>("");
+  const [isTyping, setIsTyping] = useState<boolean>(false);
+  const [typingUsers, setTypingUsers] = useState<Map<string, User>>(new Map());
 
-  console.log("selectedChat", selectedChat);
-  console.log("messages", messages);
+  // Pagination states
+  const [currentPage, setCurrentPage] = useState<number>(1);
+  const [hasMoreMessages, setHasMoreMessages] = useState<boolean>(true);
+  const [isLoadingMore, setIsLoadingMore] = useState<boolean>(false);
+
+  console.log("hasMoreMessages", hasMoreMessages);
+  console.log("isLoadingMore", isLoadingMore);
+
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const messagesContainerRef = useRef<HTMLDivElement>(null);
+  const previousScrollHeightRef = useRef<number>(0);
+  const isInitialLoadRef = useRef<boolean>(true);
 
   const isGroup = chatType === "group";
+  const MESSAGES_PER_PAGE = 20;
 
+  // Load messages function
+  const loadMessages = useCallback(
+    (page: number, isInitial: boolean = false) => {
+      if (!selectedChat || !socket) return;
+
+      if (!isInitial) {
+        setIsLoadingMore(true);
+      }
+
+      const eventName = isGroup
+        ? "get_group_messages"
+        : "get_conversation_history";
+      const payload = isGroup
+        ? { groupId: selectedChat._id, page, limit: MESSAGES_PER_PAGE }
+        : { receiverId: selectedChat._id, page, limit: MESSAGES_PER_PAGE };
+
+      socket.emit(eventName, payload, (response: SocketResponse) => {
+        if (response?.success) {
+          const newMessages = response.messages || [];
+
+          // Check if there are more messages to load
+          setHasMoreMessages(newMessages.length === MESSAGES_PER_PAGE);
+
+          if (isInitial) {
+            setMessages(newMessages);
+          } else {
+            // Prepend older messages (reverse order since they come newest first)
+            setMessages((prev) => [...newMessages, ...prev]);
+          }
+        }
+        setIsLoadingMore(false);
+      });
+    },
+    [selectedChat, socket, isGroup, MESSAGES_PER_PAGE]
+  );
+
+  // Initial load and setup
   useEffect(() => {
-    console.log("hit");
-
     if (!selectedChat || !socket) return;
 
-    // Load message history
-    if (isGroup) {
-      socket.emit(
-        "get_group_messages",
-        {
-          groupId: selectedChat._id,
-          page: 1,
-          limit: 20,
-        },
-        (response) => {
-          if (response?.success) {
-            setMessages(response.messages || []);
-          }
-        }
-      );
+    // Reset states for new chat
+    setMessages([]);
+    setCurrentPage(1);
+    setHasMoreMessages(true);
+    isInitialLoadRef.current = true;
 
-      // Join group
+    // Load initial messages
+    loadMessages(1, true);
+
+    // Join room
+    if (isGroup) {
       socket.emit("join_group", { groupId: selectedChat._id });
     } else {
-      socket.emit(
-        "get_conversation_history",
-        {
-          receiverId: selectedChat._id,
-          page: 1,
-          limit: 20,
-        },
-        (response) => {
-          if (response?.success) {
-            setMessages(response.messages || []);
-          }
-        }
-      );
-
-      // Join conversation
       socket.emit("join_conversation", { receiverId: selectedChat._id });
     }
 
-    const handleNewMessage = (data) => {
+    const handleNewMessage = (data: { message?: Message }) => {
       if (!data?.message) return;
 
       const msg = data.message;
@@ -80,17 +176,14 @@ export default function ChatArea({
 
       if (isForCurrentChat) {
         setMessages((prev) => {
-          // Check if message already exists (prevent duplicates)
           const exists = prev.some((m) => m._id === msg._id);
           if (exists) return prev;
 
-          // For optimistic messages, replace temp ID with real message
           const tempMessageIndex = prev.findIndex(
             (m) => m._id && m._id.toString().startsWith("temp-")
           );
 
           if (tempMessageIndex > -1) {
-            // Replace the last temp message with the real one
             const newMessages = [...prev];
             newMessages[tempMessageIndex] = msg;
             return newMessages;
@@ -101,7 +194,7 @@ export default function ChatArea({
       }
     };
 
-    const handleTyping = (data) => {
+    const handleTyping = (data: TypingData) => {
       if (isGroup) {
         if (data.groupId === selectedChat._id && data.userId !== currentUser) {
           if (data.isTyping) {
@@ -135,61 +228,103 @@ export default function ChatArea({
       socket.off("typing_started", handleTyping);
       socket.off("typing_stopped", handleTyping);
     };
-  }, [selectedChat, chatType, socket, currentUser, isGroup]);
+  }, [selectedChat, chatType, socket, currentUser, isGroup, loadMessages]);
 
+  // Scroll to bottom on initial load and new messages
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages]);
+    if (isInitialLoadRef.current && messages.length > 0) {
+      messagesEndRef.current?.scrollIntoView({ behavior: "instant" });
+      isInitialLoadRef.current = false;
+    } else if (messages.length > 0 && !isLoadingMore) {
+      // Only auto-scroll for new messages if user is near bottom
+      const container = messagesContainerRef.current;
+      if (container) {
+        const isNearBottom =
+          container.scrollHeight -
+            container.scrollTop -
+            container.clientHeight <
+          100;
+
+        if (isNearBottom) {
+          messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+        }
+      }
+    }
+  }, [messages, isLoadingMore]);
+
+  // Maintain scroll position after loading older messages
+  useEffect(() => {
+    if (isLoadingMore && messagesContainerRef.current) {
+      const container = messagesContainerRef.current;
+      const newScrollHeight = container.scrollHeight;
+      const scrollDiff = newScrollHeight - previousScrollHeightRef.current;
+
+      if (scrollDiff > 0) {
+        container.scrollTop += scrollDiff;
+      }
+    }
+  }, [messages, isLoadingMore]);
+
+  // Handle scroll to load more messages
+  const handleScroll = useCallback(() => {
+    const container = messagesContainerRef.current;
+    if (!container || isLoadingMore || !hasMoreMessages) return;
+
+    // Store current scroll height before loading more
+    previousScrollHeightRef.current = container.scrollHeight;
+
+    // Load more when scrolled to top (within 100px)
+    if (container.scrollTop < 100) {
+      const nextPage = currentPage + 1;
+      setCurrentPage(nextPage);
+      loadMessages(nextPage, false);
+    }
+  }, [currentPage, isLoadingMore, hasMoreMessages, loadMessages]);
 
   const handleSendMessage = () => {
-    if (!newMessage.trim() || !socket) return;
+    if (!newMessage.trim() || !socket || !selectedChat) return;
 
     const messageData = isGroup
       ? {
           groupId: selectedChat._id,
           message: newMessage,
-          messageType: "text",
+          messageType: "text" as const,
         }
       : {
           receiverId: selectedChat._id,
           message: newMessage,
-          messageType: "text",
+          messageType: "text" as const,
         };
 
-    // Create optimistic message for immediate UI update
-    const optimisticMessage = {
-      _id: `temp-${Date.now()}`, // Temporary ID
+    const optimisticMessage: Message = {
+      _id: `temp-${Date.now()}`,
       message: newMessage,
       sender: { _id: currentUser, name: "You" },
-      receiver: isGroup ? null : { _id: selectedChat._id },
+      receiver: isGroup ? null : { _id: selectedChat._id, name: "" },
       groupId: isGroup ? selectedChat._id : null,
       messageType: "text",
       createdAt: new Date().toISOString(),
       status: "sending",
     };
 
-    // Add message to UI immediately
     setMessages((prev) => [...prev, optimisticMessage]);
-    setNewMessage(""); // Clear input immediately
+    setNewMessage("");
 
-    // Send to server
     socket.emit(
       isGroup ? "send_group_message" : "send_message",
       messageData,
-      (response) => {
+      (response: SocketResponse) => {
         if (response?.success && response.message) {
-          // Replace optimistic message with real one from server
           setMessages((prev) =>
             prev.map((msg) =>
-              msg._id === optimisticMessage._id ? response.message : msg
+              msg._id === optimisticMessage._id ? response.message! : msg
             )
           );
         } else {
-          // If failed, mark as failed
           setMessages((prev) =>
             prev.map((msg) =>
               msg._id === optimisticMessage._id
-                ? { ...msg, status: "failed" }
+                ? { ...msg, status: "failed" as const }
                 : msg
             )
           );
@@ -198,7 +333,7 @@ export default function ChatArea({
     );
   };
 
-  const handleKeyDown = (e) => {
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
       handleSendMessage();
@@ -228,7 +363,7 @@ export default function ChatArea({
       ? "typing..."
       : null;
 
-  function formatGroupParticipants(participants) {
+  function formatGroupParticipants(participants?: Participant[]): string {
     if (
       !participants ||
       !Array.isArray(participants) ||
@@ -237,27 +372,18 @@ export default function ChatArea({
       return "No members";
     }
 
-    // Extract member names from the participants array
     const memberNames = participants
       .map((participant) => {
-        // Handle the nested userId object structure
         const user = participant.userId;
-
-        // Get the name from userId object
-        if (user && user.name) {
-          return user.name;
-        }
-
-        // Fallback if name is not available
+        if (user && user.name) return user.name;
         return "Unknown User";
       })
-      .filter((name) => name !== "Unknown User"); // Remove any unknown users
+      .filter((name) => name !== "Unknown User");
 
     if (memberNames.length === 0) {
       return "No member names available";
     }
 
-    // Join names with comma separation
     return memberNames.join(", ");
   }
 
@@ -273,10 +399,12 @@ export default function ChatArea({
                 src={
                   isUrl(
                     selectedChat?.microsite?.profilePic ||
-                      selectedChat?.participant?.profilePic
+                      selectedChat?.participant?.profilePic ||
+                      ""
                   )
                     ? selectedChat?.microsite?.profilePic ||
-                      selectedChat?.participant?.profilePic
+                      selectedChat?.participant?.profilePic ||
+                      ""
                     : `/images/user_avator/${
                         selectedChat?.microsite?.profilePic ||
                         selectedChat?.participant?.profilePic
@@ -316,19 +444,21 @@ export default function ChatArea({
             >
               {isGroup
                 ? "👥"
-                : selectedChat.microsite.name?.charAt(0).toUpperCase()}
+                : selectedChat.microsite?.name?.charAt(0).toUpperCase()}
             </div>
           )}
 
           <div>
             <h3 className="font-semibold">
-              {isGroup ? selectedChat.name : selectedChat.microsite.name}
+              {isGroup ? selectedChat.name : selectedChat.microsite?.name}
             </h3>
             <p className="text-sm text-gray-700">
               {isGroup ? (
-                <p>{formatGroupParticipants(selectedChat.participants)}</p>
+                <span>
+                  {formatGroupParticipants(selectedChat.participants)}
+                </span>
               ) : (
-                selectedChat.microsite.ens
+                selectedChat.microsite?.ens
               )}
             </p>
           </div>
@@ -344,7 +474,25 @@ export default function ChatArea({
       </div>
 
       {/* Messages Area */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-2">
+      <div
+        ref={messagesContainerRef}
+        onScroll={handleScroll}
+        className="flex-1 overflow-y-auto p-4 space-y-2"
+      >
+        {/* Loading indicator for older messages */}
+        {isLoadingMore && (
+          <div className="flex justify-center py-2">
+            <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-gray-700"></div>
+          </div>
+        )}
+
+        {/* No more messages indicator */}
+        {!hasMoreMessages && messages.length > 0 && (
+          <div className="flex justify-center py-2">
+            <p className="text-xs text-gray-500">No more messages</p>
+          </div>
+        )}
+
         {messages.map((message, index) => (
           <Message
             key={message._id || index}
@@ -355,7 +503,7 @@ export default function ChatArea({
         ))}
 
         {/* Typing Indicator */}
-        {true && (
+        {typingText && (
           <div className="flex items-center gap-2 text-whatsapp-text-secondary text-sm">
             <div className="typing-dots flex gap-1">
               <span className="w-2 h-2 bg-whatsapp-text-secondary rounded-full animate-typing-dots" />
@@ -393,7 +541,15 @@ export default function ChatArea({
   );
 }
 
-function Message({ message, isOwn, isGroup }) {
+// ==================== MESSAGE COMPONENT ====================
+
+interface MessageProps {
+  message: Message;
+  isOwn: boolean;
+  isGroup: boolean;
+}
+
+function Message({ message, isOwn, isGroup }: MessageProps) {
   return (
     <div className={`flex ${isOwn ? "justify-end" : "justify-start"}`}>
       <div className={`flex flex-col ${isOwn ? "items-end" : "items-start"}`}>
