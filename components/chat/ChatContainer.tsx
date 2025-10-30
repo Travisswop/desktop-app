@@ -1,70 +1,201 @@
-// app/components/ChatContainer.js
 "use client";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import Sidebar from "./Sidebar";
 import ChatArea from "./ChatArea";
-// import Sidebar from "./Sidebar";
-// import ChatArea from "./ChatArea";
 
-export default function ChatContainer({ socket, currentUser, setUnreadCount }) {
+interface ChatContainerProps {
+  socket: any;
+  currentUser: string;
+  setUnreadCount: (count: number) => void;
+}
+
+export default function ChatContainer({
+  socket,
+  currentUser,
+  setUnreadCount,
+}: ChatContainerProps) {
   const [conversations, setConversations] = useState([]);
   const [groups, setGroups] = useState([]);
-  const [selectedChat, setSelectedChat] = useState(null);
-  const [chatType, setChatType] = useState(null); // 'direct' or 'group'
+  const [selectedChat, setSelectedChat] = useState<any>(null);
+  const [chatType, setChatType] = useState<"private" | "group" | null>(null);
+
+  console.log("conversations", conversations);
+  console.log("groups", groups);
+
+  // Memoized function to load all data
+  const loadInitialData = useCallback(() => {
+    if (!socket) return;
+
+    // Load conversations
+    socket.emit("get_conversations", { page: 1, limit: 20 }, (res: any) => {
+      if (res?.success) {
+        setConversations(res.conversations || []);
+      }
+    });
+
+    // Load groups
+    socket.emit("get_user_groups", { page: 1, limit: 20 }, (res: any) => {
+      if (res?.success) {
+        setGroups(res.groups || []);
+      }
+    });
+
+    // Fetch unread count
+    socket.emit("get_unread_count", {}, (response: any) => {
+      if (response?.success) {
+        setUnreadCount(response.unreadCount || 0);
+      }
+    });
+  }, [socket, setUnreadCount]);
+
+  // Function to refresh selected chat data
+  const refreshSelectedChat = useCallback(() => {
+    console.log("hit refreshSelectedChat in container");
+
+    if (!socket || !selectedChat) return;
+
+    if (chatType === "group") {
+      // Refresh group info
+      socket.emit(
+        "get_group_info",
+        { groupId: selectedChat._id },
+        (response: any) => {
+          if (response?.success && response.group) {
+            setSelectedChat(response.group);
+            console.log("Selected chat refreshed:", response.group);
+          }
+        }
+      );
+    } else {
+      // For direct chats, refresh conversation
+      socket.emit("get_conversations", { page: 1, limit: 20 }, (res: any) => {
+        if (res?.success) {
+          const updatedConversation = res.conversations?.find(
+            (conv: any) => conv._id === selectedChat._id
+          );
+          if (updatedConversation) {
+            setSelectedChat(updatedConversation);
+          }
+        }
+      });
+    }
+  }, [socket, selectedChat, chatType]);
 
   useEffect(() => {
     if (!socket) return;
 
-    // Load initial conversations and groups
-    const loadInitialData = () => {
-      socket.emit("get_conversations", { page: 1, limit: 20 }, (res) => {
-        if (res?.success) {
-          setConversations(res.conversations || []);
-        }
-      });
-
-      socket.emit("get_user_groups", { page: 1, limit: 20 }, (res) => {
-        if (res?.success) {
-          setGroups(res.groups || []);
-        }
-      });
-
-      // Fetch unread count
-      socket.emit("get_unread_count", {}, (response) => {
-        if (response?.success) {
-          setUnreadCount(response.unreadCount || 0);
-        }
-      });
-    };
-
-    // Socket event listeners
-    socket.on("conversation_updated", () => {
-      loadInitialData();
-    });
-
-    socket.on("group_updated", () => {
-      loadInitialData();
-    });
-
-    socket.on("new_message", () => {
-      loadInitialData();
-    });
-
-    socket.on("new_group_message", () => {
-      loadInitialData();
-    });
-
+    // Load initial data
     loadInitialData();
 
-    return () => {
-      socket.off("conversation_updated");
-      socket.off("group_updated");
-      socket.off("new_message");
-      socket.off("new_group_message");
+    // Socket event listeners for real-time updates
+    const handleConversationUpdate = () => {
+      console.log("Conversation updated");
+      loadInitialData();
+      refreshSelectedChat();
     };
-  }, [socket, setUnreadCount]);
 
-  const handleSelectChat = (chat, type) => {
+    const handleGroupUpdate = (data: any) => {
+      console.log("Group updated:", data);
+      loadInitialData();
+
+      // If the updated group is currently selected, refresh it
+      if (data?.groupId === selectedChat?._id) {
+        refreshSelectedChat();
+      }
+    };
+
+    const handleNewMessage = () => {
+      console.log("New message received");
+      loadInitialData();
+    };
+
+    const handleNewGroupMessage = () => {
+      console.log("New group message received");
+      loadInitialData();
+    };
+
+    const handleGroupInfoUpdated = (data: any) => {
+      console.log("Group info updated:", data);
+      loadInitialData();
+
+      // Update selected chat if it's the same group
+      if (data?.groupId === selectedChat?._id) {
+        refreshSelectedChat();
+      }
+    };
+
+    const handleGroupParticipantsUpdated = (data: any) => {
+      console.log("Group participants updated:", data);
+      loadInitialData();
+
+      // Update selected chat if it's the same group
+      if (data?.groupId === selectedChat?._id) {
+        refreshSelectedChat();
+      }
+    };
+
+    const handleGroupMemberAdded = (data: any) => {
+      console.log("Group member added:", data);
+      loadInitialData();
+
+      if (data?.groupId === selectedChat?._id) {
+        refreshSelectedChat();
+      }
+    };
+
+    const handleGroupMemberRemoved = (data: any) => {
+      console.log("Group member removed:", data);
+      loadInitialData();
+
+      if (data?.groupId === selectedChat?._id) {
+        // Check if current user was removed
+        if (data?.removedUserId === currentUser) {
+          // Clear selection if current user was removed
+          setSelectedChat(null);
+          setChatType(null);
+        } else {
+          refreshSelectedChat();
+        }
+      }
+    };
+
+    const handleGroupDeleted = (data: any) => {
+      console.log("Group deleted:", data);
+      loadInitialData();
+
+      // Clear selection if currently viewing the deleted group
+      if (data?.groupId === selectedChat?._id) {
+        setSelectedChat(null);
+        setChatType(null);
+      }
+    };
+
+    // Register all event listeners
+    socket.on("conversation_updated", handleConversationUpdate);
+    socket.on("group_updated", handleGroupUpdate);
+    socket.on("new_message", handleNewMessage);
+    socket.on("new_group_message", handleNewGroupMessage);
+    socket.on("group_info_updated", handleGroupInfoUpdated);
+    socket.on("group_participants_updated", handleGroupParticipantsUpdated);
+    socket.on("group_member_added", handleGroupMemberAdded);
+    socket.on("group_member_removed", handleGroupMemberRemoved);
+    socket.on("group_deleted", handleGroupDeleted);
+
+    // Cleanup
+    return () => {
+      socket.off("conversation_updated", handleConversationUpdate);
+      socket.off("group_updated", handleGroupUpdate);
+      socket.off("new_message", handleNewMessage);
+      socket.off("new_group_message", handleNewGroupMessage);
+      socket.off("group_info_updated", handleGroupInfoUpdated);
+      socket.off("group_participants_updated", handleGroupParticipantsUpdated);
+      socket.off("group_member_added", handleGroupMemberAdded);
+      socket.off("group_member_removed", handleGroupMemberRemoved);
+      socket.off("group_deleted", handleGroupDeleted);
+    };
+  }, [socket, loadInitialData, refreshSelectedChat, selectedChat, currentUser]);
+
+  const handleSelectChat = (chat: any, type: "private" | "group") => {
     setSelectedChat(chat);
     setChatType(type);
   };
@@ -86,6 +217,7 @@ export default function ChatContainer({ socket, currentUser, setUnreadCount }) {
         chatType={chatType}
         currentUser={currentUser}
         socket={socket}
+        onChatUpdate={refreshSelectedChat} // Pass refresh function
       />
     </div>
   );

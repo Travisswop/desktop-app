@@ -1,8 +1,6 @@
 // app/page.js
 "use client";
 import ChatContainer from "@/components/chat/ChatContainer";
-import Header from "@/components/chat/Header";
-import SetupPanel from "@/components/chat/SetupPanel";
 import { useSocket } from "@/lib/socket";
 import { useUser } from "@/lib/UserContext";
 import { useEffect, useState } from "react";
@@ -47,17 +45,11 @@ export default function Home() {
     return <div>loading...</div>;
   }
 
+  // console.log("socket hola", socket);
+  // console.log("currentUser hola", currentUser);
+
   return (
     <div className="">
-      {/* <Header connectionStatus={connectionStatus} unreadCount={unreadCount} /> */}
-
-      {/* <SetupPanel
-        onConnect={connectSocket}
-        onDisconnect={disconnectSocket}
-        connected={connectionStatus.connected}
-        setCurrentUser={setCurrentUser}
-      /> */}
-
       <ChatContainer
         socket={socket}
         currentUser={currentUser}

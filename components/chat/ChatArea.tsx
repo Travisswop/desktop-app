@@ -62,6 +62,7 @@ interface ChatAreaProps {
   chatType: "private" | "group";
   currentUser: string;
   socket: any; // You can use Socket from socket.io-client if you have it
+  onChatUpdate?: () => void; // ADD THIS
 }
 
 interface SocketResponse {
@@ -85,11 +86,19 @@ export default function ChatArea({
   chatType,
   currentUser,
   socket,
+  onChatUpdate,
 }: ChatAreaProps) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [newMessage, setNewMessage] = useState<string>("");
   const [isTyping, setIsTyping] = useState<boolean>(false);
   const [typingUsers, setTypingUsers] = useState<Map<string, User>>(new Map());
+
+  //State to hold current group data
+  const [currentGroupData, setCurrentGroupData] = useState<SelectedChat | null>(
+    selectedChat
+  );
+
+  console.log("currentGroupData", currentGroupData);
 
   // Pagination states
   const [currentPage, setCurrentPage] = useState<number>(1);
@@ -106,6 +115,95 @@ export default function ChatArea({
 
   const isGroup = chatType === "group";
   const MESSAGES_PER_PAGE = 20;
+
+  // ADD THIS: Function to refresh group info
+  const refreshGroupInfo = useCallback(() => {
+    loadMessages(1, true);
+    if (!socket || !selectedChat || chatType !== "group") return;
+    socket.emit(
+      "get_group_info",
+      { groupId: selectedChat._id },
+      (response: any) => {
+        if (response?.success && response.group) {
+          setCurrentGroupData(response.group);
+          console.log("Group data refreshed:", response.group);
+          // Call parent refresh
+          onChatUpdate?.();
+          console.log("hit onChatUpdate");
+        }
+      }
+    );
+  }, [socket, selectedChat, chatType, onChatUpdate]);
+
+  // UPDATE: Listen for group update events
+  useEffect(() => {
+    if (!socket || chatType !== "group") return;
+
+    const handleGroupInfoUpdated = (data: any) => {
+      if (data.groupId === selectedChat?._id) {
+        console.log("Group info updated event received:", data);
+        // Update local group data
+        if (data.group) {
+          setCurrentGroupData(data.group);
+        } else if (data.changes) {
+          // Merge changes into current data
+          setCurrentGroupData((prev) => {
+            if (!prev) return prev;
+            return {
+              ...prev,
+              name: data.changes.name ?? prev.name,
+              description: data.changes.description ?? prev.description,
+              settings: {
+                ...prev.settings,
+                groupInfo: {
+                  ...prev.settings?.groupInfo,
+                  groupPicture:
+                    data.changes.groupPicture ??
+                    prev.settings?.groupInfo?.groupPicture,
+                },
+              },
+            };
+          });
+        }
+      }
+    };
+
+    const handleGroupParticipantsUpdated = (data: any) => {
+      if (data.groupId === selectedChat?._id) {
+        console.log("Group participants updated:", data);
+        // Refresh group info to get latest participant list
+        refreshGroupInfo();
+      }
+    };
+
+    const handleGroupDeleted = (data: any) => {
+      if (data.groupId === selectedChat?._id) {
+        console.log("Group was deleted");
+        alert("This group has been deleted");
+        // Navigate back or clear selection
+        window.location.reload(); // Simple approach
+      }
+    };
+
+    socket.on("group_info_updated", handleGroupInfoUpdated);
+    socket.on("group_participants_updated", handleGroupParticipantsUpdated);
+    socket.on("group_member_added", handleGroupParticipantsUpdated);
+    socket.on("group_member_removed", handleGroupParticipantsUpdated);
+    socket.on("group_deleted", handleGroupDeleted);
+
+    return () => {
+      socket.off("group_info_updated", handleGroupInfoUpdated);
+      socket.off("group_participants_updated", handleGroupParticipantsUpdated);
+      socket.off("group_member_added", handleGroupParticipantsUpdated);
+      socket.off("group_member_removed", handleGroupParticipantsUpdated);
+      socket.off("group_deleted", handleGroupDeleted);
+    };
+  }, [socket, selectedChat, chatType, refreshGroupInfo]);
+
+  // UPDATE: Sync currentGroupData when selectedChat changes
+  useEffect(() => {
+    setCurrentGroupData(selectedChat);
+  }, [selectedChat]);
 
   // Load messages function
   const loadMessages = useCallback(
@@ -354,6 +452,9 @@ export default function ChatArea({
     );
   }
 
+  // USE currentGroupData instead of selectedChat for display
+  const displayChat = isGroup ? currentGroupData : selectedChat;
+
   const typingText =
     isGroup && typingUsers.size > 0
       ? Array.from(typingUsers.values())
@@ -392,22 +493,22 @@ export default function ChatArea({
       {/* Chat Header */}
       <div className="px-6 py-4 shadow flex items-center justify-between rounded-xl">
         <div className="flex items-center gap-2">
-          {selectedChat?.microsite?.profilePic ||
-          selectedChat?.participant?.profilePic ? (
+          {displayChat?.microsite?.profilePic ||
+          displayChat?.participant?.profilePic ? (
             <div className="border rounded-full relative">
               <Image
                 src={
                   isUrl(
-                    selectedChat?.microsite?.profilePic ||
-                      selectedChat?.participant?.profilePic ||
+                    displayChat?.microsite?.profilePic ||
+                      displayChat?.participant?.profilePic ||
                       ""
                   )
-                    ? selectedChat?.microsite?.profilePic ||
-                      selectedChat?.participant?.profilePic ||
+                    ? displayChat?.microsite?.profilePic ||
+                      displayChat?.participant?.profilePic ||
                       ""
                     : `/images/user_avator/${
-                        selectedChat?.microsite?.profilePic ||
-                        selectedChat?.participant?.profilePic
+                        displayChat?.microsite?.profilePic ||
+                        displayChat?.participant?.profilePic
                       }@3x.png`
                 }
                 alt="user"
@@ -423,12 +524,12 @@ export default function ChatArea({
                 }`}
               />
             </div>
-          ) : isGroup && selectedChat?.settings?.groupInfo?.groupPicture ? (
+          ) : isGroup && displayChat?.settings?.groupInfo?.groupPicture ? (
             <Image
               src={
-                isUrl(selectedChat?.settings?.groupInfo?.groupPicture)
-                  ? selectedChat?.settings?.groupInfo?.groupPicture
-                  : `/images/user_avator/${selectedChat?.settings?.groupInfo?.groupPicture}@3x.png`
+                isUrl(displayChat?.settings?.groupInfo?.groupPicture)
+                  ? displayChat?.settings?.groupInfo?.groupPicture
+                  : `/images/user_avator/${displayChat?.settings?.groupInfo?.groupPicture}@3x.png`
               }
               alt="user"
               width={120}
@@ -444,31 +545,44 @@ export default function ChatArea({
             >
               {isGroup
                 ? "👥"
-                : selectedChat.microsite?.name?.charAt(0).toUpperCase()}
+                : displayChat?.microsite?.name?.charAt(0).toUpperCase()}
             </div>
           )}
 
           <div>
             <h3 className="font-semibold">
-              {isGroup ? selectedChat.name : selectedChat.microsite?.name}
+              {isGroup ? displayChat?.name : displayChat?.microsite?.name}
             </h3>
             <p className="text-sm text-gray-700">
               {isGroup ? (
                 <span>
-                  {formatGroupParticipants(selectedChat.participants)}
+                  {formatGroupParticipants(displayChat?.participants)}
                 </span>
               ) : (
-                selectedChat.microsite?.ens
+                displayChat?.microsite?.ens
               )}
             </p>
           </div>
         </div>
 
-        {isGroup && (
+        {/* {isGroup && (
           <GroupMenu
-            group={selectedChat}
+            group={displayChat}
             socket={socket}
             currentUser={currentUser}
+          />
+        )} */}
+
+        {isGroup && (
+          <GroupMenu
+            group={displayChat}
+            socket={socket}
+            currentUser={currentUser}
+            onGroupUpdate={() => {
+              console.log("Group updated, refreshing data...");
+              refreshGroupInfo();
+            }}
+            // onSuccess={() => onChatUpdate?.()}
           />
         )}
       </div>
