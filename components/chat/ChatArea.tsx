@@ -99,6 +99,7 @@ export default function ChatArea({
   );
 
   console.log("currentGroupData", currentGroupData);
+  console.log("selectedChat", selectedChat);
 
   // Pagination states
   const [currentPage, setCurrentPage] = useState<number>(1);
@@ -116,24 +117,68 @@ export default function ChatArea({
   const isGroup = chatType === "group";
   const MESSAGES_PER_PAGE = 20;
 
-  // ADD THIS: Function to refresh group info
-  const refreshGroupInfo = useCallback(() => {
-    loadMessages(1, true);
-    if (!socket || !selectedChat || chatType !== "group") return;
-    socket.emit(
-      "get_group_info",
-      { groupId: selectedChat._id },
-      (response: any) => {
-        if (response?.success && response.group) {
-          setCurrentGroupData(response.group);
-          console.log("Group data refreshed:", response.group);
-          // Call parent refresh
-          onChatUpdate?.();
-          console.log("hit onChatUpdate");
-        }
+  // Load messages function
+  const loadMessages = useCallback(
+    (page: number, isInitial: boolean = false) => {
+      if (!selectedChat || !socket) return;
+
+      if (!isInitial) {
+        setIsLoadingMore(true);
       }
-    );
-  }, [socket, selectedChat, chatType, onChatUpdate]);
+
+      const eventName = isGroup
+        ? "get_group_messages"
+        : "get_conversation_history";
+      const payload = isGroup
+        ? { groupId: selectedChat._id, page, limit: MESSAGES_PER_PAGE }
+        : { receiverId: selectedChat._id, page, limit: MESSAGES_PER_PAGE };
+
+      socket.emit(eventName, payload, (response: SocketResponse) => {
+        if (response?.success) {
+          console.log("hit load message", response);
+
+          const newMessages = response.messages || [];
+
+          // Check if there are more messages to load
+          setHasMoreMessages(newMessages.length === MESSAGES_PER_PAGE);
+
+          if (isInitial) {
+            setMessages(newMessages);
+          } else {
+            // Prepend older messages (reverse order since they come newest first)
+            setMessages((prev) => [...newMessages, ...prev]);
+          }
+        }
+        setIsLoadingMore(false);
+      });
+    },
+    [selectedChat, socket, isGroup]
+  );
+
+  // ADD THIS: Function to refresh group info
+  // const refreshGroupInfo = useCallback(() => {
+  //   // loadMessages(1, true);
+  //   if (!socket || !selectedChat || chatType !== "group") return;
+  //   // console.log("selectedChat._id", selectedChat._id);
+
+  //   try {
+  //     socket.emit(
+  //       "get_group_messages",
+  //       { groupId: selectedChat._id, page: 1, limit: 20 },
+  //       (groupResponse: any) => {
+  //         console.log("respnse hola", groupResponse);
+  //         if (groupResponse && groupResponse.success) {
+  //           setCurrentGroupData(groupResponse.messages);
+  //           // Call parent refresh
+  //           onChatUpdate?.();
+  //         }
+  //       }
+  //     );
+  //   } catch (error) {
+  //     console.log("error in get_group_info", error);
+  //   }
+  //   console.log("hit last");
+  // }, [socket, selectedChat, chatType, onChatUpdate]);
 
   // UPDATE: Listen for group update events
   useEffect(() => {
@@ -172,7 +217,7 @@ export default function ChatArea({
       if (data.groupId === selectedChat?._id) {
         console.log("Group participants updated:", data);
         // Refresh group info to get latest participant list
-        refreshGroupInfo();
+        loadMessages(1, true);
       }
     };
 
@@ -198,48 +243,13 @@ export default function ChatArea({
       socket.off("group_member_removed", handleGroupParticipantsUpdated);
       socket.off("group_deleted", handleGroupDeleted);
     };
-  }, [socket, selectedChat, chatType, refreshGroupInfo]);
-
+  }, [socket, selectedChat, chatType, loadMessages]);
   // UPDATE: Sync currentGroupData when selectedChat changes
   useEffect(() => {
     setCurrentGroupData(selectedChat);
   }, [selectedChat]);
 
-  // Load messages function
-  const loadMessages = useCallback(
-    (page: number, isInitial: boolean = false) => {
-      if (!selectedChat || !socket) return;
-
-      if (!isInitial) {
-        setIsLoadingMore(true);
-      }
-
-      const eventName = isGroup
-        ? "get_group_messages"
-        : "get_conversation_history";
-      const payload = isGroup
-        ? { groupId: selectedChat._id, page, limit: MESSAGES_PER_PAGE }
-        : { receiverId: selectedChat._id, page, limit: MESSAGES_PER_PAGE };
-
-      socket.emit(eventName, payload, (response: SocketResponse) => {
-        if (response?.success) {
-          const newMessages = response.messages || [];
-
-          // Check if there are more messages to load
-          setHasMoreMessages(newMessages.length === MESSAGES_PER_PAGE);
-
-          if (isInitial) {
-            setMessages(newMessages);
-          } else {
-            // Prepend older messages (reverse order since they come newest first)
-            setMessages((prev) => [...newMessages, ...prev]);
-          }
-        }
-        setIsLoadingMore(false);
-      });
-    },
-    [selectedChat, socket, isGroup, MESSAGES_PER_PAGE]
-  );
+  // console.log("selectedChat._id", selectedChat._id);
 
   // Initial load and setup
   useEffect(() => {
@@ -580,9 +590,8 @@ export default function ChatArea({
             currentUser={currentUser}
             onGroupUpdate={() => {
               console.log("Group updated, refreshing data...");
-              refreshGroupInfo();
+              loadMessages(1, true);
             }}
-            // onSuccess={() => onChatUpdate?.()}
           />
         )}
       </div>

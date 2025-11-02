@@ -42,11 +42,45 @@ export default function Home() {
   }, [accessToken, user, user?._id]);
 
   if (isInitializationLoading) {
-    return <div>loading...</div>;
-  }
+    return (
+      <div className="h-full flex items-center justify-center bg-gray-50">
+        <div className="w-full max-w-md rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
+          {/* Header Skeleton */}
+          <div className="mb-4 flex items-center gap-3">
+            <div className="h-10 w-10 animate-pulse rounded-full bg-gray-200" />
+            <div>
+              <div className="mb-2 h-4 w-32 animate-pulse rounded bg-gray-200" />
+              <div className="h-3 w-20 animate-pulse rounded bg-gray-100" />
+            </div>
+          </div>
 
-  // console.log("socket hola", socket);
-  // console.log("currentUser hola", currentUser);
+          <hr className="mb-4 border-gray-100" />
+
+          {/* Chat Messages Skeleton */}
+          <div className="space-y-4">
+            <div className="flex justify-start">
+              <div className="h-6 w-40 animate-pulse rounded-lg bg-gray-200" />
+            </div>
+            <div className="flex justify-end">
+              <div className="h-6 w-32 animate-pulse rounded-lg bg-blue-200" />
+            </div>
+            <div className="flex justify-start">
+              <div className="h-6 w-52 animate-pulse rounded-lg bg-gray-200" />
+            </div>
+            <div className="flex justify-end">
+              <div className="h-6 w-24 animate-pulse rounded-lg bg-blue-200" />
+            </div>
+          </div>
+
+          {/* Input Skeleton */}
+          <div className="mt-6 flex items-center gap-2">
+            <div className="h-10 flex-1 animate-pulse rounded-xl bg-gray-100" />
+            <div className="h-10 w-10 animate-pulse rounded-xl bg-gray-200" />
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="">

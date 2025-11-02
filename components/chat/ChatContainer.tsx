@@ -36,6 +36,8 @@ export default function ChatContainer({
     // Load groups
     socket.emit("get_user_groups", { page: 1, limit: 20 }, (res: any) => {
       if (res?.success) {
+        console.log("group res", res);
+
         setGroups(res.groups || []);
       }
     });
@@ -54,18 +56,23 @@ export default function ChatContainer({
 
     if (!socket || !selectedChat) return;
 
+    console.log("chatType1", chatType);
+
     if (chatType === "group") {
-      // Refresh group info
-      socket.emit(
-        "get_group_info",
-        { groupId: selectedChat._id },
-        (response: any) => {
-          if (response?.success && response.group) {
-            setSelectedChat(response.group);
-            console.log("Selected chat refreshed:", response.group);
+      socket.emit("get_user_groups", { page: 1, limit: 20 }, (res: any) => {
+        if (res?.success) {
+          console.log("res for group", res);
+
+          const updatedGroup = res.groups?.find(
+            (conv: any) => conv._id === selectedChat._id
+          );
+          console.log("updatedGroup", updatedGroup);
+
+          if (updatedGroup) {
+            setSelectedChat(updatedGroup);
           }
         }
-      );
+      });
     } else {
       // For direct chats, refresh conversation
       socket.emit("get_conversations", { page: 1, limit: 20 }, (res: any) => {

@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import Image from "next/image";
 import isUrl from "@/lib/isUrl";
+import toast from "react-hot-toast";
 
 // ==================== TYPE DEFINITIONS ====================
 
@@ -231,6 +232,8 @@ function AddMemberModal({
   const [isSearching, setIsSearching] = useState(false);
   const [addingUserId, setAddingUserId] = useState<string | null>(null);
 
+  // const { toast } = useToast();
+
   const searchUsers = useCallback(
     (query: string) => {
       if (!query.trim() || !socket) {
@@ -269,6 +272,8 @@ function AddMemberModal({
   }, [searchQuery, searchUsers]);
 
   const handleAddMember = (userId: string, displayName: string) => {
+    // console.log("hit add member");
+
     if (!socket || addingUserId) return;
 
     setAddingUserId(userId);
@@ -282,12 +287,18 @@ function AddMemberModal({
       },
       (response: SocketResponse) => {
         if (response.success) {
-          alert(`${displayName} added successfully!`);
+          toast.success(`${displayName} added successfully!`, {
+            position: "top-right",
+          });
+
           setSearchQuery("");
           setSearchResults([]);
           onSuccess?.();
+          onClose();
         } else {
-          alert(`Failed to add ${displayName}: ${response.error}`);
+          toast.error(`Failed to add ${displayName}: ${response.error}`, {
+            position: "top-right",
+          });
         }
         setAddingUserId(null);
       }
@@ -351,9 +362,9 @@ function AddMemberModal({
                             : `/images/user_avator/${user.profilePic}@3x.png`
                         }
                         alt={user.name}
-                        width={40}
-                        height={40}
-                        className="rounded-full"
+                        width={120}
+                        height={120}
+                        className="rounded-full w-10 h-10"
                       />
                     ) : (
                       <div className="w-10 h-10 rounded-full bg-blue-500 flex items-center justify-center text-white font-semibold">
@@ -375,7 +386,7 @@ function AddMemberModal({
                       )
                     }
                     disabled={addingUserId === user._id}
-                    className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-sm"
+                    className="px-4 py-2 bg-black text-white rounded-lg hover:bg-gray-800 disabled:bg-gray-400 disabled:cursor-not-allowed text-sm"
                   >
                     {addingUserId === user._id ? "Adding..." : "Add"}
                   </button>
@@ -405,33 +416,39 @@ function RemoveMemberModal({
   onSuccess?: () => void;
 }) {
   const [removingUserId, setRemovingUserId] = useState<string | null>(null);
+  const [confirmingUser, setConfirmingUser] = useState<User | null>(null);
 
   // Filter out current user (can't remove yourself)
   const removableMembers =
     group.participants?.filter((p) => p.userId._id !== currentUser) || [];
 
-  const handleRemoveMember = (userId: string, displayName: string) => {
-    if (
-      !confirm(
-        `Are you sure you want to remove "${displayName}" from the group?`
-      )
-    )
-      return;
+  const confirmRemoveMember = (user: User) => {
+    setConfirmingUser(user);
+  };
 
-    setRemovingUserId(userId);
+  const handleConfirmRemove = () => {
+    if (!confirmingUser) return;
+    const user = confirmingUser;
+    setRemovingUserId(user._id);
 
     socket.emit(
       "remove_group_member",
       {
         groupId: group._id,
-        userIdToRemove: userId,
+        userIdToRemove: user._id,
       },
       (response: SocketResponse) => {
         if (response.success) {
-          alert(`${displayName} removed successfully`);
+          toast.success(`${user.name} removed successfully!`, {
+            position: "top-right",
+          });
           onSuccess?.();
+          setConfirmingUser(null);
+          onClose();
         } else {
-          alert(`Failed to remove ${displayName}: ${response.error}`);
+          toast.error(`Failed to remove ${user.name}: ${response.error}`, {
+            position: "top-right",
+          });
         }
         setRemovingUserId(null);
       }
@@ -439,77 +456,113 @@ function RemoveMemberModal({
   };
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-lg shadow-xl w-full max-w-md max-h-[80vh] flex flex-col">
-        {/* Header */}
-        <div className="px-6 py-4 border-b border-gray-200">
-          <div className="flex justify-between items-center">
-            <h3 className="text-lg font-semibold">Remove Member</h3>
-            <button
-              onClick={onClose}
-              className="text-gray-500 hover:text-gray-700 text-2xl"
-            >
-              ×
-            </button>
-          </div>
-          <p className="text-sm text-gray-600 mt-1">Group: {group.name}</p>
-        </div>
-
-        {/* Members List */}
-        <div className="flex-1 overflow-y-auto p-6">
-          {removableMembers.length === 0 ? (
-            <div className="text-center py-8 text-gray-500">
-              No members to remove (you cannot remove yourself)
+    <>
+      {/* Main Modal */}
+      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+        <div className="bg-white rounded-lg shadow-xl w-full max-w-md max-h-[80vh] flex flex-col">
+          {/* Header */}
+          <div className="px-6 py-4 border-b border-gray-200">
+            <div className="flex justify-between items-center">
+              <h3 className="text-lg font-semibold">Remove Member</h3>
+              <button
+                onClick={onClose}
+                className="text-gray-500 hover:text-gray-700 text-2xl"
+              >
+                ×
+              </button>
             </div>
-          ) : (
-            <div className="space-y-2">
-              {removableMembers.map((participant) => {
-                const user = participant.userId;
-                return (
-                  <div
-                    key={user._id}
-                    className="flex items-center justify-between p-3 border border-gray-200 rounded-lg hover:bg-gray-50"
-                  >
-                    <div className="flex items-center gap-3">
-                      {user.profilePic ? (
-                        <Image
-                          src={
-                            isUrl(user.profilePic)
-                              ? user.profilePic
-                              : `/images/user_avator/${user.profilePic}@3x.png`
-                          }
-                          alt={user.name}
-                          width={40}
-                          height={40}
-                          className="rounded-full"
-                        />
-                      ) : (
-                        <div className="w-10 h-10 rounded-full bg-orange-500 flex items-center justify-center text-white font-semibold">
-                          {user.name?.charAt(0).toUpperCase()}
-                        </div>
-                      )}
-                      <div>
-                        <div className="font-medium">{user.name}</div>
-                        <div className="text-sm text-gray-500">
-                          {user.username || user.ens || ""}
+            <p className="text-sm text-gray-600 mt-1">Group: {group.name}</p>
+          </div>
+
+          {/* Members List */}
+          <div className="flex-1 overflow-y-auto p-6">
+            {removableMembers.length === 0 ? (
+              <div className="text-center py-8 text-gray-500">
+                No members to remove (you cannot remove yourself)
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {removableMembers.map((participant) => {
+                  const user = participant.userId;
+                  return (
+                    <div
+                      key={user._id}
+                      className="flex items-center justify-between p-3 border border-gray-200 rounded-lg hover:bg-gray-50"
+                    >
+                      <div className="flex items-center gap-3">
+                        {user.profilePic ? (
+                          <Image
+                            src={
+                              isUrl(user.profilePic)
+                                ? user.profilePic
+                                : `/images/user_avator/${user.profilePic}@3x.png`
+                            }
+                            alt={user.name}
+                            width={40}
+                            height={40}
+                            className="rounded-full"
+                          />
+                        ) : (
+                          <div className="w-10 h-10 rounded-full bg-orange-500 flex items-center justify-center text-white font-semibold">
+                            {user.name?.charAt(0).toUpperCase()}
+                          </div>
+                        )}
+                        <div>
+                          <div className="font-medium">{user.name}</div>
+                          <div className="text-sm text-gray-500">
+                            {user.username || user.ens || ""}
+                          </div>
                         </div>
                       </div>
+                      <button
+                        onClick={() => confirmRemoveMember(user)}
+                        disabled={removingUserId === user._id}
+                        className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-sm"
+                      >
+                        {removingUserId === user._id ? "Removing..." : "Remove"}
+                      </button>
                     </div>
-                    <button
-                      onClick={() => handleRemoveMember(user._id, user.name)}
-                      disabled={removingUserId === user._id}
-                      className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-sm"
-                    >
-                      {removingUserId === user._id ? "Removing..." : "Remove"}
-                    </button>
-                  </div>
-                );
-              })}
-            </div>
-          )}
+                  );
+                })}
+              </div>
+            )}
+          </div>
         </div>
       </div>
-    </div>
+
+      {/* Confirmation Modal */}
+      {confirmingUser && (
+        <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-[60] p-4">
+          <div className="bg-white rounded-lg shadow-xl w-full max-w-sm p-6">
+            <h3 className="text-lg font-semibold mb-3 text-red-600">
+              ⚠️ Remove Member
+            </h3>
+            <p className="text-gray-700 mb-6">
+              Are you sure you want to remove{" "}
+              <strong>{confirmingUser.name}</strong> from the group{" "}
+              <strong>{group.name}</strong>?
+            </p>
+            <div className="flex justify-end gap-3">
+              <button
+                onClick={() => setConfirmingUser(null)}
+                className="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200"
+              >
+                No
+              </button>
+              <button
+                onClick={handleConfirmRemove}
+                disabled={removingUserId === confirmingUser._id}
+                className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
+              >
+                {removingUserId === confirmingUser._id
+                  ? "Removing..."
+                  : "Yes, Remove"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
   );
 }
 
@@ -567,10 +620,14 @@ function EditGroupModal({
       const data = await response.json();
       if (data.success) {
         setPhotoPreview(null);
-        alert("Group photo removed successfully");
+        toast.success(`Group photo removed successfully!`, {
+          position: "top-right",
+        });
         onSuccess?.();
       } else {
-        alert(`Failed to remove photo: ${data.message}`);
+        toast.error(`Failed to remove photo: ${data.message}`, {
+          position: "top-right",
+        });
       }
     } catch (error) {
       console.error("Error removing photo:", error);
