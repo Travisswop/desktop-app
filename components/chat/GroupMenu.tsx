@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import Image from "next/image";
 import isUrl from "@/lib/isUrl";
 import toast from "react-hot-toast";
+import { useUser } from "@/lib/UserContext";
 
 // ==================== TYPE DEFINITIONS ====================
 
@@ -589,6 +590,8 @@ function EditGroupModal({
   );
   const [isSaving, setIsSaving] = useState(false);
 
+  const { accessToken } = useUser();
+
   const handlePhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
@@ -602,22 +605,23 @@ function EditGroupModal({
   };
 
   const handleRemovePhoto = async () => {
-    if (!confirm("Are you sure you want to remove the group photo?")) return;
+    if (!confirm("Are you sure you want to remove the group photos?")) return;
 
     try {
-      const token = localStorage.getItem("token");
       const response = await fetch(
         `${process.env.NEXT_PUBLIC_API_URL}/api/v1/group/${group._id}/photo`,
         {
           method: "DELETE",
           headers: {
-            Authorization: `Bearer ${token}`,
+            Authorization: `Bearer ${accessToken}`,
             "Content-Type": "application/json",
           },
         }
       );
 
       const data = await response.json();
+      console.log("data response", data);
+
       if (data.success) {
         setPhotoPreview(null);
         toast.success(`Group photo removed successfully!`, {
@@ -631,20 +635,23 @@ function EditGroupModal({
       }
     } catch (error) {
       console.error("Error removing photo:", error);
-      alert("Error removing group photo");
+      toast.error("Error removing group photo", {
+        position: "top-right",
+      });
     }
   };
 
   const handleSave = async () => {
     if (!groupName.trim()) {
-      alert("Group name is required");
+      toast("Group name is required", {
+        position: "top-right",
+      });
       return;
     }
 
     setIsSaving(true);
 
     try {
-      const token = localStorage.getItem("token");
       let hasChanges = false;
 
       // Update name and description
@@ -657,7 +664,7 @@ function EditGroupModal({
           {
             method: "PUT",
             headers: {
-              Authorization: `Bearer ${token}`,
+              Authorization: `Bearer ${accessToken}`,
               "Content-Type": "application/json",
             },
             body: JSON.stringify({
@@ -693,7 +700,7 @@ function EditGroupModal({
           {
             method: "POST",
             headers: {
-              Authorization: `Bearer ${token}`,
+              Authorization: `Bearer ${accessToken}`,
             },
             body: formData,
           }
@@ -707,15 +714,21 @@ function EditGroupModal({
       }
 
       if (hasChanges) {
-        alert("Group updated successfully!");
+        toast.success("Group updated successfully!", {
+          position: "top-right",
+        });
         onSuccess?.();
         onClose();
       } else {
-        alert("No changes to save");
+        toast("No changes to save", {
+          position: "top-right",
+        });
       }
     } catch (error: any) {
       console.error("Error updating group:", error);
-      alert(`Error: ${error.message}`);
+      toast.error(`Error: ${error.message}`, {
+        position: "top-right",
+      });
     } finally {
       setIsSaving(false);
     }
@@ -849,17 +862,18 @@ function LeaveGroupModal({
 }) {
   const [isLeaving, setIsLeaving] = useState(false);
 
+  const { accessToken } = useUser();
+
   const handleLeave = async () => {
     setIsLeaving(true);
 
     try {
-      const token = localStorage.getItem("token");
       const response = await fetch(
         `${process.env.NEXT_PUBLIC_API_URL}/api/v1/group/${group._id}/leave`,
         {
           method: "POST",
           headers: {
-            Authorization: `Bearer ${token}`,
+            Authorization: `Bearer ${accessToken}`,
             "Content-Type": "application/json",
           },
         }
@@ -867,15 +881,21 @@ function LeaveGroupModal({
 
       const data = await response.json();
       if (data.success) {
-        alert("Left group successfully");
+        toast.success("Left group successfully", {
+          position: "top-right",
+        });
         onSuccess?.();
         onClose();
       } else {
-        alert(`Failed to leave group: ${data.message}`);
+        toast.error(`Failed to leave group: ${data.message}`, {
+          position: "top-right",
+        });
       }
     } catch (error) {
       console.error("Error leaving group:", error);
-      alert("Error leaving group");
+      toast.error("Error leaving group", {
+        position: "top-right",
+      });
     } finally {
       setIsLeaving(false);
     }
@@ -888,8 +908,8 @@ function LeaveGroupModal({
           🚪 Leave Group
         </h3>
         <p className="text-gray-700 mb-6">
-          Are you sure you want to leave the group{" "}
-          <strong>"{group.name}"</strong>?
+          Are you sure you want to leave the group <strong>{group.name}</strong>
+          ?
           <br />
           <br />
           You will no longer receive messages from this group and will need to
@@ -938,11 +958,15 @@ function DeleteGroupModal({
       { groupId: group._id },
       (response: SocketResponse) => {
         if (response.success) {
-          alert("Group deleted successfully");
+          toast.success("Group deleted successfully", {
+            position: "top-right",
+          });
           onSuccess?.();
           onClose();
         } else {
-          alert(`Failed to delete group: ${response.error}`);
+          toast.error(`Failed to delete group: ${response.error}`, {
+            position: "top-right",
+          });
         }
         setIsDeleting(false);
       }
@@ -957,7 +981,7 @@ function DeleteGroupModal({
         </h3>
         <p className="text-gray-700 mb-6">
           Are you sure you want to delete the group{" "}
-          <strong>"{group.name}"</strong>?
+          <strong>{group.name}</strong>?
           <br />
           <br />
           <strong className="text-red-600">

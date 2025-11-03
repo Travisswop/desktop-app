@@ -99,7 +99,8 @@ export default function ChatArea({
   );
 
   console.log("currentGroupData", currentGroupData);
-  console.log("selectedChat", selectedChat);
+  console.log("selectedChat in chat area", selectedChat);
+  console.log("messages", messages);
 
   // Pagination states
   const [currentPage, setCurrentPage] = useState<number>(1);
@@ -268,7 +269,9 @@ export default function ChatArea({
     if (isGroup) {
       socket.emit("join_group", { groupId: selectedChat._id });
     } else {
-      socket.emit("join_conversation", { receiverId: selectedChat._id });
+      socket.emit("join_conversation", {
+        receiverId: selectedChat?._id || selectedChat?.microsite?.parentId,
+      });
     }
 
     const handleNewMessage = (data: { message?: Message }) => {
@@ -392,6 +395,13 @@ export default function ChatArea({
   const handleSendMessage = () => {
     if (!newMessage.trim() || !socket || !selectedChat) return;
 
+    console.log({
+      receiverId: selectedChat._id,
+      message: newMessage,
+    });
+
+    console.log("is group gg", isGroup);
+
     const messageData = isGroup
       ? {
           groupId: selectedChat._id,
@@ -399,21 +409,30 @@ export default function ChatArea({
           messageType: "text" as const,
         }
       : {
-          receiverId: selectedChat._id,
+          receiverId: selectedChat?.microsite?.parentId,
           message: newMessage,
           messageType: "text" as const,
         };
+
+    console.log("messageData", messageData);
 
     const optimisticMessage: Message = {
       _id: `temp-${Date.now()}`,
       message: newMessage,
       sender: { _id: currentUser, name: "You" },
-      receiver: isGroup ? null : { _id: selectedChat._id, name: "" },
+      receiver: isGroup
+        ? null
+        : {
+            _id: selectedChat?.microsite?._id || "",
+            name: selectedChat?.microsite?.name || "",
+          },
       groupId: isGroup ? selectedChat._id : null,
       messageType: "text",
       createdAt: new Date().toISOString(),
       status: "sending",
     };
+
+    console.log("optimisticMessage", optimisticMessage);
 
     setMessages((prev) => [...prev, optimisticMessage]);
     setNewMessage("");
@@ -422,6 +441,8 @@ export default function ChatArea({
       isGroup ? "send_group_message" : "send_message",
       messageData,
       (response: SocketResponse) => {
+        console.log("send msg res", response);
+
         if (response?.success && response.message) {
           setMessages((prev) =>
             prev.map((msg) =>
