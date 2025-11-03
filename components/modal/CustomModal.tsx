@@ -94,10 +94,9 @@ const CustomModal: React.FC<CustomModalProps> = ({
                 Notice: no flex-1 here; the modal will grow/shrink with content and animate. */}
             <motion.div
               layout
-              transition={{ duration: 0.28, ease: "easeInOut" }}
+              transition={{ layout: { duration: 0.1, ease: "easeOut" } }}
               className="overflow-y-auto"
-              // limit height of content region so very tall content scrolls
-              style={{ maxHeight: "calc(90vh - 64px)" }} // subtract header height approximated
+              style={{ maxHeight: "calc(90vh - 64px)" }}
             >
               {children}
             </motion.div>

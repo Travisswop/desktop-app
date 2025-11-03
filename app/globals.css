@@ -49,6 +49,22 @@ body {
     --sidebar-accent-foreground: oklch(0.205 0 0);
     --sidebar-border: oklch(0.922 0 0);
     --sidebar-ring: oklch(0.708 0 0);
+
+    /* chat  */
+    --whatsapp-green: #25d366;
+    --whatsapp-green-dark: #128c7e;
+    --whatsapp-teal: #075e54;
+    --whatsapp-teal-dark: #054d44;
+    --whatsapp-light: #dcf8c6;
+    --whatsapp-blue: #34b7f1;
+    --whatsapp-bg-primary: #111b21;
+    --whatsapp-bg-secondary: #202c33;
+    --whatsapp-sidebar: #2a3942;
+    --whatsapp-hover: #2a3942;
+    --whatsapp-border: #303d45;
+    --whatsapp-input-bg: #2a3942;
+    --whatsapp-text-primary: #e9edef;
+    --whatsapp-text-secondary: #8696a0;
   }
   .dark {
     --background: 222.2 84% 4.9%;
@@ -93,6 +109,47 @@ body {
     --sidebar-ring: oklch(0.439 0 0);
   }
 }
+
+/* chat  */
+/* Message animations */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.message {
+  animation: fadeIn 0.3s ease-out;
+}
+
+/* Typing dots animation */
+.typing-dots span {
+  animation: typing 1.4s infinite ease-in-out;
+}
+
+.typing-dots span:nth-child(1) {
+  animation-delay: -0.32s;
+}
+.typing-dots span:nth-child(2) {
+  animation-delay: -0.16s;
+}
+
+@keyframes typing {
+  0%,
+  60%,
+  100% {
+    transform: translateY(0);
+  }
+  30% {
+    transform: translateY(-5px);
+  }
+}
+/* chat end  */
 
 @layer base {
   * {
