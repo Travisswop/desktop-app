@@ -2251,8 +2251,6 @@ export default function SwapTokenModal({
               swapDetails.outputToken.price
             ),
           });
-
-          console.log('✅ Swap notification sent via Socket.IO');
         } catch (notifError) {
           console.error(
             'Failed to send swap notification:',
