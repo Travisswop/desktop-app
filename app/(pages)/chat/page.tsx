@@ -26,6 +26,7 @@ import WalletManager from '@/components/wallet/wallet-manager';
 import { useNewSocketChat } from '@/lib/context/NewSocketChatContext';
 import NewChatBox from '@/components/wallet/chat/new-chat-box';
 import GroupChatBox from '@/components/wallet/chat/group-chat-box';
+import AstroChatBox from '@/components/wallet/chat/astro-chat-box';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useToast } from '@/hooks/use-toast';
 import { resolveEnsToUserId } from '@/lib/api/ensResolver';
@@ -170,10 +171,23 @@ const ChatPageContent = () => {
   const combinedChats = useMemo(() => {
     // Combine conversations and groups into a unified list
     const allItems: Array<{
-      type: 'direct' | 'group';
+      type: 'direct' | 'group' | 'astro';
       data: any;
       lastActivity: Date;
     }> = [];
+
+    // Add Astro AI bot at the top (pinned)
+    allItems.push({
+      type: 'astro',
+      data: {
+        _id: 'astro-bot',
+        name: 'Astro',
+        bio: 'Your AI-powered Solana assistant',
+        profilePic: '',
+        isPinned: true,
+      },
+      lastActivity: new Date(), // Always at top
+    });
 
     // Add conversations
     conversations.forEach(c => {
@@ -193,8 +207,10 @@ const ChatPageContent = () => {
       });
     });
 
-    // Sort by last activity (most recent first)
+    // Sort by last activity (most recent first), but keep Astro at top
+    const astro = allItems.shift(); // Remove Astro temporarily
     allItems.sort((a, b) => b.lastActivity.getTime() - a.lastActivity.getTime());
+    if (astro) allItems.unshift(astro); // Add Astro back at top
 
     return allItems;
   }, [conversations, groups]);
@@ -203,7 +219,16 @@ const ChatPageContent = () => {
     if (!searchQuery.trim()) return combinedChats;
 
     return combinedChats.filter((item) => {
-      if (item.type === 'direct') {
+      if (item.type === 'astro') {
+        // Astro bot is searchable by name "astro" or "ai"
+        const query = searchQuery.toLowerCase();
+        return (
+          'astro'.includes(query) ||
+          'ai'.includes(query) ||
+          'assistant'.includes(query) ||
+          'bot'.includes(query)
+        );
+      } else if (item.type === 'direct') {
         const conv = item.data;
         const participant = conv.participant || conv.participants?.[0];
         const name = participant?.name || conv.title || '';
@@ -544,6 +569,21 @@ const ChatPageContent = () => {
     await handleSelectConversation(userIdentifier, conversationData);
   };
 
+  const handleAstroClick = () => {
+    console.log('🤖 Selecting Astro AI bot');
+    setSelectedConversationId('astro-bot');
+    setSelectedRecipientId(null);
+    setMicrositeData({
+      name: 'Astro',
+      ethAddress: 'astro-bot',
+      bio: 'AI-powered Solana assistant',
+      ens: '',
+      profilePic: '',
+      profileUrl: '',
+    });
+    selectGroup(null as any);
+  };
+
   const handleGroupClick = async (group: any) => {
     console.log('🔍 Selecting group:', group);
 
@@ -727,7 +767,9 @@ const ChatPageContent = () => {
                     </div>
                   </div>
                 ) : isConnected && selectedConversationId ? (
-                  currentChatType === 'group' && currentGroupId ? (
+                  selectedConversationId === 'astro-bot' ? (
+                    <AstroChatBox />
+                  ) : currentChatType === 'group' && currentGroupId ? (
                     <GroupChatBox groupId={currentGroupId} />
                   ) : selectedRecipientId ? (
                     <NewChatBox
@@ -879,7 +921,15 @@ const ChatPageContent = () => {
                       </div>
                     )}
                     {filteredChats.map((item) => {
-                      if (item.type === 'direct') {
+                      if (item.type === 'astro') {
+                        return (
+                          <AstroList
+                            key="astro-bot"
+                            handleAstroClick={handleAstroClick}
+                            isSelected={selectedConversationId === 'astro-bot'}
+                          />
+                        );
+                      } else if (item.type === 'direct') {
                         const conv = item.data;
                         const participant =
                           conv.participant || conv.participants?.[0];
@@ -1136,6 +1186,49 @@ const GroupList = ({
           </div>
           <p className="text-sm text-gray-500 truncate mt-0.5">
             {memberCount} members • {lastMessage === 'No messages yet' ? 'Tap to start chatting' : lastMessage}
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const AstroList = ({
+  handleAstroClick,
+  isSelected = false,
+}: {
+  handleAstroClick: () => void;
+  isSelected?: boolean;
+}) => {
+  return (
+    <div
+      onClick={handleAstroClick}
+      className={`text-black flex items-center justify-between px-4 py-3 cursor-pointer transition-colors border-b border-gray-100/50 last:border-b-0 ${
+        isSelected ? 'bg-blue-50 border-l-4 border-l-blue-500' : 'hover:bg-blue-50'
+      }`}
+    >
+      <div className="flex items-center gap-3 flex-1">
+        <div className="relative">
+          <Avatar className="h-12 w-12 border-2 border-blue-500">
+            <AvatarImage src="/astro-avatar.png" alt="Astro AI Assistant" />
+            <AvatarFallback className="bg-gradient-to-br from-blue-500 to-purple-600 text-white font-bold text-lg">
+              🤖
+            </AvatarFallback>
+          </Avatar>
+          {/* AI Badge */}
+          <div className="absolute -top-1 -right-1 bg-blue-500 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs">
+            ✨
+          </div>
+        </div>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2">
+            <p className="font-semibold text-gray-900">Astro</p>
+            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800 border border-blue-200">
+              AI Assistant
+            </span>
+          </div>
+          <p className="text-sm text-blue-600 truncate mt-0.5">
+            Ask me about Solana transactions
           </p>
         </div>
       </div>
