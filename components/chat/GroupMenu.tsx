@@ -5,6 +5,7 @@ import Image from "next/image";
 import isUrl from "@/lib/isUrl";
 import toast from "react-hot-toast";
 import { useUser } from "@/lib/UserContext";
+import { Loader } from "lucide-react";
 
 // ==================== TYPE DEFINITIONS ====================
 
@@ -589,6 +590,7 @@ function EditGroupModal({
     group.settings?.groupInfo?.groupPicture || null
   );
   const [isSaving, setIsSaving] = useState(false);
+  const [isRemovingPhoto, setIsRemovingPhoto] = useState(false);
 
   const { accessToken } = useUser();
 
@@ -608,6 +610,7 @@ function EditGroupModal({
     if (!confirm("Are you sure you want to remove the group photos?")) return;
 
     try {
+      setIsRemovingPhoto(true);
       const response = await fetch(
         `${process.env.NEXT_PUBLIC_API_URL}/api/v1/group/${group._id}/photo`,
         {
@@ -628,16 +631,19 @@ function EditGroupModal({
           position: "top-right",
         });
         onSuccess?.();
+        setIsRemovingPhoto(false);
       } else {
         toast.error(`Failed to remove photo: ${data.message}`, {
           position: "top-right",
         });
+        setIsRemovingPhoto(false);
       }
     } catch (error) {
       console.error("Error removing photo:", error);
       toast.error("Error removing group photo", {
         position: "top-right",
       });
+      setIsRemovingPhoto(false);
     }
   };
 
@@ -790,7 +796,11 @@ function EditGroupModal({
                     onClick={handleRemovePhoto}
                     className="w-full px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700"
                   >
-                    🗑️ Remove Photo
+                    {isRemovingPhoto ? (
+                      <Loader className="w-6 h-auto animate-spin mx-auto text-white" />
+                    ) : (
+                      "🗑️ Remove Photo"
+                    )}
                   </button>
                 )}
               </div>
