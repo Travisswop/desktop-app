@@ -309,7 +309,7 @@ const FeedItem = memo(
                 <div className="shadow-medium bg-white rounded-lg mt-2 p-2 relative">
                   <Link
                     onClick={(e) => e.stopPropagation()}
-                    href={feed.content.link}
+                    href={feed?.content?.link || ""}
                     className="w-max"
                   >
                     <Image
@@ -318,9 +318,11 @@ const FeedItem = memo(
                       width={200}
                       height={200}
                     />
-                    <p className="text-center text-sm text-gray-500 font-medium">
-                      {feed.content.price}
-                    </p>
+                    {feed?.content?.price && (
+                      <p className="text-center text-sm text-gray-500 font-medium">
+                        {feed.content.price}
+                      </p>
+                    )}
                     <FiPlusCircle
                       className="absolute top-2 right-2"
                       size={24}

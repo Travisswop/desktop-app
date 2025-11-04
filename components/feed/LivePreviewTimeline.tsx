@@ -1,35 +1,26 @@
-'use client';
+"use client";
 
-import { getSmartsiteFeed } from '@/actions/postFeed';
-import Image from 'next/image';
-import React, {
-  useState,
-  useEffect,
-  useRef,
-  useCallback,
-} from 'react';
+import { getSmartsiteFeed } from "@/actions/postFeed";
+import Image from "next/image";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 // import { FaUser } from "react-icons/fa";
-import { GoDotFill } from 'react-icons/go';
-import dayjs from 'dayjs';
+import { GoDotFill } from "react-icons/go";
+import dayjs from "dayjs";
 // import PostTypeMedia from "./view/PostTypeMedia";
-import { HiDotsHorizontal } from 'react-icons/hi';
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from '@nextui-org/react';
-import relativeTime from 'dayjs/plugin/relativeTime';
+import { HiDotsHorizontal } from "react-icons/hi";
+import { Popover, PopoverContent, PopoverTrigger } from "@nextui-org/react";
+import relativeTime from "dayjs/plugin/relativeTime";
 // import Reaction from "./view/Reaction";
-import Link from 'next/link';
-import { FiPlusCircle } from 'react-icons/fi';
-import FeedLoading from '../loading/FeedLoading';
-import DeleteFeedModal from './DeleteFeedModal';
-import isUrl from '@/lib/isUrl';
-import { useUser } from '@/lib/UserContext';
-import { useRouter } from 'next/navigation';
+import Link from "next/link";
+import { FiPlusCircle } from "react-icons/fi";
+import FeedLoading from "../loading/FeedLoading";
+import DeleteFeedModal from "./DeleteFeedModal";
+import isUrl from "@/lib/isUrl";
+import { useUser } from "@/lib/UserContext";
+import { useRouter } from "next/navigation";
 // import IndividualFeedContent from "./IndividualFeedContent";
-import SmartsiteLivePreviewFeedMedia from './view/SmartsiteLivePreviewFeedMedia';
-import SmartsiteLivePreviewRepostContent from './SmartsiteLivePreviewRepostContent';
+import SmartsiteLivePreviewFeedMedia from "./view/SmartsiteLivePreviewFeedMedia";
+import SmartsiteLivePreviewRepostContent from "./SmartsiteLivePreviewRepostContent";
 
 dayjs.extend(relativeTime);
 
@@ -40,7 +31,7 @@ const LivePreviewTimeline = ({
   isPosting,
   setIsPostLoading,
   isFromPublicProfile = false,
-  micrositeId = '',
+  micrositeId = "",
 }: {
   accessToken: string;
   userId: string;
@@ -56,13 +47,13 @@ const LivePreviewTimeline = ({
   const observerRef = useRef<HTMLDivElement>(null);
   const isFetching = useRef(false);
   const pageRef = useRef(1);
-  const [smartsiteId, setSmartsiteId] = useState('');
+  const [smartsiteId, setSmartsiteId] = useState("");
 
   const { user } = useUser();
 
   useEffect(() => {
     if (user) {
-      setSmartsiteId(user.primaryMicrosite || '');
+      setSmartsiteId(user.primaryMicrosite || "");
     }
   }, [user]);
 
@@ -92,19 +83,13 @@ const LivePreviewTimeline = ({
           5
         )}...${receiver_wallet_address.slice(-5)}`;
 
-    if (transaction_type === 'nft') {
+    if (transaction_type === "nft") {
       return (
         <div>
           <p className="text-gray-600 text-sm">
-            Sent NFT{' '}
-            <span className="font-medium text-base">
-              {name || 'item'}
-            </span>{' '}
-            to{' '}
-            <span className="font-medium text-base">
-              {recipientDisplay}
-            </span>
-            .
+            Sent NFT{" "}
+            <span className="font-medium text-base">{name || "item"}</span> to{" "}
+            <span className="font-medium text-base">{recipientDisplay}</span>.
           </p>
           {image && (
             <div className="w-52">
@@ -116,33 +101,32 @@ const LivePreviewTimeline = ({
                 className="w-full h-auto"
               />
               <p className="text-sm text-gray-600 font-medium mt-0.5 text-center">
-                {amount} {currency || 'NFT'}
+                {amount} {currency || "NFT"}
               </p>
             </div>
           )}
         </div>
       );
-    } else if (transaction_type === 'token') {
+    } else if (transaction_type === "token") {
       return (
         <p className="text-gray-600 text-sm">
-          Transferred{' '}
+          Transferred{" "}
           <span className="font-medium">
             {amount.toFixed(2)} {token}
-          </span>{' '}
+          </span>{" "}
           {tokenPrice && (
             <span className="text-sm text-gray-600 font-medium mt-0.5">
               (${Number(tokenPrice).toFixed(2)})
             </span>
-          )}{' '}
-          tokens to{' '}
-          <span className="font-medium">{recipientDisplay}</span> on
+          )}{" "}
+          tokens to <span className="font-medium">{recipientDisplay}</span> on
           the {chain}.
         </p>
       );
     } else {
       return (
         <p className="text-gray-600 text-sm">
-          Executed a {transaction_type} transaction involving {amount}{' '}
+          Executed a {transaction_type} transaction involving {amount}{" "}
           {currency}.
         </p>
       );
@@ -155,9 +139,7 @@ const LivePreviewTimeline = ({
       isFetching.current = true;
 
       const currentPage = reset ? 1 : pageRef.current;
-      const url = `${
-        process.env.NEXT_PUBLIC_API_URL
-      }/api/v1/feed/smartsite/${
+      const url = `${process.env.NEXT_PUBLIC_API_URL}/api/v1/feed/smartsite/${
         micrositeId ? micrositeId : smartsiteId
       }?page=${currentPage}&limit=5`;
       const newFeedData = await getSmartsiteFeed(url, accessToken);
@@ -215,9 +197,7 @@ const LivePreviewTimeline = ({
   useEffect(() => {
     if (!hasMore) return;
 
-    const observerCallback = (
-      entries: IntersectionObserverEntry[]
-    ) => {
+    const observerCallback = (entries: IntersectionObserverEntry[]) => {
       if (entries[0].isIntersecting && !isFetching.current) {
         fetchFeedData();
       }
@@ -225,7 +205,7 @@ const LivePreviewTimeline = ({
 
     const observer = new IntersectionObserver(observerCallback, {
       root: null,
-      rootMargin: '0px',
+      rootMargin: "0px",
       threshold: 1.0,
     });
 
@@ -241,8 +221,8 @@ const LivePreviewTimeline = ({
     <div
       className={`flex flex-col gap-2  mx-2 bg-white py-3  text-sm h-96 overflow-y-auto hide-scrollbar ${
         isFromPublicProfile
-          ? 'w-full px-3 shadow-medium rounded-xl mt-1'
-          : 'px-1 rounded-lg mt-2'
+          ? "w-full px-3 shadow-medium rounded-xl mt-1"
+          : "px-1 rounded-lg mt-2"
       }`}
     >
       {feedData.map((feed, index) => (
@@ -253,8 +233,7 @@ const LivePreviewTimeline = ({
           <div className="min-w-8 h-8">
             {(() => {
               const profilePic =
-                feed?.smartsiteId?.profilePic ||
-                feed?.smartsiteProfilePic;
+                feed?.smartsiteId?.profilePic || feed?.smartsiteProfilePic;
               return profilePic && isUrl(profilePic) ? (
                 <Image
                   alt="user image"
@@ -276,14 +255,14 @@ const LivePreviewTimeline = ({
               );
             })()}
           </div>
-          <div className={`${isFromPublicProfile && 'w-full'}`}>
+          <div className={`${isFromPublicProfile && "w-full"}`}>
             {/* User and Feed Information */}
             <div
               className={`${
-                isFromPublicProfile && 'w-full'
+                isFromPublicProfile && "w-full"
               } flex items-start justify-between`}
             >
-              <div className={`${isFromPublicProfile && 'w-full'}`}>
+              <div className={`${isFromPublicProfile && "w-full"}`}>
                 <button
                   onClick={() => router.push(`/feed/${feed._id}`)}
                   className="flex flex-wrap gap-x-1 items-center"
@@ -291,13 +270,11 @@ const LivePreviewTimeline = ({
                   <p className="text-gray-700 font-semibold">
                     {feed?.smartsiteId?.name ||
                       feed?.smartsiteUserName ||
-                      'Anonymous'}
+                      "Anonymous"}
                   </p>
                   <GoDotFill size={6} />
                   <p className="text-gray-500 font-normal">
-                    {feed?.smartsiteId?.ens ||
-                      feed?.smartsiteEnsName ||
-                      'n/a'}
+                    {feed?.smartsiteId?.ens || feed?.smartsiteEnsName || "n/a"}
                   </p>
                   <GoDotFill size={6} />
                   <p className="text-gray-500 font-normal">
@@ -305,15 +282,15 @@ const LivePreviewTimeline = ({
                   </p>
                 </button>
                 {/* Redeem Content */}
-                {feed.postType === 'redeem' && (
+                {feed.postType === "redeem" && (
                   <button
                     onClick={() => router.push(`/feed/${feed._id}`)}
                     className="flex flex-col gap-2 text-gray-600 text-sm"
                   >
                     <div>
                       <p>
-                        Created a new {feed.content.redeemName}{' '}
-                        Redeemable Link -{' '}
+                        Created a new {feed.content.redeemName} Redeemable Link
+                        -{" "}
                         <a
                           href={feed.content.link}
                           target="_blank"
@@ -342,14 +319,14 @@ const LivePreviewTimeline = ({
                   </button>
                 )}
 
-                {feed.postType === 'swapTransaction' && (
+                {feed.postType === "swapTransaction" && (
                   <div className="w-full flex justify-start mt-1">
                     <button
                       onClick={() => router.push(`/feed/${feed._id}`)}
                       className="w-full max-w-xl"
                       style={{
-                        background: 'transparent',
-                        border: 'none',
+                        background: "transparent",
+                        border: "none",
                         padding: 0,
                       }}
                     >
@@ -360,7 +337,7 @@ const LivePreviewTimeline = ({
                               <Image
                                 src={
                                   feed.content.inputToken.tokenImg.startsWith(
-                                    'https'
+                                    "https"
                                   )
                                     ? feed.content.inputToken.tokenImg
                                     : `/assets/crypto-icons/${feed.content.inputToken.symbol}.png`
@@ -373,10 +350,9 @@ const LivePreviewTimeline = ({
                               <Image
                                 src={
                                   feed.content.outputToken.tokenImg.startsWith(
-                                    'https'
+                                    "https"
                                   )
-                                    ? feed.content.outputToken
-                                        .tokenImg
+                                    ? feed.content.outputToken.tokenImg
                                     : `/assets/crypto-icons/${feed.content.outputToken.symbol}.png`
                                 }
                                 alt={feed.content.outputToken.symbol}
@@ -392,7 +368,7 @@ const LivePreviewTimeline = ({
                             </p>
                             <p className="text-xs text-gray-400">
                               {dayjs(feed.createdAt).format(
-                                'MMM D, YYYY h:mm A'
+                                "MMM D, YYYY h:mm A"
                               )}
                             </p>
                           </div>
@@ -400,13 +376,11 @@ const LivePreviewTimeline = ({
 
                         <div className="flex items-center justify-between">
                           <div className="flex flex-col">
-                            <p className="text-sm text-gray-600">
-                              You sent
-                            </p>
+                            <p className="text-sm text-gray-600">You sent</p>
                             <p className="text-base font-semibold text-red-600">
-                              {Number(
-                                feed.content.inputToken.amount
-                              ).toFixed(2)}{' '}
+                              {Number(feed.content.inputToken.amount).toFixed(
+                                2
+                              )}{" "}
                               {feed.content.inputToken.symbol}
                             </p>
                           </div>
@@ -428,9 +402,9 @@ const LivePreviewTimeline = ({
                               You received
                             </p>
                             <p className="text-base font-semibold text-green-600">
-                              {Number(
-                                feed.content.outputToken.amount
-                              ).toFixed(2)}{' '}
+                              {Number(feed.content.outputToken.amount).toFixed(
+                                2
+                              )}{" "}
                               {feed.content.outputToken.symbol}
                             </p>
                           </div>
@@ -480,14 +454,11 @@ const LivePreviewTimeline = ({
                   </div>
                 )}
                 {/* Post Content */}
-                {(feed.postType === 'post' ||
-                  feed.postType === 'repost') &&
+                {(feed.postType === "post" || feed.postType === "repost") &&
                   feed.content.title && (
-                    <button
-                      onClick={() => router.push(`/feed/${feed._id}`)}
-                    >
+                    <button onClick={() => router.push(`/feed/${feed._id}`)}>
                       {feed.content.title
-                        .split('\n')
+                        .split("\n")
                         .map((line: any, index: number) => (
                           <p
                             className="break-text text-start text-sm"
@@ -498,12 +469,11 @@ const LivePreviewTimeline = ({
                         ))}
                     </button>
                   )}
-                {feed.postType === 'repost' &&
-                feed.repostedPostDetails ? (
+                {feed.postType === "repost" && feed.repostedPostDetails ? (
                   <SmartsiteLivePreviewRepostContent feed={feed} />
                 ) : (
                   // <p>feed repost details</p>
-                  feed.postType === 'repost' &&
+                  feed.postType === "repost" &&
                   !feed.repostedPostDetails && (
                     <div className="p-4 bg-blue-50 rounded-lg border border-blue-100 text-blue-800 text-sm mt-1">
                       <div className="flex items-start">
@@ -519,12 +489,9 @@ const LivePreviewTimeline = ({
                           />
                         </svg>
                         <div>
-                          <p className="font-medium">
-                            Content Removed
-                          </p>
+                          <p className="font-medium">Content Removed</p>
                           <p className="mt-1 text-blue-700">
-                            The original poster has deleted this
-                            content
+                            The original poster has deleted this content
                           </p>
                         </div>
                       </div>
@@ -532,29 +499,29 @@ const LivePreviewTimeline = ({
                   )
                 )}
                 {/* Additional Post Types */}
-                {feed.postType === 'connection' && (
+                {feed.postType === "connection" && (
                   <button
                     onClick={() => router.push(`/feed/${feed._id}`)}
                     className="text-gray-600 text-sm"
                   >
-                    Connected with{' '}
+                    Connected with{" "}
                     <span className="text-gray-700 font-medium text-base">
                       {feed.content.connectedSmartsiteName}
                     </span>
                   </button>
                 )}
-                {feed.postType === 'ensClaim' && (
+                {feed.postType === "ensClaim" && (
                   <button
                     onClick={() => router.push(`/feed/${feed._id}`)}
                     className="text-gray-600 text-sm"
                   >
-                    Claim a new ENS{' '}
+                    Claim a new ENS{" "}
                     <span className="text-gray-700 font-medium text-base">
                       {feed.content.claimEnsName}
                     </span>
                   </button>
                 )}
-                {feed.postType === 'transaction' &&
+                {feed.postType === "transaction" &&
                   renderTransactionContent(feed)}
               </div>
               {userId === feed.userId && (
@@ -586,26 +553,28 @@ const LivePreviewTimeline = ({
             </div>
             <div>
               {/* Post Media */}
-              {feed.postType === 'post' &&
+              {feed.postType === "post" &&
                 feed.content.post_content.length > 0 && (
                   <SmartsiteLivePreviewFeedMedia
                     mediaFiles={feed.content.post_content}
                   />
                 )}
-              {feed.postType === 'minting' && (
+              {feed.postType === "minting" && (
                 <div className="w-max">
                   <p>{feed.content.title}</p>
                   <div className="shadow-medium bg-white rounded-lg mt-2 p-2 relative">
-                    <Link href={feed.content.link} className="w-max">
+                    <Link href={feed?.content?.link || ""} className="w-max">
                       <Image
                         src={feed.content.image}
                         alt="nft image"
                         width={200}
                         height={200}
                       />
-                      <p className="text-center text-sm text-gray-500 font-medium">
-                        {feed.content.price}
-                      </p>
+                      {feed?.content?.price && (
+                        <p className="text-center text-sm text-gray-500 font-medium">
+                          {feed.content.price}
+                        </p>
+                      )}
                       <FiPlusCircle
                         className="absolute top-2 right-2"
                         size={24}
