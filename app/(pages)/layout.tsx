@@ -10,9 +10,7 @@ const PageLayout = ({ children }: { children: React.ReactNode }) => {
         {/* <Sidenav /> */}
         <div className="flex flex-col w-full">
           <Header />
-          <main className="container mx-auto px-6 py-6 max-w-7xl 2xl:max-w-full flex-1">
-            {children}
-          </main>
+          <main className="p-6 flex-1 w-full">{children}</main>
           {/* use suspense to solve searchParams error update */}
           <Suspense fallback={""}>
             <BottomNavContent />
