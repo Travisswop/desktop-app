@@ -284,7 +284,7 @@ const CreateSmartSite = ({ token }: { token: string }) => {
 
   return (
     <div className="h-[calc(100vh-150px)] overflow-hidden">
-      <div className="w-[62%] mx-auto bg-white py-4 px-[10%] rounded-xl h-full overflow-y-auto">
+      <div className="w-full lg:w-[84%] xl:w-[72%] 2xl:w-[68%] mx-auto bg-white py-4 px-[4%] lg:px-[10%] rounded-xl h-full overflow-y-auto">
         <form
           onSubmit={handleSmartSiteUpdateInfo}
           className="flex flex-col gap-4 overflow-auto"
@@ -395,7 +395,7 @@ const CreateSmartSite = ({ token }: { token: string }) => {
               </div>
             </div>
           </div>
-          <div className="flex items-start justify-between gap-6">
+          <div className="flex flex-col sm:flex-row flex-wrap items-start justify-between gap-x-6 gap-y-3">
             <Select
               variant="bordered"
               selectedKeys={[formData.fontType]}
@@ -442,8 +442,8 @@ const CreateSmartSite = ({ token }: { token: string }) => {
               </div>
             </div>
             <div>
-              <p className="text-sm font-medium text-end">Templates Color</p>
-              <div className="flex items-center justify-end gap-2 mt-1 w-36">
+              <p className="text-sm font-medium sm:text-end">Templates Color</p>
+              <div className="flex items-center sm:justify-end gap-2 mt-1 w-36">
                 <button
                   type="button"
                   onClick={() => setFormData("templateColor", "#000000")}
