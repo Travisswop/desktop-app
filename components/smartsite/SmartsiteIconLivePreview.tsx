@@ -1,3 +1,4 @@
+"use client";
 import Image from "next/image";
 import React, { useEffect, useState } from "react";
 import swop from "@/public/images/live-preview/swop.svg";
@@ -47,7 +48,6 @@ import Cookies from "js-cookie";
 import { MdDelete, MdDeleteForever } from "react-icons/md";
 import { handleDeleteMarketPlace } from "@/actions/handleMarketPlace";
 import { RiDeleteBinFill } from "react-icons/ri";
-import Timeline from "../feed/Timeline";
 import LivePreviewTimeline from "../feed/LivePreviewTimeline";
 // import { access } from "fs";
 // import mobileMockup from "@/public/images/mobile-mockup.png";
@@ -265,21 +265,21 @@ const SmartsiteIconLivePreview = ({
   const socialRows = distributeIcons(data.info.socialTop);
 
   return (
-    <main className="w-[38%] h-full overflow-y-auto overflow-x-hidden">
-      <div className="bg-[url('/images/mobile-mockup.png')] bg-cover bg-center h-[37rem] w-72 mx-auto relative rounded-3xl mt-6 ">
+    <div
+      style={{
+        backgroundImage: formData.theme
+          ? `url(/images/smartsite-background/${formData.backgroundImg}.png)`
+          : "",
+      }}
+      className="max-w-screen h-[calc(100vh-96px)] overflow-hidden bg-cover -m-6"
+    >
+      <div className="relative min-w-96 max-w-[500px] mx-auto h-full overflow-y-auto hide-scrollbar">
         <section
-          style={{
-            backgroundImage: formData.theme
-              ? `url(/images/smartsite-background/${formData.backgroundImg}.png)`
-              : "",
-            height: "100%",
-          }}
-          className={`overflow-y-auto shadow-medium bg-white bg-cover hide-scrollbar rounded-3xl ${
+          className={`${
             formData.fontType && fontMap[formData.fontType.toLowerCase()]
           }`}
         >
-          {/* <p className="text-sm text-gray-500 mb-2">Preview</p> */}
-          <div className={`flex flex-col justify-between min-h-full`}>
+          <div className={`flex flex-col justify-between`}>
             <div>
               <div className="relative">
                 {!formData.theme && (
@@ -305,40 +305,24 @@ const SmartsiteIconLivePreview = ({
                   {formData.profileImg && (
                     <>
                       {isUrl(formData.profileImg) ? (
-                        <div className="relative overflow-hidden rounded-full w-20 h-20 p-1 bg-white shadow-medium">
+                        <div className="relative w-28 xl:w-32 h-28 xl:h-32 overflow-hidden border-3 border-white rounded-full">
                           <Image
                             alt="user image"
                             src={formData.profileImg}
                             quality={100}
                             fill
                           />
-                          {/* <Link
-                            href={`/smartsite/${data._id}`}
-                            className="absolute bottom-0 -right-1 bg-white rounded-full w-[26px] h-[26px] flex items-center justify-center p-0.5"
-                          >
-                            <div className="bg-black rounded-full w-full h-full flex items-center justify-center font-bold">
-                              <TbEdit size={14} color="white" />
-                            </div>
-                          </Link> */}
                         </div>
                       ) : (
-                        <div className="w-20 h-20 relative mx-auto">
+                        <div className="w-28 xl:w-32 h-28 xl:h-32 overflow-hidden border-3 border-white rounded-full">
                           <Image
                             alt="user image"
                             src={`/images/user_avator/${formData.profileImg}@3x.png`}
-                            width={420}
-                            height={420}
+                            width={1200}
+                            height={1200}
                             quality={100}
-                            className="rounded-full w-20 h-20 bg-white shadow-medium border-2 border-gray-200 z-0"
+                            className="w-full h-full shadow-medium"
                           />
-                          {/* <Link
-                            href={`/smartsite/${data._id}`}
-                            className="absolute bottom-0.5 right-0.5 bg-white rounded-full w-[23px] h-[23px] flex items-center justify-center p-0.5"
-                          >
-                            <div className="bg-black rounded-full w-full h-full flex items-center justify-center font-bold">
-                              <TbEdit size={14} color="white" />
-                            </div>
-                          </Link> */}
                         </div>
                       )}
                     </>
@@ -360,7 +344,7 @@ const SmartsiteIconLivePreview = ({
                     style={{
                       color: formData.fontColor && formData.fontColor,
                     }}
-                    className={`font-medium text-gray-700`}
+                    className={`font-medium text-lg text-gray-700`}
                   >
                     {formData.name || data?.name}
                   </p>
@@ -368,7 +352,7 @@ const SmartsiteIconLivePreview = ({
                     style={{
                       color: formData.fontColor ? formData.fontColor : "gray",
                     }}
-                    className={`font-medium text-xs text-gray-500`}
+                    className={`font-medium text-sm text-gray-500`}
                   >
                     {formData.bio || data?.bio}
                   </p>
@@ -405,7 +389,9 @@ const SmartsiteIconLivePreview = ({
                                 }
                               : tintStyle
                           }
-                          className="w-4 h-auto"
+                          className="w-5 h-auto"
+                          width={1200}
+                          height={1200}
                           quality={100}
                         />
                       </button>
@@ -547,7 +533,7 @@ const SmartsiteIconLivePreview = ({
                               ? formData.fontColor
                               : "black",
                           }}
-                          className="text-xs text-center"
+                          className="text-xs font-medium text-center"
                         >
                           {data.name}
                         </p>
@@ -1400,7 +1386,7 @@ const SmartsiteIconLivePreview = ({
           </div>
         </ModalContent>
       </Modal>
-    </main>
+    </div>
   );
 };
 

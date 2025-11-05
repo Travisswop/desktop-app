@@ -14,12 +14,9 @@ import { IoDuplicateOutline } from "react-icons/io5";
 import { TbTransfer } from "react-icons/tb";
 import { Checkbox } from "@nextui-org/react";
 import { BsSend } from "react-icons/bs";
-import { useRouter } from "next/navigation";
 
 const SmartsitePage = () => {
   const { user, loading, accessToken } = useUser();
-
-  const router = useRouter();
 
   const { data, error, isLoading } = useDesktopUserData(
     user?._id,
@@ -65,10 +62,7 @@ const SmartsitePage = () => {
               key={microsite._id}
               className="bg-white p-4 rounded-xl shadow-small"
             >
-              <div
-                onClick={() => router.push(`/smartsite/${microsite._id}`)}
-                className="flex justify-between items-start mb-3 relative cursor-pointer"
-              >
+              <div className="flex justify-between items-start mb-3 relative">
                 <Checkbox onClick={(e) => e.stopPropagation()} />
                 <div className="flex-1 flex justify-center">
                   <Image
@@ -87,7 +81,7 @@ const SmartsitePage = () => {
                 <SmartsiteSocialShare
                   profileUrl={microsite.ens || microsite?.ensData?.name}
                   isAbsolute={false}
-                  className="bg-white hover:bg-white border-2 border-gray-600 !px-1.5 2xl:!px-2 !py-1.5 2xl:!py-2"
+                  className="bg-white hover:bg-white shadow-medium"
                 >
                   <BsSend size={18} />
                 </SmartsiteSocialShare>

@@ -1,5 +1,5 @@
 import React from "react";
-import EditSmartSite from "../../../../components/smartsite/EditMicrosite/mainContent";
+import EditSmartSite from "../../../../../components/smartsite/EditMicrosite/mainContent";
 import getSingleSmartsiteData from "@/actions/singleSmartsiteDataFetching";
 import { cookies } from "next/headers";
 

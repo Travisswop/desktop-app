@@ -28,7 +28,6 @@ import smatsiteBannerImageList from "@/components/util/data/smartsiteBannerImage
 import smatsiteBackgroundImageList from "@/components/util/data/smatsiteBackgroundImageList";
 import AnimateButton from "@/components/ui/Button/AnimateButton";
 import { sendCloudinaryImage } from "@/lib/SendCloudinaryImage";
-import SmartsiteIconLivePreview from "../SmartsiteIconLivePreview";
 import { useDesktopUserData } from "@/components/tanstackQueryApi/getUserData";
 import { MdDeleteOutline, MdDone } from "react-icons/md";
 import Swal from "sweetalert2";
