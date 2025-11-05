@@ -25,8 +25,6 @@ import isUrl from "@/lib/isUrl";
 import { useState } from "react";
 import swopLogo from "@/public/images/swop.png";
 import swopWorldLogo from "@/public/images/swop-world.png";
-import bellIcon from "@/public/images/bell-icon.png";
-import { BiMessageRoundedDots, BiMessageSquareDots } from "react-icons/bi";
 import { useSolanaWallets } from "@privy-io/react-auth/solana";
 import { AiOutlineMessage } from "react-icons/ai";
 import { NotificationBell } from "@/components/notifications";
@@ -128,7 +126,7 @@ export default function Header() {
         </Link>
         <div className=" flex items-center justify-end">
           <div>
-            <Link href="/chat">
+            <Link href="/dashboard/chat">
               <button className="rounded-full w-[38px] h-[38px] bg-black flex items-center justify-center">
                 <AiOutlineMessage color="white" size={19} />
               </button>

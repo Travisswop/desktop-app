@@ -8,7 +8,7 @@ const CreateSmartSitePage = async () => {
   // Retrieve data from specific cookie
   const accessToken = (await cookieStore).get("access-token")?.value;
 
-  return <div>{accessToken && <CreateSmartSite token={accessToken} />}</div>;
+  return <main>{accessToken && <CreateSmartSite token={accessToken} />}</main>;
 };
 
 export default CreateSmartSitePage;

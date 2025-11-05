@@ -1,12 +1,6 @@
 "use client";
-// import SecondaryButton from "@/components/SecondaryButton";
-// import { Checkbox, useDisclosure } from "@nextui-org/react";
 import Image from "next/image";
 import React from "react";
-// import { AiOutlineSelect } from "react-icons/ai";
-// import { BsSend, BsSendFill } from "react-icons/bs";
-// import { IoDuplicateOutline } from "react-icons/io5";
-// import { TbTransfer } from "react-icons/tb";
 import { LiaFileMedicalSolid } from "react-icons/lia";
 import Link from "next/link";
 import ButtonList from "@/components/smartsite/ButtonList";
@@ -21,23 +15,18 @@ import { TbTransfer } from "react-icons/tb";
 import { Checkbox } from "@nextui-org/react";
 import { BsSend } from "react-icons/bs";
 import { useRouter } from "next/navigation";
-// import ButtonList from "@/components/smartsiteList/ButtonList";
-// import SmartSiteUrlShareModal from "@/components/ShareModal/SmartsiteShareModal";
-// import SmartsiteSocialShare from "@/components/SmartsiteSocialShare";
-// import { useUser } from "@/lib/UserContext";
 
 const SmartsitePage = () => {
   const { user, loading, accessToken } = useUser();
 
   const router = useRouter();
 
-  const {
-    data,
-    error,
-    isLoading,
-    // isFetching,
-    //refetch,
-  } = useDesktopUserData(user?._id, accessToken || "");
+  const { data, error, isLoading } = useDesktopUserData(
+    user?._id,
+    accessToken || ""
+  );
+
+  console.log("data", data);
 
   if (loading) {
     return <SmartSitePageLoading />;
@@ -96,7 +85,7 @@ const SmartsitePage = () => {
                   />
                 </div>
                 <SmartsiteSocialShare
-                  profileUrl={microsite.profileUrl}
+                  profileUrl={microsite.ens || microsite?.ensData?.name}
                   isAbsolute={false}
                   className="bg-white hover:bg-white border-2 border-gray-600 !px-1.5 2xl:!px-2 !py-1.5 2xl:!py-2"
                 >
