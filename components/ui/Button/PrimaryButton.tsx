@@ -27,7 +27,7 @@ export const PrimaryButton = React.forwardRef<HTMLButtonElement, ButtonProps>(
       "inline-flex items-center justify-center font-medium rounded-lg disabled:opacity-50 disabled:cursor-not-allowed";
 
     const variants: Record<string, string> = {
-      primary: "bg-gray-200 text-black hover:bg-gray-300",
+      primary: "bg-slate-100 text-black hover:bg-slate-200",
       secondary: "bg-black text-white hover:bg-gray-800",
       outline:
         "border border-gray-300 text-gray-800 hover:bg-gray-100 focus:ring-gray-300",

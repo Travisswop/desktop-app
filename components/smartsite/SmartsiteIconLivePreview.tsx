@@ -49,6 +49,7 @@ import { MdDelete, MdDeleteForever } from "react-icons/md";
 import { handleDeleteMarketPlace } from "@/actions/handleMarketPlace";
 import { RiDeleteBinFill } from "react-icons/ri";
 import LivePreviewTimeline from "../feed/LivePreviewTimeline";
+import UpdateModalComponents from "./EditMicrosite/UpdateModalComponents";
 // import { access } from "fs";
 // import mobileMockup from "@/public/images/mobile-mockup.png";
 // import { TbEdit } from "react-icons/tb";
@@ -63,6 +64,9 @@ const SmartsiteIconLivePreview = ({
   const setSmartSiteData = useUpdateSmartIcon((state: any) => state.setState);
   const { toggle } = useSideBarToggleStore();
 
+  const { isOn, setOff, setOn }: any = useSmallIconToggleStore();
+  const iconData: any = useUpdateSmartIcon();
+
   const [isPrimaryMicrosite, setIsPrimaryMicrosite] = useState<boolean>(false);
   const [isLeadCapture, setIsLeadCapture] = useState<boolean>(false);
 
@@ -72,8 +76,6 @@ const SmartsiteIconLivePreview = ({
   const { formData, setFormData } = useSmartsiteFormStore();
 
   // console.log("form data from live preview data", data.info.socialLarge);
-
-  const { setOn }: any = useSmallIconToggleStore();
 
   const [accessToken, setAccessToken] = useState("");
 
@@ -1356,6 +1358,8 @@ const SmartsiteIconLivePreview = ({
           </div>
         </div>
       )}
+
+      <UpdateModalComponents isOn={isOn} iconData={iconData} setOff={setOff} />
 
       <Modal
         // size="4xl"
