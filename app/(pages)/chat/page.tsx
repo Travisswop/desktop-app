@@ -581,7 +581,8 @@ const ChatPageContent = () => {
       profilePic: '',
       profileUrl: '',
     });
-    selectGroup(null as any);
+    // Clear group selection when selecting Astro (it's a direct chat, not a group)
+    selectGroup(null);
   };
 
   const handleGroupClick = async (group: any) => {

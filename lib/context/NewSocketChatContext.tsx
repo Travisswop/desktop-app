@@ -467,7 +467,7 @@ interface SocketChatContextType {
   joinConversation: (
     receiverId: string
   ) => Promise<{ success: boolean; error?: string }>;
-  selectGroup: (group: GroupChat) => void;
+  selectGroup: (group: GroupChat | null) => void;
   connect: () => void;
   disconnect: () => void;
 }
@@ -486,7 +486,7 @@ interface SocketChatProviderProps {
 export const SocketChatProvider = ({
   children,
 }: SocketChatProviderProps) => {
-  const { user: privyUser, authenticated } = usePrivy();
+  const { user: privyUser } = usePrivy();
 
   // Connection state
   const [socket, setSocket] = useState<Socket | null>(null);
@@ -1832,7 +1832,16 @@ export const SocketChatProvider = ({
     [socket, isConnected, refreshGroups, currentGroupId]
   );
 
-  const selectGroup = useCallback((group: GroupChat) => {
+  const selectGroup = useCallback((group: GroupChat | null) => {
+    if (!group) {
+      // Clear group selection (e.g., when selecting Astro or direct chat)
+      setCurrentChatType('direct');
+      setCurrentGroupId(null);
+      setCurrentGroupInfo(null);
+      setIsInGroupWithBots(false);
+      return;
+    }
+
     setCurrentChatType('group');
     setCurrentGroupId(group._id);
     setCurrentGroupInfo(group);

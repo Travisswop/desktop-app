@@ -9,7 +9,6 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Badge } from '@/components/ui/badge';
 import { Card } from '@/components/ui/card';
 import { useAIAgent } from '@/hooks/useAIAgent';
-import { usePrivyUser } from '@/lib/hooks/usePrivyUser';
 import { cn } from '@/lib/utils';
 
 interface AstroMessage {
@@ -25,7 +24,7 @@ interface AstroMessage {
 }
 
 export default function AstroChatBox() {
-  const { jwtToken } = usePrivyUser();
+  const [accessToken, setAccessToken] = useState<string | null>(null);
   const {
     isConnected,
     messages: aiMessages,
@@ -38,7 +37,7 @@ export default function AstroChatBox() {
     error: aiError,
     connect,
     clearError,
-  } = useAIAgent({ autoConnect: false, token: jwtToken || '' });
+  } = useAIAgent({ autoConnect: false, token: accessToken || '' });
 
   const [inputValue, setInputValue] = useState('');
   const [localMessages, setLocalMessages] = useState<AstroMessage[]>([]);
@@ -51,12 +50,59 @@ export default function AstroChatBox() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
+  // Get access token from cookies
+  useEffect(() => {
+    const getTokenFromCookies = () => {
+      if (typeof document === 'undefined') return null;
+
+      const cookies = document.cookie.split(';');
+      for (let cookie of cookies) {
+        const [name, value] = cookie.trim().split('=');
+        if (name === 'access-token') {
+          const decodedValue = decodeURIComponent(value);
+
+          // Validate token format
+          const parts = decodedValue.split('.');
+          if (parts.length !== 3) {
+            console.error('[AstroChat] Invalid JWT format');
+            return null;
+          }
+
+          return decodedValue;
+        }
+      }
+      return null;
+    };
+
+    // Wait for token with retry logic
+    const waitForToken = async (maxRetries = 10, delay = 500): Promise<string | null> => {
+      for (let i = 0; i < maxRetries; i++) {
+        const token = getTokenFromCookies();
+        if (token) {
+          return token;
+        }
+        console.log(`[AstroChat] Waiting for access-token... (attempt ${i + 1}/${maxRetries})`);
+        await new Promise((resolve) => setTimeout(resolve, delay));
+      }
+      return null;
+    };
+
+    waitForToken().then((token) => {
+      if (token) {
+        console.log('[AstroChat] Access token found');
+        setAccessToken(token);
+      } else {
+        console.error('[AstroChat] No access token found');
+      }
+    });
+  }, []);
+
   // Auto-connect when token is available
   useEffect(() => {
-    if (jwtToken && !isConnected) {
-      connect(jwtToken);
+    if (accessToken && !isConnected) {
+      connect(accessToken);
     }
-  }, [jwtToken, isConnected, connect]);
+  }, [accessToken, isConnected, connect]);
 
   // Convert AI agent messages to local format
   useEffect(() => {

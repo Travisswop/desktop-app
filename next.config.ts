@@ -1,7 +1,23 @@
 import type { NextConfig } from 'next';
 
+const isDev = process.env.NODE_ENV === 'development';
+const isLowMemory = process.env.LOW_MEMORY_MODE === 'true';
+
 const nextConfig: NextConfig = {
   reactStrictMode: true,
+
+  // Optimize for low memory during development
+  ...(isDev && {
+    productionBrowserSourceMaps: false,
+    experimental: {
+      optimizePackageImports: ['lucide-react', '@radix-ui/react-icons'],
+    },
+  }),
+
+  ...(isDev && isLowMemory && {
+    swcMinify: true,
+  }),
+
   typescript: {
     ignoreBuildErrors:
       process.env.NEXT_PUBLIC_IGNORE_BUILD_ERROR === 'true',
