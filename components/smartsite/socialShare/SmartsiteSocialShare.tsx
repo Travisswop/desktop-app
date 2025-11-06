@@ -3,6 +3,7 @@ import React, { ReactNode, useState } from "react";
 import { BsSendFill } from "react-icons/bs";
 import { useDisclosure } from "@nextui-org/react";
 import SmartSiteUrlShareModal from "./SmartsiteShareModal";
+import { PrimaryButton } from "@/components/ui/Button/PrimaryButton";
 
 const SmartsiteSocialShare = ({
   profileUrl,
@@ -31,14 +32,14 @@ const SmartsiteSocialShare = ({
 
   return (
     <div className="relative">
-      <button
+      <PrimaryButton
         onClick={(e) => handleOpenSmartSiteProfileShareModal(e)}
         className={`bg-gray-200 hover:bg-gray-300 rounded-md py-2 px-2.5 w-max ${className} ${
           isAbsolute && "absolute top-3 right-2"
         } `}
       >
         {children ? children : <BsSendFill size={16} />}
-      </button>
+      </PrimaryButton>
       {smartSiteProfileUrl && (
         <SmartSiteUrlShareModal
           isOpen={isSmartsiteOpen}

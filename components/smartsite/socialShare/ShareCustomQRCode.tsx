@@ -9,6 +9,7 @@ import QRCodeShareModal from "./QRCodeShareModal";
 import AnimateButton from "@/components/ui/Button/AnimateButton";
 
 import { MdQrCodeScanner } from "react-icons/md";
+import { PrimaryButton } from "@/components/ui/Button/PrimaryButton";
 
 const ShareCustomQRCode = ({
   url,
@@ -33,13 +34,11 @@ const ShareCustomQRCode = ({
           <BsFillSendFill size={15} />
         </button>
       ) : (
-        <AnimateButton
-          onClick={handleQRCodeShare}
-          // width="w-[5.8rem]"
-          className="!rounded-md !text-black hover:!text-white !border-black !gap-1 2xl:!gap-1.5 text-sm 2xl:text-base !w-[3.7rem] 2xl:!w-20 !px-2.5"
-        >
-          QR <MdQrCodeScanner size={18} />
-        </AnimateButton>
+        <PrimaryButton onClick={handleQRCodeShare}>
+          <p className="flex items-center gap-1">
+            QR <MdQrCodeScanner size={18} />
+          </p>
+        </PrimaryButton>
       )}
 
       {qrCode && (
