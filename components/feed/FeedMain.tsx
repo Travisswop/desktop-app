@@ -24,7 +24,7 @@ import { useModalStore } from "@/zustandStore/modalstore";
 
 // Constants to avoid duplication
 const CONTAINER_HEIGHT = "calc(100vh - 150px)";
-const CONTAINER_WIDTH = "w-[90%] sm:w-[70%] xl:w-[30%]";
+const CONTAINER_WIDTH = "min-w-96 max-w-[520px]";
 const AUTH_FALLBACK_DELAY = 300;
 
 type AuthData = {
