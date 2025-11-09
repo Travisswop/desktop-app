@@ -14,15 +14,17 @@ import contactCardImg from "@/public/images/IconShop/appIconContactCard.png";
 import Image from "next/image";
 import toast from "react-hot-toast";
 import Cookies from "js-cookie";
+import { PrimaryButton } from "@/components/ui/Button/PrimaryButton";
+import { Loader } from "lucide-react";
 
-const AddContactCard = ({ handleRemoveIcon }: any) => {
+const AddContactCard = ({ onCloseModal }: any) => {
   const state: any = useSmartSiteApiDataStore((state) => state); //get small icon store value
   const [token, setToken] = useState("");
 
   useEffect(() => {
     const getAccessToken = async () => {
-      const token = Cookies.get('access-token');
-      setToken(token || "")
+      const token = Cookies.get("access-token");
+      setToken(token || "");
     };
     getAccessToken();
   }, []);
@@ -35,7 +37,7 @@ const AddContactCard = ({ handleRemoveIcon }: any) => {
     e.preventDefault();
     const formData = new FormData(e.currentTarget);
     const contactCardInfo = {
-      micrositeId: state.data._id,
+      micrositeId: state._id,
       name: formData.get("name"),
       mobileNo: formData.get("phone"),
       email: formData.get("email"),
@@ -66,27 +68,28 @@ const AddContactCard = ({ handleRemoveIcon }: any) => {
         const data = await postContactCard(contactCardInfo, token);
         if ((data.state = "success")) {
           toast.success("Contact card created successfully");
-          handleRemoveIcon("Contact Card");
+          onCloseModal();
         } else {
           toast.error("Something went wrong");
         }
       } catch (error) {
         console.error(error);
+        toast.error("Something went wrong");
       } finally {
         setIsLoading(false);
       }
     }
   };
 
-  useEffect(() => {
-    handleRemoveIcon("Info Bar");
-  }, []); // don't add any dependencies here
+  // useEffect(() => {
+  //   handleRemoveIcon("Info Bar");
+  // }, []); // don't add any dependencies here
 
   // console.log("smartSiteData", state);
   // console.log("sesstionState", sesstionState);
 
   return (
-    <div className="relative bg-white rounded-xl shadow-small p-6 flex flex-col gap-4">
+    <div className="relative flex flex-col gap-4">
       <div className="flex items-end gap-1 justify-center">
         <h2 className="font-semibold text-gray-700 text-xl text-center">
           Contact Card
@@ -107,13 +110,6 @@ const AddContactCard = ({ handleRemoveIcon }: any) => {
           </Tooltip>
         </div>
       </div>
-      <button
-        className="absolute top-3 right-3"
-        type="button"
-        onClick={() => handleRemoveIcon("Contact Card")}
-      >
-        <FaTimes size={18} />
-      </button>
 
       <div className="flex justify-center">
         <Image src={contactCardImg} alt="contact card" className="w-16" />
@@ -125,7 +121,7 @@ const AddContactCard = ({ handleRemoveIcon }: any) => {
           className="flex flex-col gap-2.5"
         >
           <div className="flex flex-col gap-[2px]">
-            <label htmlFor="name" className="font-semibold text-gray-700">
+            <label htmlFor="name" className="font-medium">
               Name<span className="text-red-600 font-medium">*</span>
             </label>
             <input
@@ -139,7 +135,7 @@ const AddContactCard = ({ handleRemoveIcon }: any) => {
             {error.name && <p className="text-sm text-red-600">{error.name}</p>}
           </div>
           <div className="flex flex-col gap-[2px]">
-            <label htmlFor="phone" className="font-semibold text-gray-700">
+            <label htmlFor="phone" className="font-medium">
               Phone Number<span className="text-red-600 font-medium">*</span>
             </label>
             <input
@@ -155,7 +151,7 @@ const AddContactCard = ({ handleRemoveIcon }: any) => {
             )}
           </div>
           <div className="flex flex-col gap-[2px]">
-            <label htmlFor="email" className="font-semibold text-gray-700">
+            <label htmlFor="email" className="font-medium">
               Email<span className="text-red-600 font-medium">*</span>
             </label>
             <input
@@ -171,7 +167,7 @@ const AddContactCard = ({ handleRemoveIcon }: any) => {
             )}
           </div>
           <div className="flex flex-col gap-[2px]">
-            <label htmlFor="address" className="font-semibold text-gray-700">
+            <label htmlFor="address" className="font-medium">
               Address
             </label>
             <input
@@ -184,7 +180,7 @@ const AddContactCard = ({ handleRemoveIcon }: any) => {
             />
           </div>
           <div className="flex flex-col gap-[2px]">
-            <label htmlFor="website" className="font-semibold text-gray-700">
+            <label htmlFor="website" className="font-medium">
               Website
             </label>
             <input
@@ -196,17 +192,13 @@ const AddContactCard = ({ handleRemoveIcon }: any) => {
               //   required
             />
           </div>
-          <div className="flex justify-center mt-2">
-            <AnimateButton
-              whiteLoading={true}
-              className="bg-black text-white py-2 !border-0"
-              isLoading={isLoading}
-              width={"w-40"}
-            >
-              <LiaFileMedicalSolid size={20} />
-              Save
-            </AnimateButton>
-          </div>
+          <PrimaryButton className="w-full py-3">
+            {isLoading ? (
+              <Loader className="w-8 h-8 animate-spin mx-auto" />
+            ) : (
+              "Save"
+            )}
+          </PrimaryButton>
         </form>
       </div>
     </div>

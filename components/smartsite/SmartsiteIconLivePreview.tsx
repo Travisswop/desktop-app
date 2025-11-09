@@ -50,6 +50,7 @@ import { handleDeleteMarketPlace } from "@/actions/handleMarketPlace";
 import { RiDeleteBinFill } from "react-icons/ri";
 import LivePreviewTimeline from "../feed/LivePreviewTimeline";
 import UpdateModalComponents from "./EditMicrosite/UpdateModalComponents";
+import useSmartSiteApiDataStore from "@/zustandStore/UpdateSmartsiteInfo";
 // import { access } from "fs";
 // import mobileMockup from "@/public/images/mobile-mockup.png";
 // import { TbEdit } from "react-icons/tb";
@@ -78,6 +79,16 @@ const SmartsiteIconLivePreview = ({
   // console.log("form data from live preview data", data.info.socialLarge);
 
   const [accessToken, setAccessToken] = useState("");
+
+  const setSmartSiteApiData = useSmartSiteApiDataStore(
+    (state: any) => state.setSmartSiteData
+  );
+
+  useEffect(() => {
+    if (data) {
+      setSmartSiteApiData(data);
+    }
+  }, [data, setSmartSiteApiData]);
 
   useEffect(() => {
     const getAccessToken = async () => {

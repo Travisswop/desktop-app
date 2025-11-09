@@ -10,6 +10,7 @@ interface CustomModalProps {
   children: React.ReactNode;
   title?: string;
   width?: string;
+  removeCloseButton?: boolean;
 }
 
 const CustomModal: React.FC<CustomModalProps> = ({
@@ -19,6 +20,7 @@ const CustomModal: React.FC<CustomModalProps> = ({
   children,
   title,
   width = "max-w-lg",
+  removeCloseButton = false,
 }) => {
   const modalRef = useRef<HTMLDivElement>(null);
   const [mouseDownOnBackdrop, setMouseDownOnBackdrop] = useState(false);
@@ -76,19 +78,23 @@ const CustomModal: React.FC<CustomModalProps> = ({
             style={{ maxHeight: "90vh" }}
           >
             {/* Header */}
-            <div
-              className={`flex items-center ${
-                title ? "border-b px-4 py-3 justify-between" : "justify-end"
-              } `}
-            >
-              {title && <h2 className="text-lg font-semibold">{title}</h2>}
-              <button
-                onClick={onCloseModal ? () => onCloseModal() : onClose}
-                className="p-2 rounded-full hover:bg-gray-100 transition"
+            {(!removeCloseButton || title) && (
+              <div
+                className={`flex items-center ${
+                  title ? "border-b px-4 py-3 justify-between" : "justify-end"
+                } `}
               >
-                <X size={20} />
-              </button>
-            </div>
+                {title && <h2 className="text-lg font-semibold">{title}</h2>}
+                {!removeCloseButton && (
+                  <button
+                    onClick={onCloseModal ? () => onCloseModal() : onClose}
+                    className="p-2 rounded-full hover:bg-gray-100 transition"
+                  >
+                    <X size={20} />
+                  </button>
+                )}
+              </div>
+            )}
 
             {/* CONTENT: make an inner scroll area that only scrolls when needed.
                 Notice: no flex-1 here; the modal will grow/shrink with content and animate. */}

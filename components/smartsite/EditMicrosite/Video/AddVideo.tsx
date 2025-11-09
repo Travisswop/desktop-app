@@ -18,8 +18,10 @@ import toast from "react-hot-toast";
 import { MdInfoOutline } from "react-icons/md";
 import { Tooltip } from "@nextui-org/react";
 import filePlaceholder from "@/public/images/placeholder-photo.png";
-import Cookies from 'js-cookie';
-import {useEffect} from "react"
+import Cookies from "js-cookie";
+import { useEffect } from "react";
+import { PrimaryButton } from "@/components/ui/Button/PrimaryButton";
+import { Loader } from "lucide-react";
 
 const AddVideo = ({ handleRemoveIcon }: any) => {
   const state: any = useSmartSiteApiDataStore((state) => state);
@@ -27,8 +29,8 @@ const AddVideo = ({ handleRemoveIcon }: any) => {
 
   useEffect(() => {
     const getAccessToken = async () => {
-      const token = Cookies.get('access-token');
-      setToken(token || "")
+      const token = Cookies.get("access-token");
+      setToken(token || "");
     };
     getAccessToken();
   }, []);
@@ -68,7 +70,7 @@ const AddVideo = ({ handleRemoveIcon }: any) => {
     const formData = new FormData(e.currentTarget);
 
     const info = {
-      micrositeId: state.data._id,
+      micrositeId: state._id,
       title: formData.get("title"),
       file: videoFile,
       attachLink: attachLink,
@@ -118,7 +120,7 @@ const AddVideo = ({ handleRemoveIcon }: any) => {
   return (
     <form
       onSubmit={handleFormSubmit}
-      className="relative bg-white rounded-xl shadow-small p-6 flex flex-col gap-4 px-10 2xl:px-[10%]"
+      className="relative flex flex-col gap-4 sm:px-10 2xl:px-[10%]"
     >
       <div className="flex items-end gap-1 justify-center">
         <div className="flex items-end gap-1 justify-center">
@@ -143,13 +145,6 @@ const AddVideo = ({ handleRemoveIcon }: any) => {
             </Tooltip>
           </div>
         </div>
-        <button
-          className="absolute top-3 right-3"
-          type="button"
-          onClick={() => handleRemoveIcon("Video")}
-        >
-          <FaTimes size={18} />
-        </button>
       </div>
 
       <div className="flex justify-between gap-10">
@@ -195,7 +190,7 @@ const AddVideo = ({ handleRemoveIcon }: any) => {
                 </p>
               )}
               <div className="mt-2">
-                <p className="font-semibold text-gray-700 text-sm mb-1">
+                <p className="font-medium text-sm mb-1">
                   Add Your Video
                   <span className="text-red-600 font-medium text-sm mt-1">
                     *
@@ -254,17 +249,13 @@ const AddVideo = ({ handleRemoveIcon }: any) => {
           </div>
         </div>
       </div>
-      <div className="flex justify-center">
-        <AnimateButton
-          className="bg-black text-white py-2 !border-0"
-          whiteLoading={true}
-          isLoading={isLoading}
-          width={"w-40"}
-        >
-          <LiaFileMedicalSolid size={20} />
-          Create
-        </AnimateButton>
-      </div>
+      <PrimaryButton className="w-full py-3">
+        {isLoading ? (
+          <Loader className="w-8 h-8 animate-spin mx-auto" />
+        ) : (
+          "Save"
+        )}
+      </PrimaryButton>
     </form>
   );
 };
