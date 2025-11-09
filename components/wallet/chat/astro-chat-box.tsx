@@ -2,14 +2,9 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { Send, Loader2, Sparkles, CheckCircle2, XCircle, AlertCircle } from 'lucide-react';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { ScrollArea } from '@/components/ui/scroll-area';
-import { Badge } from '@/components/ui/badge';
-import { Card } from '@/components/ui/card';
 import { useAIAgent } from '@/hooks/useAIAgent';
 import { cn } from '@/lib/utils';
+import { useSolanaWallets } from '@privy-io/react-auth';
 
 interface AstroMessage {
   id: string;
@@ -25,6 +20,7 @@ interface AstroMessage {
 
 export default function AstroChatBox() {
   const [accessToken, setAccessToken] = useState<string | null>(null);
+  const { wallets: solanaWallets } = useSolanaWallets();
   const {
     isConnected,
     messages: aiMessages,
@@ -39,6 +35,9 @@ export default function AstroChatBox() {
     clearError,
   } = useAIAgent({ autoConnect: false, token: accessToken || '' });
 
+  // Get Solana wallet address
+  const solanaWalletAddress = solanaWallets[0]?.address || null;
+
   const [inputValue, setInputValue] = useState('');
   const [localMessages, setLocalMessages] = useState<AstroMessage[]>([]);
   const [pendingAction, setPendingAction] = useState<{
@@ -48,7 +47,7 @@ export default function AstroChatBox() {
   } | null>(null);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
 
   // Get access token from cookies
   useEffect(() => {
@@ -56,7 +55,7 @@ export default function AstroChatBox() {
       if (typeof document === 'undefined') return null;
 
       const cookies = document.cookie.split(';');
-      for (let cookie of cookies) {
+      for (const cookie of cookies) {
         const [name, value] = cookie.trim().split('=');
         if (name === 'access-token') {
           const decodedValue = decodeURIComponent(value);
@@ -137,7 +136,8 @@ export default function AstroChatBox() {
     setInputValue('');
 
     try {
-      const response = await sendMessage(message);
+      // Pass Solana wallet address along with the message
+      const response = await sendMessage(message, solanaWalletAddress || undefined);
 
       // If action requires confirmation, store it
       if (response.requiresConfirmation && response.action !== 'general_chat') {
@@ -171,147 +171,108 @@ export default function AstroChatBox() {
     setPendingAction(null);
   };
 
-  const handleKeyPress = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      handleSendMessage();
-    }
-  };
-
   const renderMessage = (message: AstroMessage) => {
     const isAstro = message.sender === 'astro';
 
     return (
       <div
         key={message.id}
-        className={cn(
-          'flex gap-3 mb-4 animate-in fade-in-50 duration-300',
-          isAstro ? 'justify-start' : 'justify-end'
-        )}
+        className={`flex ${isAstro ? 'justify-start' : 'justify-end'}`}
       >
-        {isAstro && (
-          <Avatar className="h-8 w-8 border-2 border-blue-500">
-            <AvatarImage src="/astro-avatar.png" alt="Astro" />
-            <AvatarFallback className="bg-gradient-to-br from-blue-500 to-purple-600 text-white text-xs">
-              🤖
-            </AvatarFallback>
-          </Avatar>
-        )}
-
-        <div
-          className={cn(
-            'flex flex-col max-w-[75%]',
-            isAstro ? 'items-start' : 'items-end'
-          )}
-        >
-          <Card
-            className={cn(
-              'px-4 py-3 rounded-2xl',
+        <div className={`flex flex-col ${isAstro ? 'items-start' : 'items-end'}`}>
+          <div
+            className={`max-w-xs lg:max-w-md px-4 py-2 rounded-lg ${
               isAstro
-                ? 'bg-gradient-to-br from-blue-50 to-purple-50 dark:from-blue-950/30 dark:to-purple-950/30 border-blue-200 dark:border-blue-800'
-                : 'bg-blue-600 text-white border-blue-700'
-            )}
+                ? 'bg-white rounded-bl-none shadow-small'
+                : 'bg-gray-300 text-black rounded-br-none'
+            }`}
           >
-            <p className="text-sm whitespace-pre-wrap break-words">
+            {isAstro && (
+              <div className="text-xs font-medium mb-1 text-blue-600">
+                Astro AI
+              </div>
+            )}
+            <div className="text-sm whitespace-pre-wrap break-words">
               {message.content}
-            </p>
+            </div>
 
             {/* Show action badge if present */}
             {message.action && message.action !== 'general_chat' && (
-              <div className="mt-2 pt-2 border-t border-current/20">
-                <Badge
-                  variant="outline"
+              <div className="mt-2 pt-2 border-t border-gray-200">
+                <span
                   className={cn(
-                    'text-xs',
+                    'text-xs px-2 py-0.5 rounded inline-block',
                     message.isError
-                      ? 'bg-red-100 text-red-700 border-red-300'
-                      : 'bg-blue-100 text-blue-700 border-blue-300'
+                      ? 'bg-red-100 text-red-700'
+                      : 'bg-blue-100 text-blue-700'
                   )}
                 >
                   {message.action.replace(/_/g, ' ')}
-                </Badge>
+                </span>
               </div>
             )}
 
             {/* Show transaction link if execution result exists */}
             {message.executionResult?.signature && (
-              <div className="mt-2 pt-2 border-t border-current/20">
+              <div className="mt-2 pt-2 border-t border-gray-200">
                 <a
                   href={`https://solscan.io/tx/${message.executionResult.signature}`}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="text-xs text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 flex items-center gap-1"
+                  className="text-xs text-blue-600 hover:text-blue-800 flex items-center gap-1"
                 >
                   <CheckCircle2 className="h-3 w-3" />
                   View on Solscan →
                 </a>
               </div>
             )}
-          </Card>
-
-          <span className="text-xs text-muted-foreground mt-1 px-1">
+          </div>
+          <p className="text-xs mt-1 text-gray-500">
             {message.timestamp.toLocaleTimeString([], {
               hour: '2-digit',
               minute: '2-digit',
             })}
-          </span>
+          </p>
         </div>
-
-        {!isAstro && (
-          <Avatar className="h-8 w-8">
-            <AvatarFallback className="bg-blue-600 text-white text-xs">
-              You
-            </AvatarFallback>
-          </Avatar>
-        )}
       </div>
     );
   };
 
   return (
-    <div className="flex flex-col h-full bg-background">
-      {/* Header */}
-      <div className="flex items-center gap-3 p-4 border-b bg-gradient-to-r from-blue-50 to-purple-50 dark:from-blue-950/30 dark:to-purple-950/30">
-        <Avatar className="h-10 w-10 border-2 border-blue-500">
-          <AvatarImage src="/astro-avatar.png" alt="Astro" />
-          <AvatarFallback className="bg-gradient-to-br from-blue-500 to-purple-600 text-white">
+    <div className="flex-1 flex flex-col bg-white rounded-xl">
+      {/* Chat Header - Matching ChatArea */}
+      <div className="px-6 py-4 shadow flex items-center justify-between rounded-xl">
+        <div className="flex items-center gap-2">
+          <div className="w-10 h-10 rounded-full flex items-center justify-center bg-gradient-to-br from-blue-500 to-purple-600 text-white font-bold text-lg border-2 border-blue-500">
             🤖
-          </AvatarFallback>
-        </Avatar>
-        <div className="flex-1">
-          <div className="flex items-center gap-2">
-            <h2 className="font-semibold text-lg">Astro</h2>
-            <Badge
-              variant="outline"
-              className="bg-blue-100 text-blue-700 border-blue-300 dark:bg-blue-900 dark:text-blue-300"
-            >
-              <Sparkles className="h-3 w-3 mr-1" />
-              AI Assistant
-            </Badge>
           </div>
-          <div className="flex items-center gap-2 text-sm text-muted-foreground">
-            {isConnected ? (
-              <>
-                <div className="h-2 w-2 rounded-full bg-green-500 animate-pulse" />
-                <span>Online</span>
-              </>
-            ) : (
-              <>
-                <div className="h-2 w-2 rounded-full bg-gray-400" />
-                <span>Connecting...</span>
-              </>
-            )}
-            {wallet && (
-              <span className="text-xs">
-                • {wallet.balance.toFixed(4)} SOL
+          <div>
+            <div className="flex items-center gap-2">
+              <h3 className="font-semibold">Astro</h3>
+              <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800 border border-blue-200">
+                AI Assistant
               </span>
-            )}
+            </div>
+            <p className="text-sm text-gray-700">
+              {isConnected ? (
+                <span className="flex items-center gap-1">
+                  <span className="inline-block w-2 h-2 rounded-full bg-green-500"></span>
+                  Online
+                  {wallet && <span> • {wallet.balance.toFixed(4)} SOL</span>}
+                </span>
+              ) : (
+                <span className="flex items-center gap-1">
+                  <span className="inline-block w-2 h-2 rounded-full bg-gray-400"></span>
+                  Connecting...
+                </span>
+              )}
+            </p>
           </div>
         </div>
       </div>
 
-      {/* Messages */}
-      <ScrollArea className="flex-1 p-4">
+      {/* Messages Area - Matching ChatArea */}
+      <div className="flex-1 overflow-y-auto p-4 space-y-2">
         {localMessages.length === 0 && !isTyping && (
           <div className="flex flex-col items-center justify-center h-full text-center p-8">
             <div className="w-20 h-20 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center mb-4">
@@ -320,7 +281,7 @@ export default function AstroChatBox() {
             <h3 className="text-xl font-semibold mb-2">
               Meet Astro, Your Solana AI Assistant
             </h3>
-            <p className="text-muted-foreground max-w-md">
+            <p className="text-gray-600 max-w-md">
               I can help you with Solana operations like checking balances,
               transferring SOL, swapping tokens, and answering questions about
               Solana!
@@ -331,16 +292,16 @@ export default function AstroChatBox() {
                 'How does Solana work?',
                 'Send 0.01 SOL to an address',
               ].map((suggestion) => (
-                <Button
+                <button
                   key={suggestion}
-                  variant="outline"
-                  size="sm"
                   onClick={() => setInputValue(suggestion)}
-                  className="text-left justify-start h-auto py-2 px-3"
+                  className="text-left justify-start h-auto py-2 px-3 rounded-lg border border-gray-200 hover:bg-gray-50 transition-colors"
                 >
-                  <Sparkles className="h-3 w-3 mr-2 flex-shrink-0" />
-                  <span className="text-xs">{suggestion}</span>
-                </Button>
+                  <div className="flex items-center gap-2">
+                    <Sparkles className="h-3 w-3 text-blue-600 flex-shrink-0" />
+                    <span className="text-xs text-gray-700">{suggestion}</span>
+                  </div>
+                </button>
               ))}
             </div>
           </div>
@@ -348,135 +309,124 @@ export default function AstroChatBox() {
 
         {localMessages.map(renderMessage)}
 
-        {/* Typing indicator */}
+        {/* Typing indicator - Matching ChatArea */}
         {isTyping && (
-          <div className="flex gap-3 mb-4">
-            <Avatar className="h-8 w-8 border-2 border-blue-500">
-              <AvatarFallback className="bg-gradient-to-br from-blue-500 to-purple-600 text-white text-xs">
-                🤖
-              </AvatarFallback>
-            </Avatar>
-            <Card className="px-4 py-3 rounded-2xl bg-gradient-to-br from-blue-50 to-purple-50 dark:from-blue-950/30 dark:to-purple-950/30 border-blue-200 dark:border-blue-800">
-              <div className="flex gap-1">
-                <div className="w-2 h-2 bg-blue-500 rounded-full animate-bounce" />
-                <div
-                  className="w-2 h-2 bg-blue-500 rounded-full animate-bounce"
-                  style={{ animationDelay: '0.1s' }}
-                />
-                <div
-                  className="w-2 h-2 bg-blue-500 rounded-full animate-bounce"
-                  style={{ animationDelay: '0.2s' }}
-                />
-              </div>
-            </Card>
+          <div className="flex items-center gap-2 text-gray-600 text-sm">
+            <div className="typing-dots flex gap-1">
+              <span className="w-2 h-2 bg-gray-600 rounded-full animate-bounce" />
+              <span className="w-2 h-2 bg-gray-600 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }} />
+              <span className="w-2 h-2 bg-gray-600 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }} />
+            </div>
+            Astro is typing...
           </div>
         )}
 
         {/* Executing indicator */}
         {isExecuting && (
-          <div className="flex justify-center mb-4">
-            <Card className="px-4 py-2 bg-yellow-50 dark:bg-yellow-950/30 border-yellow-300 dark:border-yellow-800">
-              <div className="flex items-center gap-2 text-sm text-yellow-700 dark:text-yellow-300">
+          <div className="flex justify-center">
+            <div className="px-4 py-2 bg-yellow-50 border border-yellow-300 rounded-lg">
+              <div className="flex items-center gap-2 text-sm text-yellow-700">
                 <Loader2 className="h-4 w-4 animate-spin" />
                 <span>Executing {executingAction}...</span>
               </div>
-            </Card>
+            </div>
           </div>
         )}
 
         <div ref={messagesEndRef} />
-      </ScrollArea>
+      </div>
 
       {/* Error display */}
       {aiError && (
-        <div className="px-4 py-2 bg-red-50 dark:bg-red-950/30 border-t border-red-200 dark:border-red-800">
-          <div className="flex items-center justify-between text-sm text-red-700 dark:text-red-300">
+        <div className="px-4 py-2 bg-red-50 border-t border-red-200">
+          <div className="flex items-center justify-between text-sm text-red-700">
             <div className="flex items-center gap-2">
               <XCircle className="h-4 w-4" />
               <span>{aiError}</span>
             </div>
-            <Button
-              variant="ghost"
-              size="sm"
+            <button
               onClick={clearError}
-              className="h-6 px-2"
+              className="text-xs px-2 py-1 hover:bg-red-100 rounded transition-colors"
             >
               Dismiss
-            </Button>
+            </button>
           </div>
         </div>
       )}
 
       {/* Confirmation dialog */}
       {pendingAction && (
-        <div className="px-4 py-3 bg-gradient-to-r from-purple-50 to-blue-50 dark:from-purple-950/30 dark:to-blue-950/30 border-t border-purple-200 dark:border-purple-800">
+        <div className="px-4 py-3 bg-purple-50 border-t border-purple-200">
           <div className="flex items-start gap-2 mb-2">
-            <AlertCircle className="h-5 w-5 text-purple-600 dark:text-purple-400 mt-0.5" />
+            <AlertCircle className="h-5 w-5 text-purple-600 mt-0.5" />
             <div className="flex-1">
-              <p className="text-sm font-medium text-purple-900 dark:text-purple-100 mb-1">
+              <p className="text-sm font-medium text-purple-900 mb-1">
                 Confirm this action?
               </p>
-              <p className="text-xs text-purple-700 dark:text-purple-300">
+              <p className="text-xs text-purple-700">
                 Action: {pendingAction.action.replace(/_/g, ' ')}
               </p>
             </div>
           </div>
           <div className="flex gap-2">
-            <Button
-              size="sm"
+            <button
               onClick={handleConfirmAction}
               disabled={isExecuting}
-              className="bg-purple-600 hover:bg-purple-700 text-white"
+              className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {isExecuting ? (
                 <>
-                  <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                  <Loader2 className="h-3 w-3 mr-1 animate-spin inline" />
                   Executing...
                 </>
               ) : (
                 'Confirm'
               )}
-            </Button>
-            <Button
-              size="sm"
-              variant="outline"
+            </button>
+            <button
               onClick={handleCancelAction}
               disabled={isExecuting}
+              className="px-4 py-2 border border-gray-300 hover:bg-gray-50 rounded-lg text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
             >
               Cancel
-            </Button>
+            </button>
           </div>
         </div>
       )}
 
-      {/* Input */}
-      <div className="p-4 border-t bg-background">
-        <div className="flex gap-2">
-          <Input
+      {/* Message Input - Matching ChatArea */}
+      <div className="bg-whatsapp-bg-secondary p-4">
+        <div className="flex gap-4">
+          <textarea
             ref={inputRef}
             value={inputValue}
             onChange={(e) => setInputValue(e.target.value)}
-            onKeyPress={handleKeyPress}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                handleSendMessage();
+              }
+            }}
             placeholder={
               isConnected
                 ? 'Ask Astro anything about Solana...'
                 : 'Connecting...'
             }
             disabled={!isConnected}
-            className="flex-1"
+            className="flex-1 px-4 py-3 rounded-lg border-none focus:outline-none resize-none bg-slate-100"
+            rows={1}
             maxLength={2000}
           />
-          <Button
+          <button
             onClick={handleSendMessage}
             disabled={!isConnected || !inputValue.trim()}
-            size="icon"
-            className="bg-blue-600 hover:bg-blue-700 text-white"
+            className="w-10 h-10 flex items-center justify-center rounded-full bg-black font-medium disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            <Send className="h-4 w-4" />
-          </Button>
+            <Send className="h-4 w-4 text-white" />
+          </button>
         </div>
         {!isConnected && (
-          <p className="text-xs text-red-500 mt-1">
+          <p className="text-xs text-red-500 mt-2">
             Not connected. Please check your connection.
           </p>
         )}

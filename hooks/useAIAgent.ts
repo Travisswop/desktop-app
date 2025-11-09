@@ -91,14 +91,14 @@ export function useAIAgent(options: UseAIAgentOptions = {}) {
    * Send message to AI agent
    */
   const sendMessage = useCallback(
-    async (message: string) => {
+    async (message: string, walletAddress?: string) => {
       if (!isConnected) {
         throw new Error('Not connected to AI agent');
       }
 
       try {
         setError(null);
-        const response = await aiAgentService.sendMessage(message);
+        const response = await aiAgentService.sendMessage(message, walletAddress);
         return response;
       } catch (err: any) {
         console.error('Error sending message:', err);

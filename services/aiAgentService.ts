@@ -161,7 +161,7 @@ class AIAgentService {
   /**
    * Send message to AI agent
    */
-  async sendMessage(message: string): Promise<AIAgentResponse> {
+  async sendMessage(message: string, walletAddress?: string): Promise<AIAgentResponse> {
     return new Promise((resolve, reject) => {
       if (!this.socket?.connected) {
         reject(new Error('Not connected to server'));
@@ -178,6 +178,7 @@ class AIAgentService {
         {
           message,
           conversationId: this.conversationId,
+          walletAddress, // Pass wallet address to backend
         },
         (response: any) => {
           if (response.error) {

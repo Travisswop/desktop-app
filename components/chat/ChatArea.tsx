@@ -6,6 +6,7 @@ import Image from "next/image";
 import isUrl from "@/lib/isUrl";
 import { GoDotFill } from "react-icons/go";
 import { IoSend } from "react-icons/io5";
+import AstroChatBox from "@/components/wallet/chat/astro-chat-box";
 
 // ==================== TYPE DEFINITIONS ====================
 
@@ -59,7 +60,7 @@ interface SelectedChat {
 
 interface ChatAreaProps {
   selectedChat: SelectedChat | null;
-  chatType: "private" | "group";
+  chatType: "private" | "group" | "astro";
   currentUser: string;
   socket: any; // You can use Socket from socket.io-client if you have it
   onChatUpdate?: () => void; // ADD THIS
@@ -254,7 +255,7 @@ export default function ChatArea({
 
   // Initial load and setup
   useEffect(() => {
-    if (!selectedChat || !socket) return;
+    if (!selectedChat || !socket || chatType === "astro") return;
 
     // Reset states for new chat
     setMessages([]);
@@ -468,6 +469,11 @@ export default function ChatArea({
       handleSendMessage();
     }
   };
+
+  // Handle Astro AI bot chat
+  if (chatType === "astro") {
+    return <AstroChatBox />;
+  }
 
   if (!selectedChat) {
     return (

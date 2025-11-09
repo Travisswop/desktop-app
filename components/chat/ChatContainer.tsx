@@ -17,7 +17,7 @@ export default function ChatContainer({
   const [conversations, setConversations] = useState([]);
   const [groups, setGroups] = useState([]);
   const [selectedChat, setSelectedChat] = useState<any>(null);
-  const [chatType, setChatType] = useState<"private" | "group" | null>(null);
+  const [chatType, setChatType] = useState<"private" | "group" | "astro" | null>(null);
 
   console.log("conversations", conversations);
   console.log("groups", groups);
@@ -202,7 +202,7 @@ export default function ChatContainer({
     };
   }, [socket, loadInitialData, refreshSelectedChat, selectedChat, currentUser]);
 
-  const handleSelectChat = (chat: any, type: "private" | "group") => {
+  const handleSelectChat = (chat: any, type: "private" | "group" | "astro") => {
     setSelectedChat(chat);
     setChatType(type);
   };
