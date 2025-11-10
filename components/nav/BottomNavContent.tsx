@@ -656,7 +656,7 @@ const BottomNavContent = () => {
                   </Link>
                 </DropdownMenuItem>
 
-                <DropdownMenuItem asChild className="cursor-pointer p-0">
+                {/* <DropdownMenuItem asChild className="cursor-pointer p-0">
                   <Link
                     href="/smartsite/toggle"
                     className="flex items-center gap-3 p-1 hover:bg-gray-50 rounded-lg transition-colors w-full"
@@ -671,7 +671,7 @@ const BottomNavContent = () => {
                       </p>
                     </div>
                   </Link>
-                </DropdownMenuItem>
+                </DropdownMenuItem> */}
               </DropdownMenuContent>
             </DropdownMenu>
           )}
