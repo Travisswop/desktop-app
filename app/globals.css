@@ -255,6 +255,15 @@ body {
   display: none; /* Chrome, Safari, and Edge */
 }
 
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
 /* remove water mark from tinymice editor  */
 .tox .tox-statusbar {
   align-items: center;

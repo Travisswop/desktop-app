@@ -17,6 +17,8 @@ const SmartsiteProfileView = async ({
   if (accessToken) {
     const data = await getSingleSmartsiteData(editId, accessToken);
 
+    console.log("data hhh", data);
+
     return (
       <div>
         <Suspense fallback={<SmartSiteIconLoading />}>

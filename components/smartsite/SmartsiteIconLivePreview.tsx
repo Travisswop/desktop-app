@@ -40,6 +40,11 @@ import { RiDeleteBinFill } from "react-icons/ri";
 import LivePreviewTimeline from "../feed/LivePreviewTimeline";
 import UpdateModalComponents from "./EditMicrosite/UpdateModalComponents";
 import useSmartSiteApiDataStore from "@/zustandStore/UpdateSmartsiteInfo";
+import {
+  Carousel,
+  CarouselContent,
+  CarouselItem,
+} from "@/components/ui/carousel";
 
 const SmartsiteIconLivePreview = ({
   isEditDetailsLivePreview = false,
@@ -281,6 +286,26 @@ const SmartsiteIconLivePreview = ({
     };
   }, []);
 
+  // Add this helper function at the top of your component or in a separate utils file
+  const groupMarketPlaceByType = (marketPlaceItems: any[]) => {
+    const grouped: { [key: string]: any[] } = {};
+
+    marketPlaceItems.forEach((item) => {
+      const nftType = item.templateId?.nftType || "other";
+      if (!grouped[nftType]) {
+        grouped[nftType] = [];
+      }
+      grouped[nftType].push(item);
+    });
+
+    return grouped;
+  };
+
+  // Capitalize first letter for display
+  const capitalizeFirstLetter = (str: string) => {
+    return str.charAt(0).toUpperCase() + str.slice(1);
+  };
+
   return (
     <div
       style={{
@@ -418,8 +443,163 @@ const SmartsiteIconLivePreview = ({
                     ))}
                   </div>
                 ))}
-
                 {/* small icon display here end */}
+
+                {/* marketPlace display here start */}
+                {data.info.marketPlace.length > 0 && (
+                  <div className="flex flex-col gap-y-5 px-3">
+                    {Object.entries(
+                      groupMarketPlaceByType(data.info.marketPlace)
+                    ).map(([nftType, items]) => (
+                      <div key={nftType} className="flex flex-col gap-y-3">
+                        <h3
+                          style={{
+                            color: formData.fontColor
+                              ? formData.fontColor
+                              : "black",
+                          }}
+                          className="text-base font-bold"
+                        >
+                          {capitalizeFirstLetter(nftType)}
+                        </h3>
+
+                        {items.length > 2 ? (
+                          <Carousel
+                            opts={{
+                              align: "start",
+                              loop: false,
+                            }}
+                            className="w-full"
+                          >
+                            <CarouselContent className="-ml-2 md:-ml-3">
+                              {items.map((item: any) => (
+                                <CarouselItem
+                                  key={item._id}
+                                  className="pl-2 md:pl-3 basis-[45%]"
+                                >
+                                  <div
+                                    style={{
+                                      backgroundColor: formData.templateColor
+                                        ? formData.templateColor
+                                        : "white",
+                                    }}
+                                    className="rounded-xl shadow-small hover:shadow-medium transition-all duration-200 relative overflow-hidden group"
+                                  >
+                                    <button
+                                      onClick={() =>
+                                        handleMarketPlaceDelete(
+                                          item._id,
+                                          item.micrositeId
+                                        )
+                                      }
+                                      className="absolute top-2 right-2 z-10 bg-white rounded-lg p-1.5 shadow-sm hover:bg-red-50 transition-colors"
+                                    >
+                                      <MdDeleteForever
+                                        size={18}
+                                        className="text-gray-600 group-hover:text-red-500"
+                                      />
+                                    </button>
+
+                                    <div className="flex flex-col">
+                                      <div className="relative w-full aspect-square overflow-hidden">
+                                        <Image
+                                          src={item.itemImageUrl}
+                                          alt={item.itemName}
+                                          fill
+                                          quality={100}
+                                          className="object-cover group-hover:scale-105 transition-transform duration-200"
+                                        />
+                                      </div>
+
+                                      <div className="p-3">
+                                        <div
+                                          style={{
+                                            color: formData.secondaryFontColor
+                                              ? formData.secondaryFontColor
+                                              : "black",
+                                          }}
+                                          className="flex flex-col gap-0.5"
+                                        >
+                                          <p className="text-sm font-semibold line-clamp-1">
+                                            {item.itemName}
+                                          </p>
+                                          <p className="text-xs font-medium mt-0.5">
+                                            ${item.itemPrice}
+                                          </p>
+                                        </div>
+                                      </div>
+                                    </div>
+                                  </div>
+                                </CarouselItem>
+                              ))}
+                            </CarouselContent>
+                          </Carousel>
+                        ) : (
+                          <div className="grid grid-cols-2 gap-3">
+                            {items.map((item: any) => (
+                              <div
+                                key={item._id}
+                                style={{
+                                  backgroundColor: formData.templateColor
+                                    ? formData.templateColor
+                                    : "white",
+                                }}
+                                className="rounded-xl shadow-small hover:shadow-medium transition-all duration-200 relative overflow-hidden group"
+                              >
+                                <button
+                                  onClick={() =>
+                                    handleMarketPlaceDelete(
+                                      item._id,
+                                      item.micrositeId
+                                    )
+                                  }
+                                  className="absolute top-2 right-2 z-10 bg-white rounded-lg p-1.5 shadow-sm hover:bg-red-50 transition-colors"
+                                >
+                                  <MdDeleteForever
+                                    size={18}
+                                    className="text-gray-600 group-hover:text-red-500"
+                                  />
+                                </button>
+
+                                <div className="flex flex-col">
+                                  <div className="relative w-full aspect-square overflow-hidden">
+                                    <Image
+                                      src={item.itemImageUrl}
+                                      alt={item.itemName}
+                                      fill
+                                      quality={100}
+                                      className="object-cover group-hover:scale-105 transition-transform duration-200"
+                                    />
+                                  </div>
+
+                                  <div className="p-3">
+                                    <div
+                                      style={{
+                                        color: formData.secondaryFontColor
+                                          ? formData.secondaryFontColor
+                                          : "black",
+                                      }}
+                                      className="flex flex-col gap-0.5"
+                                    >
+                                      <p className="text-sm font-semibold line-clamp-1">
+                                        {item.itemName}
+                                      </p>
+                                      <p className="text-xs font-medium mt-0.5">
+                                        ${item.itemPrice}
+                                      </p>
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {/* marketPlace display here end */}
+
                 {/* blog display here start */}
                 {data.info.blog.length > 0 && (
                   <div className="flex flex-col gap-y-3 px-3">
