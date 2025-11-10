@@ -641,7 +641,7 @@ const BottomNavContent = () => {
 
                 <DropdownMenuItem asChild className="cursor-pointer p-0">
                   <Link
-                    href="/smartsite/token-gate"
+                    href={`/smartsite/token-gated/${pageId}`}
                     className="flex items-center gap-3 p-1 hover:bg-gray-50 rounded-lg transition-colors w-full"
                   >
                     <div className="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center">
