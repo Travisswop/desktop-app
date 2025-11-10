@@ -17,6 +17,7 @@ import { HiOutlineUsers } from "react-icons/hi";
 import { FaEdit } from "react-icons/fa";
 import { TbLockDollar } from "react-icons/tb";
 import { RiExchangeBoxLine } from "react-icons/ri";
+import { MdPhoneIphone } from "react-icons/md";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -45,11 +46,7 @@ import AddVideo from "../smartsite/EditMicrosite/Video/AddVideo";
 import AddAudio from "../smartsite/EditMicrosite/audio/AddAudio";
 import AddMarketplace from "../smartsite/EditMicrosite/marketplace/AddMarketplace";
 import AddFeed from "../smartsite/EditMicrosite/feed/AddFeed";
-
-// Import template content components (you'll create these)
-// import SmallIconsContent from "./templateContents/SmallIconsContent";
-// import InfobarContent from "./templateContents/InfobarContent";
-// etc...
+import { PrimaryButton } from "../ui/Button/PrimaryButton";
 
 const BottomNavContent = () => {
   const params = useParams();
@@ -58,6 +55,7 @@ const BottomNavContent = () => {
   const { openModal } = useModalStore();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isIconsModalOpen, setIsIconsModalOpen] = useState(false);
+  const [isActivateChipModalOpen, setIsActivateChipModalOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedTemplate, setSelectedTemplate] = useState<string | null>(null);
 
@@ -66,7 +64,7 @@ const BottomNavContent = () => {
     [searchParams]
   );
 
-  const isSmartsite = pathname?.startsWith("/smartsite");
+  const isSmartsite = pathname?.startsWith("/smartsite/");
 
   // Get the dynamic ID from the route
   const pageId = params?.editId as string | undefined;
@@ -155,7 +153,16 @@ const BottomNavContent = () => {
   const handleCloseIconsModal = () => {
     setIsIconsModalOpen(false);
     setSearchQuery("");
-    setSelectedTemplate(null); // Reset selected template when closing
+    setSelectedTemplate(null);
+  };
+
+  const handleOpenActiveChip = () => {
+    setIsActivateChipModalOpen(true);
+    setIsMenuOpen(false);
+  };
+
+  const handleCloseActivateChipModal = () => {
+    setIsActivateChipModalOpen(false);
   };
 
   const handleTemplateSelect = (templateId: string) => {
@@ -592,7 +599,9 @@ const BottomNavContent = () => {
                       <FaEdit />
                     </div>
                     <div>
-                      <p className="font-medium text-sm">Add Button</p>
+                      <p className="font-medium text-sm text-start">
+                        Add Button
+                      </p>
                       <p className="text-xs text-gray-500">Link Templates</p>
                     </div>
                   </button>
@@ -614,18 +623,20 @@ const BottomNavContent = () => {
                 </DropdownMenuItem>
 
                 <DropdownMenuItem asChild className="cursor-pointer p-0">
-                  <Link
-                    href="/smartsite/activate"
+                  <button
+                    onClick={handleOpenActiveChip}
                     className="flex items-center gap-3 p-1 hover:bg-gray-50 rounded-lg transition-colors w-full"
                   >
                     <div className="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center">
                       <VscChip />
                     </div>
                     <div>
-                      <p className="font-medium text-sm">Activate</p>
-                      <p className="text-xs text-gray-500">Program Your Chip</p>
+                      <p className="font-medium text-sm text-start">Activate</p>
+                      <p className="text-xs text-gray-500 text-start">
+                        Program Your Chip
+                      </p>
                     </div>
-                  </Link>
+                  </button>
                 </DropdownMenuItem>
 
                 <DropdownMenuItem asChild className="cursor-pointer p-0">
@@ -675,12 +686,9 @@ const BottomNavContent = () => {
         width={selectedTemplate ? "max-w-2xl" : "max-w-4xl"}
       >
         {selectedTemplate ? (
-          // Show template content when a template is selected
           renderTemplateContent()
         ) : (
-          // Show template grid when no template is selected
           <div className="p-6">
-            {/* Search Bar */}
             <div className="flex flex-wrap gap-4 justify-between items-center">
               <p className="text-xl font-semibold">Templates</p>
               <div className="mb-6 relative min-w-80 max-w-96">
@@ -707,7 +715,6 @@ const BottomNavContent = () => {
               </div>
             </div>
 
-            {/* Templates Grid */}
             {filteredTemplates.length > 0 ? (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {filteredTemplates.map((template) => (
@@ -748,6 +755,43 @@ const BottomNavContent = () => {
             )}
           </div>
         )}
+      </CustomModal>
+
+      {/* Activate Chip Modal */}
+      <CustomModal
+        isOpen={isActivateChipModalOpen}
+        onCloseModal={handleCloseActivateChipModal}
+        removeCloseButton={false}
+        width="max-w-md"
+      >
+        <div className="p-8 text-center">
+          <div className="w-20 h-20 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-6">
+            <MdPhoneIphone size={40} className="text-gray-600" />
+          </div>
+
+          <h2 className="text-2xl font-bold text-gray-900 mb-3">
+            Mobile Only Feature
+          </h2>
+
+          <p className="text-gray-600 mb-6">
+            Chip activation is only available on mobile devices. Please open
+            this page on your smartphone to program your chip.
+          </p>
+
+          <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 mb-6">
+            <p className="text-sm text-blue-800">
+              <strong>Tip:</strong> Scan the QR code on your smartsite from your
+              mobile device to access this feature.
+            </p>
+          </div>
+
+          <PrimaryButton
+            onClick={handleCloseActivateChipModal}
+            className="w-full py-3 rounded-xl font-medium"
+          >
+            Got It
+          </PrimaryButton>
+        </div>
       </CustomModal>
     </>
   );
