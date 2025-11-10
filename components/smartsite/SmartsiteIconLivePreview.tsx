@@ -1,33 +1,22 @@
 "use client";
 import Image from "next/image";
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import swop from "@/public/images/live-preview/swop.svg";
 import useSmartsiteFormStore from "@/zustandStore/EditSmartsiteInfo";
-// import isUrl from "@/util/isUrl";
-// import { tintStyle } from "@/util/IconTintStyle";
 import useUpdateSmartIcon from "@/zustandStore/UpdateSmartIcon";
 import useSmallIconToggleStore from "@/zustandStore/SmallIconModalToggle";
-// import getSmallIconImage from "@/util/retriveIconImage/getSmallIconImage";
-// import getAppIconImage from "@/util/retriveIconImage/getAppIconImage";
 import { FaEdit, FaPause, FaPlay } from "react-icons/fa";
 import useSideBarToggleStore from "@/zustandStore/SideBarToggleStore";
-// import AnimateButton from "./Button/AnimateButton";
 import AudioPlayer from "react-h5-audio-player";
-// import EmbedPlayer from "./livePreviewSmartsitesIcons/renderEmbedPlayer";
-// import businessCard from "@/public/images/IconShop/outline-icons/dark/business-card-outline@3x.png";
 import referral from "@/public/images/websites/referral.jpeg";
 import ethereum from "@/public/images/social-icon/ethereum.png";
 import card from "@/public/images/social-icon/card.png";
 import message from "@/public/images/social-icon/message.png";
-// import location from "@/public/images/social-icon/location.png";
-// import getAllSmartsitesIcon from "@/util/retriveIconImage/getAllSmartsiteIcon";
 import isUrl from "@/lib/isUrl";
 import { tintStyle } from "../util/IconTintStyle";
 import getSmallIconImage from "./retriveIconImage/getSmallIconImage";
 import EmbedPlayer from "./embed/renderEmbedPlayer";
 import getAllSmartsitesIcon from "./retriveIconImage/getAllSmartsiteIcon";
-// import mockupBtn from "@/public/images/mockup-bottom-button.png";
-// import DynamicPrimaryBtn from "../ui/Button/DynamicPrimaryBtn";
 import { LiaFileMedicalSolid } from "react-icons/lia";
 import {
   Modal,
@@ -51,9 +40,6 @@ import { RiDeleteBinFill } from "react-icons/ri";
 import LivePreviewTimeline from "../feed/LivePreviewTimeline";
 import UpdateModalComponents from "./EditMicrosite/UpdateModalComponents";
 import useSmartSiteApiDataStore from "@/zustandStore/UpdateSmartsiteInfo";
-// import { access } from "fs";
-// import mobileMockup from "@/public/images/mobile-mockup.png";
-// import { TbEdit } from "react-icons/tb";
 
 const SmartsiteIconLivePreview = ({
   isEditDetailsLivePreview = false,
@@ -277,16 +263,37 @@ const SmartsiteIconLivePreview = ({
 
   const socialRows = distributeIcons(data.info.socialTop);
 
+  const scrollableRef = useRef<HTMLDivElement>(null);
+  // Add wheel event listener
+  useEffect(() => {
+    const handleWheel = (e: WheelEvent) => {
+      if (scrollableRef.current) {
+        e.preventDefault();
+        scrollableRef.current.scrollTop += e.deltaY;
+      }
+    };
+
+    // Add event listener to the entire document
+    document.addEventListener("wheel", handleWheel, { passive: false });
+
+    return () => {
+      document.removeEventListener("wheel", handleWheel);
+    };
+  }, []);
+
   return (
     <div
       style={{
         backgroundImage: formData.theme
           ? `url(/images/smartsite-background/${formData.backgroundImg}.png)`
-          : "",
+          : "none",
       }}
-      className="max-w-screen h-[calc(100vh-96px)] overflow-hidden bg-cover -m-6"
+      className="max-w-screen h-[calc(100vh-96px)] overflow-hidden bg-cover bg-no-repeat -m-6"
     >
-      <div className="relative min-w-96 max-w-[500px] mx-auto h-full overflow-y-auto hide-scrollbar">
+      <div
+        ref={scrollableRef}
+        className="relative min-w-96 max-w-[500px] mx-auto h-full overflow-y-auto hide-scrollbar"
+      >
         <section
           className={`${
             formData.fontType && fontMap[formData.fontType.toLowerCase()]
