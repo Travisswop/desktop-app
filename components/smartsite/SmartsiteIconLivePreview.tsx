@@ -270,12 +270,37 @@ const SmartsiteIconLivePreview = ({
 
   const scrollableRef = useRef<HTMLDivElement>(null);
   // Add wheel event listener
+  // In SmartsiteIconLivePreview component
   useEffect(() => {
     const handleWheel = (e: WheelEvent) => {
-      if (scrollableRef.current) {
-        e.preventDefault();
-        scrollableRef.current.scrollTop += e.deltaY;
+      if (!scrollableRef.current) return;
+
+      const target = e.target as HTMLElement;
+
+      // Check if the scroll is happening inside LivePreviewTimeline or any other scrollable nested element
+      const scrollableParent = target.closest(
+        ".overflow-y-auto.hide-scrollbar"
+      );
+
+      // If we're inside a nested scrollable element (like LivePreviewTimeline)
+      if (scrollableParent && scrollableParent !== scrollableRef.current) {
+        const element = scrollableParent as HTMLElement;
+        const isAtTop = element.scrollTop === 0;
+        const isAtBottom =
+          element.scrollHeight - element.scrollTop === element.clientHeight;
+
+        // Only let the parent (main scroll) handle it if we're at the boundaries
+        if ((e.deltaY < 0 && isAtTop) || (e.deltaY > 0 && isAtBottom)) {
+          e.preventDefault();
+          scrollableRef.current.scrollTop += e.deltaY;
+        }
+        // Otherwise, let the nested element scroll naturally
+        return;
       }
+
+      // For the main scroll area, prevent default and handle manually
+      e.preventDefault();
+      scrollableRef.current.scrollTop += e.deltaY;
     };
 
     // Add event listener to the entire document
@@ -492,11 +517,11 @@ const SmartsiteIconLivePreview = ({
                                           item.micrositeId
                                         )
                                       }
-                                      className="absolute top-2 right-2 z-10 bg-white rounded-lg p-1.5 shadow-sm hover:bg-red-50 transition-colors"
+                                      className="absolute top-2 right-2 z-10 bg-white rounded-lg p-1.5 shadow-sm hover:bg-red-50 transition-all opacity-0 group-hover:opacity-100"
                                     >
                                       <MdDeleteForever
                                         size={18}
-                                        className="text-gray-600 group-hover:text-red-500"
+                                        className="text-gray-600 hover:text-red-500"
                                       />
                                     </button>
 
@@ -553,11 +578,11 @@ const SmartsiteIconLivePreview = ({
                                       item.micrositeId
                                     )
                                   }
-                                  className="absolute top-2 right-2 z-10 bg-white rounded-lg p-1.5 shadow-sm hover:bg-red-50 transition-colors"
+                                  className="absolute top-2 right-2 z-10 bg-white rounded-lg p-1.5 shadow-sm hover:bg-red-50 transition-all opacity-0 group-hover:opacity-100"
                                 >
                                   <MdDeleteForever
                                     size={18}
-                                    className="text-gray-600 group-hover:text-red-500"
+                                    className="text-gray-600 hover:text-red-500"
                                   />
                                 </button>
 
