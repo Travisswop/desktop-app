@@ -5,6 +5,21 @@ import { io, Socket } from 'socket.io-client';
  * Handles real-time communication with AI agent via Socket.IO
  */
 
+export interface TransactionData {
+  serializedTransaction: string;
+  blockhash: string;
+  lastValidBlockHeight: number;
+  from: string;
+  to: string;
+  amount: number;
+  type: string;
+  tokenMint?: string;
+  decimals?: number;
+  action: string;
+  toEnsName?: string;
+  tokenSymbol?: string;
+}
+
 export interface AIAgentMessage {
   _id: string;
   sender: string;
@@ -18,6 +33,7 @@ export interface AIAgentMessage {
     requiresConfirmation: boolean;
     executionResult?: any;
     executedAt?: string;
+    transactionData?: TransactionData;
   };
   createdAt: string;
   updatedAt: string;
@@ -28,6 +44,7 @@ export interface AIAgentResponse {
   action: string;
   params: Record<string, any>;
   requiresConfirmation: boolean;
+  transactionData?: TransactionData;
   conversationId?: string;
 }
 
@@ -192,7 +209,8 @@ class AIAgentService {
   }
 
   /**
-   * Execute Solana transaction
+   * Execute Solana transaction (DEPRECATED - kept for backward compatibility)
+   * Use submitSignedTransaction instead for token transfers
    */
   async executeTransaction(
     action: string,
@@ -215,6 +233,44 @@ class AIAgentService {
         {
           action,
           params,
+          messageId,
+          conversationId: this.conversationId,
+        },
+        (response: AIAgentExecutionResult) => {
+          if (response.error) {
+            reject(new Error(response.error));
+          } else {
+            resolve(response);
+          }
+        }
+      );
+    });
+  }
+
+  /**
+   * Submit signed transaction to backend
+   */
+  async submitSignedTransaction(
+    signedTransaction: string,
+    action: string,
+    messageId?: string
+  ): Promise<AIAgentExecutionResult> {
+    return new Promise((resolve, reject) => {
+      if (!this.socket?.connected) {
+        reject(new Error('Not connected to server'));
+        return;
+      }
+
+      if (!this.conversationId) {
+        reject(new Error('Not joined to AI agent conversation'));
+        return;
+      }
+
+      this.socket.emit(
+        'ai_agent_submit_signed_tx',
+        {
+          signedTransaction,
+          action,
           messageId,
           conversationId: this.conversationId,
         },

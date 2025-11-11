@@ -198,15 +198,13 @@ export function useAIAgent(options: UseAIAgentOptions = {}) {
       if (data.message) {
         setMessages((prev) => [...prev, data.message!]);
       }
-      if (!data.success && data.error) {
-        setError(data.error);
-      }
+      // Don't set error state - errors are now sent as regular agent messages
     };
 
     // Error
     const handleError = (err: any) => {
       console.error('AI Agent error:', err);
-      setError(err.message || 'An error occurred');
+      // Don't set error state - errors are now sent as regular agent messages
     };
 
     // Disconnect

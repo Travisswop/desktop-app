@@ -4,7 +4,14 @@ import { useState, useEffect, useRef } from 'react';
 import { Send, Loader2, Sparkles, CheckCircle2, XCircle, AlertCircle } from 'lucide-react';
 import { useAIAgent } from '@/hooks/useAIAgent';
 import { cn } from '@/lib/utils';
-import { useSolanaWallets } from '@privy-io/react-auth';
+import { useSolanaWallets, useSignTransaction } from '@privy-io/react-auth/solana';
+import { Transaction, VersionedTransaction, Connection, clusterApiUrl } from '@solana/web3.js';
+import aiAgentService, { TransactionData } from '@/services/aiAgentService';
+
+// Create a connection instance for signing transactions
+const connection = new Connection(
+  process.env.NEXT_PUBLIC_QUICKNODE_SOLANA_ENDPOINT || clusterApiUrl('mainnet-beta')
+);
 
 interface AstroMessage {
   id: string;
@@ -16,11 +23,14 @@ interface AstroMessage {
   requiresConfirmation?: boolean;
   executionResult?: any;
   isError?: boolean;
+  transactionData?: TransactionData;
 }
 
 export default function AstroChatBox() {
   const [accessToken, setAccessToken] = useState<string | null>(null);
   const { wallets: solanaWallets } = useSolanaWallets();
+  const { signTransaction } = useSignTransaction();
+
   const {
     isConnected,
     messages: aiMessages,
@@ -44,7 +54,9 @@ export default function AstroChatBox() {
     action: string;
     params: any;
     messageId: string;
+    transactionData?: TransactionData;
   } | null>(null);
+  const [isSigning, setIsSigning] = useState(false);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -114,6 +126,7 @@ export default function AstroChatBox() {
       params: msg.agentData?.params,
       requiresConfirmation: msg.agentData?.requiresConfirmation,
       executionResult: msg.agentData?.executionResult,
+      transactionData: msg.agentData?.transactionData,
       isError: msg.agentData?.action === 'execution_error',
     }));
     setLocalMessages(converted);
@@ -139,12 +152,13 @@ export default function AstroChatBox() {
       // Pass Solana wallet address along with the message
       const response = await sendMessage(message, solanaWalletAddress || undefined);
 
-      // If action requires confirmation, store it
+      // If action requires confirmation, store it with transaction data
       if (response.requiresConfirmation && response.action !== 'general_chat') {
         setPendingAction({
           action: response.action,
           params: response.params,
           messageId: response.agentMessage._id,
+          transactionData: response.transactionData,
         });
       }
     } catch (error) {
@@ -156,14 +170,100 @@ export default function AstroChatBox() {
     if (!pendingAction) return;
 
     try {
-      await executeTransaction(
-        pendingAction.action,
-        pendingAction.params,
-        pendingAction.messageId
-      );
+      console.log('🔍 Pending action:', pendingAction.action);
+      console.log('📦 Has transaction data:', !!pendingAction.transactionData);
+
+      // Check if this action requires transaction signing (transfer_sol, transfer_token, or swap_tokens)
+      if (pendingAction.action === 'transfer_sol' || pendingAction.action === 'transfer_token' || pendingAction.action === 'swap_tokens') {
+        if (!pendingAction.transactionData) {
+          console.error('❌ No transaction data available for transfer/swap action');
+          throw new Error('Transaction data not available. Please try again.');
+        }
+
+        // Sign the transaction with Privy
+        setIsSigning(true);
+        console.log('🖊️ Signing transaction with Privy...');
+        console.log('📋 Transaction data:', pendingAction.transactionData);
+
+        // Deserialize the transaction - swap uses VersionedTransaction
+        let signedTx;
+        try {
+          if (pendingAction.action === 'swap_tokens') {
+            console.log('🔄 Deserializing VersionedTransaction for swap...');
+            const transaction = VersionedTransaction.deserialize(
+              Buffer.from(pendingAction.transactionData.serializedTransaction, 'base64')
+            );
+
+            console.log('✅ VersionedTransaction deserialized, requesting signature...');
+
+            // Sign with Privy
+            signedTx = await signTransaction({
+              transaction,
+              connection,
+            });
+          } else {
+            console.log('📝 Deserializing regular Transaction...');
+            const transaction = Transaction.from(
+              Buffer.from(pendingAction.transactionData.serializedTransaction, 'base64')
+            );
+
+            console.log('✅ Transaction deserialized, requesting signature...');
+
+            // Sign with Privy
+            signedTx = await signTransaction({
+              transaction,
+              connection,
+            });
+          }
+        } catch (deserializeError) {
+          console.error('❌ Error deserializing transaction:', deserializeError);
+          throw new Error('Failed to deserialize transaction. Please try again.');
+        }
+
+        console.log('✅ Transaction signed by user');
+        console.log('📦 Signed transaction type:', signedTx.constructor.name);
+
+        // Serialize signed transaction
+        let signedTransactionBase64;
+        if (pendingAction.action === 'swap_tokens') {
+          // For VersionedTransaction, serialize returns Uint8Array directly
+          const serialized = signedTx.serialize();
+          console.log('📦 Serialized versioned transaction length:', serialized.length);
+          signedTransactionBase64 = Buffer.from(serialized).toString('base64');
+        } else {
+          // For regular Transaction, serialize returns Buffer
+          signedTransactionBase64 = signedTx.serialize().toString('base64');
+        }
+
+        console.log('📦 Base64 transaction length:', signedTransactionBase64.length);
+
+        // Submit signed transaction to backend
+        console.log('📤 Submitting signed transaction to backend...');
+        await aiAgentService.submitSignedTransaction(
+          signedTransactionBase64,
+          pendingAction.action,
+          pendingAction.messageId
+        );
+
+        console.log('✅ Transaction submitted successfully');
+        setIsSigning(false);
+        setPendingAction(null);
+      } else {
+        // For other actions (check_balance, etc.), use the old flow
+        console.log('⚠️ Using old execution flow for action:', pendingAction.action);
+        console.log('⚠️ This requires Privy embedded wallet on backend');
+        await executeTransaction(
+          pendingAction.action,
+          pendingAction.params,
+          pendingAction.messageId
+        );
+        setPendingAction(null);
+      }
+    } catch (error: any) {
+      console.error('❌ Error executing transaction:', error);
+      setIsSigning(false);
       setPendingAction(null);
-    } catch (error) {
-      console.error('Error executing transaction:', error);
+      // Error will be sent as a friendly agent message from backend
     }
   };
 
@@ -336,23 +436,7 @@ export default function AstroChatBox() {
         <div ref={messagesEndRef} />
       </div>
 
-      {/* Error display */}
-      {aiError && (
-        <div className="px-4 py-2 bg-red-50 border-t border-red-200">
-          <div className="flex items-center justify-between text-sm text-red-700">
-            <div className="flex items-center gap-2">
-              <XCircle className="h-4 w-4" />
-              <span>{aiError}</span>
-            </div>
-            <button
-              onClick={clearError}
-              className="text-xs px-2 py-1 hover:bg-red-100 rounded transition-colors"
-            >
-              Dismiss
-            </button>
-          </div>
-        </div>
-      )}
+      {/* Error display - now hidden as errors come as agent messages */}
 
       {/* Confirmation dialog */}
       {pendingAction && (
@@ -361,31 +445,60 @@ export default function AstroChatBox() {
             <AlertCircle className="h-5 w-5 text-purple-600 mt-0.5" />
             <div className="flex-1">
               <p className="text-sm font-medium text-purple-900 mb-1">
-                Confirm this action?
+                Confirm this {pendingAction.action === 'transfer_sol' || pendingAction.action === 'transfer_token' ? 'transaction' : 'action'}?
               </p>
               <p className="text-xs text-purple-700">
                 Action: {pendingAction.action.replace(/_/g, ' ')}
               </p>
+              {pendingAction.transactionData && (
+                <div className="mt-2 text-xs text-purple-700 space-y-1">
+                  {pendingAction.action === 'swap_tokens' ? (
+                    <>
+                      {pendingAction.transactionData.swapMode === 'ExactOut' ? (
+                        <>
+                          <p>• You pay: ~{pendingAction.transactionData.quote?.inputAmount ? (Number(pendingAction.transactionData.quote.inputAmount) / Math.pow(10, 9)).toFixed(4) : '...'} {pendingAction.transactionData.fromTokenSymbol}</p>
+                          <p>• You receive: {pendingAction.transactionData.outputAmount} {pendingAction.transactionData.toTokenSymbol}</p>
+                        </>
+                      ) : (
+                        <>
+                          <p>• You pay: {pendingAction.transactionData.amount} {pendingAction.transactionData.fromTokenSymbol}</p>
+                          <p>• You receive: ~{pendingAction.transactionData.quote?.outputAmount ? (Number(pendingAction.transactionData.quote.outputAmount) / Math.pow(10, 9)).toFixed(4) : '...'} {pendingAction.transactionData.toTokenSymbol}</p>
+                        </>
+                      )}
+                    </>
+                  ) : (
+                    <>
+                      <p>• Amount: {pendingAction.transactionData.amount} {pendingAction.transactionData.tokenSymbol || 'SOL'}</p>
+                      <p>• To: {pendingAction.transactionData.toEnsName || pendingAction.transactionData.to?.slice(0, 8) + '...'}</p>
+                    </>
+                  )}
+                </div>
+              )}
             </div>
           </div>
           <div className="flex gap-2">
             <button
               onClick={handleConfirmAction}
-              disabled={isExecuting}
+              disabled={isExecuting || isSigning}
               className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {isExecuting ? (
+              {isSigning ? (
+                <>
+                  <Loader2 className="h-3 w-3 mr-1 animate-spin inline" />
+                  Signing...
+                </>
+              ) : isExecuting ? (
                 <>
                   <Loader2 className="h-3 w-3 mr-1 animate-spin inline" />
                   Executing...
                 </>
               ) : (
-                'Confirm'
+                'Confirm & Sign'
               )}
             </button>
             <button
               onClick={handleCancelAction}
-              disabled={isExecuting}
+              disabled={isExecuting || isSigning}
               className="px-4 py-2 border border-gray-300 hover:bg-gray-50 rounded-lg text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
             >
               Cancel
