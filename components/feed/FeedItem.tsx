@@ -3,6 +3,8 @@ import React, { memo, useCallback, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import dayjs from "dayjs";
+import relativeTime from "dayjs/plugin/relativeTime";
+import updateLocale from "dayjs/plugin/updateLocale";
 import { useRouter } from "next/navigation";
 import { GoDotFill } from "react-icons/go";
 import { HiDotsHorizontal } from "react-icons/hi";
@@ -53,6 +55,28 @@ const FeedItem = memo(
   }: FeedItemProps) => {
     const router = useRouter();
     const [isTipModalOpen, setIsTipModalOpen] = useState(false);
+
+    dayjs.extend(relativeTime);
+    dayjs.extend(updateLocale);
+
+    // Update the locale to always use numbers
+    dayjs.updateLocale("en", {
+      relativeTime: {
+        future: "in %s",
+        past: "%s ago",
+        s: "a few seconds",
+        m: "1 minute",
+        mm: "%d minutes",
+        h: "1 hour",
+        hh: "%d hours",
+        d: "1 day",
+        dd: "%d days",
+        M: "1 month",
+        MM: "%d months",
+        y: "1 year",
+        yy: "%d years",
+      },
+    });
 
     const handleFeedClick = useCallback(() => {
       router.push(`/feed/${feed._id}`);
@@ -117,8 +141,6 @@ const FeedItem = memo(
                 >
                   <p className="text-gray-700 font-semibold">{userName}</p>
                   <GoDotFill size={10} />
-                  <p className="text-gray-500 font-normal">{ensName}</p>
-                  <GoDotFill size={10} />
                   <p className="text-gray-500 font-normal">
                     {dayjs(feed.createdAt).fromNow()}
                   </p>
@@ -134,6 +156,7 @@ const FeedItem = memo(
                   </button>
                 )}
               </div>
+              <p className="text-gray-500 font-normal mb-1">{ensName}</p>
 
               {isTipModalOpen && (
                 <TipContentModal

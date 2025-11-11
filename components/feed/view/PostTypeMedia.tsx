@@ -32,7 +32,7 @@ const PostTypeMedia = ({ mediaFiles, isFromRepost = false }: any) => {
               {mediaFiles[0].type === "image" ||
               mediaFiles[0].type === "photo" ||
               mediaFiles[0].type === "gif" ? (
-                <div className="relative flex items-center justify-center h-full group">
+                <div className="flex items-center justify-center h-full group">
                   <Image
                     src={mediaFiles[0].src.replace(
                       "/upload/",
@@ -40,11 +40,14 @@ const PostTypeMedia = ({ mediaFiles, isFromRepost = false }: any) => {
                     )}
                     alt="image"
                     onClick={() => handleOpenImage(mediaFiles[0].src)}
-                    width={1600}
+                    width={1800}
                     height={1600}
+                    quality={100}
                     priority
                     className={`${
-                      isFromRepost ? "max-h-[26rem]" : "max-h-[30rem]"
+                      isFromRepost
+                        ? "max-h-[26rem]"
+                        : "min-h-[14rem] max-h-[28rem]"
                     } w-full h-auto cursor-pointer rounded-xl transition-transform duration-300 group-hover:scale-105`}
                   />
                 </div>

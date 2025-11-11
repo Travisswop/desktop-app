@@ -274,13 +274,12 @@ const LivePreviewTimeline = ({
                   </p>
                   <GoDotFill size={6} />
                   <p className="text-gray-500 font-normal">
-                    {feed?.smartsiteId?.ens || feed?.smartsiteEnsName || "n/a"}
-                  </p>
-                  <GoDotFill size={6} />
-                  <p className="text-gray-500 font-normal">
                     {dayjs(feed.createdAt).fromNow()}
                   </p>
                 </button>
+                <p className="text-gray-500 font-normal">
+                  {feed?.smartsiteId?.ens || feed?.smartsiteEnsName || "n/a"}
+                </p>
                 {/* Redeem Content */}
                 {feed.postType === "redeem" && (
                   <button

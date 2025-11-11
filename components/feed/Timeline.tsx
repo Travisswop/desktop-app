@@ -262,15 +262,12 @@ const Timeline = ({
                     </p>
                     <GoDotFill size={10} />
                     <p className="text-gray-500 font-normal">
-                      {feed?.smartsiteId?.ens ||
-                        feed?.smartsiteEnsName ||
-                        "n/a"}
-                    </p>
-                    <GoDotFill size={10} />
-                    <p className="text-gray-500 font-normal">
                       {dayjs(feed.createdAt).fromNow()}
                     </p>
                   </Link>
+                  <p className="text-gray-500 font-normal">
+                    {feed?.smartsiteId?.ens || feed?.smartsiteEnsName || "n/a"}
+                  </p>
                   {/* Redeem Content */}
                   {feed.postType === "redeem" && (
                     <button
