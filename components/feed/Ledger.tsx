@@ -15,7 +15,7 @@ import { useDisclosure } from "@nextui-org/react";
 import relativeTime from "dayjs/plugin/relativeTime";
 import RedeemClaimModal from "../modal/RedeemClaim";
 import { useRouter } from "next/navigation";
-import { FeedMainContentDataLoading } from "../loading/TabSwitcherLoading";
+import { FeedMainComponentLoading } from "../loading/TabSwitcherLoading";
 import FeedLoading from "../loading/FeedLoading";
 import FeedItem from "./FeedItem";
 
@@ -336,7 +336,7 @@ const Ledger = memo(
           {memoizedFeedItems}
           {hasMore && (
             <div ref={observerRef}>
-              {initiaLoading ? <FeedMainContentDataLoading /> : <FeedLoading />}
+              {initiaLoading ? <FeedMainComponentLoading /> : <FeedLoading />}
             </div>
           )}
         </div>

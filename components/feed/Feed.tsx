@@ -14,7 +14,7 @@ import dayjs from "dayjs";
 import { useDisclosure } from "@nextui-org/react";
 import relativeTime from "dayjs/plugin/relativeTime";
 import RedeemClaimModal from "../modal/RedeemClaim";
-import { FeedMainContentDataLoading } from "../loading/TabSwitcherLoading";
+import { FeedMainComponentLoading } from "../loading/TabSwitcherLoading";
 import FeedLoading from "../loading/FeedLoading";
 import FeedItem from "./FeedItem";
 
@@ -330,7 +330,13 @@ const Feed = memo(
           {memoizedFeedItems}
           {hasMore && (
             <div ref={observerRef}>
-              {initiaLoading ? <FeedMainContentDataLoading /> : <FeedLoading />}
+              {initiaLoading ? (
+                <div className="w-full sm:w-[520px]">
+                  <FeedMainComponentLoading />
+                </div>
+              ) : (
+                <FeedLoading />
+              )}
             </div>
           )}
         </div>

@@ -18,7 +18,7 @@ import isUrl from "@/lib/isUrl";
 import { useUser } from "@/lib/UserContext";
 import { useRouter } from "next/navigation";
 import IndividualFeedContent from "./IndividualFeedContent";
-import { FeedMainContentDataLoading } from "../loading/TabSwitcherLoading";
+import { FeedMainComponentLoading } from "../loading/TabSwitcherLoading";
 import SwapTransactionCard from "./SwapTransactionCard";
 
 dayjs.extend(relativeTime);
@@ -455,7 +455,7 @@ const Timeline = ({
         ))}
         {hasMore && (
           <div ref={observerRef}>
-            {initiaLoading ? <FeedMainContentDataLoading /> : <FeedLoading />}
+            {initiaLoading ? <FeedMainComponentLoading /> : <FeedLoading />}
           </div>
         )}
       </div>

@@ -15,7 +15,7 @@ import { useUser } from "@/lib/UserContext";
 import { useSearchParams } from "next/navigation";
 import Connections from "./Connections";
 import Cookies from "js-cookie";
-import { FeedHomepageLoading } from "../loading/TabSwitcherLoading";
+import { FeedMainComponentLoading } from "../loading/TabSwitcherLoading";
 import SpotlightMap from "./SpotlightMap";
 import Ledger from "./Ledger";
 import PostFeed from "./PostFeed";
@@ -24,7 +24,7 @@ import { useModalStore } from "@/zustandStore/modalstore";
 
 // Constants to avoid duplication
 const CONTAINER_HEIGHT = "calc(100vh - 150px)";
-const CONTAINER_WIDTH = "min-w-96 max-w-[520px]";
+const CONTAINER_WIDTH = "w-full sm:w-[520px]";
 const AUTH_FALLBACK_DELAY = 300;
 
 type AuthData = {
@@ -287,32 +287,13 @@ const MainContentInner = memo(
       [stablePostFeedProps, setIsPosting, setIsPostLoading]
     );
 
-    // console.log("postFeedProps", postFeedProps);
-
     const renderComponent = useMemo(() => {
       const Component =
         tabComponents[tab as keyof typeof tabComponents] || Feed;
       return <Component {...feedComponentProps} />;
     }, [tab, tabComponents, feedComponentProps]);
 
-    // const [isModalOpen, setIsModalOpen] = useState(false);
-
-    // const searchParams = useSearchParams();
-
-    // const tabs = useMemo(
-    //   () => searchParams && searchParams.get("tab"),
-    //   [searchParams]
-    // );
-
     const { isOpen, closeModal } = useModalStore();
-
-    // useEffect(() => {
-    //   if (tabs === "create-feed") {
-    //     setIsModalOpen(true);
-    //   } else {
-    //     setIsModalOpen(false);
-    //   }
-    // }, [tabs]);
 
     return (
       <div
@@ -357,7 +338,11 @@ const FeedMain = memo(() => {
 
   // Early return with loading state - after all hooks
   if (!userId || !accessToken || userLoading) {
-    return <FeedHomepageLoading />;
+    return (
+      <div className="w-full sm:w-[520px] mx-auto">
+        <FeedMainComponentLoading />
+      </div>
+    );
   }
 
   return (
