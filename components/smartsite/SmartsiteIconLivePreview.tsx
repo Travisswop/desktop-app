@@ -45,6 +45,7 @@ import {
   CarouselContent,
   CarouselItem,
 } from "@/components/ui/carousel";
+import { useUser } from "@/lib/UserContext";
 
 const SmartsiteIconLivePreview = ({
   isEditDetailsLivePreview = false,
@@ -69,27 +70,19 @@ const SmartsiteIconLivePreview = ({
 
   // console.log("form data from live preview data", data.info.socialLarge);
 
-  const [accessToken, setAccessToken] = useState("");
-
   const setSmartSiteApiData = useSmartSiteApiDataStore(
     (state: any) => state.setSmartSiteData
   );
+
+  const { user, accessToken } = useUser();
+
+  console.log("user", user);
 
   useEffect(() => {
     if (data) {
       setSmartSiteApiData(data);
     }
   }, [data, setSmartSiteApiData]);
-
-  useEffect(() => {
-    const getAccessToken = async () => {
-      const token = Cookies.get("access-token");
-      if (token) {
-        setAccessToken(token);
-      }
-    };
-    getAccessToken();
-  }, []);
 
   const handleTriggerUpdate = (data: {
     data: any;
@@ -1331,10 +1324,10 @@ const SmartsiteIconLivePreview = ({
                 {/* embed link display here end */}
               </div>
 
-              {data?.showFeed && (
+              {data?.showFeed && accessToken && user && (
                 <LivePreviewTimeline
-                  accessToken=""
-                  userId=""
+                  accessToken={accessToken}
+                  userId={user?._id}
                   isPostLoading={false}
                   isPosting={false}
                   setIsPostLoading={() => {}}
