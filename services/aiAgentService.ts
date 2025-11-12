@@ -91,7 +91,7 @@ class AIAgentService {
    */
   disconnect() {
     if (this.socket) {
-      this.socket.emit('leave_ai_agent', {});
+      this.socket.emit('leave_ai_agent_v2', {});
       this.socket.disconnect();
       this.socket = null;
       this.conversationId = null;
@@ -110,29 +110,29 @@ class AIAgentService {
       this.joinAIAgent();
     });
 
-    // AI agent joined
-    this.socket.on('ai_agent_joined', (data: any) => {
+    // AI agent joined (V2)
+    this.socket.on('ai_agent_joined_v2', (data: any) => {
       this.conversationId = data.conversationId;
       this.emit('joined', data);
     });
 
-    // AI agent response
-    this.socket.on('ai_agent_response', (data: AIAgentResponse) => {
+    // AI agent response (V2)
+    this.socket.on('ai_agent_response_v2', (data: AIAgentResponse) => {
       this.emit('response', data);
     });
 
-    // AI agent typing indicator
-    this.socket.on('ai_agent_typing', (data: { typing: boolean }) => {
+    // AI agent typing indicator (V2)
+    this.socket.on('ai_agent_typing_v2', (data: { typing: boolean }) => {
       this.emit('typing', data.typing);
     });
 
-    // AI agent executing transaction
-    this.socket.on('ai_agent_executing', (data: { executing: boolean; action: string }) => {
+    // AI agent executing transaction (V2)
+    this.socket.on('ai_agent_executing_v2', (data: { executing: boolean; action: string }) => {
       this.emit('executing', data);
     });
 
-    // AI agent execution result
-    this.socket.on('ai_agent_execution_result', (data: AIAgentExecutionResult) => {
+    // AI agent execution result (V2)
+    this.socket.on('ai_agent_execution_result_v2', (data: AIAgentExecutionResult) => {
       this.emit('executionResult', data);
     });
 
@@ -164,7 +164,7 @@ class AIAgentService {
         return;
       }
 
-      this.socket.emit('join_ai_agent', {}, (response: any) => {
+      this.socket.emit('join_ai_agent_v2', {}, (response: any) => {
         if (response.error) {
           reject(new Error(response.error));
         } else {
@@ -191,7 +191,7 @@ class AIAgentService {
       }
 
       this.socket.emit(
-        'ai_agent_message',
+        'ai_agent_message_v2',
         {
           message,
           conversationId: this.conversationId,
@@ -267,7 +267,7 @@ class AIAgentService {
       }
 
       this.socket.emit(
-        'ai_agent_submit_signed_tx',
+        'ai_agent_submit_signed_tx_v2',
         {
           signedTransaction,
           action,
@@ -279,6 +279,41 @@ class AIAgentService {
             reject(new Error(response.error));
           } else {
             resolve(response);
+          }
+        }
+      );
+    });
+  }
+
+  /**
+   * Load more messages (pagination)
+   */
+  async loadMoreMessages(oldestMessageId: string): Promise<{ messages: AIAgentMessage[]; hasMore: boolean }> {
+    return new Promise((resolve, reject) => {
+      if (!this.socket?.connected) {
+        reject(new Error('Not connected to server'));
+        return;
+      }
+
+      if (!this.conversationId) {
+        reject(new Error('Not joined to AI agent conversation'));
+        return;
+      }
+
+      this.socket.emit(
+        'ai_agent_load_more_messages_v2',
+        {
+          conversationId: this.conversationId,
+          oldestMessageId,
+        },
+        (response: any) => {
+          if (response.error) {
+            reject(new Error(response.error));
+          } else {
+            resolve({
+              messages: response.messages || [],
+              hasMore: response.hasMore || false,
+            });
           }
         }
       );

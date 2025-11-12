@@ -8,6 +8,31 @@ import { GoDotFill } from "react-icons/go";
 import { IoSend } from "react-icons/io5";
 import AstroChatBox from "@/components/wallet/chat/astro-chat-box";
 
+// ==================== FEATURE FLAGS ====================
+
+// Feature flag for V2 chat system
+const USE_CHAT_V2 = process.env.NEXT_PUBLIC_USE_CHAT_V2 === 'true';
+
+// Socket event names (V1 or V2 based on feature flag)
+const EVENTS = USE_CHAT_V2
+  ? {
+      SEND_MESSAGE: 'send_message_v2',
+      NEW_MESSAGE: 'new_message_v2',
+      GET_CONVERSATION_HISTORY: 'get_conversation_history_v2',
+      MARK_MESSAGES_READ: 'mark_messages_read_v2',
+      JOIN_CONVERSATION: 'join_conversation_v2',
+    }
+  : {
+      SEND_MESSAGE: 'send_message',
+      NEW_MESSAGE: 'new_message',
+      GET_CONVERSATION_HISTORY: 'get_conversation_history',
+      MARK_MESSAGES_READ: 'mark_messages_read',
+      JOIN_CONVERSATION: 'join_conversation',
+    };
+
+console.log('[ChatArea] Using Chat V2:', USE_CHAT_V2);
+console.log('[ChatArea] Event names:', EVENTS);
+
 // ==================== TYPE DEFINITIONS ====================
 
 interface User {
@@ -130,7 +155,7 @@ export default function ChatArea({
 
       const eventName = isGroup
         ? "get_group_messages"
-        : "get_conversation_history";
+        : EVENTS.GET_CONVERSATION_HISTORY;
       const payload = isGroup
         ? { groupId: selectedChat._id, page, limit: MESSAGES_PER_PAGE }
         : { receiverId: selectedChat._id, page, limit: MESSAGES_PER_PAGE };
@@ -270,7 +295,7 @@ export default function ChatArea({
     if (isGroup) {
       socket.emit("join_group", { groupId: selectedChat._id });
     } else {
-      socket.emit("join_conversation", {
+      socket.emit(EVENTS.JOIN_CONVERSATION, {
         receiverId: selectedChat?._id || selectedChat?.microsite?.parentId,
       });
     }
@@ -326,14 +351,14 @@ export default function ChatArea({
       }
     };
 
-    socket.on(isGroup ? "new_group_message" : "new_message", handleNewMessage);
+    socket.on(isGroup ? "new_group_message" : EVENTS.NEW_MESSAGE, handleNewMessage);
     socket.on("user_typing_group", handleTyping);
     socket.on("typing_started", handleTyping);
     socket.on("typing_stopped", handleTyping);
 
     return () => {
       socket.off(
-        isGroup ? "new_group_message" : "new_message",
+        isGroup ? "new_group_message" : EVENTS.NEW_MESSAGE,
         handleNewMessage
       );
       socket.off("user_typing_group", handleTyping);
@@ -439,7 +464,7 @@ export default function ChatArea({
     setNewMessage("");
 
     socket.emit(
-      isGroup ? "send_group_message" : "send_message",
+      isGroup ? "send_group_message" : EVENTS.SEND_MESSAGE,
       messageData,
       (response: SocketResponse) => {
         console.log("send msg res", response);

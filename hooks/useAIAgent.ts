@@ -22,6 +22,8 @@ export function useAIAgent(options: UseAIAgentOptions = {}) {
   const [executingAction, setExecutingAction] = useState<string | null>(null);
   const [wallet, setWallet] = useState<AIAgentWallet | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [hasMore, setHasMore] = useState(false);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
 
   const isConnecting = useRef(false);
 
@@ -152,10 +154,37 @@ export function useAIAgent(options: UseAIAgentOptions = {}) {
   }, [isConnected]);
 
   /**
+   * Load more messages (pagination)
+   */
+  const loadMoreMessages = useCallback(async () => {
+    if (!isConnected || !messages.length || isLoadingMore || !hasMore) return;
+
+    try {
+      setIsLoadingMore(true);
+      setError(null);
+
+      // Get the oldest message ID
+      const oldestMessageId = messages[0]._id;
+
+      const result = await aiAgentService.loadMoreMessages(oldestMessageId);
+
+      // Prepend older messages to the beginning of the array
+      setMessages((prev) => [...result.messages, ...prev]);
+      setHasMore(result.hasMore);
+    } catch (err: any) {
+      console.error('Error loading more messages:', err);
+      setError(err.message || 'Failed to load more messages');
+    } finally {
+      setIsLoadingMore(false);
+    }
+  }, [isConnected, messages, isLoadingMore, hasMore]);
+
+  /**
    * Clear messages
    */
   const clearMessages = useCallback(() => {
     setMessages([]);
+    setHasMore(false);
   }, []);
 
   /**
@@ -170,6 +199,14 @@ export function useAIAgent(options: UseAIAgentOptions = {}) {
     // Joined conversation
     const handleJoined = (data: any) => {
       setConversationId(data.conversationId);
+      // Load previous messages if they exist
+      if (data.messages && Array.isArray(data.messages)) {
+        setMessages(data.messages);
+      }
+      // Set hasMore flag for pagination
+      if (typeof data.hasMore === 'boolean') {
+        setHasMore(data.hasMore);
+      }
     };
 
     // New message
@@ -261,6 +298,8 @@ export function useAIAgent(options: UseAIAgentOptions = {}) {
     executingAction,
     wallet,
     error,
+    hasMore,
+    isLoadingMore,
 
     // Actions
     connect,
@@ -268,6 +307,7 @@ export function useAIAgent(options: UseAIAgentOptions = {}) {
     sendMessage,
     executeTransaction,
     getWalletInfo,
+    loadMoreMessages,
     clearMessages,
     clearError,
   };

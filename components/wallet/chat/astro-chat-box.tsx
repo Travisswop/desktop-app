@@ -43,6 +43,9 @@ export default function AstroChatBox() {
     error: aiError,
     connect,
     clearError,
+    hasMore,
+    isLoadingMore,
+    loadMoreMessages,
   } = useAIAgent({ autoConnect: false, token: accessToken || '' });
 
   // Get Solana wallet address
@@ -59,6 +62,8 @@ export default function AstroChatBox() {
   const [isSigning, setIsSigning] = useState(false);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const previousScrollHeightRef = useRef(0);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
   // Get access token from cookies
@@ -141,6 +146,43 @@ export default function AstroChatBox() {
   useEffect(() => {
     inputRef.current?.focus();
   }, []);
+
+  // Handle scroll to detect when user reaches top (for pagination)
+  const handleScroll = () => {
+    const container = scrollContainerRef.current;
+    if (!container) return;
+
+    // Check if scrolled to top (within 50px threshold)
+    if (container.scrollTop < 50 && hasMore && !isLoadingMore) {
+      // Save current scroll height before loading more
+      previousScrollHeightRef.current = container.scrollHeight;
+
+      // Load more messages
+      loadMoreMessages();
+    }
+  };
+
+  // Maintain scroll position after loading more messages
+  useEffect(() => {
+    const container = scrollContainerRef.current;
+    if (!container || !isLoadingMore) return;
+
+    // After loading completes, restore scroll position
+    const observer = new MutationObserver(() => {
+      const newScrollHeight = container.scrollHeight;
+      const scrollHeightDiff = newScrollHeight - previousScrollHeightRef.current;
+
+      // Adjust scroll to maintain user's position (account for new messages at top)
+      if (scrollHeightDiff > 0) {
+        container.scrollTop += scrollHeightDiff;
+        observer.disconnect();
+      }
+    });
+
+    observer.observe(container, { childList: true, subtree: true });
+
+    return () => observer.disconnect();
+  }, [isLoadingMore, localMessages.length]);
 
   const handleSendMessage = async () => {
     if (!inputValue.trim() || !isConnected) return;
@@ -372,7 +414,27 @@ export default function AstroChatBox() {
       </div>
 
       {/* Messages Area - Matching ChatArea */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-2">
+      <div
+        ref={scrollContainerRef}
+        onScroll={handleScroll}
+        className="flex-1 overflow-y-auto p-4 space-y-2"
+      >
+        {/* Loading indicator at top for pagination */}
+        {hasMore && localMessages.length > 0 && (
+          <div className="text-center py-2">
+            {isLoadingMore ? (
+              <div className="flex items-center justify-center gap-2 text-sm text-gray-600">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                <span>Loading older messages...</span>
+              </div>
+            ) : (
+              <span className="text-xs text-gray-500">
+                Scroll up to load more messages
+              </span>
+            )}
+          </div>
+        )}
+
         {localMessages.length === 0 && !isTyping && (
           <div className="flex flex-col items-center justify-center h-full text-center p-8">
             <div className="w-20 h-20 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center mb-4">
