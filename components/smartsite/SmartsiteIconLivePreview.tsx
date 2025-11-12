@@ -1,6 +1,6 @@
 "use client";
 import Image from "next/image";
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useState } from "react";
 import swop from "@/public/images/live-preview/swop.svg";
 import useSmartsiteFormStore from "@/zustandStore/EditSmartsiteInfo";
 import useUpdateSmartIcon from "@/zustandStore/UpdateSmartIcon";
@@ -268,49 +268,6 @@ const SmartsiteIconLivePreview = ({
 
   const socialRows = distributeIcons(data.info.socialTop);
 
-  const scrollableRef = useRef<HTMLDivElement>(null);
-  // Add wheel event listener
-  // In SmartsiteIconLivePreview component
-  useEffect(() => {
-    const handleWheel = (e: WheelEvent) => {
-      if (!scrollableRef.current) return;
-
-      const target = e.target as HTMLElement;
-
-      // Check if the scroll is happening inside LivePreviewTimeline or any other scrollable nested element
-      const scrollableParent = target.closest(
-        ".overflow-y-auto.hide-scrollbar"
-      );
-
-      // If we're inside a nested scrollable element (like LivePreviewTimeline)
-      if (scrollableParent && scrollableParent !== scrollableRef.current) {
-        const element = scrollableParent as HTMLElement;
-        const isAtTop = element.scrollTop === 0;
-        const isAtBottom =
-          element.scrollHeight - element.scrollTop === element.clientHeight;
-
-        // Only let the parent (main scroll) handle it if we're at the boundaries
-        if ((e.deltaY < 0 && isAtTop) || (e.deltaY > 0 && isAtBottom)) {
-          e.preventDefault();
-          scrollableRef.current.scrollTop += e.deltaY;
-        }
-        // Otherwise, let the nested element scroll naturally
-        return;
-      }
-
-      // For the main scroll area, prevent default and handle manually
-      e.preventDefault();
-      scrollableRef.current.scrollTop += e.deltaY;
-    };
-
-    // Add event listener to the entire document
-    document.addEventListener("wheel", handleWheel, { passive: false });
-
-    return () => {
-      document.removeEventListener("wheel", handleWheel);
-    };
-  }, []);
-
   // Add this helper function at the top of your component or in a separate utils file
   const groupMarketPlaceByType = (marketPlaceItems: any[]) => {
     const grouped: { [key: string]: any[] } = {};
@@ -338,12 +295,9 @@ const SmartsiteIconLivePreview = ({
           ? `url(/images/smartsite-background/${formData.backgroundImg}.png)`
           : "none",
       }}
-      className="max-w-screen h-[calc(100vh-96px)] overflow-hidden bg-cover bg-no-repeat -m-6"
+      className="max-w-screen h-[calc(100vh-96px)] overflow-x-hidden -m-6 bg-cover bg-no-repeat overflow-y-auto"
     >
-      <div
-        ref={scrollableRef}
-        className="relative min-w-96 max-w-[500px] mx-auto h-full overflow-y-auto hide-scrollbar"
-      >
+      <div className="relative min-w-96 max-w-[500px] mx-auto h-full ">
         <section
           className={`${
             formData.fontType && fontMap[formData.fontType.toLowerCase()]
@@ -414,15 +368,15 @@ const SmartsiteIconLivePreview = ({
                     style={{
                       color: formData.fontColor && formData.fontColor,
                     }}
-                    className={`font-medium text-lg text-gray-700`}
+                    className={`font-medium text-lg text-gray-900`}
                   >
                     {formData.name || data?.name}
                   </p>
                   <p
                     style={{
-                      color: formData.fontColor ? formData.fontColor : "gray",
+                      color: formData.fontColor && formData.fontColor,
                     }}
-                    className={`font-medium text-sm text-gray-500`}
+                    className={`font-medium text-sm text-gray-800`}
                   >
                     {formData.bio || data?.bio}
                   </p>
@@ -1220,19 +1174,6 @@ const SmartsiteIconLivePreview = ({
                               </div>
                             </button>
                           </div>
-                          {/* <div className="w-[4%]">
-                  <button
-                    onClick={() =>
-                      handleTriggerUpdate({
-                        data: audioData,
-                        categoryForTrigger: "audio",
-                      })
-                    }
-                    className=""
-                  >
-                    <FaEdit size={18} />
-                  </button>
-                </div> */}
                         </div>
                       ))}
                     </div>
@@ -1323,108 +1264,11 @@ const SmartsiteIconLivePreview = ({
                               </div>
                             </div>
                           </div>
-                          {/* <div className="w-[4%]">
-                  <button
-                    onClick={() =>
-                      handleTriggerUpdate({
-                        data: audioData,
-                        categoryForTrigger: "audio",
-                      })
-                    }
-                    className=""
-                  >
-                    <FaEdit size={18} />
-                  </button>
-                </div> */}
                         </div>
                       ))}
                     </div>
                   )}
                   {/* audio||music display here end */}
-                  {/* marketPlace display here start */}
-                  {data.info.marketPlace.length > 0 && (
-                    <div className="flex flex-col gap-y-3 px-3">
-                      {data.info.marketPlace.map((data: any) => (
-                        <div
-                          key={data._id}
-                          className="flex items-center gap-0.5"
-                        >
-                          <div className="flex items-center gap-2 w-full">
-                            <div
-                              style={{
-                                color: formData.secondaryFontColor
-                                  ? formData.secondaryFontColor
-                                  : "black",
-
-                                backgroundColor: formData.templateColor
-                                  ? formData.templateColor
-                                  : "white",
-                              }}
-                              className={`w-full h-full py-2 px-3 rounded-lg shadow-medium`}
-                            >
-                              <div
-                                // onClick={() =>
-                                //   handleTriggerUpdate({
-                                //     data: data,
-                                //     categoryForTrigger: "swopPay",
-                                //   })
-                                // }
-                                className="flex items-center justify-between gap-1 w-full"
-                              >
-                                <div className="flex items-center gap-2 w-full">
-                                  <div className="relative w-8 h-8">
-                                    <Image
-                                      src={data.itemImageUrl}
-                                      alt="nft photo"
-                                      width={160}
-                                      height={90}
-                                      quality={100}
-                                      className="w-full h-full rounded-md object-cover"
-                                    />
-                                  </div>
-                                  <div className="text-start flex-1">
-                                    <p className="text-sm mb-0.5">
-                                      {data.itemName}
-                                    </p>
-                                    <p className="text-xs line-clamp-2">
-                                      {data.itemDescription}
-                                    </p>
-                                  </div>
-                                </div>
-                                <div className="custom-audio text-xs min-w-max font-medium">
-                                  {data.itemPrice} USDC
-                                </div>
-                              </div>
-                            </div>
-                            {/* <div className="w-[4%]">
-                <button
-                  onClick={() =>
-                    handleTriggerUpdate({
-                      data: audioData,
-                      categoryForTrigger: "audio",
-                    })
-                  }
-                  className=""
-                >
-                  <FaEdit size={18} />
-                </button>
-              </div> */}
-                          </div>
-                          <button
-                            onClick={() =>
-                              handleMarketPlaceDelete(
-                                data._id,
-                                data.micrositeId
-                              )
-                            }
-                          >
-                            <MdDeleteForever size={18} />
-                          </button>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                  {/* marketPlace display here end */}
                 </div>
                 {/* video display here start */}
                 {data.info.video.length > 0 && (
@@ -1511,76 +1355,6 @@ const SmartsiteIconLivePreview = ({
           </div>
         </section>
       </div>
-
-      {!isEditDetailsLivePreview && (
-        <div className="flex flex-col gap-2 mt-4 pb-4">
-          <p className="text-gray-600 font-medium text-center">Live Preview</p>
-          <div className="flex flex-wrap items-center justify-center gap-2">
-            <Link href={`/smartsite/qr-code/${data?._id}`}>
-              <button
-                type="button"
-                className="rounded-full bg-white border border-gray-300 px-6 py-2 text-gray-500 font-medium flex items-center gap-1 hover:bg-gray-300"
-              >
-                <LiaFileMedicalSolid size={20} />
-                Customize QR
-              </button>
-            </Link>
-            <div className="relative">
-              <SmartsiteSocialShare
-                isAbsolute={false}
-                profileUrl={data.profileUrl}
-                className="flex items-center justify-center text-gray-600 bg-white gap-1 !rounded-full font-medium border border-gray-300"
-              >
-                <IoIosSend color="gray" size={18} />
-                Share
-              </SmartsiteSocialShare>
-            </div>
-            {/* <button
-              type="button"
-              className="rounded-full bg-white border border-gray-300 px-6 py-2 text-gray-500 font-medium flex items-center gap-1 hover:bg-gray-300"
-            >
-              <IoIosSend color="gray" size={18} />
-              Share
-            </button> */}
-          </div>
-          <div className="flex justify-center items-center gap-1 2xl:gap-3 flex-wrap overflow-x-hidden">
-            <div className="flex items-center gap-2 2xl:gap-8 border border-gray-300 rounded-full pl-3 2xl:pl-5 pr-1 2xl:pr-4 py-2 text-lg font-medium text-gray-600 w-max bg-white">
-              <p className="text-sm 2xl:text-base text-gray-500 font-medium w-max">
-                Lead Capture
-              </p>
-              <Switch
-                size="sm"
-                isSelected={isLeadCapture}
-                onValueChange={setIsLeadCapture}
-                aria-label="Lead Captures"
-              />
-            </div>
-            <div className="flex items-center gap-2 2xl:gap-8 border border-gray-300 rounded-full pl-3 2xl:pl-5 pr-1 2xl:pr-4 py-2 text-lg font-medium text-gray-600 w-max bg-white">
-              <p className="text-sm 2xl:text-base text-gray-500 font-medium w-max">
-                Make Primary Microsite
-              </p>
-              <Switch
-                size="sm"
-                isSelected={isPrimaryMicrosite}
-                onValueChange={setIsPrimaryMicrosite}
-                aria-label="Lead Captures"
-              />
-            </div>
-          </div>
-          <div className="flex justify-center w-64 mx-auto">
-            {/* <a href={data?.data?.profileUrl} target="_blank" className="w-full"> */}
-            <AnimateButton
-              onClick={handleSmartSiteUpdateInfo}
-              isLoading={isPublishedLoading}
-              whiteLoading={true}
-              className="bg-black text-white py-2 !border-0 !rounded-full mt-2"
-            >
-              <LiaFileMedicalSolid size={20} /> Publish
-            </AnimateButton>
-            {/* </a> */}
-          </div>
-        </div>
-      )}
 
       <UpdateModalComponents isOn={isOn} iconData={iconData} setOff={setOff} />
 
