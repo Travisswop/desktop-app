@@ -16,7 +16,6 @@ import { IoAdd, IoClose } from "react-icons/io5";
 import { HiOutlineUsers } from "react-icons/hi";
 import { FaEdit } from "react-icons/fa";
 import { TbLockDollar } from "react-icons/tb";
-import { RiExchangeBoxLine } from "react-icons/ri";
 import { MdPhoneIphone } from "react-icons/md";
 import {
   DropdownMenu,
@@ -64,10 +63,14 @@ const BottomNavContent = () => {
     [searchParams]
   );
 
+  console.log("params", params);
+
   const isSmartsite = pathname?.startsWith("/smartsite/");
 
   // Get the dynamic ID from the route
-  const pageId = params?.editId as string | undefined;
+  const pageId =
+    (params?.editId as string | undefined) ||
+    (params?.id as string | undefined);
 
   // Template data
   const templates = [
