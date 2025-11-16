@@ -23,7 +23,7 @@ const SkeletonBalanceChart = () => (
         <Skeleton className="h-10 w-40 rounded-full" />
       </p>
     </div>
-    <ResponsiveContainer width="100%" height={400}>
+    <ResponsiveContainer width="100%" height={200}>
       <Skeleton className="h-full rounded-lg" />
     </ResponsiveContainer>
   </div>
@@ -145,7 +145,7 @@ const BalanceChart = ({ balanceHistory, totalTokensValue }: any) => {
   const growthPercentage: any = calculateGrowthPercentage();
 
   return (
-    <div className="bg-white my-4 p-5 rounded-xl">
+    <div className="bg-white p-5 rounded-xl">
       <div>
         <h2 className="font-bold text-xl text-gray-700">Cashflow</h2>
         {/* <div className="flex items-center justify-center mt-1"> */}
@@ -216,7 +216,7 @@ const BalanceChart = ({ balanceHistory, totalTokensValue }: any) => {
         </button>
         {/* </div> */}
       </div>
-      <ResponsiveContainer width="100%" height={400}>
+      <ResponsiveContainer width="100%" height={200}>
         <AreaChart data={filteredData}>
           <defs>
             <linearGradient id="colorValue" x1="0" y1="0" x2="0" y2="1">

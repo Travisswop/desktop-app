@@ -6,8 +6,13 @@ import DashboardAnalytics from "./analytics";
 import WalletBalanceChart from "./walletBalanceChart";
 import { useQuery } from "@tanstack/react-query";
 import { getFollowers, followersQueryKey } from "@/services/followers-service";
+import PortfolioChart from "./PortfolioChart";
+import OrdersStats from "./OrderSummery";
+import Insights from "./Insights";
+import BalanceChart from "./BalanceChart";
+import NavigationHub from "./NavigationTab";
 
-export default function DashboardContent() {
+export default function DashboardMainContent() {
   const { user, loading, error, accessToken } = useUser();
 
   // Fetch followers with pagination (page 1, limit 20)
@@ -52,12 +57,98 @@ export default function DashboardContent() {
     console.error("Error fetching followers:", followersError);
   }
 
-  return (
-    <div className="">
-      <ProfileHeader />
+  const assets = [
+    { name: "ETH", value: 12500, color: "#22c55e", amount: "5.2 ETH" },
+    { name: "SOL", value: 9800, color: "#166534", amount: "450 SOL" },
+    { name: "SWOP", value: 6004.59, color: "#bbf7d0", amount: "12.5K SWOP" },
+  ];
 
-      {/* CashflowChart */}
-      <WalletBalanceChart />
+  const handleViewPortfolio = () => {
+    console.log("Navigate to full portfolio view");
+    // router.push('/portfolio/details');
+  };
+
+  const handleViewClick = () => {
+    console.log("View orders clicked");
+    // router.push('/orders');
+  };
+  const handleViewInsightsClick = () => {
+    console.log("View insights clicked");
+    // router.push('/orders');
+  };
+
+  const balanceData = [
+    { time: "00:00", value: 12394 },
+    { time: "02:00", value: 13200 },
+    { time: "04:00", value: 14800 },
+    { time: "06:00", value: 16500 },
+    { time: "08:00", value: 18200 },
+    { time: "10:00", value: 19800 },
+    { time: "12:00", value: 20893 },
+    { time: "14:00", value: 22100 },
+    { time: "16:00", value: 23400 },
+    { time: "18:00", value: 24800 },
+    { time: "20:00", value: 26200 },
+    { time: "22:00", value: 27500 },
+    { time: "24:00", value: 28304.59 },
+  ];
+
+  return (
+    <div className="space-y-4">
+      {/* <ProfileHeader /> */}
+
+      <div className="flex flex-col lg:flex-row gap-4">
+        {/* CashflowChart */}
+        <div className="flex-1 flex flex-col gap-3">
+          <div className="bg-white rounded-xl">
+            {/* <WalletBalanceChart /> */}
+            <BalanceChart currency="$" />
+          </div>
+          <div className="bg-white p-5 rounded-xl">
+            <Insights
+              totalTaps={{
+                value: 34,
+                period: "30 days",
+                trend: 24,
+              }}
+              leads={{
+                value: 34,
+                period: "30 days",
+                trend: 24,
+              }}
+              connections={{
+                value: 34,
+                period: "30 days",
+                trend: 24,
+              }}
+              onViewClick={handleViewInsightsClick}
+            />
+          </div>
+        </div>
+        <div className="flex-1  rounded-lg flex flex-col gap-3">
+          <div className="bg-white flex-1 rounded-xl">
+            <PortfolioChart
+              assets={assets}
+              balance="$28,30.59"
+              title="Portfolio"
+              viewAction={handleViewPortfolio}
+            />
+          </div>
+          <div className="bg-white flex-1 rounded-xl">
+            <OrdersStats
+              totalMints={1827}
+              totalRevenue={1002.33}
+              inEscrow={200.34}
+              closedOrders={20}
+              openOrders={10}
+              disputes={0}
+              onViewClick={handleViewClick}
+            />
+          </div>
+        </div>
+      </div>
+
+      <NavigationHub />
 
       {/* <TestChart /> */}
       <DashboardAnalytics data={user} />

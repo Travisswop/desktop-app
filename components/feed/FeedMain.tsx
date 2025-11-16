@@ -32,10 +32,6 @@ type AuthData = {
   accessToken: string;
 };
 
-// interface FeedMainProps {
-//   isFromHome?: boolean;
-// }
-
 // Custom hook to manage authentication data
 const useAuthData = (userId?: string) => {
   const [authData, setAuthData] = useState<AuthData | null>(null);
