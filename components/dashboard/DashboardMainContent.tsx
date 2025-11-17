@@ -1,9 +1,7 @@
 "use client";
 import { useUser } from "@/lib/UserContext";
 import { Skeleton } from "../ui/skeleton";
-import ProfileHeader from "./profile-header";
 import DashboardAnalytics from "./analytics";
-import WalletBalanceChart from "./walletBalanceChart";
 import { useQuery } from "@tanstack/react-query";
 import { getFollowers, followersQueryKey } from "@/services/followers-service";
 import PortfolioChart from "./PortfolioChart";
@@ -11,9 +9,16 @@ import OrdersStats from "./OrderSummery";
 import Insights from "./Insights";
 import BalanceChart from "./BalanceChart";
 import NavigationHub from "./NavigationTab";
+import DashboardContentPreview from "./ContentPreview";
+import DashboardChatPreview from "./ChatPreview";
+import RewardsCardPreview from "./RewardPreview";
+import TransactionsListPreview from "./TransactionPreview";
+import QRCodePreview from "./QrcodePreview";
 
 export default function DashboardMainContent() {
   const { user, loading, error, accessToken } = useUser();
+
+  console.log("user", user);
 
   // Fetch followers with pagination (page 1, limit 20)
   const {
@@ -77,20 +82,40 @@ export default function DashboardMainContent() {
     // router.push('/orders');
   };
 
-  const balanceData = [
-    { time: "00:00", value: 12394 },
-    { time: "02:00", value: 13200 },
-    { time: "04:00", value: 14800 },
-    { time: "06:00", value: 16500 },
-    { time: "08:00", value: 18200 },
-    { time: "10:00", value: 19800 },
-    { time: "12:00", value: 20893 },
-    { time: "14:00", value: 22100 },
-    { time: "16:00", value: 23400 },
-    { time: "18:00", value: 24800 },
-    { time: "20:00", value: 26200 },
-    { time: "22:00", value: 27500 },
-    { time: "24:00", value: 28304.59 },
+  const customTransactions = [
+    {
+      id: "1",
+      userName: "HawkTuah",
+      userImage: "https://i.pravatar.cc/150?img=12",
+      status: "transition",
+      walletAddress: "0x3rf....56hgj",
+      date: "Jun 22, 2021",
+      timestamp: "1/2/23 12:22PM",
+      amount: "582.38",
+      cryptoAmount: "82.78SOL",
+    },
+    {
+      id: "2",
+      userName: "HawkTuah",
+      userImage: "https://i.pravatar.cc/150?img=12",
+      status: "transition",
+      walletAddress: "0x3rf....56hgj",
+      date: "Jun 22, 2021",
+      timestamp: "1/2/23 12:22PM",
+      amount: "582.38",
+      cryptoAmount: "82.78SOL",
+    },
+    {
+      id: "3",
+      userName: "CryptoWhale",
+      userImage: "https://i.pravatar.cc/150?img=8",
+      status: "completed",
+      walletAddress: "0x7ab....92def",
+      date: "Jun 21, 2021",
+      timestamp: "1/1/23 10:15AM",
+      amount: "1,250.00",
+      cryptoAmount: "156.25SOL",
+    },
   ];
 
   return (
@@ -107,18 +132,18 @@ export default function DashboardMainContent() {
           <div className="bg-white p-5 rounded-xl">
             <Insights
               totalTaps={{
-                value: 34,
-                period: "30 days",
+                value: user ? user?.tap.length : 0,
+                period: "All Time",
                 trend: 24,
               }}
               leads={{
-                value: 34,
+                value: user ? user?.subscribers.length : 0,
                 period: "30 days",
                 trend: 24,
               }}
               connections={{
-                value: 34,
-                period: "30 days",
+                value: user ? user?.connectionIds.length : 0,
+                period: "All Time",
                 trend: 24,
               }}
               onViewClick={handleViewInsightsClick}
@@ -150,8 +175,29 @@ export default function DashboardMainContent() {
 
       <NavigationHub />
 
+      <div className="flex flex-col lg:flex-row gap-4">
+        <div className="flex-1 bg-white p-5 rounded-xl">
+          {/* Chat Preview Section */}
+          <DashboardChatPreview />
+        </div>
+        <div className="flex-1 bg-white p-5 rounded-xl">
+          <DashboardContentPreview />
+        </div>
+      </div>
+      <div className="flex flex-col lg:flex-row gap-4">
+        <div className="flex-1 bg-white p-5 rounded-xl">
+          <TransactionsListPreview transactions={customTransactions} />
+        </div>
+        <div className="flex-1 bg-white p-5 rounded-xl">
+          <RewardsCardPreview />
+        </div>
+      </div>
+      <div className="bg-white p-5 rounded-xl w-full sm:w-[80%] lg:w-1/3">
+        <QRCodePreview />
+      </div>
+
       {/* <TestChart /> */}
-      <DashboardAnalytics data={user} />
+      {/* <DashboardAnalytics data={user} /> */}
     </div>
   );
 }

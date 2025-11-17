@@ -13,6 +13,7 @@ import pos from "@/public/assets/dashboardHub/pos.png";
 import products from "@/public/assets/dashboardHub/products.png";
 import subscription from "@/public/assets/dashboardHub/subscription.png";
 import Image from "next/image";
+import Link from "next/link";
 
 interface NavItem {
   id: string;
@@ -55,15 +56,7 @@ interface NavigationHubProps {
   onItemClick?: (itemId: string) => void;
 }
 
-export const NavigationHub: React.FC<NavigationHubProps> = ({
-  onItemClick,
-}) => {
-  const handleClick = (itemId: string) => {
-    if (onItemClick) {
-      onItemClick(itemId);
-    }
-  };
-
+export const NavigationHub: React.FC<NavigationHubProps> = () => {
   return (
     <div className="w-full bg-white rounded-xl">
       <div className="w-full px-4">
@@ -72,9 +65,10 @@ export const NavigationHub: React.FC<NavigationHubProps> = ({
           {/* Navigation Items */}
           <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 lg:flex items-center gap-2 lg:gap-6 xl:gap-10 w-full">
             {navigationItems.map((item) => (
-              <button
+              <Link
+                href={"/mint"}
                 key={item.id}
-                onClick={() => handleClick(item.id)}
+                // onClick={() => handleClick(item.id)}
                 className="flex flex-col items-center gap-2 group cursor-pointer transition-all hover:opacity-70 "
               >
                 <div className="w-full h-20 bg-gray-100 rounded-lg flex items-center justify-center text-gray-700 group-hover:border-gray-200 transition-colors">
@@ -87,7 +81,7 @@ export const NavigationHub: React.FC<NavigationHubProps> = ({
                 <span className="text-xs font-medium text-gray-800 whitespace-nowrap">
                   {item.label}
                 </span>
-              </button>
+              </Link>
             ))}
           </div>
         </div>
