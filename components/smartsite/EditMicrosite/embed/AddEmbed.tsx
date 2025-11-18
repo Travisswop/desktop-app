@@ -7,7 +7,6 @@ import {
   DropdownTrigger,
   Tooltip,
 } from "@nextui-org/react";
-import { AiOutlineDownCircle } from "react-icons/ai";
 import { IoLinkOutline } from "react-icons/io5";
 import { LiaFileMedicalSolid } from "react-icons/lia";
 // import { embedItems, icon } from "@/util/data/smartsiteIconData";
@@ -24,6 +23,8 @@ import { MdInfoOutline } from "react-icons/md";
 import placeholder from "@/public/images/video_player_placeholder.gif";
 import toast from "react-hot-toast";
 import Cookies from "js-cookie";
+import { PrimaryButton } from "@/components/ui/Button/PrimaryButton";
+import { Loader } from "lucide-react";
 
 const AddEmbed = ({ handleRemoveIcon }: any) => {
   const state: any = useSmartSiteApiDataStore((state) => state); //get small icon store value
@@ -93,7 +94,7 @@ const AddEmbed = ({ handleRemoveIcon }: any) => {
   const getEmbedItems: any = embedItems;
 
   return (
-    <div className="relative bg-white rounded-xl shadow-small p-6 flex flex-col gap-4 px-10 2xl:px-[10%]">
+    <div className="relative flex flex-col gap-4 sm:px-10 2xl:px-[10%]">
       <div className="flex items-end gap-1 justify-center">
         <div className="flex items-end gap-1 justify-center">
           <h2 className="font-semibold text-gray-700 text-xl text-center">
@@ -115,13 +116,13 @@ const AddEmbed = ({ handleRemoveIcon }: any) => {
             </Tooltip>
           </div>
         </div>
-        <button
+        {/* <button
           className="absolute top-3 right-3"
           type="button"
           onClick={() => handleRemoveIcon("Embed")}
         >
           <FaTimes size={18} />
-        </button>
+        </button> */}
       </div>
       <div className="border-2 border-[#d8acff] w-[100%] mx-auto h-auto flex justify-center p-1 bg-slate-100 rounded-lg">
         {!embedLink ? (
@@ -174,14 +175,16 @@ const AddEmbed = ({ handleRemoveIcon }: any) => {
         )}
       </div>
       <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <h3 className="font-semibold text-gray-700">Select Embed Type</h3>
+        <div className="flex items-center gap-2 w-full">
+          <h3 className="font-semibold text-gray-700 min-w-max">
+            Select Embed Type
+          </h3>
 
           <Dropdown className="w-max rounded-lg" placement="bottom-start">
             <DropdownTrigger>
               <button
                 type="button"
-                className="bg-white w-48 2xl:w-64 flex justify-between items-center rounded px-2 py-2 text-sm font-medium shadow-small"
+                className="bg-white w-full flex justify-between items-center rounded px-2 py-2 text-sm font-medium shadow-small"
               >
                 <span className="flex items-center gap-2">
                   {selectedIcon && (
@@ -263,17 +266,13 @@ const AddEmbed = ({ handleRemoveIcon }: any) => {
               onChange={(e) => setEmbedLink(e.target.value)}
             />
           </div>
-          <div className="flex justify-center mt-3">
-            <AnimateButton
-              className="bg-black text-white py-2 !border-0"
-              whiteLoading={true}
-              isLoading={isLoading}
-              width={"w-40"}
-            >
-              <LiaFileMedicalSolid size={20} />
-              Create
-            </AnimateButton>
-          </div>
+          <PrimaryButton className="w-full py-3 mt-3">
+            {isLoading ? (
+              <Loader className="w-8 h-8 animate-spin mx-auto" />
+            ) : (
+              "Save"
+            )}
+          </PrimaryButton>
         </form>
       </div>
     </div>

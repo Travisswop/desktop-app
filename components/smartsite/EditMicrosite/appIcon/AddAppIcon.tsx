@@ -22,6 +22,8 @@ import { useUser } from "@/lib/UserContext";
 import cusImg from "@/public/images/IconShop/download@3x.png";
 import CustomFileInput from "@/components/CustomFileInput";
 import { sendCloudinaryImage } from "@/lib/SendCloudinaryImage";
+import { PrimaryButton } from "@/components/ui/Button/PrimaryButton";
+import { Loader } from "lucide-react";
 
 const AddAppIcon = ({ handleRemoveIcon }: any) => {
   const state: any = useSmartSiteApiDataStore((state) => state); //get small icon store value
@@ -40,9 +42,9 @@ const AddAppIcon = ({ handleRemoveIcon }: any) => {
   const [imageFile, setImageFile] = useState<any>(null);
   const [fileError, setFileError] = useState<string>("");
   // console.log("selected icon data", selectedIconData);
-  console.log("selected icon", selectedIcon);
-  console.log("selected icon selectedIconType", selectedIconType);
-  console.log("imageFile", imageFile);
+  // console.log("selected icon", selectedIcon);
+  // console.log("selected icon selectedIconType", selectedIconType);
+  // console.log("imageFile", imageFile);
 
   const iconData: any = newIcons[1];
 
@@ -151,11 +153,9 @@ const AddAppIcon = ({ handleRemoveIcon }: any) => {
   };
 
   return (
-    <div className="relative bg-white rounded-xl shadow-small p-6 flex flex-col gap-4">
+    <div className="relative flex flex-col gap-4">
       <div className="flex items-end gap-1 justify-center">
-        <h2 className="font-semibold text-gray-700 text-xl text-center">
-          App Icon
-        </h2>
+        <h2 className="font-semibold text-xl text-center">App Icon</h2>
         <div className="translate-y-0.5">
           <Tooltip
             size="sm"
@@ -173,13 +173,6 @@ const AddAppIcon = ({ handleRemoveIcon }: any) => {
           </Tooltip>
         </div>
       </div>
-      <button
-        className="absolute top-3 right-3"
-        type="button"
-        onClick={() => handleRemoveIcon("App Icon")}
-      >
-        <FaTimes size={18} />
-      </button>
       <div
         className={`flex justify-center bg-[#F2F2F2] rounded-xl ${
           selectedIconType !== "Custom Image" && !imageFile
@@ -237,14 +230,14 @@ const AddAppIcon = ({ handleRemoveIcon }: any) => {
           </>
         )}
       </div>
-      <div className="flex flex-col gap-2 mt-4 px-10 2xl:px-[10%]">
+      <div className="flex flex-col gap-2 sm:px-10 2xl:px-[10%]">
         <div className="flex items-center gap-2">
-          <h3 className="font-semibold w-32">App Icon Types</h3>
+          <h3 className="font-medium min-w-32">App Icon Types</h3>
           <Dropdown className="w-max rounded-lg" placement="bottom-start">
             <DropdownTrigger>
               <button
                 type="button"
-                className="bg-white w-48 2xl:w-64 flex justify-between items-center rounded px-2 py-2 text-sm font-medium shadow-small"
+                className="w-full flex justify-between items-center rounded px-2 py-2 text-sm font-medium shadow-small"
               >
                 <span className="flex items-center gap-2">
                   {selectedIconType && (
@@ -315,7 +308,7 @@ const AddAppIcon = ({ handleRemoveIcon }: any) => {
           </Dropdown>
         </div>
         <div className="flex items-center gap-2">
-          <h3 className="font-semibold w-32">Select Icon</h3>
+          <h3 className="font-medium min-w-32">Select Icon</h3>
 
           {selectedIconType === "Custom Image" ? (
             <CustomFileInput handleFileChange={handleFileChange} />
@@ -323,14 +316,14 @@ const AddAppIcon = ({ handleRemoveIcon }: any) => {
             <Dropdown className="w-max rounded-lg" placement="bottom-start">
               <DropdownTrigger>
                 <div
-                  className={`flex items-center ${
+                  className={`flex items-center w-full ${
                     isEmptyObject(selectedIconData) && "relative group"
                   }`}
                 >
                   <button
                     type="button"
                     disabled={isEmptyObject(selectedIconData)}
-                    className={`bg-white w-48 2xl:w-64 flex justify-between items-center rounded px-2 py-2 text-sm font-medium shadow-small ${
+                    className={` w-full flex justify-between items-center rounded px-2 py-2 text-sm font-medium shadow-small ${
                       isEmptyObject(selectedIconData) && "cursor-not-allowed"
                     } `}
                   >
@@ -412,7 +405,7 @@ const AddAppIcon = ({ handleRemoveIcon }: any) => {
                 />
               </div>
             )}
-            <p className="font-semibold text-gray-700 mb-1">
+            <p className="font-medium mb-1">
               {selectedIconType === "Custom Image"
                 ? "Link"
                 : selectedIcon.inputText}{" "}
@@ -435,17 +428,13 @@ const AddAppIcon = ({ handleRemoveIcon }: any) => {
                 required
               />
             </div>
-            <div className="flex justify-center mt-3">
-              <AnimateButton
-                whiteLoading={true}
-                className="bg-black text-white py-2 !border-0"
-                isLoading={isLoading}
-                width={"w-40"}
-              >
-                <LiaFileMedicalSolid size={20} />
-                Create
-              </AnimateButton>
-            </div>
+            <PrimaryButton className="w-full py-3 mt-3">
+              {isLoading ? (
+                <Loader className="w-8 h-8 animate-spin mx-auto" />
+              ) : (
+                "Save"
+              )}
+            </PrimaryButton>
           </form>
         </div>
       </div>

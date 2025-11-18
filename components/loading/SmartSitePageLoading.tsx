@@ -4,10 +4,13 @@ import React from "react";
 
 const SmartSitePageLoading = () => {
   return (
-    <Card className="h-screen shadow-none rounded-none p-8 overflow-hidden">
-      <div className="grid grid-cols-2 lg:grid-cols-3 items-center w-full gap-6">
-        {[1, 2, 3, 4, 5, 6, 7, 8, 9]?.map((el: any, index: number) => (
-          <Skeleton key={index} className="rounded-lg h-[250px]" />
+    <Card className="h-full shadow-none rounded-none p-8 overflow-hidden">
+      <div className="grid grid-cols-2 lg:grid-cols-3 gap-6 h-full">
+        {[...Array(9)].map((_, index) => (
+          <Skeleton
+            key={index}
+            className="rounded-lg w-full h-full min-h-[200px]"
+          />
         ))}
       </div>
     </Card>

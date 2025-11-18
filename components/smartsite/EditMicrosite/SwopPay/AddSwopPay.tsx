@@ -27,17 +27,19 @@ import AnimateButton from "@/components/ui/Button/AnimateButton";
 import CustomFileInput from "@/components/CustomFileInput";
 import { MdInfoOutline } from "react-icons/md";
 import toast from "react-hot-toast";
-import Cookies from 'js-cookie'
+import Cookies from "js-cookie";
+import { PrimaryButton } from "@/components/ui/Button/PrimaryButton";
+import { Loader } from "lucide-react";
 
-const AddSwopPay = ({ handleRemoveIcon }: any) => {
+const AddSwopPay = ({ onCloseModal }: any) => {
   const state: any = useSmartSiteApiDataStore((state) => state);
-  
+
   const [token, setToken] = useState("");
 
   useEffect(() => {
     const getAccessToken = async () => {
-      const token = Cookies.get('access-token');
-      setToken(token || "")
+      const token = Cookies.get("access-token");
+      setToken(token || "");
     };
     getAccessToken();
   }, []);
@@ -86,7 +88,7 @@ const AddSwopPay = ({ handleRemoveIcon }: any) => {
     const formData = new FormData(e.currentTarget);
 
     const info: any = {
-      micrositeId: state.data._id,
+      micrositeId: state._id,
       title: formData.get("title"),
       price: formData.get("price"),
       description: formData.get("description"),
@@ -141,7 +143,7 @@ const AddSwopPay = ({ handleRemoveIcon }: any) => {
 
         if ((data.state = "success")) {
           toast.success("Product created successfully");
-          handleRemoveIcon("Swop Pay");
+          onCloseModal();
         } else {
           toast.error("Something went wrong");
         }
@@ -155,19 +157,14 @@ const AddSwopPay = ({ handleRemoveIcon }: any) => {
 
   const currencyList: any = currencyItems;
 
-  useEffect(() => {
-    handleRemoveIcon("Info Bar");
-  }, []);
+  // useEffect(() => {
+  //   handleRemoveIcon("Info Bar");
+  // }, []);
 
   return (
-    <form
-      onSubmit={handleFormSubmit}
-      className="relative bg-white rounded-xl shadow-small p-6 flex flex-col gap-4"
-    >
+    <form onSubmit={handleFormSubmit} className="relative flex flex-col gap-4">
       <div className="flex items-end gap-1 justify-center">
-        <h2 className="font-semibold text-gray-700 text-xl text-center">
-          Product Purchase
-        </h2>
+        <h2 className="font-semibold text-xl text-center">Product Purchase</h2>
         <div className="translate-y-0.5">
           <Tooltip
             size="sm"
@@ -185,13 +182,6 @@ const AddSwopPay = ({ handleRemoveIcon }: any) => {
           </Tooltip>
         </div>
       </div>
-      <button
-        className="absolute top-3 right-3"
-        type="button"
-        onClick={() => handleRemoveIcon("Swop Pay")}
-      >
-        <FaTimes size={18} />
-      </button>
 
       <div className="w-full rounded-xl bg-gray-200 p-3">
         <div className="flex items-center justify-between bg-white rounded-xl py-1 px-3">
@@ -424,17 +414,13 @@ const AddSwopPay = ({ handleRemoveIcon }: any) => {
           </p>
         )}
       </div>
-      <div className="flex justify-center">
-        <AnimateButton
-          whiteLoading={true}
-          className="bg-black text-white py-2 !border-0"
-          isLoading={isLoading}
-          width={"w-52"}
-        >
-          <LiaFileMedicalSolid size={20} />
-          Create
-        </AnimateButton>
-      </div>
+      <PrimaryButton className="w-full py-3">
+        {isLoading ? (
+          <Loader className="w-8 h-8 animate-spin mx-auto" />
+        ) : (
+          "Save"
+        )}
+      </PrimaryButton>
     </form>
   );
 };

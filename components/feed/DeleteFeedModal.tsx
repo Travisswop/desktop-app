@@ -1,5 +1,5 @@
-import { deleteFeed } from '@/actions/postFeed';
-import { useToast } from '@/hooks/use-toast';
+import { deleteFeed } from "@/actions/postFeed";
+import { useToast } from "@/hooks/use-toast";
 import {
   Modal,
   ModalContent,
@@ -9,9 +9,8 @@ import {
   Button,
   useDisclosure,
   Spinner,
-} from '@nextui-org/react';
-import { useState } from 'react';
-import { MdDeleteForever } from 'react-icons/md';
+} from "@nextui-org/react";
+import { useState } from "react";
 
 interface DeleteFeedModalProps {
   postId: string;
@@ -31,11 +30,11 @@ export default function DeleteFeedModal({
   const handlePostDelete = async () => {
     setDeleteLoading(true);
     const deletePost = await deleteFeed(postId, token);
-    if (deletePost.state === 'success') {
+    if (deletePost.state === "success") {
       setDeleteLoading(false);
       toast({
-        title: 'Success',
-        description: 'post deleted successfully!',
+        title: "Success",
+        description: "post deleted successfully!",
       });
       onDeleteSuccess();
     }
@@ -85,8 +84,7 @@ export default function DeleteFeedModal({
               </ModalHeader>
               <ModalBody className="text-slate-600 font-normal">
                 <p>
-                  This can&apos;t be undone and it will be removed
-                  permanently.
+                  This can&apos;t be undone and it will be removed permanently.
                 </p>
               </ModalBody>
               <ModalFooter className="pt-2">
@@ -109,7 +107,7 @@ export default function DeleteFeedModal({
                   {deleteLoading ? (
                     <Spinner color="default" size="sm" />
                   ) : (
-                    'Delete'
+                    "Delete"
                   )}
                 </button>
               </ModalFooter>

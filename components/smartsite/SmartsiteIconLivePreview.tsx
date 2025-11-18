@@ -3,31 +3,20 @@ import Image from "next/image";
 import React, { useEffect, useState } from "react";
 import swop from "@/public/images/live-preview/swop.svg";
 import useSmartsiteFormStore from "@/zustandStore/EditSmartsiteInfo";
-// import isUrl from "@/util/isUrl";
-// import { tintStyle } from "@/util/IconTintStyle";
 import useUpdateSmartIcon from "@/zustandStore/UpdateSmartIcon";
 import useSmallIconToggleStore from "@/zustandStore/SmallIconModalToggle";
-// import getSmallIconImage from "@/util/retriveIconImage/getSmallIconImage";
-// import getAppIconImage from "@/util/retriveIconImage/getAppIconImage";
 import { FaEdit, FaPause, FaPlay } from "react-icons/fa";
 import useSideBarToggleStore from "@/zustandStore/SideBarToggleStore";
-// import AnimateButton from "./Button/AnimateButton";
 import AudioPlayer from "react-h5-audio-player";
-// import EmbedPlayer from "./livePreviewSmartsitesIcons/renderEmbedPlayer";
-// import businessCard from "@/public/images/IconShop/outline-icons/dark/business-card-outline@3x.png";
 import referral from "@/public/images/websites/referral.jpeg";
 import ethereum from "@/public/images/social-icon/ethereum.png";
 import card from "@/public/images/social-icon/card.png";
 import message from "@/public/images/social-icon/message.png";
-// import location from "@/public/images/social-icon/location.png";
-// import getAllSmartsitesIcon from "@/util/retriveIconImage/getAllSmartsiteIcon";
 import isUrl from "@/lib/isUrl";
 import { tintStyle } from "../util/IconTintStyle";
 import getSmallIconImage from "./retriveIconImage/getSmallIconImage";
 import EmbedPlayer from "./embed/renderEmbedPlayer";
 import getAllSmartsitesIcon from "./retriveIconImage/getAllSmartsiteIcon";
-// import mockupBtn from "@/public/images/mockup-bottom-button.png";
-// import DynamicPrimaryBtn from "../ui/Button/DynamicPrimaryBtn";
 import { LiaFileMedicalSolid } from "react-icons/lia";
 import {
   Modal,
@@ -49,9 +38,14 @@ import { MdDelete, MdDeleteForever } from "react-icons/md";
 import { handleDeleteMarketPlace } from "@/actions/handleMarketPlace";
 import { RiDeleteBinFill } from "react-icons/ri";
 import LivePreviewTimeline from "../feed/LivePreviewTimeline";
-// import { access } from "fs";
-// import mobileMockup from "@/public/images/mobile-mockup.png";
-// import { TbEdit } from "react-icons/tb";
+import UpdateModalComponents from "./EditMicrosite/UpdateModalComponents";
+import useSmartSiteApiDataStore from "@/zustandStore/UpdateSmartsiteInfo";
+import {
+  Carousel,
+  CarouselContent,
+  CarouselItem,
+} from "@/components/ui/carousel";
+import { useUser } from "@/lib/UserContext";
 
 const SmartsiteIconLivePreview = ({
   isEditDetailsLivePreview = false,
@@ -63,6 +57,9 @@ const SmartsiteIconLivePreview = ({
   const setSmartSiteData = useUpdateSmartIcon((state: any) => state.setState);
   const { toggle } = useSideBarToggleStore();
 
+  const { isOn, setOff, setOn }: any = useSmallIconToggleStore();
+  const iconData: any = useUpdateSmartIcon();
+
   const [isPrimaryMicrosite, setIsPrimaryMicrosite] = useState<boolean>(false);
   const [isLeadCapture, setIsLeadCapture] = useState<boolean>(false);
 
@@ -73,19 +70,19 @@ const SmartsiteIconLivePreview = ({
 
   // console.log("form data from live preview data", data.info.socialLarge);
 
-  const { setOn }: any = useSmallIconToggleStore();
+  const setSmartSiteApiData = useSmartSiteApiDataStore(
+    (state: any) => state.setSmartSiteData
+  );
 
-  const [accessToken, setAccessToken] = useState("");
+  const { user, accessToken } = useUser();
+
+  console.log("user", user);
 
   useEffect(() => {
-    const getAccessToken = async () => {
-      const token = Cookies.get("access-token");
-      if (token) {
-        setAccessToken(token);
-      }
-    };
-    getAccessToken();
-  }, []);
+    if (data) {
+      setSmartSiteApiData(data);
+    }
+  }, [data, setSmartSiteApiData]);
 
   const handleTriggerUpdate = (data: {
     data: any;
@@ -264,16 +261,36 @@ const SmartsiteIconLivePreview = ({
 
   const socialRows = distributeIcons(data.info.socialTop);
 
+  // Add this helper function at the top of your component or in a separate utils file
+  const groupMarketPlaceByType = (marketPlaceItems: any[]) => {
+    const grouped: { [key: string]: any[] } = {};
+
+    marketPlaceItems.forEach((item) => {
+      const nftType = item.templateId?.nftType || "other";
+      if (!grouped[nftType]) {
+        grouped[nftType] = [];
+      }
+      grouped[nftType].push(item);
+    });
+
+    return grouped;
+  };
+
+  // Capitalize first letter for display
+  const capitalizeFirstLetter = (str: string) => {
+    return str.charAt(0).toUpperCase() + str.slice(1);
+  };
+
   return (
     <div
       style={{
         backgroundImage: formData.theme
           ? `url(/images/smartsite-background/${formData.backgroundImg}.png)`
-          : "",
+          : "none",
       }}
-      className="max-w-screen h-[calc(100vh-96px)] overflow-hidden bg-cover -m-6"
+      className="max-w-screen h-[calc(100vh-96px)] overflow-x-hidden -m-6 bg-cover bg-no-repeat overflow-y-auto"
     >
-      <div className="relative min-w-96 max-w-[500px] mx-auto h-full overflow-y-auto hide-scrollbar">
+      <div className="relative min-w-96 max-w-[500px] mx-auto h-full ">
         <section
           className={`${
             formData.fontType && fontMap[formData.fontType.toLowerCase()]
@@ -344,15 +361,15 @@ const SmartsiteIconLivePreview = ({
                     style={{
                       color: formData.fontColor && formData.fontColor,
                     }}
-                    className={`font-medium text-lg text-gray-700`}
+                    className={`font-medium text-lg text-gray-900`}
                   >
                     {formData.name || data?.name}
                   </p>
                   <p
                     style={{
-                      color: formData.fontColor ? formData.fontColor : "gray",
+                      color: formData.fontColor && formData.fontColor,
                     }}
-                    className={`font-medium text-sm text-gray-500`}
+                    className={`font-medium text-sm text-gray-800`}
                   >
                     {formData.bio || data?.bio}
                   </p>
@@ -398,8 +415,163 @@ const SmartsiteIconLivePreview = ({
                     ))}
                   </div>
                 ))}
-
                 {/* small icon display here end */}
+
+                {/* marketPlace display here start */}
+                {data.info.marketPlace.length > 0 && (
+                  <div className="flex flex-col gap-y-5 px-3">
+                    {Object.entries(
+                      groupMarketPlaceByType(data.info.marketPlace)
+                    ).map(([nftType, items]) => (
+                      <div key={nftType} className="flex flex-col gap-y-3">
+                        <h3
+                          style={{
+                            color: formData.fontColor
+                              ? formData.fontColor
+                              : "black",
+                          }}
+                          className="text-base font-bold"
+                        >
+                          {capitalizeFirstLetter(nftType)}
+                        </h3>
+
+                        {items.length > 2 ? (
+                          <Carousel
+                            opts={{
+                              align: "start",
+                              loop: false,
+                            }}
+                            className="w-full"
+                          >
+                            <CarouselContent className="-ml-2 md:-ml-3">
+                              {items.map((item: any) => (
+                                <CarouselItem
+                                  key={item._id}
+                                  className="pl-2 md:pl-3 basis-[45%]"
+                                >
+                                  <div
+                                    style={{
+                                      backgroundColor: formData.templateColor
+                                        ? formData.templateColor
+                                        : "white",
+                                    }}
+                                    className="rounded-xl shadow-small hover:shadow-medium transition-all duration-200 relative overflow-hidden group"
+                                  >
+                                    <button
+                                      onClick={() =>
+                                        handleMarketPlaceDelete(
+                                          item._id,
+                                          item.micrositeId
+                                        )
+                                      }
+                                      className="absolute top-2 right-2 z-10 bg-white rounded-lg p-1.5 shadow-sm hover:bg-red-50 transition-all opacity-0 group-hover:opacity-100"
+                                    >
+                                      <MdDeleteForever
+                                        size={18}
+                                        className="text-gray-600 hover:text-red-500"
+                                      />
+                                    </button>
+
+                                    <div className="flex flex-col">
+                                      <div className="relative w-full aspect-square overflow-hidden">
+                                        <Image
+                                          src={item.itemImageUrl}
+                                          alt={item.itemName}
+                                          fill
+                                          quality={100}
+                                          className="object-cover group-hover:scale-105 transition-transform duration-200"
+                                        />
+                                      </div>
+
+                                      <div className="p-3">
+                                        <div
+                                          style={{
+                                            color: formData.secondaryFontColor
+                                              ? formData.secondaryFontColor
+                                              : "black",
+                                          }}
+                                          className="flex flex-col gap-0.5"
+                                        >
+                                          <p className="text-sm font-semibold line-clamp-1">
+                                            {item.itemName}
+                                          </p>
+                                          <p className="text-xs font-medium mt-0.5">
+                                            ${item.itemPrice}
+                                          </p>
+                                        </div>
+                                      </div>
+                                    </div>
+                                  </div>
+                                </CarouselItem>
+                              ))}
+                            </CarouselContent>
+                          </Carousel>
+                        ) : (
+                          <div className="grid grid-cols-2 gap-3">
+                            {items.map((item: any) => (
+                              <div
+                                key={item._id}
+                                style={{
+                                  backgroundColor: formData.templateColor
+                                    ? formData.templateColor
+                                    : "white",
+                                }}
+                                className="rounded-xl shadow-small hover:shadow-medium transition-all duration-200 relative overflow-hidden group"
+                              >
+                                <button
+                                  onClick={() =>
+                                    handleMarketPlaceDelete(
+                                      item._id,
+                                      item.micrositeId
+                                    )
+                                  }
+                                  className="absolute top-2 right-2 z-10 bg-white rounded-lg p-1.5 shadow-sm hover:bg-red-50 transition-all opacity-0 group-hover:opacity-100"
+                                >
+                                  <MdDeleteForever
+                                    size={18}
+                                    className="text-gray-600 hover:text-red-500"
+                                  />
+                                </button>
+
+                                <div className="flex flex-col">
+                                  <div className="relative w-full aspect-square overflow-hidden">
+                                    <Image
+                                      src={item.itemImageUrl}
+                                      alt={item.itemName}
+                                      fill
+                                      quality={100}
+                                      className="object-cover group-hover:scale-105 transition-transform duration-200"
+                                    />
+                                  </div>
+
+                                  <div className="p-3">
+                                    <div
+                                      style={{
+                                        color: formData.secondaryFontColor
+                                          ? formData.secondaryFontColor
+                                          : "black",
+                                      }}
+                                      className="flex flex-col gap-0.5"
+                                    >
+                                      <p className="text-sm font-semibold line-clamp-1">
+                                        {item.itemName}
+                                      </p>
+                                      <p className="text-xs font-medium mt-0.5">
+                                        ${item.itemPrice}
+                                      </p>
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {/* marketPlace display here end */}
+
                 {/* blog display here start */}
                 {data.info.blog.length > 0 && (
                   <div className="flex flex-col gap-y-3 px-3">
@@ -995,19 +1167,6 @@ const SmartsiteIconLivePreview = ({
                               </div>
                             </button>
                           </div>
-                          {/* <div className="w-[4%]">
-                  <button
-                    onClick={() =>
-                      handleTriggerUpdate({
-                        data: audioData,
-                        categoryForTrigger: "audio",
-                      })
-                    }
-                    className=""
-                  >
-                    <FaEdit size={18} />
-                  </button>
-                </div> */}
                         </div>
                       ))}
                     </div>
@@ -1098,108 +1257,11 @@ const SmartsiteIconLivePreview = ({
                               </div>
                             </div>
                           </div>
-                          {/* <div className="w-[4%]">
-                  <button
-                    onClick={() =>
-                      handleTriggerUpdate({
-                        data: audioData,
-                        categoryForTrigger: "audio",
-                      })
-                    }
-                    className=""
-                  >
-                    <FaEdit size={18} />
-                  </button>
-                </div> */}
                         </div>
                       ))}
                     </div>
                   )}
                   {/* audio||music display here end */}
-                  {/* marketPlace display here start */}
-                  {data.info.marketPlace.length > 0 && (
-                    <div className="flex flex-col gap-y-3 px-3">
-                      {data.info.marketPlace.map((data: any) => (
-                        <div
-                          key={data._id}
-                          className="flex items-center gap-0.5"
-                        >
-                          <div className="flex items-center gap-2 w-full">
-                            <div
-                              style={{
-                                color: formData.secondaryFontColor
-                                  ? formData.secondaryFontColor
-                                  : "black",
-
-                                backgroundColor: formData.templateColor
-                                  ? formData.templateColor
-                                  : "white",
-                              }}
-                              className={`w-full h-full py-2 px-3 rounded-lg shadow-medium`}
-                            >
-                              <div
-                                // onClick={() =>
-                                //   handleTriggerUpdate({
-                                //     data: data,
-                                //     categoryForTrigger: "swopPay",
-                                //   })
-                                // }
-                                className="flex items-center justify-between gap-1 w-full"
-                              >
-                                <div className="flex items-center gap-2 w-full">
-                                  <div className="relative w-8 h-8">
-                                    <Image
-                                      src={data.itemImageUrl}
-                                      alt="nft photo"
-                                      width={160}
-                                      height={90}
-                                      quality={100}
-                                      className="w-full h-full rounded-md object-cover"
-                                    />
-                                  </div>
-                                  <div className="text-start flex-1">
-                                    <p className="text-sm mb-0.5">
-                                      {data.itemName}
-                                    </p>
-                                    <p className="text-xs line-clamp-2">
-                                      {data.itemDescription}
-                                    </p>
-                                  </div>
-                                </div>
-                                <div className="custom-audio text-xs min-w-max font-medium">
-                                  {data.itemPrice} USDC
-                                </div>
-                              </div>
-                            </div>
-                            {/* <div className="w-[4%]">
-                <button
-                  onClick={() =>
-                    handleTriggerUpdate({
-                      data: audioData,
-                      categoryForTrigger: "audio",
-                    })
-                  }
-                  className=""
-                >
-                  <FaEdit size={18} />
-                </button>
-              </div> */}
-                          </div>
-                          <button
-                            onClick={() =>
-                              handleMarketPlaceDelete(
-                                data._id,
-                                data.micrositeId
-                              )
-                            }
-                          >
-                            <MdDeleteForever size={18} />
-                          </button>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                  {/* marketPlace display here end */}
                 </div>
                 {/* video display here start */}
                 {data.info.video.length > 0 && (
@@ -1262,10 +1324,10 @@ const SmartsiteIconLivePreview = ({
                 {/* embed link display here end */}
               </div>
 
-              {data?.showFeed && (
+              {data?.showFeed && accessToken && user && (
                 <LivePreviewTimeline
-                  accessToken=""
-                  userId=""
+                  accessToken={accessToken}
+                  userId={user?._id}
                   isPostLoading={false}
                   isPosting={false}
                   setIsPostLoading={() => {}}
@@ -1287,75 +1349,7 @@ const SmartsiteIconLivePreview = ({
         </section>
       </div>
 
-      {!isEditDetailsLivePreview && (
-        <div className="flex flex-col gap-2 mt-4 pb-4">
-          <p className="text-gray-600 font-medium text-center">Live Preview</p>
-          <div className="flex flex-wrap items-center justify-center gap-2">
-            <Link href={`/smartsite/qr-code/${data?._id}`}>
-              <button
-                type="button"
-                className="rounded-full bg-white border border-gray-300 px-6 py-2 text-gray-500 font-medium flex items-center gap-1 hover:bg-gray-300"
-              >
-                <LiaFileMedicalSolid size={20} />
-                Customize QR
-              </button>
-            </Link>
-            <div className="relative">
-              <SmartsiteSocialShare
-                isAbsolute={false}
-                profileUrl={data.profileUrl}
-                className="flex items-center justify-center text-gray-600 bg-white gap-1 !rounded-full font-medium border border-gray-300"
-              >
-                <IoIosSend color="gray" size={18} />
-                Share
-              </SmartsiteSocialShare>
-            </div>
-            {/* <button
-              type="button"
-              className="rounded-full bg-white border border-gray-300 px-6 py-2 text-gray-500 font-medium flex items-center gap-1 hover:bg-gray-300"
-            >
-              <IoIosSend color="gray" size={18} />
-              Share
-            </button> */}
-          </div>
-          <div className="flex justify-center items-center gap-1 2xl:gap-3 flex-wrap overflow-x-hidden">
-            <div className="flex items-center gap-2 2xl:gap-8 border border-gray-300 rounded-full pl-3 2xl:pl-5 pr-1 2xl:pr-4 py-2 text-lg font-medium text-gray-600 w-max bg-white">
-              <p className="text-sm 2xl:text-base text-gray-500 font-medium w-max">
-                Lead Capture
-              </p>
-              <Switch
-                size="sm"
-                isSelected={isLeadCapture}
-                onValueChange={setIsLeadCapture}
-                aria-label="Lead Captures"
-              />
-            </div>
-            <div className="flex items-center gap-2 2xl:gap-8 border border-gray-300 rounded-full pl-3 2xl:pl-5 pr-1 2xl:pr-4 py-2 text-lg font-medium text-gray-600 w-max bg-white">
-              <p className="text-sm 2xl:text-base text-gray-500 font-medium w-max">
-                Make Primary Microsite
-              </p>
-              <Switch
-                size="sm"
-                isSelected={isPrimaryMicrosite}
-                onValueChange={setIsPrimaryMicrosite}
-                aria-label="Lead Captures"
-              />
-            </div>
-          </div>
-          <div className="flex justify-center w-64 mx-auto">
-            {/* <a href={data?.data?.profileUrl} target="_blank" className="w-full"> */}
-            <AnimateButton
-              onClick={handleSmartSiteUpdateInfo}
-              isLoading={isPublishedLoading}
-              whiteLoading={true}
-              className="bg-black text-white py-2 !border-0 !rounded-full mt-2"
-            >
-              <LiaFileMedicalSolid size={20} /> Publish
-            </AnimateButton>
-            {/* </a> */}
-          </div>
-        </div>
-      )}
+      <UpdateModalComponents isOn={isOn} iconData={iconData} setOff={setOff} />
 
       <Modal
         // size="4xl"

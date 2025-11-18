@@ -23,13 +23,7 @@ const SmartsitePage = () => {
     accessToken || ""
   );
 
-  console.log("data", data);
-
-  if (loading) {
-    return <SmartSitePageLoading />;
-  }
-
-  if (isLoading) {
+  if (loading || isLoading) {
     return <SmartSitePageLoading />;
   }
 

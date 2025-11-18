@@ -10,6 +10,7 @@ import { useEffect, useState, useCallback, memo } from "react";
 import { getDefaultConnection } from "@/actions/connection";
 import ConnectionsShowOnGoogleMap from "./ConnectionShowOnGoogleMap";
 import Cookies from "js-cookie";
+import SpotLightMapLoader from "../loading/SpotLightMapLoader";
 
 // Types
 interface Friend {
@@ -96,7 +97,7 @@ const SpotlightMap = memo(() => {
   // Error state with retry option
   if (error) {
     return (
-      <div className="w-full px-6 pt-5">
+      <div className="w-full">
         <div className="flex flex-col items-center justify-center py-8 bg-gray-50 rounded-lg">
           <div className="text-center">
             <p className="text-red-500 mb-2">Error loading map</p>
@@ -117,21 +118,11 @@ const SpotlightMap = memo(() => {
 
   // Loading state
   if (isLoading && connections.length === 0) {
-    return (
-      <div className="w-full px-6 pt-5">
-        <div className="flex items-center justify-center py-8 bg-gray-50 rounded-lg">
-          <div className="text-center">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mx-auto mb-2"></div>
-            <p className="text-gray-600">Loading map...</p>
-          </div>
-        </div>
-      </div>
-    );
+    return <SpotLightMapLoader />;
   }
 
   return (
-    <div className="w-full px-6 pt-5">
-      {/* <h4 className="text-xl font-medium mb-5">Map</h4> */}
+    <div className="w-full h-full grid items-center">
       <ConnectionsShowOnGoogleMap
         connections={connections}
         selectedFriend={selectedFriend}

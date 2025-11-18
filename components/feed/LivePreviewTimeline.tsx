@@ -7,7 +7,7 @@ import React, { useState, useEffect, useRef, useCallback } from "react";
 import { GoDotFill } from "react-icons/go";
 import dayjs from "dayjs";
 // import PostTypeMedia from "./view/PostTypeMedia";
-import { HiDotsHorizontal } from "react-icons/hi";
+import { HiDotsHorizontal, HiDotsVertical } from "react-icons/hi";
 import { Popover, PopoverContent, PopoverTrigger } from "@nextui-org/react";
 import relativeTime from "dayjs/plugin/relativeTime";
 // import Reaction from "./view/Reaction";
@@ -21,8 +21,28 @@ import { useRouter } from "next/navigation";
 // import IndividualFeedContent from "./IndividualFeedContent";
 import SmartsiteLivePreviewFeedMedia from "./view/SmartsiteLivePreviewFeedMedia";
 import SmartsiteLivePreviewRepostContent from "./SmartsiteLivePreviewRepostContent";
+import updateLocale from "dayjs/plugin/updateLocale";
 
 dayjs.extend(relativeTime);
+dayjs.extend(updateLocale);
+
+dayjs.updateLocale("en", {
+  relativeTime: {
+    future: "in %s",
+    past: "%s",
+    s: "just now", // Changed from 'a few seconds'
+    m: "1 minute ago",
+    mm: "%d minutes ago",
+    h: "1 hour ago",
+    hh: "%d hours ago",
+    d: "1 day ago",
+    dd: "%d days ago",
+    M: "1 month ago",
+    MM: "%d months ago",
+    y: "1 year ago",
+    yy: "%d years ago",
+  },
+});
 
 const LivePreviewTimeline = ({
   accessToken,
@@ -48,6 +68,7 @@ const LivePreviewTimeline = ({
   const isFetching = useRef(false);
   const pageRef = useRef(1);
   const [smartsiteId, setSmartsiteId] = useState("");
+  const [openPopoverId, setOpenPopoverId] = useState<string | null>(null);
 
   const { user } = useUser();
 
@@ -219,10 +240,10 @@ const LivePreviewTimeline = ({
 
   return (
     <div
-      className={`flex flex-col gap-2  mx-2 bg-white py-3  text-sm h-96 overflow-y-auto hide-scrollbar ${
+      className={`flex flex-col gap-2 mx-2 bg-white py-3 text-sm overflow-y-auto hide-scrollbar ${
         isFromPublicProfile
-          ? "w-full px-3 shadow-medium rounded-xl mt-1"
-          : "px-1 rounded-lg mt-2"
+          ? "w-full px-3 shadow-medium rounded-xl mt-1 h-[30rem]"
+          : "px-2 rounded-lg mt-2 h-[32rem]"
       }`}
     >
       {feedData.map((feed, index) => (
@@ -230,7 +251,7 @@ const LivePreviewTimeline = ({
           key={index}
           className="flex gap-2 border-b border-gray-200 pb-4 w-full"
         >
-          <div className="min-w-8 h-8">
+          <div className="min-w-10 h-10">
             {(() => {
               const profilePic =
                 feed?.smartsiteId?.profilePic || feed?.smartsiteProfilePic;
@@ -255,32 +276,33 @@ const LivePreviewTimeline = ({
               );
             })()}
           </div>
-          <div className={`${isFromPublicProfile && "w-full"}`}>
+          <div className={`w-full`}>
             {/* User and Feed Information */}
             <div
               className={`${
                 isFromPublicProfile && "w-full"
               } flex items-start justify-between`}
             >
-              <div className={`${isFromPublicProfile && "w-full"}`}>
-                <button
-                  onClick={() => router.push(`/feed/${feed._id}`)}
-                  className="flex flex-wrap gap-x-1 items-center"
-                >
-                  <p className="text-gray-700 font-semibold">
-                    {feed?.smartsiteId?.name ||
-                      feed?.smartsiteUserName ||
-                      "Anonymous"}
-                  </p>
-                  <GoDotFill size={6} />
-                  <p className="text-gray-500 font-normal">
-                    {feed?.smartsiteId?.ens || feed?.smartsiteEnsName || "n/a"}
-                  </p>
-                  <GoDotFill size={6} />
-                  <p className="text-gray-500 font-normal">
-                    {dayjs(feed.createdAt).fromNow()}
-                  </p>
-                </button>
+              <div className="w-full">
+                <div className="flex items-start justify-between w-full">
+                  <button
+                    onClick={() => router.push(`/feed/${feed._id}`)}
+                    className="flex flex-wrap gap-x-1 items-center"
+                  >
+                    <p className="text-gray-700 font-semibold">
+                      {feed?.smartsiteId?.name ||
+                        feed?.smartsiteUserName ||
+                        "Anonymous"}
+                    </p>
+                    <GoDotFill size={6} />
+                    <p className="text-gray-500 font-normal">
+                      {dayjs(feed.createdAt).fromNow()}
+                    </p>
+                  </button>
+                </div>
+                <p className="text-gray-500 font-normal mb-1">
+                  {feed?.smartsiteId?.ens || feed?.smartsiteEnsName || "n/a"}
+                </p>
                 {/* Redeem Content */}
                 {feed.postType === "redeem" && (
                   <button
@@ -530,6 +552,10 @@ const LivePreviewTimeline = ({
                     backdrop="opaque"
                     placement="bottom-end"
                     showArrow
+                    isOpen={openPopoverId === feed._id}
+                    onOpenChange={(open) =>
+                      setOpenPopoverId(open ? feed._id : null)
+                    }
                     style={{ zIndex: 10 }}
                   >
                     <PopoverTrigger>
@@ -542,8 +568,13 @@ const LivePreviewTimeline = ({
                         <DeleteFeedModal
                           postId={feed._id}
                           token={accessToken}
-                          onDeleteSuccess={() => {}}
-                          // setIsPosting={setIsPosting}
+                          onDeleteSuccess={() => {
+                            setFeedData((prev) =>
+                              prev.filter((item) => item._id !== feed._id)
+                            );
+                            setOpenPopoverId(null); // Close popover after delete
+                          }}
+                          // onOpen={() => setOpenPopoverId(null)}
                         />
                       </div>
                     </PopoverContent>

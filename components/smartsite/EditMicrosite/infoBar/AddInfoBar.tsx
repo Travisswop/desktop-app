@@ -17,7 +17,7 @@ import useSmartSiteApiDataStore from "@/zustandStore/UpdateSmartsiteInfo";
 // import { toast } from "react-toastify";
 // import AnimateButton from "../../Button/AnimateButton";
 import { postInfoBar } from "@/actions/infoBar";
-import { FaAngleDown, FaTimes } from "react-icons/fa";
+import { FaAngleDown } from "react-icons/fa";
 import { icon, newIcons } from "@/components/util/data/smartsiteIconData";
 
 import { isEmptyObject } from "@/components/util/checkIsEmptyObject";
@@ -31,8 +31,12 @@ import Cookies from "js-cookie";
 import cusImg from "@/public/images/IconShop/download@3x.png";
 import CustomFileInput from "@/components/CustomFileInput";
 import { sendCloudinaryImage } from "@/lib/SendCloudinaryImage";
+import AddSwopPay from "../SwopPay/AddSwopPay";
+import AddContactCard from "../contactCard/AddContactCard";
+import { PrimaryButton } from "@/components/ui/Button/PrimaryButton";
+import { Loader } from "lucide-react";
 
-const AddInfoBar = ({ handleRemoveIcon, handleToggleIcon }: any) => {
+const AddInfoBar = ({ onCloseModal }: any) => {
   const [accessToken, setAccessToken] = useState("");
 
   useEffect(() => {
@@ -65,6 +69,8 @@ const AddInfoBar = ({ handleRemoveIcon, handleToggleIcon }: any) => {
   // console.log("selected icon name", selectedIcon);
   // console.log("selected icon data", selectedIconData);
   // console.log("selected icon", selectedIcon);
+
+  const [swopPayAndContactCard, setSwopPayAndContactCard] = useState("");
 
   const iconData: any = newIcons[1];
   // console.log("iconData", iconData);
@@ -115,9 +121,11 @@ const AddInfoBar = ({ handleRemoveIcon, handleToggleIcon }: any) => {
         url: "www.email.com",
       });
     } else if (category === "Product Link") {
-      handleToggleIcon("Swop Pay");
+      setSwopPayAndContactCard("swopPay");
+      return;
     } else if (category === "Contact Card") {
-      handleToggleIcon("Contact Card");
+      setSwopPayAndContactCard("contactCard");
+      return;
     }
   };
 
@@ -126,7 +134,7 @@ const AddInfoBar = ({ handleRemoveIcon, handleToggleIcon }: any) => {
     e.preventDefault();
     const formData = new FormData(e.currentTarget);
     const infobarInfo = {
-      micrositeId: state.data._id,
+      micrositeId: state._id,
       title: formData.get("url"),
       link: selectedIcon.url,
       buttonName: buttonName,
@@ -167,7 +175,7 @@ const AddInfoBar = ({ handleRemoveIcon, handleToggleIcon }: any) => {
 
       if ((data.state = "success")) {
         toast.success("Info bar crated successfully");
-        handleRemoveIcon("Info Bar");
+        onCloseModal();
       } else {
         toast.error("Something went wrong");
       }
@@ -200,8 +208,16 @@ const AddInfoBar = ({ handleRemoveIcon, handleToggleIcon }: any) => {
     "Upload Custom Image": cusImg,
   };
 
+  if (swopPayAndContactCard) {
+    if (swopPayAndContactCard === "swopPay") {
+      return <AddSwopPay onCloseModal={onCloseModal} />;
+    } else if (swopPayAndContactCard === "contactCard") {
+      return <AddContactCard onCloseModal={onCloseModal} />;
+    }
+  }
+
   return (
-    <div className="relative bg-white rounded-xl shadow-small p-6 flex flex-col gap-4">
+    <div className="relative flex flex-col gap-4">
       {/* top part  */}
       <div className="flex items-end gap-1 justify-center">
         <h2 className="font-semibold text-gray-700 text-xl text-center">
@@ -224,15 +240,8 @@ const AddInfoBar = ({ handleRemoveIcon, handleToggleIcon }: any) => {
           </Tooltip>
         </div>
       </div>
-      <button
-        className="absolute top-3 right-3"
-        type="button"
-        onClick={() => handleRemoveIcon("Info Bar")}
-      >
-        <FaTimes size={18} />
-      </button>
 
-      <div className="flex flex-col gap-2 mt-4 px-10 2xl:px-[10%]">
+      <div className="flex flex-col gap-2 sm:px-10 2xl:px-[10%]">
         <div className="w-full rounded-xl bg-gray-200 p-3">
           <div className="bg-white rounded-xl w-full flex items-center gap-2 py-1 px-3">
             {selectedIconType === "Upload Custom Image" && !imageFile ? (
@@ -276,14 +285,14 @@ const AddInfoBar = ({ handleRemoveIcon, handleToggleIcon }: any) => {
         </div>
 
         {/* middle part  */}
-        <div className="flex items-center justify-between mt-4">
-          <div className="flex items-center gap-2">
-            <h3 className="font-semibold text-gray-700 w-28">Info Bar Types</h3>
+        <div className="flex w-full items-center justify-between mt-4">
+          <div className="flex w-full items-center gap-2">
+            <h3 className="font-medium min-w-28">Info Bar Types</h3>
             <Dropdown className="w-max rounded-lg" placement="bottom-start">
               <DropdownTrigger>
                 <button
                   type="button"
-                  className="bg-white w-48 2xl:w-64 flex justify-between items-center rounded px-2 py-2 text-sm font-medium shadow-small"
+                  className="bg-white w-full flex justify-between items-center rounded px-2 py-2 text-sm font-medium shadow-small"
                 >
                   <span className="flex items-center gap-2">
                     {selectedIconType && (
@@ -375,7 +384,7 @@ const AddInfoBar = ({ handleRemoveIcon, handleToggleIcon }: any) => {
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <h3 className="font-semibold text-gray-700 w-28">Select Icon</h3>
+          <h3 className="font-medium min-w-28">Select Icon</h3>
 
           {selectedIconType === "Upload Custom Image" ? (
             <div className="flex items-center gap-1">
@@ -388,7 +397,7 @@ const AddInfoBar = ({ handleRemoveIcon, handleToggleIcon }: any) => {
             <Dropdown className="w-max rounded-lg" placement="bottom-start">
               <DropdownTrigger>
                 <div
-                  className={`flex items-center ${
+                  className={`flex w-full items-center ${
                     isEmptyObject(selectedIconData) && "relative group"
                   }`}
                 >
@@ -403,7 +412,7 @@ const AddInfoBar = ({ handleRemoveIcon, handleToggleIcon }: any) => {
                   <button
                     type="button"
                     disabled={isEmptyObject(selectedIconData)}
-                    className={`bg-white w-48 2xl:w-64 flex justify-between items-center rounded px-2 py-2 text-sm font-medium shadow-small ${
+                    className={`bg-white w-full flex justify-between items-center rounded px-2 py-2 text-sm font-medium shadow-small ${
                       isEmptyObject(selectedIconData) && "cursor-not-allowed"
                     } `}
                   >
@@ -467,7 +476,7 @@ const AddInfoBar = ({ handleRemoveIcon, handleToggleIcon }: any) => {
             className="flex flex-col gap-3"
           >
             <div>
-              <p className="font-semibold text-gray-700 mb-1">Button Name</p>
+              <p className="font-medium mb-1">Button Name</p>
               <div>
                 <input
                   type="text"
@@ -481,7 +490,7 @@ const AddInfoBar = ({ handleRemoveIcon, handleToggleIcon }: any) => {
               </div>
             </div>
             <div>
-              <p className="font-semibold text-gray-700 mb-1">
+              <p className="font-medium mb-1">
                 {selectedIconType === "Upload Custom Image"
                   ? "Link"
                   : selectedIcon.inputText}
@@ -501,7 +510,7 @@ const AddInfoBar = ({ handleRemoveIcon, handleToggleIcon }: any) => {
               </div>
             </div>
             <div>
-              <p className="font-semibold text-gray-700 mb-1">Description</p>
+              <p className="font-medium mb-1">Description</p>
 
               <textarea
                 name="description"
@@ -511,17 +520,13 @@ const AddInfoBar = ({ handleRemoveIcon, handleToggleIcon }: any) => {
                 onChange={(e) => setDescription(e.target.value)}
               />
             </div>
-            <div className="flex justify-center">
-              <AnimateButton
-                whiteLoading={true}
-                className="bg-black text-white py-2 !border-0"
-                isLoading={isLoading}
-                width={"w-40"}
-              >
-                <LiaFileMedicalSolid size={20} />
-                Create
-              </AnimateButton>
-            </div>
+            <PrimaryButton className="w-full py-3">
+              {isLoading ? (
+                <Loader className="w-8 h-8 animate-spin mx-auto" />
+              ) : (
+                "Save"
+              )}
+            </PrimaryButton>
           </form>
         </div>
       </div>

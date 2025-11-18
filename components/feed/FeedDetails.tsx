@@ -132,15 +132,14 @@ const FeedDetails = ({ feedData, feedDetails, accessToken }: any) => {
                   </p>
                   <GoDotFill size={10} />
                   <p className="text-gray-500 font-normal">
-                    {feedData?.smartsiteId?.ens ||
-                      feedData?.smartsiteEnsName ||
-                      "n/a"}
-                  </p>
-                  <GoDotFill size={10} />
-                  <p className="text-gray-500 font-normal">
                     {dayjs(feedData.createdAt).fromNow()}
                   </p>
                 </div>
+                <p className="text-gray-500 font-normal">
+                  {feedData?.smartsiteId?.ens ||
+                    feedData?.smartsiteEnsName ||
+                    "n/a"}
+                </p>
                 {/* Render Post Content */}
                 {(feedData.postType === "post" ||
                   feedData.postType === "repost") &&

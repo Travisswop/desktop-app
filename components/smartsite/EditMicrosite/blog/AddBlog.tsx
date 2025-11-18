@@ -3,7 +3,6 @@ import Image from "next/image";
 import React, { useEffect, useState } from "react";
 import { LiaFileMedicalSolid } from "react-icons/lia";
 import useSmartSiteApiDataStore from "@/zustandStore/UpdateSmartsiteInfo";
-import imagePlaceholder from "@/public/images/image_placeholder.png";
 import CustomFileInput from "@/components/CustomFileInput";
 import { postBlog } from "@/actions/blog";
 import { FaTimes } from "react-icons/fa";
@@ -15,7 +14,8 @@ import { Tooltip } from "@nextui-org/react";
 import { MdInfoOutline } from "react-icons/md";
 import Cookies from "js-cookie";
 import placeholder from "@/public/images/image-placeholder.webp";
-import placeholder2 from "@/public/images/image-placeholder-2.png";
+import { PrimaryButton } from "@/components/ui/Button/PrimaryButton";
+import { Loader } from "lucide-react";
 
 const AddBlog = ({ handleRemoveIcon }: any) => {
   const state: any = useSmartSiteApiDataStore((state) => state);
@@ -75,7 +75,7 @@ const AddBlog = ({ handleRemoveIcon }: any) => {
     // console.log("image url submit", imageUrl);
 
     const info = {
-      micrositeId: state.data._id,
+      micrositeId: state._id,
       title: formData.get("title"),
       headline: formData.get("headline"),
       description: value,
@@ -123,10 +123,7 @@ const AddBlog = ({ handleRemoveIcon }: any) => {
   };
 
   return (
-    <form
-      onSubmit={handleFormSubmit}
-      className="relative bg-white rounded-xl shadow-small p-6 flex flex-col gap-4"
-    >
+    <form onSubmit={handleFormSubmit} className="relative flex flex-col gap-4">
       <div className="flex items-end gap-1 justify-center">
         <div className="flex items-end gap-1 justify-center">
           <h2 className="font-semibold text-gray-700 text-xl text-center">
@@ -148,13 +145,6 @@ const AddBlog = ({ handleRemoveIcon }: any) => {
             </Tooltip>
           </div>
         </div>
-        <button
-          className="absolute top-3 right-3"
-          type="button"
-          onClick={() => handleRemoveIcon("Blog")}
-        >
-          <FaTimes size={18} />
-        </button>
       </div>
       <div className="flex justify-between gap-10">
         <div className="flex flex-col gap-3 flex-1">
@@ -314,17 +304,13 @@ const AddBlog = ({ handleRemoveIcon }: any) => {
           </p>
         )}
       </div>
-      <div className="flex justify-center">
-        <AnimateButton
-          whiteLoading={true}
-          className="bg-black text-white py-2 !border-0"
-          isLoading={isLoading}
-          width={"w-40"}
-        >
-          <LiaFileMedicalSolid size={20} />
-          Create
-        </AnimateButton>
-      </div>
+      <PrimaryButton className="w-full py-3">
+        {isLoading ? (
+          <Loader className="w-8 h-8 animate-spin mx-auto" />
+        ) : (
+          "Save"
+        )}
+      </PrimaryButton>
     </form>
   );
 };

@@ -1,17 +1,11 @@
-'use client';
-import { useUser } from '@/lib/UserContext';
-import { Skeleton } from '../ui/skeleton';
-import ProfileHeader from './profile-header';
-// import CashflowChart from "./cashflow-chart";
-import DashboardAnalytics from './analytics';
-import WalletBalanceChart from './walletBalanceChart';
-import { useQuery } from '@tanstack/react-query';
-import {
-  getFollowers,
-  followersQueryKey,
-} from '@/services/followers-service';
-// import CashflowChart from "./walletBalanceChart";
-// import TestChart from "./test-chart";
+"use client";
+import { useUser } from "@/lib/UserContext";
+import { Skeleton } from "../ui/skeleton";
+import ProfileHeader from "./profile-header";
+import DashboardAnalytics from "./analytics";
+import WalletBalanceChart from "./walletBalanceChart";
+import { useQuery } from "@tanstack/react-query";
+import { getFollowers, followersQueryKey } from "@/services/followers-service";
 
 export default function DashboardContent() {
   const { user, loading, error, accessToken } = useUser();
@@ -22,7 +16,7 @@ export default function DashboardContent() {
     isLoading: followersLoading,
     error: followersError,
   } = useQuery({
-    queryKey: followersQueryKey(user?._id || '', 1, 20),
+    queryKey: followersQueryKey(user?._id || "", 1, 20),
     queryFn: () =>
       getFollowers({
         userId: user!._id,
@@ -45,7 +39,7 @@ export default function DashboardContent() {
 
   // Log followers data for debugging
   if (followersData) {
-    console.log('Followers data:', {
+    console.log("Followers data:", {
       total: followersData.data.totalFollowers,
       source: followersData.data.source,
       count: followersData.data.followers.length,
@@ -55,7 +49,7 @@ export default function DashboardContent() {
   }
 
   if (followersError) {
-    console.error('Error fetching followers:', followersError);
+    console.error("Error fetching followers:", followersError);
   }
 
   return (

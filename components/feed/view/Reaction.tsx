@@ -398,7 +398,7 @@ const Reaction = memo(
             </button>
           </Tooltip>
 
-          <Tooltip
+          {/* <Tooltip
             className="text-xs font-medium"
             placement="bottom"
             showArrow
@@ -408,7 +408,7 @@ const Reaction = memo(
               <RiBarChartGroupedFill size={17} />
               <p>{formattedCounts.views}</p>
             </button>
-          </Tooltip>
+          </Tooltip> */}
 
           <Popover
             placement="bottom-end"

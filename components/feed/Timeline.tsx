@@ -18,7 +18,7 @@ import isUrl from "@/lib/isUrl";
 import { useUser } from "@/lib/UserContext";
 import { useRouter } from "next/navigation";
 import IndividualFeedContent from "./IndividualFeedContent";
-import { FeedMainContentDataLoading } from "../loading/TabSwitcherLoading";
+import { FeedMainComponentLoading } from "../loading/TabSwitcherLoading";
 import SwapTransactionCard from "./SwapTransactionCard";
 
 dayjs.extend(relativeTime);
@@ -262,15 +262,12 @@ const Timeline = ({
                     </p>
                     <GoDotFill size={10} />
                     <p className="text-gray-500 font-normal">
-                      {feed?.smartsiteId?.ens ||
-                        feed?.smartsiteEnsName ||
-                        "n/a"}
-                    </p>
-                    <GoDotFill size={10} />
-                    <p className="text-gray-500 font-normal">
                       {dayjs(feed.createdAt).fromNow()}
                     </p>
                   </Link>
+                  <p className="text-gray-500 font-normal">
+                    {feed?.smartsiteId?.ens || feed?.smartsiteEnsName || "n/a"}
+                  </p>
                   {/* Redeem Content */}
                   {feed.postType === "redeem" && (
                     <button
@@ -458,7 +455,7 @@ const Timeline = ({
         ))}
         {hasMore && (
           <div ref={observerRef}>
-            {initiaLoading ? <FeedMainContentDataLoading /> : <FeedLoading />}
+            {initiaLoading ? <FeedMainComponentLoading /> : <FeedLoading />}
           </div>
         )}
       </div>
