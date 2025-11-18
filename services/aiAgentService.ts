@@ -91,7 +91,7 @@ class AIAgentService {
    */
   disconnect() {
     if (this.socket) {
-      this.socket.emit('leave_ai_agent_v2', {});
+      this.socket.emit('leave_ai_agent', {});
       this.socket.disconnect();
       this.socket = null;
       this.conversationId = null;
