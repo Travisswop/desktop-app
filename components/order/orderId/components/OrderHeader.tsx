@@ -1,12 +1,9 @@
-import React, { memo, useMemo, useCallback } from 'react';
-import { Card, CardHeader, Chip } from '@nextui-org/react';
-import { Button } from '@/components/ui/button';
-import { CheckCircle, Truck, RefreshCw } from 'lucide-react';
-import { OrderData, UserRole } from '../types/order.types';
-import {
-  DisputeItem,
-  shouldShowRefundedTag,
-} from '../utils/refundUtils';
+import React, { memo, useMemo } from "react";
+import { Chip } from "@nextui-org/react";
+import { Button } from "@/components/ui/button";
+import { CheckCircle, Truck, RefreshCw } from "lucide-react";
+import { OrderData, UserRole } from "../types/order.types";
+import { DisputeItem, shouldShowRefundedTag } from "../utils/refundUtils";
 
 interface OrderHeaderProps {
   order: OrderData;
@@ -29,69 +26,64 @@ const OrderHeaderComponent: React.FC<OrderHeaderProps> = memo(
   }) => {
     const findCompleteStatus = order.processingStages?.find(
       (item: any) =>
-        item.stage === 'order_completed' &&
-        item.status === 'completed'
+        item.stage === "order_completed" && item.status === "completed"
     );
 
     const isCompleted = !!findCompleteStatus;
     // Memoize status chip color calculation
     const statusChipColor = useMemo(() => {
-      if (order?.orderType !== 'non-phygitals') {
+      if (order?.orderType !== "non-phygitals") {
         if (
-          order.status.delivery === 'Completed' &&
-          order.status.payment === 'completed' &&
+          order.status.delivery === "Completed" &&
+          order.status.payment === "completed" &&
           isCompleted
         ) {
-          return 'success';
+          return "success";
         }
         if (
-          order.status.delivery === 'Cancelled' ||
-          order.status.payment === 'cancelled' ||
-          order.status.payment === 'failed'
+          order.status.delivery === "Cancelled" ||
+          order.status.payment === "cancelled" ||
+          order.status.payment === "failed"
         ) {
-          return 'danger';
+          return "danger";
         }
         if (
-          order.status.delivery === 'In Progress' ||
-          order.status.payment === 'processing'
+          order.status.delivery === "In Progress" ||
+          order.status.payment === "processing"
         ) {
-          return 'primary';
+          return "primary";
         }
-        return 'warning';
+        return "warning";
       } else {
         switch (order.status.payment) {
-          case 'completed':
-            return 'success';
-          case 'processing':
-            return 'primary';
-          case 'cancelled':
-          case 'failed':
-            return 'danger';
+          case "completed":
+            return "success";
+          case "processing":
+            return "primary";
+          case "cancelled":
+          case "failed":
+            return "danger";
           default:
-            return 'warning';
+            return "warning";
         }
       }
-    }, [
-      order?.orderType,
-      order.status.delivery,
-      order.status.payment,
-    ]);
+    }, [order?.orderType, order.status.delivery, order.status.payment]);
 
     // Memoize status text calculation
     const statusText = useMemo(() => {
-      if (order?.orderType !== 'non-phygitals') {
+      if (order?.orderType !== "non-phygitals") {
         if (
-          order.status.delivery === 'Completed' &&
-          order.status.payment === 'completed' &&
+          order.status.delivery === "Completed" &&
+          order.status.payment === "completed" &&
           isCompleted
         ) {
-          return 'Completed';
-        } else if (order.status.delivery !== 'Completed') {
+          return "Completed";
+        } else if (order.status.delivery !== "Completed") {
           return order.status.delivery;
-        } else if (order.status.payment !== 'completed') {
+        } else if (order.status.payment !== "completed") {
           return order.status.payment;
         }
-        return 'In Progress';
+        return "In Progress";
       } else {
         return order.status.payment;
       }
@@ -118,14 +110,14 @@ const OrderHeaderComponent: React.FC<OrderHeaderProps> = memo(
 
     // Memoize header title
     const headerTitle = useMemo(() => {
-      return userRole === 'buyer' ? 'My Purchase' : 'Customer Order';
+      return userRole === "buyer" ? "My Purchase" : "Customer Order";
     }, [userRole]);
 
     // Memoize action button rendering
     const actionButton = useMemo(() => {
-      if (order?.orderType === 'non-phygitals') return null;
+      if (order?.orderType === "non-phygitals") return null;
 
-      if (userRole === 'buyer') {
+      if (userRole === "buyer") {
         return isCompleted ? (
           <Chip
             color="success"
@@ -144,15 +136,15 @@ const OrderHeaderComponent: React.FC<OrderHeaderProps> = memo(
             onClick={onMarkComplete}
             disabled={
               isUpdating ||
-              order.status.delivery !== 'Completed' ||
-              order.status.payment !== 'completed'
+              order.status.delivery !== "Completed" ||
+              order.status.payment !== "completed"
             }
             className="flex items-center gap-2"
             title={
-              order.status.delivery !== 'Completed' ||
-              order.status.payment !== 'completed'
-                ? 'Order must be delivered and paid before it can be completed'
-                : ''
+              order.status.delivery !== "Completed" ||
+              order.status.payment !== "completed"
+                ? "Order must be delivered and paid before it can be completed"
+                : ""
             }
           >
             {isUpdating ? (
@@ -163,18 +155,18 @@ const OrderHeaderComponent: React.FC<OrderHeaderProps> = memo(
             ) : (
               <>
                 <CheckCircle size={16} />
-                {order.status.delivery !== 'Completed' ||
-                order.status.payment !== 'completed'
-                  ? 'Waiting for Delivery & Payment'
-                  : 'Mark as Complete'}
+                {order.status.delivery !== "Completed" ||
+                order.status.payment !== "completed"
+                  ? "Waiting for Delivery & Payment"
+                  : "Mark as Complete"}
               </>
             )}
           </Button>
         );
       }
 
-      if (userRole === 'seller') {
-        return order.status.delivery === 'Completed' ? (
+      if (userRole === "seller") {
+        return order.status.delivery === "Completed" ? (
           <Chip
             color="success"
             variant="flat"
@@ -212,10 +204,10 @@ const OrderHeaderComponent: React.FC<OrderHeaderProps> = memo(
     ]);
 
     return (
-      <CardHeader className="flex justify-between items-start p-6 border-b">
+      <div className="flex justify-between items-start">
         <div className="flex flex-col items-start gap-2">
           <div className="flex items-center">
-            <h1 className="text-2xl font-bold mr-3">{headerTitle}</h1>
+            <h1 className="text-xl font-bold mr-3">{headerTitle}</h1>
             <div className="flex items-center gap-2">
               <Chip color={statusChipColor}>{statusText}</Chip>
               {showRefundedTag && (
@@ -232,16 +224,16 @@ const OrderHeaderComponent: React.FC<OrderHeaderProps> = memo(
             </div>
           </div>
           <h4 className="text-gray-500">Order #{order.orderId}</h4>
-          <p className="text-sm text-gray-500">
+          <p className="text-sm text-gray-500 mb-3">
             Placed on {formattedDate.date} at {formattedDate.time}
           </p>
         </div>
         {actionButton}
-      </CardHeader>
+      </div>
     );
   }
 );
 
-OrderHeaderComponent.displayName = 'OrderHeader';
+OrderHeaderComponent.displayName = "OrderHeader";
 
 export const OrderHeader = OrderHeaderComponent;

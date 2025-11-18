@@ -160,15 +160,15 @@ export default function DashboardMainContent() {
             />
           </div>
           <div className="bg-white flex-1 rounded-xl">
-            <OrdersStats
+            {/* <OrdersStats
               totalMints={1827}
               totalRevenue={1002.33}
               inEscrow={200.34}
               closedOrders={20}
               openOrders={10}
               disputes={0}
-              onViewClick={handleViewClick}
-            />
+            /> */}
+            <OrdersStats />
           </div>
         </div>
       </div>

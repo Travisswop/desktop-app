@@ -1,12 +1,9 @@
-import React, { memo, useMemo } from 'react';
-import { Card, CardBody, Divider } from '@nextui-org/react';
-import Image from 'next/image';
-import { NFT, OrderData } from '../types/order.types';
-import { orderTableHeaders } from '../constants/order.constants';
-import {
-  calculateItemTotal,
-  truncateText,
-} from '../utils/order.utils';
+import React, { memo, useMemo } from "react";
+import { Divider } from "@nextui-org/react";
+import Image from "next/image";
+import { NFT, OrderData } from "../types/order.types";
+import { orderTableHeaders } from "../constants/order.constants";
+import { calculateItemTotal, truncateText } from "../utils/order.utils";
 
 interface OrderItemsTableProps {
   nfts: NFT[] | null;
@@ -38,10 +35,7 @@ const OrderItemsTableComponent: React.FC<OrderItemsTableProps> = memo(
       if (!nfts || nfts.length === 0) {
         return (
           <tr>
-            <td
-              colSpan={4}
-              className="py-4 text-center text-gray-500"
-            >
+            <td colSpan={4} className="py-4 text-center text-gray-500">
               No products found in this order
             </td>
           </tr>
@@ -59,38 +53,32 @@ const OrderItemsTableComponent: React.FC<OrderItemsTableProps> = memo(
                 {nft?.image ? (
                   <Image
                     src={nft.image}
-                    alt={nft.name || 'Product'}
+                    alt={nft.name || "Product"}
                     width={48}
                     height={48}
                     className="rounded object-cover"
                     onError={(e) => {
                       const target = e.target as HTMLImageElement;
-                      target.src = '/placeholder.svg';
+                      target.src = "/placeholder.svg";
                     }}
                   />
                 ) : (
                   <div className="w-12 h-12 bg-gray-200 rounded flex items-center justify-center">
-                    <span className="text-xs text-gray-500">
-                      No image
-                    </span>
+                    <span className="text-xs text-gray-500">No image</span>
                   </div>
                 )}
               </div>
               <div>
-                <p className="font-medium">
-                  {nft.name || 'Unknown Product'}
-                </p>
+                <p className="font-medium">{nft.name || "Unknown Product"}</p>
                 <p className="text-xs text-gray-500 truncate max-w-xs">
                   {nft.description
                     ? truncateText(nft.description, 60)
-                    : 'No description'}
+                    : "No description"}
                 </p>
               </div>
             </div>
           </td>
-          <td className="px-6 py-4">
-            ${nft.price?.toFixed(2) || '0.00'}
-          </td>
+          <td className="px-6 py-4">${nft.price?.toFixed(2) || "0.00"}</td>
           <td className="px-6 py-4">{nft.quantity}</td>
           <td className="px-6 py-4 font-medium">
             ${calculateItemTotal(nft.price, nft.quantity).toFixed(2)}
@@ -101,7 +89,7 @@ const OrderItemsTableComponent: React.FC<OrderItemsTableProps> = memo(
 
     return (
       <div className="mb-8">
-        <h2 className="text-xl font-semibold mb-4">Order Items</h2>
+        {/* <h2 className="text-xl font-semibold mb-4">Order Items</h2> */}
         <div className="overflow-x-auto rounded-lg border border-gray-200">
           <table className="w-full text-left">
             <thead className="text-base font-medium text-gray-700 bg-gray-50">
@@ -119,8 +107,8 @@ const OrderItemsTableComponent: React.FC<OrderItemsTableProps> = memo(
 
         {/* Order Summary */}
         <div className="flex flex-col items-end mt-6">
-          <Card className="w-full md:w-1/3 bg-gray-50">
-            <CardBody className="p-4">
+          <div className="w-full md:w-1/3 bg-gray-50">
+            <div className="p-4">
               <div className="space-y-2">
                 <div className="flex justify-between">
                   <p>Subtotal</p>
@@ -146,14 +134,14 @@ const OrderItemsTableComponent: React.FC<OrderItemsTableProps> = memo(
                   <p>${financialData.totalCost.toFixed(2)}</p>
                 </div>
               </div>
-            </CardBody>
-          </Card>
+            </div>
+          </div>
         </div>
       </div>
     );
   }
 );
 
-OrderItemsTableComponent.displayName = 'OrderItemsTable';
+OrderItemsTableComponent.displayName = "OrderItemsTable";
 
 export const OrderItemsTable = OrderItemsTableComponent;
