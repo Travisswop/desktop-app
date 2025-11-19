@@ -1,6 +1,6 @@
-import { useState, useMemo, useCallback } from 'react';
-import { useUser } from '@/lib/UserContext';
-import { ShippingUpdateData } from '../types/order.types';
+import { useState, useMemo, useCallback } from "react";
+import { useUser } from "@/lib/UserContext";
+import { ShippingUpdateData } from "../types/order.types";
 
 interface UseShippingUpdateReturn {
   isUpdateModalOpen: boolean;
@@ -25,18 +25,17 @@ export const useShippingUpdate = (
   const [isUpdateModalOpen, setIsUpdateModalOpen] = useState(false);
   const [isUpdating, setIsUpdating] = useState(false);
   const [updateError, setUpdateError] = useState<string | null>(null);
-  const [updateSuccess, setUpdateSuccess] = useState<string | null>(
-    null
-  );
-  const [shippingData, setShippingData] =
-    useState<ShippingUpdateData>({
-      deliveryStatus: 'Not Initiated',
-      trackingNumber: '',
-      shippingProvider: '',
-      estimatedDeliveryDate: '',
-      additionalNotes: '',
-      ...initialShippingData,
-    });
+  const [updateSuccess, setUpdateSuccess] = useState<string | null>(null);
+  const [shippingData, setShippingData] = useState<ShippingUpdateData>({
+    deliveryStatus: "Not Initiated",
+    trackingNumber: "",
+    shippingProvider: "",
+    estimatedDeliveryDate: "",
+    additionalNotes: "",
+    ...initialShippingData,
+  });
+
+  console.log("shippingData", shippingData);
 
   const handleShippingUpdate = useCallback(
     async (orderId: string, onSuccess?: () => void) => {
@@ -48,16 +47,16 @@ export const useShippingUpdate = (
       try {
         const API_URL = process.env.NEXT_PUBLIC_API_URL;
         if (!API_URL) {
-          throw new Error('API base URL is not defined.');
+          throw new Error("API base URL is not defined.");
         }
 
         const response = await fetch(
           `${API_URL}/api/v5/orders/${orderId}/shipping`,
           {
-            method: 'PUT',
+            method: "PUT",
             headers: {
               Authorization: `Bearer ${accessToken}`,
-              'Content-Type': 'application/json',
+              "Content-Type": "application/json",
             },
             body: JSON.stringify(shippingData),
           }
@@ -69,9 +68,7 @@ export const useShippingUpdate = (
           throw new Error(`${result.message}`);
         }
 
-        setUpdateSuccess(
-          'Shipping information updated successfully!'
-        );
+        setUpdateSuccess("Shipping information updated successfully!");
 
         // Call success callback if provided
         if (onSuccess) {
@@ -82,10 +79,8 @@ export const useShippingUpdate = (
           }, 2000);
         }
       } catch (error: any) {
-        console.error('Update Error:', error);
-        setUpdateError(
-          error.message || 'An unexpected error occurred.'
-        );
+        console.error("Update Error:", error);
+        setUpdateError(error.message || "An unexpected error occurred.");
       } finally {
         setIsUpdating(false);
       }

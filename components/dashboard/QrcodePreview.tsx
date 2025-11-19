@@ -3,6 +3,7 @@ import { Settings } from "lucide-react";
 import Image from "next/image";
 import { QrCode1 } from "../smartsite/qrCode/QRData";
 import { PrimaryButton } from "../ui/Button/PrimaryButton";
+import Link from "next/link";
 
 const QRCodePreview = () => {
   return (
@@ -10,12 +11,9 @@ const QRCodePreview = () => {
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <h3 className="text-lg font-semibold text-gray-900">QR</h3>
-        <PrimaryButton
-          //   onClick={handleViewClick}
-          className="text-sm"
-        >
-          View
-        </PrimaryButton>
+        <Link href={"/dashboard/qr-code"}>
+          <PrimaryButton className="text-sm">View</PrimaryButton>
+        </Link>
       </div>
 
       {/* QR Code Container */}
