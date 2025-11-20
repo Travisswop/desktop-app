@@ -69,7 +69,11 @@ class AIAgentService {
   /**
    * Initialize connection to AI agent
    */
-  connect(token: string, baseURL: string = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:4000') {
+  connect(
+    token: string,
+    baseURL: string = process.env.NEXT_PUBLIC_API_BASE_URL ||
+      'http://localhost:4000'
+  ) {
     if (this.socket?.connected) {
       console.log('AI Agent already connected');
       return;
@@ -110,36 +114,40 @@ class AIAgentService {
       this.joinAIAgent();
     });
 
-    // AI agent joined (V2)
-    this.socket.on('ai_agent_joined_v2', (data: any) => {
+    this.socket.on('ai_agent_joined', (data: any) => {
       this.conversationId = data.conversationId;
       this.emit('joined', data);
     });
 
-    // AI agent response (V2)
-    this.socket.on('ai_agent_response_v2', (data: AIAgentResponse) => {
+    this.socket.on('ai_agent_response', (data: AIAgentResponse) => {
       this.emit('response', data);
     });
 
-    // AI agent typing indicator (V2)
-    this.socket.on('ai_agent_typing_v2', (data: { typing: boolean }) => {
+    this.socket.on('ai_agent_typing', (data: { typing: boolean }) => {
       this.emit('typing', data.typing);
     });
 
-    // AI agent executing transaction (V2)
-    this.socket.on('ai_agent_executing_v2', (data: { executing: boolean; action: string }) => {
-      this.emit('executing', data);
-    });
+    this.socket.on(
+      'ai_agent_executing',
+      (data: { executing: boolean; action: string }) => {
+        this.emit('executing', data);
+      }
+    );
 
-    // AI agent execution result (V2)
-    this.socket.on('ai_agent_execution_result_v2', (data: AIAgentExecutionResult) => {
-      this.emit('executionResult', data);
-    });
+    this.socket.on(
+      'ai_agent_execution_result',
+      (data: AIAgentExecutionResult) => {
+        this.emit('executionResult', data);
+      }
+    );
 
     // New message (user's own message echo)
-    this.socket.on('new_message', (data: { message: AIAgentMessage; conversationId: string }) => {
-      this.emit('newMessage', data);
-    });
+    this.socket.on(
+      'new_message',
+      (data: { message: AIAgentMessage; conversationId: string }) => {
+        this.emit('newMessage', data);
+      }
+    );
 
     // Connection errors
     this.socket.on('connect_error', (error) => {
@@ -157,14 +165,17 @@ class AIAgentService {
   /**
    * Join AI agent conversation
    */
-  async joinAIAgent(): Promise<{ conversationId: string; agentOnline: boolean }> {
+  async joinAIAgent(): Promise<{
+    conversationId: string;
+    agentOnline: boolean;
+  }> {
     return new Promise((resolve, reject) => {
       if (!this.socket?.connected) {
         reject(new Error('Not connected to server'));
         return;
       }
 
-      this.socket.emit('join_ai_agent_v2', {}, (response: any) => {
+      this.socket.emit('join_ai_agent', {}, (response: any) => {
         if (response.error) {
           reject(new Error(response.error));
         } else {
@@ -178,7 +189,10 @@ class AIAgentService {
   /**
    * Send message to AI agent
    */
-  async sendMessage(message: string, walletAddress?: string): Promise<AIAgentResponse> {
+  async sendMessage(
+    message: string,
+    walletAddress?: string
+  ): Promise<AIAgentResponse> {
     return new Promise((resolve, reject) => {
       if (!this.socket?.connected) {
         reject(new Error('Not connected to server'));
@@ -191,7 +205,7 @@ class AIAgentService {
       }
 
       this.socket.emit(
-        'ai_agent_message_v2',
+        'ai_agent_message',
         {
           message,
           conversationId: this.conversationId,
@@ -267,7 +281,7 @@ class AIAgentService {
       }
 
       this.socket.emit(
-        'ai_agent_submit_signed_tx_v2',
+        'ai_agent_submit_signed_tx',
         {
           signedTransaction,
           action,
@@ -288,7 +302,9 @@ class AIAgentService {
   /**
    * Load more messages (pagination)
    */
-  async loadMoreMessages(oldestMessageId: string): Promise<{ messages: AIAgentMessage[]; hasMore: boolean }> {
+  async loadMoreMessages(
+    oldestMessageId: string
+  ): Promise<{ messages: AIAgentMessage[]; hasMore: boolean }> {
     return new Promise((resolve, reject) => {
       if (!this.socket?.connected) {
         reject(new Error('Not connected to server'));
@@ -301,7 +317,7 @@ class AIAgentService {
       }
 
       this.socket.emit(
-        'ai_agent_load_more_messages_v2',
+        'ai_agent_load_more_messages',
         {
           conversationId: this.conversationId,
           oldestMessageId,

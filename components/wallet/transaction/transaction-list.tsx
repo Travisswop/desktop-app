@@ -161,7 +161,7 @@ export default function TransactionList({
       <Card className="w-full border-none rounded-xl mt-4">
         <CardHeader>
           <div className="flex items-center justify-between">
-            <CardTitle className="flex items-center gap-2">
+            <CardTitle className="flex items-center gap-2 ont-bold text-xl text-gray-700">
               Transactions
               {loading && offset === 0 && (
                 <Loader2 className="w-4 h-4 animate-spin" />

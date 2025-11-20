@@ -5,7 +5,7 @@ import {
   SolTxDetails,
   Transaction,
 } from '@/types/transaction';
-import { CHAINS } from '@/types/config';
+import { CHAINS, CHAIN_CONFIG } from '@/types/config';
 import { APIUtils } from '@/utils/api';
 
 class TransactionAPI {
@@ -82,6 +82,8 @@ class TransactionAPI {
     address: string
   ): Promise<Transaction[]> {
     if (CHAINS[chain].type === 'solana') return [];
+
+    console.log('chain', CHAINS[chain]);
 
     try {
       const url = `${CHAINS[chain].transactionApiUrl}/api?module=account&action=tokentx&address=${address}&startblock=0&endblock=99999999&sort=asc&apikey=${CHAINS[chain].accessToken}`;

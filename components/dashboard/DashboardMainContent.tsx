@@ -4,7 +4,7 @@ import { Skeleton } from "../ui/skeleton";
 import DashboardAnalytics from "./analytics";
 import { useQuery } from "@tanstack/react-query";
 import { getFollowers, followersQueryKey } from "@/services/followers-service";
-import PortfolioChart from "./PortfolioChart";
+import PortfolioChart, { PortfolioAsset } from "./PortfolioChart";
 import OrdersStats from "./OrderSummery";
 import Insights from "./Insights";
 import BalanceChart from "./BalanceChart";
@@ -14,11 +14,63 @@ import DashboardChatPreview from "./ChatPreview";
 import RewardsCardPreview from "./RewardPreview";
 import TransactionsListPreview from "./TransactionPreview";
 import QRCodePreview from "./QrcodePreview";
+import { usePrivy, useWallets, useSolanaWallets } from "@privy-io/react-auth";
+import { useMemo } from "react";
+import { useMultiChainTokenData } from "@/lib/hooks/useToken";
+import { useRouter } from "next/navigation";
+
+// Token colors mapping for consistent visual representation
+const TOKEN_COLORS: Record<string, string> = {
+  SOL: "#10b981",
+  SWOP: "#d1fae5",
+  ETH: "#047857",
+  BTC: "#f59e0b",
+  USDC: "#2563eb",
+  USDT: "#22c55e",
+  BNB: "#eab308",
+  XRP: "#06b6d4",
+  MATIC: "#8b5cf6",
+  POL: "#8b5cf6",
+  default: "#6b7280",
+};
+
+const getTokenColor = (symbol: string): string => {
+  return TOKEN_COLORS[symbol] || TOKEN_COLORS.default;
+};
 
 export default function DashboardMainContent() {
   const { user, loading, error, accessToken } = useUser();
+  const { wallets: ethWallets } = useWallets();
+  const { wallets: solanaWallets } = useSolanaWallets();
+  const router = useRouter();
 
   console.log("user", user);
+
+  // Get wallet addresses
+  const solWalletAddress = useMemo(() => {
+    return solanaWallets?.find(
+      (w) =>
+        w.walletClientType === "privy" || w.connectorType === "embedded"
+    )?.address;
+  }, [solanaWallets]);
+
+  const evmWalletAddress = useMemo(() => {
+    return ethWallets?.find(
+      (w) =>
+        w.walletClientType === "privy" || w.connectorType === "embedded"
+    )?.address;
+  }, [ethWallets]);
+
+  // Fetch token data
+  const {
+    tokens,
+    loading: tokenLoading,
+  } = useMultiChainTokenData(solWalletAddress, evmWalletAddress, [
+    "SOLANA",
+    "ETHEREUM",
+    "POLYGON",
+    "BASE",
+  ]);
 
   // Fetch followers with pagination (page 1, limit 20)
   const {
@@ -62,11 +114,68 @@ export default function DashboardMainContent() {
     console.error("Error fetching followers:", followersError);
   }
 
-  const assets = [
-    { name: "ETH", value: 12500, color: "#22c55e", amount: "5.2 ETH" },
-    { name: "SOL", value: 9800, color: "#166534", amount: "450 SOL" },
-    { name: "SWOP", value: 6004.59, color: "#bbf7d0", amount: "12.5K SWOP" },
-  ];
+  // Transform tokens into portfolio assets
+  const portfolioData = useMemo(() => {
+    if (!tokens || tokens.length === 0) {
+      return {
+        assets: [],
+        totalBalance: "0.00",
+      };
+    }
+
+    // Calculate token values and filter out zero balances
+    const assetsWithValue = tokens
+      .map((token) => {
+        const balance = parseFloat(token.balance || "0");
+        const price = parseFloat(token.marketData?.price || "0");
+        const value = balance * price;
+
+        return {
+          name: token.symbol,
+          value: value,
+          color: getTokenColor(token.symbol),
+          amount: `${balance.toLocaleString(undefined, {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 4,
+          })} ${token.symbol}`,
+        };
+      })
+      .filter((asset) => asset.value > 0) // Only include tokens with positive value
+      .sort((a, b) => b.value - a.value); // Sort by value descending
+
+    // Calculate total balance
+    const total = assetsWithValue.reduce(
+      (sum, asset) => sum + asset.value,
+      0
+    );
+
+    // Take top 5 tokens and group rest as "Others"
+    const topAssets = assetsWithValue.slice(0, 5);
+    const otherAssets = assetsWithValue.slice(5);
+
+    const assets: PortfolioAsset[] = [...topAssets];
+
+    if (otherAssets.length > 0) {
+      const othersValue = otherAssets.reduce(
+        (sum, asset) => sum + asset.value,
+        0
+      );
+      assets.push({
+        name: "Others",
+        value: othersValue,
+        color: "#94a3b8",
+        amount: `${otherAssets.length} tokens`,
+      });
+    }
+
+    return {
+      assets,
+      totalBalance: total.toLocaleString(undefined, {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+      }),
+    };
+  }, [tokens]);
 
   const handleViewPortfolio = () => {
     console.log("Navigate to full portfolio view");
@@ -152,12 +261,18 @@ export default function DashboardMainContent() {
         </div>
         <div className="flex-1  rounded-lg flex flex-col gap-3">
           <div className="bg-white flex-1 rounded-xl">
-            <PortfolioChart
-              assets={assets}
-              balance="$28,30.59"
-              title="Portfolio"
-              viewAction={handleViewPortfolio}
-            />
+            {tokenLoading ? (
+              <PortfolioChartSkeleton />
+            ) : portfolioData.assets.length > 0 ? (
+              <PortfolioChart
+                assets={portfolioData.assets}
+                balance={`$${portfolioData.totalBalance}`}
+                title="Portfolio"
+                viewAction={() => router.push("/wallet")}
+              />
+            ) : (
+              <PortfolioEmptyState />
+            )}
           </div>
           <div className="bg-white flex-1 rounded-xl">
             <OrdersStats
@@ -311,6 +426,61 @@ function AnalyticsSkeleton() {
             <Skeleton className="h-48 w-full" />
           </div>
         </div>
+      </div>
+    </div>
+  );
+}
+
+function PortfolioChartSkeleton() {
+  return (
+    <div className="w-full p-5">
+      <div className="flex flex-row items-center justify-between pb-2">
+        <Skeleton className="h-6 w-24" />
+        <Skeleton className="h-8 w-16" />
+      </div>
+      <div className="pt-6">
+        <div className="flex items-center justify-center gap-8">
+          <Skeleton className="h-[200px] w-[200px] rounded-full" />
+          <div className="flex flex-col gap-4">
+            {[...Array(4)].map((_, i) => (
+              <div key={i} className="flex items-center gap-2">
+                <Skeleton className="h-3 w-3 rounded-full" />
+                <Skeleton className="h-4 w-20" />
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function PortfolioEmptyState() {
+  return (
+    <div className="w-full p-5">
+      <div className="flex flex-row items-center justify-between pb-2">
+        <h2 className="text-lg font-semibold">Portfolio</h2>
+      </div>
+      <div className="pt-6 pb-4 text-center">
+        <div className="w-16 h-16 mx-auto mb-4 bg-gray-100 rounded-full flex items-center justify-center">
+          <svg
+            className="w-8 h-8 text-gray-400"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+            />
+          </svg>
+        </div>
+        <p className="text-gray-600 font-medium mb-1">No tokens found</p>
+        <p className="text-sm text-gray-500">
+          Connect your wallet to view your portfolio.
+        </p>
       </div>
     </div>
   );
