@@ -10,6 +10,8 @@ import { ChainId } from '@lifi/widget';
 import LiFiPrivyWrapper from './LiFiPrivyWrapper';
 import { useWallets, useSolanaWallets } from '@privy-io/react-auth';
 import { SolanaProvider } from '../SolanaProvider';
+import { PrimaryButton } from '../ui/Button/PrimaryButton';
+import { TbArrowsExchange2 } from 'react-icons/tb';
 
 interface SwapButtonProps {
   tokens: any[];
@@ -121,9 +123,12 @@ export default function SwapButton({
 
   return (
     <>
-      <WalletChartButton onClick={() => setOpenSwapModal(true)}>
-        <ArrowLeftRight size={16} /> Swap
-      </WalletChartButton>
+      <PrimaryButton
+        className="px-2 rounded"
+        onClick={() => setOpenSwapModal(true)}
+      >
+        <TbArrowsExchange2 size={16} color="black" />
+      </PrimaryButton>
 
       {/* Custom Modal */}
       {openSwapModal && (

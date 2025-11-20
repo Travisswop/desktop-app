@@ -7,8 +7,16 @@ import {
 import { PriorityLevel } from './PriorityFeeSelector';
 import { saveSwapTransaction } from '@/actions/saveTransactionData';
 import logger from '@/utils/logger';
-import { getWalletNotificationService, formatUSDValue } from '@/lib/utils/walletNotifications';
+import {
+  getWalletNotificationService,
+  formatUSDValue,
+} from '@/lib/utils/walletNotifications';
 import { Socket } from 'socket.io-client';
+import {
+  findAlternativeRoute,
+  findRouteWithReducedAmount,
+  findDexesWithLiquidity,
+} from './findAlternativeRoutes';
 
 /**
  * Jupiter Error Code 6014 (0x177e) - Common Solutions:
@@ -128,26 +136,42 @@ async function simulateTransaction(
 
       // Check for specific error types
       const errorStr = JSON.stringify(simulation.value.err);
+      const logsStr = simulation.value.logs
+        ? JSON.stringify(simulation.value.logs)
+        : '';
+
+      // Extract error code from various formats
+      let errorCode: number | null = null;
+
+      // Try to extract from JSON format: "Custom":123
+      const customErrorMatch = errorStr.match(/"Custom":(\d+)/);
+      if (customErrorMatch) {
+        errorCode = parseInt(customErrorMatch[1]);
+      } else {
+        // Try to extract hex format from error message: "0x177e"
+        const hexErrorMatch =
+          errorStr.match(/0x([0-9a-fA-F]+)/) ||
+          logsStr.match(/0x([0-9a-fA-F]+)/);
+        if (hexErrorMatch) {
+          errorCode = parseInt(hexErrorMatch[1], 16);
+        }
+      }
 
       // Log Jupiter-specific error codes for debugging
-      if (errorStr.includes('"Custom":')) {
-        const customErrorMatch = errorStr.match(/"Custom":(\d+)/);
-        if (customErrorMatch) {
-          const errorCode = parseInt(customErrorMatch[1]);
-          const hexCode = '0x' + errorCode.toString(16);
-          logger.error(
-            `Jupiter custom error detected: ${errorCode} (${hexCode})`
-          );
-          logger.error('Error details:', simulation.value.err);
+      if (errorCode !== null) {
+        const hexCode = '0x' + errorCode.toString(16);
+        logger.error(
+          `Jupiter custom error detected: ${errorCode} (${hexCode})`
+        );
+        logger.error('Error details:', simulation.value.err);
 
-          // Log suggestions for common errors
-          const suggestions = getJupiterErrorSuggestions(errorCode);
-          if (suggestions.length > 0) {
-            logger.error('Suggested solutions:');
-            suggestions.forEach((suggestion, index) => {
-              logger.error(`${index + 1}. ${suggestion}`);
-            });
-          }
+        // Log suggestions for common errors
+        const suggestions = getJupiterErrorSuggestions(errorCode);
+        if (suggestions.length > 0) {
+          logger.error('Suggested solutions:');
+          suggestions.forEach((suggestion, index) => {
+            logger.error(`${index + 1}. ${suggestion}`);
+          });
         }
       }
 
@@ -501,6 +525,119 @@ export async function handleSwap({
           }
         }
 
+        // Check if this is a liquidity/routing error (0x177e / 6014)
+        const errorMessage = (simError as Error).message;
+        const isLiquidityError =
+          errorMessage.includes('0x177e') ||
+          errorMessage.includes('6014') ||
+          errorMessage.includes('insufficient liquidity') ||
+          errorMessage.includes('price impact too high');
+
+        if (isLiquidityError && retryCount === maxRetries) {
+          logger.log(
+            'Liquidity error detected, trying alternative routes...'
+          );
+          if (onStatusUpdate) {
+            onStatusUpdate('Searching for alternative routes...');
+          }
+
+          try {
+            // Try to find alternative routes
+            const alternativeQuote = await findAlternativeRoute(
+              quote.inputMint,
+              quote.outputMint,
+              quote.inAmount,
+              slippageBps,
+              platformFeeBps
+            );
+
+            if (alternativeQuote) {
+              logger.log('Found alternative route, retrying swap...');
+              if (onStatusUpdate) {
+                onStatusUpdate('Retrying with alternative route...');
+              }
+
+              // Update swap request with alternative quote
+              swapRequestBody.quoteResponse = alternativeQuote;
+
+              // Get new transaction with alternative route
+              const altRes = await fetch(
+                'https://lite-api.jup.ag/swap/v1/swap',
+                {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify(swapRequestBody),
+                }
+              );
+
+              if (altRes.ok) {
+                const altSwapResponse = await altRes.json();
+                if (altSwapResponse.swapTransaction) {
+                  const altTxBase64 = altSwapResponse.swapTransaction;
+                  const altTxBuffer = Buffer.from(
+                    altTxBase64,
+                    'base64'
+                  );
+                  transaction =
+                    VersionedTransaction.deserialize(altTxBuffer);
+
+                  // Try simulation again with alternative route
+                  try {
+                    await simulateTransaction(
+                      connection,
+                      transaction,
+                      solanaAddress
+                    );
+                    logger.log(
+                      'Alternative route simulation successful, continuing...'
+                    );
+                    simulationSuccess = true;
+                    continue;
+                  } catch (altSimError) {
+                    logger.error(
+                      'Alternative route simulation also failed:',
+                      altSimError
+                    );
+                  }
+                }
+              }
+            } else {
+              // Try with reduced amount
+              logger.log(
+                'No alternative route found, trying reduced amount...'
+              );
+              if (onStatusUpdate) {
+                onStatusUpdate('Trying with reduced amount...');
+              }
+
+              const reducedRoute = await findRouteWithReducedAmount(
+                quote.inputMint,
+                quote.outputMint,
+                quote.inAmount,
+                slippageBps,
+                platformFeeBps,
+                50 // 50% reduction
+              );
+
+              if (reducedRoute) {
+                logger.log(
+                  `Found route with ${reducedRoute.reducedAmount} (reduced from ${quote.inAmount})`
+                );
+                // You could prompt user here or auto-retry with reduced amount
+                // For now, we'll throw an error suggesting the user reduce the amount
+                throw new Error(
+                  `Insufficient liquidity for this swap amount. Try reducing the amount by 50% or more. Available DEXes with liquidity may be limited for this token pair.`
+                );
+              }
+            }
+          } catch (altRouteError) {
+            logger.error(
+              'Error finding alternative routes:',
+              altRouteError
+            );
+          }
+        }
+
         // If we've exhausted retries or failed to get fresh quote, throw the error
         throw new Error(
           `Transaction simulation failed after ${retryCount} attempts: ${
@@ -551,8 +688,10 @@ export async function handleSwap({
 
     try {
       // Calculate amounts with proper decimal handling
-      const inputAmount = quote.inAmount / 10 ** (inputToken?.decimals || 6);
-      const outputAmount = quote.outAmount / 10 ** (outputToken?.decimals || 6);
+      const inputAmount =
+        quote.inAmount / 10 ** (inputToken?.decimals || 6);
+      const outputAmount =
+        quote.outAmount / 10 ** (outputToken?.decimals || 6);
 
       // Format the swap details for saving
       const swapDetails = {
@@ -585,15 +724,20 @@ export async function handleSwap({
       // Emit Socket.IO notification for swap completion
       if (socket) {
         try {
-          const notificationService = getWalletNotificationService(socket);
+          const notificationService =
+            getWalletNotificationService(socket);
 
-          const inputPrice = inputToken?.price || inputToken?.usdPrice || '0';
-          const outputPrice = outputToken?.price || outputToken?.usdPrice || '0';
+          const inputPrice =
+            inputToken?.price || inputToken?.usdPrice || '0';
+          const outputPrice =
+            outputToken?.price || outputToken?.usdPrice || '0';
 
           notificationService.emitSwapCompleted({
-            inputTokenSymbol: inputToken?.symbol || quote.inputMint.slice(0, 4),
+            inputTokenSymbol:
+              inputToken?.symbol || quote.inputMint.slice(0, 4),
             inputAmount: inputAmount.toFixed(6),
-            outputTokenSymbol: outputToken?.symbol || quote.outputMint.slice(0, 4),
+            outputTokenSymbol:
+              outputToken?.symbol || quote.outputMint.slice(0, 4),
             outputAmount: outputAmount.toFixed(6),
             txSignature: signature,
             network: 'SOLANA',
@@ -605,7 +749,10 @@ export async function handleSwap({
 
           logger.log('Swap notification emitted via Socket.IO');
         } catch (notificationError) {
-          logger.error('Failed to emit swap notification:', notificationError);
+          logger.error(
+            'Failed to emit swap notification:',
+            notificationError
+          );
           // Don't fail the swap due to notification error
         }
       }
@@ -639,10 +786,23 @@ export async function handleSwap({
     if (err.message && err.message.includes('simulation failed')) {
       const errorStr = err.message;
 
-      // Check for Jupiter-specific error codes
+      // Extract error code from various formats
+      let errorCode: number | null = null;
+
+      // Try to extract from JSON format: "Custom":123
       const customErrorMatch = errorStr.match(/"Custom":(\d+)/);
       if (customErrorMatch) {
-        const errorCode = parseInt(customErrorMatch[1]);
+        errorCode = parseInt(customErrorMatch[1]);
+      } else {
+        // Try to extract hex format from error message: "0x177e" or "custom program error: 0x177e"
+        const hexErrorMatch = errorStr.match(/0x([0-9a-fA-F]+)/i);
+        if (hexErrorMatch) {
+          errorCode = parseInt(hexErrorMatch[1], 16);
+        }
+      }
+
+      // Check for Jupiter-specific error codes
+      if (errorCode !== null) {
         errorMessage = getJupiterErrorMessage(errorCode);
       } else if (errorStr.includes('ProgramFailedToComplete')) {
         errorMessage =
@@ -699,20 +859,31 @@ export async function handleSwap({
     // Emit Socket.IO notification for swap failure
     if (socket) {
       try {
-        const notificationService = getWalletNotificationService(socket);
-        const inputAmount = quote?.inAmount / 10 ** (inputToken?.decimals || 6);
+        const notificationService =
+          getWalletNotificationService(socket);
+        const inputAmount =
+          quote?.inAmount / 10 ** (inputToken?.decimals || 6);
 
         notificationService.emitSwapFailed({
-          inputTokenSymbol: inputToken?.symbol || quote?.inputMint?.slice(0, 4) || 'Unknown',
+          inputTokenSymbol:
+            inputToken?.symbol ||
+            quote?.inputMint?.slice(0, 4) ||
+            'Unknown',
           inputAmount: inputAmount?.toFixed(6) || '0',
-          outputTokenSymbol: outputToken?.symbol || quote?.outputMint?.slice(0, 4) || 'Unknown',
+          outputTokenSymbol:
+            outputToken?.symbol ||
+            quote?.outputMint?.slice(0, 4) ||
+            'Unknown',
           network: 'SOLANA',
           reason: errorMessage,
         });
 
         logger.log('Swap failure notification emitted via Socket.IO');
       } catch (notificationError) {
-        logger.error('Failed to emit swap failure notification:', notificationError);
+        logger.error(
+          'Failed to emit swap failure notification:',
+          notificationError
+        );
       }
     }
 

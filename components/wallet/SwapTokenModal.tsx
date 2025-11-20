@@ -2274,7 +2274,7 @@ export default function SwapTokenModal({
 
   const getTokenIcon = (token: any) => {
     if (token?.logoURI) {
-      return token?.logoURI;
+      return token?.logoURI.trim();
     }
 
     // Generate initials from symbol
@@ -2299,6 +2299,12 @@ export default function SwapTokenModal({
   `;
 
     return `data:image/svg+xml;base64,${utf8ToBase64(svg)}`;
+  };
+
+  // Helper function to sanitize image URLs by removing trailing whitespace
+  const sanitizeImageUrl = (url: string | undefined): string => {
+    if (!url) return '';
+    return url.trim();
   };
 
   return (
@@ -2506,7 +2512,7 @@ export default function SwapTokenModal({
                   <div className="relative min-w-max">
                     {payToken?.logoURI && (
                       <Image
-                        src={payToken.logoURI}
+                        src={sanitizeImageUrl(payToken.logoURI)}
                         alt={payToken.symbol}
                         width={24}
                         height={24}
@@ -2516,7 +2522,9 @@ export default function SwapTokenModal({
                     {payToken?.chain && (
                       <div className="absolute -bottom-1 -right-1 bg-white rounded-full p-0.5 flex items-center justify-center w-4 h-4 border border-gray-200">
                         <Image
-                          src={getChainIcon(payToken.chain || '')}
+                          src={sanitizeImageUrl(
+                            getChainIcon(payToken.chain || '')
+                          )}
                           alt={payToken.chain}
                           width={12}
                           height={12}
@@ -2625,7 +2633,7 @@ export default function SwapTokenModal({
                   <div className="flex items-center">
                     <div className="relative min-w-max">
                       <Image
-                        src={receiveToken.logoURI}
+                        src={sanitizeImageUrl(receiveToken.logoURI)}
                         alt={receiveToken.symbol}
                         width={240}
                         height={240}
@@ -2656,7 +2664,9 @@ export default function SwapTokenModal({
                         return (
                           <div className="absolute -bottom-1 -right-1 bg-white rounded-full p-0.5 flex items-center justify-center w-4 h-4 border border-gray-200">
                             <Image
-                              src={getChainIcon(chainName) || ''}
+                              src={sanitizeImageUrl(
+                                getChainIcon(chainName) || ''
+                              )}
                               alt={chainName}
                               width={120}
                               height={120}
@@ -3012,7 +3022,7 @@ export default function SwapTokenModal({
                         >
                           {chain.icon ? (
                             <Image
-                              src={chain.icon}
+                              src={sanitizeImageUrl(chain.icon)}
                               alt={chain.name}
                               width={200}
                               height={200}
@@ -3046,7 +3056,7 @@ export default function SwapTokenModal({
                           }`}
                         >
                           <Image
-                            src={chain.icon}
+                            src={sanitizeImageUrl(chain.icon)}
                             alt={chain.name}
                             width={20}
                             height={20}
@@ -3093,7 +3103,7 @@ export default function SwapTokenModal({
                           <div className="relative w-8 h-8">
                             {token.symbol === 'SWOP' ? (
                               <Image
-                                src={token.logoURI}
+                                src={sanitizeImageUrl(token.logoURI)}
                                 alt={token.symbol}
                                 width={1020}
                                 height={1020}
@@ -3102,11 +3112,11 @@ export default function SwapTokenModal({
                               />
                             ) : (
                               <Image
-                                src={
+                                src={sanitizeImageUrl(
                                   token?.marketData?.iconUrl ||
-                                  token?.logoURI ||
-                                  getTokenIcon(token)
-                                }
+                                    token?.logoURI ||
+                                    getTokenIcon(token)
+                                )}
                                 alt={token.symbol}
                                 width={1020}
                                 height={1020}
@@ -3117,9 +3127,9 @@ export default function SwapTokenModal({
                             {token.chain && (
                               <div className="absolute -bottom-1 -right-1 bg-white rounded-full p-0.5 flex items-center justify-center w-4 h-4 border border-gray-200">
                                 <Image
-                                  src={
+                                  src={sanitizeImageUrl(
                                     getChainIcon(token.chain) || ''
-                                  }
+                                  )}
                                   alt={token.chain}
                                   width={120}
                                   height={120}
@@ -3166,7 +3176,7 @@ export default function SwapTokenModal({
                           <div className="relative w-8 h-8">
                             {token.symbol === 'SWOP' ? (
                               <Image
-                                src={token.logoURI}
+                                src={sanitizeImageUrl(token.logoURI)}
                                 alt={token.symbol}
                                 width={1020}
                                 height={1020}
@@ -3175,11 +3185,11 @@ export default function SwapTokenModal({
                               />
                             ) : (
                               <Image
-                                src={
+                                src={sanitizeImageUrl(
                                   token?.marketData?.iconUrl ||
-                                  token?.logoURI ||
-                                  getTokenIcon(token)
-                                }
+                                    token?.logoURI ||
+                                    getTokenIcon(token)
+                                )}
                                 alt={token.symbol}
                                 width={1020}
                                 height={1020}
@@ -3190,9 +3200,9 @@ export default function SwapTokenModal({
                             {token.chain && (
                               <div className="absolute -bottom-1 -right-1 bg-white rounded-full p-0.5 flex items-center justify-center w-4 h-4 border border-gray-200">
                                 <Image
-                                  src={
+                                  src={sanitizeImageUrl(
                                     getChainIcon(token.chain) || ''
-                                  }
+                                  )}
                                   alt={token.chain}
                                   width={120}
                                   height={120}

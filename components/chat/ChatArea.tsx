@@ -6,6 +6,32 @@ import Image from "next/image";
 import isUrl from "@/lib/isUrl";
 import { GoDotFill } from "react-icons/go";
 import { IoSend } from "react-icons/io5";
+import AstroChatBox from "@/components/wallet/chat/astro-chat-box";
+
+// ==================== FEATURE FLAGS ====================
+
+// Feature flag for V2 chat system
+const USE_CHAT_V2 = process.env.NEXT_PUBLIC_USE_CHAT_V2 === 'true';
+
+// Socket event names (V1 or V2 based on feature flag)
+const EVENTS = USE_CHAT_V2
+  ? {
+      SEND_MESSAGE: 'send_message_v2',
+      NEW_MESSAGE: 'new_message_v2',
+      GET_CONVERSATION_HISTORY: 'get_conversation_history_v2',
+      MARK_MESSAGES_READ: 'mark_messages_read_v2',
+      JOIN_CONVERSATION: 'join_conversation_v2',
+    }
+  : {
+      SEND_MESSAGE: 'send_message',
+      NEW_MESSAGE: 'new_message',
+      GET_CONVERSATION_HISTORY: 'get_conversation_history',
+      MARK_MESSAGES_READ: 'mark_messages_read',
+      JOIN_CONVERSATION: 'join_conversation',
+    };
+
+console.log('[ChatArea] Using Chat V2:', USE_CHAT_V2);
+console.log('[ChatArea] Event names:', EVENTS);
 
 // ==================== TYPE DEFINITIONS ====================
 
@@ -59,7 +85,7 @@ interface SelectedChat {
 
 interface ChatAreaProps {
   selectedChat: SelectedChat | null;
-  chatType: "private" | "group";
+  chatType: "private" | "group" | "astro";
   currentUser: string;
   socket: any; // You can use Socket from socket.io-client if you have it
   onChatUpdate?: () => void; // ADD THIS
@@ -129,16 +155,37 @@ export default function ChatArea({
 
       const eventName = isGroup
         ? "get_group_messages"
-        : "get_conversation_history";
+        : EVENTS.GET_CONVERSATION_HISTORY;
+
+      // For V2, use participant._id as receiverId, for V1 use selectedChat._id
+      const receiverId = USE_CHAT_V2
+        ? selectedChat.participant?._id
+        : selectedChat._id;
+
       const payload = isGroup
         ? { groupId: selectedChat._id, page, limit: MESSAGES_PER_PAGE }
-        : { receiverId: selectedChat._id, page, limit: MESSAGES_PER_PAGE };
+        : { receiverId, page, limit: MESSAGES_PER_PAGE };
+
+      console.log('[ChatArea] Loading messages with payload:', payload);
 
       socket.emit(eventName, payload, (response: SocketResponse) => {
         if (response?.success) {
-          console.log("hit load message", response);
-
           const newMessages = response.messages || [];
+
+          if (newMessages.length > 0) {
+            console.log('[ChatArea] Loaded messages:', {
+              count: newMessages.length,
+              isInitial,
+              firstMessage: newMessages[0]?.message?.substring(0, 20),
+              lastMessage: newMessages[newMessages.length - 1]?.message?.substring(0, 20),
+              firstTimestamp: newMessages[0]?.createdAt,
+              lastTimestamp: newMessages[newMessages.length - 1]?.createdAt
+            });
+
+            // Debug: Check sender structure
+            console.log('[ChatArea] First message sender:', newMessages[0]?.sender);
+            console.log('[ChatArea] Last message sender:', newMessages[newMessages.length - 1]?.sender);
+          }
 
           // Check if there are more messages to load
           setHasMoreMessages(newMessages.length === MESSAGES_PER_PAGE);
@@ -146,9 +193,11 @@ export default function ChatArea({
           if (isInitial) {
             setMessages(newMessages);
           } else {
-            // Prepend older messages (reverse order since they come newest first)
+            // Prepend older messages to the beginning
             setMessages((prev) => [...newMessages, ...prev]);
           }
+        } else if (response?.error) {
+          console.error('[ChatArea] Failed to load messages:', response.error);
         }
         setIsLoadingMore(false);
       });
@@ -254,7 +303,7 @@ export default function ChatArea({
 
   // Initial load and setup
   useEffect(() => {
-    if (!selectedChat || !socket) return;
+    if (!selectedChat || !socket || chatType === "astro") return;
 
     // Reset states for new chat
     setMessages([]);
@@ -269,8 +318,15 @@ export default function ChatArea({
     if (isGroup) {
       socket.emit("join_group", { groupId: selectedChat._id });
     } else {
-      socket.emit("join_conversation", {
-        receiverId: selectedChat?._id || selectedChat?.microsite?.parentId,
+      // For V2, use participant._id, for V1 use selectedChat._id
+      const receiverId = USE_CHAT_V2
+        ? selectedChat?.participant?._id || selectedChat?.microsite?.parentId
+        : selectedChat?._id || selectedChat?.microsite?.parentId;
+
+      console.log('[ChatArea] Joining conversation with receiverId:', receiverId);
+
+      socket.emit(EVENTS.JOIN_CONVERSATION, {
+        receiverId,
       });
     }
 
@@ -278,28 +334,47 @@ export default function ChatArea({
       if (!data?.message) return;
 
       const msg = data.message;
+
+      // For V2, compare with participant._id, for V1 compare with selectedChat._id
+      const otherParticipantId = USE_CHAT_V2
+        ? selectedChat?.participant?._id
+        : selectedChat._id;
+
       const isForCurrentChat = isGroup
         ? msg.groupId === selectedChat._id
-        : msg.sender?._id === selectedChat._id ||
+        : msg.sender?._id === otherParticipantId ||
           msg.sender?._id === currentUser ||
-          msg.receiver?._id === selectedChat._id ||
+          msg.receiver?._id === otherParticipantId ||
           msg.receiver?._id === currentUser;
+
+      console.log('[ChatArea] New message received:', {
+        msgSenderId: msg.sender?._id,
+        msgReceiverId: msg.receiver?._id,
+        otherParticipantId,
+        currentUser,
+        isForCurrentChat
+      });
 
       if (isForCurrentChat) {
         setMessages((prev) => {
           const exists = prev.some((m) => m._id === msg._id);
-          if (exists) return prev;
+          if (exists) {
+            console.log('[ChatArea] Message already exists, skipping:', msg._id);
+            return prev;
+          }
 
           const tempMessageIndex = prev.findIndex(
             (m) => m._id && m._id.toString().startsWith("temp-")
           );
 
           if (tempMessageIndex > -1) {
+            console.log('[ChatArea] Replacing temp message at index:', tempMessageIndex);
             const newMessages = [...prev];
             newMessages[tempMessageIndex] = msg;
             return newMessages;
           }
 
+          console.log('[ChatArea] Adding new message to bottom. Previous count:', prev.length);
           return [...prev, msg];
         });
       }
@@ -319,20 +394,25 @@ export default function ChatArea({
           }
         }
       } else {
-        if (data.userId === selectedChat._id) {
+        // For V2, compare with participant._id, for V1 compare with selectedChat._id
+        const otherParticipantId = USE_CHAT_V2
+          ? selectedChat?.participant?._id
+          : selectedChat._id;
+
+        if (data.userId === otherParticipantId) {
           setIsTyping(data.isTyping);
         }
       }
     };
 
-    socket.on(isGroup ? "new_group_message" : "new_message", handleNewMessage);
+    socket.on(isGroup ? "new_group_message" : EVENTS.NEW_MESSAGE, handleNewMessage);
     socket.on("user_typing_group", handleTyping);
     socket.on("typing_started", handleTyping);
     socket.on("typing_stopped", handleTyping);
 
     return () => {
       socket.off(
-        isGroup ? "new_group_message" : "new_message",
+        isGroup ? "new_group_message" : EVENTS.NEW_MESSAGE,
         handleNewMessage
       );
       socket.off("user_typing_group", handleTyping);
@@ -402,6 +482,11 @@ export default function ChatArea({
 
     console.log("is group gg", isGroup);
 
+    // For V2, use participant._id, for V1 fallback to microsite.parentId
+    const receiverId = USE_CHAT_V2
+      ? selectedChat?.participant?._id || selectedChat?.microsite?.parentId
+      : selectedChat?.microsite?.parentId;
+
     const messageData = isGroup
       ? {
           groupId: selectedChat._id,
@@ -409,7 +494,7 @@ export default function ChatArea({
           messageType: "text" as const,
         }
       : {
-          receiverId: selectedChat?.microsite?.parentId,
+          receiverId,
           message: newMessage,
           messageType: "text" as const,
         };
@@ -438,7 +523,7 @@ export default function ChatArea({
     setNewMessage("");
 
     socket.emit(
-      isGroup ? "send_group_message" : "send_message",
+      isGroup ? "send_group_message" : EVENTS.SEND_MESSAGE,
       messageData,
       (response: SocketResponse) => {
         console.log("send msg res", response);
@@ -468,6 +553,11 @@ export default function ChatArea({
       handleSendMessage();
     }
   };
+
+  // Handle Astro AI bot chat
+  if (chatType === "astro") {
+    return <AstroChatBox />;
+  }
 
   if (!selectedChat) {
     return (
@@ -637,14 +727,32 @@ export default function ChatArea({
           </div>
         )}
 
-        {messages.map((message, index) => (
-          <Message
-            key={message._id || index}
-            message={message}
-            isOwn={message.sender?._id === currentUser}
-            isGroup={isGroup}
-          />
-        ))}
+        {messages.map((message, index) => {
+          // Ensure both IDs are compared as strings
+          const senderId = message.sender?._id?.toString() || message.sender?._id;
+          const isOwn = senderId === currentUser;
+
+          if (index === 0 || index === messages.length - 1) {
+            console.log('[ChatArea] Rendering message:', {
+              messageId: message._id,
+              senderId,
+              currentUser,
+              isOwn,
+              messageText: message.message?.substring(0, 20),
+              index,
+              totalMessages: messages.length
+            });
+          }
+
+          return (
+            <Message
+              key={message._id || index}
+              message={message}
+              isOwn={isOwn}
+              isGroup={isGroup}
+            />
+          );
+        })}
 
         {/* Typing Indicator */}
         {typingText && (
@@ -695,23 +803,23 @@ interface MessageProps {
 
 function Message({ message, isOwn, isGroup }: MessageProps) {
   return (
-    <div className={`flex ${isOwn ? "justify-end" : "justify-start"}`}>
-      <div className={`flex flex-col ${isOwn ? "items-end" : "items-start"}`}>
+    <div className={`flex mb-2 ${isOwn ? "justify-end" : "justify-start"}`}>
+      <div className={`flex flex-col ${isOwn ? "items-end" : "items-start"} max-w-[70%]`}>
         <div
-          className={`max-w-xs lg:max-w-md px-4 py-2 rounded-lg ${
+          className={`px-4 py-2 rounded-lg ${
             isOwn
-              ? "bg-gray-300 text-black rounded-br-none"
-              : " bg-white rounded-bl-none shadow-small"
+              ? "bg-[#DCF8C6] text-black rounded-tr-none"
+              : "bg-white rounded-tl-none shadow-sm border border-gray-100"
           } ${message.status === "failed" ? "opacity-50" : ""}`}
         >
           {isGroup && !isOwn && (
-            <div className="text-xs font-medium mb-1 opacity-75">
+            <div className="text-xs font-semibold mb-1 text-blue-600">
               {message.sender?.name || "Unknown"}
             </div>
           )}
-          <div className="text-sm">{message.message}</div>
+          <div className="text-sm break-words">{message.message}</div>
         </div>
-        <p className={`text-xs mt-1 text-gray-500`}>
+        <p className={`text-xs mt-1 px-1 ${isOwn ? "text-gray-600" : "text-gray-500"}`}>
           {new Date(message.createdAt).toLocaleTimeString([], {
             hour: "2-digit",
             minute: "2-digit",

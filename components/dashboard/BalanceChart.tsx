@@ -32,6 +32,9 @@ import { LuWallet } from "react-icons/lu";
 import { TbArrowsExchange2 } from "react-icons/tb";
 import { BiQrScan } from "react-icons/bi";
 import { FaRegListAlt } from "react-icons/fa";
+import WalletAddressPopup from "../wallet/wallet-address-popup";
+import SwapButton from "../wallet/SwapButton";
+import { WalletItem } from "@/types/wallet";
 
 interface BalanceHistoryEntry {
   createdAt: string;
@@ -42,6 +45,12 @@ interface BalanceChartProps {
   userId?: string;
   className?: string;
   currency?: string;
+  onSelectAsset?: () => void;
+  onQRClick?: () => void;
+  walletData?: WalletItem[];
+  tokens?: any[];
+  accessToken?: string;
+  onTokenRefresh?: () => void;
 }
 
 type TimePeriod = "1day" | "7days" | "1month" | "6months" | "1year" | "all";
@@ -90,10 +99,17 @@ const BalanceChart: React.FC<BalanceChartProps> = ({
   userId,
   className = "",
   currency = "$",
+  onSelectAsset,
+  onQRClick,
+  walletData = [],
+  tokens = [],
+  accessToken = "",
+  onTokenRefresh,
 }) => {
   const { user } = useUser();
   const [selectedPeriod, setSelectedPeriod] = useState<TimePeriod>("1month");
   const [showBalance, setShowBalance] = useState(false);
+  const [showPopup, setShowPopup] = useState(false);
   const [balanceHistory, setBalanceHistory] = useState<BalanceHistoryEntry[]>(
     []
   );
@@ -370,15 +386,32 @@ const BalanceChart: React.FC<BalanceChartProps> = ({
           </div>
 
           <div className="flex items-center gap-2">
-            <PrimaryButton className="px-2 rounded">
+            <PrimaryButton
+              className="px-2 rounded"
+              onClick={onSelectAsset}
+            >
               <BsSendFill size={15} color="black" />
             </PrimaryButton>
-            <PrimaryButton className="px-2 rounded">
+            <PrimaryButton
+              className="px-2 rounded"
+              onClick={() => setShowPopup(!showPopup)}
+            >
               <LuWallet size={16} color="black" />
             </PrimaryButton>
-            <PrimaryButton className="px-2 rounded">
-              <TbArrowsExchange2 size={16} color="black" />
-            </PrimaryButton>
+            {tokens.length > 0 ? (
+              <SwapButton
+                tokens={tokens}
+                accessToken={accessToken}
+                initialInputToken=""
+                initialOutputToken=""
+                initialAmount=""
+                onTokenRefresh={onTokenRefresh}
+              />
+            ) : (
+              <PrimaryButton className="px-2 rounded">
+                <TbArrowsExchange2 size={16} color="black" />
+              </PrimaryButton>
+            )}
             <PrimaryButton className="px-2 rounded">
               <MoreHorizontal size={16} color="black" />
             </PrimaryButton>
@@ -497,7 +530,12 @@ const BalanceChart: React.FC<BalanceChartProps> = ({
             </select>
           </div>
           <div className="flex items-center gap-1">
-            <Button variant="ghost" size="icon" className="h-8 w-8">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8"
+              onClick={onQRClick}
+            >
               <BiQrScan className="h-4 w-4" />
             </Button>
             <Button variant="ghost" size="icon" className="h-8 w-8">
@@ -509,6 +547,14 @@ const BalanceChart: React.FC<BalanceChartProps> = ({
           </div>
         </div>
       </div>
+
+      {/* Wallet Address Popup */}
+      {showPopup && walletData.length > 0 && (
+        <WalletAddressPopup
+          wallets={walletData}
+          onClose={() => setShowPopup(false)}
+        />
+      )}
     </div>
   );
 };

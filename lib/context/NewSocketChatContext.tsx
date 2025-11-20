@@ -14,6 +14,65 @@ import { usePrivy } from '@privy-io/react-auth';
 // Removed unused import
 import { chatApiService } from '@/lib/api/chatService';
 
+// Feature flag for V2 chat system
+// Set to true to use new unified messaging architecture
+const USE_CHAT_V2 = process.env.NEXT_PUBLIC_USE_CHAT_V2 === 'true';
+
+// Socket event names (V1 or V2 based on feature flag)
+const EVENTS = USE_CHAT_V2 ? {
+  // Direct chat events
+  SEND_MESSAGE: 'send_message_v2',
+  GET_CONVERSATION_HISTORY: 'get_conversation_history_v2',
+  GET_CONVERSATIONS: 'get_conversations_v2',
+  MARK_MESSAGES_READ: 'mark_messages_read_v2',
+  DELETE_MESSAGE: 'delete_message_v2',
+  EDIT_MESSAGE: 'edit_message_v2',
+  SEARCH_CONTACTS: 'search_contacts_v2',
+  BLOCK_USER: 'block_user_v2',
+  UNBLOCK_USER: 'unblock_user_v2',
+  TYPING_START: 'typing_start_v2',
+  TYPING_STOP: 'typing_stop_v2',
+  JOIN_CONVERSATION: 'join_conversation_v2',
+  LEAVE_CONVERSATION: 'leave_conversation_v2',
+  GET_UNREAD_COUNT: 'get_unread_count_v2',
+  SEARCH_MESSAGES: 'search_messages_v2',
+
+  // Received events
+  NEW_MESSAGE: 'new_message_v2',
+  MESSAGES_READ: 'messages_read_v2',
+  MESSAGE_DELETED: 'message_deleted_v2',
+  MESSAGE_EDITED: 'message_edited_v2',
+  CONVERSATION_UPDATED: 'conversation_updated_v2',
+  USER_TYPING: 'user_typing_v2',
+  UNREAD_COUNT_UPDATED: 'unread_count_updated_v2',
+} : {
+  // Direct chat events (old)
+  SEND_MESSAGE: 'send_message',
+  GET_CONVERSATION_HISTORY: 'get_conversation_history',
+  GET_CONVERSATIONS: 'get_conversations',
+  MARK_MESSAGES_READ: 'mark_messages_read',
+  DELETE_MESSAGE: 'delete_message',
+  EDIT_MESSAGE: 'edit_message',
+  SEARCH_CONTACTS: 'search_contacts',
+  BLOCK_USER: 'block_user',
+  UNBLOCK_USER: 'unblock_user',
+  TYPING_START: 'typing_start',
+  TYPING_STOP: 'typing_stop',
+  JOIN_CONVERSATION: 'join_conversation',
+  LEAVE_CONVERSATION: 'leave_conversation',
+  GET_UNREAD_COUNT: 'get_unread_count',
+  SEARCH_MESSAGES: 'search_messages',
+
+  // Received events (old)
+  NEW_MESSAGE: 'new_message',
+  MESSAGES_READ: 'messages_read',
+  MESSAGE_DELETED: 'message_deleted',
+  MESSAGE_EDITED: 'message_edited',
+  CONVERSATION_UPDATED: 'conversation_updated',
+  USER_TYPING: 'typing_started',
+  UNREAD_COUNT_UPDATED: 'unread_count_updated',
+};
+
 // Message interfaces based on backend models
 // Wallet operation types for agentic messaging
 export interface WalletOperationData {
@@ -729,11 +788,20 @@ export const SocketChatProvider = ({
         });
 
         // Chat event handlers matching backend implementation
+        console.log('📡 [NewSocketChat] Using Chat V2:', USE_CHAT_V2);
+        console.log('📡 [NewSocketChat] Listening for events:', {
+          NEW_MESSAGE: EVENTS.NEW_MESSAGE,
+          MESSAGES_READ: EVENTS.MESSAGES_READ,
+          CONVERSATION_UPDATED: EVENTS.CONVERSATION_UPDATED,
+        });
+
         newSocket.on(
-          'new_message',
+          EVENTS.NEW_MESSAGE,
           (data: { message: ChatMessage }) => {
             console.log(
-              '📨 [NewSocketChat] New message received:',
+              '📨 [NewSocketChat] New message received (V2:',
+              USE_CHAT_V2,
+              '):',
               data
             );
 
@@ -759,14 +827,16 @@ export const SocketChatProvider = ({
         );
 
         newSocket.on(
-          'messages_read',
+          EVENTS.MESSAGES_READ,
           (data: {
             senderId: string;
             receiverId: string;
             readAt: Date;
           }) => {
             console.log(
-              '👁️ [NewSocketChat] Messages marked as read:',
+              '👁️ [NewSocketChat] Messages marked as read (V2:',
+              USE_CHAT_V2,
+              '):',
               data
             );
             // Update read status in messages
@@ -779,18 +849,18 @@ export const SocketChatProvider = ({
         );
 
         newSocket.on(
-          'message_deleted',
+          EVENTS.MESSAGE_DELETED,
           (data: { messageId: string; deletedAt: Date }) => {
-            console.log('🗑️ [NewSocketChat] Message deleted:', data);
+            console.log('🗑️ [NewSocketChat] Message deleted (V2:', USE_CHAT_V2, '):', data);
             // Update message deletion status
             updateMessageDeletion(data.messageId, data.deletedAt);
           }
         );
 
         newSocket.on(
-          'message_edited',
+          EVENTS.MESSAGE_EDITED,
           (data: { message: ChatMessage }) => {
-            console.log('✏️ [NewSocketChat] Message edited:', data);
+            console.log('✏️ [NewSocketChat] Message edited (V2:', USE_CHAT_V2, '):', data);
             // Update the edited message
             if (data?.message) {
               updateEditedMessage(data.message);
@@ -798,23 +868,17 @@ export const SocketChatProvider = ({
           }
         );
 
-        newSocket.on('conversation_updated', () => {
-          console.log('🔄 [NewSocketChat] Conversation updated');
+        newSocket.on(EVENTS.CONVERSATION_UPDATED, () => {
+          console.log('🔄 [NewSocketChat] Conversation updated (V2:', USE_CHAT_V2, ')');
           // Refresh conversations when they're updated
           refreshConversations();
         });
 
-        newSocket.on('typing_started', (data: { userId: string }) => {
+        newSocket.on(EVENTS.USER_TYPING, (data: { userId: string; isTyping?: boolean }) => {
           console.log(
-            '⌨️ [NewSocketChat] User started typing:',
-            data
-          );
-          // Handle typing indicators if needed
-        });
-
-        newSocket.on('typing_stopped', (data: { userId: string }) => {
-          console.log(
-            '⌨️ [NewSocketChat] User stopped typing:',
+            '⌨️ [NewSocketChat] User typing status (V2:',
+            USE_CHAT_V2,
+            '):',
             data
           );
           // Handle typing indicators if needed
@@ -1221,13 +1285,16 @@ export const SocketChatProvider = ({
         };
 
         // Emit through socket with callback (matching HTML test pattern)
+        console.log('📤 [NewSocketChat] Sending message via:', EVENTS.SEND_MESSAGE);
         socketRef.current!.emit(
-          'send_message',
+          EVENTS.SEND_MESSAGE,
           messageData,
           (response: { success: boolean; error?: string }) => {
             if (response?.success) {
               console.log(
-                '✅ [NewSocketChat] Message sent successfully'
+                '✅ [NewSocketChat] Message sent successfully (V2:',
+                USE_CHAT_V2,
+                ')'
               );
               resolve(true);
             } else {
@@ -1257,7 +1324,7 @@ export const SocketChatProvider = ({
       return new Promise((resolve) => {
         // Use socket method like in HTML test
         socket.emit(
-          'get_conversation_history',
+          EVENTS.GET_CONVERSATION_HISTORY,
           {
             receiverId,
             page,
@@ -1309,7 +1376,7 @@ export const SocketChatProvider = ({
       return new Promise((resolve) => {
         // Use socket method like in HTML test
         socketRef.current!.emit(
-          'get_conversations',
+          EVENTS.GET_CONVERSATIONS,
           { page, limit },
           (response: {
             success: boolean;
@@ -1859,7 +1926,7 @@ export const SocketChatProvider = ({
       return new Promise((resolve) => {
         // Use socket method like in HTML test
         socket.emit(
-          'mark_messages_read',
+          EVENTS.MARK_MESSAGES_READ,
           { senderId },
           (response: { success: boolean; error?: string }) => {
             if (response?.success) {
@@ -1890,7 +1957,7 @@ export const SocketChatProvider = ({
 
         if (response.status === 'success' && socket) {
           // Emit deletion through socket
-          socket.emit('delete_message', { messageId });
+          socket.emit(EVENTS.DELETE_MESSAGE, { messageId });
           return true;
         }
         return false;
@@ -1918,7 +1985,7 @@ export const SocketChatProvider = ({
 
         if (response.status === 'success' && socket) {
           // Emit edit through socket
-          socket.emit('edit_message', {
+          socket.emit(EVENTS.EDIT_MESSAGE, {
             messageId,
             message: newMessage,
           });
@@ -1956,7 +2023,7 @@ export const SocketChatProvider = ({
 
         // Use socket method with callback like in HTML test
         socket.emit(
-          'search_contacts',
+          EVENTS.SEARCH_CONTACTS,
           { query, limit },
           (response: {
             success: boolean;
@@ -1985,7 +2052,7 @@ export const SocketChatProvider = ({
         const response = await chatApiService.blockUser(userId);
 
         if (response.status === 'success' && socket) {
-          socket.emit('block_user', { userId });
+          socket.emit(EVENTS.BLOCK_USER, { userId });
           await refreshConversations();
           return true;
         }
@@ -2007,7 +2074,7 @@ export const SocketChatProvider = ({
         const response = await chatApiService.unblockUser(userId);
 
         if (response.status === 'success' && socket) {
-          socket.emit('unblock_user', { userId });
+          socket.emit(EVENTS.UNBLOCK_USER, { userId });
           await refreshConversations();
           return true;
         }
@@ -2027,7 +2094,7 @@ export const SocketChatProvider = ({
   const startTyping = useCallback(
     (receiverId: string) => {
       if (socket && isConnected) {
-        socket.emit('typing_start', { receiverId });
+        socket.emit(EVENTS.TYPING_START, { receiverId });
       }
     },
     [socket, isConnected]
@@ -2036,7 +2103,7 @@ export const SocketChatProvider = ({
   const stopTyping = useCallback(
     (receiverId: string) => {
       if (socket && isConnected) {
-        socket.emit('typing_stop', { receiverId });
+        socket.emit(EVENTS.TYPING_STOP, { receiverId });
       }
     },
     [socket, isConnected]

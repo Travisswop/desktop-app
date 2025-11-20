@@ -57,34 +57,19 @@ export default function TokenListView({
   // };
 
   return (
-    <Card
-      className="flex items-center justify-between p-4 bg-white hover:bg-gray-50 rounded-xl shadow-xl hover:shadow-3xl border-none transition-all duration-300 group cursor-pointer hover:translate-x-0.5 relative gap-4"
+    <div
+      className="flex items-center justify-between bg-white cursor-pointer"
       onClick={onClick}
     >
-      <div
-        className={`absolute top-1 left-1 p-1 text-xs ${
-          token.marketData?.change &&
-          parseFloat(token.marketData.change) >= 0
-            ? ' text-green-700'
-            : ' text-red-700'
-        }`}
-      >
-        {token.marketData?.change ? (
-          <>
-            {parseFloat(token.marketData.change) >= 0 ? '+' : ''}
-            {parseFloat(token.marketData.change)}%
-          </>
-        ) : (
-          <div className="text-gray-500">No data available</div>
-        )}
-      </div>
       <div className="flex items-center gap-3">
         <div className="mt-2">
           <TokenImage token={token} />
         </div>
         <div>
           <h3 className="font-medium">{token.name}</h3>
-          <p className="text-sm text-gray-500">{token.symbol}</p>
+          <p className="text-sm text-gray-500">
+            {parseFloat(token.balance).toFixed(4)} {token.symbol}
+          </p>
         </div>
       </div>
       {/* <div className="h-[60px] w-full">
@@ -99,11 +84,25 @@ export default function TokenListView({
               <span className="text-gray-500">Price unavailable</span>
             )}
           </p>
-          <p className="text-sm text-gray-600">
-            {parseFloat(token.balance).toFixed(4)} {token.symbol}
-          </p>
+          <div
+            className={`text-xs ${
+              token.marketData?.change &&
+              parseFloat(token.marketData.change) >= 0
+                ? ' text-green-700'
+                : ' text-red-700'
+            }`}
+          >
+            {token.marketData?.change ? (
+              <>
+                {parseFloat(token.marketData.change) >= 0 ? '+' : ''}
+                {parseFloat(token.marketData.change)}%
+              </>
+            ) : (
+              <div className="text-gray-500">No data available</div>
+            )}
+          </div>
         </div>
       </div>
-    </Card>
+    </div>
   );
 }
