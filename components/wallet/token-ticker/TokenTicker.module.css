@@ -1,0 +1,28 @@
+@keyframes scrollHorizontal {
+  0% {
+    transform: translateX(0);
+  }
+  100% {
+    transform: translateX(calc(-33.333%));
+  }
+}
+
+.tickerContainer {
+  position: relative;
+  overflow: hidden;
+  border-radius: 0.75rem;
+  padding: 1rem 0;
+  background-color: #f9fafb;
+}
+
+.tickerTrack {
+  display: flex;
+  gap: 1rem;
+  padding: 0 1rem;
+  animation: scrollHorizontal 15s linear infinite;
+  will-change: transform;
+}
+
+.tickerTrack:hover {
+  animation-play-state: paused;
+}

@@ -1,12 +1,11 @@
 // app/components/Sidebar.js
 "use client";
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import GroupModal from "./GroupModal";
 import isUrl from "@/lib/isUrl";
 import Image from "next/image";
 import { LiaTimesCircle } from "react-icons/lia";
 import { FcSearch } from "react-icons/fc";
-// import GroupModal from "./GroupModal";
 
 export default function Sidebar({
   conversations,
@@ -25,15 +24,39 @@ export default function Sidebar({
   console.log("searchResults", searchResults);
   console.log("conversations", conversations);
 
-  const allItems = [...conversations, ...groups]
-    .map((item) => ({
+  // Add Astro AI bot at the top of the list
+  const astroBot = {
+    _id: 'astro-bot',
+    name: 'Astro',
+    bio: 'Your AI-powered Solana assistant',
+    avatar: '',
+    type: 'astro',
+    lastActivity: new Date(), // Always at top
+    isPinned: true,
+  };
+
+  const allItems = [
+    astroBot,
+    ...conversations.map((item) => ({
       ...item,
       lastActivity: item.lastMessage?.createdAt
         ? new Date(item.lastMessage.createdAt)
         : new Date(0),
-      type: item.participants ? "group" : "direct",
-    }))
-    .sort((a, b) => b.lastActivity - a.lastActivity);
+      type: "direct",
+    })),
+    ...groups.map((item) => ({
+      ...item,
+      lastActivity: item.lastMessage?.createdAt
+        ? new Date(item.lastMessage.createdAt)
+        : new Date(0),
+      type: "group",
+    })),
+  ].sort((a, b) => {
+    // Keep Astro pinned at top
+    if (a.type === 'astro') return -1;
+    if (b.type === 'astro') return 1;
+    return b.lastActivity - a.lastActivity;
+  });
 
   console.log("allItems", allItems);
 
@@ -153,15 +176,49 @@ export default function Sidebar({
             No conversations yet
           </div>
         ) : (
-          allItems.map((item) => (
-            <ConversationItem
-              key={item._id}
-              item={item}
-              isSelected={isSelected(item, item.type)}
-              onClick={() => onSelectChat(item, item.type)}
-              currentUser={currentUser}
-            />
-          ))
+          allItems
+            .filter((item) => {
+              // Filter based on search query if exists
+              if (!searchQuery.trim()) return true;
+
+              const query = searchQuery.toLowerCase();
+
+              // Filter Astro
+              if (item.type === 'astro') {
+                return (
+                  'astro'.includes(query) ||
+                  'ai'.includes(query) ||
+                  'assistant'.includes(query) ||
+                  'bot'.includes(query) ||
+                  'solana'.includes(query)
+                );
+              }
+
+              // Filter direct chats
+              if (item.type === 'direct') {
+                const name = item.microsite?.name || item.name || '';
+                const ens = item.microsite?.ens || '';
+                return name.toLowerCase().includes(query) || ens.toLowerCase().includes(query);
+              }
+
+              // Filter groups
+              if (item.type === 'group') {
+                const name = item.name || '';
+                const description = item.description || '';
+                return name.toLowerCase().includes(query) || description.toLowerCase().includes(query);
+              }
+
+              return true;
+            })
+            .map((item) => (
+              <ConversationItem
+                key={item._id}
+                item={item}
+                isSelected={isSelected(item, item.type)}
+                onClick={() => onSelectChat(item, item.type)}
+                currentUser={currentUser}
+              />
+            ))
         )}
       </div>
 
@@ -187,9 +244,18 @@ export default function Sidebar({
 
 function ConversationItem({ item, isSelected, onClick, currentUser }) {
   const isGroup = item.type === "group";
+  const isAstro = item.type === "astro";
 
   const getDisplayInfo = () => {
-    if (isGroup) {
+    if (isAstro) {
+      return {
+        name: 'Astro',
+        avatar: null,
+        lastMessage: 'Ask me about Solana transactions',
+        unreadCount: 0,
+        isAstro: true,
+      };
+    } else if (isGroup) {
       return {
         name: item.name,
         avatar: item.settings?.groupInfo?.groupPicture,
@@ -231,7 +297,11 @@ function ConversationItem({ item, isSelected, onClick, currentUser }) {
       <div className="flex items-center gap-3">
         {/* Avatar */}
         <div className="relative">
-          {info.avatar ? (
+          {isAstro ? (
+            <div className="w-12 h-12 rounded-full flex items-center justify-center bg-gradient-to-br from-blue-500 to-purple-600 text-white font-bold text-lg border-2 border-blue-500">
+              🤖
+            </div>
+          ) : info.avatar ? (
             <Image
               src={
                 isUrl(info.avatar)
@@ -253,8 +323,12 @@ function ConversationItem({ item, isSelected, onClick, currentUser }) {
             </div>
           )}
 
-          {/* Online indicator / Bot indicator */}
-          {isGroup ? (
+          {/* Online indicator / Bot indicator / AI Badge */}
+          {isAstro ? (
+            <div className="absolute -top-1 -right-1 bg-blue-500 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs">
+              ✨
+            </div>
+          ) : isGroup ? (
             info.hasBot && (
               <div className="absolute -top-1 -right-1 bg-blue-500 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs">
                 🤖
@@ -281,13 +355,18 @@ function ConversationItem({ item, isSelected, onClick, currentUser }) {
           <div className="flex justify-between items-start mb-1">
             <div className="flex items-center gap-1">
               <h3 className="font-medium truncate">{info.name}</h3>
+              {isAstro && (
+                <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800 border border-blue-200">
+                  AI
+                </span>
+              )}
               {isGroup && <div>{item.settings.isPublic ? "🌏" : "🔒"}</div>}
             </div>
             <span className="text-xs text-whatsapp-text-secondary whitespace-nowrap">
               {lastTime}
             </span>
           </div>
-          <p className="text-sm text-whatsapp-text-secondary truncate">
+          <p className={`text-sm truncate ${isAstro ? 'text-blue-600' : 'text-whatsapp-text-secondary'}`}>
             {isGroup
               ? `${info.memberCount} members • ${info.lastMessage}`
               : info.lastMessage}

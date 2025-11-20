@@ -59,8 +59,8 @@ const TransactionItem = ({
   }, [transaction?.isNew]);
 
   return (
-    <Card
-      className={`p-4 flex items-center justify-between hover:bg-gray-50 transition-colors cursor-pointer ${borderClass}`}
+    <div
+      className={`p-2 flex items-center justify-between cursor-pointer`}
       onClick={() => onSelect(transaction)}
     >
       <div className="flex items-center gap-3">
@@ -169,7 +169,7 @@ const TransactionItem = ({
           )}
         </p>
       </div>
-    </Card>
+    </div>
   );
 };
 

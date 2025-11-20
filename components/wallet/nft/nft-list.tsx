@@ -162,35 +162,23 @@ export default function NFTSlider({
   return (
     <Card className="w-full border-none rounded-xl">
       <CardHeader>
-        <div className="flex items-center justify-between">
-          <p className="font-bold text-xl text-gray-700">
-            Digitals (NFTs)
-          </p>
-          <div className="flex items-center gap-2">
-            {!loading && nfts.length > 0 && (
-              <span className="text-sm text-gray-500 bg-gray-100 px-2 py-1 rounded-full">
-                {nfts.length} item
-                {nfts.length !== 1 ? 's' : ''}
-              </span>
-            )}
-            {refetch && (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => {
-                  refetch();
-                }}
-                disabled={loading}
-                className="border-gray-200 hover:bg-gray-50"
-              >
-                <RefreshCw
-                  className={`w-4 h-4 ${
-                    loading ? 'animate-spin' : ''
-                  }`}
-                />
-              </Button>
-            )}
-          </div>
+        <div className="flex items-center ">
+          <h2 className="text-lg font-semibold">My NFTs</h2>
+          {refetch && (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="p-0 h-8 w-8"
+              onClick={() => {
+                refetch();
+              }}
+              disabled={loading}
+            >
+              <RefreshCw
+                className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`}
+              />
+            </Button>
+          )}
         </div>
       </CardHeader>
       <CardContent>

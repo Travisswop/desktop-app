@@ -1,5 +1,6 @@
 // Chat service for API interactions with the new backend
-const API_BASE_URL = process.env.NEXT_PUBLIC_CHAT_API_URL || 'http://localhost:5000';
+const API_BASE_URL =
+  process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
 
 interface CreateMessageRequest {
   receiverId: string;
@@ -22,7 +23,10 @@ interface ApiResponse<T> {
 class ChatApiService {
   private getAuthHeaders() {
     // Get JWT token from localStorage (same as socket connection)
-    const token = localStorage.getItem('authToken') || localStorage.getItem('jwt_token') || localStorage.getItem('accessToken');
+    const token =
+      localStorage.getItem('authToken') ||
+      localStorage.getItem('jwt_token') ||
+      localStorage.getItem('accessToken');
     return {
       'Content-Type': 'application/json',
       ...(token && { Authorization: `Bearer ${token}` }),
@@ -63,8 +67,10 @@ class ChatApiService {
       page: page.toString(),
       limit: limit.toString(),
     });
-    
-    return this.request<any>(`/api/v1/chat/conversation/${receiverId}?${params}`);
+
+    return this.request<any>(
+      `/api/v1/chat/conversation/${receiverId}?${params}`
+    );
   }
 
   // Get user's conversations
@@ -73,15 +79,18 @@ class ChatApiService {
       page: page.toString(),
       limit: limit.toString(),
     });
-    
+
     return this.request<any>(`/api/v1/chat/conversations?${params}`);
   }
 
   // Mark messages as read
   async markMessagesAsRead(senderId: string) {
-    return this.request<any>(`/api/v1/chat/messages/read/${senderId}`, {
-      method: 'PATCH',
-    });
+    return this.request<any>(
+      `/api/v1/chat/messages/read/${senderId}`,
+      {
+        method: 'PATCH',
+      }
+    );
   }
 
   // Get unread message count
@@ -111,8 +120,10 @@ class ChatApiService {
       page: page.toString(),
       limit: limit.toString(),
     });
-    
-    return this.request<any>(`/api/v1/chat/messages/search?${params}`);
+
+    return this.request<any>(
+      `/api/v1/chat/messages/search?${params}`
+    );
   }
 
   // Block user
@@ -136,7 +147,9 @@ class ChatApiService {
 
   // Get conversation info
   async getConversationInfo(receiverId: string) {
-    return this.request<any>(`/api/v1/chat/conversation-info/${receiverId}`);
+    return this.request<any>(
+      `/api/v1/chat/conversation-info/${receiverId}`
+    );
   }
 
   // Get chat statistics
@@ -144,7 +157,7 @@ class ChatApiService {
     const params = new URLSearchParams();
     if (startDate) params.append('startDate', startDate);
     if (endDate) params.append('endDate', endDate);
-    
+
     return this.request<any>(`/api/v1/chat/stats?${params}`);
   }
 }

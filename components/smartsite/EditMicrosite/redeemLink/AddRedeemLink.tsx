@@ -1,5 +1,5 @@
-import Image from "next/image";
-import React, { useEffect, useState } from "react";
+import Image from 'next/image';
+import React, { useEffect, useState } from 'react';
 import {
   Dropdown,
   DropdownItem,
@@ -7,32 +7,35 @@ import {
   DropdownTrigger,
   Switch,
   Tooltip,
-} from "@nextui-org/react";
-import { LiaFileMedicalSolid } from "react-icons/lia";
-import { FaAngleDown, FaTimes } from "react-icons/fa";
+} from '@nextui-org/react';
+import { LiaFileMedicalSolid } from 'react-icons/lia';
+import { FaAngleDown, FaTimes } from 'react-icons/fa';
 
-import filePlaceholder from "@/public/images/placeholder-photo.png";
-import AnimateButton from "@/components/ui/Button/AnimateButton";
-import { MdInfoOutline } from "react-icons/md";
-import toast from "react-hot-toast";
-import placeholder from "@/public/images/image_placeholder.png";
-import CustomFileInput from "@/components/CustomFileInput";
-import { usePrivy } from "@privy-io/react-auth";
-import { sendCloudinaryImage } from "@/lib/SendCloudinaryImage";
+import filePlaceholder from '@/public/images/placeholder-photo.png';
+import AnimateButton from '@/components/ui/Button/AnimateButton';
+import { MdInfoOutline } from 'react-icons/md';
+import toast from 'react-hot-toast';
+import placeholder from '@/public/images/image_placeholder.png';
+import CustomFileInput from '@/components/CustomFileInput';
+import { usePrivy } from '@privy-io/react-auth';
+import { sendCloudinaryImage } from '@/lib/SendCloudinaryImage';
 // import { useRouter } from "next/router";
-import { usePathname } from "next/navigation";
-import { postRedeem } from "@/actions/redeem";
-import Cookies from "js-cookie";
-import { postFeed } from "@/actions/postFeed";
-import { useUser } from "@/lib/UserContext";
+import { usePathname } from 'next/navigation';
+import { postRedeem } from '@/actions/redeem';
+import Cookies from 'js-cookie';
+import { postFeed } from '@/actions/postFeed';
+import { useUser } from '@/lib/UserContext';
 import {
   fromTokenLamports,
   RedemptionPool,
-} from "@/components/wallet/redeem/token-list";
-import { PrimaryButton } from "@/components/ui/Button/PrimaryButton";
-import { Loader } from "lucide-react";
+} from '@/components/wallet/redeem/token-list';
+import { PrimaryButton } from '@/components/ui/Button/PrimaryButton';
+import { Loader } from 'lucide-react';
 
-const AddRedeemLink = ({ handleRemoveIcon, handleToggleIcon }: any) => {
+const AddRedeemLink = ({
+  handleRemoveIcon,
+  handleToggleIcon,
+}: any) => {
   const { user } = usePrivy();
   const { user: userInfo } = useUser();
 
@@ -40,10 +43,10 @@ const AddRedeemLink = ({ handleRemoveIcon, handleToggleIcon }: any) => {
 
   const [isLoading, setIsLoading] = useState<boolean>(false);
 
-  const [description, setDescription] = useState("");
-  const [linkName, setLinkName] = useState("");
+  const [description, setDescription] = useState('');
+  const [linkName, setLinkName] = useState('');
   const [imageFile, setImageFile] = useState<any>(null);
-  const [imageFileError, setImageFileError] = useState<string>("");
+  const [imageFileError, setImageFileError] = useState<string>('');
   const [pools, setPools] = useState<any>([]);
   const [isPoolLoading, setIsPoolLoading] = useState(false);
   const [selectedToken, setSelectedToken] = useState<any>(null); // State to store the selected token
@@ -52,7 +55,7 @@ const AddRedeemLink = ({ handleRemoveIcon, handleToggleIcon }: any) => {
 
   useEffect(() => {
     const getAccessToken = async () => {
-      const token = Cookies.get("access-token");
+      const token = Cookies.get('access-token');
       if (token) {
         setAccessToken(token);
       }
@@ -87,18 +90,18 @@ const AddRedeemLink = ({ handleRemoveIcon, handleToggleIcon }: any) => {
               pool.token_decimals
             ),
             total_redeemed_amount: fromTokenLamports(
-              pool.total_redeemed_amount || "0",
+              pool.total_redeemed_amount || '0',
               pool.token_decimals
             ),
-            redeemLink: `${process.env.NEXT_PUBLIC_APP_URL}/redeem/${pool.pool_id}`,
+            redeemLink: `${process.env.NEXT_PUBLIC_API_URL}/redeem/${pool.pool_id}`,
           }));
           setPools(items);
         } else {
-          toast.error("Failed to fetch redemption pools");
+          toast.error('Failed to fetch redemption pools');
         }
       } catch (error) {
-        console.error("Error fetching pools:", error);
-        toast.error("Failed to fetch redemption pools");
+        console.error('Error fetching pools:', error);
+        toast.error('Failed to fetch redemption pools');
       } finally {
         setIsPoolLoading(false);
       }
@@ -109,21 +112,21 @@ const AddRedeemLink = ({ handleRemoveIcon, handleToggleIcon }: any) => {
   const handleImageFileChange = (event: any) => {
     // get image file
     const file = event.target.files[0];
-    if (file && file.type.startsWith("image/")) {
+    if (file && file.type.startsWith('image/')) {
       if (file.size > 10 * 1024 * 1024) {
         // Check if file size is greater than 10 MB
-        setImageFileError("File size should be less than 10 MB");
+        setImageFileError('File size should be less than 10 MB');
         setImageFile(null);
       } else {
         const reader = new FileReader();
         reader.onloadend = () => {
           setImageFile(reader.result as any);
-          setImageFileError("");
+          setImageFileError('');
         };
         reader.readAsDataURL(file);
       }
     } else {
-      setImageFileError("Please upload a image file.");
+      setImageFileError('Please upload a image file.');
     }
   };
 
@@ -140,7 +143,7 @@ const AddRedeemLink = ({ handleRemoveIcon, handleToggleIcon }: any) => {
 
     // const formData = new FormData(e.currentTarget);
     const redeemInfo = {
-      tokenType: "token",
+      tokenType: 'token',
       network:
         selectedToken.token_name.charAt(0).toUpperCase() +
         selectedToken.token_name.slice(1).toLowerCase(),
@@ -151,7 +154,7 @@ const AddRedeemLink = ({ handleRemoveIcon, handleToggleIcon }: any) => {
       amount: selectedToken.total_amount,
       symbol: selectedToken.token_symbol,
       description: description,
-      micrositeId: smartsiteid?.split("/")?.pop(),
+      micrositeId: smartsiteid?.split('/')?.pop(),
       tokenUrl: imageUrl,
       poolId: selectedToken.pool_id,
     };
@@ -160,9 +163,9 @@ const AddRedeemLink = ({ handleRemoveIcon, handleToggleIcon }: any) => {
       const data = await postRedeem(redeemInfo, accessToken);
       // console.log("datassdg", data);
 
-      if ((data.state = "success")) {
+      if ((data.state = 'success')) {
         if (isSelected) {
-          const id = smartsiteid?.split("/")?.pop();
+          const id = smartsiteid?.split('/')?.pop();
           const smartsite = userInfo?.microsites?.find(
             (microsite: any) => microsite._id == id
           );
@@ -173,7 +176,7 @@ const AddRedeemLink = ({ handleRemoveIcon, handleToggleIcon }: any) => {
             smartsiteUserName: smartsite.name,
             smartsiteEnsName: smartsite.ens || smartsite.ensData.name,
             smartsiteProfilePic: smartsite.profilePic,
-            postType: "redeem",
+            postType: 'redeem',
             content: {
               redeemName: redeemInfo.mintName,
               symbol: redeemInfo.symbol,
@@ -188,10 +191,10 @@ const AddRedeemLink = ({ handleRemoveIcon, handleToggleIcon }: any) => {
           await postFeed(payload, accessToken);
         }
 
-        toast.success("Redeem crated successfully");
-        handleRemoveIcon("Redeem Link");
+        toast.success('Redeem crated successfully');
+        handleRemoveIcon('Redeem Link');
       } else {
-        toast.error("Something went wrong");
+        toast.error('Something went wrong');
       }
     } catch (error) {
       console.error(error);
@@ -216,8 +219,8 @@ const AddRedeemLink = ({ handleRemoveIcon, handleToggleIcon }: any) => {
             size="sm"
             content={
               <span className="font-medium">
-                Create a portal that people can click to collect tokens and
-                collectables.
+                Create a portal that people can click to collect
+                tokens and collectables.
               </span>
             }
             className="max-w-40 h-auto"
@@ -256,12 +259,12 @@ const AddRedeemLink = ({ handleRemoveIcon, handleToggleIcon }: any) => {
           )}
           <div>
             <p className="text-gray-700 font-medium">
-              {linkName ? linkName : "Redeemable"}
+              {linkName ? linkName : 'Redeemable'}
             </p>
             <p className="text-gray-500 text-sm font-normal">
               {description
                 ? description
-                : "Click to Redeem a Free Digital Collectible"}
+                : 'Click to Redeem a Free Digital Collectible'}
             </p>
           </div>
         </div>
@@ -286,7 +289,7 @@ const AddRedeemLink = ({ handleRemoveIcon, handleToggleIcon }: any) => {
                     Redeem Link Icon
                   </p>
                   <CustomFileInput
-                    title={"Browse"}
+                    title={'Browse'}
                     handleFileChange={handleImageFileChange}
                   />
                   {imageFileError && (
@@ -319,30 +322,33 @@ const AddRedeemLink = ({ handleRemoveIcon, handleToggleIcon }: any) => {
                         <span className="flex items-center gap-2">
                           {selectedToken
                             ? `${selectedToken.token_symbol} | ${selectedToken.total_amount} | ${selectedToken.max_wallets}`
-                            : "Token | Amount | Limit"}
+                            : 'Token | Amount | Limit'}
                         </span>
                         <FaAngleDown />
                       </button>
                     </DropdownTrigger>
                     <DropdownMenu
-                      disabledKeys={["title"]}
+                      disabledKeys={['title']}
                       aria-label="Static Actions"
                       className="p-2"
                     >
                       <DropdownItem
-                        key={"title"}
+                        key={'title'}
                         className="hover:!bg-white opacity-100 cursor-text disabled dropDownTitle"
                       >
                         <p>Choose A Token</p>
                       </DropdownItem>
                       {isPoolLoading ? (
-                        <DropdownItem className="border-b rounded-none hover:rounded-md">
+                        <DropdownItem
+                          key={'loading'}
+                          className="border-b rounded-none hover:rounded-md"
+                        >
                           <p className="">loading...</p>
                         </DropdownItem>
                       ) : (
                         pools.map((pool: any, index: number) => (
                           <DropdownItem
-                            key={index}
+                            key={pool.pool_id}
                             onClick={() => handleTokenSelect(pool)}
                             className="border-b rounded-none hover:rounded-md"
                           >
@@ -360,10 +366,12 @@ const AddRedeemLink = ({ handleRemoveIcon, handleToggleIcon }: any) => {
                   <input
                     type="text"
                     name="amount"
-                    value={selectedToken ? selectedToken.total_amount : ""}
+                    value={
+                      selectedToken ? selectedToken.total_amount : ''
+                    }
                     readOnly
                     className="w-full border border-[#ede8e8] focus:border-[#e5e0e0] rounded-xl focus:outline-none px-4 py-2 text-gray-700 bg-gray-100"
-                    placeholder={"Enter Amount"}
+                    placeholder={'Enter Amount'}
                     required
                   />
                 </div>
@@ -379,7 +387,7 @@ const AddRedeemLink = ({ handleRemoveIcon, handleToggleIcon }: any) => {
                     value={linkName}
                     onChange={(e) => setLinkName(e.target.value)}
                     className="w-full border border-[#ede8e8] focus:border-[#e5e0e0] rounded-xl focus:outline-none px-4 py-2 text-gray-700 bg-gray-100"
-                    placeholder={"Enter Link Name"}
+                    placeholder={'Enter Link Name'}
                     required
                   />
                 </div>
@@ -390,10 +398,12 @@ const AddRedeemLink = ({ handleRemoveIcon, handleToggleIcon }: any) => {
                   <input
                     type="text"
                     name="mintLimit"
-                    value={selectedToken ? selectedToken.max_wallets : ""}
+                    value={
+                      selectedToken ? selectedToken.max_wallets : ''
+                    }
                     readOnly
                     className="w-full border border-[#ede8e8] focus:border-[#e5e0e0] rounded-xl focus:outline-none px-4 py-2 text-gray-700 bg-gray-100"
-                    placeholder={"Enter Mint Limit"}
+                    placeholder={'Enter Mint Limit'}
                     required
                   />
                 </div>
@@ -414,7 +424,7 @@ const AddRedeemLink = ({ handleRemoveIcon, handleToggleIcon }: any) => {
               {isLoading ? (
                 <Loader className="w-8 h-8 animate-spin mx-auto" />
               ) : (
-                "Save"
+                'Save'
               )}
             </PrimaryButton>
           </form>

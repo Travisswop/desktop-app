@@ -1,5 +1,5 @@
-import { PrivyClient } from "@privy-io/server-auth";
-import { NextRequest, NextResponse } from "next/server";
+import { PrivyClient } from '@privy-io/server-auth';
+import { NextRequest, NextResponse } from 'next/server';
 
 type AuthCacheEntry = {
   timestamp: number;
@@ -15,52 +15,52 @@ const cspConfig = {
     "'self'",
     "'unsafe-inline'",
     "'unsafe-eval'",
-    "https://app.apiswop.co",
-    "https://challenges.cloudflare.com",
-    "https://swopme.app",
-    "https://privy.swopme.app",
-    "https://swop-id-ens-gateway.swop.workers.dev",
+    'https://app.apiswop.co',
+    'https://challenges.cloudflare.com',
+    'https://swopme.app',
+    'https://privy.swopme.app',
+    'https://swop-id-ens-gateway.swop.workers.dev',
   ],
   styleSrc: ["'self'", "'unsafe-inline'"],
-  imgSrc: ["'self'", "data:", "blob:", "https:", "http:"],
+  imgSrc: ["'self'", 'data:', 'blob:', 'https:', 'http:'],
   fontSrc: ["'self'"],
   objectSrc: ["'none'"],
   baseUri: ["'self'"],
   formAction: ["'self'"],
   frameAncestors: ["'none'"],
   childSrc: [
-    "https://auth.privy.io",
-    "https://verify.walletconnect.com",
-    "https://verify.walletconnect.org",
+    'https://auth.privy.io',
+    'https://verify.walletconnect.com',
+    'https://verify.walletconnect.org',
   ],
   frameSrc: [
-    "https://auth.privy.io",
-    "https://privy.swopme.app",
-    "https://verify.walletconnect.com",
-    "https://verify.walletconnect.org",
-    "https://challenges.cloudflare.com",
+    'https://auth.privy.io',
+    'https://privy.swopme.app',
+    'https://verify.walletconnect.com',
+    'https://verify.walletconnect.org',
+    'https://challenges.cloudflare.com',
   ],
   connectSrc: [
     "'self'",
-    "https://app.apiswop.co",
-    "https://swopme.app",
-    "https://privy.swopme.app",
-    "https://auth.privy.io",
-    "https://swop-id-ens-gateway.swop.workers.dev",
-    "wss://relay.walletconnect.com",
-    "wss://relay.walletconnect.org",
-    "wss://www.walletlink.org",
-    "https://*.rpc.privy.systems",
-    "https://*.g.alchemy.com",
-    "https://*.quiknode.pro",
-    "https://mainnet.helius-rpc.com",
-    "https://aura-mainnet.metaplex.com",
-    "https://*.coinranking.com",
-    "https://*.cloudinary.com",
-    "https://*.metaplex.com",
-    "https://*.jup.ag",
-    "https://*.li.fi",
-    "https://li.quest",
+    'https://app.apiswop.co',
+    'https://swopme.app',
+    'https://privy.swopme.app',
+    'https://auth.privy.io',
+    'https://swop-id-ens-gateway.swop.workers.dev',
+    'wss://relay.walletconnect.com',
+    'wss://relay.walletconnect.org',
+    'wss://www.walletlink.org',
+    'https://*.rpc.privy.systems',
+    'https://*.g.alchemy.com',
+    'https://*.quiknode.pro',
+    'https://mainnet.helius-rpc.com',
+    'https://aura-mainnet.metaplex.com',
+    'https://*.coinranking.com',
+    'https://*.cloudinary.com',
+    'https://*.metaplex.com',
+    'https://*.jup.ag',
+    'https://*.li.fi',
+    'https://li.quest',
   ],
   workerSrc: ["'self'"],
   manifestSrc: ["'self'"],
@@ -71,10 +71,10 @@ function generateCspHeader(config: Record<string, string[]>): string {
   return Object.entries(config)
     .map(([key, values]) => {
       // Convert camelCase to kebab-case for CSP directives
-      const directive = key.replace(/([A-Z])/g, "-$1").toLowerCase();
-      return `${directive} ${values.join(" ")};`;
+      const directive = key.replace(/([A-Z])/g, '-$1').toLowerCase();
+      return `${directive} ${values.join(' ')};`;
     })
-    .join(" ")
+    .join(' ')
     .trim();
 }
 
@@ -92,25 +92,25 @@ class AuthMiddleware {
   constructor() {
     this.authCache = new Map();
     this.protectedRoutes = new Set([
-      "/",
-      "/feed",
-      "/dashboard",
-      "/smartsite",
-      "/qr-code",
-      "/wallet",
-      "/analytics",
-      "/mint",
-      "/order",
-      "/content",
+      '/',
+      '/feed',
+      '/dashboard',
+      '/smartsite',
+      '/qr-code',
+      '/wallet',
+      '/analytics',
+      '/mint',
+      '/order',
+      '/content',
     ]);
-    this.AUTH_ROUTES = new Set(["/login", "/onboard"]);
+    this.AUTH_ROUTES = new Set(['/login', '/onboard']);
     this.PUBLIC_ROUTES = new Set([
-      "/api",
-      "/api/proxy/solana-nft",
-      "/_next",
-      "/favicon.ico",
-      "/static",
-      "/sp",
+      '/api',
+      '/api/proxy/solana-nft',
+      '/_next',
+      '/favicon.ico',
+      '/static',
+      '/sp',
     ]);
     this.CACHE_DURATION = 15 * 60 * 1000; // 15 minutes
     this.EXTENDED_CACHE_DURATION = 2 * 60 * 60 * 1000; // 2 hours for fallback
@@ -145,7 +145,7 @@ class AuthMiddleware {
   }
 
   private isPublicRoute(pathname: string): boolean {
-    if (pathname.startsWith("/sp/")) {
+    if (pathname.startsWith('/sp/')) {
       return true;
     }
     for (const route of this.PUBLIC_ROUTES) {
@@ -191,15 +191,15 @@ class AuthMiddleware {
 
     const response = NextResponse.redirect(new URL(target, req.url));
 
-    if (target === "/login" && clearCookies) {
+    if (target === '/login' && clearCookies) {
       // Clear all authentication cookies
       const cookiesToClear = [
-        "privy-token",
-        "privy-id-token",
-        "privy-refresh-token",
-        "privy-session",
-        "access-token",
-        "user-id",
+        'privy-token',
+        'privy-id-token',
+        'privy-refresh-token',
+        'privy-session',
+        'access-token',
+        'user-id',
       ];
 
       cookiesToClear.forEach((cookie) => {
@@ -215,7 +215,7 @@ class AuthMiddleware {
   }
 
   private shouldRedirectMobile(): boolean {
-    return process.env.ENABLE_MOBILE_REDIRECT === "true";
+    return process.env.ENABLE_MOBILE_REDIRECT === 'true';
   }
 
   private handleMobileRedirect(
@@ -223,23 +223,27 @@ class AuthMiddleware {
     pathname: string
   ): string | null {
     // Skip mobile redirect for specific paths
-    if (pathname === "/login" || pathname === "/onboard") {
+    if (pathname === '/login' || pathname === '/onboard') {
       return null;
     }
 
-    if (!this.shouldRedirectMobile() || !this.isMobileDevice(userAgent)) {
+    if (
+      !this.shouldRedirectMobile() ||
+      !this.isMobileDevice(userAgent)
+    ) {
       return null;
     }
 
-    return userAgent.includes("Android")
-      ? "https://play.google.com/store/apps/details?id=com.travisheron.swop"
-      : "https://apps.apple.com/us/app/swopnew/id1593201322";
+    return userAgent.includes('Android')
+      ? 'https://play.google.com/store/apps/details?id=com.travisheron.swop'
+      : 'https://apps.apple.com/us/app/swopnew/id1593201322';
   }
 
   private validateEnvironment(): boolean {
     const requiredEnvVars = {
       NEXT_PUBLIC_PRIVY_APP_ID: process.env.NEXT_PUBLIC_PRIVY_APP_ID,
-      NEXT_PUBLIC_PRIVY_APP_SECRET: process.env.NEXT_PUBLIC_PRIVY_APP_SECRET,
+      NEXT_PUBLIC_PRIVY_APP_SECRET:
+        process.env.NEXT_PUBLIC_PRIVY_APP_SECRET,
     };
 
     const missingVars = Object.entries(requiredEnvVars)
@@ -248,7 +252,9 @@ class AuthMiddleware {
 
     if (missingVars.length > 0) {
       console.error(
-        `Missing required environment variables: ${missingVars.join(", ")}`
+        `Missing required environment variables: ${missingVars.join(
+          ', '
+        )}`
       );
       return false;
     }
@@ -263,10 +269,12 @@ class AuthMiddleware {
   ): Promise<{ isValid: boolean; userId: string }> {
     for (let attempt = 0; attempt <= maxRetries; attempt++) {
       try {
-        const verifiedClaims = await privyServer.verifyAuthToken(token);
+        const verifiedClaims = await privyServer.verifyAuthToken(
+          token
+        );
         return {
           isValid: Boolean(verifiedClaims.userId),
-          userId: verifiedClaims.userId || "",
+          userId: verifiedClaims.userId || '',
         };
       } catch (error) {
         console.error(
@@ -285,7 +293,7 @@ class AuthMiddleware {
       }
     }
 
-    return { isValid: false, userId: "" };
+    return { isValid: false, userId: '' };
   }
 
   private async fetchWithTimeout(
@@ -314,7 +322,8 @@ class AuthMiddleware {
     cachedResult: AuthCacheEntry,
     now: number
   ): boolean {
-    const lastVerified = cachedResult.lastVerified || cachedResult.timestamp;
+    const lastVerified =
+      cachedResult.lastVerified || cachedResult.timestamp;
     return now - lastVerified > this.VERIFICATION_INTERVAL;
   }
 
@@ -327,7 +336,7 @@ class AuthMiddleware {
       }
 
       const { pathname } = req.nextUrl;
-      const userAgent = req.headers.get("user-agent") || "";
+      const userAgent = req.headers.get('user-agent') || '';
 
       // Skip middleware for public routes
       if (this.isPublicRoute(pathname)) {
@@ -335,18 +344,21 @@ class AuthMiddleware {
       }
 
       // Handle mobile redirects
-      const mobileRedirect = this.handleMobileRedirect(userAgent, pathname);
+      const mobileRedirect = this.handleMobileRedirect(
+        userAgent,
+        pathname
+      );
       if (mobileRedirect) {
         return NextResponse.redirect(new URL(mobileRedirect));
       }
 
-      const token = req.cookies.get("privy-token")?.value;
+      const token = req.cookies.get('privy-token')?.value;
       const isAuthRoute = this.isAuthRoute(pathname);
 
       // Handle authenticated users
       if (token) {
         let isValidToken = false;
-        let userId = "";
+        let userId = '';
 
         try {
           // Check cache first
@@ -361,10 +373,13 @@ class AuthMiddleware {
             now - cachedResult.timestamp < this.CACHE_DURATION
           ) {
             isValidToken = cachedResult.isValid;
-            userId = cachedResult.userId || "";
+            userId = cachedResult.userId || '';
 
             // If token is valid but hasn't been verified recently, re-verify in background
-            if (isValidToken && this.shouldReVerifyToken(cachedResult, now)) {
+            if (
+              isValidToken &&
+              this.shouldReVerifyToken(cachedResult, now)
+            ) {
               // Background verification - don't await
               this.backgroundTokenVerification(token, cacheKey);
             }
@@ -372,7 +387,8 @@ class AuthMiddleware {
           // Check if we have an extended cache result for fallback
           else if (
             cachedResult &&
-            now - cachedResult.timestamp < this.EXTENDED_CACHE_DURATION
+            now - cachedResult.timestamp <
+              this.EXTENDED_CACHE_DURATION
           ) {
             try {
               // Try to verify the token
@@ -381,10 +397,8 @@ class AuthMiddleware {
                 process.env.NEXT_PUBLIC_PRIVY_APP_SECRET!
               );
 
-              const verificationResult = await this.verifyTokenWithRetry(
-                privyServer,
-                token
-              );
+              const verificationResult =
+                await this.verifyTokenWithRetry(privyServer, token);
               isValidToken = verificationResult.isValid;
               userId = verificationResult.userId;
 
@@ -397,13 +411,13 @@ class AuthMiddleware {
               });
             } catch (tokenError) {
               console.error(
-                "Token verification failed, using cached result:",
+                'Token verification failed, using cached result:',
                 tokenError
               );
 
               // Use cached result as fallback
               isValidToken = cachedResult.isValid;
-              userId = cachedResult.userId || "";
+              userId = cachedResult.userId || '';
 
               // Update timestamp but keep old verification time
               this.authCache.set(cacheKey, {
@@ -420,10 +434,8 @@ class AuthMiddleware {
                 process.env.NEXT_PUBLIC_PRIVY_APP_SECRET!
               );
 
-              const verificationResult = await this.verifyTokenWithRetry(
-                privyServer,
-                token
-              );
+              const verificationResult =
+                await this.verifyTokenWithRetry(privyServer, token);
               isValidToken = verificationResult.isValid;
               userId = verificationResult.userId;
 
@@ -435,16 +447,16 @@ class AuthMiddleware {
                 lastVerified: now,
               });
             } catch (tokenError) {
-              console.error("Token verification failed:", tokenError);
+              console.error('Token verification failed:', tokenError);
 
               isValidToken = false;
-              userId = "";
+              userId = '';
 
               // Cache the failure to avoid repeated verification attempts
               this.authCache.set(cacheKey, {
                 timestamp: now,
                 isValid: false,
-                userId: "",
+                userId: '',
                 lastVerified: now,
               });
             }
@@ -454,12 +466,12 @@ class AuthMiddleware {
             // Redirect authenticated users away from auth routes
             if (isAuthRoute) {
               // For onboard route, check if user exists in backend
-              if (pathname === "/onboard") {
+              if (pathname === '/onboard') {
                 try {
                   const response = await this.fetchWithTimeout(
                     `${process.env.NEXT_PUBLIC_API_URL}/api/v2/desktop/user/getPrivyUser/${userId}`,
                     {
-                      headers: { "Content-Type": "application/json" },
+                      headers: { 'Content-Type': 'application/json' },
                       timeout: 5000,
                     }
                   );
@@ -468,7 +480,7 @@ class AuthMiddleware {
                     console.log(
                       `API call succeeded for userId: ${userId}, redirecting to /`
                     );
-                    return this.createRedirect(req, "/", false);
+                    return this.createRedirect(req, '/', false);
                   } else if (response.status === 404) {
                     return NextResponse.next();
                   } else {
@@ -478,17 +490,20 @@ class AuthMiddleware {
                     return NextResponse.next();
                   }
                 } catch (error) {
-                  console.error("Error checking user in backend:", error);
+                  console.error(
+                    'Error checking user in backend:',
+                    error
+                  );
                   return NextResponse.next();
                 }
               }
               // For login route
-              else if (pathname === "/login") {
+              else if (pathname === '/login') {
                 try {
                   const response = await this.fetchWithTimeout(
                     `${process.env.NEXT_PUBLIC_API_URL}/api/v2/desktop/user/getPrivyUser/${userId}`,
                     {
-                      headers: { "Content-Type": "application/json" },
+                      headers: { 'Content-Type': 'application/json' },
                       timeout: 5000,
                     }
                   );
@@ -497,18 +512,29 @@ class AuthMiddleware {
                     console.log(
                       `API call succeeded for userId: ${userId}, redirecting to /`
                     );
-                    return this.createRedirect(req, "/", false);
+                    return this.createRedirect(req, '/', false);
                   } else if (response.status === 404) {
-                    return this.createRedirect(req, "/onboard", false);
+                    return this.createRedirect(
+                      req,
+                      '/onboard',
+                      false
+                    );
                   } else {
                     console.log(
                       `API call failed for userId: ${userId}, status: ${response.status}, redirecting to /onboard`
                     );
-                    return this.createRedirect(req, "/onboard", false);
+                    return this.createRedirect(
+                      req,
+                      '/onboard',
+                      false
+                    );
                   }
                 } catch (error) {
-                  console.error("Error checking user in backend:", error);
-                  return this.createRedirect(req, "/onboard", false);
+                  console.error(
+                    'Error checking user in backend:',
+                    error
+                  );
+                  return this.createRedirect(req, '/onboard', false);
                 }
               }
             }
@@ -517,14 +543,14 @@ class AuthMiddleware {
             return response;
           }
         } catch (error) {
-          console.error("Authentication error:", error);
+          console.error('Authentication error:', error);
           // Don't immediately redirect on error - let it fall through
         }
       }
 
       // Handle unauthenticated requests
       if (this.isProtectedRoute(pathname) && !token) {
-        return this.createRedirect(req, "/login", true); // Only redirect and clear if no token
+        return this.createRedirect(req, '/login', true); // Only redirect and clear if no token
       } else if (this.isProtectedRoute(pathname) && token) {
         console.log(
           `Token present but invalid or not verified, allowing fallback check`
@@ -535,13 +561,13 @@ class AuthMiddleware {
       // Generate CSP header from the config object
       const cspHeader = generateCspHeader(cspConfig);
 
-      if (process.env.NODE_ENV === "production") {
-        response.headers.set("Content-Security-Policy", cspHeader);
+      if (process.env.NODE_ENV === 'production') {
+        response.headers.set('Content-Security-Policy', cspHeader);
       }
 
       return response;
     } catch (error) {
-      console.error("Authentication middleware error:", {
+      console.error('Authentication middleware error:', {
         error:
           error instanceof Error
             ? {
@@ -549,7 +575,7 @@ class AuthMiddleware {
                 message: error.message,
                 stack: error.stack,
               }
-            : "Unknown error",
+            : 'Unknown error',
         path: req.nextUrl.pathname,
       });
 
@@ -558,7 +584,7 @@ class AuthMiddleware {
         return NextResponse.next();
       }
 
-      return this.createRedirect(req, "/login", true);
+      return this.createRedirect(req, '/login', true);
     }
   }
 
@@ -589,7 +615,7 @@ class AuthMiddleware {
         });
       }
     } catch (error) {
-      console.error("Background token verification failed:", error);
+      console.error('Background token verification failed:', error);
     }
   }
 }
@@ -603,18 +629,18 @@ export async function middleware(req: NextRequest) {
 
 export const config = {
   matcher: [
-    "/",
-    "/feed/:path*",
-    "/dashboard/:path*",
-    "/smartsite/:path*",
-    "/qr-code/:path*",
-    "/wallet/:path*",
-    "/analytics/:path*",
-    "/mint/:path*",
-    "/order/:path*",
-    "/content/:path*",
-    "/login",
-    "/onboard",
-    "/guest-order/:path*",
+    '/',
+    '/feed/:path*',
+    '/dashboard/:path*',
+    '/smartsite/:path*',
+    '/qr-code/:path*',
+    '/wallet/:path*',
+    '/analytics/:path*',
+    '/mint/:path*',
+    '/order/:path*',
+    '/content/:path*',
+    '/login',
+    '/onboard',
+    '/guest-order/:path*',
   ],
 };

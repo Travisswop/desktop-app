@@ -59,7 +59,8 @@ export function AIAgentChat({ token, onClose }: AIAgentChatProps) {
     setInputMessage('');
 
     try {
-      const response = await sendMessage(message);
+      // Pass wallet address to backend for context
+      const response = await sendMessage(message, wallet?.address);
 
       // If action requires confirmation, store it
       if (response.requiresConfirmation && response.action !== 'general_chat') {

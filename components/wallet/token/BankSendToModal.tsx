@@ -317,7 +317,7 @@ export default function BankSendToModal({
 
       // Update final step to completed
       updateStep(2, 'completed');
-      const redeemLink = `${process.env.NEXT_PUBLIC_APP_URL}/redeem/${data.poolId}`;
+      const redeemLink = `${process.env.NEXT_PUBLIC_API_URL}/redeem/${data.poolId}`;
       // Set the redeem link
       setRedeemLink(redeemLink);
     } catch (error: any) {

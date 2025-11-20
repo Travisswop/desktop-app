@@ -11,7 +11,7 @@ import { useSolanaWalletContext } from '@/lib/context/SolanaWalletContext';
 import { Connection } from '@solana/web3.js';
 import { useToast } from '@/hooks/use-toast';
 
-import { TokenData } from '@/types/token';
+import { ChainType, TokenData } from '@/types/token';
 import { NFT } from '@/types/nft';
 import { CHAIN_ID, SendFlowState } from '@/types/wallet-types';
 
@@ -49,11 +49,13 @@ import NFTSlider from './nft/nft-list';
 import TokenDetails from './token/token-details-view';
 import NFTDetailView from './nft/nft-details-view';
 import WalletModals from './WalletModals';
-import MessageList from './socket-message-list';
 import { Toaster } from '../ui/toaster';
-import ProfileHeader from '../dashboard/profile-header';
 import RedeemTokenList from './redeem/token-list';
-import WalletBalanceChartForWalletPage from './WalletBalanceChart';
+import BalanceChart from '../dashboard/BalanceChart';
+import { TokenTicker } from './token-ticker';
+import PortfolioChart, {
+  PortfolioAsset,
+} from '../dashboard/PortfolioChart';
 // Utilities
 import Cookies from 'js-cookie';
 import { createTransactionPayload } from '@/lib/utils/transactionUtils';
@@ -63,6 +65,26 @@ import {
   getWalletNotificationService,
   formatUSDValue,
 } from '@/lib/utils/walletNotifications';
+import TransactionList from './transaction/transaction-list';
+
+// Token colors mapping for consistent visual representation
+const TOKEN_COLORS: Record<string, string> = {
+  SOL: '#10b981',
+  SWOP: '#d1fae5',
+  ETH: '#047857',
+  BTC: '#f59e0b',
+  USDC: '#2563eb',
+  USDT: '#22c55e',
+  BNB: '#eab308',
+  XRP: '#06b6d4',
+  MATIC: '#8b5cf6',
+  POL: '#8b5cf6',
+  default: '#6b7280',
+};
+
+const getTokenColor = (symbol: string): string => {
+  return TOKEN_COLORS[symbol] || TOKEN_COLORS.default;
+};
 
 export default function WalletContent() {
   return <WalletContentInner />;
@@ -177,6 +199,69 @@ const WalletContentInner = () => {
           : 0);
       return isNaN(value) ? total : total + value;
     }, 0);
+  }, [tokens]);
+
+  // Transform tokens into portfolio assets
+  const portfolioData = useMemo(() => {
+    if (!tokens || tokens.length === 0) {
+      return {
+        assets: [],
+        totalBalance: '0.00',
+      };
+    }
+
+    // Calculate token values and filter out zero balances
+    const assetsWithValue = tokens
+      .map((token) => {
+        const balance = parseFloat(token.balance || '0');
+        const price = parseFloat(token.marketData?.price || '0');
+        const value = balance * price;
+
+        return {
+          name: token.symbol,
+          value: value,
+          color: getTokenColor(token.symbol),
+          amount: `${balance.toLocaleString(undefined, {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 4,
+          })} ${token.symbol}`,
+        };
+      })
+      .filter((asset) => asset.value > 0) // Only include tokens with positive value
+      .sort((a, b) => b.value - a.value); // Sort by value descending
+
+    // Calculate total balance
+    const total = assetsWithValue.reduce(
+      (sum, asset) => sum + asset.value,
+      0
+    );
+
+    // Take top 5 tokens and group rest as "Others"
+    const topAssets = assetsWithValue.slice(0, 5);
+    const otherAssets = assetsWithValue.slice(5);
+
+    const assets: PortfolioAsset[] = [...topAssets];
+
+    if (otherAssets.length > 0) {
+      const othersValue = otherAssets.reduce(
+        (sum, asset) => sum + asset.value,
+        0
+      );
+      assets.push({
+        name: 'Others',
+        value: othersValue,
+        color: '#94a3b8',
+        amount: `${otherAssets.length} tokens`,
+      });
+    }
+
+    return {
+      assets,
+      totalBalance: total.toLocaleString(undefined, {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+      }),
+    };
   }, [tokens]);
 
   const nativeTokenPrice = useMemo(
@@ -608,73 +693,105 @@ const WalletContentInner = () => {
   );
 
   return (
-    <div className="">
-      <ProfileHeader />
+    <div className="p-0">
+      <TokenTicker />
 
       {/* Balance & Token Section */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 my-6">
-        <WalletBalanceChartForWalletPage
-          tokens={tokens}
-          walletData={walletData || []}
-          totalBalance={totalBalance}
-          onSelectAsset={handleAssetSelect}
-          onQRClick={handleQRClick}
-          onTokenRefresh={refetchTokens}
-        />
-
-        <div className="rounded-xl bg-white">
-          <div className="flex items-center justify-between pl-6 pt-6 mb-2">
-            <div className="flex items-center">
-              <span className="font-bold text-xl text-gray-700">
-                Tokens
-              </span>
-              {tokenLoading && (
-                <Loader2 className="w-6 h-6 text-gray-600 animate-spin" />
-              )}
-            </div>
-            {/* <ViewToggle viewMode={viewMode} onViewChange={setViewMode} /> */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 my-4">
+        <div className="flex flex-col gap-4">
+          <div className="bg-white rounded-xl">
+            <BalanceChart
+              userId={user?._id}
+              currency="$"
+              onSelectAsset={handleAssetSelect}
+              onQRClick={handleQRClick}
+              walletData={walletData || []}
+              tokens={tokens}
+              accessToken={accessToken}
+              onTokenRefresh={refetchTokens}
+            />
           </div>
-          <div className="max-h-[35.5rem] overflow-y-auto rounded-xl">
-            {selectedToken ? (
-              <TokenDetails
-                token={selectedToken}
-                onBack={handleBack}
-                onSend={handleSendClick}
+
+          <div className="flex flex-row gap-4">
+            <div className="rounded-xl bg-white flex-1  ">
+              <div className="flex items-center justify-between pl-6 pt-6 mb-2">
+                <div className="flex items-center">
+                  <span className="font-bold text-xl text-gray-700">
+                    Tokens
+                  </span>
+                  {tokenLoading && (
+                    <Loader2 className="w-6 h-6 text-gray-600 animate-spin" />
+                  )}
+                </div>
+                {/* <ViewToggle viewMode={viewMode} onViewChange={setViewMode} /> */}
+              </div>
+              <div className="max-h-[35.5rem] overflow-y-auto rounded-xl">
+                {selectedToken ? (
+                  <TokenDetails
+                    token={selectedToken}
+                    onBack={handleBack}
+                    onSend={handleSendClick}
+                  />
+                ) : (
+                  <TokenList
+                    tokens={tokens}
+                    loading={tokenLoading}
+                    error={tokenError!}
+                    onSelectToken={handleTokenSelect}
+                  />
+                )}
+              </div>
+            </div>
+            <div className="rounded-xl bg-white flex-1">
+              <TransactionList
+                solWalletAddress={solWalletAddress}
+                evmWalletAddress={evmWalletAddress}
+                chains={SUPPORTED_CHAINS as ChainType[]}
+                tokens={tokens}
+                newTransactions={[]}
+              />
+            </div>
+          </div>
+        </div>
+        <div className="flex flex-col gap-4">
+          <div className="bg-white rounded-xl">
+            {tokenLoading ? (
+              <PortfolioChartSkeleton />
+            ) : portfolioData.assets.length > 0 ? (
+              <PortfolioChart
+                assets={portfolioData.assets}
+                balance={`$${portfolioData.totalBalance}`}
+                title="Portfolio"
+                showViewButton={false}
               />
             ) : (
-              <TokenList
-                tokens={tokens}
-                loading={tokenLoading}
-                error={tokenError!}
-                onSelectToken={handleTokenSelect}
-              />
+              <PortfolioEmptyState />
             )}
           </div>
-        </div>
-      </div>
+          {/* NFT & Messages Section */}
+          <div className="">
+            <div>
+              <NFTSlider
+                onSelectNft={handleSelectNFT}
+                address={currentWalletAddress}
+                nfts={nfts}
+                loading={nftLoading}
+                error={nftError}
+                refetch={refetchNFTs}
+              />
 
-      {/* NFT & Messages Section */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 my-6">
-        <div>
-          <NFTSlider
-            onSelectNft={handleSelectNFT}
-            address={currentWalletAddress}
-            nfts={nfts}
-            loading={nftLoading}
-            error={nftError}
-            refetch={refetchNFTs}
-          />
-
-          {selectedNFT && (
-            <NFTDetailView
-              isOpen={isNFTModalOpen}
-              onClose={handleCloseNFTModal}
-              nft={selectedNFT}
-              onNext={() => handleNFTNext(selectedNFT)}
-            />
-          )}
+              {selectedNFT && (
+                <NFTDetailView
+                  isOpen={isNFTModalOpen}
+                  onClose={handleCloseNFTModal}
+                  nft={selectedNFT}
+                  onNext={() => handleNFTNext(selectedNFT)}
+                />
+              )}
+            </div>
+          </div>
+          <RedeemTokenList />
         </div>
-        <MessageList tokens={tokens} />
       </div>
 
       {/* All Modals */}
@@ -706,8 +823,63 @@ const WalletContentInner = () => {
         setSendFlow={setSendFlow}
       />
 
-      <RedeemTokenList />
       <Toaster />
     </div>
   );
 };
+
+function PortfolioChartSkeleton() {
+  return (
+    <div className="w-full p-5">
+      <div className="flex flex-row items-center justify-between pb-2">
+        <div className="h-6 w-24 bg-gray-200 rounded animate-pulse" />
+      </div>
+      <div className="pt-6">
+        <div className="flex items-center justify-center gap-8">
+          <div className="h-[200px] w-[200px] bg-gray-200 rounded-full animate-pulse" />
+          <div className="flex flex-col gap-4">
+            {[...Array(4)].map((_, i) => (
+              <div key={i} className="flex items-center gap-2">
+                <div className="h-3 w-3 bg-gray-200 rounded-full animate-pulse" />
+                <div className="h-4 w-20 bg-gray-200 rounded animate-pulse" />
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function PortfolioEmptyState() {
+  return (
+    <div className="w-full p-5">
+      <div className="flex flex-row items-center justify-between pb-2">
+        <h2 className="text-lg font-semibold">Portfolio</h2>
+      </div>
+      <div className="pt-6 pb-4 text-center">
+        <div className="w-16 h-16 mx-auto mb-4 bg-gray-100 rounded-full flex items-center justify-center">
+          <svg
+            className="w-8 h-8 text-gray-400"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+            />
+          </svg>
+        </div>
+        <p className="text-gray-600 font-medium mb-1">
+          No tokens found
+        </p>
+        <p className="text-sm text-gray-500">
+          Connect your wallet to view your portfolio.
+        </p>
+      </div>
+    </div>
+  );
+}
