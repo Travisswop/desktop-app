@@ -1,36 +1,40 @@
 // app/page.js
-"use client";
-import ChatContainer from "@/components/chat/ChatContainer";
-import { useSocket } from "@/lib/socket";
-import { useUser } from "@/lib/UserContext";
-import { useEffect, useState } from "react";
+'use client';
+import ChatContainer from '@/components/chat/ChatContainer';
+import { useSocket } from '@/lib/socket';
+import { useUser } from '@/lib/UserContext';
+import { useEffect, useState } from 'react';
 
-export default function Home() {
+export default function ChatPage() {
   const [connectionStatus, setConnectionStatus] = useState({
     connected: false,
-    text: "Disconnected",
+    text: 'Disconnected',
   });
   const [unreadCount, setUnreadCount] = useState(0);
-  const [currentUser, setCurrentUser] = useState("");
-  const [isInitializationLoading, setIsInitializationLoading] = useState(true);
+  const [currentUser, setCurrentUser] = useState('');
+  const [isInitializationLoading, setIsInitializationLoading] =
+    useState(true);
 
   const { user, accessToken, loading: userLoading } = useUser();
 
-  console.log("user", user);
-  console.log("currentUser", currentUser);
-  console.log("connectionStatus", connectionStatus);
-  console.log("userLoading", userLoading);
+  console.log('user', user);
+  console.log('currentUser', currentUser);
+  console.log('connectionStatus', connectionStatus);
+  console.log('userLoading', userLoading);
 
   const { socket, connectSocket, disconnectSocket } = useSocket({
     onConnect: () => {
-      setConnectionStatus({ connected: true, text: "Connected" });
+      setConnectionStatus({ connected: true, text: 'Connected' });
     },
     onDisconnect: () => {
-      setConnectionStatus({ connected: false, text: "Disconnected" });
+      setConnectionStatus({ connected: false, text: 'Disconnected' });
       setUnreadCount(0);
     },
-    onConnectError: (error) => {
-      setConnectionStatus({ connected: false, text: "Connection Failed" });
+    onConnectError: (error: any) => {
+      setConnectionStatus({
+        connected: false,
+        text: 'Connection Failed',
+      });
     },
   });
 
@@ -43,7 +47,9 @@ export default function Home() {
     // If user loaded but is null, stop showing skeleton
     if (!user || !accessToken) {
       setIsInitializationLoading(false);
-      console.error('User authentication failed - user or accessToken is null');
+      console.error(
+        'User authentication failed - user or accessToken is null'
+      );
       return;
     }
 
@@ -66,7 +72,14 @@ export default function Home() {
         disconnectSocket();
       }
     };
-  }, [accessToken, user, user?._id, userLoading, socket, disconnectSocket]);
+  }, [
+    accessToken,
+    user,
+    user?._id,
+    userLoading,
+    socket,
+    disconnectSocket,
+  ]);
 
   if (isInitializationLoading) {
     return (
@@ -120,12 +133,14 @@ export default function Home() {
               Authentication Required
             </h2>
             <p className="mb-4 text-sm text-gray-600">
-              {!user ? 'User not authenticated. Please log in to access chat.' :
-               !accessToken ? 'Access token missing. Please log in again.' :
-               'Socket connection failed. Please refresh the page.'}
+              {!user
+                ? 'User not authenticated. Please log in to access chat.'
+                : !accessToken
+                ? 'Access token missing. Please log in again.'
+                : 'Socket connection failed. Please refresh the page.'}
             </p>
             <button
-              onClick={() => window.location.href = '/login'}
+              onClick={() => (window.location.href = '/login')}
               className="rounded-lg bg-blue-500 px-4 py-2 text-white hover:bg-blue-600"
             >
               Go to Login

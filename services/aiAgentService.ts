@@ -71,16 +71,14 @@ class AIAgentService {
    */
   connect(
     token: string,
-    baseURL: string = process.env.NEXT_PUBLIC_API_BASE_URL ||
+    baseURL: string = process.env.NEXT_PUBLIC_API_URL ||
       'http://localhost:4000'
   ) {
-    if (this.socket?.connected) {
-      console.log('AI Agent already connected');
-      return;
-    }
-
     this.socket = io(baseURL, {
       auth: { token },
+      extraHeaders: {
+        'ngrok-skip-browser-warning': 'true',
+      },
       transports: ['websocket', 'polling'],
       reconnection: true,
       reconnectionAttempts: 5,

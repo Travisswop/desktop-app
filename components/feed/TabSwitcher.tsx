@@ -6,12 +6,15 @@ import AnimateButton from '../ui/Button/AnimateButton';
 import { useSearchParams } from 'next/navigation';
 
 // Cache the app URL to avoid reading from process.env on each render
-const APP_URL = process.env.NEXT_PUBLIC_APP_URL;
+const APP_URL = process.env.NEXT_PUBLIC_API_URL;
 
 const TabSwitcher = memo(() => {
   const searchParams = useSearchParams();
 
-  const tab = useMemo(() => searchParams.get('tab'), [searchParams]);
+  const tab = useMemo(
+    () => searchParams?.get('tab') || '',
+    [searchParams]
+  );
 
   const tabs = useMemo(
     () => [

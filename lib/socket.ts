@@ -15,7 +15,16 @@ export const useSocket = ({ onConnect, onDisconnect, onConnectError }) => {
     console.log('🔌 [Socket] URL:', process.env.NEXT_PUBLIC_API_URL);
     console.log('🔌 [Socket] Token:', token ? `${token.substring(0, 20)}...` : 'NO TOKEN');
 
-    socketRef.current = io(`${process.env.NEXT_PUBLIC_API_URL}`, {
+    // Debugging: Check if URL is undefined
+    if (!process.env.NEXT_PUBLIC_API_URL) {
+      console.error('❌ [Socket] NEXT_PUBLIC_API_URL is NOT SET! Using fallback.');
+      console.error('❌ [Socket] Check your .env file or deployment environment variables.');
+    }
+
+    const socketURL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+    console.log('🔌 [Socket] Connecting to:', socketURL);
+
+    socketRef.current = io(socketURL, {
       auth: { token },
       extraHeaders: {
         "ngrok-skip-browser-warning": "true",
