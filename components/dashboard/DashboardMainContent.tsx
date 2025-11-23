@@ -1,7 +1,7 @@
 "use client";
 import { useUser } from "@/lib/UserContext";
 import { Skeleton } from "../ui/skeleton";
-import DashboardAnalytics from "./analytics";
+// import DashboardAnalytics from "./analytics";
 import { useQuery } from "@tanstack/react-query";
 import { getFollowers, followersQueryKey } from "@/services/followers-service";
 import PortfolioChart, { PortfolioAsset } from "./PortfolioChart";
@@ -14,7 +14,7 @@ import DashboardChatPreview from "./ChatPreview";
 import RewardsCardPreview from "./RewardPreview";
 import TransactionsListPreview from "./TransactionPreview";
 import QRCodePreview from "./QrcodePreview";
-import { usePrivy, useWallets, useSolanaWallets } from "@privy-io/react-auth";
+import { useWallets, useSolanaWallets } from "@privy-io/react-auth";
 import { useMemo } from "react";
 import { useMultiChainTokenData } from "@/lib/hooks/useToken";
 import { useRouter } from "next/navigation";
@@ -44,33 +44,27 @@ export default function DashboardMainContent() {
   const { wallets: solanaWallets } = useSolanaWallets();
   const router = useRouter();
 
-  console.log("user", user);
+  // console.log("user", user);
 
   // Get wallet addresses
   const solWalletAddress = useMemo(() => {
     return solanaWallets?.find(
-      (w) =>
-        w.walletClientType === "privy" || w.connectorType === "embedded"
+      (w) => w.walletClientType === "privy" || w.connectorType === "embedded"
     )?.address;
   }, [solanaWallets]);
 
   const evmWalletAddress = useMemo(() => {
     return ethWallets?.find(
-      (w) =>
-        w.walletClientType === "privy" || w.connectorType === "embedded"
+      (w) => w.walletClientType === "privy" || w.connectorType === "embedded"
     )?.address;
   }, [ethWallets]);
 
   // Fetch token data
-  const {
-    tokens,
-    loading: tokenLoading,
-  } = useMultiChainTokenData(solWalletAddress, evmWalletAddress, [
-    "SOLANA",
-    "ETHEREUM",
-    "POLYGON",
-    "BASE",
-  ]);
+  const { tokens, loading: tokenLoading } = useMultiChainTokenData(
+    solWalletAddress,
+    evmWalletAddress,
+    ["SOLANA", "ETHEREUM", "POLYGON", "BASE"]
+  );
 
   // Fetch followers with pagination (page 1, limit 20)
   const {
@@ -90,29 +84,6 @@ export default function DashboardMainContent() {
     staleTime: 5 * 60 * 1000, // Cache for 5 minutes
     retry: 2,
   });
-
-  if (loading) {
-    return <DashboardSkeleton />;
-  }
-
-  if (error) {
-    return <div>Error loading dashboard: {error.message}</div>;
-  }
-
-  // Log followers data for debugging
-  if (followersData) {
-    console.log("Followers data:", {
-      total: followersData.data.totalFollowers,
-      source: followersData.data.source,
-      count: followersData.data.followers.length,
-      pagination: followersData.data.pagination,
-      followers: followersData.data.followers,
-    });
-  }
-
-  if (followersError) {
-    console.error("Error fetching followers:", followersError);
-  }
 
   // Transform tokens into portfolio assets
   const portfolioData = useMemo(() => {
@@ -144,10 +115,7 @@ export default function DashboardMainContent() {
       .sort((a, b) => b.value - a.value); // Sort by value descending
 
     // Calculate total balance
-    const total = assetsWithValue.reduce(
-      (sum, asset) => sum + asset.value,
-      0
-    );
+    const total = assetsWithValue.reduce((sum, asset) => sum + asset.value, 0);
 
     // Take top 5 tokens and group rest as "Others"
     const topAssets = assetsWithValue.slice(0, 5);
@@ -176,6 +144,29 @@ export default function DashboardMainContent() {
       }),
     };
   }, [tokens]);
+
+  if (loading) {
+    return <DashboardSkeleton />;
+  }
+
+  if (error) {
+    return <div>Error loading dashboard: {error.message}</div>;
+  }
+
+  // Log followers data for debugging
+  if (followersData) {
+    console.log("Followers data:", {
+      total: followersData.data.totalFollowers,
+      source: followersData.data.source,
+      count: followersData.data.followers.length,
+      pagination: followersData.data.pagination,
+      followers: followersData.data.followers,
+    });
+  }
+
+  if (followersError) {
+    console.error("Error fetching followers:", followersError);
+  }
 
   const handleViewPortfolio = () => {
     console.log("Navigate to full portfolio view");
