@@ -15,9 +15,10 @@ import RewardsCardPreview from "./RewardPreview";
 import TransactionsListPreview from "./TransactionPreview";
 import QRCodePreview from "./QrcodePreview";
 import { useWallets, useSolanaWallets } from "@privy-io/react-auth";
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useMultiChainTokenData } from "@/lib/hooks/useToken";
 import { useRouter } from "next/navigation";
+import { fetchAnalyticsInfo } from "@/actions/fetchDesktopUserData";
 
 // Token colors mapping for consistent visual representation
 const TOKEN_COLORS: Record<string, string> = {
@@ -43,6 +44,9 @@ export default function DashboardMainContent() {
   const { wallets: ethWallets } = useWallets();
   const { wallets: solanaWallets } = useSolanaWallets();
   const router = useRouter();
+  const [analyticsData, setAnalyticsData] = useState(null);
+
+  console.log("analyticsData", analyticsData);
 
   // console.log("user", user);
 
@@ -145,6 +149,18 @@ export default function DashboardMainContent() {
     };
   }, [tokens]);
 
+  useEffect(() => {
+    if (accessToken) {
+      console.log("hitana");
+
+      const getInsightsData = async () => {
+        const data = await fetchAnalyticsInfo(accessToken || "");
+        setAnalyticsData(data);
+      };
+      getInsightsData();
+    }
+  }, [accessToken, setAnalyticsData]);
+
   if (loading) {
     return <DashboardSkeleton />;
   }
@@ -167,20 +183,6 @@ export default function DashboardMainContent() {
   if (followersError) {
     console.error("Error fetching followers:", followersError);
   }
-
-  const handleViewPortfolio = () => {
-    console.log("Navigate to full portfolio view");
-    // router.push('/portfolio/details');
-  };
-
-  const handleViewClick = () => {
-    console.log("View orders clicked");
-    // router.push('/orders');
-  };
-  const handleViewInsightsClick = () => {
-    console.log("View insights clicked");
-    // router.push('/orders');
-  };
 
   const customTransactions = [
     {
@@ -232,21 +234,22 @@ export default function DashboardMainContent() {
           <div className="bg-white p-5 rounded-xl">
             <Insights
               totalTaps={{
-                value: user ? user?.tap.length : 0,
-                period: "All Time",
+                value: analyticsData
+                  ? analyticsData.last30DaysMicrositeTaps
+                  : 0,
+                period: "30 days",
                 trend: 24,
               }}
               leads={{
-                value: user ? user?.subscribers.length : 0,
+                value: analyticsData ? analyticsData.last30DaysLeads : 0,
                 period: "30 days",
                 trend: 24,
               }}
               connections={{
-                value: user ? user?.connectionIds.length : 0,
-                period: "All Time",
+                value: analyticsData ? analyticsData.last30DaysConnections : 0,
+                period: "30 days",
                 trend: 24,
               }}
-              onViewClick={handleViewInsightsClick}
             />
           </div>
         </div>

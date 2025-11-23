@@ -1,12 +1,12 @@
-'use server';
+"use server";
 export async function fetchUserInfo(id: string, token: string) {
   try {
     const response = await fetch(
       `${process.env.NEXT_PUBLIC_API_URL}/api/v1/desktop/user/${id}`,
       {
-        method: 'GET',
+        method: "GET",
         headers: {
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
           authorization: `Bearer ${token}`,
         },
       }
@@ -14,6 +14,25 @@ export async function fetchUserInfo(id: string, token: string) {
     const data = await response.json();
     return data.data;
   } catch (error) {
-    console.error('Error from action:', error);
+    console.error("Error from fetchUserInfo action:", error);
+  }
+}
+
+export async function fetchAnalyticsInfo(token: string) {
+  try {
+    const response = await fetch(
+      `${process.env.NEXT_PUBLIC_API_URL}/api/v1/user/analytics`,
+      {
+        method: "GET",
+        headers: {
+          "Content-Type": "application/json",
+          authorization: `Bearer ${token}`,
+        },
+      }
+    );
+    const data = await response.json();
+    return data.data;
+  } catch (error) {
+    console.error("Error from fetchAnalyticsInfo action:", error);
   }
 }

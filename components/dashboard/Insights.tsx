@@ -5,6 +5,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { MoreHorizontal } from "lucide-react";
 import { LucideIcon } from "lucide-react";
 import { PrimaryButton } from "../ui/Button/PrimaryButton";
+import Link from "next/link";
 
 interface MetricCardProps {
   title: string;
@@ -30,8 +31,6 @@ interface InsightsProps {
     period: string;
     trend: number;
   };
-  onViewClick?: () => void;
-  showViewButton?: boolean;
   className?: string;
 }
 
@@ -79,8 +78,6 @@ const Insights: React.FC<InsightsProps> = ({
   totalTaps,
   leads,
   connections,
-  onViewClick,
-  showViewButton = true,
   className = "",
 }) => {
   return (
@@ -88,17 +85,15 @@ const Insights: React.FC<InsightsProps> = ({
       {/* Header */}
       <div className="flex items-center justify-between mb-4">
         <h2 className="text-lg font-semibold">Insights</h2>
-        {showViewButton && (
-          <PrimaryButton onClick={onViewClick} className="text-sm">
-            View
-          </PrimaryButton>
-        )}
+        <Link href={"/dashboard/analytics"}>
+          <PrimaryButton className="text-sm">View</PrimaryButton>
+        </Link>
       </div>
 
       {/* Metric Cards */}
       <div className="flex flex-wrap gap-4">
         <MetricCard
-          title="Total Taps"
+          title="Page Visit"
           value={totalTaps.value}
           period={totalTaps.period}
           trend={totalTaps.trend}
@@ -112,7 +107,7 @@ const Insights: React.FC<InsightsProps> = ({
           icon={MoreHorizontal}
         />
         <MetricCard
-          title="Connection"
+          title="Connections"
           value={connections.value}
           period={connections.period}
           trend={connections.trend}
