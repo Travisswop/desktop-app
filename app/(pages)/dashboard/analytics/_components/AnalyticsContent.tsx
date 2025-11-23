@@ -1,6 +1,12 @@
 "use client";
 import getAllSmartsitesIcon from "@/components/smartsite/retriveIconImage/getAllSmartsiteIcon";
 import getSmallIconImage from "@/components/smartsite/retriveIconImage/getSmallIconImage";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { tintStyle } from "@/components/util/IconTintStyle";
 import isUrl from "@/lib/isUrl";
 import { Info, RefreshCw } from "lucide-react";
@@ -16,7 +22,16 @@ interface MetricCardProps {
 const MetricCard = ({ value, label, period }: MetricCardProps) => (
   <div className="flex flex-col items-center p-4 bg-white rounded-lg border border-gray-200">
     <div className="flex items-center gap-2 mb-2">
-      <Info className="w-4 h-4 text-gray-400" />
+      <TooltipProvider>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Info className="w-4 h-4 text-gray-400 cursor-pointer" />
+          </TooltipTrigger>
+          <TooltipContent>
+            <p>{`You can see ${label} for ${period}`}</p>
+          </TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
     </div>
     <div className="text-3xl font-bold text-gray-900">{value}</div>
     <div className="text-sm font-medium text-gray-600">{label}</div>
@@ -45,7 +60,7 @@ const AnalyticsContent = ({ userData, analyticsData }) => {
     },
     {
       value: analyticsData?.last30DaysConnections || 0,
-      label: "Connections",
+      label: "Followers",
       period: "30 days",
     },
     {

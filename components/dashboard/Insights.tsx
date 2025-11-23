@@ -41,8 +41,8 @@ const MetricCard: React.FC<MetricCardProps> = ({
   trend,
   icon: Icon,
 }) => {
-  const isPositive = trend > 0;
-  const trendSign = isPositive ? "+" : "";
+  // const isPositive = trend > 0;
+  // const trendSign = isPositive ? "+" : "";
 
   return (
     <Card className="flex-1">
@@ -64,10 +64,10 @@ const MetricCard: React.FC<MetricCardProps> = ({
 
           {/* Period and Trend */}
 
-          <div className="inline-flex items-center rounded-lg bg-green-100 dark:bg-green-950 px-3 py-2 text-xs font-medium text-green-700 dark:text-green-400">
+          {/* <div className="inline-flex items-center rounded-lg bg-green-100 dark:bg-green-950 px-3 py-2 text-xs font-medium text-green-700 dark:text-green-400">
             {trendSign}
             {trend}%
-          </div>
+          </div> */}
         </div>
       </CardContent>
     </Card>
@@ -107,7 +107,7 @@ const Insights: React.FC<InsightsProps> = ({
           icon={MoreHorizontal}
         />
         <MetricCard
-          title="Connections"
+          title="Followers"
           value={connections.value}
           period={connections.period}
           trend={connections.trend}
