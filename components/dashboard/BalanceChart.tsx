@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
@@ -14,11 +14,12 @@ import {
 } from "recharts";
 import { useUser } from "@/lib/UserContext";
 import { WalletItem } from "@/types/wallet";
-
-interface BalanceHistoryEntry {
-  createdAt: string;
-  amount: number;
-}
+import { useQuery } from "@tanstack/react-query";
+import {
+  getBalance,
+  balanceQueryKey,
+  type BalanceHistoryEntry,
+} from "@/services/balance-service";
 
 interface BalanceChartProps {
   userId?: string;
@@ -30,6 +31,7 @@ interface BalanceChartProps {
   tokens?: any[];
   accessToken?: string;
   onTokenRefresh?: () => void;
+  totalBalance?: number; // Optional: if provided, will use this instead of fetching
 }
 
 type TimePeriod = "1day" | "7days" | "1month" | "6months" | "1year" | "all";
@@ -78,48 +80,46 @@ const BalanceChart: React.FC<BalanceChartProps> = ({
   userId,
   className = "",
   currency = "$",
+  totalBalance: propTotalBalance, // Rename prop to avoid conflict
 }) => {
   const { user } = useUser();
   const [selectedPeriod, setSelectedPeriod] = useState<TimePeriod>("1month");
   // const [showBalance, setShowBalance] = useState(false);
   // const [showPopup, setShowPopup] = useState(false);
-  const [balanceHistory, setBalanceHistory] = useState<BalanceHistoryEntry[]>(
-    []
-  );
-  const [totalBalance, setTotalBalance] = useState(0);
-  const [loading, setLoading] = useState(true);
 
-  // Fetch balance data
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
-        setLoading(true);
-        const id = userId || user?._id;
-        if (!id) return;
+  // Get the user ID (from prop or context)
+  const effectiveUserId = userId || user?._id;
 
-        const response = await fetch(
-          `${process.env.NEXT_PUBLIC_API_URL}/api/v5/wallet/getBalance/${id}`
-        );
+  // Fetch balance data using React Query with caching
+  const {
+    data: balanceData,
+    isLoading: loading,
+    error,
+  } = useQuery({
+    queryKey: balanceQueryKey(effectiveUserId || ""),
+    queryFn: () => getBalance({ userId: effectiveUserId! }),
+    enabled: !!effectiveUserId, // Only fetch when userId is available
+    staleTime: 5 * 60 * 1000, // Consider data fresh for 5 minutes
+    gcTime: 10 * 60 * 1000, // Keep in cache for 10 minutes (formerly cacheTime)
+    refetchOnWindowFocus: false, // Don't refetch when window regains focus
+    refetchOnMount: false, // Don't refetch on component mount if data is cached
+  });
 
-        if (!response.ok) {
-          throw new Error("Network response was not ok");
-        }
+  // Extract balance history and fetched balance from query data
+  const balanceHistory = balanceData?.balanceData?.balanceHistory || [];
+  const fetchedBalance = balanceData?.totalTokensValue || 0;
 
-        const result = await response.json();
-        setBalanceHistory(result.balanceData.balanceHistory || []);
-        setTotalBalance(result.totalTokensValue || 0);
-      } catch (error) {
-        console.error("Error fetching balance data:", error);
-      } finally {
-        setLoading(false);
-      }
-    };
+  // Use prop balance if provided, otherwise use fetched balance
+  const totalBalance =
+    propTotalBalance !== undefined ? propTotalBalance : fetchedBalance;
 
-    fetchData();
-  }, [userId, user?._id]);
+  // Log any errors
+  if (error) {
+    console.error("Error fetching balance data:", error);
+  }
 
   // Filter data based on selected time period
-  const filteredData = useMemo(() => {
+  const filteredData = useMemo((): BalanceHistoryEntry[] => {
     if (!balanceHistory.length) return [];
 
     // Sort all data by date (newest first)
@@ -130,17 +130,22 @@ const BalanceChart: React.FC<BalanceChartProps> = ({
 
     if (selectedPeriod === "all") {
       // Get the latest entry for each day
-      const dateMap = sortedHistory.reduce((acc: any, entry) => {
-        const dateStr = new Date(entry.createdAt).toISOString().split("T")[0];
-        if (!acc[dateStr]) {
-          acc[dateStr] = entry;
-        }
-        return acc;
-      }, {});
+      const dateMap = sortedHistory.reduce(
+        (acc: Record<string, BalanceHistoryEntry>, entry) => {
+          const dateStr = new Date(entry.createdAt)
+            .toISOString()
+            .split("T")[0];
+          if (!acc[dateStr]) {
+            acc[dateStr] = entry;
+          }
+          return acc;
+        },
+        {}
+      );
 
       // Convert back to array and sort chronologically
-      return Object.values(dateMap).sort(
-        (a: any, b: any) =>
+      return (Object.values(dateMap) as BalanceHistoryEntry[]).sort(
+        (a, b) =>
           new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
       );
     }
@@ -180,17 +185,20 @@ const BalanceChart: React.FC<BalanceChartProps> = ({
     }
 
     // For other time ranges: reduce to latest entry per date
-    const dateAmountMap = filtered.reduce((acc: any, entry) => {
-      const dateStr = new Date(entry.createdAt).toISOString().split("T")[0];
-      const existing = acc[dateStr];
-      if (
-        !existing ||
-        new Date(entry.createdAt) > new Date(existing.createdAt)
-      ) {
-        acc[dateStr] = entry;
-      }
-      return acc;
-    }, {});
+    const dateAmountMap = filtered.reduce(
+      (acc: Record<string, BalanceHistoryEntry>, entry) => {
+        const dateStr = new Date(entry.createdAt).toISOString().split("T")[0];
+        const existing = acc[dateStr];
+        if (
+          !existing ||
+          new Date(entry.createdAt) > new Date(existing.createdAt)
+        ) {
+          acc[dateStr] = entry;
+        }
+        return acc;
+      },
+      {}
+    );
 
     const result: BalanceHistoryEntry[] = [];
     const currentDate = new Date(startDate);

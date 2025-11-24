@@ -703,6 +703,7 @@ const WalletContentInner = () => {
             <BalanceChart
               userId={user?._id}
               currency="$"
+              totalBalance={totalBalance}
               onSelectAsset={handleAssetSelect}
               onQRClick={handleQRClick}
               walletData={walletData || []}

@@ -229,7 +229,14 @@ export default function DashboardMainContent() {
         <div className="flex-1 flex flex-col gap-3">
           <div className="bg-white rounded-xl">
             {/* <WalletBalanceChart /> */}
-            <BalanceChart currency="$" />
+            <BalanceChart
+              currency="$"
+              totalBalance={
+                portfolioData.assets.length > 0
+                  ? parseFloat(portfolioData.totalBalance.replace(/,/g, ""))
+                  : 0
+              }
+            />
           </div>
           <div className="bg-white p-5 rounded-xl">
             <Insights
