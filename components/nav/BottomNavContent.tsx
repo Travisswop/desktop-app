@@ -52,6 +52,7 @@ const BottomNavContent = () => {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const { openModal } = useModalStore();
+
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isIconsModalOpen, setIsIconsModalOpen] = useState(false);
   const [isActivateChipModalOpen, setIsActivateChipModalOpen] = useState(false);
@@ -63,7 +64,7 @@ const BottomNavContent = () => {
     [searchParams]
   );
 
-  console.log("params", params);
+  // console.log("params", params);
 
   const isSmartsite = pathname?.startsWith("/smartsite/");
 
@@ -147,6 +148,18 @@ const BottomNavContent = () => {
         template.description.toLowerCase().includes(query)
     );
   }, [searchQuery]);
+
+  // Define routes where BottomNav should be hidden
+  const hideOnRoutes = [
+    "/smartsite/edit/",
+    "/smartsite/token-gated/",
+    "/dashboard/chat",
+  ]; // Add your routes here
+
+  // Hide bottom nav on specific routes
+  if (hideOnRoutes.some((route) => pathname?.startsWith(route))) {
+    return null;
+  }
 
   const handleIconslistOpen = () => {
     setIsIconsModalOpen(true);

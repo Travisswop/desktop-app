@@ -1,7 +1,6 @@
 "use client";
 
 import React, { useState, useEffect, useMemo } from "react";
-import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
@@ -13,27 +12,7 @@ import {
   Tooltip,
   ResponsiveContainer,
 } from "recharts";
-import {
-  Send,
-  Download,
-  RotateCcw,
-  MoreHorizontal,
-  ChevronDown,
-  BarChart3,
-  Home,
-  List,
-  Eye,
-  EyeOff,
-} from "lucide-react";
 import { useUser } from "@/lib/UserContext";
-import { PrimaryButton } from "../ui/Button/PrimaryButton";
-import { BsBank2, BsSendFill } from "react-icons/bs";
-import { LuWallet } from "react-icons/lu";
-import { TbArrowsExchange2 } from "react-icons/tb";
-import { BiQrScan } from "react-icons/bi";
-import { FaRegListAlt } from "react-icons/fa";
-import WalletAddressPopup from "../wallet/wallet-address-popup";
-import SwapButton from "../wallet/SwapButton";
 import { WalletItem } from "@/types/wallet";
 
 interface BalanceHistoryEntry {
@@ -99,17 +78,11 @@ const BalanceChart: React.FC<BalanceChartProps> = ({
   userId,
   className = "",
   currency = "$",
-  onSelectAsset,
-  onQRClick,
-  walletData = [],
-  tokens = [],
-  accessToken = "",
-  onTokenRefresh,
 }) => {
   const { user } = useUser();
   const [selectedPeriod, setSelectedPeriod] = useState<TimePeriod>("1month");
-  const [showBalance, setShowBalance] = useState(false);
-  const [showPopup, setShowPopup] = useState(false);
+  // const [showBalance, setShowBalance] = useState(false);
+  // const [showPopup, setShowPopup] = useState(false);
   const [balanceHistory, setBalanceHistory] = useState<BalanceHistoryEntry[]>(
     []
   );
@@ -268,15 +241,15 @@ const BalanceChart: React.FC<BalanceChartProps> = ({
     });
   };
 
-  const formatYAxis = (value: number) => {
-    if (value >= 1000000) {
-      return `${currency}${(value / 1000000).toFixed(1)}M`;
-    }
-    if (value >= 1000) {
-      return `${currency}${(value / 1000).toFixed(0)}k`;
-    }
-    return `${currency}${value}`;
-  };
+  // const formatYAxis = (value: number) => {
+  //   if (value >= 1000000) {
+  //     return `${currency}${(value / 1000000).toFixed(1)}M`;
+  //   }
+  //   if (value >= 1000) {
+  //     return `${currency}${(value / 1000).toFixed(0)}k`;
+  //   }
+  //   return `${currency}${value}`;
+  // };
 
   const CustomTooltip = ({ active, payload }: any) => {
     if (active && payload && payload.length) {
@@ -385,11 +358,8 @@ const BalanceChart: React.FC<BalanceChartProps> = ({
             </p>
           </div>
 
-          <div className="flex items-center gap-2">
-            <PrimaryButton
-              className="px-2 rounded"
-              onClick={onSelectAsset}
-            >
+          {/* <div className="flex items-center gap-2">
+            <PrimaryButton className="px-2 rounded" onClick={onSelectAsset}>
               <BsSendFill size={15} color="black" />
             </PrimaryButton>
             <PrimaryButton
@@ -415,7 +385,7 @@ const BalanceChart: React.FC<BalanceChartProps> = ({
             <PrimaryButton className="px-2 rounded">
               <MoreHorizontal size={16} color="black" />
             </PrimaryButton>
-          </div>
+          </div> */}
         </div>
 
         {/* Chart */}
@@ -529,7 +499,7 @@ const BalanceChart: React.FC<BalanceChartProps> = ({
               <option value="all">All Time</option>
             </select>
           </div>
-          <div className="flex items-center gap-1">
+          {/* <div className="flex items-center gap-1">
             <Button
               variant="ghost"
               size="icon"
@@ -544,17 +514,17 @@ const BalanceChart: React.FC<BalanceChartProps> = ({
             <Button variant="ghost" size="icon" className="h-8 w-8">
               <FaRegListAlt className="h-4 w-4" />
             </Button>
-          </div>
+          </div> */}
         </div>
       </div>
 
       {/* Wallet Address Popup */}
-      {showPopup && walletData.length > 0 && (
+      {/* {showPopup && walletData.length > 0 && (
         <WalletAddressPopup
           wallets={walletData}
           onClose={() => setShowPopup(false)}
         />
-      )}
+      )} */}
     </div>
   );
 };
