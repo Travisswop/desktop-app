@@ -259,7 +259,7 @@ export default function Header() {
                   </span>
                 </DropdownMenuItem>
 
-                <DropdownMenuItem
+                {/* <DropdownMenuItem
                   color="red"
                   className="cursor-pointer"
                   onSelect={() => {
@@ -277,7 +277,6 @@ export default function Header() {
                   <button onClick={showMfaEnrollmentModal}>Biometrics</button>
                 </DropdownMenuItem>
 
-                {/* Export Wallet Sub-menu */}
                 {(hasEmbeddedWallet || hasSolanaWallet) && (
                   <DropdownMenuSub>
                     <DropdownMenuSubTrigger>
@@ -302,7 +301,7 @@ export default function Header() {
                       )}
                     </DropdownMenuSubContent>
                   </DropdownMenuSub>
-                )}
+                )} */}
               </DropdownMenuContent>
             </DropdownMenu>
           )}
