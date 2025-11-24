@@ -154,6 +154,8 @@ const BottomNavContent = () => {
     "/smartsite/edit/",
     "/smartsite/token-gated/",
     "/dashboard/chat",
+    "/edit-profile",
+    "/subscription",
   ]; // Add your routes here
 
   // Hide bottom nav on specific routes
