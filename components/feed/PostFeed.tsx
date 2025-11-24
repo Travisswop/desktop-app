@@ -23,6 +23,8 @@ import { motion } from "framer-motion";
 import { PiChartBarHorizontalBold } from "react-icons/pi";
 import CreatePoll from "./CreatePoll";
 import CustomModal from "../modal/CustomModal";
+import { PrimaryButton } from "../ui/Button/PrimaryButton";
+import { Loader } from "lucide-react";
 
 const PostFeed = ({
   primaryMicrositeImg,
@@ -200,10 +202,10 @@ const PostFeed = ({
             name="user-feed"
             id="user-feed"
             rows={4}
-            className={`bg-gray-100 rounded-lg p-3 focus:outline-gray-200 w-full ${
+            className={`bg-gray-100 rounded-lg p-3 focus:outline-gray-100 w-full ${
               postContent.length > MAX_LENGTH
-                ? "border-red-500 focus:outline-red-500"
-                : "border-gray-300 focus:outline-gray-200"
+                ? "border-none focus:outline-red-500"
+                : "border-none focus:outline-gray-100"
             }`}
             placeholder="What’s happening?"
             value={postContent}
@@ -347,84 +349,74 @@ const PostFeed = ({
             </div>
           )}
 
-          <div className="flex items-center gap-10 justify-between mt-2">
-            <div className="flex items-center gap-3">
-              <ImageContent
-                setFileError={setFileError}
-                setMediaFiles={setMediaFiles}
-                mediaFilesLength={mediaFiles.length}
-              />
+          <div className="flex items-center gap-6 w-full justify-center mt-2">
+            <ImageContent
+              setFileError={setFileError}
+              setMediaFiles={setMediaFiles}
+              mediaFilesLength={mediaFiles.length}
+            />
 
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  if (mediaFiles.length !== 4) {
-                    setShowGifPicker(!showGifPicker);
-                    setShowEmojiPicker(false); // Close emoji picker when opening gif
-                  }
-                }}
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                if (mediaFiles.length !== 4) {
+                  setShowGifPicker(!showGifPicker);
+                  setShowEmojiPicker(false); // Close emoji picker when opening gif
+                }
+              }}
+              className={`${
+                mediaFiles.length > 3 && "cursor-not-allowed disabled"
+              }`}
+            >
+              <HiOutlineGif
+                size={23}
                 className={`${
-                  mediaFiles.length > 3 && "cursor-not-allowed disabled"
+                  mediaFiles.length > 3 ? "text-gray-400" : "text-gray-700"
                 }`}
-              >
-                <HiOutlineGif
-                  size={23}
-                  className={`${
-                    mediaFiles.length > 3 ? "text-gray-400" : "text-gray-700"
-                  }`}
-                />
-              </button>
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setIsCreatePollModalOpen(true);
-                }}
-              >
-                <PiChartBarHorizontalBold size={22} className="text-gray-800" />
-              </button>
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setShowEmojiPicker(!showEmojiPicker);
-                  setShowGifPicker(false); // Close gif picker when opening emoji
-                }}
-              >
-                <GrEmoji size={22} className="text-gray-800" />
-              </button>
-              <button className="cursor-not-allowed">
-                <MdOutlineDateRange size={22} className="text-gray-400" />
-              </button>
-              <button className="cursor-not-allowed">
-                <MdOutlineLocationOn size={24} className="text-gray-400" />
-              </button>
-            </div>
-            <DynamicPrimaryBtn
-              enableGradient={false}
+              />
+            </button>
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                setIsCreatePollModalOpen(true);
+              }}
+            >
+              <PiChartBarHorizontalBold size={22} className="text-gray-800" />
+            </button>
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                setShowEmojiPicker(!showEmojiPicker);
+                setShowGifPicker(false); // Close gif picker when opening emoji
+              }}
+            >
+              <GrEmoji size={22} className="text-gray-800" />
+            </button>
+            <button className="cursor-not-allowed">
+              <MdOutlineDateRange size={22} className="text-gray-400" />
+            </button>
+            <button className="cursor-not-allowed">
+              <MdOutlineLocationOn size={24} className="text-gray-400" />
+            </button>
+          </div>
+          <div className="w-full flex justify-center mt-5">
+            <PrimaryButton
+              className="w-[90%] py-2"
               disabled={
                 postLoading ||
                 (postContent === "" && mediaFiles.length === 0) ||
                 (error as any)
               }
-              className={`!rounded w-28 !py-1.5 ${
-                postContent === "" &&
-                mediaFiles.length === 0 &&
-                "bg-gray-500 brightness-75"
-              } ${(postLoading || error) && "bg-gray-500"}`}
               onClick={handleFeedPosting}
             >
-              <div>
-                {postLoading ? (
-                  <span className="flex items-center gap-1">
-                    Posting <Spinner size="sm" color="default" />
-                  </span>
-                ) : (
-                  "Post"
-                )}
-              </div>
-            </DynamicPrimaryBtn>
+              {postLoading ? (
+                <Loader className="animate-spin" size={26} />
+              ) : (
+                "Post"
+              )}
+            </PrimaryButton>
           </div>
-
           {/* Emoji Picker - Renders below the buttons */}
           {/* Emoji / GIF Pickers with layout animation */}
           <motion.div layout transition={{ duration: 0.28, ease: "easeInOut" }}>

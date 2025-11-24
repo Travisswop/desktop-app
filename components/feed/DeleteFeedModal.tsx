@@ -11,6 +11,8 @@ import {
   Spinner,
 } from "@nextui-org/react";
 import { useState } from "react";
+import { PrimaryButton } from "../ui/Button/PrimaryButton";
+import { Loader } from "lucide-react";
 
 interface DeleteFeedModalProps {
   postId: string;
@@ -97,19 +99,19 @@ export default function DeleteFeedModal({
                 >
                   Cancel
                 </Button>
-                <button
+                <PrimaryButton
                   onClick={(e) => {
                     e.stopPropagation();
                     handlePostDelete();
                   }}
-                  className="bg-gray-800 hover:bg-black transition-colors ease-in rounded-lg text-white flex items-center px-4 justify-center gap-1 font-medium border-b p-1 text-sm w-20"
+                  className="w-20"
                 >
                   {deleteLoading ? (
-                    <Spinner color="default" size="sm" />
+                    <Loader className="animate-spin" size={20} />
                   ) : (
                     "Delete"
                   )}
-                </button>
+                </PrimaryButton>
               </ModalFooter>
             </>
           )}
