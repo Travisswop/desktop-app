@@ -100,8 +100,8 @@ const plans: Plan[] = [
 export default function SubscriptionPlans() {
   const [selectedPlan, setSelectedPlan] = useState("Premium");
   return (
-    <div className="px-4 py-8">
-      <h2 className="text-xl font-semibold mb-8">All Plans</h2>
+    <div className="">
+      {/* <h2 className="text-xl font-semibold mb-8">All Plans</h2> */}
       <div className="grid md:grid-cols-3 gap-6">
         {plans.map((plan) => (
           <Card

@@ -7,7 +7,7 @@ import {
 } from "@privy-io/react-auth";
 import Image from "next/image";
 import Link from "next/link";
-import { ChevronDown } from "lucide-react";
+import { ChevronDown, Loader } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -28,6 +28,16 @@ import swopWorldLogo from "@/public/images/swop-world.png";
 import { useSolanaWallets } from "@privy-io/react-auth/solana";
 import { AiOutlineMessage } from "react-icons/ai";
 import { NotificationBell } from "@/components/notifications";
+import { FaUserCheck, FaUserPlus } from "react-icons/fa6";
+import { Badge } from "./ui/badge";
+import { formatCount } from "@/lib/formatNumberCount";
+import { FaUserEdit } from "react-icons/fa";
+import { HiBellAlert } from "react-icons/hi2";
+import { PiMedalFill } from "react-icons/pi";
+import { TiInfoLarge } from "react-icons/ti";
+import { RiCustomerService2Line } from "react-icons/ri";
+import { LuWallet } from "react-icons/lu";
+import { IoLogOut, IoLogOutOutline } from "react-icons/io5";
 
 export default function Header() {
   const { user, loading, logout: userLogout } = useUser();
@@ -116,6 +126,8 @@ export default function Header() {
     );
   }
 
+  console.log("user", user);
+
   return (
     <div className="bg-white rounded-b-xl shadow-small sticky top-0 z-10">
       <header className="h-24 bg-white mx-8 flex items-center justify-between">
@@ -173,6 +185,88 @@ export default function Header() {
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-48">
+                <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
+                  <FaUserPlus />
+                  <p>Followers</p>
+                  <Badge className="h-5 min-w-5 rounded-full px-1 font-mono tabular-nums bg-blue-700 flex items-center justify-center">
+                    {user ? formatCount(user.followers) : 0}
+                  </Badge>
+                </DropdownMenuItem>
+                <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
+                  <FaUserCheck />
+                  <p>Following</p>
+                  <Badge className="h-5 min-w-5 rounded-full px-1 font-mono tabular-nums bg-green-700 flex items-center justify-center">
+                    {user ? formatCount(user.following) : 0}
+                  </Badge>
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onSelect={() => {
+                    router.push("/edit-profile");
+                  }}
+                  className="cursor-pointer"
+                >
+                  <FaUserEdit />
+                  <p>Edit Profile</p>
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onSelect={() => {
+                    router.push("/notification");
+                  }}
+                  className="cursor-pointer"
+                >
+                  <HiBellAlert />
+                  <p>Notification</p>
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onSelect={() => {
+                    router.push("/subscription");
+                  }}
+                  className="cursor-pointer"
+                >
+                  <PiMedalFill />
+                  <p>Swop Pro</p>
+                </DropdownMenuItem>
+                <DropdownMenuItem>
+                  <a
+                    href={"https://www.swopme.co"}
+                    target="_blank"
+                    className="flex items-center gap-2 cursor-pointer"
+                  >
+                    <TiInfoLarge />
+                    <p>About</p>
+                  </a>
+                </DropdownMenuItem>
+                <DropdownMenuItem>
+                  <a
+                    href={"https://www.swopme.co/support"}
+                    target="_blank"
+                    className="flex items-center gap-2 cursor-pointer"
+                  >
+                    <RiCustomerService2Line />
+                    <p>Support Center</p>
+                  </a>
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onSelect={() => {
+                    router.push("/wallet-settings");
+                  }}
+                  className="cursor-pointer"
+                >
+                  <LuWallet />
+                  <p>Wallet Setting</p>
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  className="cursor-pointer"
+                  onSelect={handleLogout}
+                  disabled={isLoggingOut}
+                >
+                  <span className="flex items-center gap-2">
+                    <IoLogOutOutline />
+                    Logout
+                    {isLoggingOut && <Loader className="animate-spin" />}
+                  </span>
+                </DropdownMenuItem>
+
                 <DropdownMenuItem
                   color="red"
                   className="cursor-pointer"
@@ -185,60 +279,12 @@ export default function Header() {
 
                 <DropdownMenuItem>
                   <button onClick={handleLoginWithPasskey}>Passkey</button>
-                  {/* <div className="flex items-start gap-4">
-                <div className="w-72 flex flex-col gap-3 bg-white rounded-xl shadow-medium p-4">
-                  <div className="flex items-center gap-2 justify-between">
-                    <div className="flex items-center gap-1 font-medium">
-                      <IoKeyOutline />
-                      <p>Passkeys</p>
-                    </div>
-                  </div>
-                  <p>Link a passkey to your account</p>
-                  <DynamicPrimaryBtn onClick={loginWithPasskey}>
-                    <LuPlus />
-                    Link a Passkey
-                  </DynamicPrimaryBtn>
-                </div>
-              </div> */}
                 </DropdownMenuItem>
 
                 <DropdownMenuItem>
                   <button onClick={showMfaEnrollmentModal}>Biometrics</button>
-                  {/* <div className="w-96 flex flex-col gap-3 bg-white rounded-xl shadow-medium p-4">
-                <div className="flex items-center gap-2 justify-between">
-                  <div className="flex items-center gap-1 font-medium">
-                    <IoLockClosedOutline />
-                    <p>Transaction MFA</p>
-                  </div>
-                  <p className="text-gray-500">
-                    {privyUser
-                      ? privyUser?.mfaMethods?.length > 0
-                        ? "Enabled"
-                        : "Disabled"
-                      : "Disabled"}
-                  </p>
-                </div>
-                <p>
-                  Add a second factor to sensitive embedded wallet actions to
-                  protect your account. Verification lasts for 15 minutes.
-                </p>
-                <DynamicPrimaryBtn onClick={showMfaEnrollmentModal}>
-                  {privyUser && privyUser?.mfaMethods?.length > 0 ? (
-                    <span className="flex items-center gap-1">
-                      <MdOutlineEdit />
-                      <span>Manage MFA</span>
-                    </span>
-                  ) : (
-                    <span className="flex items-center gap-1">
-                      <LuPlus />
-                      <span>Add MFA</span>
-                    </span>
-                  )}
-                </DynamicPrimaryBtn>
-              </div> */}
                 </DropdownMenuItem>
 
-                {/* Export Wallet Sub-menu */}
                 {(hasEmbeddedWallet || hasSolanaWallet) && (
                   <DropdownMenuSub>
                     <DropdownMenuSubTrigger>
@@ -264,14 +310,6 @@ export default function Header() {
                     </DropdownMenuSubContent>
                   </DropdownMenuSub>
                 )}
-
-                <DropdownMenuItem
-                  className="cursor-pointer"
-                  onSelect={handleLogout}
-                  disabled={isLoggingOut}
-                >
-                  {isLoggingOut ? "Logging out..." : "Logout"}
-                </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
           )}
