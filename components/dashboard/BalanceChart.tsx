@@ -20,6 +20,14 @@ import {
   balanceQueryKey,
   type BalanceHistoryEntry,
 } from "@/services/balance-service";
+import { PrimaryButton } from "../ui/Button/PrimaryButton";
+import { BsBank2, BsSendFill } from "react-icons/bs";
+import { LuWallet } from "react-icons/lu";
+import SwapButton from "../wallet/SwapButton";
+import { TbArrowsExchange2 } from "react-icons/tb";
+import { MoreHorizontal } from "lucide-react";
+import { BiQrScan } from "react-icons/bi";
+import { FaRegListAlt } from "react-icons/fa";
 
 interface BalanceChartProps {
   userId?: string;
@@ -32,6 +40,7 @@ interface BalanceChartProps {
   accessToken?: string;
   onTokenRefresh?: () => void;
   totalBalance?: number; // Optional: if provided, will use this instead of fetching
+  isButtonVisible?: boolean;
 }
 
 type TimePeriod = "1day" | "7days" | "1month" | "6months" | "1year" | "all";
@@ -81,11 +90,18 @@ const BalanceChart: React.FC<BalanceChartProps> = ({
   className = "",
   currency = "$",
   totalBalance: propTotalBalance, // Rename prop to avoid conflict
+  isButtonVisible = false,
+  onSelectAsset,
+  onQRClick,
+  walletData = [],
+  tokens = [],
+  accessToken = "",
+  onTokenRefresh,
 }) => {
   const { user } = useUser();
   const [selectedPeriod, setSelectedPeriod] = useState<TimePeriod>("1month");
   // const [showBalance, setShowBalance] = useState(false);
-  // const [showPopup, setShowPopup] = useState(false);
+  const [showPopup, setShowPopup] = useState(false);
 
   // Get the user ID (from prop or context)
   const effectiveUserId = userId || user?._id;
@@ -132,9 +148,7 @@ const BalanceChart: React.FC<BalanceChartProps> = ({
       // Get the latest entry for each day
       const dateMap = sortedHistory.reduce(
         (acc: Record<string, BalanceHistoryEntry>, entry) => {
-          const dateStr = new Date(entry.createdAt)
-            .toISOString()
-            .split("T")[0];
+          const dateStr = new Date(entry.createdAt).toISOString().split("T")[0];
           if (!acc[dateStr]) {
             acc[dateStr] = entry;
           }
@@ -366,34 +380,36 @@ const BalanceChart: React.FC<BalanceChartProps> = ({
             </p>
           </div>
 
-          {/* <div className="flex items-center gap-2">
-            <PrimaryButton className="px-2 rounded" onClick={onSelectAsset}>
-              <BsSendFill size={15} color="black" />
-            </PrimaryButton>
-            <PrimaryButton
-              className="px-2 rounded"
-              onClick={() => setShowPopup(!showPopup)}
-            >
-              <LuWallet size={16} color="black" />
-            </PrimaryButton>
-            {tokens.length > 0 ? (
-              <SwapButton
-                tokens={tokens}
-                accessToken={accessToken}
-                initialInputToken=""
-                initialOutputToken=""
-                initialAmount=""
-                onTokenRefresh={onTokenRefresh}
-              />
-            ) : (
-              <PrimaryButton className="px-2 rounded">
-                <TbArrowsExchange2 size={16} color="black" />
+          {isButtonVisible && (
+            <div className="flex items-center gap-2">
+              <PrimaryButton className="px-2 rounded" onClick={onSelectAsset}>
+                <BsSendFill size={15} color="black" />
               </PrimaryButton>
-            )}
-            <PrimaryButton className="px-2 rounded">
-              <MoreHorizontal size={16} color="black" />
-            </PrimaryButton>
-          </div> */}
+              <PrimaryButton
+                className="px-2 rounded"
+                onClick={() => setShowPopup(!showPopup)}
+              >
+                <LuWallet size={16} color="black" />
+              </PrimaryButton>
+              {tokens.length > 0 ? (
+                <SwapButton
+                  tokens={tokens}
+                  accessToken={accessToken}
+                  initialInputToken=""
+                  initialOutputToken=""
+                  initialAmount=""
+                  onTokenRefresh={onTokenRefresh}
+                />
+              ) : (
+                <PrimaryButton className="px-2 rounded">
+                  <TbArrowsExchange2 size={16} color="black" />
+                </PrimaryButton>
+              )}
+              <PrimaryButton className="px-2 rounded">
+                <MoreHorizontal size={16} color="black" />
+              </PrimaryButton>
+            </div>
+          )}
         </div>
 
         {/* Chart */}
@@ -507,22 +523,24 @@ const BalanceChart: React.FC<BalanceChartProps> = ({
               <option value="all">All Time</option>
             </select>
           </div>
-          {/* <div className="flex items-center gap-1">
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-8 w-8"
-              onClick={onQRClick}
-            >
-              <BiQrScan className="h-4 w-4" />
-            </Button>
-            <Button variant="ghost" size="icon" className="h-8 w-8">
-              <BsBank2 className="h-4 w-4" />
-            </Button>
-            <Button variant="ghost" size="icon" className="h-8 w-8">
-              <FaRegListAlt className="h-4 w-4" />
-            </Button>
-          </div> */}
+          {isButtonVisible && (
+            <div className="flex items-center gap-1">
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8"
+                onClick={onQRClick}
+              >
+                <BiQrScan className="h-4 w-4" />
+              </Button>
+              <Button variant="ghost" size="icon" className="h-8 w-8">
+                <BsBank2 className="h-4 w-4" />
+              </Button>
+              <Button variant="ghost" size="icon" className="h-8 w-8">
+                <FaRegListAlt className="h-4 w-4" />
+              </Button>
+            </div>
+          )}
         </div>
       </div>
 

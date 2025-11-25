@@ -1,10 +1,5 @@
 "use client";
 
-import {
-  useLoginWithPasskey,
-  useMfaEnrollment,
-  usePrivy,
-} from "@privy-io/react-auth";
 import Image from "next/image";
 import Link from "next/link";
 import { ChevronDown, Loader } from "lucide-react";
@@ -14,9 +9,6 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-  DropdownMenuSub,
-  DropdownMenuSubTrigger,
-  DropdownMenuSubContent,
 } from "@/components/ui/dropdown-menu";
 import { useUser } from "@/lib/UserContext";
 import { Skeleton } from "./ui/skeleton";
@@ -25,7 +17,6 @@ import isUrl from "@/lib/isUrl";
 import { useState } from "react";
 import swopLogo from "@/public/images/swop.png";
 import swopWorldLogo from "@/public/images/swop-world.png";
-import { useSolanaWallets } from "@privy-io/react-auth/solana";
 import { AiOutlineMessage } from "react-icons/ai";
 import { NotificationBell } from "@/components/notifications";
 import { FaUserCheck, FaUserPlus } from "react-icons/fa6";
@@ -37,37 +28,12 @@ import { PiMedalFill } from "react-icons/pi";
 import { TiInfoLarge } from "react-icons/ti";
 import { RiCustomerService2Line } from "react-icons/ri";
 import { LuWallet } from "react-icons/lu";
-import { IoLogOut, IoLogOutOutline } from "react-icons/io5";
+import { IoLogOutOutline } from "react-icons/io5";
 
 export default function Header() {
   const { user, loading, logout: userLogout } = useUser();
   const router = useRouter();
   const [isLoggingOut, setIsLoggingOut] = useState(false);
-
-  const { showMfaEnrollmentModal } = useMfaEnrollment();
-  const { state, loginWithPasskey } = useLoginWithPasskey();
-
-  const { ready, authenticated, user: privyUser, exportWallet } = usePrivy();
-  const { exportWallet: exportSolanaWallet } = useSolanaWallets();
-
-  // Check that your user is authenticated
-  const isAuthenticated = ready && authenticated;
-
-  // Check that your user has an embedded wallet
-  const hasEmbeddedWallet = !!privyUser?.linkedAccounts.find(
-    (account) =>
-      account.type === "wallet" &&
-      account.walletClientType === "privy" &&
-      account.chainType === "ethereum"
-  );
-
-  // Check for Solana wallet
-  const hasSolanaWallet = !!privyUser?.linkedAccounts.find(
-    (account) =>
-      account.type === "wallet" &&
-      account.walletClientType === "privy" &&
-      account.chainType === "solana"
-  );
 
   const handleLogout = async () => {
     // Prevent multiple logout attempts
@@ -89,30 +55,6 @@ export default function Header() {
     setIsLoggingOut(false);
   };
 
-  const handleLoginWithPasskey = async () => {
-    try {
-      await loginWithPasskey();
-    } catch (error) {
-      console.error("Passkey login failed:", error);
-    }
-  };
-
-  const handleExportEVMWallet = async () => {
-    try {
-      await exportWallet();
-    } catch (error) {
-      console.error("EVM wallet export failed:", error);
-    }
-  };
-
-  const handleExportSolanaWallet = async () => {
-    try {
-      await exportSolanaWallet();
-    } catch (error) {
-      console.error("Solana wallet export failed:", error);
-    }
-  };
-
   if (loading) {
     return (
       <header className="bg-white p-6 flex justify-between items-center h-20 border-b">
@@ -125,8 +67,6 @@ export default function Header() {
       </header>
     );
   }
-
-  console.log("user", user);
 
   return (
     <div className="bg-white rounded-b-xl shadow-small sticky top-0 z-10">
@@ -142,10 +82,6 @@ export default function Header() {
               <button className="rounded-full w-[38px] h-[38px] bg-black flex items-center justify-center">
                 <AiOutlineMessage color="white" size={19} />
               </button>
-              {/* <Button variant="black" className="gap-2 font-bold rounded-xl">
-            <Image src={filePlus} alt="file-plus" className="w-6 h-6" />
-            Create Microsite
-          </Button> */}
             </Link>
           </div>
           <div className="mx-2">
@@ -266,50 +202,6 @@ export default function Header() {
                     {isLoggingOut && <Loader className="animate-spin" />}
                   </span>
                 </DropdownMenuItem>
-
-                <DropdownMenuItem
-                  color="red"
-                  className="cursor-pointer"
-                  onSelect={() => {
-                    router.push("/account-settings");
-                  }}
-                >
-                  Settings
-                </DropdownMenuItem>
-
-                <DropdownMenuItem>
-                  <button onClick={handleLoginWithPasskey}>Passkey</button>
-                </DropdownMenuItem>
-
-                <DropdownMenuItem>
-                  <button onClick={showMfaEnrollmentModal}>Biometrics</button>
-                </DropdownMenuItem>
-
-                {(hasEmbeddedWallet || hasSolanaWallet) && (
-                  <DropdownMenuSub>
-                    <DropdownMenuSubTrigger>
-                      Export Wallet
-                    </DropdownMenuSubTrigger>
-                    <DropdownMenuSubContent>
-                      {hasEmbeddedWallet && (
-                        <DropdownMenuItem
-                          onClick={handleExportEVMWallet}
-                          disabled={!isAuthenticated}
-                        >
-                          Export EVM Wallet
-                        </DropdownMenuItem>
-                      )}
-                      {hasSolanaWallet && (
-                        <DropdownMenuItem
-                          onClick={handleExportSolanaWallet}
-                          disabled={!isAuthenticated}
-                        >
-                          Export Solana Wallet
-                        </DropdownMenuItem>
-                      )}
-                    </DropdownMenuSubContent>
-                  </DropdownMenuSub>
-                )}
               </DropdownMenuContent>
             </DropdownMenu>
           )}

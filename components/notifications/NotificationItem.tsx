@@ -1,7 +1,7 @@
-'use client';
+"use client";
 
-import React from 'react';
-import { useRouter } from 'next/navigation';
+import React from "react";
+import { useRouter } from "next/navigation";
 import {
   Wallet,
   Image as ImageIcon,
@@ -16,13 +16,13 @@ import {
   AlertTriangle,
   Bell,
   Trash2,
-} from 'lucide-react';
-import { formatDistanceToNow } from 'date-fns';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Button } from '@/components/ui/button';
-import { cn } from '@/lib/utils';
-import { Notification, NotificationType } from '@/types/notification';
-import { useNotifications } from '@/lib/context/NotificationContext';
+} from "lucide-react";
+import { formatDistanceToNow } from "date-fns";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
+import { Notification, NotificationType } from "@/types/notification";
+import { useNotifications } from "@/lib/context/NotificationContext";
 
 interface NotificationItemProps {
   notification: Notification;
@@ -46,7 +46,9 @@ const getNotificationIcon = (type: NotificationType) => {
     follower_received: <UserPlus className="h-5 w-5 text-green-500" />,
     // Messaging
     message_received: <MessageCircle className="h-5 w-5 text-blue-500" />,
-    group_message_received: <MessageCircle className="h-5 w-5 text-purple-500" />,
+    group_message_received: (
+      <MessageCircle className="h-5 w-5 text-purple-500" />
+    ),
     // Commerce
     product_sold: <ShoppingBag className="h-5 w-5 text-green-500" />,
     payment_confirmed: <CreditCard className="h-5 w-5 text-green-500" />,
@@ -103,8 +105,8 @@ export function NotificationItem({
   return (
     <div
       className={cn(
-        'flex items-start gap-3 p-4 hover:bg-accent/50 cursor-pointer transition-colors border-b last:border-b-0',
-        !notification.isRead && 'bg-accent/30'
+        "flex items-start gap-3 p-4 hover:bg-accent/50 cursor-pointer transition-colors border-b last:border-b-0",
+        !notification.isRead && "bg-accent/30"
       )}
       onClick={handleClick}
     >
@@ -130,8 +132,8 @@ export function NotificationItem({
           <div className="flex-1 min-w-0">
             <p
               className={cn(
-                'text-sm font-medium leading-tight',
-                !notification.isRead && 'font-semibold'
+                "text-sm font-medium leading-tight",
+                !notification.isRead && "font-semibold"
               )}
             >
               {notification.title}
@@ -158,7 +160,7 @@ export function NotificationItem({
           {!notification.isRead && (
             <span className="h-2 w-2 rounded-full bg-blue-500" />
           )}
-          {notification.priority === 'urgent' && (
+          {notification.priority === "urgent" && (
             <span className="text-xs text-red-500 font-medium">Urgent</span>
           )}
         </div>
