@@ -1,10 +1,5 @@
 "use client";
 
-import {
-  useLoginWithPasskey,
-  useMfaEnrollment,
-  usePrivy,
-} from "@privy-io/react-auth";
 import Image from "next/image";
 import Link from "next/link";
 import { ChevronDown, Loader } from "lucide-react";
@@ -22,7 +17,6 @@ import isUrl from "@/lib/isUrl";
 import { useState } from "react";
 import swopLogo from "@/public/images/swop.png";
 import swopWorldLogo from "@/public/images/swop-world.png";
-import { useSolanaWallets } from "@privy-io/react-auth/solana";
 import { AiOutlineMessage } from "react-icons/ai";
 import { NotificationBell } from "@/components/notifications";
 import { FaUserCheck, FaUserPlus } from "react-icons/fa6";
@@ -34,17 +28,12 @@ import { PiMedalFill } from "react-icons/pi";
 import { TiInfoLarge } from "react-icons/ti";
 import { RiCustomerService2Line } from "react-icons/ri";
 import { LuWallet } from "react-icons/lu";
-import { IoLogOut, IoLogOutOutline } from "react-icons/io5";
+import { IoLogOutOutline } from "react-icons/io5";
 
 export default function Header() {
   const { user, loading, logout: userLogout } = useUser();
   const router = useRouter();
   const [isLoggingOut, setIsLoggingOut] = useState(false);
-
-  const { state, loginWithPasskey } = useLoginWithPasskey();
-
-  const { exportWallet } = usePrivy();
-  const { exportWallet: exportSolanaWallet } = useSolanaWallets();
 
   const handleLogout = async () => {
     // Prevent multiple logout attempts
@@ -93,10 +82,6 @@ export default function Header() {
               <button className="rounded-full w-[38px] h-[38px] bg-black flex items-center justify-center">
                 <AiOutlineMessage color="white" size={19} />
               </button>
-              {/* <Button variant="black" className="gap-2 font-bold rounded-xl">
-            <Image src={filePlus} alt="file-plus" className="w-6 h-6" />
-            Create Microsite
-          </Button> */}
             </Link>
           </div>
           <div className="mx-2">
