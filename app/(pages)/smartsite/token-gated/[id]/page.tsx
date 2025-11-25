@@ -1,4 +1,3 @@
-// import { cookies } from "next/headers";
 import React from "react";
 import TokenGatedContent from "./mainContent";
 
@@ -7,15 +6,9 @@ const AddTokenGated = async ({
 }: {
   params: Promise<{ id: string }>;
 }) => {
-  // const session: any = await isUserAuthenticate();
-  // const cookieStore = cookies();
+  const { id } = await params;
 
-  // Retrieve data from specific cookie
-  // const accessToken = (await cookieStore).get("access-token")?.value;
-
-  // const id = (await params).id;
-
-  return <TokenGatedContent />;
+  return <TokenGatedContent micrositeId={id} />;
 };
 
 export default AddTokenGated;

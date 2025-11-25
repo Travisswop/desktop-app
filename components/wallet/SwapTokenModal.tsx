@@ -699,6 +699,7 @@ export default function SwapTokenModal({
       }
 
       const jupiterQuote = await response.json();
+      console.log('jupiterQuote', jupiterQuote);
 
       if (!jupiterQuote || !jupiterQuote.outAmount) {
         throw new Error(
