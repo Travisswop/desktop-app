@@ -23,6 +23,7 @@ import { CartProvider } from './cart/context/CartContext';
 import { useUser } from '@/lib/UserContext';
 import LivePreviewTimeline from '@/components/feed/LivePreviewTimeline';
 import { useMicrositeData } from './context/MicrositeContext';
+import TokenGateVerification from '@/components/publicProfile/TokenGateVerification';
 
 interface ClientProfileProps {
   userName: string;
@@ -68,6 +69,14 @@ export default function ClientProfile({
 
   return (
     <>
+      {/* Token Gate Verification Modal - Shows when gatedInfo.isOn is true */}
+      {gatedInfo?.isOn && (
+        <TokenGateVerification
+          gatedInfo={gatedInfo}
+          micrositeName={name}
+        />
+      )}
+
       <div
         style={{ backgroundImage: theme ? `url(${bg})` : '' }}
         className="bg-cover bg-no-repeat h-screen overflow-y-auto"
