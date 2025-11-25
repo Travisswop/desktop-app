@@ -126,6 +126,8 @@ export default function Header() {
     );
   }
 
+  console.log("user", user);
+
   return (
     <div className="bg-white rounded-b-xl shadow-small sticky top-0 z-10">
       <header className="h-24 bg-white mx-8 flex items-center justify-between">
@@ -186,46 +188,49 @@ export default function Header() {
                 <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
                   <FaUserPlus />
                   <p>Followers</p>
-                  <Badge className="h-5 min-w-5 rounded-full px-1 font-mono tabular-nums bg-blue-700">
-                    {formatCount(1101)}
+                  <Badge className="h-5 min-w-5 rounded-full px-1 font-mono tabular-nums bg-blue-700 flex items-center justify-center">
+                    {user ? formatCount(user.followers) : 0}
                   </Badge>
                 </DropdownMenuItem>
                 <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
                   <FaUserCheck />
                   <p>Following</p>
-                  <Badge className="h-5 min-w-5 rounded-full px-1 font-mono tabular-nums bg-green-700">
-                    {formatCount(1101)}
+                  <Badge className="h-5 min-w-5 rounded-full px-1 font-mono tabular-nums bg-green-700 flex items-center justify-center">
+                    {user ? formatCount(user.following) : 0}
                   </Badge>
                 </DropdownMenuItem>
-                <DropdownMenuItem>
-                  <Link
-                    href={"/edit-profile"}
-                    className="flex items-center gap-2"
-                  >
-                    <FaUserEdit />
-                    <p>Edit Profile</p>
-                  </Link>
+                <DropdownMenuItem
+                  onSelect={() => {
+                    router.push("/edit-profile");
+                  }}
+                  className="cursor-pointer"
+                >
+                  <FaUserEdit />
+                  <p>Edit Profile</p>
                 </DropdownMenuItem>
-                <DropdownMenuItem>
-                  <Link href={"/"} className="flex items-center gap-2">
-                    <HiBellAlert />
-                    <p>Notification</p>
-                  </Link>
+                <DropdownMenuItem
+                  onSelect={() => {
+                    router.push("/notification");
+                  }}
+                  className="cursor-pointer"
+                >
+                  <HiBellAlert />
+                  <p>Notification</p>
                 </DropdownMenuItem>
-                <DropdownMenuItem>
-                  <Link
-                    href={"/subscription"}
-                    className="flex items-center gap-2"
-                  >
-                    <PiMedalFill />
-                    <p>Swop Pro</p>
-                  </Link>
+                <DropdownMenuItem
+                  onSelect={() => {
+                    router.push("/subscription");
+                  }}
+                  className="cursor-pointer"
+                >
+                  <PiMedalFill />
+                  <p>Swop Pro</p>
                 </DropdownMenuItem>
                 <DropdownMenuItem>
                   <a
                     href={"https://www.swopme.co"}
                     target="_blank"
-                    className="flex items-center gap-2"
+                    className="flex items-center gap-2 cursor-pointer"
                   >
                     <TiInfoLarge />
                     <p>About</p>
@@ -235,17 +240,20 @@ export default function Header() {
                   <a
                     href={"https://www.swopme.co/support"}
                     target="_blank"
-                    className="flex items-center gap-2"
+                    className="flex items-center gap-2 cursor-pointer"
                   >
                     <RiCustomerService2Line />
                     <p>Support Center</p>
                   </a>
                 </DropdownMenuItem>
-                <DropdownMenuItem>
-                  <Link href={"/"} className="flex items-center gap-2">
-                    <LuWallet />
-                    <p>Wallet Setting</p>
-                  </Link>
+                <DropdownMenuItem
+                  onSelect={() => {
+                    router.push("/wallet-settings");
+                  }}
+                  className="cursor-pointer"
+                >
+                  <LuWallet />
+                  <p>Wallet Setting</p>
                 </DropdownMenuItem>
                 <DropdownMenuItem
                   className="cursor-pointer"
@@ -259,7 +267,7 @@ export default function Header() {
                   </span>
                 </DropdownMenuItem>
 
-                {/* <DropdownMenuItem
+                <DropdownMenuItem
                   color="red"
                   className="cursor-pointer"
                   onSelect={() => {
@@ -301,7 +309,7 @@ export default function Header() {
                       )}
                     </DropdownMenuSubContent>
                   </DropdownMenuSub>
-                )} */}
+                )}
               </DropdownMenuContent>
             </DropdownMenu>
           )}
