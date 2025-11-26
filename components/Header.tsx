@@ -146,7 +146,7 @@ export default function Header() {
                 </DropdownMenuItem>
                 <DropdownMenuItem
                   onSelect={() => {
-                    router.push("/notification");
+                    router.push("/notifications");
                   }}
                   className="cursor-pointer"
                 >
