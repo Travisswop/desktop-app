@@ -209,11 +209,19 @@ export default function DashboardChatPreview() {
       loadConversations();
 
       // Listen for real-time updates
-      const handleConversationUpdate = () => {
+      const handleConversationUpdate = (data: any) => {
+        // Only refresh for direct conversations
+        if (data?.conversationType && data.conversationType !== 'direct') {
+          return;
+        }
         loadConversations();
       };
 
-      const handleNewMessage = () => {
+      const handleNewMessage = (data: any) => {
+        // Only refresh for direct conversations
+        if (data?.conversationType && data.conversationType !== 'direct') {
+          return;
+        }
         loadConversations();
       };
 

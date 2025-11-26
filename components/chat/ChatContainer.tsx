@@ -146,7 +146,11 @@ export default function ChatContainer({
     loadInitialData();
 
     // Socket event listeners for real-time updates
-    const handleConversationUpdate = () => {
+    const handleConversationUpdate = (data?: any) => {
+      // Only process direct conversation updates
+      if (data?.conversationType && data.conversationType !== 'direct') {
+        return;
+      }
       console.log('Conversation updated');
       loadInitialData();
       refreshSelectedChat();
@@ -162,7 +166,11 @@ export default function ChatContainer({
       }
     };
 
-    const handleNewMessage = () => {
+    const handleNewMessage = (data?: any) => {
+      // Only process direct messages
+      if (data?.conversationType && data.conversationType !== 'direct') {
+        return;
+      }
       console.log('New message received (V2:', USE_CHAT_V2, ')');
       loadInitialData();
     };
@@ -172,7 +180,12 @@ export default function ChatContainer({
       loadInitialData();
     };
 
-    const handleUnreadCountUpdated = () => {
+    const handleUnreadCountUpdated = (data?: any) => {
+      // Only process for direct conversations
+      // Backend already excludes agent conversations from unread count
+      if (data?.conversationType && data.conversationType !== 'direct') {
+        return;
+      }
       console.log('Unread count updated (V2)');
       loadInitialData();
     };

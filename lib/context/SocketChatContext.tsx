@@ -2017,6 +2017,14 @@ export function SocketChatProvider({
     // New socket listeners from chat-test-ui.html
     socket.on('new_message', (data) => {
       if (!data || !data.message) return;
+
+      // IMPORTANT: Filter out agent messages from regular chat
+      // Only process direct user-to-user messages here
+      if (data.conversationType && data.conversationType !== 'direct') {
+        console.log('Ignoring non-direct message:', data.conversationType);
+        return;
+      }
+
       const msg = data.message;
       const senderId = msg.sender && (msg.sender._id || msg.sender);
       const isSentByMe = user?.id && senderId && String(senderId) === String(user.id);
@@ -2049,11 +2057,19 @@ export function SocketChatProvider({
     });
 
     socket.on('conversation_updated', (payload) => {
+      // Only process direct conversation updates
+      if (payload.conversationType && payload.conversationType !== 'direct') {
+        return;
+      }
       console.log('Conversation updated:', payload);
       // Refresh conversation list if needed
     });
 
     socket.on('typing_started', (data) => {
+      // Only process typing indicators for direct chats
+      if (data.conversationType && data.conversationType !== 'direct') {
+        return;
+      }
       if (data.userId !== user?.id) {
         console.log(`User ${data.userId} started typing`);
         // Update UI to show typing indicator
@@ -2061,6 +2077,10 @@ export function SocketChatProvider({
     });
 
     socket.on('typing_stopped', (data) => {
+      // Only process typing indicators for direct chats
+      if (data.conversationType && data.conversationType !== 'direct') {
+        return;
+      }
       if (data.userId !== user?.id) {
         console.log(`User ${data.userId} stopped typing`);
         // Update UI to hide typing indicator

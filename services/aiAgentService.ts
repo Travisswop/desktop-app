@@ -142,8 +142,13 @@ class AIAgentService {
     // New message (user's own message echo)
     this.socket.on(
       'new_message',
-      (data: { message: AIAgentMessage; conversationId: string }) => {
-        this.emit('newMessage', data);
+      (data: { message: AIAgentMessage; conversationId: string; conversationType?: string }) => {
+        // IMPORTANT: Only process messages from agent conversations
+        // Filter out direct user-to-user messages
+        if (data.conversationType === 'agent' || !data.conversationType) {
+          this.emit('newMessage', data);
+        }
+        // Ignore messages with conversationType === 'direct'
       }
     );
 

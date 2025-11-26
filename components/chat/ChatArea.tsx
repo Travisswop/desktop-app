@@ -330,8 +330,15 @@ export default function ChatArea({
       });
     }
 
-    const handleNewMessage = (data: { message?: Message }) => {
+    const handleNewMessage = (data: { message?: Message; conversationType?: string }) => {
       if (!data?.message) return;
+
+      // IMPORTANT: Filter out agent messages from direct chat
+      // Only process direct user-to-user messages in this view
+      if (data.conversationType && data.conversationType !== 'direct') {
+        console.log('[ChatArea] Ignoring non-direct message:', data.conversationType);
+        return;
+      }
 
       const msg = data.message;
 
@@ -380,7 +387,12 @@ export default function ChatArea({
       }
     };
 
-    const handleTyping = (data: TypingData) => {
+    const handleTyping = (data: TypingData & { conversationType?: string }) => {
+      // Only process typing indicators for direct chats
+      if (data.conversationType && data.conversationType !== 'direct') {
+        return;
+      }
+
       if (isGroup) {
         if (data.groupId === selectedChat._id && data.userId !== currentUser) {
           if (data.isTyping) {
