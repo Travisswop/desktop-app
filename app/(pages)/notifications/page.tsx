@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect } from "react";
-import { Check, CheckCheck, Loader2 } from "lucide-react";
+import { Check, CheckCheck, Loader, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -128,9 +128,9 @@ function NotificationPage({ onClose }: NotificationCenterProps) {
       <ScrollArea className="flex-1 px-4 py-2">
         {isLoading && notifications.length === 0 ? (
           <div className="flex items-center justify-center h-64">
-            <div className="text-center">
-              <Loader2 className="h-8 w-8 animate-spin text-blue-500 mx-auto mb-3" />
-              <p className="text-sm text-gray-600">Loading notifications...</p>
+            <div className="text-center flex items-center gap-2">
+              <p className="text-gray-600 font-medium">Loading notifications</p>
+              <Loader className="h-7 w-7 animate-spin" />
             </div>
           </div>
         ) : filteredNotifications.length === 0 ? (
@@ -140,8 +140,8 @@ function NotificationPage({ onClose }: NotificationCenterProps) {
             </div>
             <h4 className="font-semibold text-gray-900 mb-2">All caught up!</h4>
             <p className="text-sm text-gray-500 max-w-xs">
-              You don't have any notifications right now. When you get
-              notifications, they'll appear here.
+              {` You don't have any notifications right now. When you get
+              notifications, they'll appear here.`}
             </p>
           </div>
         ) : (
@@ -157,22 +157,20 @@ function NotificationPage({ onClose }: NotificationCenterProps) {
             {/* Load More */}
             {hasMore && (
               <div className="pt-4">
-                <Button
-                  variant="outline"
-                  size="default"
+                <button
                   onClick={loadMore}
                   disabled={isLoading}
-                  className="w-full hover:bg-gray-50 transition-colors"
+                  className="w-full bg-gray-100 py-2.5 text-sm font-medium rounded-xl flex items-center justify-center gap-2"
                 >
                   {isLoading ? (
                     <>
-                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                       Loading more...
+                      <Loader className="h-4 w-4 animate-spin" />
                     </>
                   ) : (
                     "Load More Notifications"
                   )}
-                </Button>
+                </button>
               </div>
             )}
           </div>
@@ -180,7 +178,7 @@ function NotificationPage({ onClose }: NotificationCenterProps) {
       </ScrollArea>
 
       {/* Footer */}
-      {notifications.length > 0 && (
+      {/* {notifications.length > 0 && (
         <div className="bg-white border-t">
           <div className="p-4">
             <Button
@@ -196,7 +194,7 @@ function NotificationPage({ onClose }: NotificationCenterProps) {
             </Button>
           </div>
         </div>
-      )}
+      )} */}
     </div>
   );
 }

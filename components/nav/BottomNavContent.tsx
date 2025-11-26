@@ -156,6 +156,7 @@ const BottomNavContent = () => {
     "/dashboard/chat",
     "/edit-profile",
     "/subscription",
+    "/notifications",
   ]; // Add your routes here
 
   // Hide bottom nav on specific routes
