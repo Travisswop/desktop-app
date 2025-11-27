@@ -132,7 +132,6 @@ const SmartsiteIconLivePreview = ({
 
     try {
       const response = await handleSmartSiteUpdate(smartSiteInfo, accessToken);
-      console.log("response", response);
 
       if (response.state === "success") {
         router.push("/smartsite");
@@ -181,7 +180,13 @@ const SmartsiteIconLivePreview = ({
         _id: marketPlaceDeleteInfo?.id,
         micrositeId: marketPlaceDeleteInfo?.micrositeId,
       };
+
+      console.log("payload", payload);
+
       const response = await handleDeleteMarketPlace(payload, accessToken);
+
+      console.log("response hola", response);
+      console.log("accessToken", accessToken);
 
       toast.success("Market Place Deleted");
       setIsMarketPlaceDeleteLoading(false);
