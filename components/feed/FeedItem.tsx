@@ -20,6 +20,8 @@ import PollCard from "./PollCard";
 import tipImg from "@/public/images/tip.png";
 import TipContentModal from "./TipContent";
 import { formatEns } from "@/lib/formatEnsName";
+import { makeLinksClickable } from "@/lib/makeLinksClickable";
+import { LinkPreview } from "./LinkPreview";
 
 // Assuming FeedItemType is (or will be) available globally or can be imported.
 // For now, using 'any' as a placeholder if FeedItemType is not directly accessible here.
@@ -170,21 +172,26 @@ const FeedItem = memo(
                 />
               )}
 
-              {/* Render Post Content */}
               {(feed.postType === "post" || feed.postType === "repost") &&
                 feed.content.title && (
-                  <button
-                    onClick={handleFeedClick}
-                    className="w-full text-start"
-                  >
+                  <div className="w-full text-start">
                     {feed.content.title
                       .split("\n")
-                      .map((line: string, index: number) => (
-                        <p className="break-text" key={index}>
-                          {line}
-                        </p>
-                      ))}
-                  </button>
+                      .map((line: string, index: number) => {
+                        const { parts, urls } = makeLinksClickable(line);
+                        return (
+                          <div key={index}>
+                            <p className="break-text">{parts}</p>
+                            {urls.map((url, urlIndex) => (
+                              <LinkPreview
+                                key={`${index}-${urlIndex}`}
+                                url={url}
+                              />
+                            ))}
+                          </div>
+                        );
+                      })}
+                  </div>
                 )}
 
               {/* Swap Transaction Content */}
