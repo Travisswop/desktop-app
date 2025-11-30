@@ -19,6 +19,7 @@ import isUrl from "@/lib/isUrl";
 import PollCard from "./PollCard";
 import tipImg from "@/public/images/tip.png";
 import TipContentModal from "./TipContent";
+import { formatEns } from "@/lib/formatEnsName";
 
 // Assuming FeedItemType is (or will be) available globally or can be imported.
 // For now, using 'any' as a placeholder if FeedItemType is not directly accessible here.
@@ -156,7 +157,10 @@ const FeedItem = memo(
                   </button>
                 )}
               </div>
-              <p className="text-gray-500 font-normal mb-1">{ensName}</p>
+              <p className="text-gray-500 font-normal mb-1">
+                {" "}
+                {formatEns(ensName)}
+              </p>
 
               {isTipModalOpen && (
                 <TipContentModal

@@ -17,23 +17,17 @@ import { tintStyle } from "../util/IconTintStyle";
 import getSmallIconImage from "./retriveIconImage/getSmallIconImage";
 import EmbedPlayer from "./embed/renderEmbedPlayer";
 import getAllSmartsitesIcon from "./retriveIconImage/getAllSmartsiteIcon";
-import { LiaFileMedicalSolid } from "react-icons/lia";
 import {
   Modal,
   ModalBody,
   ModalContent,
-  Switch,
   useDisclosure,
 } from "@nextui-org/react";
-import { IoIosSend } from "react-icons/io";
-import Link from "next/link";
 import { handleSmartSiteUpdate } from "@/actions/update";
 import { useRouter } from "next/navigation";
 import toast from "react-hot-toast";
 import AnimateButton from "../ui/Button/AnimateButton";
-import SmartsiteSocialShare from "./socialShare/SmartsiteSocialShare";
 import { fontMap } from "@/lib/fonts";
-import Cookies from "js-cookie";
 import { MdDelete, MdDeleteForever } from "react-icons/md";
 import { handleDeleteMarketPlace } from "@/actions/handleMarketPlace";
 import { RiDeleteBinFill } from "react-icons/ri";
@@ -48,7 +42,6 @@ import {
 import { useUser } from "@/lib/UserContext";
 
 const SmartsiteIconLivePreview = ({
-  isEditDetailsLivePreview = false,
   data,
 }: {
   isEditDetailsLivePreview?: boolean;
@@ -56,6 +49,8 @@ const SmartsiteIconLivePreview = ({
 }) => {
   const setSmartSiteData = useUpdateSmartIcon((state: any) => state.setState);
   const { toggle } = useSideBarToggleStore();
+
+  console.log("data hhiss", data);
 
   const { isOn, setOff, setOn }: any = useSmallIconToggleStore();
   const iconData: any = useUpdateSmartIcon();
@@ -132,7 +127,6 @@ const SmartsiteIconLivePreview = ({
 
     try {
       const response = await handleSmartSiteUpdate(smartSiteInfo, accessToken);
-      console.log("response", response);
 
       if (response.state === "success") {
         router.push("/smartsite");
@@ -181,7 +175,13 @@ const SmartsiteIconLivePreview = ({
         _id: marketPlaceDeleteInfo?.id,
         micrositeId: marketPlaceDeleteInfo?.micrositeId,
       };
+
+      console.log("payload", payload);
+
       const response = await handleDeleteMarketPlace(payload, accessToken);
+
+      console.log("response hola", response);
+      console.log("accessToken", accessToken);
 
       toast.success("Market Place Deleted");
       setIsMarketPlaceDeleteLoading(false);

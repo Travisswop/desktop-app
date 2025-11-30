@@ -12,6 +12,7 @@ import { FiPlusCircle } from "react-icons/fi";
 import Reaction from "./view/Reaction";
 import IndividualFeedContentForFeedDetails from "./IndividualFeedContentForFeedDetails";
 import { useRouter } from "next/navigation";
+import { formatEns } from "@/lib/formatEnsName";
 
 dayjs.extend(relativeTime);
 
@@ -136,9 +137,9 @@ const FeedDetails = ({ feedData, feedDetails, accessToken }: any) => {
                   </p>
                 </div>
                 <p className="text-gray-500 font-normal">
-                  {feedData?.smartsiteId?.ens ||
-                    feedData?.smartsiteEnsName ||
-                    "n/a"}
+                  {formatEns(
+                    feedData?.smartsiteId?.ens || feedData?.smartsiteEnsName
+                  )}
                 </p>
                 {/* Render Post Content */}
                 {(feedData.postType === "post" ||

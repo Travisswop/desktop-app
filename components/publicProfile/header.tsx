@@ -1,12 +1,14 @@
 "use client";
-import { FC, useState } from "react";
+import { FC, useEffect, useState } from "react";
 import Image from "next/image";
 import { Dialog, DialogContent, DialogTrigger } from "@/components/ui/dialog";
 import Subscribe from "./subscribe";
 import Connect from "./connect";
 import { FaCartShopping } from "react-icons/fa6";
-import { usePathname, useRouter } from "next/navigation";
+import { useParams, usePathname, useRouter } from "next/navigation";
 import { useCart } from "@/app/(public-profile)/sp/[username]/cart/context/CartContext";
+import { useUser } from "@/lib/UserContext";
+import { getEnsDataUsingEns } from "../../actions/getEnsData";
 
 interface Props {
   avatar: string;
@@ -28,9 +30,32 @@ const Header: FC<Props> = ({
 }) => {
   const [open, setOpen] = useState(false);
   const [openDC, setOpenDC] = useState(false);
+  const [isAlreadyConnected, setIsAlreadyConnected] = useState(false);
   const { itemCount } = useCart();
   const router = useRouter();
   const pathname = usePathname();
+
+  const { user } = useUser();
+
+  const params = useParams();
+  const userName = params.username;
+
+  console.log("user", user);
+  console.log("userName", userName);
+
+  useEffect(() => {
+    const fetchEnsData = async () => {
+      const res = await getEnsDataUsingEns(userName);
+      const resId = res.domainOwner._id;
+
+      if (user && user.connectionIds.includes(resId)) {
+        setIsAlreadyConnected(true);
+      } else {
+        setIsAlreadyConnected(false);
+      }
+    };
+    fetchEnsData();
+  }, [user, userName]);
 
   const coverPhoto = cover.includes("https")
     ? cover
@@ -40,6 +65,8 @@ const Header: FC<Props> = ({
     const newRoute = `${pathname}/cart`;
     router.push(newRoute);
   };
+
+  console.log("isAlreadyConnected", isAlreadyConnected);
 
   return (
     <div className={`relative w-full ${theme ? "h-28" : "h-52"} mt-4`}>
@@ -106,31 +133,33 @@ const Header: FC<Props> = ({
                 priority
               />
             </div>
-            <div className="absolute -right-2 bottom-2 ml-2">
-              <Dialog open={openDC} onOpenChange={setOpenDC}>
-                <DialogTrigger>
-                  <div className="bg-white border-2 rounded-full border-black p-1">
-                    <Image
-                      src="/add-btn-dark.svg"
-                      alt="Add"
-                      width={20}
-                      height={20}
+            {user && user?.ensName !== userName && !isAlreadyConnected && (
+              <div className="absolute -right-2 bottom-2 ml-2">
+                <Dialog open={openDC} onOpenChange={setOpenDC}>
+                  <DialogTrigger>
+                    <div className="bg-white border-2 rounded-full border-black p-1">
+                      <Image
+                        src="/add-btn-dark.svg"
+                        alt="Add"
+                        width={20}
+                        height={20}
+                      />
+                    </div>
+                  </DialogTrigger>
+                  <DialogContent>
+                    <Connect
+                      data={{
+                        name,
+                        parentId,
+                        micrositeId,
+                        avatar,
+                      }}
+                      handler={() => setOpenDC(false)}
                     />
-                  </div>
-                </DialogTrigger>
-                <DialogContent>
-                  <Connect
-                    data={{
-                      name,
-                      parentId,
-                      micrositeId,
-                      avatar,
-                    }}
-                    handler={() => setOpenDC(false)}
-                  />
-                </DialogContent>
-              </Dialog>
-            </div>
+                  </DialogContent>
+                </Dialog>
+              </div>
+            )}
           </div>
         </div>
       </div>
