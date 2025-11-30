@@ -1,14 +1,12 @@
 import { ChainType } from '@/types/token';
 
 // Default chains supported by the wallet
-// export const SUPPORTED_CHAINS: ChainType[] = [
-//   'ETHEREUM',
-//   'POLYGON',
-//   'BASE',
-//   'SOLANA',
-// ] as const;
-
-export const SUPPORTED_CHAINS: ChainType[] = ['SOLANA'] as const;
+export const SUPPORTED_CHAINS: ChainType[] = [
+  'ETHEREUM',
+  'POLYGON',
+  'BASE',
+  'SOLANA',
+] as const;
 
 // API endpoints
 export const API_ENDPOINTS = {
