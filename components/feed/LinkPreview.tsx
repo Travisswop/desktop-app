@@ -59,11 +59,13 @@ export const LinkPreview = ({ url }: { url: string }) => {
     >
       {metadata.image && (
         <div className="relative w-full h-48 bg-gray-100">
-          <Image
+          <img
             src={metadata.image}
             alt={metadata.title || "Link preview"}
-            fill
-            className="object-cover"
+            className="w-full h-full object-cover"
+            onError={(e) => {
+              e.currentTarget.style.display = "none";
+            }}
           />
         </div>
       )}
