@@ -55,7 +55,7 @@ const PostFeed = ({
   const [mintData, setMintData] = useState([]);
   const [selectedMintForPost, setSelectedMintForPost] = useState<any>(null);
 
-  console.log("selectedMintForPost", selectedMintForPost);
+  // console.log("selectedMintForPost", selectedMintForPost);
 
   const [primaryMicrositeDetails, setPrimaryMicrositeDetails] =
     useState<any>(null);
@@ -71,7 +71,7 @@ const PostFeed = ({
 
   const [isCreatePollModalOpen, setIsCreatePollModalOpen] = useState(false);
 
-  console.log("isCreatePollModalOpen", isCreatePollModalOpen);
+  // console.log("isCreatePollModalOpen", isCreatePollModalOpen);
 
   // Callback function to handle emoji selection
   const handleEmojiSelect = (emoji: string) => {
@@ -190,10 +190,10 @@ const PostFeed = ({
           price: selectedMintForPost.itemPrice,
         },
       };
-      console.log("feed post payload", payload);
+      // console.log("feed post payload", payload);
 
       const data = await postFeed(payload, token);
-      console.log("feed post response", data);
+      // console.log("feed post response", data);
 
       if (data?.state === "success") {
         toast.success("You posted successfully!");
