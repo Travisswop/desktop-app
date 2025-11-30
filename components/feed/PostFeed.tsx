@@ -1,15 +1,13 @@
 "use client";
 import React, { useEffect, useState } from "react";
-import { MdOutlineDateRange, MdOutlineLocationOn } from "react-icons/md";
+import { MdOutlineLocationOn } from "react-icons/md";
 import Emoji from "./Emoji";
 import GifPickerContent from "./GifPicker";
 import Image from "next/image";
 import ImageContent from "./ImageSelect";
 import { AiOutlineClose } from "react-icons/ai"; // Icon for close button
-import { Spinner } from "@nextui-org/react";
 import { postFeed } from "@/actions/postFeed";
 import { useUser } from "@/lib/UserContext";
-import DynamicPrimaryBtn from "../ui/Button/DynamicPrimaryBtn";
 import { sendCloudinaryImage } from "@/lib/SendCloudinaryImage";
 import { sendCloudinaryVideo } from "@/lib/sendCloudinaryVideo";
 import UserImageAvatar from "../util/Avatar";
@@ -25,6 +23,9 @@ import CreatePoll from "./CreatePoll";
 import CustomModal from "../modal/CustomModal";
 import { PrimaryButton } from "../ui/Button/PrimaryButton";
 import { Loader } from "lucide-react";
+import feedNft from "@/public/images/feed_nft.png";
+import feedAI from "@/public/images/feed_AI.png";
+import getSingleSmartsiteData from "@/actions/singleSmartsiteDataFetching";
 
 const PostFeed = ({
   primaryMicrositeImg,
@@ -48,7 +49,13 @@ const PostFeed = ({
   const [showGifPicker, setShowGifPicker] = useState(false);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
 
-  // console.log("user123", user);
+  const [showMintModal, setShowMintModal] = useState(false);
+
+  const [mintDataLoading, setMintDataLoading] = useState(false);
+  const [mintData, setMintData] = useState([]);
+  const [selectedMintForPost, setSelectedMintForPost] = useState<any>(null);
+
+  console.log("selectedMintForPost", selectedMintForPost);
 
   const [primaryMicrositeDetails, setPrimaryMicrositeDetails] =
     useState<any>(null);
@@ -71,10 +78,15 @@ const PostFeed = ({
     setPostContent((prevContent) => prevContent + emoji);
   };
 
-  // Callback function to handle emoji selection
-  // const handleEmojiSelect = (emojiData: EmojiClickData) => {
-  //   setPostContent((prevContent) => prevContent + emojiData.emoji);
-  // };
+  useEffect(() => {
+    const getMintData = async () => {
+      setMintDataLoading(true);
+      const data = await getSingleSmartsiteData(user?.primaryMicrosite, token);
+      setMintData(data.data.info.marketPlace || []);
+      setMintDataLoading(false);
+    };
+    getMintData();
+  }, [user?.primaryMicrosite, token]);
 
   useEffect(() => {
     if (fileError) {
@@ -136,6 +148,52 @@ const PostFeed = ({
 
       const data = await postFeed(payload, token);
       // console.log("feed post response", data);
+
+      if (data?.state === "success") {
+        toast.success("You posted successfully!");
+        setMediaFiles([]);
+        setPostContent("");
+        setIsPosting(true);
+        router.push("/?tab=feed");
+        closeModal();
+      }
+      if (data?.state === "not-allowed") {
+        // toast({
+        //   title: "Error",
+        //   description: "You not allowed to create feed post!",
+        // });
+        toast.error("You not allowed to create feed post!");
+      }
+      // console.log("payload", payload);
+      // console.log("data", data);
+    } catch (error) {
+      console.error(error);
+    } finally {
+      setPostLoading(false);
+    }
+  };
+
+  const handleMintFeedPosting = async () => {
+    try {
+      setPostLoading(true);
+      // setIsPostLoading(true);
+
+      const payload = {
+        smartsiteId: primaryMicrosite,
+        userId: userId,
+        postType: "minting",
+        content: {
+          // walletEnsName: ens,
+          title: selectedMintForPost?.itemName,
+          type: "product",
+          image: selectedMintForPost?.itemImageUrl,
+          price: selectedMintForPost.itemPrice,
+        },
+      };
+      console.log("feed post payload", payload);
+
+      const data = await postFeed(payload, token);
+      console.log("feed post response", data);
 
       if (data?.state === "success") {
         toast.success("You posted successfully!");
@@ -394,10 +452,19 @@ const PostFeed = ({
               <GrEmoji size={22} className="text-gray-800" />
             </button>
             <button className="cursor-not-allowed">
-              <MdOutlineDateRange size={22} className="text-gray-400" />
+              <MdOutlineLocationOn size={24} />
             </button>
-            <button className="cursor-not-allowed">
-              <MdOutlineLocationOn size={24} className="text-gray-400" />
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                setShowMintModal(true);
+              }}
+              className="w-6 h-auto"
+            >
+              <Image src={feedNft} alt="nft" />
+            </button>
+            <button className="w-6 h-auto cursor-not-allowed">
+              <Image src={feedAI} alt="AI" />
             </button>
           </div>
           <div className="w-full flex justify-center mt-5">
@@ -450,6 +517,68 @@ const PostFeed = ({
               title="Create Poll"
             >
               <CreatePoll setIsCreatePollModalOpen={setIsCreatePollModalOpen} />
+            </CustomModal>
+          )}
+          {showMintModal && (
+            <CustomModal
+              isOpen={showMintModal}
+              onCloseModal={setShowMintModal}
+              title="Mint as NFT"
+            >
+              <div className="p-4">
+                {mintDataLoading ? (
+                  <p className="py-20 flex items-center gap-2 justify-center">
+                    Loading data <Loader className="animate-spin" size={26} />
+                  </p>
+                ) : (
+                  <div className="space-y-3 mb-6">
+                    {mintData.length === 0 ? (
+                      <p className="py-20 text-center">No Mint Available!</p>
+                    ) : (
+                      <>
+                        {mintData.map((data: any, index) => (
+                          <div
+                            key={index}
+                            onClick={() => setSelectedMintForPost(data)}
+                            className="flex items-center gap-3 p-4 bg-gray-50 rounded-xl cursor-pointer"
+                          >
+                            <div className="w-10 h-10 bg-orange-100 rounded-lg flex items-center justify-center">
+                              <Image
+                                src={data.itemImageUrl}
+                                alt="mint image"
+                                width={320}
+                                height={320}
+                              />
+                            </div>
+                            <div className="flex-1">
+                              <p className="font-medium text-gray-900">
+                                {data.itemName}
+                              </p>
+                              <p className="text-sm text-gray-500">
+                                {data.itemPrice}
+                              </p>
+                            </div>
+                            {data?._id === selectedMintForPost?._id && (
+                              <div className="w-6 h-6 bg-black rounded-full flex items-center justify-center">
+                                <span className="text-white text-xs">✓</span>
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </>
+                    )}
+                  </div>
+                )}
+
+                <PrimaryButton
+                  className="w-full py-3"
+                  disabled={!selectedMintForPost || postLoading}
+                  onClick={handleMintFeedPosting}
+                >
+                  Create{" "}
+                  {postLoading && <Loader className="animate-spin" size={26} />}
+                </PrimaryButton>
+              </div>
             </CustomModal>
           )}
         </div>
