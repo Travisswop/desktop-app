@@ -16,9 +16,10 @@ import { useUser } from "@/lib/UserContext";
 import { WalletItem } from "@/types/wallet";
 import { useQuery } from "@tanstack/react-query";
 import {
-  getBalance,
-  balanceQueryKey,
+  getBalanceHistory,
+  balanceHistoryQueryKey,
   type BalanceHistoryEntry,
+  type TimePeriod as ServiceTimePeriod,
 } from "@/services/balance-service";
 import { PrimaryButton } from "../ui/Button/PrimaryButton";
 import { BsBank2, BsSendFill } from "react-icons/bs";
@@ -106,24 +107,51 @@ const BalanceChart: React.FC<BalanceChartProps> = ({
   // Get the user ID (from prop or context)
   const effectiveUserId = userId || user?._id;
 
-  // Fetch balance data using React Query with caching
+  // Helper function to convert component TimePeriod to service TimePeriod
+  const getServicePeriod = (period: TimePeriod): ServiceTimePeriod => {
+    const periodMap: Record<TimePeriod, ServiceTimePeriod> = {
+      '1day': '1d',
+      '7days': '7d',
+      '1month': '30d',
+      '6months': '6m',
+      '1year': '1y',
+      'all': 'all',
+    };
+    return periodMap[period];
+  };
+
+  // Get snapshot type based on period (hourly for 1day, daily for others)
+  const getSnapshotType = (period: TimePeriod) => {
+    return period === '1day' ? 'hourly' : 'daily';
+  };
+
+  // NEW: Fetch balance history using optimized BalanceSnapshot API
   const {
-    data: balanceData,
+    data: balanceHistoryData,
     isLoading: loading,
     error,
   } = useQuery({
-    queryKey: balanceQueryKey(effectiveUserId || ""),
-    queryFn: () => getBalance({ userId: effectiveUserId! }),
-    enabled: !!effectiveUserId, // Only fetch when userId is available
-    staleTime: 5 * 60 * 1000, // Consider data fresh for 5 minutes
-    gcTime: 10 * 60 * 1000, // Keep in cache for 10 minutes (formerly cacheTime)
-    refetchOnWindowFocus: false, // Don't refetch when window regains focus
-    refetchOnMount: false, // Don't refetch on component mount if data is cached
+    queryKey: balanceHistoryQueryKey(
+      effectiveUserId || "",
+      getServicePeriod(selectedPeriod),
+      getSnapshotType(selectedPeriod)
+    ),
+    queryFn: () =>
+      getBalanceHistory({
+        userId: effectiveUserId!,
+        period: getServicePeriod(selectedPeriod),
+        type: getSnapshotType(selectedPeriod),
+      }),
+    enabled: !!effectiveUserId,
+    staleTime: 5 * 60 * 1000,
+    gcTime: 10 * 60 * 1000,
+    refetchOnWindowFocus: false,
+    refetchOnMount: false,
   });
 
-  // Extract balance history and fetched balance from query data
-  const balanceHistory = balanceData?.balanceData?.balanceHistory || [];
-  const fetchedBalance = balanceData?.totalTokensValue || 0;
+  // Extract balance history and current balance from query data
+  const balanceHistory = balanceHistoryData?.balanceHistory || [];
+  const fetchedBalance = balanceHistoryData?.currentBalance || 0;
 
   // Use prop balance if provided, otherwise use fetched balance
   const totalBalance =
