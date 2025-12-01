@@ -125,14 +125,18 @@ export default function Header() {
                   <FaUserPlus />
                   <p>Followers</p>
                   <Badge className="h-5 min-w-5 rounded-full px-1 font-mono tabular-nums bg-blue-700 flex items-center justify-center">
-                    {user ? formatCount(user.followers) : 0}
+                    {user
+                      ? formatCount(user?.connections?.followers?.length)
+                      : 0}
                   </Badge>
                 </DropdownMenuItem>
                 <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
                   <FaUserCheck />
                   <p>Following</p>
                   <Badge className="h-5 min-w-5 rounded-full px-1 font-mono tabular-nums bg-green-700 flex items-center justify-center">
-                    {user ? formatCount(user.following) : 0}
+                    {user
+                      ? formatCount(user?.connections?.following?.length)
+                      : 0}
                   </Badge>
                 </DropdownMenuItem>
                 <DropdownMenuItem
