@@ -2,6 +2,8 @@ import { useState, useEffect } from "react";
 import Image from "next/image";
 import CustomModal from "../modal/CustomModal";
 import { Check } from "lucide-react";
+import isUrl from "@/lib/isUrl";
+import { toFixedTruncate } from "@/lib/fixedTruncateNumber";
 
 interface Token {
   name: string;
@@ -29,6 +31,8 @@ const SelectTokenModal: React.FC<SelectTokenModalProps> = ({
   const [selected, setSelected] = useState<string | null>(null);
   const [search, setSearch] = useState("");
 
+  console.log("tokens", tokens);
+
   // ✅ sync with parent’s selected token
   useEffect(() => {
     if (selectedToken) {
@@ -44,7 +48,7 @@ const SelectTokenModal: React.FC<SelectTokenModalProps> = ({
 
   return (
     <CustomModal isOpen={isOpen} onClose={onClose}>
-      <div className="px-6 pb-6 pt-4">
+      <div className="px-6 pb-6 pt-1">
         <h2 className="text-center text-lg font-semibold mb-4">Select Token</h2>
 
         {/* Search bar */}
@@ -59,7 +63,7 @@ const SelectTokenModal: React.FC<SelectTokenModalProps> = ({
         </div>
 
         {/* Token list */}
-        <div className="space-y-3 max-h-[18rem] overflow-y-auto">
+        <div className="space-y-3 max-h-[18rem] overflow-y-auto pr-2">
           {filteredTokens.map((token, i) => (
             <button
               key={i}
@@ -71,29 +75,41 @@ const SelectTokenModal: React.FC<SelectTokenModalProps> = ({
               className="flex items-center justify-between w-full border-b border-gray-100 pb-2 last:border-0"
             >
               <div className="flex items-center space-x-3">
-                <Image
-                  src={
-                    token.logoURI ||
-                    token.marketData?.iconUrl ||
-                    "/icons/default.png"
-                  }
-                  alt={token.name}
-                  width={120}
-                  height={120}
-                  className="rounded-full w-9 h-9"
-                />
+                {isUrl(token.marketData.iconUrl) ? (
+                  <Image
+                    src={
+                      token.marketData?.iconUrl ||
+                      token.logoURI ||
+                      "/icons/default.png"
+                    }
+                    alt={token.name}
+                    width={120}
+                    height={120}
+                    className="rounded-full w-9 h-9"
+                  />
+                ) : (
+                  <Image
+                    src={token.logoURI || "/icons/default.png"}
+                    alt={token.name}
+                    width={120}
+                    height={120}
+                    className="rounded-full w-9 h-9"
+                  />
+                )}
+
                 <div className="text-left">
                   <p className="font-medium">{token.name}</p>
                   <p className="text-sm text-gray-500">
-                    {Number(token.balance).toFixed(4)} {token.symbol}
+                    {/* {Number(token.balance).toFixed(5)} {token.symbol} */}
+                    {Number(toFixedTruncate(Number(token.balance), 6))}
                   </p>
                 </div>
               </div>
-              <div className="w-5 h-5 flex items-center justify-center">
+              <div className="w-4 h-4 flex items-center justify-center">
                 {selected === token.name ? (
-                  <Check className="text-black w-5 h-5" />
+                  <Check className="text-black w-4 h-4" />
                 ) : (
-                  <div className="w-5 h-5 border border-gray-300 rounded-full" />
+                  <div className="w-4 h-4 border border-gray-300 rounded-full" />
                 )}
               </div>
             </button>

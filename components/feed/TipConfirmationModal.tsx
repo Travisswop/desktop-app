@@ -12,6 +12,8 @@ import Image from "next/image";
 import { TokenData } from "@/types/token";
 import { useEffect, useState } from "react";
 import CustomModal from "@/components/modal/CustomModal";
+import isUrl from "@/lib/isUrl";
+import { PrimaryButton } from "../ui/Button/PrimaryButton";
 
 interface TipConfirmationProps {
   open: boolean;
@@ -48,7 +50,7 @@ export default function TipConfirmation({
         const fee = "0.000005";
         setNetworkFee(fee);
         const feeUSD = Number(fee) * (token.nativeTokenPrice || 0);
-        setGasFeeUSD(Number(feeUSD.toFixed(5)));
+        setGasFeeUSD(Number(feeUSD.toFixed(6)));
       } else {
         // For EVM chains, you can use your existing calculateEVMGasFee function
         // const gasFee = await calculateEVMGasFee(network);
@@ -56,7 +58,7 @@ export default function TipConfirmation({
         const estimatedGas = "0.0001";
         setNetworkFee(estimatedGas);
         const feeUSD = Number(estimatedGas) * (token.nativeTokenPrice || 0);
-        setGasFeeUSD(Number(feeUSD.toFixed(5)));
+        setGasFeeUSD(Number(feeUSD.toFixed(6)));
       }
     };
 
@@ -65,7 +67,7 @@ export default function TipConfirmation({
 
   const getTipAmountInUSD = () => {
     if (!token.marketData?.price) return "0.00";
-    return (parseFloat(amount) * parseFloat(token.marketData.price)).toFixed(2);
+    return (parseFloat(amount) * parseFloat(token.marketData.price)).toFixed(6);
   };
 
   return (
@@ -87,7 +89,7 @@ export default function TipConfirmation({
                 <div className="flex items-center justify-center gap-2">
                   <Heart className="w-6 h-6 text-pink-500 fill-pink-500" />
                   <div className="text-3xl font-bold text-gray-700">
-                    {parseFloat(amount).toFixed(4)} {token.symbol}
+                    {parseFloat(amount).toFixed(6)} {token.symbol}
                   </div>
                 </div>
                 {token.marketData?.price && (
@@ -134,7 +136,7 @@ export default function TipConfirmation({
                 <div className="flex items-center justify-between">
                   <span className="text-sm text-gray-600">Token</span>
                   <div className="flex items-center gap-2">
-                    <Image
+                    {/* <Image
                       src={
                         token.logoURI ||
                         token.marketData?.iconUrl ||
@@ -144,7 +146,28 @@ export default function TipConfirmation({
                       width={20}
                       height={20}
                       className="rounded-full"
-                    />
+                    /> */}
+                    {isUrl(token.marketData.iconUrl) ? (
+                      <Image
+                        src={
+                          token.marketData?.iconUrl ||
+                          token.logoURI ||
+                          "/icons/default.png"
+                        }
+                        alt={token.name}
+                        width={120}
+                        height={120}
+                        className="rounded-full w-7 h-7"
+                      />
+                    ) : (
+                      <Image
+                        src={token.logoURI || "/icons/default.png"}
+                        alt={token.name}
+                        width={120}
+                        height={120}
+                        className="rounded-full w-7 h-7"
+                      />
+                    )}
                     <span className="font-medium">{token.symbol}</span>
                   </div>
                 </div>
@@ -211,9 +234,9 @@ export default function TipConfirmation({
           </div>
 
           {/* Confirm Button */}
-          <Button
+          <PrimaryButton
             onClick={onConfirm}
-            className="w-full bg-black rounded-xl py-6 text-lg font-medium"
+            className="w-full font-medium py-2"
             disabled={loading}
           >
             {loading ? (
@@ -221,12 +244,9 @@ export default function TipConfirmation({
                 <span className="animate-spin">⏳</span> Sending Tip...
               </span>
             ) : (
-              <span className="flex items-center gap-2">
-                <Heart className="w-5 h-5 fill-current" />
-                Confirm Tip
-              </span>
+              <span className="flex items-center gap-2">Confirm Tip</span>
             )}
-          </Button>
+          </PrimaryButton>
         </div>
       </div>
     </CustomModal>

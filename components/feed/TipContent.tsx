@@ -44,6 +44,8 @@ import {
 import TipConfirmation from "./TipConfirmationModal";
 import { getEnsDataUsingEns } from "@/actions/getEnsData";
 import { useTransactionPayload } from "../wallet/hooks/useTransactionPayload";
+import { toFixedTruncate } from "@/lib/fixedTruncateNumber";
+import { PrimaryButton } from "../ui/Button/PrimaryButton";
 
 interface TipContentModalProps {
   isOpen: boolean;
@@ -126,7 +128,7 @@ const TipContentModal: React.FC<TipContentModalProps> = ({
 
   const handleMaxClick = () => {
     if (selectedToken) {
-      setTipAmount(selectedToken.balance);
+      setTipAmount(Number(selectedToken.balance).toFixed(6));
     }
   };
 
@@ -134,7 +136,7 @@ const TipContentModal: React.FC<TipContentModalProps> = ({
     if (!tipAmount || !selectedToken?.marketData?.price) return 0;
     const amount = parseFloat(tipAmount) || 0;
     const price = parseFloat(selectedToken.marketData.price) || 0;
-    return (amount * price).toFixed(2);
+    return (amount * price).toFixed(6);
   };
 
   const isValidAmount = () => {
@@ -682,8 +684,11 @@ const TipContentModal: React.FC<TipContentModalProps> = ({
         onClose={onClose}
         onCloseModal={onCloseModal}
       >
-        <div className="flex justify-center items-center py-10">
-          <p className="text-gray-500">Loading tokens...</p>
+        <div className="flex flex-col items-center justify-center py-28 space-y-4">
+          <div className="animate-spin w-8 h-8 rounded-full border-2 border-gray-300 border-t-primary"></div>
+          <p className="text-gray-600 text-sm font-medium tracking-wide">
+            Loading tokens...
+          </p>
         </div>
       </CustomModal>
     );
@@ -745,25 +750,41 @@ const TipContentModal: React.FC<TipContentModalProps> = ({
           {/* Token card */}
           {selectedToken && (
             <div className="mt-6 border-y py-3">
-              <div className="flex items-center justify-between">
+              <div className="flex flex-col sm:flex-row items-center gap-2 sm:justify-between">
                 <div className="flex items-center space-x-3">
                   <div className="bg-gray-100 p-2 rounded-full">
-                    <Image
-                      src={
-                        selectedToken.logoURI ||
-                        selectedToken.marketData?.iconUrl ||
-                        "/icons/default.png"
-                      }
-                      alt={selectedToken.name}
-                      width={28}
-                      height={28}
-                      className="rounded-full"
-                    />
+                    {isUrl(selectedToken.marketData.iconUrl) ? (
+                      <Image
+                        src={
+                          selectedToken.marketData?.iconUrl ||
+                          selectedToken.logoURI ||
+                          "/icons/default.png"
+                        }
+                        alt={selectedToken.name}
+                        width={120}
+                        height={120}
+                        className="rounded-full w-9 h-9"
+                      />
+                    ) : (
+                      <Image
+                        src={selectedToken.logoURI || "/icons/default.png"}
+                        alt={selectedToken.name}
+                        width={120}
+                        height={120}
+                        className="rounded-full w-9 h-9"
+                      />
+                    )}
                   </div>
                   <div>
                     <p className="font-semibold">{selectedToken.name}</p>
                     <p className="text-sm text-gray-500">
-                      Balance: {Number(selectedToken.balance).toFixed(4)}{" "}
+                      Balance:{" "}
+                      {Number(
+                        toFixedTruncate(
+                          selectedToken.balance,
+                          selectedToken.decimals || 6
+                        )
+                      )}{" "}
                       {selectedToken.symbol}
                     </p>
                   </div>
@@ -798,20 +819,13 @@ const TipContentModal: React.FC<TipContentModalProps> = ({
 
           {/* Tip Button */}
           <div className="mt-6 flex justify-center">
-            <Button
-              className={`w-[90%] py-6 text-lg font-medium rounded-2xl ${
-                isValidAmount()
-                  ? "bg-black hover:bg-gray-700 text-white"
-                  : "bg-gray-200 text-gray-500"
-              }`}
+            <PrimaryButton
+              className={`w-full sm:w-[90%] py-2 rounded-2xl`}
               disabled={!isValidAmount()}
               onClick={handleTipClick}
             >
-              Tip{" "}
-              {tipAmount && isValidAmount()
-                ? `${tipAmount} ${selectedToken.symbol}`
-                : ""}
-            </Button>
+              Tip
+            </PrimaryButton>
           </div>
         </div>
       </CustomModal>
