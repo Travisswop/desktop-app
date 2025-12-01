@@ -1,6 +1,6 @@
 // components/LinkPreview.tsx
 import { useEffect, useState } from "react";
-import Image from "next/image";
+// import Image from "next/image";
 
 interface LinkMetadata {
   title?: string;
@@ -14,6 +14,8 @@ export const LinkPreview = ({ url }: { url: string }) => {
   const [metadata, setMetadata] = useState<LinkMetadata | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
+
+  console.log("metadata", metadata);
 
   useEffect(() => {
     const fetchPreview = async () => {
