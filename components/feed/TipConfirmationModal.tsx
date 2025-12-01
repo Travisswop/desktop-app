@@ -49,7 +49,9 @@ export default function TipConfirmation({
       if (token.chain === "SOLANA") {
         const fee = "0.000005";
         setNetworkFee(fee);
-        const feeUSD = Number(fee) * (token.nativeTokenPrice || 0);
+        const feeUSD =
+          Number(fee) *
+          Number(token.nativeTokenPrice || token.marketData.price || 0);
         setGasFeeUSD(Number(feeUSD.toFixed(6)));
       } else {
         // For EVM chains, you can use your existing calculateEVMGasFee function
@@ -57,11 +59,12 @@ export default function TipConfirmation({
         // For now, using approximate values
         const estimatedGas = "0.0001";
         setNetworkFee(estimatedGas);
-        const feeUSD = Number(estimatedGas) * (token.nativeTokenPrice || 0);
+        const feeUSD =
+          Number(estimatedGas) *
+          Number(token.nativeTokenPrice || token.marketData.price || 0);
         setGasFeeUSD(Number(feeUSD.toFixed(6)));
       }
     };
-
     calculateNetworkFee();
   }, [token]);
 
