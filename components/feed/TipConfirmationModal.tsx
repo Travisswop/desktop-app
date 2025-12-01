@@ -147,10 +147,10 @@ export default function TipConfirmation({
                       height={20}
                       className="rounded-full"
                     /> */}
-                    {isUrl(token.marketData.iconUrl) ? (
+                    {isUrl(token?.marketData?.iconUrl) ? (
                       <Image
                         src={
-                          token.marketData?.iconUrl ||
+                          token?.marketData?.iconUrl ||
                           token.logoURI ||
                           "/icons/default.png"
                         }

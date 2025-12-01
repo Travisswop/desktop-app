@@ -75,10 +75,10 @@ const SelectTokenModal: React.FC<SelectTokenModalProps> = ({
               className="flex items-center justify-between w-full border-b border-gray-100 pb-2 last:border-0"
             >
               <div className="flex items-center space-x-3">
-                {isUrl(token.marketData.iconUrl) ? (
+                {isUrl(token?.marketData?.iconUrl) ? (
                   <Image
                     src={
-                      token.marketData?.iconUrl ||
+                      token?.marketData?.iconUrl ||
                       token.logoURI ||
                       "/icons/default.png"
                     }

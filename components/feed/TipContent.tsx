@@ -753,10 +753,10 @@ const TipContentModal: React.FC<TipContentModalProps> = ({
               <div className="flex flex-col sm:flex-row items-center gap-2 sm:justify-between">
                 <div className="flex items-center space-x-3">
                   <div className="bg-gray-100 p-2 rounded-full">
-                    {isUrl(selectedToken.marketData.iconUrl) ? (
+                    {isUrl(selectedToken?.marketData?.iconUrl) ? (
                       <Image
                         src={
-                          selectedToken.marketData?.iconUrl ||
+                          selectedToken?.marketData?.iconUrl ||
                           selectedToken.logoURI ||
                           "/icons/default.png"
                         }
