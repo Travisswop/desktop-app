@@ -175,7 +175,7 @@ const FeedItem = memo(
               {(feed.postType === "post" || feed.postType === "repost") &&
                 feed.content.title && (
                   <div className="w-full text-start">
-                    {feed.content.title
+                    {/* {feed.content.title
                       .split("\n")
                       .map((line: string, index: number) => {
                         const { parts, urls } = makeLinksClickable(line);
@@ -190,7 +190,20 @@ const FeedItem = memo(
                             ))}
                           </div>
                         );
-                      })}
+                      })} */}
+                    {/* Render Post Content */}
+                    {(feed.postType === "post" || feed.postType === "repost") &&
+                      feed.content.title && (
+                        <div className="w-full text-start">
+                          {feed.content.title
+                            .split("\n")
+                            .map((line: string, index: number) => (
+                              <p className="break-text" key={index}>
+                                {makeLinksClickable(line)}
+                              </p>
+                            ))}
+                        </div>
+                      )}
                   </div>
                 )}
 
