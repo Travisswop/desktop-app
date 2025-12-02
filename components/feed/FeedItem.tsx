@@ -138,16 +138,13 @@ const FeedItem = memo(
           <div className="w-full flex items-start justify-between">
             <div className="w-full">
               <div className="flex items-center gap-1">
-                <Link
-                  href={`/feed/${feed._id}`}
-                  className="flex items-center gap-1"
-                >
-                  <p className="text-gray-700 font-semibold">{userName}</p>
+                <div className="flex items-center gap-1">
+                  <p className="text-black font-semibold">{userName}</p>
                   <GoDotFill size={10} />
-                  <p className="text-gray-500 font-normal">
+                  <p className="text-black font-medium">
                     {dayjs(feed.createdAt).fromNow()}
                   </p>
-                </Link>
+                </div>
                 {userId !== feed.userId && (
                   <button onClick={(e) => handleTipOpen(e)}>
                     <Image
@@ -159,7 +156,7 @@ const FeedItem = memo(
                   </button>
                 )}
               </div>
-              <p className="text-gray-500 font-normal mb-1">
+              <p className="text-gray-500 font-medium mb-1">
                 {" "}
                 {formatEns(ensName)}
               </p>

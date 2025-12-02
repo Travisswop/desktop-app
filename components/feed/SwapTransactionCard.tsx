@@ -70,7 +70,7 @@ const SwapTransactionCard: React.FC<SwapTransactionCardProps> = ({
               </div>
             </div>
             <div className="flex flex-col items-end">
-              <p className="text-sm text-gray-500">Swap Transaction</p>
+              <p className="text-sm font-medium">Swap Transaction</p>
               <p className="text-xs text-gray-400">
                 {dayjs(feed.createdAt).format("MMM D, YYYY h:mm A")}
               </p>
