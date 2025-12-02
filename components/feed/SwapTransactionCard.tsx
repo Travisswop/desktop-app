@@ -6,22 +6,10 @@ import { useRouter } from "next/navigation";
 
 interface SwapTransactionCardProps {
   feed: any;
-  onFeedClick?: () => void;
 }
 
-const SwapTransactionCard: React.FC<SwapTransactionCardProps> = ({
-  feed,
-  onFeedClick,
-}) => {
+const SwapTransactionCard: React.FC<SwapTransactionCardProps> = ({ feed }) => {
   const router = useRouter();
-
-  const handleClick = () => {
-    if (onFeedClick) {
-      onFeedClick();
-    } else {
-      router.push(`/feed/${feed._id}`);
-    }
-  };
 
   const handleCopyTradeClick = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -33,7 +21,7 @@ const SwapTransactionCard: React.FC<SwapTransactionCardProps> = ({
   return (
     <div className="w-full flex justify-start mt-1">
       <div
-        onClick={handleClick}
+        // onClick={handleClick}
         className="w-full max-w-xl"
         style={{
           background: "transparent",

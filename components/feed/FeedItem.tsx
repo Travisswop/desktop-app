@@ -5,7 +5,6 @@ import Link from "next/link";
 import dayjs from "dayjs";
 import relativeTime from "dayjs/plugin/relativeTime";
 import updateLocale from "dayjs/plugin/updateLocale";
-import { useRouter } from "next/navigation";
 import { GoDotFill } from "react-icons/go";
 import { HiDotsHorizontal } from "react-icons/hi";
 import { FiPlusCircle } from "react-icons/fi";
@@ -21,8 +20,6 @@ import tipImg from "@/public/images/tip.png";
 import TipContentModal from "./TipContent";
 import { formatEns } from "@/lib/formatEnsName";
 import { makeLinksClickable } from "@/lib/makeLinksClickable";
-import { LinkPreview } from "./LinkPreview";
-
 // Assuming FeedItemType is (or will be) available globally or can be imported.
 // For now, using 'any' as a placeholder if FeedItemType is not directly accessible here.
 // Ideally, import FeedItemType from where it's defined (e.g., Feed.tsx or a types file).
@@ -56,7 +53,6 @@ const FeedItem = memo(
     renderTransactionContent,
     onPostInteraction,
   }: FeedItemProps) => {
-    const router = useRouter();
     const [isTipModalOpen, setIsTipModalOpen] = useState(false);
 
     dayjs.extend(relativeTime);
@@ -80,10 +76,6 @@ const FeedItem = memo(
         yy: "%d years ago",
       },
     });
-
-    const handleFeedClick = useCallback(() => {
-      router.push(`/feed/${feed._id}`);
-    }, [router, feed._id]);
 
     const handleRedeemClick = useCallback(
       (e: React.MouseEvent) => {
@@ -206,10 +198,7 @@ const FeedItem = memo(
 
               {/* Swap Transaction Content */}
               {feed.postType === "swapTransaction" && (
-                <SwapTransactionCard
-                  feed={feed}
-                  onFeedClick={handleFeedClick}
-                />
+                <SwapTransactionCard feed={feed} />
               )}
 
               {/* Repost Content */}

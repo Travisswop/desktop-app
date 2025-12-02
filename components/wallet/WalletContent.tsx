@@ -120,7 +120,7 @@ const WalletContentInner = () => {
   const walletData = useWalletData(authenticated, ready, PrivyUser);
   const { solWalletAddress, evmWalletAddress } = useWalletAddresses(walletData);
   const { payload } = useTransactionPayload(user);
-  const { wallets: ethWalletsData } = useWallets();
+  // const { wallets: ethWalletsData } = useWallets();
 
   const {
     sendFlow,
