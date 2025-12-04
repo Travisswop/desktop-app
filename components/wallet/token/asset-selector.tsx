@@ -74,7 +74,7 @@ export default function AssetSelector({
             />
           ) : (
             <Image
-              src={asset.marketData.iconUrl || asset.logoURI}
+              src={asset?.marketData?.iconUrl || asset?.logoURI}
               alt={asset.symbol || ""}
               width={320}
               height={320}

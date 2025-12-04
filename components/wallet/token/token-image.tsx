@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
-import Image from 'next/image';
-import { TokenData } from '@/types/token';
+import React, { useState } from "react";
+import Image from "next/image";
+import { TokenData } from "@/types/token";
 
 interface TokenImageProps {
   token: TokenData;
@@ -14,7 +14,7 @@ const TokenImage = ({
   token,
   width = 40,
   height = 40,
-  className = 'rounded-full',
+  className = "rounded-full",
 }: TokenImageProps) => {
   const [imageError, setImageError] = useState(false);
   const [fallbackError, setFallbackError] = useState(false);
@@ -25,7 +25,7 @@ const TokenImage = ({
       return token.logoURI;
     }
     if (!fallbackError && token.marketData?.iconUrl) {
-      return token.marketData.iconUrl;
+      return token.marketData?.iconUrl;
     }
     return null; // No more fallbacks, will show placeholder
   };
@@ -60,7 +60,7 @@ const TokenImage = ({
       className={`bg-gray-200 flex items-center justify-center text-sm font-medium text-gray-600 ${className}`}
       style={{ width: width, height: height }}
     >
-      {token.symbol?.slice(0, 2).toUpperCase() || '??'}
+      {token.symbol?.slice(0, 2).toUpperCase() || "??"}
     </div>
   );
 };
