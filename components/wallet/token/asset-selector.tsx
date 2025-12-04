@@ -7,12 +7,12 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
 import { Search } from "lucide-react";
 import Image from "next/image";
 import { TokenData } from "@/types/token";
 import { NFT } from "@/types/nft";
+import { ScrollArea } from "@/components/ui/scroll-area";
 
 interface AssetSelectorProps {
   open: boolean;
@@ -54,24 +54,35 @@ export default function AssetSelector({
     ) || [];
 
   const renderAssetItem = (asset: TokenData) => {
+    console.log("assests", asset);
+
     if (!asset) return null;
     return (
       <button
         key={asset.symbol}
         onClick={() => onNext(asset)}
-        className="w-full flex items-center justify-between p-3 rounded-xl hover:bg-gray-50 transition-colors shadow-md"
+        className="w-full flex items-center justify-between p-3 rounded-xl hover:bg-gray-50 transition-colors shadow-md  mb-2"
       >
         <div className="flex items-center gap-3">
-          {asset.logoURI && (
+          {asset.symbol === "SWOP" ? (
             <Image
-              src={asset.logoURI}
+              src={`https://app.apiswop.co/public/crypto-icons/SWOP.png`}
               alt={asset.symbol || ""}
-              width={40}
-              height={40}
-              className="rounded-full"
+              width={320}
+              height={320}
+              className="rounded-full w-7 h-7"
+            />
+          ) : (
+            <Image
+              src={asset.marketData.iconUrl || asset.logoURI}
+              alt={asset.symbol || ""}
+              width={320}
+              height={320}
+              className="rounded-full w-7 h-7"
             />
           )}
-          <span className="font-medium">{asset.name}</span>
+
+          <span className="font-medium text-start">{asset.name}</span>
         </div>
         <div className="text-right">
           <div className="font-medium">
@@ -121,7 +132,7 @@ export default function AssetSelector({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-md p-6 rounded-3xl">
+      <DialogContent className="max-w-md rounded-3xl">
         <DialogHeader className="space-y-4">
           <div className="flex items-center justify-between">
             <DialogTitle className="text-xl font-semibold">
@@ -135,12 +146,12 @@ export default function AssetSelector({
             </button>
           </div>
 
-          <Tabs value={tab} onValueChange={setTab} className="w-full">
+          {/* <Tabs value={tab} onValueChange={setTab} className="w-full">
             <TabsList className="grid w-full grid-cols-2">
               <TabsTrigger value="crypto">Crypto</TabsTrigger>
               <TabsTrigger value="nft">NFT</TabsTrigger>
             </TabsList>
-          </Tabs>
+          </Tabs> */}
 
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
@@ -153,7 +164,7 @@ export default function AssetSelector({
           </div>
         </DialogHeader>
 
-        <div className="mt-4 space-y-2 max-h-[400px] overflow-y-auto">
+        <ScrollArea className="max-h-[400px] pr-4">
           {tab === "crypto" && filteredAssets.length > 0 ? (
             filteredAssets.map(renderAssetItem)
           ) : tab === "crypto" ? (
@@ -167,7 +178,7 @@ export default function AssetSelector({
           ) : tab === "nft" ? (
             <div className="text-center text-gray-500 py-4">No NFTs found</div>
           ) : null}
-        </div>
+        </ScrollArea>
       </DialogContent>
     </Dialog>
   );
