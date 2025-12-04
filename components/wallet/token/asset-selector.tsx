@@ -1,18 +1,12 @@
 "use client";
 
 import { useState } from "react";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Search } from "lucide-react";
 import Image from "next/image";
 import { TokenData } from "@/types/token";
 import { NFT } from "@/types/nft";
-import { ScrollArea } from "@/components/ui/scroll-area";
+import CustomModal from "@/components/modal/CustomModal";
 
 interface AssetSelectorProps {
   open: boolean;
@@ -131,13 +125,11 @@ export default function AssetSelector({
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-md rounded-3xl">
-        <DialogHeader className="space-y-4">
+    <CustomModal isOpen={open} onCloseModal={onOpenChange}>
+      <div className="p-5">
+        <div className="space-y-4">
           <div className="flex items-center justify-between">
-            <DialogTitle className="text-xl font-semibold">
-              Choose asset
-            </DialogTitle>
+            <p className="text-xl font-semibold">Choose asset</p>
             <button
               onClick={() => onOpenChange(false)}
               className="rounded-full p-1 hover:bg-gray-100 transition-colors"
@@ -145,13 +137,6 @@ export default function AssetSelector({
               <span className="sr-only">Close</span>
             </button>
           </div>
-
-          {/* <Tabs value={tab} onValueChange={setTab} className="w-full">
-            <TabsList className="grid w-full grid-cols-2">
-              <TabsTrigger value="crypto">Crypto</TabsTrigger>
-              <TabsTrigger value="nft">NFT</TabsTrigger>
-            </TabsList>
-          </Tabs> */}
 
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
@@ -162,9 +147,9 @@ export default function AssetSelector({
               className="pl-9 py-5 rounded-xl"
             />
           </div>
-        </DialogHeader>
+        </div>
 
-        <ScrollArea className="max-h-[400px] pr-4">
+        <div className="max-h-[400px] pr-4 overflow-y-auto">
           {tab === "crypto" && filteredAssets.length > 0 ? (
             filteredAssets.map(renderAssetItem)
           ) : tab === "crypto" ? (
@@ -178,8 +163,8 @@ export default function AssetSelector({
           ) : tab === "nft" ? (
             <div className="text-center text-gray-500 py-4">No NFTs found</div>
           ) : null}
-        </ScrollArea>
-      </DialogContent>
-    </Dialog>
+        </div>
+      </div>
+    </CustomModal>
   );
 }

@@ -13,6 +13,7 @@ import Image from "next/image";
 import { toast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { PrimaryButton } from "@/components/ui/Button/PrimaryButton";
+import CustomModal from "@/components/modal/CustomModal";
 
 interface RedeemModalProps {
   isOpen: boolean;
@@ -187,22 +188,23 @@ export default function RedeemModal({
   };
 
   return (
-    <Dialog open={isOpen} onOpenChange={isProcessing ? undefined : onClose}>
-      <DialogContent className="sm:max-w-[425px]">
+    <CustomModal
+      isOpen={isOpen}
+      onCloseModal={isProcessing ? undefined : onClose}
+    >
+      <div className="p-5">
         {!isProcessing ? (
           <>
-            <DialogHeader>
-              <DialogTitle className="flex items-center gap-2">
-                <Image
-                  src={tokenLogo}
-                  alt={tokenSymbol}
-                  width={24}
-                  height={24}
-                  className="rounded-full border"
-                />
-                Create Redemption Link
-              </DialogTitle>
-            </DialogHeader>
+            <div className="flex items-center gap-2 mb-4 font-semibold">
+              <Image
+                src={tokenLogo}
+                alt={tokenSymbol}
+                width={120}
+                height={120}
+                className="rounded-full border w-8 h-8"
+              />
+              Create Redemption Link
+            </div>
 
             <div className="space-y-3">
               {/* Current Balance Display */}
@@ -283,7 +285,7 @@ export default function RedeemModal({
               )}
             </div>
 
-            <div className="flex justify-end gap-3">
+            <div className="flex justify-end gap-3 mt-4">
               <PrimaryButton
                 onClick={handleConfirm}
                 disabled={!maxWallets || tokensPerWallet <= 0}
@@ -479,7 +481,7 @@ export default function RedeemModal({
             )}
           </div>
         )}
-      </DialogContent>
-    </Dialog>
+      </div>
+    </CustomModal>
   );
 }

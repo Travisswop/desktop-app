@@ -34,6 +34,7 @@ import { useSolanaWallets } from "@privy-io/react-auth/solana";
 import { BsSendFill } from "react-icons/bs";
 import isUrl from "@/lib/isUrl";
 import { useUser } from "@/lib/UserContext";
+import CustomModal from "@/components/modal/CustomModal";
 
 type ProcessingStep = {
   status: "pending" | "processing" | "completed" | "error";
@@ -372,14 +373,10 @@ export default function SendToModal({
   if (!selectedToken) return null;
 
   return (
-    <>
-      <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="max-w-md p-6 rounded-3xl">
-          <DialogHeader>
-            <DialogTitle className="text-center text-xl font-semibold">
-              Send To
-            </DialogTitle>
-          </DialogHeader>
+    <div>
+      <CustomModal isOpen={open} onCloseModal={onOpenChange}>
+        <div className="p-5 space-y-3">
+          <p className="text-center text-xl font-semibold">Send To</p>
 
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
@@ -486,8 +483,8 @@ export default function SendToModal({
               </div>
             )}
           </div>
-        </DialogContent>
-      </Dialog>
+        </div>
+      </CustomModal>
 
       {selectedToken && (
         <RedeemModal
@@ -503,6 +500,6 @@ export default function SendToModal({
           isUSD={isUSD}
         />
       )}
-    </>
+    </div>
   );
 }

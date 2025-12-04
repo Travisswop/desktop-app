@@ -7,6 +7,7 @@ import { DialogTitle } from "@radix-ui/react-dialog";
 import { TokenData } from "@/types/token";
 import { ArrowUpDown } from "lucide-react";
 import TokenImage from "./token-image";
+import CustomModal from "@/components/modal/CustomModal";
 
 interface SendTokenModalProps {
   open: boolean;
@@ -116,11 +117,9 @@ export default function SendTokenModal({
   if (!token) return null;
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogTitle>
-        <span className="sr-only">Token send</span>
-      </DialogTitle>
-      <DialogContent className="max-w-xl p-6 rounded-3xl bg-gray-50">
+    <CustomModal isOpen={open} onCloseModal={onOpenChange}>
+      {/* <p>Token send</p> */}
+      <div className="max-w-xl p-6 rounded-3xl bg-gray-50">
         <button
           onClick={() => onOpenChange(false)}
           className="absolute right-4 top-4 rounded-full p-1 hover:bg-gray-100 transition-colors"
@@ -128,12 +127,10 @@ export default function SendTokenModal({
           <span className="sr-only">Close</span>
         </button>
 
-        <div className="flex justify-center mt-10">
-          <div>
-            <span className="text-3xl font-medium">
-              {isUSD && hasPrice ? "USD" : token.symbol}
-            </span>
-          </div>
+        <div className="flex justify-center mb-2">
+          <p className="text-3xl font-medium">
+            {isUSD && hasPrice ? "USD" : token.symbol}
+          </p>
         </div>
 
         <div className="text-center mb-1 flex justify-center items-center gap-4">
@@ -234,7 +231,7 @@ export default function SendTokenModal({
             Next
           </Button>
         </div>
-      </DialogContent>
-    </Dialog>
+      </div>
+    </CustomModal>
   );
 }
