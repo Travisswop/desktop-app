@@ -9,12 +9,20 @@ export type Network =
   | 'SOLANA'
   | 'SEPOLIA';
 
+// export const CHAIN_ID = {
+//   ETHEREUM: 1,
+//   POLYGON: 137,
+//   BASE: 8453,
+//   SOLANA: 101,
+//   SEPOLIA: 11155111,
+// } as const;
+
 export const CHAIN_ID = {
-  ETHEREUM: 1,
-  POLYGON: 137,
-  BASE: 8453,
-  SOLANA: 101,
-  SEPOLIA: 11155111,
+  ethereum: 1,
+  polygon: 137,
+  base: 8453,
+  solana: 101,
+  sepolia: 11155111,
 } as const;
 
 export interface SendFlowState {
