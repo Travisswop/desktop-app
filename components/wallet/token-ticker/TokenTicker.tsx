@@ -2,187 +2,55 @@
 
 import { useEffect, useState } from 'react';
 import TokenCard from './TokenCard';
-import {
-  TokenAPIService,
-  processSparklineData,
-} from '@/services/token-service';
+import { MarketService } from '@/services/market-service';
 import { MarketData } from '@/types/token';
 import { Loader2 } from 'lucide-react';
-import { fetchPrice } from '@/components/wallet/tools/fetch_price';
-import { PublicKey } from '@solana/web3.js';
 import styles from './TokenTicker.module.css';
 
-interface TokenInfo {
-  symbol: string;
-  name: string;
-  logoUrl: string;
-  uuid?: string;
-  address?: string;
-}
-
-const TOKENS: TokenInfo[] = [
-  {
-    symbol: 'SWOP',
-    name: 'Swop',
-    logoUrl: '/assets/crypto-icons/SWOP.png',
-    address: 'GAehkgN1ZDNvavX81FmzCcwRnzekKMkSyUNq8WkMsjX1',
-  },
-  {
-    symbol: 'SOL',
-    name: 'Solana',
-    logoUrl: '/assets/crypto-icons/SOL.png',
-    uuid: 'zNZHO_Sjf',
-  },
-  {
-    symbol: 'ETH',
-    name: 'Ethereum',
-    logoUrl: '/assets/crypto-icons/ETH.png',
-    uuid: 'razxDUgYGNAdQ',
-  },
-  {
-    symbol: 'BTC',
-    name: 'Bitcoin',
-    logoUrl: '/assets/crypto-icons/BTC.png',
-    uuid: 'Qwsogvtv82FCd',
-  },
-  {
-    symbol: 'XRP',
-    name: 'XRP',
-    logoUrl: '/assets/crypto-icons/XRP.png',
-    uuid: '-l8Mn2pVlRs-p',
-  },
-  {
-    symbol: 'BNB',
-    name: 'BNB',
-    logoUrl: '/assets/crypto-icons/BNB.png',
-    uuid: 'WcwrkfNI4FUAe',
-  },
+const CHAIN_TO_COIN_GECKO_ID = [
+  'solana',
+  'ethereum',
+  'bitcoin',
+  'ripple',
+  'binancecoin',
 ];
 
-interface TokenData {
-  symbol: string;
-  name: string;
-  logoUrl: string;
-  marketData: MarketData | null;
-  sparklineData: number[];
-}
-
 export default function TokenTicker() {
-  const [tokens, setTokens] = useState<TokenData[]>([]);
+  const [tokens, setTokens] = useState<MarketData[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const fetchTokenData = async () => {
       try {
-        const tokenDataPromises = TOKENS.map(async (token) => {
-          try {
-            // For SWOP token, fetch price from Solana using the same method as token-service
-            if (token.symbol === 'SWOP' && token.address) {
-              try {
-                const swopPrice = await fetchPrice(
-                  new PublicKey(token.address)
-                );
+        const { successful } = await MarketService.getBatchMarketData(
+          CHAIN_TO_COIN_GECKO_ID as string[]
+        );
 
-                return {
-                  symbol: token.symbol,
-                  name: token.name,
-                  logoUrl: token.logoUrl,
-                  marketData: {
-                    price: swopPrice,
-                    uuid: 'swop',
-                    symbol: 'SWOP',
-                    name: 'Swop',
-                    color: '#000000',
-                    marketCap: '0',
-                    '24hVolume': '0',
-                    iconUrl: token.logoUrl,
-                    listedAt: 0,
-                    tier: 0,
-                    change: '0',
-                    rank: 0,
-                    sparkline: [],
-                    lowVolume: false,
-                    coinrankingUrl: '',
-                    btcPrice: '0',
-                    contractAddresses: [],
-                  },
-                  sparklineData: [],
-                };
-              } catch (error) {
-                console.error('Error fetching SWOP price:', error);
-                // Fallback to 0 price if fetch fails
-                return {
-                  symbol: token.symbol,
-                  name: token.name,
-                  logoUrl: token.logoUrl,
-                  marketData: {
-                    price: '0',
-                    uuid: 'swop',
-                    symbol: 'SWOP',
-                    name: 'Swop',
-                    color: '#000000',
-                    marketCap: '0',
-                    '24hVolume': '0',
-                    iconUrl: token.logoUrl,
-                    listedAt: 0,
-                    tier: 0,
-                    change: '0',
-                    rank: 0,
-                    sparkline: [],
-                    lowVolume: false,
-                    coinrankingUrl: '',
-                    btcPrice: '0',
-                    contractAddresses: [],
-                  },
-                  sparklineData: [],
-                };
-              }
-            }
-
-            const marketData = await TokenAPIService.getMarketData({
-              uuid: token.uuid,
-              address: token.address,
-            });
-
-            console.log('marketData', marketData);
-
-            let sparklineData: number[] = [];
-            if (marketData?.uuid) {
-              const timeSeriesData =
-                await TokenAPIService.getTimeSeriesData(
-                  marketData.uuid,
-                  '24h'
-                );
-              const processed = processSparklineData(timeSeriesData);
-              sparklineData = processed.map(
-                (point: any) => point.value
+        const tokensWithSparkline = await Promise.all(
+          successful.map(async (token) => {
+            try {
+              const history = await MarketService.getHistoricalPrices(
+                token.id,
+                1
               );
+
+              return {
+                ...token,
+                sparklineData: history?.prices?.map(
+                  (point: { price: number }) => point.price
+                ),
+              } as MarketData;
+            } catch (error) {
+              console.error(
+                `Error fetching 1H historical data for token ${token.id}:`,
+                error
+              );
+              return token as MarketData;
             }
+          })
+        );
 
-            return {
-              symbol: token.symbol,
-              name: token.name,
-              logoUrl: token.logoUrl,
-              marketData,
-              sparklineData,
-            };
-          } catch (error) {
-            console.error(
-              `Error fetching data for ${token.symbol}:`,
-              error
-            );
-            return {
-              symbol: token.symbol,
-              name: token.name,
-              logoUrl: token.logoUrl,
-              marketData: null,
-              sparklineData: [],
-            };
-          }
-        });
-
-        const results = await Promise.all(tokenDataPromises);
-        setTokens(results);
+        setTokens(tokensWithSparkline as MarketData[]);
       } catch (error) {
         console.error('Error fetching token data:', error);
       } finally {
@@ -191,8 +59,8 @@ export default function TokenTicker() {
     };
 
     fetchTokenData();
-    // Refresh data every 30 seconds
-    const interval = setInterval(fetchTokenData, 30000);
+    // Refresh data every 60 seconds
+    const interval = setInterval(fetchTokenData, 60000);
     return () => clearInterval(interval);
   }, []);
 
@@ -209,36 +77,15 @@ export default function TokenTicker() {
       <div className={styles.tickerTrack}>
         {/* First set of tokens */}
         {tokens.map((token, index) => (
-          <TokenCard
-            key={`token-1-${index}`}
-            symbol={token.symbol}
-            name={token.name}
-            logoUrl={token.logoUrl}
-            marketData={token.marketData}
-            sparklineData={token.sparklineData}
-          />
+          <TokenCard key={`token-1-${index}`} token={token} />
         ))}
         {/* Duplicate set for seamless loop */}
         {tokens.map((token, index) => (
-          <TokenCard
-            key={`token-2-${index}`}
-            symbol={token.symbol}
-            name={token.name}
-            logoUrl={token.logoUrl}
-            marketData={token.marketData}
-            sparklineData={token.sparklineData}
-          />
+          <TokenCard key={`token-2-${index}`} token={token} />
         ))}
         {/* Third set for smoother looping */}
         {tokens.map((token, index) => (
-          <TokenCard
-            key={`token-3-${index}`}
-            symbol={token.symbol}
-            name={token.name}
-            logoUrl={token.logoUrl}
-            marketData={token.marketData}
-            sparklineData={token.sparklineData}
-          />
+          <TokenCard key={`token-3-${index}`} token={token} />
         ))}
       </div>
     </div>

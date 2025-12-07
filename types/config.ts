@@ -27,7 +27,7 @@ export const CHAINS = {
     accessToken: process.env.NEXT_PUBLIC_ETHERSCAN_API_KEY_TOKEN,
     alchemyUrl: process.env.NEXT_PUBLIC_ALCHEMY_ETH_URL,
     nativeToken: {
-      uuid: 'razxDUgYGNAdQ',
+      uuid: 'ethereum', // CoinGecko ID for Ethereum
       symbol: 'ETH',
       name: 'Ethereum',
       decimals: 18,
@@ -39,7 +39,7 @@ export const CHAINS = {
     accessToken: process.env.NEXT_PUBLIC_POLYGONSCAN_API_KEY_TOKEN,
     alchemyUrl: process.env.NEXT_PUBLIC_ALCHEMY_POLYGON_URL,
     nativeToken: {
-      uuid: 'iDZ0tG-wI',
+      uuid: 'matic-network', // CoinGecko ID for Polygon
       symbol: 'POL',
       name: 'Polygon',
       decimals: 18,
@@ -51,7 +51,7 @@ export const CHAINS = {
     accessToken: process.env.NEXT_PUBLIC_BASESCAN_API_KEY_TOKEN,
     alchemyUrl: process.env.NEXT_PUBLIC_ALCHEMY_BASE_URL,
     nativeToken: {
-      uuid: 'razxDUgYGNAdQ', // ETH on Base
+      uuid: 'ethereum', // CoinGecko ID for ETH (Base uses ETH)
       symbol: 'ETH',
       name: 'Ethereum',
       decimals: 18,
@@ -63,7 +63,7 @@ export const CHAINS = {
     accessToken: process.env.NEXT_PUBLIC_SEPOLIA_ETHERSCAN_API_KEY_TOKEN,
     alchemyUrl: process.env.NEXT_PUBLIC_ALCHEMY_SEPOLIA_URL,
     nativeToken: {
-      uuid: 'razxDUgYGNAdQ', // Using same ETH uuid for testnet
+      uuid: 'ethereum', // CoinGecko ID for ETH (testnet)
       symbol: 'ETH',
       name: 'Ethereum (Sepolia)',
       decimals: 18,
@@ -75,7 +75,7 @@ export const CHAINS = {
     accessToken: undefined,
     alchemyUrl: process.env.NEXT_PUBLIC_ALCHEMY_SOLANA_URL,
     nativeToken: {
-      uuid: 'zNZHO_Sjf', // ETH on Base
+      uuid: 'solana', // CoinGecko ID for Solana
       symbol: 'SOL',
       name: 'SOLANA',
       decimals: 9,

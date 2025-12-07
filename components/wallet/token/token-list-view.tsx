@@ -13,6 +13,7 @@ export default function TokenListView({
   token,
   onClick,
 }: TokenCardProps) {
+  console.log('token', token);
   // const data = token.sparklineData;
 
   // const TokenSparkline = () => {
@@ -78,8 +79,8 @@ export default function TokenListView({
       <div className="flex items-center gap-4">
         <div className="text-right">
           <p className="font-bold">
-            {token.marketData?.price ? (
-              `$${parseFloat(token.marketData.price).toFixed(4)}`
+            {token.marketData?.price !== undefined && token.marketData?.price !== null ? (
+              `$${typeof token.value === 'number' ? token.value.toFixed(4) : '0.0000'}`
             ) : (
               <span className="text-gray-500">Price unavailable</span>
             )}

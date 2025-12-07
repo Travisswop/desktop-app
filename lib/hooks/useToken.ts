@@ -1,174 +1,82 @@
-import { ethers } from 'ethers';
-import { useQueries } from '@tanstack/react-query';
-import { ChainType, EVMChain } from '@/types/token';
-import { useMemo } from 'react';
-import { CHAINS } from '@/types/config';
-import {
-  TokenAPIService,
-  TokenContractService,
-  SolanaService,
-  processSparklineData,
-} from '@/services/token-service';
+import { useQuery } from '@tanstack/react-query';
+import { ChainType } from '@/types/token';
+import { WalletService, Token, WalletInput } from '@/services/wallet-service';
 
-// Main hook
+/**
+ * Simplified useMultiChainTokenData Hook
+ *
+ * Fetches all tokens (native + ERC-20/SPL) from the unified backend API.
+ * No frontend logic for handling different token types - backend does everything.
+ */
 export const useMultiChainTokenData = (
   solWalletAddress?: string,
   evmWalletAddress?: string,
   chains: ChainType[] = ['ETHEREUM']
 ) => {
-  const evmChains = chains.filter(
-    (chain): chain is EVMChain => chain !== 'SOLANA'
-  );
-  const hasSolana = chains.includes('SOLANA');
+  // Build wallet list based on provided addresses and chains
+  const wallets: WalletInput[] = [];
 
-  // Initialize providers
-  const evmProviders = useMemo(
-    () =>
-      evmChains.reduce(
-        (acc, chain) => ({
-          ...acc,
-          [chain]: new ethers.JsonRpcProvider(
-            CHAINS[chain].alchemyUrl
-          ),
-        }),
-        {} as Record<EVMChain, ethers.JsonRpcProvider>
-      ),
-    [evmChains]
-  );
+  if (evmWalletAddress) {
+    // Add requested EVM chains
+    const evmChains = chains.filter((chain) => chain !== 'SOLANA');
+    for (const chain of evmChains) {
+      wallets.push({
+        address: evmWalletAddress,
+        chain: chain.toLowerCase() as 'ethereum' | 'polygon' | 'base',
+      });
+    }
+  }
 
-  // Define queries with proper error boundaries
-  const queries = useQueries({
-    queries: [
-      // EVM Chain Queries
-      ...evmChains.map((chain) => ({
-        queryKey: ['nativeToken', chain, evmWalletAddress],
-        queryFn: async () => {
-          const provider = evmProviders[chain];
-          const balance = await provider.getBalance(
-            evmWalletAddress!
-          );
+  if (solWalletAddress && chains.includes('SOLANA')) {
+    wallets.push({
+      address: solWalletAddress,
+      chain: 'solana' as const,
+    });
+  }
 
-          if (balance.toString() !== '0') {
-            const token = await TokenContractService.getNativeTokens(
-              chain
-            );
+  // Single query to fetch all tokens
+  const { data, isLoading, error, refetch } = useQuery({
+    queryKey: ['walletTokens', solWalletAddress, evmWalletAddress, chains],
+    queryFn: async () => {
+      if (wallets.length === 0) {
+        return { tokens: [], totalValue: '0', tokenCount: 0 };
+      }
 
-            return {
-              ...token,
-              balance: ethers.formatUnits(balance, 18),
-            };
-          }
-
-          return null;
-        },
-        enabled: !!evmWalletAddress,
-      })),
-
-      ...evmChains.map((chain) => ({
-        queryKey: ['evmTokens', chain, evmWalletAddress],
-        queryFn: async () => {
-          const tokens = await TokenAPIService.getTokenBalances(
-            chain,
-            evmWalletAddress!
-          );
-          const provider = evmProviders[chain];
-
-          const results = await Promise.all(
-            tokens.map(async (token: any) => {
-              try {
-                const details =
-                  await TokenContractService.getTokenDetails(
-                    token.contractAddress,
-                    evmWalletAddress!,
-                    provider
-                  );
-
-                if (!details) return null;
-
-                const marketData =
-                  await TokenAPIService.getMarketData({
-                    address: token.contractAddress,
-                  });
-
-                if (!marketData) return null;
-
-                const timeSeriesData =
-                  await TokenAPIService.getTimeSeriesData(
-                    marketData.uuid
-                  );
-
-                return {
-                  ...details,
-                  chain,
-                  address: token.contractAddress,
-                  marketData,
-                  sparklineData: processSparklineData(timeSeriesData),
-                };
-              } catch (error) {
-                console.error(
-                  `Error fetching token ${token.contractAddress}:`,
-                  error
-                );
-                return null;
-              }
-            })
-          );
-
-          return results.filter(Boolean);
-        },
-        enabled: !!evmWalletAddress,
-      })),
-
-      // Solana Query
-      ...(hasSolana
-        ? [
-            {
-              queryKey: ['solanaTokens', solWalletAddress],
-              queryFn: async () => {
-                try {
-                  // Fixed: Added error handling
-                  return await SolanaService.getSplTokens(
-                    solWalletAddress!
-                  );
-                } catch (error) {
-                  console.error(
-                    'Error fetching Solana tokens:',
-                    error
-                  );
-                  return [];
-                }
-              },
-              enabled: !!solWalletAddress,
-            },
-          ]
-        : []),
-    ],
+      return await WalletService.getWalletTokens(wallets);
+    },
+    enabled: wallets.length > 0,
+    staleTime: 60000, // 60 seconds - match refetchInterval to prevent excessive calls
+    refetchInterval: 60000, // Refetch every minute
   });
 
-  // Process results
-  const processedData = useMemo(() => {
-    const allTokens = queries
-      .flatMap((query) => query.data || [])
-      .filter(Boolean)
-      .map((token) => ({
-        ...token,
-        logoURI: `/assets/crypto-icons/${token.symbol}.png`,
-        timeSeriesData: {
-          '1H': token.sparklineData || [],
-          '1D': [],
-          '1W': [],
-          '1M': [],
-          '1Y': [],
-        },
-      }));
+  // Transform tokens to include logoURI and timeSeriesData for backward compatibility
+  // Note: Tokens are already sorted by value on the backend
+  const tokens = (data?.tokens || []).map((token: Token) => ({
+    ...token,
+    logoURI: token.logoURI || `/assets/crypto-icons/${token.symbol}.png`,
+    // Add empty time series data structure for components that expect it
+    timeSeriesData: {
+      '1H': [],
+      '1D': [],
+      '1W': [],
+      '1M': [],
+      '1Y': [],
+    },
+    // Map marketData to match expected format
+    marketData: token.marketData
+      ? {
+          ...token.marketData,
+          change: token.marketData.priceChange24h?.toString() || '0',
+        }
+      : null,
+  }));
 
-    return {
-      tokens: allTokens,
-      loading: queries.some((query) => query.isLoading),
-      error: queries.find((query) => query.error)?.error,
-      refetch: () => queries.forEach((query) => query.refetch()),
-    };
-  }, [queries]);
-
-  return processedData;
+  return {
+    tokens,
+    loading: isLoading,
+    error,
+    refetch,
+    totalValue: data?.totalValue || '0',
+    tokenCount: data?.tokenCount || 0,
+  };
 };

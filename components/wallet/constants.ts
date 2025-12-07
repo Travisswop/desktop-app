@@ -8,6 +8,10 @@ export const SUPPORTED_CHAINS: ChainType[] = [
   'SOLANA',
 ] as const;
 
+export const SUPPORTED_CHAINS_TRANSACTIONS: ChainType[] = [
+  'SOLANA',
+] as const;
+
 // API endpoints
 export const API_ENDPOINTS = {
   SPONSOR_TRANSACTION: '/api/v5/wallet/sponsor-transaction',

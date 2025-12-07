@@ -1,6 +1,5 @@
 import { ethers } from 'ethers';
 import {
-  clusterApiUrl,
   Connection,
   PublicKey,
 } from '@solana/web3.js';
@@ -15,12 +14,11 @@ import {
   EVMChain,
   MarketData,
   TimeSeriesDataPoint,
-  TokenData,
   SolanaTokenData,
 } from '@/types/token';
 import { CHAINS } from '@/types/config';
-import { fetchPrice } from '@/components/wallet/tools/fetch_price';
 import logger from '../utils/logger';
+import { MarketService } from './market-service';
 
 interface TokenAccount {
   account: SolanaTokenData;
@@ -114,22 +112,70 @@ export class TokenAPIService {
   static async getMarketData(params: {
     address?: string;
     uuid?: string;
+    chain?: string;
   }): Promise<MarketData | null> {
-    const queryParam = params.address
-      ? `contractAddresses[]=${params.address}`
-      : `uuids[]=${params.uuid}`;
+    try {
+      // If we have an address and chain, use the backend CoinGecko Pro API
+      if (params.address && params.chain) {
+        const marketData = await MarketService.getTokenMarketDataByAddress(
+          params.address,
+          params.chain
+        );
 
-    const response = await this.fetchWithRetry(
-      `https://api.coinranking.com/v2/coins?${queryParam}`,
-      {
-        headers: {
-          'x-access-token':
-            process.env.NEXT_PUBLIC_COIN_RANKING_API_KEY || '',
-        },
+        // Map CoinGecko response to CoinRanking-like format for backward compatibility
+        return {
+          uuid: marketData.id,
+          symbol: marketData.symbol.toUpperCase(),
+          name: marketData.name,
+          price: marketData.currentPrice?.toString() || '0',
+          marketCap: marketData.marketCap?.toString() || '0',
+          '24hVolume': marketData.totalVolume?.toString() || '0',
+          color: '#000000',
+          iconUrl: marketData.image || '',
+          listedAt: 0,
+          tier: 0,
+          change: marketData.priceChangePercentage24h?.toString() || '0',
+          rank: marketData.marketCapRank || 0,
+          sparkline: [],
+          lowVolume: false,
+          coinrankingUrl: '',
+          btcPrice: '0',
+          contractAddresses: [params.address],
+        };
       }
-    );
-    const result = await response.json();
-    return result.data.coins[0] || null;
+
+      // If we have a uuid (CoinGecko ID), use the backend API
+      if (params.uuid) {
+        const marketData = await MarketService.getTokenMarketData(params.uuid);
+
+        // Map CoinGecko response to CoinRanking-like format
+        return {
+          uuid: marketData.id,
+          symbol: marketData.symbol.toUpperCase(),
+          name: marketData.name,
+          price: marketData.currentPrice?.toString() || '0',
+          marketCap: marketData.marketCap?.toString() || '0',
+          '24hVolume': marketData.totalVolume?.toString() || '0',
+          color: '#000000',
+          iconUrl: marketData.image || '',
+          listedAt: 0,
+          tier: 0,
+          change: marketData.priceChangePercentage24h?.toString() || '0',
+          rank: marketData.marketCapRank || 0,
+          sparkline: [],
+          lowVolume: false,
+          coinrankingUrl: '',
+          btcPrice: '0',
+          contractAddresses: [],
+        };
+      }
+
+      logger.error('getMarketData called without address+chain or uuid');
+      return null;
+    } catch (error) {
+      logger.error('Error fetching market data from backend:', error);
+      return null;
+    }
   }
 
   static async getTokensData(address: string[]) {
@@ -149,17 +195,42 @@ export class TokenAPIService {
   }
 
   static async getTimeSeriesData(uuid: string, period = '1h') {
-    const response = await this.fetchWithRetry(
-      `https://api.coinranking.com/v2/coin/${uuid}/history?timePeriod=${period}`,
-      {
-        headers: {
-          'x-access-token':
-            process.env.NEXT_PUBLIC_COIN_RANKING_API_KEY || '',
-        },
-      }
-    );
-    const result = await response.json();
-    return result.data;
+    try {
+      // Map period to days for CoinGecko API
+      const periodToDaysMap: Record<string, number | 'max'> = {
+        '1h': 1,
+        '3h': 1,
+        '12h': 1,
+        '24h': 1,
+        '1d': 1,
+        '7d': 7,
+        '30d': 30,
+        '3m': 90,
+        '1y': 365,
+        '3y': 1095,
+        '5y': 1825,
+      };
+
+      const days = periodToDaysMap[period] || 7;
+
+      // Use backend CoinGecko Pro API for historical data
+      const historicalData = await MarketService.getHistoricalPrices(uuid, days);
+
+      // Map CoinGecko response to CoinRanking-like format for backward compatibility
+      return {
+        change: '0', // Calculate from price data if needed
+        history: historicalData.prices.map((pricePoint) => ({
+          price: pricePoint.price.toString(),
+          timestamp: Math.floor(pricePoint.timestamp / 1000), // Convert to seconds
+        })),
+      };
+    } catch (error) {
+      logger.error('Error fetching time series data from backend:', error);
+      return {
+        change: '0',
+        history: [],
+      };
+    }
   }
 }
 
@@ -393,26 +464,28 @@ export class SolanaService {
         ...validToken2022Data,
       ];
 
-      // Handle SWOP token separately with custom price fetching
+      // Handle SWOP token separately using backend CoinGecko API
       // (filtered out from getTokenAccountsData to prevent duplicates)
-      logger.info('Processing SWOP token separately');
+      logger.info('Processing SWOP token separately with backend CoinGecko API');
       const swopTokenBalance = await this.getSwopTokenBalance(
         walletAddress
       );
 
-      const swopTokenPrice = await this.fetchTokenPrice(
-        SWOP_TOKEN.address || ''
-      );
+      // Fetch SWOP token market data from backend CoinGecko API
+      const swopMarketData = await TokenAPIService.getMarketData({
+        address: SWOP_TOKEN.address,
+        chain: 'solana',
+      });
 
-      logger.info('SWOP token details:', {
+      logger.info('SWOP token details from backend:', {
         balance: swopTokenBalance,
-        price: swopTokenPrice,
+        price: swopMarketData?.price || '0',
         address: SWOP_TOKEN.address,
       });
 
-      const swopTokenMarketData = {
+      const swopTokenMarketData = swopMarketData || {
         ...SWOP_TOKEN.marketData,
-        price: swopTokenPrice,
+        price: '0',
       };
 
       const finalTokens = [
@@ -553,39 +626,15 @@ export class SolanaService {
         try {
           const marketData = await TokenAPIService.getMarketData({
             address: token.address,
+            chain: 'solana', // Add chain parameter for backend CoinGecko Pro API
           });
 
-          // If no market data price is null, try fetching price directly
-          if (marketData && !marketData.price) {
+          // If no market data from CoinGecko backend, skip this token
+          if (!marketData || !marketData.price) {
             logger.warn(
-              `No market data or price found for token: ${token.address}, trying direct price fetch`
+              `No market data found for token from CoinGecko backend: ${token.address}`
             );
-
-            try {
-              const directPrice = await this.fetchTokenPrice(
-                token.address
-              );
-              logger.info(
-                `Direct price fetch for ${token.address}:`,
-                directPrice
-              );
-
-              if (directPrice && directPrice !== '0') {
-                // Create a basic market data object with the fetched price
-                marketData.price = directPrice;
-              } else {
-                logger.warn(
-                  `Direct price fetch also failed for token: ${token.address}`
-                );
-                return null;
-              }
-            } catch (directPriceError) {
-              logger.error(
-                `Error in direct price fetch for ${token.address}:`,
-                directPriceError
-              );
-              return null;
-            }
+            return null;
           }
 
           let timeSeriesData = null;
@@ -713,23 +762,6 @@ export class SolanaService {
     } catch (error) {
       logger.error('Error fetching SWOP token balance:', error);
       return '0'; // Return 0 instead of null for consistency
-    }
-  }
-
-  private static async fetchTokenPrice(mint: string) {
-    logger.info('Fetching token price for mint:', mint);
-
-    try {
-      const price = await fetchPrice(new PublicKey(mint));
-      logger.info('Token price fetched:', { mint, price });
-      return price;
-    } catch (error) {
-      logger.error(
-        'Error fetching token price for mint:',
-        mint,
-        error
-      );
-      return '0';
     }
   }
 }

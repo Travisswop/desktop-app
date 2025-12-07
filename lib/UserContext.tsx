@@ -37,15 +37,23 @@ export interface UserData {
   privyId?: string;
   ethAddress?: string;
   displayName?: string;
-  
+
   // Bot-related fields
   isBot?: boolean;
   botType?: 'crypto' | 'ai' | 'trading' | 'defi' | 'nft' | 'custom';
   botCapabilities?: Array<
-    'price_check' | 'swap_tokens' | 'send_crypto' | 
-    'check_balance' | 'transaction_history' | 'portfolio_analysis' |
-    'defi_yields' | 'nft_floor_prices' | 'market_analysis' |
-    'trading_signals' | 'gas_tracker' | 'bridge_tokens'
+    | 'price_check'
+    | 'swap_tokens'
+    | 'send_crypto'
+    | 'check_balance'
+    | 'transaction_history'
+    | 'portfolio_analysis'
+    | 'defi_yields'
+    | 'nft_floor_prices'
+    | 'market_analysis'
+    | 'trading_signals'
+    | 'gas_tracker'
+    | 'bridge_tokens'
   >;
   botMetadata?: {
     version?: string;
@@ -55,7 +63,7 @@ export interface UserData {
     maxTransactionAmount?: number;
     permissions?: string[];
   };
-  
+
   // User preferences
   preferences?: {
     language?: string;
@@ -66,7 +74,7 @@ export interface UserData {
       allowBotInteractions?: boolean;
     };
   };
-  
+
   // Crypto-related fields
   walletConnections?: Array<{
     network: string;
@@ -74,10 +82,14 @@ export interface UserData {
     isActive: boolean;
     lastUsed: Date;
   }>;
-  
+
   // Social features
   reputation?: number;
-  verificationStatus?: 'unverified' | 'email_verified' | 'wallet_verified' | 'kyc_verified';
+  verificationStatus?:
+    | 'unverified'
+    | 'email_verified'
+    | 'wallet_verified'
+    | 'kyc_verified';
 }
 
 export interface UserContextType {
@@ -299,6 +311,7 @@ export function UserProvider({
 
         const data = await response.json();
         const { user: userData, token } = data;
+        console.log('userData', userData);
 
         if (!userData || !token) {
           throw new Error('Invalid response structure');

@@ -1,9 +1,11 @@
 import { PublicKey } from '@solana/web3.js';
 import { getCachedPrice } from './price_cache';
 import logger from '../../../utils/logger';
+import { MarketService } from '@/services/market-service';
 
 /**
  * Fetch the price of a given token quoted in USD with multiple fallback methods
+ * Now prioritizing backend CoinGecko Pro API for better reliability and rate limits
  * @param tokenAddress The token mint address
  * @returns The price of the token in USD
  */
@@ -129,7 +131,32 @@ async function fetchFromDexScreener(
   }
 }
 
-// CoinGecko API fallback (for major tokens)
+// Backend CoinGecko Pro API (primary source for reliability and rate limits)
+async function fetchFromBackendCoinGecko(
+  tokenAddress: PublicKey
+): Promise<PriceResponse> {
+  try {
+    const priceData = await MarketService.getTokenPriceByAddress(
+      tokenAddress.toBase58(),
+      'solana'
+    );
+
+    if (!priceData || !priceData.price || priceData.price === 0) {
+      throw new Error('No price data from Backend CoinGecko');
+    }
+
+    return {
+      price: priceData.price.toString(),
+      source: 'Backend-CoinGecko-Pro',
+      success: true,
+    };
+  } catch (error) {
+    logger.warn('Backend CoinGecko API failed:', error);
+    return { price: '0', source: 'Backend-CoinGecko-Pro', success: false };
+  }
+}
+
+// Direct CoinGecko API fallback (kept as backup)
 async function fetchFromCoinGecko(
   tokenAddress: PublicKey
 ): Promise<PriceResponse> {
@@ -158,12 +185,12 @@ async function fetchFromCoinGecko(
 
     return {
       price: price.toString(),
-      source: 'CoinGecko',
+      source: 'CoinGecko-Direct',
       success: true,
     };
   } catch (error) {
-    logger.warn('CoinGecko API failed:', error);
-    return { price: '0', source: 'CoinGecko', success: false };
+    logger.warn('Direct CoinGecko API failed:', error);
+    return { price: '0', source: 'CoinGecko-Direct', success: false };
   }
 }
 
@@ -210,13 +237,14 @@ export async function fetchPrice(
   return getCachedPrice(tokenAddress, async (address) => {
     const tokenAddressStr = address.toBase58();
 
-    // Try APIs in order of preference
+    // Try APIs in order of preference - Backend CoinGecko Pro first for best reliability
     const apis = [
-      fetchFromJupiter,
-      fetchFromBirdeye,
-      fetchFromDexScreener,
-      fetchFromCoinGecko,
-      fetchFromPyth,
+      fetchFromBackendCoinGecko, // Primary: Backend with CoinGecko Pro
+      fetchFromJupiter, // Fallback 1: Jupiter DEX aggregator
+      fetchFromBirdeye, // Fallback 2: Birdeye analytics
+      fetchFromDexScreener, // Fallback 3: DexScreener
+      fetchFromCoinGecko, // Fallback 4: Direct CoinGecko (free tier)
+      fetchFromPyth, // Fallback 5: Pyth Network
     ];
 
     for (const api of apis) {
@@ -256,10 +284,11 @@ export async function fetchPriceWithDetails(
   const tokenAddressStr = tokenAddress.toBase58();
 
   const apis = [
+    { name: 'Backend-CoinGecko-Pro', fn: fetchFromBackendCoinGecko },
     { name: 'Jupiter', fn: fetchFromJupiter },
     { name: 'Birdeye', fn: fetchFromBirdeye },
     { name: 'DexScreener', fn: fetchFromDexScreener },
-    { name: 'CoinGecko', fn: fetchFromCoinGecko },
+    { name: 'CoinGecko-Direct', fn: fetchFromCoinGecko },
     { name: 'Pyth', fn: fetchFromPyth },
   ];
 
@@ -295,10 +324,36 @@ export async function fetchBatchPrices(
   tokenAddresses: PublicKey[]
 ): Promise<Record<string, string>> {
   const results: Record<string, string> = {};
+  const addresses = tokenAddresses.map((addr) => addr.toBase58());
 
-  // Use Jupiter's batch API if available
+  // Try Backend CoinGecko Pro batch API first (most reliable)
   try {
-    const addresses = tokenAddresses.map((addr) => addr.toBase58());
+    const priceMap = await MarketService.getSolanaBatchPrices(addresses);
+
+    for (const [address, priceData] of Object.entries(priceMap)) {
+      if (priceData && priceData.price) {
+        results[address] = priceData.price.toString();
+      }
+    }
+
+    // Check if we got all prices
+    const missingPrices = addresses.filter(
+      (addr) => !results[addr.toLowerCase()] && !results[addr]
+    );
+    if (missingPrices.length === 0) {
+      logger.info(`Successfully fetched ${addresses.length} prices from Backend CoinGecko Pro`);
+      return results;
+    }
+
+    logger.info(
+      `Backend CoinGecko Pro returned ${Object.keys(results).length}/${addresses.length} prices, falling back for missing`
+    );
+  } catch (error) {
+    logger.warn('Backend CoinGecko Pro batch API failed:', error);
+  }
+
+  // Fallback to Jupiter's batch API
+  try {
     const response = await fetch(
       `https://api.jup.ag/price/v2?ids=${addresses.join(',')}`,
       {
@@ -312,13 +367,17 @@ export async function fetchBatchPrices(
     if (response.ok) {
       const data = await response.json();
       for (const address of addresses) {
-        const price = data.data[address]?.price;
-        results[address] = price || '0';
+        if (!results[address]) {
+          const price = data.data[address]?.price;
+          if (price) {
+            results[address] = price;
+          }
+        }
       }
 
       // Check if we got all prices
       const missingPrices = addresses.filter(
-        (addr) => results[addr] === '0'
+        (addr) => !results[addr]
       );
       if (missingPrices.length === 0) {
         return results;
@@ -331,7 +390,7 @@ export async function fetchBatchPrices(
   // Fallback to individual fetching for missing prices
   const promises = tokenAddresses.map(async (tokenAddress) => {
     const address = tokenAddress.toBase58();
-    if (results[address] === '0' || !results[address]) {
+    if (!results[address] || results[address] === '0') {
       results[address] = await fetchPrice(tokenAddress);
     }
   });

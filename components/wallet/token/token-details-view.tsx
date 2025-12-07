@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useTokenTimeSeries } from '@/lib/hooks/useTokenTimeSeries';
+import { useTokenChartData } from '@/lib/hooks/useTokenChartData';
 import {
   Area,
   AreaChart,
@@ -14,7 +14,7 @@ import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Send, Wallet } from 'lucide-react';
-import { TimeSeriesData, TokenData } from '@/types/token';
+import { TokenData } from '@/types/token';
 import TokenImage from './token-image';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import {
@@ -30,10 +30,14 @@ const CustomTooltip = ({
 }: // eslint-disable-next-line @typescript-eslint/no-explicit-any
 any) => {
   if (active && payload && payload.length) {
+    // label is the timestamp - could be in seconds or milliseconds
+    // If it's a very large number (> 10 digits), it's milliseconds
+    const timestamp = label > 10000000000 ? label : label * 1000;
+
     return (
       <div className="bg-white p-2 border rounded shadow-sm">
         <p className="text-sm text-gray-600">
-          {new Date(label * 1000).toLocaleString('en-US', {
+          {new Date(timestamp).toLocaleString('en-US', {
             month: 'short',
             day: 'numeric',
             hour: 'numeric',
@@ -42,7 +46,7 @@ any) => {
           })}
         </p>
         <p className="text-sm font-bold">
-          ${payload[0].value.toFixed(2)}
+          ${payload[0].value.toFixed(4)}
         </p>
       </div>
     );
@@ -61,39 +65,111 @@ export default function TokenDetails({
   onBack,
   onSend,
 }: TokenDetailsProps) {
-  const [selectedPeriod, setSelectedPeriod] = useState('1H');
+  const [selectedPeriod, setSelectedPeriod] = useState('1D');
   const [chartData, setChartData] = useState(
-    token.timeSeriesData['1H']
+    token.timeSeriesData['1D'] || []
   );
   const [changePercentage, setChangePercentage] = useState(
     token.marketData.change
   );
+  const [isLoading, setIsLoading] = useState(false);
 
-  const day = useTokenTimeSeries(token.marketData.uuid, '24h');
-  const week = useTokenTimeSeries(token.marketData.uuid, '7d');
-  const month = useTokenTimeSeries(token.marketData.uuid, '30d');
-  const year = useTokenTimeSeries(token.marketData.uuid, '1y');
+  // Lazy load chart data - only fetch when user selects a period
+  // Works for both native tokens (SOL, ETH, MATIC) and contract tokens
+  // Native tokens have null address and are mapped directly to CoinGecko IDs
+  const day = useTokenChartData(
+    token.address, // Can be null for native tokens
+    token.chain,
+    '1D',
+    selectedPeriod === '1D'
+  );
+  const week = useTokenChartData(
+    token.address,
+    token.chain,
+    '1W',
+    selectedPeriod === '1W'
+  );
+  const month = useTokenChartData(
+    token.address,
+    token.chain,
+    '1M',
+    selectedPeriod === '1M'
+  );
+  const year = useTokenChartData(
+    token.address,
+    token.chain,
+    '1Y',
+    selectedPeriod === '1Y'
+  );
+  const max = useTokenChartData(
+    token.address,
+    token.chain,
+    'Max',
+    selectedPeriod === 'Max'
+  );
 
-  const strokeColor = token.marketData.color;
+  // Debug: Log when year or max data changes
+  useEffect(() => {
+    if (selectedPeriod === '1Y' && year.data) {
+      console.log('[TokenDetails] 1Y Chart Data:', {
+        dataPoints: year.data.sparklineData.length,
+        change: year.data.change,
+        firstPoint: year.data.sparklineData[0],
+        lastPoint: year.data.sparklineData[year.data.sparklineData.length - 1],
+        samplePoints: year.data.sparklineData.slice(0, 5),
+      });
+    }
+    if (selectedPeriod === 'Max' && max.data) {
+      console.log('[TokenDetails] Max Chart Data:', {
+        dataPoints: max.data.sparklineData.length,
+        change: max.data.change,
+        firstPoint: max.data.sparklineData[0],
+        lastPoint: max.data.sparklineData[max.data.sparklineData.length - 1],
+        samplePoints: max.data.sparklineData.slice(0, 5),
+      });
+    }
+  }, [selectedPeriod, year.data, max.data]);
+
+  // Determine chart color - use token color or default based on price change
+  const strokeColor =
+    token.marketData.color ||
+    (parseFloat(changePercentage || '0') >= 0
+      ? '#22c55e'
+      : '#ef4444');
 
   // Update chart data when period changes or data is fetched
   useEffect(() => {
-    const timeSeriesMap: TimeSeriesData = {
-      '1H': token.timeSeriesData['1H'],
-      '1D': day.data?.sparklineData,
-      '1W': week.data?.sparklineData,
-      '1M': month.data?.sparklineData,
-      '1Y': year.data?.sparklineData,
+    const timeSeriesMap = {
+      '1D': day.data?.sparklineData || [],
+      '1W': week.data?.sparklineData || [],
+      '1M': month.data?.sparklineData || [],
+      '1Y': year.data?.sparklineData || [],
+      'Max': max.data?.sparklineData || [],
     };
 
     const changePercentageMap = {
-      '1H': token.marketData.change,
-      '1D': day.data?.change,
-      '1W': week.data?.change,
-      '1M': month.data?.change,
-      '1Y': year.data?.change,
+      '1D': day.data?.change || '0',
+      '1W': week.data?.change || '0',
+      '1M': month.data?.change || '0',
+      '1Y': year.data?.change || '0',
+      'Max': max.data?.change || '0',
     };
 
+    // Determine loading state
+    const loadingStates = {
+      '1D': day.isLoading,
+      '1W': week.isLoading,
+      '1M': month.isLoading,
+      '1Y': year.isLoading,
+      'Max': max.isLoading,
+    };
+
+    setIsLoading(
+      loadingStates[selectedPeriod as keyof typeof loadingStates] ||
+        false
+    );
+
+    // Only update if we have data for the selected period
     const newData =
       timeSeriesMap[selectedPeriod as keyof typeof timeSeriesMap];
     const newChange =
@@ -101,18 +177,37 @@ export default function TokenDetails({
         selectedPeriod as keyof typeof changePercentageMap
       ];
 
-    if (newData) {
+    if (newData && newData.length > 0) {
+      // Debug log for chart data
+      console.log(`[TokenDetails] Updating chart for ${selectedPeriod}:`, {
+        token: token.symbol,
+        period: selectedPeriod,
+        dataPoints: newData.length,
+        change: newChange,
+        firstPoint: newData[0],
+        lastPoint: newData[newData.length - 1],
+        // Check for flat lines
+        uniqueValues: new Set(newData.map((d) => d.value)).size,
+      });
+
       setChartData(newData);
       setChangePercentage(newChange);
+    } else {
+      console.warn(`[TokenDetails] No data available for ${selectedPeriod}`);
     }
   }, [
     selectedPeriod,
     day.data,
+    day.isLoading,
     week.data,
+    week.isLoading,
     month.data,
+    month.isLoading,
     year.data,
-    token.timeSeriesData,
-    token.marketData.change,
+    year.isLoading,
+    max.data,
+    max.isLoading,
+    token.symbol,
   ]);
 
   return (
@@ -162,7 +257,17 @@ export default function TokenDetails({
           {/* Chart */}
           <Card className="border-0 shadow-none">
             <CardContent className="pt-6 px-0 pb-4">
-              <div className="h-[200px]">
+              <div className="h-[200px] relative">
+                {isLoading && (
+                  <div className="absolute inset-0 flex items-center justify-center bg-white/80 z-10 rounded-lg">
+                    <div className="flex flex-col items-center gap-2">
+                      <div className="animate-spin h-8 w-8 border-4 border-gray-300 border-t-black rounded-full"></div>
+                      <p className="text-sm text-muted-foreground">
+                        Loading chart data...
+                      </p>
+                    </div>
+                  </div>
+                )}
                 <ResponsiveContainer width="100%" height="100%">
                   <AreaChart
                     data={chartData}
@@ -214,7 +319,7 @@ export default function TokenDetails({
                       minTickGap={30}
                     />
                     <YAxis
-                      domain={['dataMin - 1', 'dataMax + 1']}
+                      domain={['auto', 'auto']}
                       hide
                     />
                     <Tooltip
@@ -228,10 +333,12 @@ export default function TokenDetails({
                       type="monotone"
                       dataKey="value"
                       stroke={strokeColor}
-                      strokeWidth={2}
+                      strokeWidth={2.5}
                       fill="url(#colorValue)"
                       isAnimationActive={true}
                       animationDuration={1000}
+                      connectNulls={true}
+                      dot={false}
                     />
                   </AreaChart>
                 </ResponsiveContainer>
@@ -239,12 +346,6 @@ export default function TokenDetails({
 
               <Tabs value={selectedPeriod} className="w-full mt-4">
                 <TabsList className="grid w-full grid-cols-5">
-                  <TabsTrigger
-                    value="1H"
-                    onClick={() => setSelectedPeriod('1H')}
-                  >
-                    1H
-                  </TabsTrigger>
                   <TabsTrigger
                     value="1D"
                     onClick={() => setSelectedPeriod('1D')}
@@ -268,6 +369,12 @@ export default function TokenDetails({
                     onClick={() => setSelectedPeriod('1Y')}
                   >
                     1Y
+                  </TabsTrigger>
+                  <TabsTrigger
+                    value="Max"
+                    onClick={() => setSelectedPeriod('Max')}
+                  >
+                    Max
                   </TabsTrigger>
                 </TabsList>
               </Tabs>

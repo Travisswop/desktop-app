@@ -1,24 +1,23 @@
-export type ChainType = 'ETHEREUM' | 'POLYGON' | 'BASE' | 'SOLANA' | 'SEPOLIA';
+export type ChainType =
+  | 'ETHEREUM'
+  | 'POLYGON'
+  | 'BASE'
+  | 'SOLANA'
+  | 'SEPOLIA';
 export type EVMChain = Exclude<ChainType, 'SOLANA'>;
 
 export interface MarketData {
-  uuid: string;
   symbol: string;
   name: string;
-  color: string;
-  iconUrl: string;
-  marketCap: string;
-  price: string;
-  listedAt: number;
-  tier: number;
-  change: string;
-  rank: number;
-  sparkline: Array<{ timestamp: number; value: number }>;
-  lowVolume: boolean;
-  coinrankingUrl: string;
-  '24hVolume': string;
-  btcPrice: string;
-  contractAddresses: string[];
+  image: string;
+  currentPrice: number;
+  priceChangePercentage24h: number;
+  sparklineData?: number[];
+  // Additional properties for token details view
+  price?: string; // Current price as string
+  change?: string; // Price change percentage
+  color?: string; // Color for chart styling
+  uuid?: string; // Legacy CoinRanking ID (optional)
 }
 
 export interface TimeSeriesData {
@@ -29,7 +28,7 @@ export interface TimeSeriesData {
   '1Y': Array<{ timestamp: number; value: number }>;
 }
 
-export interface  TokenData {
+export interface TokenData {
   name: string;
   symbol: string;
   balance: string;
@@ -49,6 +48,7 @@ export interface  TokenData {
   };
   isNative?: boolean;
   nativeTokenPrice?: number;
+  value?: number; // Total value in USD (balance × price), calculated by backend
 }
 
 export interface SolanaTokenData {

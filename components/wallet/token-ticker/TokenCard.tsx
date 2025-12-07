@@ -6,25 +6,11 @@ import { Sparklines, SparklinesLine } from 'react-sparklines';
 import { ChevronUp, ChevronDown } from 'lucide-react';
 
 interface TokenCardProps {
-  symbol: string;
-  name: string;
-  logoUrl: string;
-  marketData: MarketData | null;
-  sparklineData: number[];
+  token: MarketData;
 }
 
-export default function TokenCard({
-  symbol,
-  name,
-  logoUrl,
-  marketData,
-  sparklineData,
-}: TokenCardProps) {
-  const price = marketData?.price ? parseFloat(marketData.price) : 0;
-  const change = marketData?.change
-    ? parseFloat(marketData.change)
-    : 0;
-  const isPositive = change >= 0;
+export default function TokenCard({ token }: TokenCardProps) {
+  const isPositive = token.priceChangePercentage24h >= 0;
 
   return (
     <div className="min-w-[420px] bg-white rounded-2xl p-6 shadow-sm border border-gray-100 flex-shrink-0 relative">
@@ -35,17 +21,17 @@ export default function TokenCard({
           <div className="flex items-center gap-3 mb-4">
             <div className="relative w-16 h-16 flex-shrink-0">
               <Image
-                src={logoUrl}
-                alt={name}
+                src={token.image}
+                alt={token.name}
                 fill
                 className="rounded-full object-cover"
               />
             </div>
             <div>
               <p className="text-lg font-semibold text-gray-900">
-                {name}
+                {token.name}
               </p>
-              <p className="text-sm text-gray-500">{symbol}</p>
+              <p className="text-sm text-gray-500">{token.symbol}</p>
             </div>
           </div>
 
@@ -53,9 +39,10 @@ export default function TokenCard({
           <div className="mb-3">
             <p className="text-3xl text-gray-900">
               $
-              {price.toLocaleString('en-US', {
+              {token?.currentPrice?.toLocaleString('en-US', {
                 minimumFractionDigits: 2,
-                maximumFractionDigits: price < 1 ? 6 : 2,
+                maximumFractionDigits:
+                  token?.currentPrice < 1 ? 6 : 2,
               })}
             </p>
           </div>
@@ -70,7 +57,7 @@ export default function TokenCard({
               }`}
             >
               {isPositive ? '+ ' : ''}
-              {Math.abs(change).toFixed(2)}%
+              {Math.abs(token?.priceChangePercentage24h).toFixed(2)}%
             </span>
           </div>
         </div>
@@ -94,11 +81,16 @@ export default function TokenCard({
 
           {/* Chart */}
           <div className="w-full h-32 mt-4">
-            {sparklineData && sparklineData.length > 0 ? (
-              <svg width="200" height="128" className="overflow-visible">
+            {token?.sparklineData &&
+            token?.sparklineData.length > 0 ? (
+              <svg
+                width="200"
+                height="128"
+                className="overflow-visible"
+              >
                 <defs>
                   <linearGradient
-                    id={`gradient-${symbol}`}
+                    id={`gradient-${token?.symbol}`}
                     x1="0%"
                     y1="0%"
                     x2="0%"
@@ -120,11 +112,15 @@ export default function TokenCard({
                     />
                   </linearGradient>
                 </defs>
-                <Sparklines data={sparklineData} height={128} width={200}>
+                <Sparklines
+                  data={token?.sparklineData}
+                  height={128}
+                  width={200}
+                >
                   <SparklinesLine
                     color={isPositive ? '#10b981' : '#ef4444'}
                     style={{
-                      fill: `url(#gradient-${symbol})`,
+                      fill: `url(#gradient-${token?.symbol})`,
                       strokeWidth: 2.5,
                     }}
                   />
