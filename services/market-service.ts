@@ -6,7 +6,7 @@
  */
 
 const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:4000';
+  process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
 const MARKET_API_URL = `${API_BASE_URL}/api/v5/market`;
 
 interface TokenPrice {
@@ -85,16 +85,23 @@ export class MarketService {
   /**
    * Get token market data by CoinGecko ID
    */
-  static async getTokenMarketData(tokenId: string): Promise<MarketData> {
+  static async getTokenMarketData(
+    tokenId: string
+  ): Promise<MarketData> {
     try {
-      const response = await fetch(`${MARKET_API_URL}/token/${tokenId}`, {
-        method: 'GET',
-        headers: { 'Content-Type': 'application/json' },
-        signal: AbortSignal.timeout(10000), // 10 second timeout
-      });
+      const response = await fetch(
+        `${MARKET_API_URL}/token/${tokenId}`,
+        {
+          method: 'GET',
+          headers: { 'Content-Type': 'application/json' },
+          signal: AbortSignal.timeout(10000), // 10 second timeout
+        }
+      );
 
       if (!response.ok) {
-        throw new Error(`Failed to fetch market data: ${response.status}`);
+        throw new Error(
+          `Failed to fetch market data: ${response.status}`
+        );
       }
 
       const result = await response.json();
@@ -123,7 +130,9 @@ export class MarketService {
       );
 
       if (!response.ok) {
-        throw new Error(`Failed to fetch historical data: ${response.status}`);
+        throw new Error(
+          `Failed to fetch historical data: ${response.status}`
+        );
       }
 
       const result = await response.json();
@@ -168,7 +177,9 @@ export class MarketService {
     chain: string
   ): Promise<TokenPrice | null> {
     try {
-      const prices = await this.getPricesByAddresses([{ address, chain }]);
+      const prices = await this.getPricesByAddresses([
+        { address, chain },
+      ]);
       return prices[address.toLowerCase()] || null;
     } catch (error) {
       console.error('Error fetching token price:', error);
@@ -191,7 +202,9 @@ export class MarketService {
       });
 
       if (!response.ok) {
-        throw new Error(`Failed to calculate portfolio value: ${response.status}`);
+        throw new Error(
+          `Failed to calculate portfolio value: ${response.status}`
+        );
       }
 
       const result = await response.json();
@@ -221,7 +234,9 @@ export class MarketService {
         if (response.status === 404) {
           return null; // Token not found
         }
-        throw new Error(`Failed to resolve token address: ${response.status}`);
+        throw new Error(
+          `Failed to resolve token address: ${response.status}`
+        );
       }
 
       const result = await response.json();
@@ -256,7 +271,9 @@ export class MarketService {
       );
 
       if (!response.ok) {
-        throw new Error(`Failed to search tokens: ${response.status}`);
+        throw new Error(
+          `Failed to search tokens: ${response.status}`
+        );
       }
 
       const result = await response.json();
@@ -275,12 +292,15 @@ export class MarketService {
     chain: string
   ): Promise<MarketData & { address: string; chain: string }> {
     try {
-      const response = await fetch(`${MARKET_API_URL}/token-by-address`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ address, chain }),
-        signal: AbortSignal.timeout(10000),
-      });
+      const response = await fetch(
+        `${MARKET_API_URL}/token-by-address`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ address, chain }),
+          signal: AbortSignal.timeout(10000),
+        }
+      );
 
       if (!response.ok) {
         throw new Error(
@@ -299,9 +319,7 @@ export class MarketService {
   /**
    * Batch get market data for multiple tokens by CoinGecko IDs
    */
-  static async getBatchMarketData(
-    tokenIds: string[]
-  ): Promise<{
+  static async getBatchMarketData(tokenIds: string[]): Promise<{
     successful: MarketData[];
     failed: Array<{ tokenId: string; error: string }>;
   }> {
@@ -314,7 +332,9 @@ export class MarketService {
       });
 
       if (!response.ok) {
-        throw new Error(`Failed to fetch batch market data: ${response.status}`);
+        throw new Error(
+          `Failed to fetch batch market data: ${response.status}`
+        );
       }
 
       const result = await response.json();
