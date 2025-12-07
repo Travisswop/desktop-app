@@ -50,6 +50,8 @@ const getChainIcon = (chainName: string) => {
 };
 
 const getChainId = (chainName: string) => {
+  // console.log("chaing name", chainName);
+
   const chainIds: Record<string, string> = {
     SOLANA: "1151111081099710",
     ETHEREUM: "1",
@@ -535,19 +537,19 @@ export default function SwapTokenModal({ tokens }: { tokens: any[] }) {
       setIsLoadingTokens(true);
       const symbols = NATIVE_TOKENS_AND_USDC[receiverChainId as string]; // e.g. [{symbol: "SOL"}, {symbol: "USDC"}]
 
-      console.log("symbols", symbols);
+      // console.log("symbols", symbols);
 
       // Extract the plain symbol strings into a Set for faster lookup
       const symbolSet = new Set(symbols.map((s) => s.symbol));
 
-      console.log("symbolSet", symbolSet);
+      // console.log("symbolSet", symbolSet);
 
       // Filter availableTokens where the symbol is in symbolSet
       const filtered = availableTokens.filter((avail) =>
         symbolSet.has(avail.symbol)
       );
 
-      console.log("filtered", filtered);
+      // console.log("filtered", filtered);
 
       setFilteredReceivedTokens(filtered);
       setIsLoadingTokens(false);
@@ -705,7 +707,7 @@ export default function SwapTokenModal({ tokens }: { tokens: any[] }) {
       }
 
       const jupiterQuote = await response.json();
-      console.log("jupiterQuote", jupiterQuote);
+      // console.log("jupiterQuote", jupiterQuote);
 
       if (!jupiterQuote || !jupiterQuote.outAmount) {
         throw new Error(
@@ -893,7 +895,7 @@ export default function SwapTokenModal({ tokens }: { tokens: any[] }) {
 
       // Check if this is a Token-2022 token
       const isToken2022 = tokenProgramId === TOKEN_2022_PROGRAM_ID.toString();
-      console.log("isToken2022", isToken2022);
+      // console.log("isToken2022", isToken2022);
       const swapResponse = await fetch("https://lite-api.jup.ag/swap/v1/swap", {
         method: "POST",
         headers: {
@@ -930,7 +932,7 @@ export default function SwapTokenModal({ tokens }: { tokens: any[] }) {
 
       const fromAmount = formatTokenAmount(payAmount, payToken.decimals || 6);
 
-      console.log("fromAmount2", fromAmount);
+      // console.log("fromAmount2", fromAmount);
 
       if (fromAmount === "0" || !fromAmount) {
         throw new Error("Invalid amount");

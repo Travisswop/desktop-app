@@ -26,6 +26,7 @@ export default function SendTokenModal({
   const hasPrice = parseFloat(token?.marketData?.price || "0") > 0;
   const [isUSD, setIsUSD] = useState(hasPrice);
   const [amount, setAmount] = useState("1.00");
+  console.log("amount", amount);
 
   const maxUSDAmount =
     !token || !hasPrice
@@ -46,13 +47,19 @@ export default function SendTokenModal({
     return (tokenAmount * parseFloat(token.marketData.price)).toFixed(2);
   };
 
-  const handleInput = (value: string) => {
+  const handleInput = (value: number) => {
+    console.log("token hit", token);
     if (!token) return;
+
+    console.log("value", value);
 
     // Remove non-numeric/decimal characters and multiple decimals
     const sanitizedValue = value
+      .toString()
       .replace(/[^0-9.]/g, "")
       .replace(/(\..*)\./g, "$1");
+
+    console.log("sanitizedValue", sanitizedValue);
 
     // Handle empty or just decimal input
     if (sanitizedValue === "" || sanitizedValue === ".") {
@@ -139,6 +146,9 @@ export default function SendTokenModal({
               onClick={() => {
                 const maxAmount =
                   isUSD && hasPrice ? maxUSDAmount : token.balance;
+
+                console.log("max amount", maxAmount);
+
                 handleInput(maxAmount);
               }}
               className="rounded-full bg-slate-300 p-6"

@@ -66,7 +66,10 @@ async function fetchUserByENS(
     console.log("data hola", data);
 
     return {
-      address: network === "SOLANA" ? data.addresses["501"] : data.owner,
+      address:
+        network?.toUpperCase() === "SOLANA"
+          ? data.addresses["501"]
+          : data.owner,
       ensName: data.name,
       isEns: true,
       avatar: data.domainOwner.avatar,
@@ -124,18 +127,23 @@ export default function SendToModal({
 
   const { user: userHookData } = useUser();
 
-  console.log("userHookData", userHookData);
+  console.log("selectedToken", selectedToken);
 
   // const { tokenContent } = useTokenSendStore();
 
   // Remove the local network assignment, always use the prop
   // const network = selectedToken?.chain || 'ETHEREUM';
 
+  console.log("network", network);
+
   const isValidAddress =
     searchQuery &&
-    ((["ETHEREUM", "POLYGON", "BASE"].includes(network) &&
+    ((["ETHEREUM", "POLYGON", "BASE", "ethereum", "polygon", "base"].includes(
+      network
+    ) &&
       validateEthereumAddress(searchQuery)) ||
-      (network === "SOLANA" && validateSolanaAddress(searchQuery)));
+      ((network === "SOLANA" || network === "solana") &&
+        validateSolanaAddress(searchQuery)));
 
   const {
     data: userData,
