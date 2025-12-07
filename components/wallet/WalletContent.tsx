@@ -133,7 +133,7 @@ const WalletContentInner = () => {
   const { solWalletAddress, evmWalletAddress } =
     useWalletAddresses(walletData);
   const { payload } = useTransactionPayload(user);
-  const { wallets: ethWalletsData } = useWallets();
+  // const { wallets: ethWalletsData } = useWallets();
 
   const {
     sendFlow,

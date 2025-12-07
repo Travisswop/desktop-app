@@ -27,7 +27,6 @@ import React, {
 } from "react";
 import { FiShare } from "react-icons/fi";
 import { IoMdHeart, IoMdHeartEmpty } from "react-icons/io";
-import { RiBarChartGroupedFill } from "react-icons/ri";
 import CommentMain from "../reaction/CommentMain";
 import { BiEdit, BiRepost } from "react-icons/bi";
 import CommentContent from "../CommentContent";
@@ -39,6 +38,8 @@ import Cookies from "js-cookie";
 import EmojiPicker from "emoji-picker-react";
 import { BsEmojiSmile } from "react-icons/bs";
 import { Loader } from "lucide-react";
+import repostImg from "@/public/images/custom-icons/feed_repost.png";
+import Image from "next/image";
 
 // Assuming FeedItemType is available or defined elsewhere
 interface FeedItemType {
@@ -292,18 +293,6 @@ const Reaction = memo(
             isFromFeedDetails={isFromFeedDetails}
           />
           {/* repost */}
-          {/* <Tooltip
-          className="text-xs font-medium"
-          placement="bottom"
-          showArrow
-          content="Repost"
-        >
-          <button className="flex items-center gap-1 text-sm font-medium w-12">
-            <BiRepost size={21} />
-            <p>{repostCount}</p>
-          </button>
-        </Tooltip> */}
-
           <Popover
             placement="bottom-start"
             isOpen={isRepostPopOpen}
@@ -318,7 +307,12 @@ const Reaction = memo(
                   content="Repost"
                 >
                   <button className="flex items-center gap-1 text-sm font-medium w-12">
-                    <BiRepost size={21} />
+                    <Image
+                      src={repostImg}
+                      alt="comment"
+                      className="w-5 h-auto"
+                      quality={100}
+                    />
                     <p>{repostCount}</p>
                   </button>
                 </Tooltip>
@@ -336,7 +330,7 @@ const Reaction = memo(
                   disabled={repostLoading}
                   className="w-full flex items-center gap-3 p-3 rounded-md hover:bg-gray-100 transition-colors duration-150"
                 >
-                  <BiRepost className="text-lg text-gray-700" size={20} />
+                  <BiRepost className="text-lg" size={24} />
                   <span className="text-sm font-medium text-gray-900 flex items-center gap-1">
                     Instant Repost{" "}
                     {repostLoading && (
@@ -352,18 +346,11 @@ const Reaction = memo(
                   }}
                   className="w-full flex items-center gap-3 p-3 rounded-md hover:bg-gray-100 transition-colors duration-150"
                 >
-                  <BiEdit className="text-lg text-gray-700" />
+                  <BiEdit className="text-lg" />
                   <span className="text-sm font-medium text-gray-900">
                     Repost With Content
                   </span>
                 </button>
-
-                {/* <div className="border-t border-gray-100 my-1"></div> */}
-
-                {/* <button className="w-full flex items-center gap-3 p-3 rounded-md hover:bg-gray-50 transition-colors duration-150 text-red-500">
-                <BiTrash className="text-lg" />
-                <span className="text-sm font-medium">Cancel Repost</span>
-              </button> */}
               </div>
             </PopoverContent>
           </Popover>
@@ -381,9 +368,9 @@ const Reaction = memo(
               }`}
             >
               {liked ? (
-                <IoMdHeart size={17} color="red" />
+                <IoMdHeart size={18} color="red" />
               ) : (
-                <IoMdHeartEmpty size={17} color="black" />
+                <IoMdHeartEmpty size={18} color="black" />
               )}
               <p>{formattedCounts.likes}</p>
 
@@ -483,7 +470,7 @@ const Reaction = memo(
                   <h3 className="text-lg font-semibold text-gray-900">
                     Repost this post
                   </h3>
-                  <p className="text-sm text-gray-500">
+                  <p className="text-sm text-gray-500 font-medium">
                     Add your thoughts here
                   </p>
                 </ModalHeader>

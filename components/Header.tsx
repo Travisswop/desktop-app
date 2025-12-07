@@ -57,14 +57,17 @@ export default function Header() {
 
   if (loading) {
     return (
-      <header className="bg-white p-6 flex justify-between items-center h-20 border-b">
-        <Skeleton className="h-7 w-7 rounded" />
-        <div className="flex items-center gap-2">
-          <Skeleton className="h-12 w-12 rounded-full" />
-          <Skeleton className="h-12 w-12 rounded-full" />
-          <Skeleton className="h-14 w-48 rounded-full" />
-        </div>
-      </header>
+      <div className="bg-white rounded-b-xl shadow-small sticky top-0 z-10">
+        <header className="h-24 bg-white mx-8 flex items-center justify-between">
+          <Skeleton className="h-7 w-7 rounded" />
+
+          <div className="flex items-center gap-2">
+            <Skeleton className="h-12 w-12 rounded-full" />
+            <Skeleton className="h-12 w-12 rounded-full" />
+            <Skeleton className="h-14 w-48 rounded-full" />
+          </div>
+        </header>
+      </div>
     );
   }
 
@@ -125,14 +128,18 @@ export default function Header() {
                   <FaUserPlus />
                   <p>Followers</p>
                   <Badge className="h-5 min-w-5 rounded-full px-1 font-mono tabular-nums bg-blue-700 flex items-center justify-center">
-                    {user ? formatCount(user.followers) : 0}
+                    {user
+                      ? formatCount(user?.connections?.followers?.length)
+                      : 0}
                   </Badge>
                 </DropdownMenuItem>
                 <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
                   <FaUserCheck />
                   <p>Following</p>
                   <Badge className="h-5 min-w-5 rounded-full px-1 font-mono tabular-nums bg-green-700 flex items-center justify-center">
-                    {user ? formatCount(user.following) : 0}
+                    {user
+                      ? formatCount(user?.connections?.following?.length)
+                      : 0}
                   </Badge>
                 </DropdownMenuItem>
                 <DropdownMenuItem

@@ -1,31 +1,43 @@
-'use client';
+"use client";
 
-import { useState } from 'react';
+import { useState } from "react";
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
-} from '@/components/ui/dialog';
-import { Input } from '@/components/ui/input';
-import { Button } from '@/components/ui/button';
-import { ArrowRight, Loader2, Upload, Wallet } from 'lucide-react';
-import Image from 'next/image';
-import { useDebounce } from 'use-debounce';
-import { useQuery } from '@tanstack/react-query';
-import { Transaction } from '@solana/web3.js';
-import { Connection } from '@solana/web3.js';
-import { ReceiverData } from '@/types/wallet';
-import { truncateAddress } from '@/lib/utils';
-import RedeemModal, { RedeemConfig } from './redeem-modal';
-import { TokenData } from '@/types/token';
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import {
+  ArrowRight,
+  ChevronRight,
+  Loader2,
+  Search,
+  Send,
+  Upload,
+  Wallet,
+} from "lucide-react";
+import Image from "next/image";
+import { useDebounce } from "use-debounce";
+import { useQuery } from "@tanstack/react-query";
+import { Transaction } from "@solana/web3.js";
+import { Connection } from "@solana/web3.js";
+import { ReceiverData } from "@/types/wallet";
+import { truncateAddress } from "@/lib/utils";
+import RedeemModal, { RedeemConfig } from "./redeem-modal";
+import { TokenData } from "@/types/token";
 
-import { TransactionService } from '@/services/transaction-service';
-import { usePrivy } from '@privy-io/react-auth';
-import { useSolanaWalletContext } from '@/lib/context/SolanaWalletContext';
+import { TransactionService } from "@/services/transaction-service";
+import { usePrivy } from "@privy-io/react-auth";
+import { useSolanaWallets } from "@privy-io/react-auth/solana";
+import { BsSendFill } from "react-icons/bs";
+import isUrl from "@/lib/isUrl";
+import { useUser } from "@/lib/UserContext";
+import CustomModal from "@/components/modal/CustomModal";
 
 type ProcessingStep = {
-  status: 'pending' | 'processing' | 'completed' | 'error';
+  status: "pending" | "processing" | "completed" | "error";
   message: string;
 };
 
@@ -43,27 +55,26 @@ async function fetchUserByENS(
 ): Promise<ReceiverData | null> {
   if (!ensName) return null;
 
-  if (ensName.endsWith('.swop.id')) {
+  if (ensName.endsWith(".swop.id")) {
     const url = `https://app.apiswop.co/api/v4/wallet/getEnsAddress/${ensName}`;
     const response = await fetch(url);
     if (!response.ok) {
-      throw new Error('Failed to fetch ENS address');
+      throw new Error("Failed to fetch ENS address");
     }
     const data = await response.json();
 
+    console.log("data hola", data);
+
     return {
-      address:
-        network === 'SOLANA' ? data.addresses['501'] : data.owner,
+      address: network === "SOLANA" ? data.addresses["501"] : data.owner,
       ensName: data.name,
       isEns: true,
-      avatar: data.domainOwner.avatar.startsWith('https://')
-        ? data.domainOwner.avatar
-        : `/assets/avatar.png`,
+      avatar: data.domainOwner.avatar,
     };
-  } else if (ensName.startsWith('0x')) {
+  } else if (ensName.startsWith("0x")) {
     // Handle Ethereum address
     if (!validateEthereumAddress(ensName)) {
-      throw new Error('Invalid Ethereum address');
+      throw new Error("Invalid Ethereum address");
     }
 
     return {
@@ -73,7 +84,7 @@ async function fetchUserByENS(
   } else {
     // Handle Solana address
     if (!validateSolanaAddress(ensName)) {
-      throw new Error('Invalid Solana address');
+      throw new Error("Invalid Solana address");
     }
     return {
       address: ensName,
@@ -104,11 +115,16 @@ export default function SendToModal({
   isUSD,
 }: SendToModalProps) {
   const { user } = usePrivy();
-  const [searchQuery, setSearchQuery] = useState('');
+  const [searchQuery, setSearchQuery] = useState("");
   const [debouncedQuery] = useDebounce(searchQuery, 500);
   const [addressError, setAddressError] = useState(false);
   const [isRedeemModalOpen, setIsRedeemModalOpen] = useState(false);
-  const { solanaWallets } = useSolanaWalletContext();
+  // const { solanaWallets } = useSolanaWalletContext();
+  const { wallets: solanaWallets } = useSolanaWallets();
+
+  const { user: userHookData } = useUser();
+
+  console.log("userHookData", userHookData);
 
   // const { tokenContent } = useTokenSendStore();
 
@@ -117,81 +133,78 @@ export default function SendToModal({
 
   const isValidAddress =
     searchQuery &&
-    ((['ETHEREUM', 'POLYGON', 'BASE'].includes(network) &&
+    ((["ETHEREUM", "POLYGON", "BASE"].includes(network) &&
       validateEthereumAddress(searchQuery)) ||
-      (network === 'SOLANA' && validateSolanaAddress(searchQuery)));
+      (network === "SOLANA" && validateSolanaAddress(searchQuery)));
 
   const {
     data: userData,
     isLoading,
     error,
   } = useQuery({
-    queryKey: ['user', debouncedQuery, network],
+    queryKey: ["user", debouncedQuery, network],
     queryFn: () => fetchUserByENS(debouncedQuery, network),
     enabled:
       Boolean(debouncedQuery) &&
       !isValidAddress &&
-      debouncedQuery.includes('.'),
+      debouncedQuery.includes("."),
   });
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    setAddressError(false);
+  console.log("user data", userData);
 
-    // Validate address is not empty or current wallet
-    if (!searchQuery.trim()) {
-      return;
-    }
+  // const handleSubmit = (e: React.FormEvent) => {
+  //   e.preventDefault();
+  //   setAddressError(false);
 
-    if (
-      searchQuery.toLowerCase() === currentWalletAddress.toLowerCase()
-    ) {
-      setAddressError(true);
-      return;
-    }
+  //   // Validate address is not empty or current wallet
+  //   if (!searchQuery.trim()) {
+  //     return;
+  //   }
 
-    if (isValidAddress) {
-      onSelectReceiver({
-        address: searchQuery,
-        isEns: false,
-        ensName: undefined,
-        avatar: undefined,
-      });
-    } else if (userData) {
-      // Also validate ENS resolved address
-      if (
-        userData.address.toLowerCase() ===
-        currentWalletAddress.toLowerCase()
-      ) {
-        setAddressError(true);
-        return;
-      }
+  //   if (searchQuery.toLowerCase() === currentWalletAddress.toLowerCase()) {
+  //     setAddressError(true);
+  //     return;
+  //   }
 
-      // Validate resolved address format matches network
-      const isValidResolved =
-        network === 'SOLANA'
-          ? validateSolanaAddress(userData.address)
-          : validateEthereumAddress(userData.address);
+  //   if (isValidAddress) {
+  //     onSelectReceiver({
+  //       address: searchQuery,
+  //       isEns: false,
+  //       ensName: undefined,
+  //       avatar: undefined,
+  //     });
+  //   } else if (userData) {
+  //     // Also validate ENS resolved address
+  //     if (
+  //       userData.address.toLowerCase() === currentWalletAddress.toLowerCase()
+  //     ) {
+  //       setAddressError(true);
+  //       return;
+  //     }
 
-      if (!isValidResolved) {
-        setAddressError(true);
-        return;
-      }
+  //     // Validate resolved address format matches network
+  //     const isValidResolved =
+  //       network === "SOLANA"
+  //         ? validateSolanaAddress(userData.address)
+  //         : validateEthereumAddress(userData.address);
 
-      console.log('userData', userData);
+  //     if (!isValidResolved) {
+  //       setAddressError(true);
+  //       return;
+  //     }
 
-      onSelectReceiver({
-        address: userData.address,
-        isEns: true,
-        ensName: userData.ensName,
-        avatar: userData.avatar,
-      });
-    }
-  };
+  //     console.log("userData", userData);
 
-  const handleSearchChange = (
-    e: React.ChangeEvent<HTMLInputElement>
-  ) => {
+  //     onSelectReceiver({
+  //       address: userData.address,
+  //       isEns: true,
+  //       ensName: userData.ensName,
+  //       avatar: userData.avatar,
+  //     });
+  //   }
+  // };
+
+  const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setSearchQuery(e.target.value);
     setAddressError(false);
   };
@@ -200,9 +213,9 @@ export default function SendToModal({
     const response = await fetch(
       `${process.env.NEXT_PUBLIC_API_URL}/api/v2/desktop/wallet/deleteRedeemLink`,
       {
-        method: 'DELETE',
+        method: "DELETE",
         headers: {
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
         },
         body: JSON.stringify({
           privyUserId: userId,
@@ -212,7 +225,7 @@ export default function SendToModal({
     );
 
     if (!response.ok) {
-      throw new Error('Failed to delete redeem link');
+      throw new Error("Failed to delete redeem link");
     }
   };
 
@@ -220,25 +233,28 @@ export default function SendToModal({
     config: RedeemConfig,
     updateStep: (
       index: number,
-      status: ProcessingStep['status'],
+      status: ProcessingStep["status"],
       message?: string
     ) => void,
     setRedeemLink: (link: string) => void
   ) => {
+    console.log("solanaWallets", solanaWallets);
+
     const solanaWallet = solanaWallets?.find(
-      (w: any) => w.walletClientType === 'privy'
+      (w: any) => w.walletClientType === "privy"
     );
+
+    console.log("solanaWallet", solanaWallet);
+
     if (!solanaWallet?.address) {
-      throw new Error(
-        'Please connect your wallet to create a redeem link.'
-      );
+      throw new Error("Please connect your wallet to create a redeem link.");
     }
 
     // const connection = new Connection(clusterApiUrl('devnet'));
 
     const connection = new Connection(
       process.env.NEXT_PUBLIC_QUICKNODE_SOLANA_URL ||
-        'https://api.devnet.solana.com'
+        "https://api.devnet.solana.com"
     );
 
     // Convert amount to proper decimal format
@@ -248,9 +264,9 @@ export default function SendToModal({
     const response = await fetch(
       `${process.env.NEXT_PUBLIC_API_URL}/api/v2/desktop/wallet/createRedeemptionPool`,
       {
-        method: 'POST',
+        method: "POST",
         headers: {
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
         },
         body: JSON.stringify({
           privyUserId: user?.id,
@@ -269,91 +285,85 @@ export default function SendToModal({
     );
 
     if (!response.ok) {
-      throw new Error('Failed to generate redeem link');
+      throw new Error("Failed to generate redeem link");
     }
 
     // Update step 1 to completed and step 2 to processing
-    updateStep(0, 'completed');
-    updateStep(1, 'processing');
+    updateStep(0, "completed");
+    updateStep(1, "processing");
 
     const { data } = await response.json();
 
     try {
       const setupTx = Transaction.from(
-        Buffer.from(data.serializedTransaction, 'base64')
+        Buffer.from(data.serializedTransaction, "base64")
       );
-      const signedSetupTx = await solanaWallet.signTransaction(
-        setupTx
-      );
+      const signedSetupTx = await solanaWallet.signTransaction(setupTx);
       const setupSignature = await connection.sendRawTransaction(
         signedSetupTx.serialize()
       );
       await connection.confirmTransaction(setupSignature);
       await new Promise((resolve) => setTimeout(resolve, 2000));
     } catch (error) {
-      await deleteRedeemLink(user?.id || '', data.poolId);
-      console.error('error', error);
-      throw new Error('Failed to set up temporary account');
+      await deleteRedeemLink(user?.id || "", data.poolId);
+      console.error("error", error);
+      throw new Error("Failed to set up temporary account");
     }
 
     // Update step 2 to completed and step 3 to processing
-    updateStep(1, 'completed');
-    updateStep(2, 'processing');
+    updateStep(1, "completed");
+    updateStep(2, "processing");
 
     // Handle token transfer
     try {
-      const txSignature =
-        await TransactionService.handleRedeemTransaction(
-          solanaWallet,
-          connection,
-          {
-            totalAmount:
-              totalAmount * Math.pow(10, selectedToken.decimals),
-            tokenAddress: selectedToken.address,
-            tokenDecimals: selectedToken.decimals,
-            tempAddress: data.tempAddress,
-          }
-        );
+      const txSignature = await TransactionService.handleRedeemTransaction(
+        solanaWallet,
+        connection,
+        {
+          totalAmount: totalAmount * Math.pow(10, selectedToken.decimals),
+          tokenAddress: selectedToken.address,
+          tokenDecimals: selectedToken.decimals,
+          tempAddress: data.tempAddress,
+        }
+      );
 
       await connection.confirmTransaction(txSignature);
 
       // Update final step to completed
-      updateStep(2, 'completed');
+      updateStep(2, "completed");
       const redeemLink = `https://redeem.swopme.app/${data.poolId}`;
       // Set the redeem link
       setRedeemLink(redeemLink);
     } catch (error: any) {
-      console.error('error', error);
-      await deleteRedeemLink(user?.id || '', data.poolId); // Call to delete redeem link
+      console.error("error", error);
+      await deleteRedeemLink(user?.id || "", data.poolId); // Call to delete redeem link
 
-      let errorMessage = 'Failed to transfer tokens';
+      let errorMessage = "Failed to transfer tokens";
 
-      if (error.name === 'SendTransactionError') {
+      if (error.name === "SendTransactionError") {
         const { message, logs } =
           TransactionService.parseSendTransactionError(error);
-        console.error('Transaction error logs:', logs);
+        console.error("Transaction error logs:", logs);
 
         if (
           logs.some((log) =>
             log.includes(
-              'Please upgrade to SPL Token 2022 for immutable owner support'
+              "Please upgrade to SPL Token 2022 for immutable owner support"
             )
           )
         ) {
           errorMessage =
-            'This token requires SPL Token 2022 support. Please try again with sufficient SOL balance for rent.';
+            "This token requires SPL Token 2022 support. Please try again with sufficient SOL balance for rent.";
         } else if (
-          logs.some((log) =>
-            log.includes('insufficient funds for rent')
-          )
+          logs.some((log) => log.includes("insufficient funds for rent"))
         ) {
           errorMessage =
-            'Insufficient SOL balance to cover rent for token account. Please add more SOL to your wallet.';
+            "Insufficient SOL balance to cover rent for token account. Please add more SOL to your wallet.";
         } else {
-          errorMessage = message || 'Failed to transfer tokens';
+          errorMessage = message || "Failed to transfer tokens";
         }
       } else {
-        errorMessage = error.message || 'Failed to transfer tokens';
+        errorMessage = error.message || "Failed to transfer tokens";
       }
 
       throw new Error(errorMessage);
@@ -363,45 +373,23 @@ export default function SendToModal({
   if (!selectedToken) return null;
 
   return (
-    <>
-      <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="max-w-md p-6 rounded-3xl">
-          <DialogHeader>
-            <DialogTitle className="text-center text-xl font-semibold">
-              Send To
-            </DialogTitle>
-          </DialogHeader>
+    <div>
+      <CustomModal isOpen={open} onCloseModal={onOpenChange}>
+        <div className="p-5 space-y-3">
+          <p className="text-center text-xl font-semibold">Send To</p>
 
-          <form onSubmit={handleSubmit} className="mt-4">
-            <div className="relative">
-              <Input
-                type="text"
-                placeholder="Enter wallet address or ENS name"
-                value={searchQuery}
-                onChange={handleSearchChange}
-                className="pr-10 rounded-3xl border-gray-200"
-              />
-              <Button
-                type="submit"
-                size="sm"
-                className="absolute right-2 top-1/2 -translate-y-1/2 rounded-full p-1 h-8 w-8"
-                disabled={
-                  (!isValidAddress && !userData) ||
-                  addressError ||
-                  isLoading ||
-                  !searchQuery.trim()
-                }
-              >
-                {isLoading ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <ArrowRight className="h-4 w-4" />
-                )}
-              </Button>
-            </div>
-          </form>
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
+            <input
+              type="text"
+              placeholder="Search Network"
+              value={searchQuery}
+              onChange={handleSearchChange}
+              className="pl-10 pr-4 rounded-xl shadow-medium w-full py-2.5 border-0 outline-0 focus:outline-none"
+            />
+          </div>
 
-          <div className="mt-4 space-y-2">
+          <div className="space-y-2">
             {isLoading && (
               <div className="flex items-center justify-center py-4">
                 <Loader2 className="h-6 w-6 animate-spin text-gray-400" />
@@ -413,36 +401,34 @@ export default function SendToModal({
               !userData && (
                 <div className="text-center text-sm text-red-500">
                   {addressError
-                    ? 'Cannot send to your own address'
-                    : 'Invalid address or ENS name. Please try again.'}
+                    ? "Cannot send to your own address"
+                    : "Invalid address or ENS name. Please try again."}
                 </div>
               )}
-            {!searchQuery && (
-              <div className="text-center text-sm text-gray-500">
-                Enter a valid wallet address or ENS name to send to.
-              </div>
-            )}
 
-            {selectedToken && selectedToken.chain === 'SOLANA' && (
-              <div
-                className="w-full p-4 rounded-2xl border border-gray-100 bg-gray-50 cursor-pointer hover:bg-gray-100 transition-colors"
-                onClick={() => setIsRedeemModalOpen(true)}
-              >
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <div>
-                      <Upload />
-                    </div>
-                    <div>
-                      <span className="font-medium">Redeem Link</span>
-                      <p className="text-sm text-gray-500">
-                        Create a redeem link to share on any platform
-                      </p>
-                    </div>
+            <div
+              className="w-full p-4 rounded-2xl cursor-pointer shadow-medium"
+              onClick={() => setIsRedeemModalOpen(true)}
+            >
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-4">
+                  <div className="w-10 h-10 rounded-lg bg-gray-200 flex items-center justify-center flex-shrink-0">
+                    <BsSendFill />
+                  </div>
+                  <div>
+                    <h3 className="font-medium text-black">
+                      Send to anyone using a link
+                    </h3>
+                    <p className="text-sm text-gray-500">
+                      Share via Whatsapp, Email, Twitter...
+                    </p>
                   </div>
                 </div>
+                <div className="w-8 h-8 rounded-lg bg-gray-100 flex items-center justify-center flex-shrink-0">
+                  <ChevronRight className="h-5 w-5 text-black" />
+                </div>
               </div>
-            )}
+            </div>
 
             {/* Show wallet address preview */}
             {isValidAddress && !addressError && (
@@ -473,17 +459,21 @@ export default function SendToModal({
               >
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
-                    <Image
-                      src={userData.avatar || '/assets/avatar.png'}
-                      alt={userData.ensName || ''}
-                      width={40}
-                      height={40}
-                      className="rounded-full"
-                    />
+                    {userData && userData.avatar && (
+                      <Image
+                        src={
+                          isUrl(userData.avatar)
+                            ? userData.avatar
+                            : `/images/user_avator/${userData.avatar}@3x.png`
+                        }
+                        alt={userData.ensName || ""}
+                        width={120}
+                        height={120}
+                        className="rounded-full w-10 h-10"
+                      />
+                    )}
                     <div>
-                      <span className="font-medium">
-                        {userData.ensName}
-                      </span>
+                      <span className="font-medium">{userData.ensName}</span>
                       <p className="text-sm text-gray-500">
                         {truncateAddress(userData.address)}
                       </p>
@@ -493,8 +483,8 @@ export default function SendToModal({
               </div>
             )}
           </div>
-        </DialogContent>
-      </Dialog>
+        </div>
+      </CustomModal>
 
       {selectedToken && (
         <RedeemModal
@@ -506,10 +496,10 @@ export default function SendToModal({
           tokenLogo={selectedToken.logoURI}
           tokenSymbol={selectedToken.symbol}
           tokenDecimals={selectedToken.decimals}
-          tokenPrice={selectedToken.marketData?.price || '0'}
+          tokenPrice={selectedToken.marketData?.price || "0"}
           isUSD={isUSD}
         />
       )}
-    </>
+    </div>
   );
 }

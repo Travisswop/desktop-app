@@ -110,19 +110,19 @@ const BalanceChart: React.FC<BalanceChartProps> = ({
   // Helper function to convert component TimePeriod to service TimePeriod
   const getServicePeriod = (period: TimePeriod): ServiceTimePeriod => {
     const periodMap: Record<TimePeriod, ServiceTimePeriod> = {
-      '1day': '1d',
-      '7days': '7d',
-      '1month': '30d',
-      '6months': '6m',
-      '1year': '1y',
-      'all': 'all',
+      "1day": "1d",
+      "7days": "7d",
+      "1month": "30d",
+      "6months": "6m",
+      "1year": "1y",
+      all: "all",
     };
     return periodMap[period];
   };
 
   // Get snapshot type based on period (hourly for 1day, daily for others)
   const getSnapshotType = (period: TimePeriod) => {
-    return period === '1day' ? 'hourly' : 'daily';
+    return period === "1day" ? "hourly" : "daily";
   };
 
   // NEW: Fetch balance history using optimized BalanceSnapshot API

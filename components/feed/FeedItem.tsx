@@ -5,7 +5,6 @@ import Link from "next/link";
 import dayjs from "dayjs";
 import relativeTime from "dayjs/plugin/relativeTime";
 import updateLocale from "dayjs/plugin/updateLocale";
-import { useRouter } from "next/navigation";
 import { GoDotFill } from "react-icons/go";
 import { HiDotsHorizontal } from "react-icons/hi";
 import { FiPlusCircle } from "react-icons/fi";
@@ -20,7 +19,7 @@ import PollCard from "./PollCard";
 import tipImg from "@/public/images/tip.png";
 import TipContentModal from "./TipContent";
 import { formatEns } from "@/lib/formatEnsName";
-
+import { makeLinksClickable } from "@/lib/makeLinksClickable";
 // Assuming FeedItemType is (or will be) available globally or can be imported.
 // For now, using 'any' as a placeholder if FeedItemType is not directly accessible here.
 // Ideally, import FeedItemType from where it's defined (e.g., Feed.tsx or a types file).
@@ -54,7 +53,6 @@ const FeedItem = memo(
     renderTransactionContent,
     onPostInteraction,
   }: FeedItemProps) => {
-    const router = useRouter();
     const [isTipModalOpen, setIsTipModalOpen] = useState(false);
 
     dayjs.extend(relativeTime);
@@ -78,10 +76,6 @@ const FeedItem = memo(
         yy: "%d years ago",
       },
     });
-
-    const handleFeedClick = useCallback(() => {
-      router.push(`/feed/${feed._id}`);
-    }, [router, feed._id]);
 
     const handleRedeemClick = useCallback(
       (e: React.MouseEvent) => {
@@ -136,16 +130,13 @@ const FeedItem = memo(
           <div className="w-full flex items-start justify-between">
             <div className="w-full">
               <div className="flex items-center gap-1">
-                <Link
-                  href={`/feed/${feed._id}`}
-                  className="flex items-center gap-1"
-                >
-                  <p className="text-gray-700 font-semibold">{userName}</p>
+                <div className="flex items-center gap-1">
+                  <p className="text-black font-semibold">{userName}</p>
                   <GoDotFill size={10} />
-                  <p className="text-gray-500 font-normal">
+                  <p className="text-black font-medium">
                     {dayjs(feed.createdAt).fromNow()}
                   </p>
-                </Link>
+                </div>
                 {userId !== feed.userId && (
                   <button onClick={(e) => handleTipOpen(e)}>
                     <Image
@@ -157,7 +148,7 @@ const FeedItem = memo(
                   </button>
                 )}
               </div>
-              <p className="text-gray-500 font-normal mb-1">
+              <p className="text-gray-500 font-medium mb-1">
                 {" "}
                 {formatEns(ensName)}
               </p>
@@ -170,29 +161,44 @@ const FeedItem = memo(
                 />
               )}
 
-              {/* Render Post Content */}
               {(feed.postType === "post" || feed.postType === "repost") &&
                 feed.content.title && (
-                  <button
-                    onClick={handleFeedClick}
-                    className="w-full text-start"
-                  >
-                    {feed.content.title
+                  <div className="w-full text-start">
+                    {/* {feed.content.title
                       .split("\n")
-                      .map((line: string, index: number) => (
-                        <p className="break-text" key={index}>
-                          {line}
-                        </p>
-                      ))}
-                  </button>
+                      .map((line: string, index: number) => {
+                        const { parts, urls } = makeLinksClickable(line);
+                        return (
+                          <div key={index}>
+                            <p className="break-text">{parts}</p>
+                            {urls.map((url, urlIndex) => (
+                              <LinkPreview
+                                key={`${index}-${urlIndex}`}
+                                url={url}
+                              />
+                            ))}
+                          </div>
+                        );
+                      })} */}
+                    {/* Render Post Content */}
+                    {(feed.postType === "post" || feed.postType === "repost") &&
+                      feed.content.title && (
+                        <div className="w-full text-start">
+                          {feed.content.title
+                            .split("\n")
+                            .map((line: string, index: number) => (
+                              <p className="break-text" key={index}>
+                                {makeLinksClickable(line)}
+                              </p>
+                            ))}
+                        </div>
+                      )}
+                  </div>
                 )}
 
               {/* Swap Transaction Content */}
               {feed.postType === "swapTransaction" && (
-                <SwapTransactionCard
-                  feed={feed}
-                  onFeedClick={handleFeedClick}
-                />
+                <SwapTransactionCard feed={feed} />
               )}
 
               {/* Repost Content */}

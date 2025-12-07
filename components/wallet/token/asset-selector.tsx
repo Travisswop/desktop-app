@@ -1,18 +1,12 @@
 "use client";
 
 import { useState } from "react";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
 import { Search } from "lucide-react";
 import Image from "next/image";
 import { TokenData } from "@/types/token";
 import { NFT } from "@/types/nft";
+import CustomModal from "@/components/modal/CustomModal";
 
 interface AssetSelectorProps {
   open: boolean;
@@ -54,24 +48,35 @@ export default function AssetSelector({
     ) || [];
 
   const renderAssetItem = (asset: TokenData) => {
+    console.log("assests", asset);
+
     if (!asset) return null;
     return (
       <button
         key={asset.symbol}
         onClick={() => onNext(asset)}
-        className="w-full flex items-center justify-between p-3 rounded-xl hover:bg-gray-50 transition-colors shadow-md"
+        className="w-full flex items-center justify-between p-3 rounded-xl hover:bg-gray-50 transition-colors shadow-md  mb-2"
       >
         <div className="flex items-center gap-3">
-          {asset.logoURI && (
+          {asset.symbol === "SWOP" ? (
             <Image
-              src={asset.logoURI}
+              src={`https://app.apiswop.co/public/crypto-icons/SWOP.png`}
               alt={asset.symbol || ""}
-              width={40}
-              height={40}
-              className="rounded-full"
+              width={320}
+              height={320}
+              className="rounded-full w-7 h-7"
+            />
+          ) : (
+            <Image
+              src={asset?.marketData?.iconUrl || asset?.logoURI}
+              alt={asset.symbol || ""}
+              width={320}
+              height={320}
+              className="rounded-full w-7 h-7"
             />
           )}
-          <span className="font-medium">{asset.name}</span>
+
+          <span className="font-medium text-start">{asset.name}</span>
         </div>
         <div className="text-right">
           <div className="font-medium">
@@ -120,13 +125,11 @@ export default function AssetSelector({
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-md p-6 rounded-3xl">
-        <DialogHeader className="space-y-4">
+    <CustomModal isOpen={open} onCloseModal={onOpenChange}>
+      <div className="p-5">
+        <div className="space-y-4">
           <div className="flex items-center justify-between">
-            <DialogTitle className="text-xl font-semibold">
-              Choose asset
-            </DialogTitle>
+            <p className="text-xl font-semibold">Choose asset</p>
             <button
               onClick={() => onOpenChange(false)}
               className="rounded-full p-1 hover:bg-gray-100 transition-colors"
@@ -134,13 +137,6 @@ export default function AssetSelector({
               <span className="sr-only">Close</span>
             </button>
           </div>
-
-          <Tabs value={tab} onValueChange={setTab} className="w-full">
-            <TabsList className="grid w-full grid-cols-2">
-              <TabsTrigger value="crypto">Crypto</TabsTrigger>
-              <TabsTrigger value="nft">NFT</TabsTrigger>
-            </TabsList>
-          </Tabs>
 
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
@@ -151,9 +147,9 @@ export default function AssetSelector({
               className="pl-9 py-5 rounded-xl"
             />
           </div>
-        </DialogHeader>
+        </div>
 
-        <div className="mt-4 space-y-2 max-h-[400px] overflow-y-auto">
+        <div className="max-h-[400px] pr-4 overflow-y-auto">
           {tab === "crypto" && filteredAssets.length > 0 ? (
             filteredAssets.map(renderAssetItem)
           ) : tab === "crypto" ? (
@@ -168,7 +164,7 @@ export default function AssetSelector({
             <div className="text-center text-gray-500 py-4">No NFTs found</div>
           ) : null}
         </div>
-      </DialogContent>
-    </Dialog>
+      </div>
+    </CustomModal>
   );
 }

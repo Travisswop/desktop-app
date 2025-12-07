@@ -1,7 +1,7 @@
-'use client';
-import { Tooltip } from '@nextui-org/react';
-import React, { memo } from 'react';
-import { BiMessageSquare } from 'react-icons/bi';
+"use client";
+import { Tooltip } from "@nextui-org/react";
+import React, { memo } from "react";
+import { FiMessageCircle } from "react-icons/fi";
 
 const CommentMain = memo(
   ({
@@ -29,7 +29,7 @@ const CommentMain = memo(
           onClick={handleCommentOpen}
           className="flex items-center gap-1 text-sm font-medium w-12"
         >
-          <BiMessageSquare size={17} />
+          <FiMessageCircle size={20} color="black" />
           <p>{latestCommentCount}</p>
         </button>
       </Tooltip>
@@ -37,6 +37,6 @@ const CommentMain = memo(
   }
 );
 
-CommentMain.displayName = 'CommentMain';
+CommentMain.displayName = "CommentMain";
 
 export default CommentMain;
