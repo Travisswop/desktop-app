@@ -1,19 +1,16 @@
-import React from 'react';
+import React from "react";
 
-import { Card } from '@/components/ui/card';
-import { TokenData } from '@/types/token';
-import TokenImage from './token-image';
+import { Card } from "@/components/ui/card";
+import { TokenData } from "@/types/token";
+import TokenImage from "./token-image";
 
 interface TokenCardProps {
   token: TokenData;
   onClick: () => void;
 }
 
-export default function TokenListView({
-  token,
-  onClick,
-}: TokenCardProps) {
-  console.log('token', token);
+export default function TokenListView({ token, onClick }: TokenCardProps) {
+  console.log("token", token);
   // const data = token.sparklineData;
 
   // const TokenSparkline = () => {
@@ -67,8 +64,8 @@ export default function TokenListView({
           <TokenImage token={token} />
         </div>
         <div>
-          <h3 className="font-medium">{token.name}</h3>
-          <p className="text-sm text-gray-500">
+          <h3 className="text-sm font-semibold">{token.name}</h3>
+          <p className="text-xs text-gray-600">
             {parseFloat(token.balance).toFixed(4)} {token.symbol}
           </p>
         </div>
@@ -76,11 +73,16 @@ export default function TokenListView({
       {/* <div className="h-[60px] w-full">
         <TokenSparkline />
       </div> */}
-      <div className="flex items-center gap-4">
+      <div className="flex items-center gap-4 text-sm">
         <div className="text-right">
           <p className="font-bold">
-            {token.marketData?.price !== undefined && token.marketData?.price !== null ? (
-              `$${typeof token.value === 'number' ? token.value.toFixed(4) : '0.0000'}`
+            {token.marketData?.price !== undefined &&
+            token.marketData?.price !== null ? (
+              `$${
+                typeof token.value === "number"
+                  ? token.value.toFixed(4)
+                  : "0.0000"
+              }`
             ) : (
               <span className="text-gray-500">Price unavailable</span>
             )}
@@ -89,13 +91,13 @@ export default function TokenListView({
             className={`text-xs ${
               token.marketData?.change &&
               parseFloat(token.marketData.change) >= 0
-                ? ' text-green-700'
-                : ' text-red-700'
+                ? " text-green-700"
+                : " text-red-700"
             }`}
           >
             {token.marketData?.change ? (
               <>
-                {parseFloat(token.marketData.change) >= 0 ? '+' : ''}
+                {parseFloat(token.marketData.change) >= 0 ? "+" : ""}
                 {parseFloat(token.marketData.change)}%
               </>
             ) : (

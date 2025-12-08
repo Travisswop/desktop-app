@@ -1,7 +1,7 @@
-'use client';
+"use client";
 
-import { useState, useEffect } from 'react';
-import { useTokenChartData } from '@/lib/hooks/useTokenChartData';
+import { useState, useEffect } from "react";
+import { useTokenChartData } from "@/lib/hooks/useTokenChartData";
 import {
   Area,
   AreaChart,
@@ -9,20 +9,20 @@ import {
   XAxis,
   YAxis,
   Tooltip,
-} from 'recharts';
-import { Card, CardContent, CardHeader } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Send, Wallet } from 'lucide-react';
-import { TokenData } from '@/types/token';
-import TokenImage from './token-image';
-import { TooltipProvider } from '@/components/ui/tooltip';
+} from "recharts";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Send, Wallet } from "lucide-react";
+import { TokenData } from "@/types/token";
+import TokenImage from "./token-image";
+import { TooltipProvider } from "@/components/ui/tooltip";
 import {
   TooltipContent,
   TooltipTrigger,
   Tooltip as TooltipUI,
-} from '@/components/ui/tooltip';
-import { useUser } from '@/lib/UserContext';
+} from "@/components/ui/tooltip";
+import { useUser } from "@/lib/UserContext";
 
 const CustomTooltip = ({
   active,
@@ -38,17 +38,15 @@ any) => {
     return (
       <div className="bg-white p-2 border rounded shadow-sm">
         <p className="text-sm text-gray-600">
-          {new Date(timestamp).toLocaleString('en-US', {
-            month: 'short',
-            day: 'numeric',
-            hour: 'numeric',
-            minute: '2-digit',
+          {new Date(timestamp).toLocaleString("en-US", {
+            month: "short",
+            day: "numeric",
+            hour: "numeric",
+            minute: "2-digit",
             hour12: true,
           })}
         </p>
-        <p className="text-sm font-bold">
-          ${payload[0].value.toFixed(4)}
-        </p>
+        <p className="text-sm font-bold">${payload[0].value.toFixed(4)}</p>
       </div>
     );
   }
@@ -66,15 +64,13 @@ export default function TokenDetails({
   onBack,
   onSend,
 }: TokenDetailsProps) {
-  console.log('token', token);
+  console.log("token", token);
   const { accessToken } = useUser();
   if (!accessToken) {
-    throw new Error('No access token found');
+    throw new Error("No access token found");
   }
-  const [selectedPeriod, setSelectedPeriod] = useState('1D');
-  const [chartData, setChartData] = useState(
-    token.timeSeriesData['1D'] || []
-  );
+  const [selectedPeriod, setSelectedPeriod] = useState("1D");
+  const [chartData, setChartData] = useState(token.timeSeriesData["1D"] || []);
   const [changePercentage, setChangePercentage] = useState(
     token.marketData.change
   );
@@ -86,59 +82,57 @@ export default function TokenDetails({
   const day = useTokenChartData(
     token.address, // Can be null for native tokens
     token.chain,
-    '1D',
-    selectedPeriod === '1D',
+    "1D",
+    selectedPeriod === "1D",
     accessToken
   );
-  console.log('Day data:', day);
+  console.log("Day data:", day);
   const week = useTokenChartData(
     token.address,
     token.chain,
-    '1W',
-    selectedPeriod === '1W',
+    "1W",
+    selectedPeriod === "1W",
     accessToken
   );
   const month = useTokenChartData(
     token.address,
     token.chain,
-    '1M',
-    selectedPeriod === '1M',
+    "1M",
+    selectedPeriod === "1M",
     accessToken
   );
   const year = useTokenChartData(
     token.address,
     token.chain,
-    '1Y',
-    selectedPeriod === '1Y',
+    "1Y",
+    selectedPeriod === "1Y",
     accessToken
   );
   const max = useTokenChartData(
     token.address,
     token.chain,
-    'Max',
-    selectedPeriod === 'Max',
+    "Max",
+    selectedPeriod === "Max",
     accessToken
   );
 
   // Debug: Log when year or max data changes
   useEffect(() => {
-    if (selectedPeriod === '1Y' && year.data) {
-      console.log('[TokenDetails] 1Y Chart Data:', {
+    if (selectedPeriod === "1Y" && year.data) {
+      console.log("[TokenDetails] 1Y Chart Data:", {
         dataPoints: year.data.sparklineData.length,
         change: year.data.change,
         firstPoint: year.data.sparklineData[0],
-        lastPoint:
-          year.data.sparklineData[year.data.sparklineData.length - 1],
+        lastPoint: year.data.sparklineData[year.data.sparklineData.length - 1],
         samplePoints: year.data.sparklineData.slice(0, 5),
       });
     }
-    if (selectedPeriod === 'Max' && max.data) {
-      console.log('[TokenDetails] Max Chart Data:', {
+    if (selectedPeriod === "Max" && max.data) {
+      console.log("[TokenDetails] Max Chart Data:", {
         dataPoints: max.data.sparklineData.length,
         change: max.data.change,
         firstPoint: max.data.sparklineData[0],
-        lastPoint:
-          max.data.sparklineData[max.data.sparklineData.length - 1],
+        lastPoint: max.data.sparklineData[max.data.sparklineData.length - 1],
         samplePoints: max.data.sparklineData.slice(0, 5),
       });
     }
@@ -147,72 +141,61 @@ export default function TokenDetails({
   // Determine chart color - use token color or default based on price change
   const strokeColor =
     token.marketData.color ||
-    (parseFloat(changePercentage || '0') >= 0
-      ? '#22c55e'
-      : '#ef4444');
+    (parseFloat(changePercentage || "0") >= 0 ? "#22c55e" : "#ef4444");
 
   // Update chart data when period changes or data is fetched
   useEffect(() => {
     const timeSeriesMap = {
-      '1D': day.data?.sparklineData || [],
-      '1W': week.data?.sparklineData || [],
-      '1M': month.data?.sparklineData || [],
-      '1Y': year.data?.sparklineData || [],
+      "1D": day.data?.sparklineData || [],
+      "1W": week.data?.sparklineData || [],
+      "1M": month.data?.sparklineData || [],
+      "1Y": year.data?.sparklineData || [],
       Max: max.data?.sparklineData || [],
     };
 
     const changePercentageMap = {
-      '1D': day.data?.change || '0',
-      '1W': week.data?.change || '0',
-      '1M': month.data?.change || '0',
-      '1Y': year.data?.change || '0',
-      Max: max.data?.change || '0',
+      "1D": day.data?.change || "0",
+      "1W": week.data?.change || "0",
+      "1M": month.data?.change || "0",
+      "1Y": year.data?.change || "0",
+      Max: max.data?.change || "0",
     };
 
     // Determine loading state
     const loadingStates = {
-      '1D': day.isLoading,
-      '1W': week.isLoading,
-      '1M': month.isLoading,
-      '1Y': year.isLoading,
+      "1D": day.isLoading,
+      "1W": week.isLoading,
+      "1M": month.isLoading,
+      "1Y": year.isLoading,
       Max: max.isLoading,
     };
 
     setIsLoading(
-      loadingStates[selectedPeriod as keyof typeof loadingStates] ||
-        false
+      loadingStates[selectedPeriod as keyof typeof loadingStates] || false
     );
 
     // Only update if we have data for the selected period
-    const newData =
-      timeSeriesMap[selectedPeriod as keyof typeof timeSeriesMap];
+    const newData = timeSeriesMap[selectedPeriod as keyof typeof timeSeriesMap];
     const newChange =
-      changePercentageMap[
-        selectedPeriod as keyof typeof changePercentageMap
-      ];
+      changePercentageMap[selectedPeriod as keyof typeof changePercentageMap];
 
     if (newData && newData.length > 0) {
       // Debug log for chart data
-      console.log(
-        `[TokenDetails] Updating chart for ${selectedPeriod}:`,
-        {
-          token: token.symbol,
-          period: selectedPeriod,
-          dataPoints: newData.length,
-          change: newChange,
-          firstPoint: newData[0],
-          lastPoint: newData[newData.length - 1],
-          // Check for flat lines
-          uniqueValues: new Set(newData.map((d) => d.value)).size,
-        }
-      );
+      console.log(`[TokenDetails] Updating chart for ${selectedPeriod}:`, {
+        token: token.symbol,
+        period: selectedPeriod,
+        dataPoints: newData.length,
+        change: newChange,
+        firstPoint: newData[0],
+        lastPoint: newData[newData.length - 1],
+        // Check for flat lines
+        uniqueValues: new Set(newData.map((d) => d.value)).size,
+      });
 
       setChartData(newData);
       setChangePercentage(newChange);
     } else {
-      console.warn(
-        `[TokenDetails] No data available for ${selectedPeriod}`
-      );
+      console.warn(`[TokenDetails] No data available for ${selectedPeriod}`);
     }
   }, [
     selectedPeriod,
@@ -231,9 +214,9 @@ export default function TokenDetails({
 
   return (
     <>
-      <Card className="w-full border-none rounded-xl">
+      <div className="w-full border-none rounded-xl h-full">
         {/* Header */}
-        <CardHeader>
+        <section>
           <div className="flex items-center gap-2 mb-2">
             <div className="w-8 h-8 rounded-full">
               <TokenImage
@@ -246,36 +229,32 @@ export default function TokenDetails({
             <div className="flex-1">
               <h1 className="text-2xl font-bold">
                 {token.marketData?.price
-                  ? `$${parseFloat(token.marketData.price).toFixed(
-                      4
-                    )}`
-                  : 'Price unavailable'}
+                  ? `$${parseFloat(token.marketData.price).toFixed(4)}`
+                  : "Price unavailable"}
               </h1>
-              <p className="text-sm text-muted-foreground">
-                {token.name}
-              </p>
+              <p className="text-sm text-muted-foreground">{token.name}</p>
             </div>
             {changePercentage && (
               <div
                 className={`text-sm ${
                   parseFloat(changePercentage) > 0
-                    ? 'text-green-500'
-                    : 'text-red-500'
+                    ? "text-green-500"
+                    : "text-red-500"
                 }`}
               >
                 <span className="font-medium">
-                  {parseFloat(changePercentage) > 0 ? '+' : ''}
+                  {parseFloat(changePercentage) > 0 ? "+" : ""}
                   {parseFloat(changePercentage).toFixed(2)}%
                 </span>
                 <div className="text-xs">{selectedPeriod}</div>
               </div>
             )}
           </div>
-        </CardHeader>
-        <CardContent>
+        </section>
+        <section>
           {/* Chart */}
-          <Card className="border-0 shadow-none">
-            <CardContent className="pt-6 px-0 pb-4">
+          <div className="border-0 shadow-none">
+            <div className="pt-6 px-0 pb-4">
               <div className="h-[200px] relative">
                 {isLoading && (
                   <div className="absolute inset-0 flex items-center justify-center bg-white/80 z-10 rounded-lg">
@@ -321,23 +300,20 @@ export default function TokenDetails({
                       dataKey="timestamp"
                       hide={true}
                       tickFormatter={(timestamp) =>
-                        new Date(timestamp).toLocaleTimeString(
-                          'en-US',
-                          {
-                            hour: 'numeric',
-                            minute: '2-digit',
-                            hour12: true,
-                          }
-                        )
+                        new Date(timestamp).toLocaleTimeString("en-US", {
+                          hour: "numeric",
+                          minute: "2-digit",
+                          hour12: true,
+                        })
                       }
                       type="number"
                       scale="time"
-                      domain={['auto', 'auto']}
+                      domain={["auto", "auto"]}
                       tickLine={false}
                       axisLine={false}
                       minTickGap={30}
                     />
-                    <YAxis domain={['auto', 'auto']} hide />
+                    <YAxis domain={["auto", "auto"]} hide />
                     <Tooltip
                       content={<CustomTooltip />}
                       cursor={{
@@ -364,38 +340,38 @@ export default function TokenDetails({
                 <TabsList className="grid w-full grid-cols-5">
                   <TabsTrigger
                     value="1D"
-                    onClick={() => setSelectedPeriod('1D')}
+                    onClick={() => setSelectedPeriod("1D")}
                   >
                     1D
                   </TabsTrigger>
                   <TabsTrigger
                     value="1W"
-                    onClick={() => setSelectedPeriod('1W')}
+                    onClick={() => setSelectedPeriod("1W")}
                   >
                     1W
                   </TabsTrigger>
                   <TabsTrigger
                     value="1M"
-                    onClick={() => setSelectedPeriod('1M')}
+                    onClick={() => setSelectedPeriod("1M")}
                   >
                     1M
                   </TabsTrigger>
                   <TabsTrigger
                     value="1Y"
-                    onClick={() => setSelectedPeriod('1Y')}
+                    onClick={() => setSelectedPeriod("1Y")}
                   >
                     1Y
                   </TabsTrigger>
                   <TabsTrigger
                     value="Max"
-                    onClick={() => setSelectedPeriod('Max')}
+                    onClick={() => setSelectedPeriod("Max")}
                   >
                     Max
                   </TabsTrigger>
                 </TabsList>
               </Tabs>
-            </CardContent>
-          </Card>
+            </div>
+          </div>
 
           <div className="border-t"></div>
           {/* Balance */}
@@ -423,7 +399,7 @@ export default function TokenDetails({
                     parseFloat(token.balance) *
                     parseFloat(token.marketData.price)
                   ).toFixed(2)}`
-                : 'Value unavailable'}
+                : "Value unavailable"}
             </span>
           </div>
 
@@ -495,8 +471,8 @@ export default function TokenDetails({
           >
             Back to Wallet
           </Button>
-        </CardContent>
-      </Card>
+        </section>
+      </div>
       {/* <RedeemModal
         isOpen={isRedeemModalOpen}
         onClose={() => setIsRedeemModalOpen(false)}
