@@ -4,9 +4,9 @@
  * Simple frontend service for fetching all wallet tokens from the backend.
  * No logic for native vs contract tokens - the backend handles everything.
  */
+import Cookies from "js-cookie";
 
-const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 const WALLET_API_URL = `${API_BASE_URL}/api/v5/wallet`;
 
 export interface TokenMarketData {
@@ -42,7 +42,7 @@ export interface WalletTokensResponse {
 
 export interface WalletInput {
   address: string;
-  chain: 'ethereum' | 'polygon' | 'base' | 'solana';
+  chain: "ethereum" | "polygon" | "base" | "solana";
 }
 
 export class WalletService {
@@ -57,23 +57,33 @@ export class WalletService {
     wallets: WalletInput[]
   ): Promise<WalletTokensResponse> {
     try {
+      // Get access token from cookie
+      const accessToken = Cookies.get("access-token");
+
+      const headers: HeadersInit = {
+        "Content-Type": "application/json",
+      };
+
+      // Add Authorization header if token exists
+      if (accessToken) {
+        headers["Authorization"] = `Bearer ${accessToken}`;
+      }
+
       const response = await fetch(`${WALLET_API_URL}/tokens`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        method: "POST",
+        headers,
         body: JSON.stringify({ wallets }),
-        signal: AbortSignal.timeout(30000), // 30 second timeout
+        signal: AbortSignal.timeout(30000),
       });
 
       if (!response.ok) {
-        throw new Error(
-          `Failed to fetch wallet tokens: ${response.status}`
-        );
+        throw new Error(`Failed to fetch wallet tokens: ${response.status}`);
       }
 
       const result = await response.json();
       return result.data;
     } catch (error) {
-      console.error('Error fetching wallet tokens:', error);
+      console.error("Error fetching wallet tokens:", error);
       throw error;
     }
   }
@@ -83,7 +93,7 @@ export class WalletService {
    */
   static async getSingleWalletTokens(
     address: string,
-    chain: 'ethereum' | 'polygon' | 'base' | 'solana'
+    chain: "ethereum" | "polygon" | "base" | "solana"
   ): Promise<WalletTokensResponse> {
     return this.getWalletTokens([{ address, chain }]);
   }
@@ -96,9 +106,9 @@ export class WalletService {
     address: string
   ): Promise<WalletTokensResponse> {
     return this.getWalletTokens([
-      { address, chain: 'ethereum' },
-      { address, chain: 'polygon' },
-      { address, chain: 'base' },
+      { address, chain: "ethereum" },
+      { address, chain: "polygon" },
+      { address, chain: "base" },
     ]);
   }
 
@@ -113,20 +123,20 @@ export class WalletService {
 
     if (evmAddress) {
       wallets.push(
-        { address: evmAddress, chain: 'ethereum' },
-        { address: evmAddress, chain: 'polygon' },
-        { address: evmAddress, chain: 'base' }
+        { address: evmAddress, chain: "ethereum" },
+        { address: evmAddress, chain: "polygon" },
+        { address: evmAddress, chain: "base" }
       );
     }
 
     if (solanaAddress) {
-      wallets.push({ address: solanaAddress, chain: 'solana' });
+      wallets.push({ address: solanaAddress, chain: "solana" });
     }
 
     if (wallets.length === 0) {
       return {
         tokens: [],
-        totalValue: '0',
+        totalValue: "0",
         tokenCount: 0,
       };
     }

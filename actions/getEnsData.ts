@@ -17,3 +17,38 @@ export async function getEnsDataUsingEns(ens: string) {
     console.error("Error from action:", error);
   }
 }
+// export const getConnectionsUserData = async() =>
+
+export const getConnectionsUserData = async (url: string, token: string) => {
+  try {
+    const response = await fetch(url, {
+      method: "GET",
+      headers: {
+        Accept: "application/json",
+        "Content-Type": "application/json",
+        authorization: `Bearer ${token}`,
+      },
+    });
+    const data = await response.json();
+    return data;
+  } catch (error) {
+    console.error("Error from action:", error);
+  }
+};
+
+// export const getSearchUserData = async (url:string, token:string) => {
+//   try {
+//     const response = await fetch(url, {
+//       method: "GET",
+//       headers: {
+//         Accept: "application/json",
+//         "Content-Type": "application/json",
+//         authorization: `Bearer ${token}`,
+//       },
+//     });
+//     const data = await response.json();
+//     return data;
+//   } catch (error) {
+//     console.error("Error from action:", error);
+//   }
+// };

@@ -1,9 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { DialogTitle } from "@radix-ui/react-dialog";
 import { TokenData } from "@/types/token";
 import { ArrowUpDown } from "lucide-react";
 import TokenImage from "./token-image";
@@ -47,19 +45,14 @@ export default function SendTokenModal({
     return (tokenAmount * parseFloat(token.marketData.price)).toFixed(2);
   };
 
-  const handleInput = (value: number) => {
-    console.log("token hit", token);
+  const handleInput = (value: string) => {
     if (!token) return;
-
-    console.log("value", value);
 
     // Remove non-numeric/decimal characters and multiple decimals
     const sanitizedValue = value
       .toString()
       .replace(/[^0-9.]/g, "")
       .replace(/(\..*)\./g, "$1");
-
-    console.log("sanitizedValue", sanitizedValue);
 
     // Handle empty or just decimal input
     if (sanitizedValue === "" || sanitizedValue === ".") {

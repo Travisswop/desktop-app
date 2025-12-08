@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   Dialog,
   DialogContent,
@@ -35,6 +35,7 @@ import { BsSendFill } from "react-icons/bs";
 import isUrl from "@/lib/isUrl";
 import { useUser } from "@/lib/UserContext";
 import CustomModal from "@/components/modal/CustomModal";
+import { getConnectionsUserData } from "@/actions/getEnsData";
 
 type ProcessingStep = {
   status: "pending" | "processing" | "completed" | "error";
@@ -55,45 +56,61 @@ async function fetchUserByENS(
 ): Promise<ReceiverData | null> {
   if (!ensName) return null;
 
-  if (ensName.endsWith(".swop.id")) {
-    const url = `https://app.apiswop.co/api/v4/wallet/getEnsAddress/${ensName}`;
-    const response = await fetch(url);
-    if (!response.ok) {
-      throw new Error("Failed to fetch ENS address");
-    }
-    const data = await response.json();
+  // if (ensName.endsWith(".swop.id")) {
+  //   const url = `https://app.apiswop.co/api/v4/wallet/getEnsAddress/${ensName}`;
+  //   const response = await fetch(url);
+  //   if (!response.ok) {
+  //     throw new Error("Failed to fetch ENS address");
+  //   }
+  //   const data = await response.json();
 
-    console.log("data hola", data);
+  //   console.log("data hola", data);
 
-    return {
-      address:
-        network?.toUpperCase() === "SOLANA"
-          ? data.addresses["501"]
-          : data.owner,
-      ensName: data.name,
-      isEns: true,
-      avatar: data.domainOwner.avatar,
-    };
-  } else if (ensName.startsWith("0x")) {
-    // Handle Ethereum address
-    if (!validateEthereumAddress(ensName)) {
-      throw new Error("Invalid Ethereum address");
-    }
+  //   return {
+  //     address:
+  //       network?.toUpperCase() === "SOLANA"
+  //         ? data.addresses["501"]
+  //         : data.owner,
+  //     ensName: data.name,
+  //     isEns: true,
+  //     avatar: data.domainOwner.avatar,
+  //   };
+  // } else if (ensName.startsWith("0x")) {
+  //   // Handle Ethereum address
+  //   if (!validateEthereumAddress(ensName)) {
+  //     throw new Error("Invalid Ethereum address");
+  //   }
 
-    return {
-      address: ensName,
-      isEns: false,
-    };
-  } else {
-    // Handle Solana address
-    if (!validateSolanaAddress(ensName)) {
-      throw new Error("Invalid Solana address");
-    }
-    return {
-      address: ensName,
-      isEns: false,
-    };
+  //   return {
+  //     address: ensName,
+  //     isEns: false,
+  //   };
+  // } else {
+  //   // Handle Solana address
+  //   if (!validateSolanaAddress(ensName)) {
+  //     throw new Error("Invalid Solana address");
+  //   }
+  //   return {
+  //     address: ensName,
+  //     isEns: false,
+  //   };
+  // }
+  const url = `https://app.apiswop.co/api/v4/wallet/getEnsAddress/${ensName}`;
+  const response = await fetch(url);
+  if (!response.ok) {
+    throw new Error("Failed to fetch ENS address");
   }
+  const data = await response.json();
+
+  console.log("data hola", data);
+
+  return {
+    address:
+      network?.toUpperCase() === "SOLANA" ? data.addresses["501"] : data.owner,
+    ensName: data.name,
+    isEns: true,
+    avatar: data.domainOwner.avatar,
+  };
 }
 
 interface SendToModalProps {
@@ -122,10 +139,13 @@ export default function SendToModal({
   const [debouncedQuery] = useDebounce(searchQuery, 500);
   const [addressError, setAddressError] = useState(false);
   const [isRedeemModalOpen, setIsRedeemModalOpen] = useState(false);
+  //store connection data
+  const [connectionList, setConnectionList] = useState([]);
+  const [searchResults, setSearchResults] = useState([]);
   // const { solanaWallets } = useSolanaWalletContext();
   const { wallets: solanaWallets } = useSolanaWallets();
 
-  const { user: userHookData } = useUser();
+  const { user: userHookData, accessToken } = useUser();
 
   console.log("selectedToken", selectedToken);
 
@@ -152,65 +172,12 @@ export default function SendToModal({
   } = useQuery({
     queryKey: ["user", debouncedQuery, network],
     queryFn: () => fetchUserByENS(debouncedQuery, network),
-    enabled:
-      Boolean(debouncedQuery) &&
-      !isValidAddress &&
-      debouncedQuery.includes("."),
+    enabled: Boolean(debouncedQuery),
+    // !isValidAddress &&
+    // debouncedQuery.includes("."),
   });
 
   console.log("user data", userData);
-
-  // const handleSubmit = (e: React.FormEvent) => {
-  //   e.preventDefault();
-  //   setAddressError(false);
-
-  //   // Validate address is not empty or current wallet
-  //   if (!searchQuery.trim()) {
-  //     return;
-  //   }
-
-  //   if (searchQuery.toLowerCase() === currentWalletAddress.toLowerCase()) {
-  //     setAddressError(true);
-  //     return;
-  //   }
-
-  //   if (isValidAddress) {
-  //     onSelectReceiver({
-  //       address: searchQuery,
-  //       isEns: false,
-  //       ensName: undefined,
-  //       avatar: undefined,
-  //     });
-  //   } else if (userData) {
-  //     // Also validate ENS resolved address
-  //     if (
-  //       userData.address.toLowerCase() === currentWalletAddress.toLowerCase()
-  //     ) {
-  //       setAddressError(true);
-  //       return;
-  //     }
-
-  //     // Validate resolved address format matches network
-  //     const isValidResolved =
-  //       network === "SOLANA"
-  //         ? validateSolanaAddress(userData.address)
-  //         : validateEthereumAddress(userData.address);
-
-  //     if (!isValidResolved) {
-  //       setAddressError(true);
-  //       return;
-  //     }
-
-  //     console.log("userData", userData);
-
-  //     onSelectReceiver({
-  //       address: userData.address,
-  //       isEns: true,
-  //       ensName: userData.ensName,
-  //       avatar: userData.avatar,
-  //     });
-  //   }
-  // };
 
   const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setSearchQuery(e.target.value);
@@ -378,10 +345,57 @@ export default function SendToModal({
     }
   };
 
+  // const queryParams = new URLSearchParams({
+  //     page: page.toString(),
+  //     limit: limit.toString(),
+  //   });
+
+  //   const url = `${VERSION_ONE_API}/user/search?q=${q}&userId=${userId}&filter=${connectionType}&${queryParams}`;
+
+  useEffect(() => {
+    const getdata = async () => {
+      const queryParams = new URLSearchParams({
+        page: "1",
+        limit: "20",
+      });
+
+      const url = `${process.env.NEXT_PUBLIC_API_URL}/api/v1/user/following/${userHookData?._id}?${queryParams}`;
+      const data = await getConnectionsUserData(url, accessToken || "");
+      if (data.state === "success") {
+        setConnectionList(data.data.following);
+      }
+      console.log("connection data", data);
+    };
+    getdata();
+  }, [accessToken, userHookData?._id]);
+
+  useEffect(() => {
+    const getSearchResults = async () => {
+      if (!debouncedQuery || debouncedQuery.length < 1) {
+        setSearchResults([]);
+        return;
+      }
+
+      const queryParams = new URLSearchParams({
+        page: "1",
+        limit: "20",
+      });
+
+      const url = `${process.env.NEXT_PUBLIC_API_URL}/api/v1/user/search?q=${debouncedQuery}&userId=${userHookData?._id}&filter=all&${queryParams}`;
+      const data = await getConnectionsUserData(url, accessToken || "");
+      if (data.state === "success") {
+        setSearchResults(data.data.results || []);
+      }
+      console.log("search data", data);
+    };
+
+    getSearchResults();
+  }, [debouncedQuery, accessToken, userHookData?._id]);
+
   if (!selectedToken) return null;
 
   return (
-    <div>
+    <>
       <CustomModal isOpen={open} onCloseModal={onOpenChange}>
         <div className="p-5 space-y-3">
           <p className="text-center text-xl font-semibold">Send To</p>
@@ -404,7 +418,7 @@ export default function SendToModal({
               </div>
             )}
 
-            {(error || addressError || !isValidAddress) &&
+            {/* {(error || addressError || !isValidAddress) &&
               searchQuery &&
               !userData && (
                 <div className="text-center text-sm text-red-500">
@@ -412,7 +426,7 @@ export default function SendToModal({
                     ? "Cannot send to your own address"
                     : "Invalid address or ENS name. Please try again."}
                 </div>
-              )}
+              )} */}
 
             <div
               className="w-full p-4 rounded-2xl cursor-pointer shadow-medium"
@@ -459,36 +473,57 @@ export default function SendToModal({
               </div>
             )}
 
-            {/* Show ENS preview */}
-            {userData && userData.isEns && (
-              <div
-                className="w-full p-4 rounded-2xl border border-gray-100 bg-gray-50 cursor-pointer hover:bg-gray-100 transition-colors"
-                onClick={() => onSelectReceiver(userData)}
-              >
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    {userData && userData.avatar && (
-                      <Image
-                        src={
-                          isUrl(userData.avatar)
-                            ? userData.avatar
-                            : `/images/user_avator/${userData.avatar}@3x.png`
-                        }
-                        alt={userData.ensName || ""}
-                        width={120}
-                        height={120}
-                        className="rounded-full w-10 h-10"
-                      />
-                    )}
-                    <div>
-                      <span className="font-medium">{userData.ensName}</span>
-                      <p className="text-sm text-gray-500">
-                        {truncateAddress(userData.address)}
-                      </p>
+            {searchQuery && searchResults.length === 0 && !isLoading ? (
+              <div className="text-center py-8 text-gray-500">
+                <p className="text-sm">No results found</p>
+              </div>
+            ) : (
+              (searchResults.length > 0 ? searchResults : connectionList).map(
+                (data: any) => (
+                  <div
+                    key={data._id}
+                    className="w-full p-4 border-b cursor-pointer bg-white hover:bg-gray-50 transition-colors"
+                    onClick={() =>
+                      onSelectReceiver({
+                        address:
+                          network?.toUpperCase() === "SOLANA"
+                            ? data.ensData.solanaAddress
+                            : data.ensData.evmAddress,
+                        ensName: data.ens,
+                        isEns: true,
+                        avatar: data.profilePic,
+                      })
+                    }
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        {data.profilePic && (
+                          <Image
+                            src={
+                              isUrl(data.profilePic)
+                                ? data.profilePic
+                                : `/images/user_avator/${data.profilePic}@3x.png`
+                            }
+                            alt={data.ens || ""}
+                            width={120}
+                            height={120}
+                            className="rounded-full w-10 h-10"
+                          />
+                        )}
+                        <div>
+                          <span className="font-medium">{data.ens}</span>
+                          <p className="text-sm text-gray-500">
+                            {truncateAddress(data.ensData.solanaAddress)}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="w-8 h-8 rounded-lg bg-gray-100 flex items-center justify-center flex-shrink-0">
+                        <ChevronRight className="h-5 w-5 text-black" />
+                      </div>
                     </div>
                   </div>
-                </div>
-              </div>
+                )
+              )
             )}
           </div>
         </div>
@@ -508,6 +543,6 @@ export default function SendToModal({
           isUSD={isUSD}
         />
       )}
-    </div>
+    </>
   );
 }
