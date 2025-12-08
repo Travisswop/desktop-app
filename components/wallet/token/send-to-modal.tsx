@@ -1,26 +1,10 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
-import {
-  ArrowRight,
-  ChevronRight,
-  Loader2,
-  Search,
-  Send,
-  Upload,
-  Wallet,
-} from "lucide-react";
+
+import { ChevronRight, Loader2, Search, Wallet } from "lucide-react";
 import Image from "next/image";
 import { useDebounce } from "use-debounce";
-import { useQuery } from "@tanstack/react-query";
 import { Transaction } from "@solana/web3.js";
 import { Connection } from "@solana/web3.js";
 import { ReceiverData } from "@/types/wallet";
@@ -36,6 +20,7 @@ import isUrl from "@/lib/isUrl";
 import { useUser } from "@/lib/UserContext";
 import CustomModal from "@/components/modal/CustomModal";
 import { getConnectionsUserData } from "@/actions/getEnsData";
+import { ScrollArea } from "@/components/ui/scroll-area";
 
 type ProcessingStep = {
   status: "pending" | "processing" | "completed" | "error";
@@ -49,69 +34,6 @@ const validateEthereumAddress = (address: string) => {
 const validateSolanaAddress = (address: string) => {
   return /^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(address);
 };
-
-async function fetchUserByENS(
-  ensName: string,
-  network: string
-): Promise<ReceiverData | null> {
-  if (!ensName) return null;
-
-  // if (ensName.endsWith(".swop.id")) {
-  //   const url = `https://app.apiswop.co/api/v4/wallet/getEnsAddress/${ensName}`;
-  //   const response = await fetch(url);
-  //   if (!response.ok) {
-  //     throw new Error("Failed to fetch ENS address");
-  //   }
-  //   const data = await response.json();
-
-  //   console.log("data hola", data);
-
-  //   return {
-  //     address:
-  //       network?.toUpperCase() === "SOLANA"
-  //         ? data.addresses["501"]
-  //         : data.owner,
-  //     ensName: data.name,
-  //     isEns: true,
-  //     avatar: data.domainOwner.avatar,
-  //   };
-  // } else if (ensName.startsWith("0x")) {
-  //   // Handle Ethereum address
-  //   if (!validateEthereumAddress(ensName)) {
-  //     throw new Error("Invalid Ethereum address");
-  //   }
-
-  //   return {
-  //     address: ensName,
-  //     isEns: false,
-  //   };
-  // } else {
-  //   // Handle Solana address
-  //   if (!validateSolanaAddress(ensName)) {
-  //     throw new Error("Invalid Solana address");
-  //   }
-  //   return {
-  //     address: ensName,
-  //     isEns: false,
-  //   };
-  // }
-  const url = `https://app.apiswop.co/api/v4/wallet/getEnsAddress/${ensName}`;
-  const response = await fetch(url);
-  if (!response.ok) {
-    throw new Error("Failed to fetch ENS address");
-  }
-  const data = await response.json();
-
-  console.log("data hola", data);
-
-  return {
-    address:
-      network?.toUpperCase() === "SOLANA" ? data.addresses["501"] : data.owner,
-    ensName: data.name,
-    isEns: true,
-    avatar: data.domainOwner.avatar,
-  };
-}
 
 interface SendToModalProps {
   open: boolean;
@@ -141,7 +63,9 @@ export default function SendToModal({
   const [isRedeemModalOpen, setIsRedeemModalOpen] = useState(false);
   //store connection data
   const [connectionList, setConnectionList] = useState([]);
-  const [searchResults, setSearchResults] = useState([]);
+  const [searchResults, setSearchResults] = useState<any>([]);
+
+  const [isLoading, setIsLoading] = useState<any>(false);
   // const { solanaWallets } = useSolanaWalletContext();
   const { wallets: solanaWallets } = useSolanaWallets();
 
@@ -164,20 +88,6 @@ export default function SendToModal({
       validateEthereumAddress(searchQuery)) ||
       ((network === "SOLANA" || network === "solana") &&
         validateSolanaAddress(searchQuery)));
-
-  const {
-    data: userData,
-    isLoading,
-    error,
-  } = useQuery({
-    queryKey: ["user", debouncedQuery, network],
-    queryFn: () => fetchUserByENS(debouncedQuery, network),
-    enabled: Boolean(debouncedQuery),
-    // !isValidAddress &&
-    // debouncedQuery.includes("."),
-  });
-
-  console.log("user data", userData);
 
   const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setSearchQuery(e.target.value);
@@ -345,15 +255,9 @@ export default function SendToModal({
     }
   };
 
-  // const queryParams = new URLSearchParams({
-  //     page: page.toString(),
-  //     limit: limit.toString(),
-  //   });
-
-  //   const url = `${VERSION_ONE_API}/user/search?q=${q}&userId=${userId}&filter=${connectionType}&${queryParams}`;
-
   useEffect(() => {
     const getdata = async () => {
+      setIsLoading(true);
       const queryParams = new URLSearchParams({
         page: "1",
         limit: "20",
@@ -364,15 +268,17 @@ export default function SendToModal({
       if (data.state === "success") {
         setConnectionList(data.data.following);
       }
-      console.log("connection data", data);
+      setIsLoading(false);
     };
     getdata();
   }, [accessToken, userHookData?._id]);
 
   useEffect(() => {
     const getSearchResults = async () => {
+      setIsLoading(true);
       if (!debouncedQuery || debouncedQuery.length < 1) {
         setSearchResults([]);
+        setIsLoading(false);
         return;
       }
 
@@ -384,13 +290,33 @@ export default function SendToModal({
       const url = `${process.env.NEXT_PUBLIC_API_URL}/api/v1/user/search?q=${debouncedQuery}&userId=${userHookData?._id}&filter=all&${queryParams}`;
       const data = await getConnectionsUserData(url, accessToken || "");
       if (data.state === "success") {
-        setSearchResults(data.data.results || []);
+        const results = data.data.results || [];
+
+        // Create a Set of connection ENS names for quick lookup
+        const connectionEnsSet = new Set(
+          connectionList.map((conn: any) => conn.ens)
+        );
+
+        // Separate search results into connections and non-connections
+        const matchedConnections: any[] = [];
+        const otherResults: any[] = [];
+
+        results.forEach((result: any) => {
+          if (connectionEnsSet.has(result.ens)) {
+            matchedConnections.push(result);
+          } else {
+            otherResults.push(result);
+          }
+        });
+
+        // Combine with matched connections first
+        setSearchResults([...matchedConnections, ...otherResults]);
       }
-      console.log("search data", data);
+      setIsLoading(false);
     };
 
     getSearchResults();
-  }, [debouncedQuery, accessToken, userHookData?._id]);
+  }, [debouncedQuery, accessToken, userHookData?._id, connectionList]);
 
   if (!selectedToken) return null;
 
@@ -411,121 +337,111 @@ export default function SendToModal({
             />
           </div>
 
-          <div className="space-y-2">
-            {isLoading && (
-              <div className="flex items-center justify-center py-4">
-                <Loader2 className="h-6 w-6 animate-spin text-gray-400" />
-              </div>
-            )}
-
-            {/* {(error || addressError || !isValidAddress) &&
-              searchQuery &&
-              !userData && (
-                <div className="text-center text-sm text-red-500">
-                  {addressError
-                    ? "Cannot send to your own address"
-                    : "Invalid address or ENS name. Please try again."}
+          <ScrollArea className="h-96 space-y-2 -mx-5">
+            <div className="px-4">
+              {isLoading && (
+                <div className="flex items-center justify-center py-4">
+                  <Loader2 className="h-6 w-6 animate-spin text-gray-400" />
                 </div>
-              )} */}
+              )}
 
-            <div
-              className="w-full p-4 rounded-2xl cursor-pointer shadow-medium"
-              onClick={() => setIsRedeemModalOpen(true)}
-            >
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-4">
-                  <div className="w-10 h-10 rounded-lg bg-gray-200 flex items-center justify-center flex-shrink-0">
-                    <BsSendFill />
-                  </div>
-                  <div>
-                    <h3 className="font-medium text-black">
-                      Send to anyone using a link
-                    </h3>
-                    <p className="text-sm text-gray-500">
-                      Share via Whatsapp, Email, Twitter...
-                    </p>
-                  </div>
-                </div>
-                <div className="w-8 h-8 rounded-lg bg-gray-100 flex items-center justify-center flex-shrink-0">
-                  <ChevronRight className="h-5 w-5 text-black" />
-                </div>
-              </div>
-            </div>
-
-            {/* Show wallet address preview */}
-            {isValidAddress && !addressError && (
-              <div className="w-full p-4 rounded-2xl border border-gray-100 bg-gray-50">
+              <div
+                className="w-full p-4 rounded-2xl cursor-pointer shadow-md bg-white mb-1"
+                onClick={() => setIsRedeemModalOpen(true)}
+              >
                 <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-full bg-gray-200 flex items-center justify-center">
-                      <Wallet className="h-5 w-5 text-gray-500" />
+                  <div className="flex items-center gap-4">
+                    <div className="w-10 h-10 rounded-lg bg-gray-200 flex items-center justify-center flex-shrink-0">
+                      <BsSendFill />
                     </div>
                     <div>
-                      <span className="text-sm text-gray-500">
-                        Wallet Address
-                      </span>
+                      <h3 className="font-medium text-black">
+                        Send to anyone using a link
+                      </h3>
                       <p className="text-sm text-gray-500">
-                        {truncateAddress(searchQuery)}
+                        Share via Whatsapp, Email, Twitter...
                       </p>
                     </div>
                   </div>
+                  <div className="w-8 h-8 rounded-lg bg-gray-100 flex items-center justify-center flex-shrink-0">
+                    <ChevronRight className="h-5 w-5 text-black" />
+                  </div>
                 </div>
               </div>
-            )}
 
-            {searchQuery && searchResults.length === 0 && !isLoading ? (
-              <div className="text-center py-8 text-gray-500">
-                <p className="text-sm">No results found</p>
-              </div>
-            ) : (
-              (searchResults.length > 0 ? searchResults : connectionList).map(
-                (data: any) => (
-                  <div
-                    key={data._id}
-                    className="w-full p-4 border-b cursor-pointer bg-white hover:bg-gray-50 transition-colors"
-                    onClick={() =>
-                      onSelectReceiver({
-                        address:
-                          network?.toUpperCase() === "SOLANA"
-                            ? data.ensData.solanaAddress
-                            : data.ensData.evmAddress,
-                        ensName: data.ens,
-                        isEns: true,
-                        avatar: data.profilePic,
-                      })
-                    }
-                  >
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-3">
-                        {data.profilePic && (
-                          <Image
-                            src={
-                              isUrl(data.profilePic)
-                                ? data.profilePic
-                                : `/images/user_avator/${data.profilePic}@3x.png`
-                            }
-                            alt={data.ens || ""}
-                            width={120}
-                            height={120}
-                            className="rounded-full w-10 h-10"
-                          />
-                        )}
-                        <div>
-                          <span className="font-medium">{data.ens}</span>
-                          <p className="text-sm text-gray-500">
-                            {truncateAddress(data.ensData.solanaAddress)}
-                          </p>
-                        </div>
+              {/* Show wallet address preview */}
+              {isValidAddress && !addressError && (
+                <div className="w-full p-4 rounded-2xl border border-gray-100 bg-gray-50">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-full bg-gray-200 flex items-center justify-center">
+                        <Wallet className="h-5 w-5 text-gray-500" />
                       </div>
-                      <div className="w-8 h-8 rounded-lg bg-gray-100 flex items-center justify-center flex-shrink-0">
-                        <ChevronRight className="h-5 w-5 text-black" />
+                      <div>
+                        <span className="text-sm text-gray-500">
+                          Wallet Address
+                        </span>
+                        <p className="text-sm text-gray-500">
+                          {truncateAddress(searchQuery)}
+                        </p>
                       </div>
                     </div>
                   </div>
+                </div>
+              )}
+
+              {searchQuery && searchResults.length === 0 && !isLoading ? (
+                <div className="text-center py-8 text-gray-500">
+                  <p className="text-sm">No results found</p>
+                </div>
+              ) : (
+                (searchResults.length > 0 ? searchResults : connectionList).map(
+                  (data: any) => (
+                    <div
+                      key={data._id}
+                      className="w-full p-4 border-b cursor-pointer bg-white hover:bg-gray-50 transition-colors"
+                      onClick={() =>
+                        onSelectReceiver({
+                          address:
+                            network?.toUpperCase() === "SOLANA"
+                              ? data.ensData.solanaAddress
+                              : data.ensData.evmAddress,
+                          ensName: data.ens,
+                          isEns: true,
+                          avatar: data.profilePic,
+                        })
+                      }
+                    >
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          {data.profilePic && (
+                            <Image
+                              src={
+                                isUrl(data.profilePic)
+                                  ? data.profilePic
+                                  : `/images/user_avator/${data.profilePic}@3x.png`
+                              }
+                              alt={data.ens || ""}
+                              width={120}
+                              height={120}
+                              className="rounded-full w-10 h-10"
+                            />
+                          )}
+                          <div>
+                            <span className="font-medium">{data.name}</span>
+                            <p className="text-sm text-gray-500">{data.ens}</p>
+                          </div>
+                        </div>
+                        <div className="w-8 h-8 rounded-lg bg-gray-100 flex items-center justify-center flex-shrink-0">
+                          <ChevronRight className="h-5 w-5 text-black" />
+                        </div>
+                      </div>
+                    </div>
+                  )
                 )
-              )
-            )}
-          </div>
+              )}
+            </div>
+          </ScrollArea>
         </div>
       </CustomModal>
 
