@@ -1,51 +1,51 @@
-"use client";
-import Image from "next/image";
-import CustomModal from "../modal/CustomModal";
-import isUrl from "@/lib/isUrl";
-import { Button } from "@/components/ui/button";
-import { useState, useEffect, useCallback } from "react";
-import SelectTokenModal from "./SelectTokenModal";
+'use client';
+import Image from 'next/image';
+import CustomModal from '../modal/CustomModal';
+import isUrl from '@/lib/isUrl';
+import { Button } from '@/components/ui/button';
+import { useState, useEffect, useCallback } from 'react';
+import SelectTokenModal from './SelectTokenModal';
 import {
   useWalletAddresses,
   useWalletData,
-} from "../wallet/hooks/useWalletData";
+} from '../wallet/hooks/useWalletData';
 import {
   usePrivy,
   useWallets,
   useSolanaWallets,
   useAuthorizationSignature,
-} from "@privy-io/react-auth";
-import { SUPPORTED_CHAINS } from "../wallet/constants";
-import { useMultiChainTokenData } from "@/lib/hooks/useToken";
-import { Connection } from "@solana/web3.js";
-import { useToast } from "@/hooks/use-toast";
+} from '@privy-io/react-auth';
+import { SUPPORTED_CHAINS } from '../wallet/constants';
+import { useMultiChainTokenData } from '@/lib/hooks/useToken';
+import { Connection } from '@solana/web3.js';
+import { useToast } from '@/hooks/use-toast';
 import {
   TransactionService,
   USDC_ADDRESS,
   SWOP_ADDRESS,
-} from "@/services/transaction-service";
-import { CHAIN_ID, SendFlowState } from "@/types/wallet-types";
-import { useUser } from "@/lib/UserContext";
-import { addSwopPoint } from "@/actions/addPoint";
-import { postFeed } from "@/actions/postFeed";
-import Cookies from "js-cookie";
-import { createTransactionPayload } from "@/lib/utils/transactionUtils";
-import { useNewSocketChat } from "@/lib/context/NewSocketChatContext";
+} from '@/services/transaction-service';
+import { CHAIN_ID, SendFlowState } from '@/types/wallet-types';
+import { useUser } from '@/lib/UserContext';
+import { addSwopPoint } from '@/actions/addPoint';
+import { postFeed } from '@/actions/postFeed';
+import Cookies from 'js-cookie';
+import { createTransactionPayload } from '@/lib/utils/transactionUtils';
+import { useNewSocketChat } from '@/lib/context/NewSocketChatContext';
 import {
   getWalletNotificationService,
   formatUSDValue,
-} from "@/lib/utils/walletNotifications";
+} from '@/lib/utils/walletNotifications';
 import {
   API_ENDPOINTS,
   ERROR_MESSAGES,
   POINT_TYPES,
   ACTION_KEYS,
-} from "../wallet/constants";
-import TipConfirmation from "./TipConfirmationModal";
-import { getEnsDataUsingEns } from "@/actions/getEnsData";
-import { useTransactionPayload } from "../wallet/hooks/useTransactionPayload";
-import { toFixedTruncate } from "@/lib/fixedTruncateNumber";
-import { PrimaryButton } from "../ui/Button/PrimaryButton";
+} from '../wallet/constants';
+import TipConfirmation from './TipConfirmationModal';
+import { getEnsDataUsingEns } from '@/actions/getEnsData';
+import { useTransactionPayload } from '../wallet/hooks/useTransactionPayload';
+import { toFixedTruncate } from '@/lib/fixedTruncateNumber';
+import { PrimaryButton } from '../ui/Button/PrimaryButton';
 
 interface TipContentModalProps {
   isOpen: boolean;
@@ -62,17 +62,22 @@ const TipContentModal: React.FC<TipContentModalProps> = ({
 }) => {
   const [isSelectModalOpen, setIsSelectModalOpen] = useState(false);
   const [isConfirmModalOpen, setIsConfirmModalOpen] = useState(false);
-  const [tipAmount, setTipAmount] = useState<string>("");
+  const [tipAmount, setTipAmount] = useState<string>('');
   const [isSending, setIsSending] = useState(false);
-  const [accessToken, setAccessToken] = useState("");
+  const [accessToken, setAccessToken] = useState('');
 
-  const { authenticated, ready, user: PrivyUser, sendTransaction } = usePrivy();
-  const { generateAuthorizationSignature } = useAuthorizationSignature();
+  const {
+    authenticated,
+    ready,
+    user: PrivyUser,
+    sendTransaction,
+  } = usePrivy();
+  const { generateAuthorizationSignature } =
+    useAuthorizationSignature();
   const { wallets: ethWallets } = useWallets();
   const { wallets: directSolanaWallets } = useSolanaWallets();
   const { toast } = useToast();
   const { user } = useUser();
-  console.log("user1234", user);
 
   const { socket: chatSocket, isConnected: socketConnected } =
     useNewSocketChat();
@@ -80,9 +85,8 @@ const TipContentModal: React.FC<TipContentModalProps> = ({
   const { payload } = useTransactionPayload(user);
 
   const walletData = useWalletData(authenticated, ready, PrivyUser);
-  const { solWalletAddress, evmWalletAddress } = useWalletAddresses(walletData);
-
-  console.log("feedItem", feedItem);
+  const { solWalletAddress, evmWalletAddress } =
+    useWalletAddresses(walletData);
 
   // fetch token data
   const {
@@ -96,11 +100,10 @@ const TipContentModal: React.FC<TipContentModalProps> = ({
   );
 
   const [selectedToken, setSelectedToken] = useState<any>(null);
-  console.log("selectedToken", selectedToken);
 
   // Get access token
   useEffect(() => {
-    const token = Cookies.get("access-token");
+    const token = Cookies.get('access-token');
     if (token) {
       setAccessToken(token);
     }
@@ -115,13 +118,15 @@ const TipContentModal: React.FC<TipContentModalProps> = ({
 
   // Reset tip amount when token changes
   useEffect(() => {
-    setTipAmount("");
+    setTipAmount('');
   }, [selectedToken]);
 
-  const handleAmountChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleAmountChange = (
+    e: React.ChangeEvent<HTMLInputElement>
+  ) => {
     const value = e.target.value;
     // Allow only numbers and decimal point
-    if (value === "" || /^\d*\.?\d*$/.test(value)) {
+    if (value === '' || /^\d*\.?\d*$/.test(value)) {
       setTipAmount(value);
     }
   };
@@ -155,11 +160,17 @@ const TipContentModal: React.FC<TipContentModalProps> = ({
   const convertToAbsoluteUrl = useCallback(
     (imageUrl: string | undefined): string | undefined => {
       if (!imageUrl) return undefined;
-      if (imageUrl.startsWith("http://") || imageUrl.startsWith("https://")) {
+      if (
+        imageUrl.startsWith('http://') ||
+        imageUrl.startsWith('https://')
+      ) {
         return imageUrl;
       }
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
-      return `${apiUrl}${imageUrl.startsWith("/") ? "" : "/"}${imageUrl}`;
+      const apiUrl =
+        process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+      return `${apiUrl}${
+        imageUrl.startsWith('/') ? '' : '/'
+      }${imageUrl}`;
     },
     []
   );
@@ -266,29 +277,32 @@ const TipContentModal: React.FC<TipContentModalProps> = ({
       try {
         const connection = new Connection(
           process.env.NEXT_PUBLIC_QUICKNODE_SOLANA_URL!,
-          "confirmed"
+          'confirmed'
         );
 
         const availableSolanaWallets = directSolanaWallets || [];
         const solanaWallet =
           availableSolanaWallets.find(
             (w: any) =>
-              w.walletClientType === "privy" || w.connectorType === "embedded"
+              w.walletClientType === 'privy' ||
+              w.connectorType === 'embedded'
           ) || availableSolanaWallets[0];
 
         if (
-          (selectedToken?.chain === "SOLANA" ||
-            selectedToken?.chain === "solana") &&
+          (selectedToken?.chain === 'SOLANA' ||
+            selectedToken?.chain === 'solana') &&
           !solanaWallet
         ) {
-          throw new Error("No Solana wallet found. Please connect a wallet.");
+          throw new Error(
+            'No Solana wallet found. Please connect a wallet.'
+          );
         }
 
         const allAccounts = PrivyUser?.linkedAccounts || [];
         const ethereumAccount = allAccounts.find(
           (account: any) =>
-            account.chainType === "ethereum" &&
-            account.type === "wallet" &&
+            account.chainType === 'ethereum' &&
+            account.type === 'wallet' &&
             account.address
         );
 
@@ -301,26 +315,26 @@ const TipContentModal: React.FC<TipContentModalProps> = ({
           );
         }
 
-        let hash = "";
+        let hash = '';
 
         const tipFlow: SendFlowState = {
-          step: "confirm",
+          step: 'confirm',
           token: selectedToken,
           amount: tipAmount,
           recipient: {
             address: recipientWalletAddress,
-            ensName: feedItem.smartsiteId?.name || "",
+            ensName: feedItem.smartsiteId?.name || '',
             isEns: true,
           },
           network: selectedToken.chain,
-          hash: "",
+          hash: '',
           isUSD: false,
           nft: null,
         };
 
         if (
-          selectedToken.chain === "SOLANA" ||
-          selectedToken.chain === "solana"
+          selectedToken.chain === 'SOLANA' ||
+          selectedToken.chain === 'solana'
         ) {
           try {
             // ✅ First, try sponsored transaction
@@ -336,20 +350,21 @@ const TipContentModal: React.FC<TipContentModalProps> = ({
             if (hash) await connection.confirmTransaction(hash);
           } catch (sponsoredError: any) {
             console.log(
-              "Sponsored transaction failed, falling back to regular transaction"
+              'Sponsored transaction failed, falling back to regular transaction'
             );
 
             // ✅ Check if it's a sponsored transaction error
             if (
-              sponsoredError?.message?.includes("sponsored") ||
-              sponsoredError?.message?.includes("Sponsored") ||
-              sponsoredError?.message?.includes("400")
+              sponsoredError?.message?.includes('sponsored') ||
+              sponsoredError?.message?.includes('Sponsored') ||
+              sponsoredError?.message?.includes('400')
             ) {
               // ✅ Fallback: Execute regular transaction (user pays gas)
               try {
                 toast({
-                  title: "Processing Transaction",
-                  description: "Gas fees will be deducted from your wallet.",
+                  title: 'Processing Transaction',
+                  description:
+                    'Gas fees will be deducted from your wallet.',
                 });
 
                 const fallbackResult =
@@ -371,7 +386,11 @@ const TipContentModal: React.FC<TipContentModalProps> = ({
             }
           }
         } else {
-          await evmWallet?.switchChain(CHAIN_ID[selectedToken.chain]);
+          await evmWallet?.switchChain(
+            CHAIN_ID[
+              selectedToken.chain as keyof typeof CHAIN_ID
+            ] as number
+          );
           const result = await TransactionService.handleEVMSend(
             evmWallet,
             tipFlow,
@@ -382,7 +401,7 @@ const TipContentModal: React.FC<TipContentModalProps> = ({
 
         return { success: true, hash };
       } catch (error) {
-        console.error("Tip transaction error:", error);
+        console.error('Tip transaction error:', error);
         return {
           success: false,
           error:
@@ -408,9 +427,9 @@ const TipContentModal: React.FC<TipContentModalProps> = ({
   const handleConfirmTip = async () => {
     if (!isValidAmount() || !selectedToken) {
       toast({
-        variant: "destructive",
-        title: "Invalid Input",
-        description: "Please enter a valid tip amount.",
+        variant: 'destructive',
+        title: 'Invalid Input',
+        description: 'Please enter a valid tip amount.',
       });
       return;
     }
@@ -419,57 +438,62 @@ const TipContentModal: React.FC<TipContentModalProps> = ({
 
     try {
       // Get recipient wallet address
-      const ensData = await getEnsDataUsingEns(feedItem.smartsiteId?.ens);
+      const ensData = await getEnsDataUsingEns(
+        feedItem.smartsiteId?.ens
+      );
       const recipientWalletAddress =
         ensData?.addresses?.[
-          selectedToken.chain?.toUpperCase() === "SOLANA" ? 501 : 60
+          selectedToken.chain?.toUpperCase() === 'SOLANA' ? 501 : 60
         ];
 
       if (!recipientWalletAddress) {
         toast({
-          variant: "destructive",
-          title: "Recipient Not Found",
-          description: "Unable to find wallet address for this user.",
+          variant: 'destructive',
+          title: 'Recipient Not Found',
+          description: 'Unable to find wallet address for this user.',
         });
         return;
       }
 
       // Execute transaction
-      const result = await executeTipTransaction(recipientWalletAddress);
+      const result = await executeTipTransaction(
+        recipientWalletAddress
+      );
 
       if (!result.success) {
         // ✅ Custom error messages based on error type
-        let errorTitle = "Transaction Failed";
-        let errorDescription = result.error || "Failed to send tip";
+        let errorTitle = 'Transaction Failed';
+        let errorDescription = result.error || 'Failed to send tip';
 
-        if (result.error?.includes("insufficient lamports")) {
-          errorTitle = "Insufficient SOL";
+        if (result.error?.includes('insufficient lamports')) {
+          errorTitle = 'Insufficient SOL';
           errorDescription =
-            "You need at least 0.003 SOL in your wallet for transaction fees. Please add SOL and try again.";
-        } else if (result.error?.includes("insufficient funds")) {
-          errorTitle = "Insufficient Balance";
+            'You need at least 0.003 SOL in your wallet for transaction fees. Please add SOL and try again.';
+        } else if (result.error?.includes('insufficient funds')) {
+          errorTitle = 'Insufficient Balance';
           errorDescription = `You don't have enough ${selectedToken.symbol} to complete this transaction.`;
-        } else if (result.error?.includes("wallet")) {
-          errorTitle = "Wallet Error";
+        } else if (result.error?.includes('wallet')) {
+          errorTitle = 'Wallet Error';
           errorDescription =
-            "Please check your wallet connection and try again.";
-        } else if (result.error?.includes("network")) {
-          errorTitle = "Network Error";
+            'Please check your wallet connection and try again.';
+        } else if (result.error?.includes('network')) {
+          errorTitle = 'Network Error';
           errorDescription =
-            "Unable to connect to the blockchain. Please check your internet connection.";
+            'Unable to connect to the blockchain. Please check your internet connection.';
         } else if (
-          result.error?.includes("rejected") ||
-          result.error?.includes("denied")
+          result.error?.includes('rejected') ||
+          result.error?.includes('denied')
         ) {
-          errorTitle = "Transaction Cancelled";
-          errorDescription = "You cancelled the transaction.";
-        } else if (result.error?.includes("timeout")) {
-          errorTitle = "Transaction Timeout";
-          errorDescription = "The transaction took too long. Please try again.";
+          errorTitle = 'Transaction Cancelled';
+          errorDescription = 'You cancelled the transaction.';
+        } else if (result.error?.includes('timeout')) {
+          errorTitle = 'Transaction Timeout';
+          errorDescription =
+            'The transaction took too long. Please try again.';
         }
 
         toast({
-          variant: "destructive",
+          variant: 'destructive',
           title: errorTitle,
           description: errorDescription,
         });
@@ -484,30 +508,33 @@ const TipContentModal: React.FC<TipContentModalProps> = ({
             amount: tipAmount,
             recipient: {
               address: recipientWalletAddress,
-              ensName: feedItem.smartsiteId.name || "",
+              ensName: feedItem.smartsiteId.name || '',
               isEns: true,
             },
             network: selectedToken.chain,
             hash: result.hash,
             isUSD: false,
-            step: "success",
+            step: 'success',
             nft: null,
           },
           hash: result.hash,
           amount: Number(tipAmount),
-          walletAddress: evmWalletAddress || solWalletAddress || "",
+          walletAddress: evmWalletAddress || solWalletAddress || '',
         });
 
-        const response = await postFeed(tipPayload, accessToken);
-        console.log("respnse", response);
+        await postFeed(tipPayload, accessToken);
       }
 
       // Emit socket notification (existing code)
       if (chatSocket && chatSocket.connected && result.hash) {
         try {
-          const notificationService = getWalletNotificationService(chatSocket);
+          const notificationService =
+            getWalletNotificationService(chatSocket);
           const usdValue = selectedToken.marketData?.price
-            ? formatUSDValue(tipAmount, selectedToken.marketData.price)
+            ? formatUSDValue(
+                tipAmount,
+                selectedToken.marketData.price
+              )
             : undefined;
 
           const tokenData = {
@@ -518,47 +545,52 @@ const TipContentModal: React.FC<TipContentModalProps> = ({
             recipientEnsName:
               feedItem.smartsiteId.name || recipientWalletAddress,
             txSignature: result.hash,
-            network: selectedToken.chain?.toUpperCase() || "SOLANA",
+            network: selectedToken.chain?.toUpperCase() || 'SOLANA',
             tokenLogo: convertToAbsoluteUrl(selectedToken.logoURI),
             usdValue,
           };
 
           notificationService.emitTokenSent(tokenData);
-          console.log("✅ Tip notification sent via Socket.IO");
+          console.log('✅ Tip notification sent via Socket.IO');
         } catch (notifError) {
-          console.error("Failed to send tip notification:", notifError);
+          console.error(
+            'Failed to send tip notification:',
+            notifError
+          );
         }
       }
 
       // Cleanup and success message
       setIsConfirmModalOpen(false);
-      setTipAmount("");
+      setTipAmount('');
       if (onCloseModal) onCloseModal(false);
       if (onClose) onClose();
 
       toast({
-        title: "Success! 💝",
+        title: 'Success! 💝',
         description: `Tip of ${tipAmount} ${selectedToken.symbol} sent successfully!`,
       });
     } catch (error: any) {
-      console.error("Error sending tip:", error);
+      console.error('Error sending tip:', error);
 
       // ✅ Final catch-all with custom messages
-      let errorMessage = "An unexpected error occurred. Please try again.";
+      let errorMessage =
+        'An unexpected error occurred. Please try again.';
 
       if (error.message) {
-        if (error.message.includes("User rejected")) {
-          errorMessage = "You cancelled the transaction.";
-        } else if (error.message.includes("network")) {
-          errorMessage = "Network error. Please check your connection.";
+        if (error.message.includes('User rejected')) {
+          errorMessage = 'You cancelled the transaction.';
+        } else if (error.message.includes('network')) {
+          errorMessage =
+            'Network error. Please check your connection.';
         } else {
           errorMessage = error.message;
         }
       }
 
       toast({
-        variant: "destructive",
-        title: "Error",
+        variant: 'destructive',
+        title: 'Error',
         description: errorMessage,
       });
     } finally {
@@ -765,7 +797,7 @@ const TipContentModal: React.FC<TipContentModalProps> = ({
                         src={
                           selectedToken?.marketData?.iconUrl ||
                           selectedToken.logoURI ||
-                          "/icons/default.png"
+                          '/icons/default.png'
                         }
                         alt={selectedToken.name}
                         width={120}
@@ -774,7 +806,10 @@ const TipContentModal: React.FC<TipContentModalProps> = ({
                       />
                     ) : (
                       <Image
-                        src={selectedToken.logoURI || "/icons/default.png"}
+                        src={
+                          selectedToken.logoURI ||
+                          '/icons/default.png'
+                        }
                         alt={selectedToken.name}
                         width={120}
                         height={120}
@@ -783,15 +818,17 @@ const TipContentModal: React.FC<TipContentModalProps> = ({
                     )}
                   </div>
                   <div>
-                    <p className="font-semibold">{selectedToken.name}</p>
+                    <p className="font-semibold">
+                      {selectedToken.name}
+                    </p>
                     <p className="text-sm text-gray-500">
-                      Balance:{" "}
+                      Balance:{' '}
                       {Number(
                         toFixedTruncate(
                           selectedToken.balance,
                           selectedToken.decimals || 6
                         )
-                      )}{" "}
+                      )}{' '}
                       {selectedToken.symbol}
                     </p>
                   </div>
@@ -816,9 +853,10 @@ const TipContentModal: React.FC<TipContentModalProps> = ({
               {/* Error message */}
               {tipAmount && !isValidAmount() && (
                 <p className="text-red-500 text-sm mt-2">
-                  {parseFloat(tipAmount) > parseFloat(selectedToken.balance)
-                    ? "Insufficient balance"
-                    : "Please enter a valid amount"}
+                  {parseFloat(tipAmount) >
+                  parseFloat(selectedToken.balance)
+                    ? 'Insufficient balance'
+                    : 'Please enter a valid amount'}
                 </p>
               )}
             </div>
@@ -853,8 +891,8 @@ const TipContentModal: React.FC<TipContentModalProps> = ({
           onOpenChange={setIsConfirmModalOpen}
           amount={tipAmount}
           token={selectedToken}
-          recipient={feedItem.smartsiteId?.ens || ""}
-          recipientName={feedItem.smartsiteId?.name || "Unknown"}
+          recipient={feedItem.smartsiteId?.ens || ''}
+          recipientName={feedItem.smartsiteId?.name || 'Unknown'}
           recipientImage={
             isUrl(feedItem.smartsiteId?.profilePic)
               ? feedItem.smartsiteId.profilePic

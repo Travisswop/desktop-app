@@ -1,5 +1,6 @@
-import { useQuery } from '@tanstack/react-query';
+import { UseQueryResult, useQuery } from '@tanstack/react-query';
 import { MarketService } from '@/services/market-service';
+import { useUser } from '@/lib/UserContext';
 
 interface ChartDataPoint {
   timestamp: number;
@@ -53,7 +54,8 @@ function isNativeToken(address: string | null): boolean {
 async function fetchChartData(
   tokenAddress: string | null,
   chain: string,
-  period: string
+  period: string,
+  accessToken: string
 ): Promise<ChartData> {
   // Step 1: Determine token ID
   let tokenId: string | null = null;
@@ -70,12 +72,16 @@ async function fetchChartData(
       );
     }
 
-    console.log(`[useTokenChartData] Native token detected: ${chain} → ${tokenId}`);
+    console.log(
+      `[useTokenChartData] Native token detected: ${chain} → ${tokenId}`
+    );
   } else {
     // For contract tokens, resolve address to CoinGecko ID via backend
+
     tokenId = await MarketService.resolveTokenAddress(
       tokenAddress || '',
-      chain.toLowerCase()
+      chain.toLowerCase(),
+      accessToken || '' // If accessToken is undefined, use an empty string
     );
 
     if (!tokenId) {
@@ -84,21 +90,25 @@ async function fetchChartData(
       );
     }
 
-    console.log(`[useTokenChartData] Contract token resolved: ${tokenAddress} → ${tokenId}`);
+    console.log(
+      `[useTokenChartData] Contract token resolved: ${tokenAddress} → ${tokenId}`
+    );
   }
 
   // Step 2: Fetch historical data for the period
   const days = periodToDays(period);
   const historicalData = await MarketService.getHistoricalPrices(
     tokenId,
-    days
+    days,
+    accessToken
   );
 
   console.log(`[useTokenChartData] ${tokenId} - ${period}:`, {
     days,
     priceCount: historicalData.prices.length,
     firstPrice: historicalData.prices[0],
-    lastPrice: historicalData.prices[historicalData.prices.length - 1],
+    lastPrice:
+      historicalData.prices[historicalData.prices.length - 1],
   });
 
   // Step 3: Transform data to chart format
@@ -113,7 +123,9 @@ async function fetchChartData(
   // Debug: Check for flat data (all same values)
   const uniqueValues = new Set(sparklineData.map((d) => d.value));
   if (uniqueValues.size === 1) {
-    console.warn(`[useTokenChartData] Flat line detected for ${tokenId} - all values are ${sparklineData[0]?.value}`);
+    console.warn(
+      `[useTokenChartData] Flat line detected for ${tokenId} - all values are ${sparklineData[0]?.value}`
+    );
   }
 
   // Step 4: Calculate price change percentage
@@ -141,8 +153,9 @@ export function useTokenChartData(
   tokenAddress: string | null,
   chain: string,
   period: string,
-  enabled: boolean = true
-) {
+  enabled: boolean = true,
+  accessToken: string
+): UseQueryResult<ChartData, unknown> {
   // Create a unique query key that works for both native and contract tokens
   const queryKey = isNativeToken(tokenAddress)
     ? ['tokenChartData', 'native', chain, period]
@@ -150,7 +163,8 @@ export function useTokenChartData(
 
   return useQuery({
     queryKey,
-    queryFn: () => fetchChartData(tokenAddress, chain, period),
+    queryFn: () =>
+      fetchChartData(tokenAddress, chain, period, accessToken),
     enabled: enabled && !!chain && !!period, // Only require chain and period, address can be null for native
     staleTime: 5 * 60 * 1000, // 5 minutes
     retry: 2,

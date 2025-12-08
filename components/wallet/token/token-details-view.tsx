@@ -22,6 +22,7 @@ import {
   TooltipTrigger,
   Tooltip as TooltipUI,
 } from '@/components/ui/tooltip';
+import { useUser } from '@/lib/UserContext';
 
 const CustomTooltip = ({
   active,
@@ -65,6 +66,11 @@ export default function TokenDetails({
   onBack,
   onSend,
 }: TokenDetailsProps) {
+  console.log('token', token);
+  const { accessToken } = useUser();
+  if (!accessToken) {
+    throw new Error('No access token found');
+  }
   const [selectedPeriod, setSelectedPeriod] = useState('1D');
   const [chartData, setChartData] = useState(
     token.timeSeriesData['1D'] || []
@@ -81,31 +87,37 @@ export default function TokenDetails({
     token.address, // Can be null for native tokens
     token.chain,
     '1D',
-    selectedPeriod === '1D'
+    selectedPeriod === '1D',
+    accessToken
   );
+  console.log('Day data:', day);
   const week = useTokenChartData(
     token.address,
     token.chain,
     '1W',
-    selectedPeriod === '1W'
+    selectedPeriod === '1W',
+    accessToken
   );
   const month = useTokenChartData(
     token.address,
     token.chain,
     '1M',
-    selectedPeriod === '1M'
+    selectedPeriod === '1M',
+    accessToken
   );
   const year = useTokenChartData(
     token.address,
     token.chain,
     '1Y',
-    selectedPeriod === '1Y'
+    selectedPeriod === '1Y',
+    accessToken
   );
   const max = useTokenChartData(
     token.address,
     token.chain,
     'Max',
-    selectedPeriod === 'Max'
+    selectedPeriod === 'Max',
+    accessToken
   );
 
   // Debug: Log when year or max data changes
@@ -115,7 +127,8 @@ export default function TokenDetails({
         dataPoints: year.data.sparklineData.length,
         change: year.data.change,
         firstPoint: year.data.sparklineData[0],
-        lastPoint: year.data.sparklineData[year.data.sparklineData.length - 1],
+        lastPoint:
+          year.data.sparklineData[year.data.sparklineData.length - 1],
         samplePoints: year.data.sparklineData.slice(0, 5),
       });
     }
@@ -124,7 +137,8 @@ export default function TokenDetails({
         dataPoints: max.data.sparklineData.length,
         change: max.data.change,
         firstPoint: max.data.sparklineData[0],
-        lastPoint: max.data.sparklineData[max.data.sparklineData.length - 1],
+        lastPoint:
+          max.data.sparklineData[max.data.sparklineData.length - 1],
         samplePoints: max.data.sparklineData.slice(0, 5),
       });
     }
@@ -144,7 +158,7 @@ export default function TokenDetails({
       '1W': week.data?.sparklineData || [],
       '1M': month.data?.sparklineData || [],
       '1Y': year.data?.sparklineData || [],
-      'Max': max.data?.sparklineData || [],
+      Max: max.data?.sparklineData || [],
     };
 
     const changePercentageMap = {
@@ -152,7 +166,7 @@ export default function TokenDetails({
       '1W': week.data?.change || '0',
       '1M': month.data?.change || '0',
       '1Y': year.data?.change || '0',
-      'Max': max.data?.change || '0',
+      Max: max.data?.change || '0',
     };
 
     // Determine loading state
@@ -161,7 +175,7 @@ export default function TokenDetails({
       '1W': week.isLoading,
       '1M': month.isLoading,
       '1Y': year.isLoading,
-      'Max': max.isLoading,
+      Max: max.isLoading,
     };
 
     setIsLoading(
@@ -179,21 +193,26 @@ export default function TokenDetails({
 
     if (newData && newData.length > 0) {
       // Debug log for chart data
-      console.log(`[TokenDetails] Updating chart for ${selectedPeriod}:`, {
-        token: token.symbol,
-        period: selectedPeriod,
-        dataPoints: newData.length,
-        change: newChange,
-        firstPoint: newData[0],
-        lastPoint: newData[newData.length - 1],
-        // Check for flat lines
-        uniqueValues: new Set(newData.map((d) => d.value)).size,
-      });
+      console.log(
+        `[TokenDetails] Updating chart for ${selectedPeriod}:`,
+        {
+          token: token.symbol,
+          period: selectedPeriod,
+          dataPoints: newData.length,
+          change: newChange,
+          firstPoint: newData[0],
+          lastPoint: newData[newData.length - 1],
+          // Check for flat lines
+          uniqueValues: new Set(newData.map((d) => d.value)).size,
+        }
+      );
 
       setChartData(newData);
       setChangePercentage(newChange);
     } else {
-      console.warn(`[TokenDetails] No data available for ${selectedPeriod}`);
+      console.warn(
+        `[TokenDetails] No data available for ${selectedPeriod}`
+      );
     }
   }, [
     selectedPeriod,
@@ -318,10 +337,7 @@ export default function TokenDetails({
                       axisLine={false}
                       minTickGap={30}
                     />
-                    <YAxis
-                      domain={['auto', 'auto']}
-                      hide
-                    />
+                    <YAxis domain={['auto', 'auto']} hide />
                     <Tooltip
                       content={<CustomTooltip />}
                       cursor={{

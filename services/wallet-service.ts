@@ -4,9 +4,10 @@
  * Simple frontend service for fetching all wallet tokens from the backend.
  * No logic for native vs contract tokens - the backend handles everything.
  */
-import Cookies from "js-cookie";
+import Cookies from 'js-cookie';
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
+const API_BASE_URL =
+  process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
 const WALLET_API_URL = `${API_BASE_URL}/api/v5/wallet`;
 
 export interface TokenMarketData {
@@ -42,7 +43,7 @@ export interface WalletTokensResponse {
 
 export interface WalletInput {
   address: string;
-  chain: "ethereum" | "polygon" | "base" | "solana";
+  chain: 'ethereum' | 'polygon' | 'base' | 'solana';
 }
 
 export class WalletService {
@@ -51,39 +52,39 @@ export class WalletService {
    * Backend handles everything: native tokens, ERC-20, SPL, prices, market data
    *
    * @param wallets - Array of wallet addresses with their chains
+   * @param accessToken - Optional Privy access token for authentication
    * @returns Unified token list with market data
    */
   static async getWalletTokens(
-    wallets: WalletInput[]
+    wallets: WalletInput[],
+    accessToken?: string
   ): Promise<WalletTokensResponse> {
     try {
-      // Get access token from cookie
-      const accessToken = Cookies.get("access-token");
-
-      const headers: HeadersInit = {
-        "Content-Type": "application/json",
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
       };
 
-      // Add Authorization header if token exists
       if (accessToken) {
-        headers["Authorization"] = `Bearer ${accessToken}`;
+        headers.Authorization = `Bearer ${accessToken}`;
       }
 
       const response = await fetch(`${WALLET_API_URL}/tokens`, {
-        method: "POST",
+        method: 'POST',
         headers,
         body: JSON.stringify({ wallets }),
         signal: AbortSignal.timeout(30000),
       });
 
       if (!response.ok) {
-        throw new Error(`Failed to fetch wallet tokens: ${response.status}`);
+        throw new Error(
+          `Failed to fetch wallet tokens: ${response.status}`
+        );
       }
 
       const result = await response.json();
       return result.data;
     } catch (error) {
-      console.error("Error fetching wallet tokens:", error);
+      console.error('Error fetching wallet tokens:', error);
       throw error;
     }
   }
@@ -93,9 +94,10 @@ export class WalletService {
    */
   static async getSingleWalletTokens(
     address: string,
-    chain: "ethereum" | "polygon" | "base" | "solana"
+    chain: 'ethereum' | 'polygon' | 'base' | 'solana',
+    accessToken?: string
   ): Promise<WalletTokensResponse> {
-    return this.getWalletTokens([{ address, chain }]);
+    return this.getWalletTokens([{ address, chain }], accessToken);
   }
 
   /**
@@ -103,13 +105,17 @@ export class WalletService {
    * (Ethereum, Polygon, Base)
    */
   static async getEVMWalletTokens(
-    address: string
+    address: string,
+    accessToken?: string
   ): Promise<WalletTokensResponse> {
-    return this.getWalletTokens([
-      { address, chain: "ethereum" },
-      { address, chain: "polygon" },
-      { address, chain: "base" },
-    ]);
+    return this.getWalletTokens(
+      [
+        { address, chain: 'ethereum' },
+        { address, chain: 'polygon' },
+        { address, chain: 'base' },
+      ],
+      accessToken
+    );
   }
 
   /**
@@ -117,31 +123,32 @@ export class WalletService {
    */
   static async getAllWalletTokens(
     evmAddress?: string,
-    solanaAddress?: string
+    solanaAddress?: string,
+    accessToken?: string
   ): Promise<WalletTokensResponse> {
     const wallets: WalletInput[] = [];
 
     if (evmAddress) {
       wallets.push(
-        { address: evmAddress, chain: "ethereum" },
-        { address: evmAddress, chain: "polygon" },
-        { address: evmAddress, chain: "base" }
+        { address: evmAddress, chain: 'ethereum' },
+        { address: evmAddress, chain: 'polygon' },
+        { address: evmAddress, chain: 'base' }
       );
     }
 
     if (solanaAddress) {
-      wallets.push({ address: solanaAddress, chain: "solana" });
+      wallets.push({ address: solanaAddress, chain: 'solana' });
     }
 
     if (wallets.length === 0) {
       return {
         tokens: [],
-        totalValue: "0",
+        totalValue: '0',
         tokenCount: 0,
       };
     }
 
-    return this.getWalletTokens(wallets);
+    return this.getWalletTokens(wallets, accessToken);
   }
 }
 

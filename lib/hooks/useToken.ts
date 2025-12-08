@@ -1,6 +1,11 @@
 import { useQuery } from '@tanstack/react-query';
 import { ChainType } from '@/types/token';
-import { WalletService, Token, WalletInput } from '@/services/wallet-service';
+import {
+  WalletService,
+  Token,
+  WalletInput,
+} from '@/services/wallet-service';
+import { useUser } from '@/lib/UserContext';
 
 /**
  * Simplified useMultiChainTokenData Hook
@@ -13,6 +18,8 @@ export const useMultiChainTokenData = (
   evmWalletAddress?: string,
   chains: ChainType[] = ['ETHEREUM']
 ) => {
+  const { accessToken } = useUser();
+
   // Build wallet list based on provided addresses and chains
   const wallets: WalletInput[] = [];
 
@@ -36,15 +43,25 @@ export const useMultiChainTokenData = (
 
   // Single query to fetch all tokens
   const { data, isLoading, error, refetch } = useQuery({
-    queryKey: ['walletTokens', solWalletAddress, evmWalletAddress, chains],
+    queryKey: [
+      'walletTokens',
+      solWalletAddress,
+      evmWalletAddress,
+      chains,
+      accessToken,
+    ],
     queryFn: async () => {
       if (wallets.length === 0) {
         return { tokens: [], totalValue: '0', tokenCount: 0 };
       }
 
-      return await WalletService.getWalletTokens(wallets);
+      // Use access token from UserContext for authentication
+      return await WalletService.getWalletTokens(
+        wallets,
+        accessToken || undefined
+      );
     },
-    enabled: wallets.length > 0,
+    enabled: wallets.length > 0 && !!accessToken,
     staleTime: 60000, // 60 seconds - match refetchInterval to prevent excessive calls
     refetchInterval: 60000, // Refetch every minute
   });
@@ -53,7 +70,8 @@ export const useMultiChainTokenData = (
   // Note: Tokens are already sorted by value on the backend
   const tokens = (data?.tokens || []).map((token: Token) => ({
     ...token,
-    logoURI: token.logoURI || `/assets/crypto-icons/${token.symbol}.png`,
+    logoURI:
+      token.logoURI || `/assets/crypto-icons/${token.symbol}.png`,
     // Add empty time series data structure for components that expect it
     timeSeriesData: {
       '1H': [],
