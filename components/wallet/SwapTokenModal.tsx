@@ -407,6 +407,9 @@ export default function SwapTokenModal({ tokens }: { tokens: any[] }) {
 
   const searchParams = useSearchParams();
 
+  console.log("payToken", payToken);
+  console.log("receiveToken", receiveToken);
+
   // Handle URL search params for pre-filled swap
   useEffect(() => {
     const inputTokenParam = searchParams?.get("inputToken");
@@ -646,8 +649,8 @@ export default function SwapTokenModal({ tokens }: { tokens: any[] }) {
 
   const isSolanaToSolanaSwap = () => {
     return (
-      payToken?.chain === "SOLANA" &&
-      (receiveToken?.chain === "SOLANA" ||
+      payToken?.chain?.toUpperCase() === "SOLANA" &&
+      (receiveToken?.chain?.toUpperCase() === "SOLANA" ||
         receiverChainId === "1151111081099710")
     );
   };
@@ -1804,7 +1807,7 @@ export default function SwapTokenModal({ tokens }: { tokens: any[] }) {
   }, [payToken]);
 
   useEffect(() => {
-    if (payToken && payToken?.chain === "SOLANA") {
+    if (payToken && payToken?.chain?.toUpperCase() === "SOLANA") {
       setFromWalletAddress(solWallet);
     } else {
       setFromWalletAddress(ethWallet);
@@ -1813,7 +1816,7 @@ export default function SwapTokenModal({ tokens }: { tokens: any[] }) {
       setToWalletAddress("");
     } else if (
       receiveToken &&
-      (receiveToken?.chain === "SOLANA" ||
+      (receiveToken?.chain?.toUpperCase() === "SOLANA" ||
         receiveToken?.chainId == 1151111081099710)
     ) {
       setToWalletAddress(solWallet);

@@ -50,7 +50,6 @@ import WalletModals from "./WalletModals";
 import { Toaster } from "../ui/toaster";
 import RedeemTokenList from "./redeem/token-list";
 import BalanceChart from "../dashboard/BalanceChart";
-import { TokenTicker } from "./token-ticker";
 import PortfolioChart, { PortfolioAsset } from "../dashboard/PortfolioChart";
 // Utilities
 import Cookies from "js-cookie";

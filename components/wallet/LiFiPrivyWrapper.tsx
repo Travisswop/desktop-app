@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { usePrivy, useWallets, useSolanaWallets } from "@privy-io/react-auth";
-import LiFiModal from "./LiFiModal";
+// import LiFiModal from "./LiFiModal";
 import SwapTokenModal from "./SwapTokenModal";
 
 interface LiFiPrivyWrapperProps {

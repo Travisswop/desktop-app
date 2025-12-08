@@ -1,16 +1,12 @@
-'use client';
+"use client";
 
-import {
-  Dialog,
-  DialogContent,
-  DialogTitle,
-} from '@/components/ui/dialog';
-import { Button } from '@/components/ui/button';
-import { Check, ExternalLink } from 'lucide-react';
-import { NFT } from '@/types/nft';
-import { TokenData } from '@/types/token';
-import Image from 'next/image';
-import Link from 'next/link';
+import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import { Check, ExternalLink } from "lucide-react";
+import { NFT } from "@/types/nft";
+import { TokenData } from "@/types/token";
+import Image from "next/image";
+import Link from "next/link";
 
 interface TransactionSuccessProps {
   open: boolean;
@@ -31,27 +27,25 @@ export default function TransactionSuccess({
   isUSD,
   hash,
 }: TransactionSuccessProps) {
-  console.log('token', token);
+  // console.log('token', token);
   const getExplorerUrl = () => {
     switch (token?.chain) {
-      case 'ETHEREUM':
+      case "ETHEREUM":
         return `https://etherscan.io/tx/${hash}`;
-      case 'SOLANA':
+      case "SOLANA":
         return `https://solscan.io/tx/${hash}`;
-      case 'POLYGON':
+      case "POLYGON":
         return `https://polygonscan.com/tx/${hash}`;
-      case 'BASE':
+      case "BASE":
         return `https://basescan.org/tx/${hash}`;
       default:
-        return '';
+        return "";
     }
   };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogTitle className="sr-only">
-        Transaction Success
-      </DialogTitle>
+      <DialogTitle className="sr-only">Transaction Success</DialogTitle>
       <DialogContent className="max-w-md p-8 rounded-3xl">
         <div className="flex flex-col items-center justify-center space-y-6">
           {/* Success Icon */}
@@ -86,8 +80,8 @@ export default function TransactionSuccess({
                             parseFloat(amount) /
                             parseFloat(token.marketData.price)
                           ).toFixed(2)
-                        : '0.00'
-                      : parseFloat(amount).toFixed(2)}{' '}
+                        : "0.00"
+                      : parseFloat(amount).toFixed(2)}{" "}
                     {token.symbol}
                   </p>
                   {token.marketData?.price && (
