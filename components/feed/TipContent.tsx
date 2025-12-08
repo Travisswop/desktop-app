@@ -288,7 +288,11 @@ const TipContentModal: React.FC<TipContentModalProps> = ({
               w.connectorType === 'embedded'
           ) || availableSolanaWallets[0];
 
-        if (selectedToken?.chain === 'SOLANA' && !solanaWallet) {
+        if (
+          (selectedToken?.chain === 'SOLANA' ||
+            selectedToken?.chain === 'solana') &&
+          !solanaWallet
+        ) {
           throw new Error(
             'No Solana wallet found. Please connect a wallet.'
           );
@@ -328,7 +332,10 @@ const TipContentModal: React.FC<TipContentModalProps> = ({
           nft: null,
         };
 
-        if (selectedToken.chain === 'SOLANA') {
+        if (
+          selectedToken.chain === 'SOLANA' ||
+          selectedToken.chain === 'solana'
+        ) {
           try {
             // ✅ First, try sponsored transaction
             const result = await TransactionService.handleSolanaSend(

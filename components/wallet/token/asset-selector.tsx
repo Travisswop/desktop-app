@@ -48,7 +48,7 @@ export default function AssetSelector({
     ) || [];
 
   const renderAssetItem = (asset: TokenData) => {
-    console.log("assests", asset);
+    console.log("assest1243", asset);
 
     if (!asset) return null;
     return (

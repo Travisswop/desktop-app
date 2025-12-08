@@ -4,6 +4,7 @@
  * Simple frontend service for fetching all wallet tokens from the backend.
  * No logic for native vs contract tokens - the backend handles everything.
  */
+import Cookies from 'js-cookie';
 
 const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
@@ -71,7 +72,7 @@ export class WalletService {
         method: 'POST',
         headers,
         body: JSON.stringify({ wallets }),
-        signal: AbortSignal.timeout(30000), // 30 second timeout
+        signal: AbortSignal.timeout(30000),
       });
 
       if (!response.ok) {

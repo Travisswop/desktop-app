@@ -1,6 +1,5 @@
 "use client";
 
-import { Button } from "@/components/ui/button";
 import { HelpCircle, User, ArrowDown, AlertCircle, Heart } from "lucide-react";
 import {
   Tooltip,

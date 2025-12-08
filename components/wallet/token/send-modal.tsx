@@ -1,9 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { DialogTitle } from "@radix-ui/react-dialog";
 import { TokenData } from "@/types/token";
 import { ArrowUpDown } from "lucide-react";
 import TokenImage from "./token-image";
@@ -26,6 +24,7 @@ export default function SendTokenModal({
   const hasPrice = parseFloat(token?.marketData?.price || "0") > 0;
   const [isUSD, setIsUSD] = useState(hasPrice);
   const [amount, setAmount] = useState("1.00");
+  console.log("amount", amount);
 
   const maxUSDAmount =
     !token || !hasPrice
@@ -51,6 +50,7 @@ export default function SendTokenModal({
 
     // Remove non-numeric/decimal characters and multiple decimals
     const sanitizedValue = value
+      .toString()
       .replace(/[^0-9.]/g, "")
       .replace(/(\..*)\./g, "$1");
 
@@ -139,6 +139,9 @@ export default function SendTokenModal({
               onClick={() => {
                 const maxAmount =
                   isUSD && hasPrice ? maxUSDAmount : token.balance;
+
+                console.log("max amount", maxAmount);
+
                 handleInput(maxAmount);
               }}
               className="rounded-full bg-slate-300 p-6"
