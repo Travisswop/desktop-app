@@ -51,15 +51,25 @@ export class WalletService {
    * Backend handles everything: native tokens, ERC-20, SPL, prices, market data
    *
    * @param wallets - Array of wallet addresses with their chains
+   * @param accessToken - Optional Privy access token for authentication
    * @returns Unified token list with market data
    */
   static async getWalletTokens(
-    wallets: WalletInput[]
+    wallets: WalletInput[],
+    accessToken?: string
   ): Promise<WalletTokensResponse> {
     try {
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+      };
+
+      if (accessToken) {
+        headers.Authorization = `Bearer ${accessToken}`;
+      }
+
       const response = await fetch(`${WALLET_API_URL}/tokens`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify({ wallets }),
         signal: AbortSignal.timeout(30000), // 30 second timeout
       });
@@ -83,9 +93,10 @@ export class WalletService {
    */
   static async getSingleWalletTokens(
     address: string,
-    chain: 'ethereum' | 'polygon' | 'base' | 'solana'
+    chain: 'ethereum' | 'polygon' | 'base' | 'solana',
+    accessToken?: string
   ): Promise<WalletTokensResponse> {
-    return this.getWalletTokens([{ address, chain }]);
+    return this.getWalletTokens([{ address, chain }], accessToken);
   }
 
   /**
@@ -93,13 +104,17 @@ export class WalletService {
    * (Ethereum, Polygon, Base)
    */
   static async getEVMWalletTokens(
-    address: string
+    address: string,
+    accessToken?: string
   ): Promise<WalletTokensResponse> {
-    return this.getWalletTokens([
-      { address, chain: 'ethereum' },
-      { address, chain: 'polygon' },
-      { address, chain: 'base' },
-    ]);
+    return this.getWalletTokens(
+      [
+        { address, chain: 'ethereum' },
+        { address, chain: 'polygon' },
+        { address, chain: 'base' },
+      ],
+      accessToken
+    );
   }
 
   /**
@@ -107,7 +122,8 @@ export class WalletService {
    */
   static async getAllWalletTokens(
     evmAddress?: string,
-    solanaAddress?: string
+    solanaAddress?: string,
+    accessToken?: string
   ): Promise<WalletTokensResponse> {
     const wallets: WalletInput[] = [];
 
@@ -131,7 +147,7 @@ export class WalletService {
       };
     }
 
-    return this.getWalletTokens(wallets);
+    return this.getWalletTokens(wallets, accessToken);
   }
 }
 

@@ -86,14 +86,23 @@ export class MarketService {
    * Get token market data by CoinGecko ID
    */
   static async getTokenMarketData(
-    tokenId: string
+    tokenId: string,
+    accessToken?: string
   ): Promise<MarketData> {
     try {
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+      };
+
+      if (accessToken) {
+        headers.Authorization = `Bearer ${accessToken}`;
+      }
+
       const response = await fetch(
         `${MARKET_API_URL}/token/${tokenId}`,
         {
           method: 'GET',
-          headers: { 'Content-Type': 'application/json' },
+          headers,
           signal: AbortSignal.timeout(10000), // 10 second timeout
         }
       );
@@ -117,17 +126,27 @@ export class MarketService {
    */
   static async getHistoricalPrices(
     tokenId: string,
-    days: number | 'max' = 7
+    days: number | 'max' = 7,
+    accessToken?: string
   ): Promise<HistoricalData> {
     try {
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+      };
+
+      if (accessToken) {
+        headers.Authorization = `Bearer ${accessToken}`;
+      }
+
       const response = await fetch(
         `${MARKET_API_URL}/history/${tokenId}?days=${days}`,
         {
           method: 'GET',
-          headers: { 'Content-Type': 'application/json' },
+          headers,
           signal: AbortSignal.timeout(15000), // 15 second timeout
         }
       );
+      console.log('Historical data response:', response);
 
       if (!response.ok) {
         throw new Error(
@@ -136,6 +155,7 @@ export class MarketService {
       }
 
       const result = await response.json();
+      console.log('Historical data:', result.data);
       return result.data;
     } catch (error) {
       console.error('Error fetching historical prices:', error);
@@ -147,12 +167,21 @@ export class MarketService {
    * Get current prices for multiple token addresses
    */
   static async getPricesByAddresses(
-    tokens: Array<{ address: string; chain: string }>
+    tokens: Array<{ address: string; chain: string }>,
+    accessToken?: string
   ): Promise<Record<string, TokenPrice>> {
     try {
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+      };
+
+      if (accessToken) {
+        headers.Authorization = `Bearer ${accessToken}`;
+      }
+
       const response = await fetch(`${MARKET_API_URL}/prices`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify({ tokens }),
         signal: AbortSignal.timeout(15000),
       });
@@ -174,12 +203,14 @@ export class MarketService {
    */
   static async getTokenPriceByAddress(
     address: string,
-    chain: string
+    chain: string,
+    accessToken?: string
   ): Promise<TokenPrice | null> {
     try {
-      const prices = await this.getPricesByAddresses([
-        { address, chain },
-      ]);
+      const prices = await this.getPricesByAddresses(
+        [{ address, chain }],
+        accessToken
+      );
       return prices[address.toLowerCase()] || null;
     } catch (error) {
       console.error('Error fetching token price:', error);
@@ -191,12 +222,21 @@ export class MarketService {
    * Calculate portfolio value from token holdings
    */
   static async getPortfolioValue(
-    holdings: PortfolioHolding[]
+    holdings: PortfolioHolding[],
+    accessToken?: string
   ): Promise<PortfolioValue> {
     try {
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+      };
+
+      if (accessToken) {
+        headers.Authorization = `Bearer ${accessToken}`;
+      }
+
       const response = await fetch(`${MARKET_API_URL}/portfolio`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify({ holdings }),
         signal: AbortSignal.timeout(15000),
       });
@@ -220,12 +260,21 @@ export class MarketService {
    */
   static async resolveTokenAddress(
     address: string,
-    chain: string
+    chain: string,
+    accessToken?: string
   ): Promise<string | null> {
     try {
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+      };
+
+      if (accessToken) {
+        headers.Authorization = `Bearer ${accessToken}`;
+      }
+
       const response = await fetch(`${MARKET_API_URL}/resolve`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify({ address, chain }),
         signal: AbortSignal.timeout(10000),
       });
@@ -250,7 +299,10 @@ export class MarketService {
   /**
    * Search for tokens by name or symbol
    */
-  static async searchTokens(query: string): Promise<
+  static async searchTokens(
+    query: string,
+    accessToken?: string
+  ): Promise<
     Array<{
       id: string;
       name: string;
@@ -261,11 +313,19 @@ export class MarketService {
     }>
   > {
     try {
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+      };
+
+      if (accessToken) {
+        headers.Authorization = `Bearer ${accessToken}`;
+      }
+
       const response = await fetch(
         `${MARKET_API_URL}/search?q=${encodeURIComponent(query)}`,
         {
           method: 'GET',
-          headers: { 'Content-Type': 'application/json' },
+          headers,
           signal: AbortSignal.timeout(10000),
         }
       );
@@ -289,14 +349,23 @@ export class MarketService {
    */
   static async getTokenMarketDataByAddress(
     address: string,
-    chain: string
+    chain: string,
+    accessToken?: string
   ): Promise<MarketData & { address: string; chain: string }> {
     try {
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+      };
+
+      if (accessToken) {
+        headers.Authorization = `Bearer ${accessToken}`;
+      }
+
       const response = await fetch(
         `${MARKET_API_URL}/token-by-address`,
         {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers,
           body: JSON.stringify({ address, chain }),
           signal: AbortSignal.timeout(10000),
         }
@@ -319,14 +388,25 @@ export class MarketService {
   /**
    * Batch get market data for multiple tokens by CoinGecko IDs
    */
-  static async getBatchMarketData(tokenIds: string[]): Promise<{
+  static async getBatchMarketData(
+    tokenIds: string[],
+    accessToken?: string
+  ): Promise<{
     successful: MarketData[];
     failed: Array<{ tokenId: string; error: string }>;
   }> {
     try {
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+      };
+
+      if (accessToken) {
+        headers.Authorization = `Bearer ${accessToken}`;
+      }
+
       const response = await fetch(`${MARKET_API_URL}/batch`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify({ tokenIds }),
         signal: AbortSignal.timeout(20000),
       });
@@ -352,13 +432,14 @@ export class MarketService {
    * Batch get prices for Solana tokens (convenience method)
    */
   static async getSolanaBatchPrices(
-    addresses: string[]
+    addresses: string[],
+    accessToken?: string
   ): Promise<Record<string, TokenPrice>> {
     const tokens = addresses.map((address) => ({
       address,
       chain: 'solana',
     }));
-    return this.getPricesByAddresses(tokens);
+    return this.getPricesByAddresses(tokens, accessToken);
   }
 
   /**
@@ -366,13 +447,14 @@ export class MarketService {
    */
   static async getEVMBatchPrices(
     addresses: string[],
-    chain: 'ethereum' | 'polygon' | 'base'
+    chain: 'ethereum' | 'polygon' | 'base',
+    accessToken?: string
   ): Promise<Record<string, TokenPrice>> {
     const tokens = addresses.map((address) => ({
       address,
       chain,
     }));
-    return this.getPricesByAddresses(tokens);
+    return this.getPricesByAddresses(tokens, accessToken);
   }
 }
 

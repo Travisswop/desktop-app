@@ -387,7 +387,11 @@ const WalletContentInner = () => {
             connection
           );
         } else {
-          await evmWallet?.switchChain(CHAIN_ID[sendFlow.network]);
+          await evmWallet?.switchChain(
+            CHAIN_ID[
+              sendFlow.network as keyof typeof CHAIN_ID as keyof typeof CHAIN_ID as keyof typeof CHAIN_ID
+            ]
+          );
           hash = await TransactionService.handleNFTTransfer(
             evmWallet,
             sendFlow
@@ -460,7 +464,11 @@ const WalletContentInner = () => {
           // If sponsored, the transaction is already confirmed by Privy
         } else {
           // EVM token transfer
-          await evmWallet?.switchChain(CHAIN_ID[sendFlow.network]);
+          await evmWallet?.switchChain(
+            CHAIN_ID[
+              sendFlow.network as keyof typeof CHAIN_ID as keyof typeof CHAIN_ID as keyof typeof CHAIN_ID
+            ]
+          );
           const result = await TransactionService.handleEVMSend(
             evmWallet,
             sendFlow,
@@ -737,7 +745,7 @@ const WalletContentInner = () => {
                   />
                 ) : (
                   <TokenList
-                    tokens={tokens}
+                    tokens={tokens as unknown as TokenData[]}
                     loading={tokenLoading}
                     error={tokenError!}
                     onSelectToken={handleTokenSelect}
@@ -750,7 +758,7 @@ const WalletContentInner = () => {
                 solWalletAddress={solWalletAddress}
                 evmWalletAddress={evmWalletAddress}
                 chains={SUPPORTED_CHAINS_TRANSACTIONS as ChainType[]}
-                tokens={tokens}
+                tokens={tokens as unknown as TokenData[]}
                 newTransactions={[]}
               />
             </div>
@@ -801,8 +809,8 @@ const WalletContentInner = () => {
       <WalletModals
         sendFlow={sendFlow}
         resetSendFlow={resetSendFlow}
-        tokens={tokens}
-        nfts={nfts}
+        tokens={tokens as unknown as TokenData[]}
+        nfts={nfts as unknown as NFT[]}
         handleSendClick={handleSendClick}
         handleNFTNext={handleNFTNext}
         handleAmountConfirm={handleAmountConfirm}
@@ -811,7 +819,7 @@ const WalletContentInner = () => {
         network={sendFlow.network}
         currentWalletAddress={currentWalletAddress}
         sendLoading={sendLoading}
-        nativeTokenPrice={nativeTokenPrice}
+        nativeTokenPrice={Number(nativeTokenPrice) || 0}
         walletQRModalOpen={walletQRModalOpen}
         setWalletQRModalOpen={setWalletQRModalOpen}
         walletData={walletData || []}
