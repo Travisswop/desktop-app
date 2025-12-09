@@ -29,6 +29,9 @@ import { TbArrowsExchange2 } from "react-icons/tb";
 import { MoreHorizontal } from "lucide-react";
 import { BiQrScan } from "react-icons/bi";
 import { FaRegListAlt } from "react-icons/fa";
+import WalletAddressPopup from "../wallet/wallet-address-popup";
+import CustomModal from "../modal/CustomModal";
+import WalletReceivePopup from "../wallet/WalletReceivePopup";
 
 interface BalanceChartProps {
   userId?: string;
@@ -573,12 +576,15 @@ const BalanceChart: React.FC<BalanceChartProps> = ({
       </div>
 
       {/* Wallet Address Popup */}
-      {/* {showPopup && walletData.length > 0 && (
-        <WalletAddressPopup
-          wallets={walletData}
-          onClose={() => setShowPopup(false)}
-        />
-      )} */}
+      {showPopup && (
+        <CustomModal
+          width="max-w-md"
+          isOpen={showPopup}
+          onCloseModal={setShowPopup}
+        >
+          <WalletReceivePopup />
+        </CustomModal>
+      )}
     </div>
   );
 };
