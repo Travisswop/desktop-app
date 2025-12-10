@@ -1,38 +1,39 @@
-'use client';
-import Image from 'next/image';
+"use client";
+import Image from "next/image";
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
-} from '@/components/ui/dialog';
+} from "@/components/ui/dialog";
 
-import { ArrowLeft, ExternalLink, Wallet } from 'lucide-react';
-import { Card, CardContent } from '@/components/ui/card';
-import { Transaction } from '@/types/transaction';
-import Link from 'next/link';
+import { ArrowLeft, ExternalLink, Wallet } from "lucide-react";
+import { Card, CardContent } from "@/components/ui/card";
+import { Transaction } from "@/types/transaction";
+import Link from "next/link";
+import CustomModal from "@/components/modal/CustomModal";
 
 // Constants
 const CHAINS = {
   ETHEREUM: {
-    name: 'Ethereum',
-    symbol: 'ETH',
-    explorer: 'https://etherscan.io/',
+    name: "Ethereum",
+    symbol: "ETH",
+    explorer: "https://etherscan.io/",
   },
   POLYGON: {
-    name: 'Polygon',
-    symbol: 'POL',
-    explorer: 'https://polygonscan.com/',
+    name: "Polygon",
+    symbol: "POL",
+    explorer: "https://polygonscan.com/",
   },
   BASE: {
-    name: 'Ethereum',
-    symbol: 'ETH',
-    explorer: 'https://basescan.org/',
+    name: "Ethereum",
+    symbol: "ETH",
+    explorer: "https://basescan.org/",
   },
   SOLANA: {
-    name: 'SOLANA',
-    symbol: 'SOL',
-    explorer: 'https://solscan.io/',
+    name: "SOLANA",
+    symbol: "SOL",
+    explorer: "https://solscan.io/",
   },
 } as const;
 
@@ -58,14 +59,16 @@ const SentReceivedView = ({
 }: TransactionDetailsProps) => {
   if (!transaction) return null;
 
+  console.log("networkhola", network);
+
   const formattedDate = new Date(
     parseInt(transaction.timeStamp) * 1000
-  ).toLocaleString('en-US', {
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric',
-    hour: 'numeric',
-    minute: 'numeric',
+  ).toLocaleString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    hour: "numeric",
+    minute: "numeric",
     hour12: true,
   });
 
@@ -86,13 +89,12 @@ const SentReceivedView = ({
     transaction.from.toLowerCase() === userAddress.toLowerCase();
 
   return (
-    <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="">
-        <DialogHeader>
-          <DialogTitle className="sr-only">
-            Transaction Details
-          </DialogTitle>
-        </DialogHeader>
+    <CustomModal isOpen={isOpen} onCloseModal={onClose}>
+      <div className="px-4">
+        <h4 className="text-lg font-semibold text-center mb-2">
+          Transaction Details
+        </h4>
+
         <div className="p-2">
           {/* Header */}
           <div className="mb-4">
@@ -100,29 +102,27 @@ const SentReceivedView = ({
               <div className="w-12 h-12 rounded-full overflow-hidden">
                 <Image
                   src={`/assets/crypto-icons/${transaction.tokenSymbol}.png`}
-                  alt={transaction.tokenSymbol || ''}
+                  alt={transaction.tokenSymbol || ""}
                   width={48}
                   height={48}
                   className="object-cover"
                   onError={(e) => {
                     (e.target as HTMLImageElement).src =
-                      '/assets/crypto-icons/DOLLAR.png';
+                      "/assets/crypto-icons/DOLLAR.png";
                   }}
                 />
               </div>
             </div>
 
-            <h1 className="text-3xl font-bold text-center mb-2">
-              {isOutgoing ? 'Sent' : 'Received'}
+            <h1 className="text-xl font-bold text-center mb-2">
+              {isOutgoing ? "Sent" : "Received"}
             </h1>
-            <p className="text-gray-400 text-center">
-              {formattedDate}
-            </p>
+            <p className="text-gray-400 text-center">{formattedDate}</p>
           </div>
 
           {/* Swap Details Card */}
-          <Card className="bg-zinc-50 border-zinc-100 mb-8">
-            <CardContent className="p-6">
+          <div className="bg-zinc-50 border-zinc-100 mb-8">
+            <div className="p-6">
               <div className="space-y-6">
                 <div className="flex justify-between items-start">
                   <div className="flex items-center gap-2">
@@ -141,7 +141,7 @@ const SentReceivedView = ({
                       -{transaction.value} {transaction.tokenSymbol}
                     </div>
                     <div className="text-gray-400">
-                      ${' '}
+                      ${" "}
                       {calculateValue(
                         transaction.value,
                         transaction.currentPrice
@@ -173,7 +173,7 @@ const SentReceivedView = ({
                       +{transaction.value} {transaction.tokenSymbol}
                     </div>
                     <div className="text-gray-400">
-                      ${' '}
+                      ${" "}
                       {calculateValue(
                         transaction.value,
                         transaction.currentPrice
@@ -182,19 +182,17 @@ const SentReceivedView = ({
                   </div>
                 </div>
               </div>
-            </CardContent>
-          </Card>
+            </div>
+          </div>
 
           {/* Transaction Details */}
           <div className="space-y-4 mb-12">
             <div className="flex justify-between items-center">
-              <span className="text-muted-foreground">
-                Network Fee
-              </span>
+              <span className="text-muted-foreground">Network Fee</span>
               <div className="text-right">
                 <div className="text-gray-700">
-                  {parseFloat(transaction.networkFee).toFixed(6)}{' '}
-                  {CHAINS[network].symbol}
+                  {parseFloat(transaction.networkFee).toFixed(6)}{" "}
+                  {CHAINS[network.toUpperCase()].symbol}
                 </div>
                 <div className="text-sm text-muted-foreground">
                   $
@@ -207,20 +205,18 @@ const SentReceivedView = ({
             </div>
             <div className="border-t"></div>
             <div className="flex justify-between items-center">
-              <span className="text-muted-foreground">
-                Transaction hash
-              </span>
+              <span className="text-muted-foreground">Transaction hash</span>
               <span className="text-muted-foreground">
                 {truncateAddress(transaction.hash)}
               </span>
             </div>
             <div className="border-t"></div>
             <div className="flex justify-between items-center">
-              <span className="text-muted-foreground">
-                Block explorer
-              </span>
+              <span className="text-muted-foreground">Block explorer</span>
               <Link
-                href={`${CHAINS[network].explorer}/tx/${transaction.hash}`}
+                href={`${CHAINS[network.toUpperCase()].explorer}/tx/${
+                  transaction.hash
+                }`}
                 className="flex flex-col items-center gap-2 text-gray-400 "
                 target="_blank"
               >
@@ -231,8 +227,8 @@ const SentReceivedView = ({
             </div>
           </div>
         </div>
-      </DialogContent>
-    </Dialog>
+      </div>
+    </CustomModal>
   );
 };
 
