@@ -25,9 +25,9 @@ export default function ReceiveOptions() {
     fiat: false,
   });
 
-  const [qrOpenStatus, setQrOpenStatus] = useState<boolean | "sol" | "eth">(
-    false
-  );
+  const [qrOpenStatus, setQrOpenStatus] = useState<
+    boolean | "sol" | "eth" | "pol" | "base"
+  >(false);
   const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
 
   const qrRef = useRef<HTMLDivElement>(null);
@@ -64,20 +64,40 @@ export default function ReceiveOptions() {
     }, 1200); // 1.2 sec highlight
   };
 
+  const handleShareUsername = async () => {
+    const username = user?.ens || user?.ensName || "Laiba1.Swop.Id";
+
+    const shareData = {
+      title: "My Swop ID",
+      text: username,
+    };
+
+    try {
+      if (navigator.share) {
+        await navigator.share(shareData);
+      } else {
+        await navigator.clipboard.writeText(username);
+        alert("Username copied to clipboard!");
+      }
+    } catch (error) {
+      console.error("Error sharing username:", error);
+    }
+  };
+
   const chainAddresses = [
     {
       name: "Solana",
-      icon: "https://app.apiswop.co/public/crypto-icons/SOL.png",
+      icon: "/assets/icons/SOL.png",
       address: solWalletAddress,
     },
     {
       name: "Ethereum",
-      icon: "https://app.apiswop.co/public/crypto-icons/ETH.png",
+      icon: "/assets/icons/ETH.png",
       address: evmWalletAddress,
     },
     {
       name: "Polygon",
-      icon: "https://app.apiswop.co/public/crypto-icons/POL.png",
+      icon: "/assets/icons/POL.png",
       address: evmWalletAddress,
     },
     {
@@ -142,6 +162,18 @@ export default function ReceiveOptions() {
     }
   };
 
+  const handleQrOpen = (chain) => {
+    if (chain?.name === "Solana") {
+      setQrOpenStatus("sol");
+    } else if (chain?.name === "Ethereum") {
+      setQrOpenStatus("eth");
+    } else if (chain?.name === "Polygon") {
+      setQrOpenStatus("pol");
+    } else {
+      setQrOpenStatus("base");
+    }
+  };
+
   return (
     <div
       className={`bg-white rounded-2xl ${
@@ -172,18 +204,6 @@ export default function ReceiveOptions() {
                 className="border-2 border-gray-900 rounded-2xl p-2 bg-white inline-block"
               >
                 <div className="bg-white p-4">
-                  {/* <QRCodeSVG
-                    value={
-                      qrOpenStatus === "eth"
-                        ? evmWalletAddress || ""
-                        : solWalletAddress || ""
-                    }
-                    //   value={solanaWalletAddress || "No address available"}
-                    size={200}
-                    level="H"
-                    includeMargin={false}
-                  /> */}
-
                   <QRCodeSVG
                     value={
                       qrOpenStatus === "eth"
@@ -193,17 +213,20 @@ export default function ReceiveOptions() {
                     size={200}
                     level="H"
                     includeMargin={false}
-
                     //need to use local image
-                    // imageSettings={{
-                    //   src:
-                    //     qrOpenStatus === "sol"
-                    //       ? "https://upload.wikimedia.org/wikipedia/commons/6/6f/Ethereum-icon-purple.svg"
-                    //       : chainAddresses[1].icon,
-                    //   height: 40,
-                    //   width: 40,
-                    //   excavate: true, // ensures clear background behind logo
-                    // }}
+                    imageSettings={{
+                      src:
+                        qrOpenStatus === "sol"
+                          ? chainAddresses[0].icon
+                          : qrOpenStatus === "eth"
+                          ? chainAddresses[1].icon
+                          : qrOpenStatus === "base"
+                          ? chainAddresses[3].icon
+                          : chainAddresses[2].icon,
+                      height: 40,
+                      width: 40,
+                      excavate: true, // ensures clear background behind logo
+                    }}
                   />
                 </div>
 
@@ -217,7 +240,13 @@ export default function ReceiveOptions() {
 
             <p className="text-center text-gray-500 text-sm max-w-md mx-auto mb-6 leading-relaxed">
               {`Use This Only To Receive Tokens or NFTs on the ${
-                qrOpenStatus === "sol" ? "Solana" : "Etherium"
+                qrOpenStatus === "sol"
+                  ? "Solana"
+                  : qrOpenStatus === "eth"
+                  ? "Etherium"
+                  : qrOpenStatus === "pol"
+                  ? "Polygon"
+                  : "Base"
               } Blockchain`}
             </p>
 
@@ -251,7 +280,7 @@ export default function ReceiveOptions() {
                   </div>
                   <div className="text-center">
                     <p className="text-2xl font-bold text-gray-900">
-                      Laiba1.Swop.Id
+                      {user.ens || user.ensName}
                     </p>
                   </div>
                 </div>
@@ -282,7 +311,10 @@ export default function ReceiveOptions() {
                 </div>
 
                 <div className="text-center">
-                  <PrimaryButton className="w-full py-2">
+                  <PrimaryButton
+                    onClick={handleShareUsername}
+                    className="w-full py-2"
+                  >
                     Share your username
                   </PrimaryButton>
                 </div>
@@ -318,13 +350,7 @@ export default function ReceiveOptions() {
                     <div className="flex gap-1 mt-2">
                       {/* Copy Button */}
                       <button
-                        onClick={() =>
-                          setQrOpenStatus(
-                            chain.name?.toUpperCase() === "SOLANA"
-                              ? "sol"
-                              : "eth"
-                          )
-                        }
+                        onClick={() => handleQrOpen(chain)}
                         className="p-1.5 hover:bg-gray-200 rounded-lg transition"
                       >
                         <MdOutlineQrCodeScanner />
@@ -399,9 +425,9 @@ export default function ReceiveOptions() {
               </div>
 
               <div
-                onClick={() =>
-                  setNavigateCryptoFiat({ crypto: false, fiat: true })
-                }
+                // onClick={() =>
+                //   setNavigateCryptoFiat({ crypto: false, fiat: true })
+                // }
                 className="flex items-center gap-4 p-3 rounded-xl shadow-medium hover:bg-gray-50 cursor-pointer transition border"
               >
                 <div className="w-10 h-10 flex items-center justify-center bg-gray-100 rounded-lg">
