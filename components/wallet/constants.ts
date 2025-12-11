@@ -4,13 +4,13 @@ import { ChainType } from '@/types/token';
 export const SUPPORTED_CHAINS: ChainType[] = [
   'ETHEREUM',
   'POLYGON',
-  'BASE',
+
   'SOLANA',
 ] as const;
 
-export const SUPPORTED_CHAINS_TRANSACTIONS: ChainType[] = [
-  'SOLANA',
-] as const;
+// export const SUPPORTED_CHAINS_TRANSACTIONS: ChainType[] = [
+//   'POLYGON',
+// ] as const;
 
 // API endpoints
 export const API_ENDPOINTS = {

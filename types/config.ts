@@ -23,7 +23,8 @@ export const CHAIN_CONFIG = {
 
 export const CHAINS = {
   ETHEREUM: {
-    transactionApiUrl: 'https://api.etherscan.io',
+    chainId: 1,
+    transactionApiUrl: 'https://api.etherscan.io/v2',
     accessToken: process.env.NEXT_PUBLIC_ETHERSCAN_API_KEY_TOKEN,
     alchemyUrl: process.env.NEXT_PUBLIC_ALCHEMY_ETH_URL,
     nativeToken: {
@@ -35,8 +36,9 @@ export const CHAINS = {
     type: 'evm',
   },
   POLYGON: {
-    transactionApiUrl: 'https://api.polygonscan.com',
-    accessToken: process.env.NEXT_PUBLIC_POLYGONSCAN_API_KEY_TOKEN,
+    chainId: 137,
+    transactionApiUrl: 'https://api.etherscan.io/v2',
+    accessToken: process.env.NEXT_PUBLIC_ETHERSCAN_API_KEY_TOKEN,
     alchemyUrl: process.env.NEXT_PUBLIC_ALCHEMY_POLYGON_URL,
     nativeToken: {
       uuid: 'matic-network', // CoinGecko ID for Polygon
@@ -47,8 +49,9 @@ export const CHAINS = {
     type: 'evm',
   },
   BASE: {
-    transactionApiUrl: 'https://api.basescan.org',
-    accessToken: process.env.NEXT_PUBLIC_BASESCAN_API_KEY_TOKEN,
+    chainId: 8453,
+    transactionApiUrl: 'https://api.etherscan.io/v2',
+    accessToken: process.env.NEXT_PUBLIC_ETHERSCAN_API_KEY_TOKEN,
     alchemyUrl: process.env.NEXT_PUBLIC_ALCHEMY_BASE_URL,
     nativeToken: {
       uuid: 'ethereum', // CoinGecko ID for ETH (Base uses ETH)
@@ -59,8 +62,10 @@ export const CHAINS = {
     type: 'evm',
   },
   SEPOLIA: {
+    chainId: 11155111,
     transactionApiUrl: 'https://api-sepolia.etherscan.io',
-    accessToken: process.env.NEXT_PUBLIC_SEPOLIA_ETHERSCAN_API_KEY_TOKEN,
+    accessToken:
+      process.env.NEXT_PUBLIC_SEPOLIA_ETHERSCAN_API_KEY_TOKEN,
     alchemyUrl: process.env.NEXT_PUBLIC_ALCHEMY_SEPOLIA_URL,
     nativeToken: {
       uuid: 'ethereum', // CoinGecko ID for ETH (testnet)

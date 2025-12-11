@@ -79,24 +79,38 @@ export default function TokenListView({
       <div className="flex items-center gap-4">
         <div className="text-right">
           <p className="font-bold">
-            {token.marketData?.price !== undefined && token.marketData?.price !== null ? (
-              `$${typeof token.value === 'number' ? token.value.toFixed(4) : '0.0000'}`
+            {token.marketData?.price !== undefined &&
+            token.marketData?.price !== null ? (
+              `$${
+                typeof token.marketData?.price === 'number'
+                  ? token.marketData?.price
+                  : '0.0000'
+              }`
             ) : (
               <span className="text-gray-500">Price unavailable</span>
             )}
           </p>
           <div
             className={`text-xs ${
-              token.marketData?.change &&
-              parseFloat(token.marketData.change) >= 0
+              token.marketData?.priceChangePercentage24h &&
+              parseFloat(
+                token.marketData?.priceChangePercentage24h
+              ) >= 0
                 ? ' text-green-700'
                 : ' text-red-700'
             }`}
           >
-            {token.marketData?.change ? (
+            {token.marketData?.priceChangePercentage24h ? (
               <>
-                {parseFloat(token.marketData.change) >= 0 ? '+' : ''}
-                {parseFloat(token.marketData.change)}%
+                {parseFloat(
+                  token.marketData?.priceChangePercentage24h || '0'
+                ) >= 0
+                  ? '+'
+                  : ''}
+                {parseFloat(
+                  token.marketData?.priceChangePercentage24h || '0'
+                )}
+                %
               </>
             ) : (
               <div className="text-gray-500">No data available</div>

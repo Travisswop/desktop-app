@@ -43,7 +43,7 @@ class TransactionAPI {
     if (CHAINS[chain].type === 'solana') return [];
 
     try {
-      const url = `${CHAINS[chain].transactionApiUrl}/api?module=account&action=txlist&address=${address}&startblock=0&endblock=99999999&sort=asc&apikey=${CHAINS[chain].accessToken}`;
+      const url = `${CHAINS[chain].transactionApiUrl}/api?address=${address}&apikey=${CHAINS[chain].accessToken}&chainid=${CHAINS[chain].chainId}&module=account&action=txlist&startblock=0&endblock=99999999&sort=asc`;
 
       const options = {
         method: 'GET',
@@ -86,7 +86,7 @@ class TransactionAPI {
     console.log('chain', CHAINS[chain]);
 
     try {
-      const url = `${CHAINS[chain].transactionApiUrl}/api?module=account&action=tokentx&address=${address}&startblock=0&endblock=99999999&sort=asc&apikey=${CHAINS[chain].accessToken}`;
+      const url = `${CHAINS[chain].transactionApiUrl}/api?address=${address}&apikey=${CHAINS[chain].accessToken}&chainid=${CHAINS[chain].chainId}&module=account&action=tokentx&startblock=0&endblock=99999999&sort=asc`;
 
       const options = {
         method: 'GET',
@@ -97,6 +97,8 @@ class TransactionAPI {
 
       const response =
         await APIUtils.fetchWithRetry<ERC20ApiResponse>(url, options);
+
+      console.log('response', response);
 
       if (
         response.status === '0' &&

@@ -76,7 +76,7 @@ export default function TokenDetails({
     token.timeSeriesData['1D'] || []
   );
   const [changePercentage, setChangePercentage] = useState(
-    token.marketData.change
+    token.marketData.priceChangePercentage24h
   );
   const [isLoading, setIsLoading] = useState(false);
 
@@ -125,7 +125,7 @@ export default function TokenDetails({
     if (selectedPeriod === '1Y' && year.data) {
       console.log('[TokenDetails] 1Y Chart Data:', {
         dataPoints: year.data.sparklineData.length,
-        change: year.data.change,
+        change: (year.data.change as string) || '0',
         firstPoint: year.data.sparklineData[0],
         lastPoint:
           year.data.sparklineData[year.data.sparklineData.length - 1],
@@ -135,7 +135,7 @@ export default function TokenDetails({
     if (selectedPeriod === 'Max' && max.data) {
       console.log('[TokenDetails] Max Chart Data:', {
         dataPoints: max.data.sparklineData.length,
-        change: max.data.change,
+        change: (max.data.change as string) || '0',
         firstPoint: max.data.sparklineData[0],
         lastPoint:
           max.data.sparklineData[max.data.sparklineData.length - 1],
@@ -162,11 +162,11 @@ export default function TokenDetails({
     };
 
     const changePercentageMap = {
-      '1D': day.data?.change || '0',
-      '1W': week.data?.change || '0',
-      '1M': month.data?.change || '0',
-      '1Y': year.data?.change || '0',
-      Max: max.data?.change || '0',
+      '1D': (day.data?.change as string) || '0',
+      '1W': (week.data?.change as string) || '0',
+      '1M': (month.data?.change as string) || '0',
+      '1Y': (year.data?.change as string) || '0',
+      Max: (max.data?.change as string) || '0',
     };
 
     // Determine loading state
@@ -246,9 +246,9 @@ export default function TokenDetails({
             <div className="flex-1">
               <h1 className="text-2xl font-bold">
                 {token.marketData?.price
-                  ? `$${parseFloat(token.marketData.price).toFixed(
-                      4
-                    )}`
+                  ? `$${parseFloat(
+                      token.marketData.price.toString()
+                    ).toFixed(4)}`
                   : 'Price unavailable'}
               </h1>
               <p className="text-sm text-muted-foreground">
@@ -422,7 +422,7 @@ export default function TokenDetails({
                 ? `$${(
                     parseFloat(token.balance) *
                     parseFloat(token.marketData.price)
-                  ).toFixed(2)}`
+                  ).toFixed(4)}`
                 : 'Value unavailable'}
             </span>
           </div>

@@ -103,6 +103,28 @@ export default function TransactionList({
     }
   );
 
+  console.log('error', error);
+
+  // Helper function to detect spam/scam tokens
+  const isSpamToken = (
+    tokenSymbol?: string,
+    tokenName?: string
+  ): boolean => {
+    if (!tokenSymbol && !tokenName) return false;
+
+    const spamIndicators = [
+      /visit|claim|voucher|airdrop|\.io|\.com|\.me|\.do|t\.me|telegram/i,
+      /^✅/,
+      /^\$[A-Z]+.*claim/i,
+      /distribution/i,
+    ];
+
+    const textToCheck = `${tokenSymbol || ''} ${tokenName || ''}`;
+    return spamIndicators.some((pattern) =>
+      pattern.test(textToCheck)
+    );
+  };
+
   // Filter transactions and add prices
   const processedTransactions = useMemo(() => {
     if (!tokens.length) return [];
@@ -110,43 +132,75 @@ export default function TransactionList({
     const allTransactions = [...transactions, ...newTransactions];
 
     return allTransactions.filter((tx) => {
-      // Add native token price for network fee calculation
-      // tx.nativeTokenPrice = parseFloat(nativeToken.marketData.price);
-      tx.nativeTokenPrice = 1;
-      // Find matching token for transaction value
-      const token = tokens.find(
-        (t: TokenData) =>
-          t.symbol === tx.tokenSymbol ||
-          (tx.isSwapped &&
-            (t.symbol === tx.swapped?.from.symbol ||
-              t.symbol === tx.swapped?.to.symbol))
-      );
-
-      if (!token) return false;
-
-      if (tx.isSwapped) {
-        const fromToken = tokens.find(
-          (t: TokenData) => t.symbol === tx.swapped?.from.symbol
-        );
-        const toToken = tokens.find(
-          (t: TokenData) => t.symbol === tx.swapped?.to.symbol
-        );
-
-        if (!fromToken || !toToken) return false;
-
-        if (tx.swapped) {
-          tx.swapped.from.price = fromToken.marketData?.price
-            ? parseFloat(fromToken.marketData.price)
-            : 0;
-          tx.swapped.to.price = toToken.marketData?.price
-            ? parseFloat(toToken.marketData.price)
-            : 0;
-        }
-      } else {
-        tx.currentPrice = token.marketData?.price
-          ? parseFloat(token.marketData.price)
-          : 0;
+      // Filter out spam tokens
+      if (isSpamToken(tx.tokenSymbol, tx.tokenName)) {
+        return false;
       }
+
+      // Filter out failed transactions if they have error status
+      if (tx.isError === '1' || tx.txreceipt_status === '0') {
+        return false;
+      }
+
+      // Add native token price for network fee calculation
+      tx.nativeTokenPrice = 1;
+
+      // Find matching token for transaction value
+      // const token = tokens.find(
+      //   (t: TokenData) =>
+      //     t.symbol === tx.tokenSymbol ||
+      //     (tx.isSwapped &&
+      //       (t.symbol === tx.swapped?.from.symbol ||
+      //         t.symbol === tx.swapped?.to.symbol))
+      // );
+
+      // For native token transactions (no tokenSymbol), find the native token
+      if (!tx.tokenSymbol || tx.tokenSymbol === '') {
+        const nativeToken = tokens.find(
+          (t: TokenData) =>
+            t.isNative === true ||
+            t.symbol === 'POL' ||
+            t.symbol === 'MATIC' ||
+            t.symbol === 'ETH' ||
+            t.symbol === 'BASE' ||
+            t.symbol === 'SOL'
+        );
+
+        if (nativeToken) {
+          tx.currentPrice = nativeToken.marketData?.price
+            ? parseFloat(nativeToken.marketData.price)
+            : 0;
+          tx.nativeTokenPrice = tx.currentPrice;
+          return true;
+        }
+        return false;
+      }
+
+      // if (!token) return false;
+
+      // if (tx.isSwapped) {
+      //   const fromToken = tokens.find(
+      //     (t: TokenData) => t.symbol === tx.swapped?.from.symbol
+      //   );
+      //   const toToken = tokens.find(
+      //     (t: TokenData) => t.symbol === tx.swapped?.to.symbol
+      //   );
+
+      //   if (!fromToken || !toToken) return false;
+
+      //   if (tx.swapped) {
+      //     tx.swapped.from.price = fromToken.marketData?.price
+      //       ? parseFloat(fromToken.marketData.price)
+      //       : 0;
+      //     tx.swapped.to.price = toToken.marketData?.price
+      //       ? parseFloat(toToken.marketData.price)
+      //       : 0;
+      //   }
+      // } else {
+      //   tx.currentPrice = token.marketData?.price
+      //     ? parseFloat(token.marketData.price)
+      //     : 0;
+      // }
 
       return true;
     });

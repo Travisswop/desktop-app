@@ -10,11 +10,10 @@ export interface MarketData {
   symbol: string;
   name: string;
   image: string;
-  currentPrice: number;
-  priceChangePercentage24h: number;
+  priceChangePercentage24h: string;
   sparklineData?: number[];
   // Additional properties for token details view
-  price?: string; // Current price as string
+  price: string; // Current price as string
   change?: string; // Price change percentage
   color?: string; // Color for chart styling
   uuid?: string; // Legacy CoinRanking ID (optional)
