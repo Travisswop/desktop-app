@@ -231,9 +231,9 @@ export default function TokenDetails({
 
   return (
     <>
-      <Card className="w-full border-none rounded-xl">
+      <div className="w-full border-none rounded-xl h-full">
         {/* Header */}
-        <CardHeader>
+        <section>
           <div className="flex items-center gap-2 mb-2">
             <div className="w-8 h-8 rounded-full">
               <TokenImage
@@ -271,11 +271,11 @@ export default function TokenDetails({
               </div>
             )}
           </div>
-        </CardHeader>
-        <CardContent>
+        </section>
+        <section>
           {/* Chart */}
-          <Card className="border-0 shadow-none">
-            <CardContent className="pt-6 px-0 pb-4">
+          <div className="border-0 shadow-none">
+            <div className="pt-6 px-0 pb-4">
               <div className="h-[200px] relative">
                 {isLoading && (
                   <div className="absolute inset-0 flex items-center justify-center bg-white/80 z-10 rounded-lg">
@@ -394,8 +394,8 @@ export default function TokenDetails({
                   </TabsTrigger>
                 </TabsList>
               </Tabs>
-            </CardContent>
-          </Card>
+            </div>
+          </div>
 
           <div className="border-t"></div>
           {/* Balance */}
@@ -495,8 +495,8 @@ export default function TokenDetails({
           >
             Back to Wallet
           </Button>
-        </CardContent>
-      </Card>
+        </section>
+      </div>
       {/* <RedeemModal
         isOpen={isRedeemModalOpen}
         onClose={() => setIsRedeemModalOpen(false)}

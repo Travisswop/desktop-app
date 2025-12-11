@@ -12,54 +12,6 @@ const truncateAddress = (address: string) => {
   return `${address.slice(0, 8)}.....${address.slice(-8)}`;
 };
 
-// Component to handle token icon with fallback
-const TokenIcon = ({
-  symbol,
-  size = 40,
-}: {
-  symbol: string;
-  size?: number;
-}) => {
-  const [imageError, setImageError] = useState(false);
-  const [fallbackError, setFallbackError] = useState(false);
-
-  // Determine the image source with fallback logic
-  const getImageSrc = () => {
-    if (!imageError && symbol) {
-      return `https://app.apiswop.co/public/crypto-icons/${symbol}.png`;
-    }
-    return '/assets/crypto-icons/DOLLAR.png';
-  };
-
-  const handleImageError = () => {
-    if (!imageError) {
-      setImageError(true);
-    } else if (!fallbackError) {
-      setFallbackError(true);
-    }
-  };
-
-  const imageSrc = getImageSrc();
-
-  const containerClass =
-    size === 40
-      ? 'w-10 h-10 rounded-full overflow-hidden bg-gray-100 flex items-center justify-center'
-      : 'w-8 h-8 rounded-full overflow-hidden bg-gray-100 flex items-center justify-center';
-
-  return (
-    <div className={containerClass}>
-      <Image
-        src={imageSrc}
-        alt={symbol}
-        width={size}
-        height={size}
-        className="object-cover"
-        onError={handleImageError}
-      />
-    </div>
-  );
-};
-
 const TransactionItem = ({
   transaction,
   onSelect,
@@ -116,17 +68,34 @@ const TransactionItem = ({
           <>
             <div className="relative flex items-center">
               {/* From Token Icon */}
-              <div className="-mr-2">
-                <TokenIcon
-                  symbol={transaction.swapped?.from.symbol || ''}
-                  size={32}
+              <div className="w-6 h-6 rounded-full overflow-hidden">
+                <Image
+                  src={`/assets/crypto-icons/${transaction.swapped?.from.symbol}.png`}
+                  alt={transaction.swapped?.from.symbol || ''}
+                  width={32}
+                  height={32}
+                  className="object-cover"
+                  onError={(e) => {
+                    // Fallback to default icon if token icon not found
+                    (e.target as HTMLImageElement).src =
+                      '/assets/crypto-icons/DOLLAR.png';
+                  }}
                 />
               </div>
               {/* To Token Icon */}
-              <TokenIcon
-                symbol={transaction.swapped?.to.symbol || ''}
-                size={32}
-              />
+              <div className="w-6 h-6 rounded-full overflow-hidden -ml-2">
+                <Image
+                  src={`/assets/crypto-icons/${transaction.swapped?.to.symbol}.png`}
+                  alt={transaction.swapped?.to.symbol || ''}
+                  width={32}
+                  height={32}
+                  className="object-cover"
+                  onError={(e) => {
+                    (e.target as HTMLImageElement).src =
+                      '/assets/crypto-icons/DOLLAR.png';
+                  }}
+                />
+              </div>
             </div>
             <div>
               <p className="font-semibold">Swapped</p>
@@ -138,10 +107,19 @@ const TransactionItem = ({
           </>
         ) : (
           <>
-            <TokenIcon
-              symbol={transaction.tokenSymbol || ''}
-              size={40}
-            />
+            <div className="w-6 h-6 rounded-full overflow-hidden">
+              <Image
+                src={`/assets/crypto-icons/${transaction.tokenSymbol}.png`}
+                alt={transaction.tokenSymbol || ''}
+                width={40}
+                height={40}
+                className="object-cover"
+                onError={(e) => {
+                  (e.target as HTMLImageElement).src =
+                    '/assets/crypto-icons/DOLLAR.png';
+                }}
+              />
+            </div>
             <div>
               <p className="font-semibold">
                 {isOutgoing ? 'Sent' : 'Received'}

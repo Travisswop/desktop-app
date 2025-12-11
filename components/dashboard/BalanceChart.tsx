@@ -29,6 +29,10 @@ import { TbArrowsExchange2 } from "react-icons/tb";
 import { MoreHorizontal } from "lucide-react";
 import { BiQrScan } from "react-icons/bi";
 import { FaRegListAlt } from "react-icons/fa";
+import WalletAddressPopup from "../wallet/wallet-address-popup";
+import CustomModal from "../modal/CustomModal";
+import WalletReceivePopup from "../wallet/WalletReceivePopup";
+import WalletFundandSettingsPopup from "../wallet/WalletFundandSettingsPopup";
 
 interface BalanceChartProps {
   userId?: string;
@@ -103,6 +107,7 @@ const BalanceChart: React.FC<BalanceChartProps> = ({
   const [selectedPeriod, setSelectedPeriod] = useState<TimePeriod>("1month");
   // const [showBalance, setShowBalance] = useState(false);
   const [showPopup, setShowPopup] = useState(false);
+  const [fundandSettings, setFundandSettings] = useState(false);
 
   // Get the user ID (from prop or context)
   const effectiveUserId = userId || user?._id;
@@ -433,7 +438,10 @@ const BalanceChart: React.FC<BalanceChartProps> = ({
                   <TbArrowsExchange2 size={16} color="black" />
                 </PrimaryButton>
               )}
-              <PrimaryButton className="px-2 rounded">
+              <PrimaryButton
+                onClick={() => setFundandSettings(true)}
+                className="px-2 rounded"
+              >
                 <MoreHorizontal size={16} color="black" />
               </PrimaryButton>
             </div>
@@ -573,12 +581,26 @@ const BalanceChart: React.FC<BalanceChartProps> = ({
       </div>
 
       {/* Wallet Address Popup */}
-      {/* {showPopup && walletData.length > 0 && (
-        <WalletAddressPopup
-          wallets={walletData}
-          onClose={() => setShowPopup(false)}
-        />
-      )} */}
+      {showPopup && (
+        <CustomModal
+          width="max-w-md"
+          isOpen={showPopup}
+          onCloseModal={setShowPopup}
+        >
+          <WalletReceivePopup />
+        </CustomModal>
+      )}
+
+      {/* Wallet Fund and settings Popup */}
+      {fundandSettings && (
+        <CustomModal
+          width="max-w-md"
+          isOpen={fundandSettings}
+          onCloseModal={setFundandSettings}
+        >
+          <WalletFundandSettingsPopup />
+        </CustomModal>
+      )}
     </div>
   );
 };

@@ -114,6 +114,10 @@ const nextConfig: NextConfig = {
       },
       {
         protocol: "https",
+        hostname: "app.apiswop.co",
+      },
+      {
+        protocol: "https",
         hostname: "nftstorage.link",
       },
       {

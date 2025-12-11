@@ -1,19 +1,16 @@
-import React from 'react';
+import React from "react";
 
-import { Card } from '@/components/ui/card';
-import { Area, AreaChart, ResponsiveContainer } from 'recharts';
-import { TokenData } from '@/types/token';
-import TokenImage from './token-image';
+import { Card } from "@/components/ui/card";
+import { Area, AreaChart, ResponsiveContainer } from "recharts";
+import { TokenData } from "@/types/token";
+import TokenImage from "./token-image";
 
 interface TokenCardProps {
   token: TokenData;
   onClick: () => void;
 }
 
-export default function TokenCardView({
-  token,
-  onClick,
-}: TokenCardProps) {
+export default function TokenCardView({ token, onClick }: TokenCardProps) {
   return (
     <Card
       className="p-4 rounded-3xl shadow-2xl hover:shadow-3xl border-none transition-all duration-300 group cursor-pointer hover:translate-x-0.5"
@@ -23,15 +20,13 @@ export default function TokenCardView({
         <div className="flex items-center space-x-3">
           <TokenImage
             token={token}
-            width={32}
-            height={32}
-            className="rounded-full"
+            width={120}
+            height={120}
+            className="rounded-full w-5 h-5"
           />
           <div>
             <h3 className="font-medium">{token.name}</h3>
-            <p className="text-sm text-muted-foreground">
-              {token.symbol}
-            </p>
+            <p className="text-sm text-muted-foreground">{token.symbol}</p>
           </div>
         </div>
       </div>
@@ -86,15 +81,14 @@ export default function TokenCardView({
         </div>
         <div
           className={`text-sm ${
-            token.marketData?.change &&
-            parseFloat(token.marketData.change) > 0
-              ? 'text-green-500'
-              : 'text-red-500'
+            token.marketData?.change && parseFloat(token.marketData.change) > 0
+              ? "text-green-500"
+              : "text-red-500"
           }`}
         >
           {token.marketData?.change ? (
             <>
-              {parseFloat(token.marketData.change) > 0 ? '+' : ''}
+              {parseFloat(token.marketData.change) > 0 ? "+" : ""}
               {parseFloat(token.marketData.change)}%
             </>
           ) : (

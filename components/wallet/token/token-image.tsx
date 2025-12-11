@@ -12,8 +12,8 @@ interface TokenImageProps {
 // Custom TokenImage component with fallback logic
 const TokenImage = ({
   token,
-  width = 40,
-  height = 40,
+  width = 30,
+  height = 30,
   className = "rounded-full",
 }: TokenImageProps) => {
   const [imageError, setImageError] = useState(false);

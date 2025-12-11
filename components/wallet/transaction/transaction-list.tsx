@@ -1,21 +1,18 @@
-'use client';
+"use client";
 
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { useMultiChainTransactionData } from '@/lib/hooks/useTransaction';
-import { Transaction } from '@/types/transaction';
-import { AlertCircle, Loader2 } from 'lucide-react';
-import { useState, useMemo } from 'react';
-import TransactionDetails from './transaction-details';
-import TransactionItem from './transaction-item';
-import { ChainType, TokenData } from '@/types/token';
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { useMultiChainTransactionData } from "@/lib/hooks/useTransaction";
+import { Transaction } from "@/types/transaction";
+import { AlertCircle, Loader2 } from "lucide-react";
+import { useState, useMemo } from "react";
+import TransactionDetails from "./transaction-details";
+import TransactionItem from "./transaction-item";
+import { ChainType, TokenData } from "@/types/token";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { PrimaryButton } from "@/components/ui/Button/PrimaryButton";
 
-type Network = 'ETHEREUM' | 'POLYGON' | 'BASE' | 'SOLANA';
+type Network = "ETHEREUM" | "POLYGON" | "BASE" | "SOLANA";
 
 // Constants
 const ITEMS_PER_PAGE = 20;
@@ -86,22 +83,11 @@ export default function TransactionList({
   const [offset, setOffset] = useState(0);
 
   // Fetch transactions
-  const {
-    transactions,
-    loading,
-    error,
-    hasMore,
-    totalCount,
-    refetch,
-  } = useMultiChainTransactionData(
-    solWalletAddress,
-    evmWalletAddress,
-    chains,
-    {
+  const { transactions, loading, error, hasMore, totalCount, refetch } =
+    useMultiChainTransactionData(solWalletAddress, evmWalletAddress, chains, {
       limit: ITEMS_PER_PAGE,
       offset,
-    }
-  );
+    });
 
   console.log('error', error);
 
@@ -212,26 +198,25 @@ export default function TransactionList({
 
   return (
     <>
-      <Card className="w-full border-none rounded-xl mt-4">
-        <CardHeader>
+      <section className="w-full h-full border-none rounded-xl overflow-hidden">
+        <div>
           <div className="flex items-center justify-between">
-            <CardTitle className="flex items-center gap-2 ont-bold text-xl text-gray-700">
+            <p className="flex items-center gap-2 font-bold text-lg text-gray-700">
               Transactions
               {loading && offset === 0 && (
                 <Loader2 className="w-4 h-4 animate-spin" />
               )}
-            </CardTitle>
+            </p>
             {totalCount > 0 && (
               <span className="text-sm text-muted-foreground">
-                Showing{' '}
-                {Math.min(offset + ITEMS_PER_PAGE, totalCount)} of{' '}
+                Showing {Math.min(offset + ITEMS_PER_PAGE, totalCount)} of{" "}
                 {totalCount}
               </span>
             )}
           </div>
-        </CardHeader>
+        </div>
 
-        <CardContent>
+        <div className="h-full overflow-hidden pb-4">
           {error && (
             <ErrorMessage
               message="Failed to load transactions. Please try again."
@@ -243,7 +228,7 @@ export default function TransactionList({
             <TransactionSkeleton />
           ) : (
             <>
-              <div className="space-y-3 max-h-[600px] overflow-y-auto pr-2 scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100">
+              <ScrollArea className="h-full pr-1 overflow-y-auto">
                 {processedTransactions.map((transaction, index) => (
                   <TransactionItem
                     key={index}
@@ -252,24 +237,22 @@ export default function TransactionList({
                   />
                 ))}
 
-                {!hasMore && processedTransactions.length > 0 && (
-                  <p className="text-center text-sm text-muted-foreground mt-4 sticky bottom-0 bg-white py-4">
+                {/* {!hasMore && processedTransactions.length > 0 && (
+                  <p className="text-center text-sm text-muted-foreground sticky bottom-0 bg-white pb-4">
                     No more transactions to load
                   </p>
-                )}
-              </div>
+                )} */}
+              </ScrollArea>
 
-              {!loading &&
-                !error &&
-                processedTransactions.length === 0 && (
-                  <div className="text-center py-8 text-muted-foreground">
-                    No transactions found
-                  </div>
-                )}
+              {!loading && !error && processedTransactions.length === 0 && (
+                <div className="text-center py-8 text-muted-foreground">
+                  No transactions found
+                </div>
+              )}
 
               {hasMore && (
                 <div className="mt-4 flex justify-center sticky bottom-0 bg-white py-4">
-                  <Button
+                  <PrimaryButton
                     variant="outline"
                     onClick={loadMore}
                     disabled={loading}
@@ -281,25 +264,23 @@ export default function TransactionList({
                         Loading...
                       </>
                     ) : (
-                      'Load More'
+                      "Load More"
                     )}
-                  </Button>
+                  </PrimaryButton>
                 </div>
               )}
             </>
           )}
-        </CardContent>
-      </Card>
+        </div>
+      </section>
       <TransactionDetails
         transaction={selectedTransaction}
         userAddress={
-          selectedTransaction?.network === 'SOLANA'
+          selectedTransaction?.network === "SOLANA"
             ? solWalletAddress
             : evmWalletAddress
         }
-        network={
-          (selectedTransaction?.network || 'SOLANA') as Network
-        }
+        network={(selectedTransaction?.network || "SOLANA") as Network}
         isOpen={!!selectedTransaction}
         onClose={() => setSelectedTransaction(null)}
       />

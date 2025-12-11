@@ -52,20 +52,20 @@ import WalletModals from './WalletModals';
 import { Toaster } from '../ui/toaster';
 import RedeemTokenList from './redeem/token-list';
 import BalanceChart from '../dashboard/BalanceChart';
-import { TokenTicker } from './token-ticker';
 import PortfolioChart, {
   PortfolioAsset,
 } from '../dashboard/PortfolioChart';
 // Utilities
 import Cookies from 'js-cookie';
 import { createTransactionPayload } from '@/lib/utils/transactionUtils';
-import { Loader2 } from 'lucide-react';
+import { Loader, Loader2 } from 'lucide-react';
 import { useNewSocketChat } from '@/lib/context/NewSocketChatContext';
 import {
   getWalletNotificationService,
   formatUSDValue,
 } from '@/lib/utils/walletNotifications';
 import TransactionList from './transaction/transaction-list';
+import { ScrollArea } from '../ui/scroll-area';
 
 // Token colors mapping for consistent visual representation
 const TOKEN_COLORS: Record<string, string> = {
@@ -667,7 +667,7 @@ const WalletContentInner = () => {
       {/* <TokenTicker /> */}
 
       {/* Balance & Token Section */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 my-4">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <div className="flex flex-col gap-4">
           <div className="bg-white rounded-xl">
             <BalanceChart
@@ -684,20 +684,17 @@ const WalletContentInner = () => {
             />
           </div>
 
-          <div className="flex flex-row gap-4">
-            <div className="rounded-xl bg-white flex-1  ">
-              <div className="flex items-center justify-between pl-6 pt-6 mb-2">
-                <div className="flex items-center">
-                  <span className="font-bold text-xl text-gray-700">
-                    Tokens
-                  </span>
-                  {tokenLoading && (
-                    <Loader2 className="w-6 h-6 text-gray-600 animate-spin" />
-                  )}
-                </div>
-                {/* <ViewToggle viewMode={viewMode} onViewChange={setViewMode} /> */}
+          <div className="flex gap-3 h-[30rem] overflow-hidden">
+            <div className="rounded-xl bg-white flex-1 h-full p-4 pb-2">
+              <div className="flex items-center gap-1 mb-2">
+                <span className="font-bold text-lg text-gray-700">
+                  Assets
+                </span>
+                {tokenLoading && (
+                  <Loader className="w-5 h-5 animate-spin" />
+                )}
               </div>
-              <div className="max-h-[35.5rem] overflow-y-auto rounded-xl">
+              <ScrollArea className="h-full pr-3 overflow-y-auto pb-10">
                 {selectedToken ? (
                   <TokenDetails
                     token={selectedToken}
@@ -712,9 +709,9 @@ const WalletContentInner = () => {
                     onSelectToken={handleTokenSelect}
                   />
                 )}
-              </div>
+              </ScrollArea>
             </div>
-            <div className="rounded-xl bg-white flex-1">
+            <div className="rounded-xl h-full bg-white flex-1 p-4 pb-2">
               <TransactionList
                 solWalletAddress={solWalletAddress}
                 evmWalletAddress={evmWalletAddress}
