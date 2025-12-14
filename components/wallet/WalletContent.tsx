@@ -1,38 +1,35 @@
-'use client';
+"use client";
 
-import { useEffect, useState, useMemo, useCallback } from 'react';
+import { useEffect, useState, useMemo, useCallback } from "react";
 import {
   usePrivy,
   useWallets,
   useSolanaWallets,
   useAuthorizationSignature,
-} from '@privy-io/react-auth';
-import { useSolanaWalletContext } from '@/lib/context/SolanaWalletContext';
-import { Connection } from '@solana/web3.js';
-import { useToast } from '@/hooks/use-toast';
+} from "@privy-io/react-auth";
+import { useSolanaWalletContext } from "@/lib/context/SolanaWalletContext";
+import { Connection } from "@solana/web3.js";
+import { useToast } from "@/hooks/use-toast";
 
-import { ChainType, TokenData } from '@/types/token';
-import { NFT } from '@/types/nft';
-import { CHAIN_ID, SendFlowState } from '@/types/wallet-types';
+import { ChainType, TokenData } from "@/types/token";
+import { NFT } from "@/types/nft";
+import { CHAIN_ID, SendFlowState } from "@/types/wallet-types";
 
 import {
   TransactionService,
   USDC_ADDRESS,
   SWOP_ADDRESS,
-} from '@/services/transaction-service';
-import { useSendFlow } from '@/lib/hooks/useSendFlow';
-import { useMultiChainTokenData } from '@/lib/hooks/useToken';
-import { useNFT } from '@/lib/hooks/useNFT';
-import { useUser } from '@/lib/UserContext';
-import { addSwopPoint } from '@/actions/addPoint';
-import { postFeed } from '@/actions/postFeed';
+} from "@/services/transaction-service";
+import { useSendFlow } from "@/lib/hooks/useSendFlow";
+import { useMultiChainTokenData } from "@/lib/hooks/useToken";
+import { useNFT } from "@/lib/hooks/useNFT";
+import { useUser } from "@/lib/UserContext";
+import { addSwopPoint } from "@/actions/addPoint";
+import { postFeed } from "@/actions/postFeed";
 
 // Custom hooks
-import {
-  useWalletData,
-  useWalletAddresses,
-} from './hooks/useWalletData';
-import { useTransactionPayload } from './hooks/useTransactionPayload';
+import { useWalletData, useWalletAddresses } from "./hooks/useWalletData";
+import { useTransactionPayload } from "./hooks/useTransactionPayload";
 
 // Constants
 import {
@@ -41,45 +38,43 @@ import {
   ERROR_MESSAGES,
   POINT_TYPES,
   ACTION_KEYS,
-} from './constants';
+} from "./constants";
 
 // UI Components
-import TokenList from './token/token-list';
-import NFTSlider from './nft/nft-list';
-import TokenDetails from './token/token-details-view';
-import NFTDetailView from './nft/nft-details-view';
-import WalletModals from './WalletModals';
-import { Toaster } from '../ui/toaster';
-import RedeemTokenList from './redeem/token-list';
-import BalanceChart from '../dashboard/BalanceChart';
-import PortfolioChart, {
-  PortfolioAsset,
-} from '../dashboard/PortfolioChart';
+import TokenList from "./token/token-list";
+import NFTSlider from "./nft/nft-list";
+import TokenDetails from "./token/token-details-view";
+import NFTDetailView from "./nft/nft-details-view";
+import WalletModals from "./WalletModals";
+import { Toaster } from "../ui/toaster";
+import RedeemTokenList from "./redeem/token-list";
+import BalanceChart from "../dashboard/BalanceChart";
+import PortfolioChart, { PortfolioAsset } from "../dashboard/PortfolioChart";
 // Utilities
-import Cookies from 'js-cookie';
-import { createTransactionPayload } from '@/lib/utils/transactionUtils';
-import { Loader, Loader2 } from 'lucide-react';
-import { useNewSocketChat } from '@/lib/context/NewSocketChatContext';
+import Cookies from "js-cookie";
+import { createTransactionPayload } from "@/lib/utils/transactionUtils";
+import { Loader, Loader2 } from "lucide-react";
+import { useNewSocketChat } from "@/lib/context/NewSocketChatContext";
 import {
   getWalletNotificationService,
   formatUSDValue,
-} from '@/lib/utils/walletNotifications';
-import TransactionList from './transaction/transaction-list';
-import { ScrollArea } from '../ui/scroll-area';
+} from "@/lib/utils/walletNotifications";
+import TransactionList from "./transaction/transaction-list";
+import { ScrollArea } from "../ui/scroll-area";
 
 // Token colors mapping for consistent visual representation
 const TOKEN_COLORS: Record<string, string> = {
-  SOL: '#10b981',
-  SWOP: '#d1fae5',
-  ETH: '#047857',
-  BTC: '#f59e0b',
-  USDC: '#2563eb',
-  USDT: '#22c55e',
-  BNB: '#eab308',
-  XRP: '#06b6d4',
-  MATIC: '#8b5cf6',
-  POL: '#8b5cf6',
-  default: '#6b7280',
+  SOL: "#10b981",
+  SWOP: "#d1fae5",
+  ETH: "#047857",
+  BTC: "#f59e0b",
+  USDC: "#2563eb",
+  USDT: "#22c55e",
+  BNB: "#eab308",
+  XRP: "#06b6d4",
+  MATIC: "#8b5cf6",
+  POL: "#8b5cf6",
+  default: "#6b7280",
 };
 
 const getTokenColor = (symbol: string): string => {
@@ -92,32 +87,26 @@ export default function WalletContent() {
 
 const WalletContentInner = () => {
   // UI state
-  const [selectedToken, setSelectedToken] =
-    useState<TokenData | null>(null);
+  const [selectedToken, setSelectedToken] = useState<TokenData | null>(null);
   const [selectedNFT, setSelectedNFT] = useState<NFT | null>(null);
   const [isNFTModalOpen, setIsNFTModalOpen] = useState(false);
-  const [accessToken, setAccessToken] = useState('');
+  const [accessToken, setAccessToken] = useState("");
 
   // QR code modals state
   const [walletQRModalOpen, setWalletQRModalOpen] = useState(false);
-  const [walletQRShareModalOpen, setWalletQRShareModalOpen] =
-    useState(false);
-  const [walletShareAddress, setWalletShareAddress] = useState('');
-  const [qrcodeShareUrl, setQrcodeShareUrl] = useState('');
-  const [QRCodeShareModalOpen, setQRCodeShareModalOpen] =
-    useState(false);
+  const [walletQRShareModalOpen, setWalletQRShareModalOpen] = useState(false);
+  const [walletShareAddress, setWalletShareAddress] = useState("");
+  const [qrcodeShareUrl, setQrcodeShareUrl] = useState("");
+  const [QRCodeShareModalOpen, setQRCodeShareModalOpen] = useState(false);
 
   // Hooks
   const { authenticated, ready, user: PrivyUser } = usePrivy();
-  const { generateAuthorizationSignature } =
-    useAuthorizationSignature();
+  const { generateAuthorizationSignature } = useAuthorizationSignature();
 
   const { wallets: ethWallets } = useWallets();
 
-  const {
-    wallets: directSolanaWallets,
-    createWallet: createSolanaWallet,
-  } = useSolanaWallets();
+  const { wallets: directSolanaWallets, createWallet: createSolanaWallet } =
+    useSolanaWallets();
 
   const { createWallet, solanaWallets } = useSolanaWalletContext();
   const { toast } = useToast();
@@ -129,8 +118,7 @@ const WalletContentInner = () => {
   const socket = chatSocket;
   // Custom hooks
   const walletData = useWalletData(authenticated, ready, PrivyUser);
-  const { solWalletAddress, evmWalletAddress } =
-    useWalletAddresses(walletData);
+  const { solWalletAddress, evmWalletAddress } = useWalletAddresses(walletData);
   const { payload } = useTransactionPayload(user);
   // const { wallets: ethWalletsData } = useWallets();
 
@@ -146,11 +134,11 @@ const WalletContentInner = () => {
     resetSendFlow,
   } = useSendFlow();
 
-  console.log('send flow', sendFlow);
+  console.log("send flow", sendFlow);
 
   // Get access token from cookies
   useEffect(() => {
-    const token = Cookies.get('access-token');
+    const token = Cookies.get("access-token");
     if (token) {
       setAccessToken(token);
     }
@@ -162,9 +150,9 @@ const WalletContentInner = () => {
 
     const hasExistingSolanaWallet = PrivyUser.linkedAccounts.some(
       (account: any) =>
-        account.type === 'wallet' &&
-        account.walletClientType === 'privy' &&
-        account.chainType === 'solana'
+        account.type === "wallet" &&
+        account.walletClientType === "privy" &&
+        account.chainType === "solana"
     );
 
     if (!hasExistingSolanaWallet) {
@@ -196,9 +184,7 @@ const WalletContentInner = () => {
     return tokens.reduce((total, token) => {
       const value =
         parseFloat(token.balance) *
-        (token.marketData?.price
-          ? parseFloat(token.marketData.price)
-          : 0);
+        (token.marketData?.price ? parseFloat(token.marketData.price) : 0);
       return isNaN(value) ? total : total + value;
     }, 0);
   }, [tokens]);
@@ -208,15 +194,15 @@ const WalletContentInner = () => {
     if (!tokens || tokens.length === 0) {
       return {
         assets: [],
-        totalBalance: '0.00',
+        totalBalance: "0.00",
       };
     }
 
     // Calculate token values and filter out zero balances
     const assetsWithValue = tokens
       .map((token) => {
-        const balance = parseFloat(token.balance || '0');
-        const price = parseFloat(token.marketData?.price || '0');
+        const balance = parseFloat(token.balance || "0");
+        const price = parseFloat(token.marketData?.price || "0");
         const value = balance * price;
 
         return {
@@ -233,10 +219,7 @@ const WalletContentInner = () => {
       .sort((a, b) => b.value - a.value); // Sort by value descending
 
     // Calculate total balance
-    const total = assetsWithValue.reduce(
-      (sum, asset) => sum + asset.value,
-      0
-    );
+    const total = assetsWithValue.reduce((sum, asset) => sum + asset.value, 0);
 
     // Take top 5 tokens and group rest as "Others"
     const topAssets = assetsWithValue.slice(0, 5);
@@ -250,9 +233,9 @@ const WalletContentInner = () => {
         0
       );
       assets.push({
-        name: 'Others',
+        name: "Others",
         value: othersValue,
-        color: '#94a3b8',
+        color: "#94a3b8",
         amount: `${otherAssets.length} tokens`,
       });
     }
@@ -267,9 +250,7 @@ const WalletContentInner = () => {
   }, [tokens]);
 
   const nativeTokenPrice = useMemo(
-    () =>
-      tokens.find((token) => token.isNative)?.marketData?.price ||
-      '0',
+    () => tokens.find((token) => token.isNative)?.marketData?.price || "0",
     [tokens]
   );
 
@@ -283,8 +264,7 @@ const WalletContentInner = () => {
     (flowData: SendFlowState): string => {
       if (flowData.isUSD && flowData.token?.marketData.price) {
         return (
-          Number(flowData.amount) /
-          Number(flowData.token.marketData.price)
+          Number(flowData.amount) / Number(flowData.token.marketData.price)
         ).toString();
       }
       return flowData.amount;
@@ -298,19 +278,13 @@ const WalletContentInner = () => {
       if (!imageUrl) return undefined;
 
       // If already absolute URL, return as is
-      if (
-        imageUrl.startsWith('http://') ||
-        imageUrl.startsWith('https://')
-      ) {
+      if (imageUrl.startsWith("http://") || imageUrl.startsWith("https://")) {
         return imageUrl;
       }
 
       // Convert relative path to absolute URL using API base URL
-      const apiUrl =
-        process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
-      return `${apiUrl}${
-        imageUrl.startsWith('/') ? '' : '/'
-      }${imageUrl}`;
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
+      return `${apiUrl}${imageUrl.startsWith("/") ? "" : "/"}${imageUrl}`;
     },
     []
   );
@@ -320,40 +294,37 @@ const WalletContentInner = () => {
     try {
       const connection = new Connection(
         process.env.NEXT_PUBLIC_QUICKNODE_SOLANA_URL!,
-        'confirmed'
+        "confirmed"
       );
 
       // Use direct Solana wallets from Privy (more reliable)
-      const availableSolanaWallets =
-        directSolanaWallets || solanaWallets || [];
+      const availableSolanaWallets = directSolanaWallets || solanaWallets || [];
 
       const solanaWallet =
         availableSolanaWallets.find(
           (w: any) =>
-            w.walletClientType === 'privy' ||
-            w.connectorType === 'embedded'
+            w.walletClientType === "privy" || w.connectorType === "embedded"
         ) || availableSolanaWallets[0];
 
       // Check if we have a Solana wallet when needed
       if (
-        (sendFlow.token?.chain?.toUpperCase() === 'SOLANA' ||
-          sendFlow.network.toUpperCase() === 'SOLANA') &&
+        (sendFlow.token?.chain?.toUpperCase() === "SOLANA" ||
+          sendFlow.network.toUpperCase() === "SOLANA") &&
         !solanaWallet
       ) {
         // Check if wallet exists in linked accounts but not in wallets array
         const hasSolanaAccount = PrivyUser?.linkedAccounts?.some(
           (account: any) =>
-            account.chainType === 'solana' &&
-            account.type === 'wallet'
+            account.chainType === "solana" && account.type === "wallet"
         );
 
         if (hasSolanaAccount) {
           throw new Error(
-            'Solana wallet found in account but not accessible. Please refresh the page and try again.'
+            "Solana wallet found in account but not accessible. Please refresh the page and try again."
           );
         } else {
           throw new Error(
-            'No Solana wallet found. Please connect a Solana wallet.'
+            "No Solana wallet found. Please connect a Solana wallet."
           );
         }
       }
@@ -362,8 +333,8 @@ const WalletContentInner = () => {
       const allAccounts = PrivyUser?.linkedAccounts || [];
       const ethereumAccount = allAccounts.find(
         (account: any) =>
-          account.chainType === 'ethereum' &&
-          account.type === 'wallet' &&
+          account.chainType === "ethereum" &&
+          account.type === "wallet" &&
           account.address
       );
 
@@ -377,11 +348,11 @@ const WalletContentInner = () => {
         );
       }
 
-      let hash = '';
+      let hash = "";
 
       if (sendFlow.nft) {
         // Handle NFT transfer
-        if (sendFlow.network.toUpperCase() === 'SOLANA') {
+        if (sendFlow.network.toUpperCase() === "SOLANA") {
           hash = await TransactionService.handleSolanaNFTTransfer(
             solanaWallet,
             sendFlow,
@@ -401,7 +372,7 @@ const WalletContentInner = () => {
         refetchNFTs();
       } else if (sendFlow.token) {
         // Handle token transfer
-        if (sendFlow.token.chain.toUpperCase() === 'SOLANA') {
+        if (sendFlow.token.chain.toUpperCase() === "SOLANA") {
           const result = await TransactionService.handleSolanaSend(
             solanaWallet,
             sendFlow,
@@ -440,13 +411,11 @@ const WalletContentInner = () => {
 
       return { success: true, hash };
     } catch (error) {
-      console.error('Transaction execution error:', error);
+      console.error("Transaction execution error:", error);
       return {
         success: false,
         error:
-          error instanceof Error
-            ? error.message
-            : ERROR_MESSAGES.UNKNOWN_ERROR,
+          error instanceof Error ? error.message : ERROR_MESSAGES.UNKNOWN_ERROR,
       };
     }
   }, [
@@ -467,8 +436,8 @@ const WalletContentInner = () => {
       !sendFlow.amount
     ) {
       toast({
-        variant: 'destructive',
-        title: 'Error',
+        variant: "destructive",
+        title: "Error",
         description: ERROR_MESSAGES.MISSING_TRANSACTION_INFO,
       });
       return;
@@ -480,9 +449,7 @@ const WalletContentInner = () => {
       const result = await executeTransaction();
 
       if (!result.success) {
-        throw new Error(
-          result.error || ERROR_MESSAGES.TRANSACTION_FAILED
-        );
+        throw new Error(result.error || ERROR_MESSAGES.TRANSACTION_FAILED);
       }
 
       // Update points if using Swop.ID
@@ -510,21 +477,18 @@ const WalletContentInner = () => {
 
       if (socket && socket.connected && result.hash) {
         try {
-          const notificationService =
-            getWalletNotificationService(socket);
+          const notificationService = getWalletNotificationService(socket);
 
           if (sendFlow.nft) {
             // NFT transfer notification
-            const networkName =
-              sendFlow.network?.toUpperCase() || 'SOLANA';
+            const networkName = sendFlow.network?.toUpperCase() || "SOLANA";
 
             const nftData = {
-              nftName: sendFlow.nft.name || 'NFT',
+              nftName: sendFlow.nft.name || "NFT",
               nftImage: convertToAbsoluteUrl(sendFlow.nft.image),
               recipientAddress: sendFlow.recipient.address,
               recipientEnsName:
-                sendFlow.recipient.ensName ||
-                sendFlow.recipient.address,
+                sendFlow.recipient.ensName || sendFlow.recipient.address,
               txSignature: result.hash,
               network: networkName,
               tokenId: sendFlow.nft.tokenId,
@@ -535,13 +499,9 @@ const WalletContentInner = () => {
           } else if (sendFlow.token) {
             // Token transfer notification
             const amount = calculateTransactionAmount(sendFlow);
-            const networkName =
-              sendFlow.token.chain?.toUpperCase() || 'SOLANA';
+            const networkName = sendFlow.token.chain?.toUpperCase() || "SOLANA";
             const usdValue = sendFlow.token.marketData?.price
-              ? formatUSDValue(
-                  amount,
-                  sendFlow.token.marketData.price
-                )
+              ? formatUSDValue(amount, sendFlow.token.marketData.price)
               : undefined;
 
             const tokenData = {
@@ -550,8 +510,7 @@ const WalletContentInner = () => {
               amount: amount,
               recipientAddress: sendFlow.recipient.address,
               recipientEnsName:
-                sendFlow.recipient.ensName ||
-                sendFlow.recipient.address,
+                sendFlow.recipient.ensName || sendFlow.recipient.address,
               txSignature: result.hash,
               network: networkName,
               tokenLogo: convertToAbsoluteUrl(sendFlow.token.logoURI),
@@ -561,27 +520,23 @@ const WalletContentInner = () => {
             notificationService.emitTokenSent(tokenData);
           }
         } catch (notifError) {
-          console.error(
-            'Failed to send transfer notification:',
-            notifError
-          );
+          console.error("Failed to send transfer notification:", notifError);
         }
       }
 
       // Update UI state
       setSendFlow((prev) => ({
         ...prev,
-        hash: result.hash || '',
-        step: 'success',
+        hash: result.hash || "",
+        step: "success",
       }));
     } catch (error) {
-      console.error('Error sending token/NFT:', error);
+      console.error("Error sending token/NFT:", error);
 
       // Send failure notification via Socket.IO
       if (socket && socket.connected) {
         try {
-          const notificationService =
-            getWalletNotificationService(socket);
+          const notificationService = getWalletNotificationService(socket);
           const errorMessage =
             error instanceof Error
               ? error.message
@@ -595,16 +550,13 @@ const WalletContentInner = () => {
             // For token transfers, we can log the failure
           }
         } catch (notifError) {
-          console.error(
-            'Failed to send failure notification:',
-            notifError
-          );
+          console.error("Failed to send failure notification:", notifError);
         }
       }
 
       toast({
-        variant: 'destructive',
-        title: 'Error',
+        variant: "destructive",
+        title: "Error",
         description:
           error instanceof Error
             ? error.message
@@ -648,16 +600,13 @@ const WalletContentInner = () => {
 
   const handleBack = useCallback(() => setSelectedToken(null), []);
 
-  const handleQRClick = useCallback(
-    () => setWalletQRModalOpen(true),
-    []
-  );
+  const handleQRClick = useCallback(() => setWalletQRModalOpen(true), []);
 
   const handleAssetSelect = useCallback(
     () =>
       setSendFlow((prev) => ({
         ...prev,
-        step: 'select-method',
+        step: "select-method",
       })),
     [setSendFlow]
   );
@@ -687,12 +636,8 @@ const WalletContentInner = () => {
           <div className="flex gap-3 h-[30rem] overflow-hidden">
             <div className="rounded-xl bg-white flex-1 h-full p-4 pb-2">
               <div className="flex items-center gap-1 mb-2">
-                <span className="font-bold text-lg text-gray-700">
-                  Assets
-                </span>
-                {tokenLoading && (
-                  <Loader className="w-5 h-5 animate-spin" />
-                )}
+                <span className="font-bold text-lg text-gray-700">Assets</span>
+                {tokenLoading && <Loader className="w-5 h-5 animate-spin" />}
               </div>
               <ScrollArea className="h-full pr-3 overflow-y-auto pb-10">
                 {selectedToken ? (
@@ -842,9 +787,7 @@ function PortfolioEmptyState() {
             />
           </svg>
         </div>
-        <p className="text-gray-600 font-medium mb-1">
-          No tokens found
-        </p>
+        <p className="text-gray-600 font-medium mb-1">No tokens found</p>
         <p className="text-sm text-gray-500">
           Connect your wallet to view your portfolio.
         </p>

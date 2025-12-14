@@ -1,11 +1,11 @@
 "use client";
 
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useMultiChainTransactionData } from "@/lib/hooks/useTransaction";
 import { Transaction } from "@/types/transaction";
 import { AlertCircle, Loader2 } from "lucide-react";
-import { useState, useMemo } from "react";
+import { useState, useMemo, useCallback } from "react";
 import TransactionDetails from "./transaction-details";
 import TransactionItem from "./transaction-item";
 import { ChainType, TokenData } from "@/types/token";
@@ -40,7 +40,7 @@ const TransactionSkeleton = () => (
   </div>
 );
 
-// Error message component
+// Error message component - Memoized
 const ErrorMessage = ({
   message,
   onRetry,
@@ -77,6 +77,10 @@ export default function TransactionList({
   tokens: TokenData[];
   newTransactions: any;
 }) {
+  console.log("tokens hola", tokens);
+  console.log("chains hola", chains);
+  console.log("newTransactions hola", newTransactions);
+
   const [selectedTransaction, setSelectedTransaction] =
     useState<Transaction | null>(null);
 
@@ -89,30 +93,31 @@ export default function TransactionList({
       offset,
     });
 
-  console.log('error', error);
+  console.log("transactions gg", transactions);
+  console.log("error", error);
 
-  // Helper function to detect spam/scam tokens
-  const isSpamToken = (
-    tokenSymbol?: string,
-    tokenName?: string
-  ): boolean => {
-    if (!tokenSymbol && !tokenName) return false;
+  // Helper function to detect spam/scam tokens - wrapped in useCallback to prevent recreation
+  const isSpamToken = useCallback(
+    (tokenSymbol?: string, tokenName?: string): boolean => {
+      if (!tokenSymbol && !tokenName) return false;
 
-    const spamIndicators = [
-      /visit|claim|voucher|airdrop|\.io|\.com|\.me|\.do|t\.me|telegram/i,
-      /^✅/,
-      /^\$[A-Z]+.*claim/i,
-      /distribution/i,
-    ];
+      const spamIndicators = [
+        /visit|claim|voucher|airdrop|\.io|\.com|\.me|\.do|t\.me|telegram/i,
+        /^✅/,
+        /^\$[A-Z]+.*claim/i,
+        /distribution/i,
+      ];
 
-    const textToCheck = `${tokenSymbol || ''} ${tokenName || ''}`;
-    return spamIndicators.some((pattern) =>
-      pattern.test(textToCheck)
-    );
-  };
+      const textToCheck = `${tokenSymbol || ""} ${tokenName || ""}`;
+      return spamIndicators.some((pattern) => pattern.test(textToCheck));
+    },
+    []
+  );
 
   // Filter transactions and add prices
   const processedTransactions = useMemo(() => {
+    console.log("hit");
+
     if (!tokens.length) return [];
 
     const allTransactions = [...transactions, ...newTransactions];
@@ -124,32 +129,23 @@ export default function TransactionList({
       }
 
       // Filter out failed transactions if they have error status
-      if (tx.isError === '1' || tx.txreceipt_status === '0') {
+      if (tx.isError === "1" || tx.txreceipt_status === "0") {
         return false;
       }
 
       // Add native token price for network fee calculation
       tx.nativeTokenPrice = 1;
 
-      // Find matching token for transaction value
-      // const token = tokens.find(
-      //   (t: TokenData) =>
-      //     t.symbol === tx.tokenSymbol ||
-      //     (tx.isSwapped &&
-      //       (t.symbol === tx.swapped?.from.symbol ||
-      //         t.symbol === tx.swapped?.to.symbol))
-      // );
-
       // For native token transactions (no tokenSymbol), find the native token
-      if (!tx.tokenSymbol || tx.tokenSymbol === '') {
+      if (!tx.tokenSymbol || tx.tokenSymbol === "") {
         const nativeToken = tokens.find(
           (t: TokenData) =>
             t.isNative === true ||
-            t.symbol === 'POL' ||
-            t.symbol === 'MATIC' ||
-            t.symbol === 'ETH' ||
-            t.symbol === 'BASE' ||
-            t.symbol === 'SOL'
+            t.symbol === "POL" ||
+            t.symbol === "MATIC" ||
+            t.symbol === "ETH" ||
+            t.symbol === "BASE" ||
+            t.symbol === "SOL"
         );
 
         if (nativeToken) {
@@ -162,39 +158,25 @@ export default function TransactionList({
         return false;
       }
 
-      // if (!token) return false;
-
-      // if (tx.isSwapped) {
-      //   const fromToken = tokens.find(
-      //     (t: TokenData) => t.symbol === tx.swapped?.from.symbol
-      //   );
-      //   const toToken = tokens.find(
-      //     (t: TokenData) => t.symbol === tx.swapped?.to.symbol
-      //   );
-
-      //   if (!fromToken || !toToken) return false;
-
-      //   if (tx.swapped) {
-      //     tx.swapped.from.price = fromToken.marketData?.price
-      //       ? parseFloat(fromToken.marketData.price)
-      //       : 0;
-      //     tx.swapped.to.price = toToken.marketData?.price
-      //       ? parseFloat(toToken.marketData.price)
-      //       : 0;
-      //   }
-      // } else {
-      //   tx.currentPrice = token.marketData?.price
-      //     ? parseFloat(token.marketData.price)
-      //     : 0;
-      // }
-
       return true;
     });
-  }, [transactions, newTransactions, tokens]);
+  }, [isSpamToken, newTransactions, tokens, transactions]);
 
-  const loadMore = () => {
+  // Wrap loadMore in useCallback to prevent recreation on every render
+  const loadMore = useCallback(() => {
     setOffset((prev) => prev + ITEMS_PER_PAGE);
-  };
+  }, []);
+
+  // Wrap setSelectedTransaction handler in useCallback
+  const handleTransactionSelect = useCallback((transaction: Transaction) => {
+    setSelectedTransaction(transaction);
+  }, []);
+
+  const handleCloseDetails = useCallback(() => {
+    setSelectedTransaction(null);
+  }, []);
+
+  console.log("processedTransactions", processedTransactions);
 
   return (
     <>
@@ -229,23 +211,21 @@ export default function TransactionList({
           ) : (
             <>
               <ScrollArea className="h-full pr-1 overflow-y-auto">
-                {processedTransactions.map((transaction, index) => (
+                {processedTransactions.map((transaction) => (
                   <TransactionItem
-                    key={index}
+                    key={
+                      transaction.hash ||
+                      transaction.id ||
+                      `${transaction.timeStamp}-${transaction.from}`
+                    }
                     transaction={transaction}
-                    onSelect={setSelectedTransaction}
+                    onSelect={handleTransactionSelect}
                   />
                 ))}
-
-                {/* {!hasMore && processedTransactions.length > 0 && (
-                  <p className="text-center text-sm text-muted-foreground sticky bottom-0 bg-white pb-4">
-                    No more transactions to load
-                  </p>
-                )} */}
               </ScrollArea>
 
-              {!loading && !error && processedTransactions.length === 0 && (
-                <div className="text-center py-8 text-muted-foreground">
+              {processedTransactions.length === 0 && (
+                <div className="text-center py-8 text-black">
                   No transactions found
                 </div>
               )}
@@ -282,7 +262,7 @@ export default function TransactionList({
         }
         network={(selectedTransaction?.network || "SOLANA") as Network}
         isOpen={!!selectedTransaction}
-        onClose={() => setSelectedTransaction(null)}
+        onClose={handleCloseDetails}
       />
     </>
   );
