@@ -31,7 +31,7 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { PrimaryButton } from "@/components/ui/Button/PrimaryButton";
-import { Loader } from "lucide-react";
+import { Loader, MapPin } from "lucide-react";
 
 const EditProfileContent = ({ data, token }: any) => {
   const [selectedImage, setSelectedImage] = useState(null);
@@ -408,7 +408,7 @@ const EditProfileContent = ({ data, token }: any) => {
                       />
                     </div>
                   </div>
-                  <div className="">
+                  {/* <div className="">
                     <label htmlFor="address" className="mb-2 block">
                       Address (Shopping Delivery Address)
                     </label>
@@ -423,6 +423,51 @@ const EditProfileContent = ({ data, token }: any) => {
                         placeholder: "Enter address",
                       }}
                     />
+                  </div> */}
+                  <div className="w-full">
+                    <label htmlFor="address" className="mb-2 block">
+                      Address (Shopping Delivery Address)
+                    </label>
+                    <div className="relative">
+                      <span className="pointer-events-none absolute left-3 top-1/2 z-10 -translate-y-1/2 text-muted-foreground">
+                        <MapPin className="h-4 w-4" />
+                      </span>
+
+                      <GooglePlacesAutocomplete
+                        apiKey={
+                          process.env.NEXT_PUBLIC_GOOGLE_PLACES_API_KEY || ""
+                        }
+                        selectProps={{
+                          value,
+                          onChange: setValue as any,
+                          placeholder: "Enter address",
+                          styles: {
+                            control: (base, state) => ({
+                              ...base,
+                              paddingLeft: "1.35rem", // space for icon
+                              // minHeight: "42px",
+                              borderRadius: "0.5rem",
+                              border: state.isFocused
+                                ? "1px solid #edebeb" // focus (blue-600)
+                                : "1px solid #edebeb",
+                              boxShadow: state.isFocused
+                                ? "1px solid #edebeb"
+                                : "none",
+                              "&:hover": {
+                                border: state.isFocused
+                                  ? "1px solid #edebeb"
+                                  : "1px solid #edebeb", // hover (gray-300)
+                              },
+                            }),
+                            input: (base) => ({
+                              ...base,
+                              margin: 0,
+                              padding: 0,
+                            }),
+                          },
+                        }}
+                      />
+                    </div>
                   </div>
                 </div>
                 <div className="mt-10 flex items-center gap-3 justify-center">
