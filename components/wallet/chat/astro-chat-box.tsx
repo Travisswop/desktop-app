@@ -1,16 +1,44 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { Send, Loader2, Sparkles, CheckCircle2, XCircle, AlertCircle } from 'lucide-react';
+import {
+  Send,
+  Loader2,
+  Sparkles,
+  CheckCircle2,
+  XCircle,
+  AlertCircle,
+} from 'lucide-react';
 import { useAIAgent } from '@/hooks/useAIAgent';
 import { cn } from '@/lib/utils';
-import { useSolanaWallets, useSignTransaction } from '@privy-io/react-auth/solana';
-import { Transaction, VersionedTransaction, Connection, clusterApiUrl } from '@solana/web3.js';
-import aiAgentService, { TransactionData } from '@/services/aiAgentService';
+import {
+  useSolanaWallets,
+  useSignTransaction,
+} from '@privy-io/react-auth/solana';
+import {
+  Transaction,
+  VersionedTransaction,
+  Connection,
+  clusterApiUrl,
+} from '@solana/web3.js';
+import aiAgentService, {
+  TransactionData,
+} from '@/services/aiAgentService';
+import {
+  isPredictionMarketsResponse,
+  isBetConfirmationResponse,
+} from '@/types/predictionMarkets';
+import {
+  PredictionMarketCards,
+  BetConfirmationCard,
+  BetAmountModal,
+} from '@/components/prediction-markets';
+import { type Currency } from '@/types/predictionMarkets';
 
 // Create a connection instance for signing transactions
 const connection = new Connection(
-  process.env.NEXT_PUBLIC_QUICKNODE_SOLANA_ENDPOINT || clusterApiUrl('mainnet-beta')
+  process.env.NEXT_PUBLIC_QUICKNODE_SOLANA_ENDPOINT ||
+    clusterApiUrl('mainnet-beta')
 );
 
 interface AstroMessage {
@@ -52,7 +80,9 @@ export default function AstroChatBox() {
   const solanaWalletAddress = solanaWallets[0]?.address || null;
 
   const [inputValue, setInputValue] = useState('');
-  const [localMessages, setLocalMessages] = useState<AstroMessage[]>([]);
+  const [localMessages, setLocalMessages] = useState<AstroMessage[]>(
+    []
+  );
   const [pendingAction, setPendingAction] = useState<{
     action: string;
     params: any;
@@ -60,6 +90,11 @@ export default function AstroChatBox() {
     transactionData?: TransactionData;
   } | null>(null);
   const [isSigning, setIsSigning] = useState(false);
+  const [betModal, setBetModal] = useState<{
+    marketId: string;
+    marketQuestion: string;
+    betType: 'YES' | 'NO';
+  } | null>(null);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -91,13 +126,20 @@ export default function AstroChatBox() {
     };
 
     // Wait for token with retry logic
-    const waitForToken = async (maxRetries = 10, delay = 500): Promise<string | null> => {
+    const waitForToken = async (
+      maxRetries = 10,
+      delay = 500
+    ): Promise<string | null> => {
       for (let i = 0; i < maxRetries; i++) {
         const token = getTokenFromCookies();
         if (token) {
           return token;
         }
-        console.log(`[AstroChat] Waiting for access-token... (attempt ${i + 1}/${maxRetries})`);
+        console.log(
+          `[AstroChat] Waiting for access-token... (attempt ${
+            i + 1
+          }/${maxRetries})`
+        );
         await new Promise((resolve) => setTimeout(resolve, delay));
       }
       return null;
@@ -125,7 +167,10 @@ export default function AstroChatBox() {
     const converted = aiMessages.map((msg) => ({
       id: msg._id,
       content: msg.message,
-      sender: msg.sender === 'ai-agent' ? ('astro' as const) : ('user' as const),
+      sender:
+        msg.sender === 'ai-agent'
+          ? ('astro' as const)
+          : ('user' as const),
       timestamp: new Date(msg.createdAt),
       action: msg.agentData?.action,
       params: msg.agentData?.params,
@@ -170,7 +215,8 @@ export default function AstroChatBox() {
     // After loading completes, restore scroll position
     const observer = new MutationObserver(() => {
       const newScrollHeight = container.scrollHeight;
-      const scrollHeightDiff = newScrollHeight - previousScrollHeightRef.current;
+      const scrollHeightDiff =
+        newScrollHeight - previousScrollHeightRef.current;
 
       // Adjust scroll to maintain user's position (account for new messages at top)
       if (scrollHeightDiff > 0) {
@@ -192,10 +238,18 @@ export default function AstroChatBox() {
 
     try {
       // Pass Solana wallet address along with the message
-      const response = await sendMessage(message, solanaWalletAddress || undefined);
+      const response = await sendMessage(
+        message,
+        solanaWalletAddress || undefined
+      );
+
+      console.log('response', response);
 
       // If action requires confirmation, store it with transaction data
-      if (response.requiresConfirmation && response.action !== 'general_chat') {
+      if (
+        response.requiresConfirmation &&
+        response.action !== 'general_chat'
+      ) {
         setPendingAction({
           action: response.action,
           params: response.params,
@@ -213,30 +267,51 @@ export default function AstroChatBox() {
 
     try {
       console.log('🔍 Pending action:', pendingAction.action);
-      console.log('📦 Has transaction data:', !!pendingAction.transactionData);
+      console.log(
+        '📦 Has transaction data:',
+        !!pendingAction.transactionData
+      );
 
       // Check if this action requires transaction signing (transfer_sol, transfer_token, or swap_tokens)
-      if (pendingAction.action === 'transfer_sol' || pendingAction.action === 'transfer_token' || pendingAction.action === 'swap_tokens') {
+      if (
+        pendingAction.action === 'transfer_sol' ||
+        pendingAction.action === 'transfer_token' ||
+        pendingAction.action === 'swap_tokens'
+      ) {
         if (!pendingAction.transactionData) {
-          console.error('❌ No transaction data available for transfer/swap action');
-          throw new Error('Transaction data not available. Please try again.');
+          console.error(
+            '❌ No transaction data available for transfer/swap action'
+          );
+          throw new Error(
+            'Transaction data not available. Please try again.'
+          );
         }
 
         // Sign the transaction with Privy
         setIsSigning(true);
         console.log('🖊️ Signing transaction with Privy...');
-        console.log('📋 Transaction data:', pendingAction.transactionData);
+        console.log(
+          '📋 Transaction data:',
+          pendingAction.transactionData
+        );
 
         // Deserialize the transaction - swap uses VersionedTransaction
         let signedTx;
         try {
           if (pendingAction.action === 'swap_tokens') {
-            console.log('🔄 Deserializing VersionedTransaction for swap...');
+            console.log(
+              '🔄 Deserializing VersionedTransaction for swap...'
+            );
             const transaction = VersionedTransaction.deserialize(
-              Buffer.from(pendingAction.transactionData.serializedTransaction, 'base64')
+              Buffer.from(
+                pendingAction.transactionData.serializedTransaction,
+                'base64'
+              )
             );
 
-            console.log('✅ VersionedTransaction deserialized, requesting signature...');
+            console.log(
+              '✅ VersionedTransaction deserialized, requesting signature...'
+            );
 
             // Sign with Privy
             signedTx = await signTransaction({
@@ -246,10 +321,15 @@ export default function AstroChatBox() {
           } else {
             console.log('📝 Deserializing regular Transaction...');
             const transaction = Transaction.from(
-              Buffer.from(pendingAction.transactionData.serializedTransaction, 'base64')
+              Buffer.from(
+                pendingAction.transactionData.serializedTransaction,
+                'base64'
+              )
             );
 
-            console.log('✅ Transaction deserialized, requesting signature...');
+            console.log(
+              '✅ Transaction deserialized, requesting signature...'
+            );
 
             // Sign with Privy
             signedTx = await signTransaction({
@@ -258,26 +338,43 @@ export default function AstroChatBox() {
             });
           }
         } catch (deserializeError) {
-          console.error('❌ Error deserializing transaction:', deserializeError);
-          throw new Error('Failed to deserialize transaction. Please try again.');
+          console.error(
+            '❌ Error deserializing transaction:',
+            deserializeError
+          );
+          throw new Error(
+            'Failed to deserialize transaction. Please try again.'
+          );
         }
 
         console.log('✅ Transaction signed by user');
-        console.log('📦 Signed transaction type:', signedTx.constructor.name);
+        console.log(
+          '📦 Signed transaction type:',
+          signedTx.constructor.name
+        );
 
         // Serialize signed transaction
         let signedTransactionBase64;
         if (pendingAction.action === 'swap_tokens') {
           // For VersionedTransaction, serialize returns Uint8Array directly
           const serialized = signedTx.serialize();
-          console.log('📦 Serialized versioned transaction length:', serialized.length);
-          signedTransactionBase64 = Buffer.from(serialized).toString('base64');
+          console.log(
+            '📦 Serialized versioned transaction length:',
+            serialized.length
+          );
+          signedTransactionBase64 =
+            Buffer.from(serialized).toString('base64');
         } else {
           // For regular Transaction, serialize returns Buffer
-          signedTransactionBase64 = signedTx.serialize().toString('base64');
+          signedTransactionBase64 = signedTx
+            .serialize()
+            .toString('base64');
         }
 
-        console.log('📦 Base64 transaction length:', signedTransactionBase64.length);
+        console.log(
+          '📦 Base64 transaction length:',
+          signedTransactionBase64.length
+        );
 
         // Submit signed transaction to backend
         console.log('📤 Submitting signed transaction to backend...');
@@ -292,8 +389,13 @@ export default function AstroChatBox() {
         setPendingAction(null);
       } else {
         // For other actions (check_balance, etc.), use the old flow
-        console.log('⚠️ Using old execution flow for action:', pendingAction.action);
-        console.log('⚠️ This requires Privy embedded wallet on backend');
+        console.log(
+          '⚠️ Using old execution flow for action:',
+          pendingAction.action
+        );
+        console.log(
+          '⚠️ This requires Privy embedded wallet on backend'
+        );
         await executeTransaction(
           pendingAction.action,
           pendingAction.params,
@@ -313,17 +415,86 @@ export default function AstroChatBox() {
     setPendingAction(null);
   };
 
+  // Handler for placing a bet from prediction market cards
+  const handlePlaceBet = (marketId: string, betType: 'YES' | 'NO') => {
+    // Find the market question from the messages
+    const predictionMessage = localMessages.find((msg) => {
+      const result = msg.executionResult as any;
+      return result?.cards?.some((card: any) =>
+        card.markets?.some((m: any) => m.id === marketId)
+      );
+    });
+
+    const marketQuestion =
+      predictionMessage?.executionResult?.cards
+        ?.flatMap((card: any) => card.markets || [])
+        .find((m: any) => m.id === marketId)?.question || 'Market bet';
+
+    // Show the bet amount modal
+    setBetModal({
+      marketId,
+      marketQuestion,
+      betType,
+    });
+  };
+
+  // Handler for confirming the bet amount
+  const handleConfirmBetAmount = (amount: number, currency: Currency) => {
+    if (!betModal) return;
+
+    // Send a natural language command to place a bet
+    const betCommand = `Place a bet of ${amount} ${currency} on ${betModal.betType} for market ${betModal.marketId}`;
+    sendMessage(betCommand);
+
+    // Close the modal
+    setBetModal(null);
+  };
+
+  // Handler for canceling the bet amount modal
+  const handleCancelBetAmount = () => {
+    setBetModal(null);
+  };
+
+  // Handler for confirming a bet
+  const handleConfirmBet = () => {
+    // Send confirmation message
+    sendMessage('confirm');
+  };
+
+  // Handler for canceling a bet
+  const handleCancelBet = () => {
+    // Send cancel message
+    sendMessage('cancel');
+  };
+
   const renderMessage = (message: AstroMessage) => {
     const isAstro = message.sender === 'astro';
+
+    // Check if this message contains prediction market cards
+    const executionResult = message.executionResult as any;
+    const hasPredictionCards = executionResult?.displayType === 'cards' &&
+                               isPredictionMarketsResponse(executionResult);
+    const hasBetCard = executionResult?.displayType === 'bet_card' &&
+                       isBetConfirmationResponse(executionResult);
 
     return (
       <div
         key={message.id}
-        className={`flex ${isAstro ? 'justify-start' : 'justify-end'}`}
+        className={`flex ${
+          isAstro ? 'justify-start' : 'justify-end'
+        }`}
       >
-        <div className={`flex flex-col ${isAstro ? 'items-start' : 'items-end'}`}>
+        <div
+          className={`flex flex-col ${
+            isAstro ? 'items-start' : 'items-end'
+          } ${hasPredictionCards || hasBetCard ? 'w-full' : ''}`}
+        >
           <div
-            className={`max-w-xs lg:max-w-md px-4 py-2 rounded-lg ${
+            className={`${
+              hasPredictionCards || hasBetCard
+                ? 'w-full'
+                : 'max-w-xs lg:max-w-md'
+            } px-4 py-2 rounded-lg ${
               isAstro
                 ? 'bg-white rounded-bl-none shadow-small'
                 : 'bg-gray-300 text-black rounded-br-none'
@@ -337,6 +508,28 @@ export default function AstroChatBox() {
             <div className="text-sm whitespace-pre-wrap break-words">
               {message.content}
             </div>
+
+            {/* Render Prediction Market Cards */}
+            {hasPredictionCards && (
+              <div className="mt-4">
+                <PredictionMarketCards
+                  data={executionResult}
+                  onBet={handlePlaceBet}
+                />
+              </div>
+            )}
+
+            {/* Render Bet Confirmation Card */}
+            {hasBetCard && (
+              <div className="mt-4">
+                <BetConfirmationCard
+                  data={executionResult}
+                  onConfirm={handleConfirmBet}
+                  onCancel={handleCancelBet}
+                  isLoading={isTyping}
+                />
+              </div>
+            )}
 
             {/* Show action badge if present */}
             {message.action && message.action !== 'general_chat' && (
@@ -400,7 +593,9 @@ export default function AstroChatBox() {
                 <span className="flex items-center gap-1">
                   <span className="inline-block w-2 h-2 rounded-full bg-green-500"></span>
                   Online
-                  {wallet && <span> • {wallet.balance.toFixed(4)} SOL</span>}
+                  {wallet && (
+                    <span> • {wallet.balance.toFixed(4)} SOL</span>
+                  )}
                 </span>
               ) : (
                 <span className="flex items-center gap-1">
@@ -444,9 +639,9 @@ export default function AstroChatBox() {
               Meet Astro, Your Solana AI Assistant
             </h3>
             <p className="text-gray-600 max-w-md">
-              I can help you with Solana operations like checking balances,
-              transferring SOL, swapping tokens, and answering questions about
-              Solana!
+              I can help you with Solana operations like checking
+              balances, transferring SOL, swapping tokens, and
+              answering questions about Solana!
             </p>
             <div className="mt-6 grid grid-cols-1 gap-2 w-full max-w-md">
               {[
@@ -461,7 +656,9 @@ export default function AstroChatBox() {
                 >
                   <div className="flex items-center gap-2">
                     <Sparkles className="h-3 w-3 text-blue-600 flex-shrink-0" />
-                    <span className="text-xs text-gray-700">{suggestion}</span>
+                    <span className="text-xs text-gray-700">
+                      {suggestion}
+                    </span>
                   </div>
                 </button>
               ))}
@@ -476,8 +673,14 @@ export default function AstroChatBox() {
           <div className="flex items-center gap-2 text-gray-600 text-sm">
             <div className="typing-dots flex gap-1">
               <span className="w-2 h-2 bg-gray-600 rounded-full animate-bounce" />
-              <span className="w-2 h-2 bg-gray-600 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }} />
-              <span className="w-2 h-2 bg-gray-600 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }} />
+              <span
+                className="w-2 h-2 bg-gray-600 rounded-full animate-bounce"
+                style={{ animationDelay: '0.1s' }}
+              />
+              <span
+                className="w-2 h-2 bg-gray-600 rounded-full animate-bounce"
+                style={{ animationDelay: '0.2s' }}
+              />
             </div>
             Astro is typing...
           </div>
@@ -507,7 +710,12 @@ export default function AstroChatBox() {
             <AlertCircle className="h-5 w-5 text-purple-600 mt-0.5" />
             <div className="flex-1">
               <p className="text-sm font-medium text-purple-900 mb-1">
-                Confirm this {pendingAction.action === 'transfer_sol' || pendingAction.action === 'transfer_token' ? 'transaction' : 'action'}?
+                Confirm this{' '}
+                {pendingAction.action === 'transfer_sol' ||
+                pendingAction.action === 'transfer_token'
+                  ? 'transaction'
+                  : 'action'}
+                ?
               </p>
               <p className="text-xs text-purple-700">
                 Action: {pendingAction.action.replace(/_/g, ' ')}
@@ -516,22 +724,82 @@ export default function AstroChatBox() {
                 <div className="mt-2 text-xs text-purple-700 space-y-1">
                   {pendingAction.action === 'swap_tokens' ? (
                     <>
-                      {pendingAction.transactionData.swapMode === 'ExactOut' ? (
+                      {pendingAction.transactionData.swapMode ===
+                      'ExactOut' ? (
                         <>
-                          <p>• You pay: ~{pendingAction.transactionData.quote?.inputAmount ? (Number(pendingAction.transactionData.quote.inputAmount) / Math.pow(10, 9)).toFixed(4) : '...'} {pendingAction.transactionData.fromTokenSymbol}</p>
-                          <p>• You receive: {pendingAction.transactionData.outputAmount} {pendingAction.transactionData.toTokenSymbol}</p>
+                          <p>
+                            • You pay: ~
+                            {pendingAction.transactionData.quote
+                              ?.inputAmount
+                              ? (
+                                  Number(
+                                    pendingAction.transactionData
+                                      .quote.inputAmount
+                                  ) / Math.pow(10, 9)
+                                ).toFixed(4)
+                              : '...'}{' '}
+                            {
+                              pendingAction.transactionData
+                                .fromTokenSymbol
+                            }
+                          </p>
+                          <p>
+                            • You receive:{' '}
+                            {
+                              pendingAction.transactionData
+                                .outputAmount
+                            }{' '}
+                            {
+                              pendingAction.transactionData
+                                .toTokenSymbol
+                            }
+                          </p>
                         </>
                       ) : (
                         <>
-                          <p>• You pay: {pendingAction.transactionData.amount} {pendingAction.transactionData.fromTokenSymbol}</p>
-                          <p>• You receive: ~{pendingAction.transactionData.quote?.outputAmount ? (Number(pendingAction.transactionData.quote.outputAmount) / Math.pow(10, 9)).toFixed(4) : '...'} {pendingAction.transactionData.toTokenSymbol}</p>
+                          <p>
+                            • You pay:{' '}
+                            {pendingAction.transactionData.amount}{' '}
+                            {
+                              pendingAction.transactionData
+                                .fromTokenSymbol
+                            }
+                          </p>
+                          <p>
+                            • You receive: ~
+                            {pendingAction.transactionData.quote
+                              ?.outputAmount
+                              ? (
+                                  Number(
+                                    pendingAction.transactionData
+                                      .quote.outputAmount
+                                  ) / Math.pow(10, 9)
+                                ).toFixed(4)
+                              : '...'}{' '}
+                            {
+                              pendingAction.transactionData
+                                .toTokenSymbol
+                            }
+                          </p>
                         </>
                       )}
                     </>
                   ) : (
                     <>
-                      <p>• Amount: {pendingAction.transactionData.amount} {pendingAction.transactionData.tokenSymbol || 'SOL'}</p>
-                      <p>• To: {pendingAction.transactionData.toEnsName || pendingAction.transactionData.to?.slice(0, 8) + '...'}</p>
+                      <p>
+                        • Amount:{' '}
+                        {pendingAction.transactionData.amount}{' '}
+                        {pendingAction.transactionData.tokenSymbol ||
+                          'SOL'}
+                      </p>
+                      <p>
+                        • To:{' '}
+                        {pendingAction.transactionData.toEnsName ||
+                          pendingAction.transactionData.to?.slice(
+                            0,
+                            8
+                          ) + '...'}
+                      </p>
                     </>
                   )}
                 </div>
@@ -606,6 +874,17 @@ export default function AstroChatBox() {
           </p>
         )}
       </div>
+
+      {/* Bet Amount Modal */}
+      {betModal && (
+        <BetAmountModal
+          marketId={betModal.marketId}
+          marketQuestion={betModal.marketQuestion}
+          betType={betModal.betType}
+          onConfirm={handleConfirmBetAmount}
+          onCancel={handleCancelBetAmount}
+        />
+      )}
     </div>
   );
 }

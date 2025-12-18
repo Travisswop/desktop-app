@@ -4,7 +4,7 @@ import { ChainType } from '@/types/token';
 export const SUPPORTED_CHAINS: ChainType[] = [
   'ETHEREUM',
   'POLYGON',
-
+  'BASE',
   'SOLANA',
 ] as const;
 
