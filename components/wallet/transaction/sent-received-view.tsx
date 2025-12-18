@@ -1,14 +1,7 @@
 "use client";
 import Image from "next/image";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 
 import { ArrowLeft, ExternalLink, Wallet } from "lucide-react";
-import { Card, CardContent } from "@/components/ui/card";
 import { Transaction } from "@/types/transaction";
 import Link from "next/link";
 import CustomModal from "@/components/modal/CustomModal";
@@ -59,7 +52,7 @@ const SentReceivedView = ({
 }: TransactionDetailsProps) => {
   if (!transaction) return null;
 
-  console.log("networkhola", network);
+  console.log("transaction", transaction);
 
   const formattedDate = new Date(
     parseInt(transaction.timeStamp) * 1000
@@ -138,7 +131,13 @@ const SentReceivedView = ({
                   </div>
                   <div className="text-right">
                     <div className="text-red-500">
-                      -{transaction.value} {transaction.tokenSymbol}
+                      -
+                      {parseFloat(transaction.value).toFixed(
+                        !isNaN(transaction.tokenDecimal)
+                          ? transaction.tokenDecimal
+                          : 6
+                      )}{" "}
+                      {transaction.tokenSymbol}
                     </div>
                     <div className="text-gray-400">
                       ${" "}
@@ -170,7 +169,13 @@ const SentReceivedView = ({
                   </div>
                   <div className="text-right">
                     <div className="text-green-500">
-                      +{transaction.value} {transaction.tokenSymbol}
+                      +
+                      {parseFloat(transaction.value).toFixed(
+                        !isNaN(transaction.tokenDecimal)
+                          ? transaction.tokenDecimal
+                          : 6
+                      )}{" "}
+                      {transaction.tokenSymbol}
                     </div>
                     <div className="text-gray-400">
                       ${" "}

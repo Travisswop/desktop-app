@@ -1,55 +1,48 @@
-'use client';
+"use client";
 
-import { useCallback, useEffect, useState } from 'react';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Checkbox } from '@/components/ui/checkbox';
-import {
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card';
-import { OnboardingData } from '@/lib/types';
-import { useWallets } from '@privy-io/react-auth';
-import { useSolanaWallets } from '@privy-io/react-auth/solana';
-import { useToast } from '@/hooks/use-toast';
-import { useRouter } from 'next/navigation';
-import Image from 'next/image';
-import { Loader2 } from 'lucide-react';
+import { useCallback, useEffect, useState } from "react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { useWallets } from "@privy-io/react-auth";
+import { useSolanaWallets } from "@privy-io/react-auth/solana";
+import { useToast } from "@/hooks/use-toast";
+import { useRouter } from "next/navigation";
+import { Loader2, ArrowRight } from "lucide-react";
+import Image from "next/image";
+import swopImg from "@/public/images/swop-world.png";
 
-import astronot from '@/public/onboard/astronot.svg';
-import bluePlanet from '@/public/onboard/blue-planet.svg';
-import yellowPlanet from '@/public/onboard/yellow-planet.svg';
+interface OnboardingData {
+  userInfo?: {
+    avatar?: string;
+    primaryMicrosite?: string;
+  };
+}
 
 interface CreateSwopIDProps {
   userData: OnboardingData;
 }
 
 type AvailabilityMessage = {
-  type: 'error' | 'success' | null;
+  type: "error" | "success" | null;
   message: string;
 };
 
 const SWOP_ID_REGEX = /^[a-z0-9-]{3,10}$/;
-const SWOP_ID_GATEWAY =
-  'https://swop-id-ens-gateway.swop.workers.dev'; //may need to place it in middleware script
+const SWOP_ID_GATEWAY = "https://swop-id-ens-gateway.swop.workers.dev";
 
-export default function CreateSwopID({
-  userData,
-}: CreateSwopIDProps) {
+export default function CreateSwopID({ userData }: CreateSwopIDProps) {
   const { wallets } = useWallets();
   const { wallets: solanaWallets } = useSolanaWallets();
   const { toast } = useToast();
   const router = useRouter();
 
-  const [swopID, setSwopID] = useState('');
-  const [agreeToTerms, setAgreeToTerms] = useState(false);
+  const [swopID, setSwopID] = useState("");
   const [isChecking, setIsChecking] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [availabilityMessage, setAvailabilityMessage] =
     useState<AvailabilityMessage>({
       type: null,
-      message: '',
+      message: "",
     });
 
   const validateSwopID = useCallback((id: string): boolean => {
@@ -58,41 +51,38 @@ export default function CreateSwopID({
 
   const checkSwopIDAvailability = useCallback(async () => {
     if (!swopID) {
-      setAvailabilityMessage({ type: null, message: '' });
+      setAvailabilityMessage({ type: null, message: "" });
       return;
     }
 
     if (!validateSwopID(swopID)) {
       setAvailabilityMessage({
-        type: 'error',
+        type: "error",
         message:
-          'SwopID must be 3-10 characters long and can only contain letters, numbers, and hyphens',
+          "SwopID must be 3-10 characters long and can only contain letters, numbers, and hyphens",
       });
       return;
     }
 
     setIsChecking(true);
     try {
-      const response = await fetch(
-        `${SWOP_ID_GATEWAY}/get/${swopID}.swop.id`
-      );
+      const response = await fetch(`${SWOP_ID_GATEWAY}/get/${swopID}.swop.id`);
 
       setAvailabilityMessage(
         response.ok
-          ? { type: 'error', message: 'This SwopID is already taken' }
+          ? { type: "error", message: "This SwopID is already taken" }
           : response.status === 404
-          ? { type: 'success', message: 'This SwopID is available!' }
+          ? { type: "success", message: "This SwopID is available!" }
           : {
-              type: 'error',
-              message:
-                'Failed to check availability. Please try again.',
+              type: "error",
+              message: "Failed to check availability. Please try again.",
             }
       );
     } catch (error) {
-      console.error('Error checking SwopID:', error);
+      console.error("Error checking SwopID:", error);
       setAvailabilityMessage({
-        type: 'error',
-        message: 'Failed to check availability. Please try again.',
+        type: "error",
+        message: "Failed to check availability. Please try again.",
       });
     } finally {
       setIsChecking(false);
@@ -106,22 +96,19 @@ export default function CreateSwopID({
 
   const createSwopID = useCallback(async () => {
     try {
-      // Find an appropriate Ethereum wallet
       const ethereumWallet = wallets.find(
         (wallet: any) =>
-          wallet.type === 'ethereum' &&
-          wallet.walletClientType === 'privy'
+          wallet.type === "ethereum" && wallet.walletClientType === "privy"
       );
 
       if (!ethereumWallet) {
-        throw new Error('No Ethereum wallet available');
+        throw new Error("No Ethereum wallet available");
       }
 
-      // Get the first available Solana wallet
       const solanaWallet = solanaWallets?.[0];
       if (!solanaWallet) {
         console.warn(
-          'No Solana wallet available, proceeding with Ethereum only'
+          "No Solana wallet available, proceeding with Ethereum only"
         );
       }
 
@@ -131,7 +118,7 @@ export default function CreateSwopID({
       const message = `Set ${ens} to ${address}`;
 
       const signature = await provider.request({
-        method: 'personal_sign',
+        method: "personal_sign",
         params: [message, address],
       });
 
@@ -140,13 +127,10 @@ export default function CreateSwopID({
         owner: address,
         addresses: {
           60: address,
-          // Only include Solana if wallet exists
-          ...(solanaWallet?.address
-            ? { 501: solanaWallet.address }
-            : {}),
+          ...(solanaWallet?.address ? { 501: solanaWallet.address } : {}),
         },
         texts: {
-          avatar: userData.userInfo?.avatar || '',
+          avatar: userData.userInfo?.avatar || "",
         },
         signature: {
           hash: signature,
@@ -154,187 +138,146 @@ export default function CreateSwopID({
         },
       };
 
-      console.log('requestBody', requestBody);
-
       const response = await fetch(`${SWOP_ID_GATEWAY}/set`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(requestBody),
       });
-
-      console.log('response ens set', await response.json());
 
       if (!response.ok) {
         const errorData = await response.text();
         throw new Error(`Failed to create Swop ID: ${errorData}`);
       }
 
-      const res = await fetch(
+      await fetch(
         `${process.env.NEXT_PUBLIC_API_URL}/api/v2/desktop/user/addSocial`,
         {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            contentType: 'ensDomain',
+            contentType: "ensDomain",
             micrositeId: userData.userInfo?.primaryMicrosite,
             domain: ens,
           }),
         }
       );
 
-      console.log('res add social', await res.json());
-
       toast({
-        title: 'Success',
-        description: 'SwopID created successfully!',
+        title: "Success",
+        description: "SwopID created successfully!",
       });
 
       setTimeout(() => {
         setIsSubmitting(false);
-        // router.push("/");
+        router.push("/");
       }, 2000);
     } catch (error) {
-      console.error('Error creating SwopID:', error);
+      console.error("Error creating SwopID:", error);
       toast({
-        variant: 'destructive',
-        title: 'Error',
+        variant: "destructive",
+        title: "Error",
         description:
-          error instanceof Error
-            ? error.message
-            : 'Failed to create SwopID',
+          error instanceof Error ? error.message : "Failed to create SwopID",
       });
       setIsSubmitting(false);
     }
   }, [swopID, userData, toast, router, solanaWallets, wallets]);
 
-  const handleSubmit = useCallback(
-    async (e: React.FormEvent) => {
-      e.preventDefault();
+  const handleSubmit = async () => {
+    if (!swopID || availabilityMessage.type !== "success") {
+      return;
+    }
 
-      if (
-        !swopID ||
-        availabilityMessage.type !== 'success' ||
-        !agreeToTerms
-      ) {
-        return;
-      }
+    setIsSubmitting(true);
+    await createSwopID();
+    router.push("/");
+  };
 
-      setIsSubmitting(true);
-
-      await createSwopID();
-      router.push('/');
-    },
-    [
-      swopID,
-      availabilityMessage.type,
-      agreeToTerms,
-      wallets,
-      toast,
-      createSwopID,
-    ]
-  );
+  const handleKeyPress = (e: React.KeyboardEvent) => {
+    if (e.key === "Enter") {
+      handleSubmit();
+    }
+  };
 
   return (
-    <div className="relative w-full max-w-lg mx-auto border-0 my-24">
-      <div className="absolute -top-28 left-0">
-        <Image
-          src={astronot}
-          alt="astronot image"
-          className="w-40 h-auto"
-        />
-      </div>
-      <div className="absolute -bottom-28 -left-10">
-        <Image
-          src={yellowPlanet}
-          alt="yellow planet"
-          className="w-40 h-auto"
-        />
-      </div>
-      <div className="absolute -top-14 -right-24">
-        <Image
-          src={bluePlanet}
-          alt="blue planet"
-          className="w-48 h-auto"
-        />
-      </div>
-      <div className="backdrop-blur-[50px] bg-white bg-opacity-25 shadow-uniform rounded-xl">
-        <CardHeader className="text-center pt-10 px-8">
-          <CardTitle className="text-2xl font-bold text-navy-blue">
-            Create Your Swop.ID
-          </CardTitle>
-          <p className="text-sm text-muted-foreground">
-            Select your favorite Swop ID to log in Swop
-          </p>
-        </CardHeader>
-        <CardContent className="pb-10 px-8">
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="relative">
-              <Input
-                id="trackTitle"
-                value={swopID}
-                onChange={(e) => setSwopID(e.target.value)}
-                className="pr-20 text-lg py-6 focus-visible:!ring-1 !ring-gray-300"
-                placeholder="Enter swop username"
-                disabled={isChecking}
-              />
-              <div className="absolute inset-y-0 right-0 flex items-center px-3 pointer-events-none">
-                <span className="text-base font-semibold tracking-wide text-muted-foreground">
-                  .SWOP.ID
-                </span>
-              </div>
-            </div>
-            {availabilityMessage.type && (
-              <p
-                className={`text-sm ${
-                  availabilityMessage.type === 'error'
-                    ? 'text-red-500'
-                    : 'text-green-500'
-                }`}
-              >
-                {availabilityMessage.message}
-              </p>
-            )}
+    <div className="min-h-screen bg-white flex items-center justify-center p-4 w-full">
+      <div className="w-full max-w-2xl">
+        {/* Planet logo */}
+        <div className="flex justify-center mb-8">
+          <Image src={swopImg} alt="swop image" className="w-32 h-auto" />
+        </div>
 
-            <div className="flex items-start space-x-2">
-              <Checkbox
-                id="terms"
-                checked={agreeToTerms}
-                onCheckedChange={(checked) =>
-                  setAgreeToTerms(checked as boolean)
-                }
-                className="translate-y-1"
-              />
-              <label
-                htmlFor="terms"
-                className="text-sm text-muted-foreground cursor-pointer"
-              >
-                By clicking this check box, you agree to create a
-                wallet using this ENS address.
+        {/* Main Card */}
+        <div className="bg-white rounded-3xl shadow-medium p-12">
+          <div className="text-center mb-8">
+            <h1 className="text-2xl font-semibold text-gray-900 mb-3">
+              Claim Your Link
+            </h1>
+            <p className="text-gray-500">
+              Swopple.ID lets wallet users send crypto and NFTs with
+              <br />a simple username
+            </p>
+          </div>
+
+          {/* Input Section */}
+          <div className="space-y-6">
+            <div>
+              <label className="flex items-center gap-1 text-sm font-medium text-gray-900 mb-3">
+                Username
+                <svg
+                  className="w-4 h-4 text-gray-400"
+                  fill="currentColor"
+                  viewBox="0 0 20 20"
+                >
+                  <path
+                    fillRule="evenodd"
+                    d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z"
+                    clipRule="evenodd"
+                  />
+                </svg>
               </label>
-            </div>
 
-            <Button
-              className="w-full bg-black text-white hover:bg-gray-800"
-              type="submit"
-              disabled={
-                !swopID ||
-                availabilityMessage.type !== 'success' ||
-                !agreeToTerms ||
-                isChecking ||
-                isSubmitting
-              }
-            >
-              {isChecking ? 'Checking availability...' : 'Next'}
-              {isSubmitting && (
-                <Loader2 className="w-4 h-4 animate-spin ml-2" />
+              <div className="relative">
+                <Input
+                  value={swopID}
+                  onChange={(e) => setSwopID(e.target.value)}
+                  onKeyPress={handleKeyPress}
+                  className="w-full h-14 pl-6 pr-24 text-base rounded-xl border-gray-200 focus:border-gray-300 focus:ring-0"
+                  placeholder="Claim a Swop.ID"
+                  disabled={isChecking || isSubmitting}
+                />
+                <Button
+                  onClick={handleSubmit}
+                  disabled={
+                    !swopID ||
+                    availabilityMessage.type !== "success" ||
+                    isChecking ||
+                    isSubmitting
+                  }
+                  className="absolute right-2 top-1/2 -translate-y-1/2 h-10 w-10 p-0 bg-black hover:bg-gray-800 rounded-lg"
+                >
+                  {isSubmitting ? (
+                    <Loader2 className="w-5 h-5 animate-spin" />
+                  ) : (
+                    <ArrowRight className="w-5 h-5" />
+                  )}
+                </Button>
+              </div>
+
+              {availabilityMessage.type && (
+                <p
+                  className={`text-sm mt-2 ${
+                    availabilityMessage.type === "error"
+                      ? "text-red-500"
+                      : "text-green-500"
+                  }`}
+                >
+                  {availabilityMessage.message}
+                </p>
               )}
-            </Button>
-          </form>
-        </CardContent>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   );

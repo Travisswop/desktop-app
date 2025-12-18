@@ -1,5 +1,5 @@
 "use client";
-import React, { useRef, useState } from "react";
+import React, { useRef, useState, useEffect } from "react";
 import { X } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
@@ -24,6 +24,21 @@ const CustomModal: React.FC<CustomModalProps> = ({
 }) => {
   const modalRef = useRef<HTMLDivElement>(null);
   const [mouseDownOnBackdrop, setMouseDownOnBackdrop] = useState(false);
+
+  // Lock body scroll when modal is open
+  useEffect(() => {
+    if (isOpen) {
+      // Save current overflow value
+      const originalOverflow = document.body.style.overflow;
+      // Prevent scrolling
+      document.body.style.overflow = "hidden";
+
+      // Restore original overflow when modal closes
+      return () => {
+        document.body.style.overflow = originalOverflow;
+      };
+    }
+  }, [isOpen]);
 
   const handleBackdropMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
     if (e.button !== 0) return;
@@ -63,7 +78,6 @@ const CustomModal: React.FC<CustomModalProps> = ({
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
         >
-          {/* Animate this wrapper (it will animate when children change height) */}
           <motion.div
             ref={modalRef}
             layout
@@ -73,8 +87,6 @@ const CustomModal: React.FC<CustomModalProps> = ({
             transition={{ type: "spring", stiffness: 300, damping: 28 }}
             className={`bg-white rounded-2xl shadow-lg w-full ${width} relative overflow-hidden`}
             onClick={(e) => e.stopPropagation()}
-            // IMPORTANT: don't force the modal height via flex: instead, let it size to content,
-            // and put a scrollable inner area with a max-height.
             style={{ maxHeight: "90vh" }}
           >
             {/* Header */}
@@ -96,8 +108,7 @@ const CustomModal: React.FC<CustomModalProps> = ({
               </div>
             )}
 
-            {/* CONTENT: make an inner scroll area that only scrolls when needed.
-                Notice: no flex-1 here; the modal will grow/shrink with content and animate. */}
+            {/* Content with scroll */}
             <motion.div
               layout
               transition={{ layout: { duration: 0.1, ease: "easeOut" } }}

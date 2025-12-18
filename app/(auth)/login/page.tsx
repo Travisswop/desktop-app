@@ -1,35 +1,35 @@
-'use client';
+"use client";
 
-import { createLoginWalletBalance } from '@/actions/createWallet';
-import Loader from '@/components/loading/Loader';
-import { Card } from '@/components/ui/card';
-import { useUser } from '@/lib/UserContext';
-import astronot from '@/public/onboard/astronot.svg';
-import blackPlanet from '@/public/onboard/black-planet.svg';
-import swopLogo from '@/public/swopLogo.png';
-import { WalletItem } from '@/types/wallet';
+import { createLoginWalletBalance } from "@/actions/createWallet";
+import Loader from "@/components/loading/Loader";
+import { Card } from "@/components/ui/card";
+import { useUser } from "@/lib/UserContext";
+import astronot from "@/public/onboard/astronot.svg";
+import blackPlanet from "@/public/onboard/black-planet.svg";
+import swopLogo from "@/public/swopLogo.png";
+import { WalletItem } from "@/types/wallet";
 import {
   useCreateWallet,
   useLoginWithEmail,
   usePrivy,
-} from '@privy-io/react-auth';
-import { useSolanaWallets } from '@privy-io/react-auth/solana';
-import Image from 'next/image';
-import { useRouter } from 'next/navigation';
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { GoArrowLeft } from 'react-icons/go';
-import { LuArrowRight } from 'react-icons/lu';
-import { RiMailSendLine } from 'react-icons/ri';
-import Cookies from 'js-cookie';
-import logger from '@/utils/logger';
+} from "@privy-io/react-auth";
+import { useSolanaWallets } from "@privy-io/react-auth/solana";
+import Image from "next/image";
+import { useRouter } from "next/navigation";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { GoArrowLeft } from "react-icons/go";
+import { LuArrowRight } from "react-icons/lu";
+import { RiMailSendLine } from "react-icons/ri";
+import Cookies from "js-cookie";
+import logger from "@/utils/logger";
 
 // Login flow states
 enum LoginFlow {
-  EMAIL_INPUT = 'email_input',
-  OTP_INPUT = 'otp_input',
-  PROCESSING = 'processing',
-  SUCCESS = 'success',
-  ERROR = 'error',
+  EMAIL_INPUT = "email_input",
+  OTP_INPUT = "otp_input",
+  PROCESSING = "processing",
+  SUCCESS = "success",
+  ERROR = "error",
 }
 
 // Wallet creation status
@@ -50,65 +50,90 @@ const Login: React.FC = () => {
   const { isAuthenticated } = useUser();
   const router = useRouter();
 
-  console.log(
-    'isAuthenticated',
-    isAuthenticated,
-    authenticated,
-    ready
-  );
+  console.log("isAuthenticated", isAuthenticated, authenticated, ready);
 
   // State management
-  const [loginFlow, setLoginFlow] = useState<LoginFlow>(
-    LoginFlow.EMAIL_INPUT
-  );
-  const [email, setEmail] = useState('');
-  const [emailError, setEmailError] = useState('');
+  const [loginFlow, setLoginFlow] = useState<LoginFlow>(LoginFlow.EMAIL_INPUT);
+  const [email, setEmail] = useState("");
+  const [emailError, setEmailError] = useState("");
   const [loginError, setLoginError] = useState<string | null>(null);
-  const [walletStatus, setWalletStatus] =
-    useState<WalletCreationStatus>({
-      ethereum: false,
-      solana: false,
-      inProgress: false,
-    });
+  const [walletStatus, setWalletStatus] = useState<WalletCreationStatus>({
+    ethereum: false,
+    solana: false,
+    inProgress: false,
+  });
 
   // OTP state
   const otpLength = 6;
-  const [otp, setOtp] = useState(new Array(otpLength).fill(''));
+  const [otp, setOtp] = useState(new Array(otpLength).fill(""));
   const inputRefs = useRef<Array<HTMLInputElement | null>>(
     new Array(otpLength).fill(null)
   );
+
+  // Timer state
+  const [timeRemaining, setTimeRemaining] = useState(480); // 8 minutes = 480 seconds
+  const [canResend, setCanResend] = useState(false);
+  const timerRef = useRef<NodeJS.Timeout | null>(null);
 
   // Refs for preventing race conditions
   const loginProcessingRef = useRef(false);
   const redirectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
+  // Format time as MM:SS
+  const formatTime = (seconds: number): string => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins}:${secs.toString().padStart(2, "0")}`;
+  };
+
+  // Start timer when OTP screen is shown
+  useEffect(() => {
+    if (loginFlow === LoginFlow.OTP_INPUT) {
+      setTimeRemaining(480);
+      setCanResend(false);
+
+      timerRef.current = setInterval(() => {
+        setTimeRemaining((prev) => {
+          if (prev <= 1) {
+            setCanResend(true);
+            if (timerRef.current) {
+              clearInterval(timerRef.current);
+            }
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+    }
+
+    return () => {
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+      }
+    };
+  }, [loginFlow]);
+
   // Email validation
   const validateEmail = useCallback((email: string): string => {
-    if (!email.trim()) return 'Email is required';
+    if (!email.trim()) return "Email is required";
 
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(email))
-      return 'Please enter a valid email address';
+    if (!emailRegex.test(email)) return "Please enter a valid email address";
 
-    return '';
+    return "";
   }, []);
 
   // Extract email from Privy user
-  const extractEmailFromUser = useCallback(
-    (user: any): string | null => {
-      return (
-        user?.google?.email ||
-        user?.email?.address ||
-        user?.linkedAccounts?.find((acc: any) => acc.type === 'email')
-          ?.address ||
-        user?.linkedAccounts?.find(
-          (acc: any) => acc.type === 'google_oauth'
-        )?.email ||
-        null
-      );
-    },
-    []
-  );
+  const extractEmailFromUser = useCallback((user: any): string | null => {
+    return (
+      user?.google?.email ||
+      user?.email?.address ||
+      user?.linkedAccounts?.find((acc: any) => acc.type === "email")?.address ||
+      user?.linkedAccounts?.find((acc: any) => acc.type === "google_oauth")
+        ?.email ||
+      null
+    );
+  }, []);
 
   // Process wallet data
   const processWalletData = useCallback((user: any): WalletItem[] => {
@@ -117,15 +142,15 @@ const Login: React.FC = () => {
     return user.linkedAccounts
       .filter(
         (account: any) =>
-          (account.chainType === 'ethereum' ||
-            account.chainType === 'solana') &&
-          (account.walletClientType === 'privy' ||
-            account.connectorType === 'embedded')
+          (account.chainType === "ethereum" ||
+            account.chainType === "solana") &&
+          (account.walletClientType === "privy" ||
+            account.connectorType === "embedded")
       )
       .map((account: any) => ({
         address: account.address,
         isActive: true,
-        isEVM: account.chainType === 'ethereum',
+        isEVM: account.chainType === "ethereum",
         walletClientType: account.walletClientType,
       }));
   }, []);
@@ -141,21 +166,21 @@ const Login: React.FC = () => {
         const existingWallets = user?.linkedAccounts || [];
         const hasEthWallet = existingWallets.some(
           (acc: any) =>
-            acc.chainType === 'ethereum' &&
-            (acc.walletClientType === 'privy' ||
-              acc.connectorType === 'embedded')
+            acc.chainType === "ethereum" &&
+            (acc.walletClientType === "privy" ||
+              acc.connectorType === "embedded")
         );
         const hasSolWallet = existingWallets.some(
           (acc: any) =>
-            acc.chainType === 'solana' &&
-            (acc.walletClientType === 'privy' ||
-              acc.connectorType === 'embedded')
+            acc.chainType === "solana" &&
+            (acc.walletClientType === "privy" ||
+              acc.connectorType === "embedded")
         );
 
         // Add production debugging
-        const isProduction = process.env.NODE_ENV === 'production';
+        const isProduction = process.env.NODE_ENV === "production";
         if (isProduction) {
-          logger.log('Production wallet creation - User state:', {
+          logger.log("Production wallet creation - User state:", {
             hasEthWallet,
             hasSolWallet,
             linkedAccountsCount: existingWallets.length,
@@ -169,33 +194,29 @@ const Login: React.FC = () => {
           try {
             await createEthereumWallet();
             setWalletStatus((prev) => ({ ...prev, ethereum: true }));
-            logger.log('Ethereum wallet created successfully');
+            logger.log("Ethereum wallet created successfully");
           } catch (error: any) {
             if (
-              error === 'embedded_wallet_already_exists' ||
-              error?.message === 'embedded_wallet_already_exists'
+              error === "embedded_wallet_already_exists" ||
+              error?.message === "embedded_wallet_already_exists"
             ) {
               setWalletStatus((prev) => ({
                 ...prev,
                 ethereum: true,
               }));
-              logger.log('Ethereum wallet already exists');
+              logger.log("Ethereum wallet already exists");
             } else {
-              logger.error('Ethereum wallet creation failed:', error);
-              // In production, log additional details
+              logger.error("Ethereum wallet creation failed:", error);
               if (isProduction) {
-                logger.error(
-                  'Production Ethereum wallet error details:',
-                  {
-                    error: error?.message || error,
-                    stack: error?.stack,
-                    userAgent:
-                      typeof window !== 'undefined'
-                        ? window.navigator.userAgent
-                        : 'server',
-                    timestamp: new Date().toISOString(),
-                  }
-                );
+                logger.error("Production Ethereum wallet error details:", {
+                  error: error?.message || error,
+                  stack: error?.stack,
+                  userAgent:
+                    typeof window !== "undefined"
+                      ? window.navigator.userAgent
+                      : "server",
+                  timestamp: new Date().toISOString(),
+                });
               }
             }
           }
@@ -206,45 +227,40 @@ const Login: React.FC = () => {
           try {
             await createSolanaWallet();
             setWalletStatus((prev) => ({ ...prev, solana: true }));
-            logger.log('Solana wallet created successfully');
+            logger.log("Solana wallet created successfully");
           } catch (error: any) {
             if (
-              error === 'embedded_wallet_already_exists' ||
-              error?.message === 'embedded_wallet_already_exists'
+              error === "embedded_wallet_already_exists" ||
+              error?.message === "embedded_wallet_already_exists"
             ) {
               setWalletStatus((prev) => ({ ...prev, solana: true }));
-              logger.log('Solana wallet already exists');
+              logger.log("Solana wallet already exists");
             } else {
-              logger.error('Solana wallet creation failed:', error);
-              // In production, log additional details
+              logger.error("Solana wallet creation failed:", error);
               if (isProduction) {
-                logger.error(
-                  'Production Solana wallet error details:',
-                  {
-                    error: error?.message || error,
-                    stack: error?.stack,
-                    userAgent:
-                      typeof window !== 'undefined'
-                        ? window.navigator.userAgent
-                        : 'server',
-                    timestamp: new Date().toISOString(),
-                  }
-                );
+                logger.error("Production Solana wallet error details:", {
+                  error: error?.message || error,
+                  stack: error?.stack,
+                  userAgent:
+                    typeof window !== "undefined"
+                      ? window.navigator.userAgent
+                      : "server",
+                  timestamp: new Date().toISOString(),
+                });
               }
             }
           }
         }
       } catch (error) {
-        logger.error('Wallet creation process failed:', error);
-        // In production, log additional details
-        if (process.env.NODE_ENV === 'production') {
-          logger.error('Production wallet creation process error:', {
+        logger.error("Wallet creation process failed:", error);
+        if (process.env.NODE_ENV === "production") {
+          logger.error("Production wallet creation process error:", {
             error: error instanceof Error ? error.message : error,
             stack: error instanceof Error ? error.stack : undefined,
             userAgent:
-              typeof window !== 'undefined'
+              typeof window !== "undefined"
                 ? window.navigator.userAgent
-                : 'server',
+                : "server",
             timestamp: new Date().toISOString(),
           });
         }
@@ -264,7 +280,7 @@ const Login: React.FC = () => {
       !(walletStatus.ethereum && walletStatus.solana)
     ) {
       createPrivyWallets(user).catch((error) => {
-        logger.error('Wallet creation failed (post-auth):', error);
+        logger.error("Wallet creation failed (post-auth):", error);
       });
     }
   }, [
@@ -288,19 +304,19 @@ const Login: React.FC = () => {
       try {
         const userEmail = extractEmailFromUser(user);
         if (!userEmail) {
-          throw new Error('No email found in account');
+          throw new Error("No email found in account");
         }
 
         // Check if user exists in backend
         const apiUrl = `${process.env.NEXT_PUBLIC_API_URL}/api/v2/desktop/user/${userEmail}`;
         const response = await fetch(apiUrl, {
-          headers: { 'Content-Type': 'application/json' },
+          headers: { "Content-Type": "application/json" },
         });
 
         if (!response.ok) {
           if (response.status === 404) {
-            logger.log('User not found, redirecting to onboard');
-            router.push('/onboard');
+            logger.log("User not found, redirecting to onboard");
+            router.push("/onboard");
             return;
           }
           throw new Error(`API error: ${response.status}`);
@@ -308,16 +324,11 @@ const Login: React.FC = () => {
 
         const data = await response.json();
         if (!data?.user?._id) {
-          throw new Error('Invalid user data from backend');
+          throw new Error("Invalid user data from backend");
         }
 
         // Set user ID cookie
-        Cookies.set('user-id', data.user._id.toString());
-
-        // Create wallets (non-blocking)
-        // createPrivyWallets(user).catch((error) => {
-        //   logger.error("Wallet creation failed (non-blocking):", error);
-        // });
+        Cookies.set("user-id", data.user._id.toString());
 
         // Process wallet data for balance update
         const walletData = processWalletData(user);
@@ -329,7 +340,7 @@ const Login: React.FC = () => {
 
         // Update wallet balances (non-blocking)
         createLoginWalletBalance(payload).catch((error) => {
-          logger.error('Wallet balance update failed:', error);
+          logger.error("Wallet balance update failed:", error);
         });
 
         setLoginFlow(LoginFlow.SUCCESS);
@@ -337,13 +348,11 @@ const Login: React.FC = () => {
         // Redirect after short delay
         redirectTimeoutRef.current = setTimeout(() => {
           router.refresh();
-          router.push('/');
+          router.push("/");
         }, 1500);
       } catch (error) {
-        logger.error('Login processing failed:', error);
-        setLoginError(
-          error instanceof Error ? error.message : 'Login failed'
-        );
+        logger.error("Login processing failed:", error);
+        setLoginError(error instanceof Error ? error.message : "Login failed");
         setLoginFlow(LoginFlow.ERROR);
       } finally {
         loginProcessingRef.current = false;
@@ -363,7 +372,7 @@ const Login: React.FC = () => {
         return;
       }
 
-      setEmailError('');
+      setEmailError("");
       sendCode({ email });
       setLoginFlow(LoginFlow.OTP_INPUT);
     },
@@ -372,8 +381,13 @@ const Login: React.FC = () => {
 
   // Handle resend code
   const handleSendCode = useCallback(() => {
-    sendCode({ email });
-  }, [email, sendCode]);
+    if (canResend) {
+      sendCode({ email });
+      setTimeRemaining(480);
+      setCanResend(false);
+      setOtp(new Array(otpLength).fill(""));
+    }
+  }, [email, sendCode, canResend, otpLength]);
 
   // OTP input handlers
   const handleOtpChange = useCallback(
@@ -394,7 +408,7 @@ const Login: React.FC = () => {
 
   const handleOtpKeyDown = useCallback(
     (index: number, e: React.KeyboardEvent) => {
-      if (e.key === 'Backspace' && !otp[index] && index > 0) {
+      if (e.key === "Backspace" && !otp[index] && index > 0) {
         inputRefs.current[index - 1]?.focus();
       }
     },
@@ -404,14 +418,14 @@ const Login: React.FC = () => {
   const handleOtpPaste = useCallback(
     (e: React.ClipboardEvent) => {
       const pasteData = e.clipboardData
-        .getData('text')
+        .getData("text")
         .slice(0, otpLength)
-        .split('');
+        .split("");
       if (pasteData.some((char) => isNaN(Number(char)))) return;
 
       const newOtp = [
         ...pasteData,
-        ...new Array(otpLength - pasteData.length).fill(''),
+        ...new Array(otpLength - pasteData.length).fill(""),
       ];
       setOtp(newOtp);
 
@@ -422,9 +436,7 @@ const Login: React.FC = () => {
         }
       });
 
-      inputRefs.current[
-        Math.min(pasteData.length, otpLength - 1)
-      ]?.focus();
+      inputRefs.current[Math.min(pasteData.length, otpLength - 1)]?.focus();
     },
     [otpLength]
   );
@@ -432,52 +444,43 @@ const Login: React.FC = () => {
   // Redirect authenticated users
   useEffect(() => {
     if (ready && (authenticated || isAuthenticated)) {
-      // Let the UserContext handle the redirect to prevent conflicts
       return;
     }
   }, [ready, authenticated, isAuthenticated]);
 
   // Handle OTP completion and login
   useEffect(() => {
-    const isOtpComplete = otp.every((digit) => digit !== '');
+    const isOtpComplete = otp.every((digit) => digit !== "");
 
     if (
-      state.status === 'awaiting-code-input' &&
+      state.status === "awaiting-code-input" &&
       isOtpComplete &&
       !loginProcessingRef.current
     ) {
-      loginWithCode({ code: otp.join('') });
+      loginWithCode({ code: otp.join("") });
     }
 
     // Handle successful login
-    if (
-      state.status === 'done' &&
-      user &&
-      !loginProcessingRef.current
-    ) {
+    if (state.status === "done" && user && !loginProcessingRef.current) {
       handleLoginSuccess(user);
     }
 
     // Handle login errors
-    if (state.status === 'error') {
-      setLoginError('Invalid verification code. Please try again.');
-      setOtp(new Array(otpLength).fill(''));
+    if (state.status === "error") {
+      setLoginError("Invalid verification code. Please try again.");
+      setOtp(new Array(otpLength).fill(""));
       loginProcessingRef.current = false;
     }
-  }, [
-    otp,
-    state.status,
-    user,
-    loginWithCode,
-    handleLoginSuccess,
-    otpLength,
-  ]);
+  }, [otp, state.status, user, loginWithCode, handleLoginSuccess, otpLength]);
 
   // Cleanup
   useEffect(() => {
     return () => {
       if (redirectTimeoutRef.current) {
         clearTimeout(redirectTimeoutRef.current);
+      }
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
       }
     };
   }, []);
@@ -489,8 +492,8 @@ const Login: React.FC = () => {
         <Loader />
         <p className="mt-4 text-sm text-gray-600">
           {loginFlow === LoginFlow.PROCESSING
-            ? 'Processing your login...'
-            : 'Initializing...'}
+            ? "Processing your login..."
+            : "Initializing..."}
         </p>
       </div>
     );
@@ -521,7 +524,7 @@ const Login: React.FC = () => {
             onClick={() => {
               setLoginError(null);
               setLoginFlow(LoginFlow.EMAIL_INPUT);
-              setOtp(new Array(otpLength).fill(''));
+              setOtp(new Array(otpLength).fill(""));
             }}
           >
             Try Again
@@ -535,12 +538,7 @@ const Login: React.FC = () => {
     <div className="relative w-full max-w-2xl mx-auto p-8 flex justify-center items-center">
       {/* Background Images */}
       <div className="absolute -top-[12%] left-[2%] w-32 h-32 animate-float">
-        <Image
-          src={astronot}
-          alt="astronot"
-          className="w-40 h-auto"
-          priority
-        />
+        <Image src={astronot} alt="astronot" className="w-40 h-auto" priority />
       </div>
       <div className="absolute -bottom-[12%] left-[10%] w-32 h-32">
         <Image
@@ -573,11 +571,11 @@ const Login: React.FC = () => {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 className="flex-1 px-2 py-2 text-gray-600 placeholder-gray-400 outline-none bg-transparent"
-                disabled={state.status === 'sending-code'}
+                disabled={state.status === "sending-code"}
               />
               <button
                 type="submit"
-                disabled={state.status === 'sending-code'}
+                disabled={state.status === "sending-code"}
                 className="bg-black text-white p-2 rounded-lg m-1 px-4 hover:bg-gray-800 transition-colors disabled:opacity-50"
               >
                 <LuArrowRight className="text-gray-50" size={20} />
@@ -585,7 +583,7 @@ const Login: React.FC = () => {
             </form>
 
             <div className="h-6">
-              {state.status === 'sending-code' && (
+              {state.status === "sending-code" && (
                 <span className="text-blue-600">
                   Sending verification code...
                 </span>
@@ -605,7 +603,7 @@ const Login: React.FC = () => {
             <button
               className="text-lg hover:text-gray-600 transition-colors"
               onClick={() => {
-                setOtp(new Array(otpLength).fill(''));
+                setOtp(new Array(otpLength).fill(""));
                 setLoginFlow(LoginFlow.EMAIL_INPUT);
               }}
             >
@@ -615,18 +613,15 @@ const Login: React.FC = () => {
             <button className="text-lg"></button>
           </div>
           {/* Mail Icon */}
-          <RiMailSendLine
-            className="text-indigo-500 mt-6"
-            size={40}
-          />
+          <RiMailSendLine className="text-indigo-500 mt-6" size={40} />
           {/* Title */}
           <h2 className="font-semibold text-lg mt-4">
             Enter Configuration Code
           </h2>
           {/* Email Info */}
           <p className="text-sm text-gray-600 text-center mt-3">
-            Please check <span className="font-medium">{email}</span>{' '}
-            for an email from privy.io and enter your code below.
+            Please check <span className="font-medium">{email}</span> for an
+            email from privy.io and enter your code below.
           </p>
           {/* OTP Input Fields */}
           <div className="flex justify-center gap-3 mt-12">
@@ -639,28 +634,37 @@ const Login: React.FC = () => {
                 type="text"
                 maxLength={1}
                 value={otp[index]}
-                onChange={(e) =>
-                  handleOtpChange(index, e.target.value)
-                }
+                onChange={(e) => handleOtpChange(index, e.target.value)}
                 onKeyDown={(e) => handleOtpKeyDown(index, e)}
                 onPaste={handleOtpPaste}
                 className="w-12 h-16 border border-gray-300 rounded-lg text-center text-xl focus:outline-none focus:border-indigo-500"
               />
             ))}
           </div>
-          {/* Resend Code */}
-          <p className="text-sm text-gray-500 mt-5">
-            Didn&apos;t get an email?{'  '}
-            <span
-              className="text-indigo-600 cursor-pointer"
-              onClick={handleSendCode}
-            >
-              Resend code
-            </span>
-          </p>
+          {/* Timer and Resend Code */}
+          <div className="text-sm text-gray-500 mt-5">
+            {!canResend ? (
+              <p>
+                Code expires in{" "}
+                <span className="font-semibold text-indigo-600">
+                  {formatTime(timeRemaining)}
+                </span>
+              </p>
+            ) : (
+              <p>
+                Didn&apos;t get an email?{" "}
+                <span
+                  className="text-indigo-600 cursor-pointer hover:text-indigo-700 font-medium"
+                  onClick={handleSendCode}
+                >
+                  Resend code
+                </span>
+              </p>
+            )}
+          </div>
           {/* Error */}
           <div className="h-3">
-            {state.status === 'error' && (
+            {state.status === "error" && (
               <p className="text-red-400 text-sm mt-2">Invalid OTP</p>
             )}
           </div>

@@ -3,22 +3,11 @@
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-// import {
-//   Mail,
-//   Phone,
-//   MessageSquare,
-//   Video,
-//   MapPin,
-//   Globe,
-// } from 'lucide-react';
 import Image from "next/image";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { OnboardingData } from "@/lib/types";
 // import { usePrivy } from '@privy-io/react-auth';
 import { useToast } from "@/hooks/use-toast";
-import astronot from "@/public/onboard/astronot.svg";
-import bluePlanet from "@/public/onboard/blue-planet.svg";
-import yellowPlanet from "@/public/onboard/yellow-planet.svg";
 import whatsapp from "@/public/onboard/whatsapp.png";
 import gmail from "@/public/onboard/gmail.png";
 import facebook from "@/public/onboard/facebook.png";
@@ -41,6 +30,9 @@ import {
   SocialTopData,
   SocialTopInfo,
 } from "@/types/smartsite";
+import { Check, Loader } from "lucide-react";
+import CustomModal from "../modal/CustomModal";
+import { PrimaryButton } from "../ui/Button/PrimaryButton";
 
 interface SmartSiteInformationProps {
   userData: OnboardingData;
@@ -70,6 +62,9 @@ export default function SmartSiteInformation({
     tiktok: "",
     website: "",
   });
+
+  const [isSuccessAccountCreateModalOpen, setIsSuccessAccountCreateModalOpen] =
+    useState(true);
 
   const handleInputChange = (field: string, value: string) => {
     setData((prevData) => ({
@@ -220,33 +215,19 @@ export default function SmartSiteInformation({
 
   return (
     <div className="relative w-full max-w-3xl mx-auto border-0 my-20">
-      {/* <div className="bg-gradient-to-br from-purple-200 to-blue-300 w-52 h-52 rounded-full absolute -bottom-32 -left-16 -z-10 opacity-80"></div> */}
-      <div className="absolute -top-28 left-0">
-        <Image src={astronot} alt="astronot image" className="w-40 h-auto" />
-      </div>
-      <div className="absolute -bottom-28 -left-10">
-        <Image
-          src={yellowPlanet}
-          alt="astronot image"
-          className="w-48 h-auto"
-        />
-      </div>
-      <div className="absolute -top-14 -right-24">
-        <Image src={bluePlanet} alt="astronot image" className="w-56 h-auto" />
-      </div>
       <div className="backdrop-blur-[50px] bg-white bg-opacity-25 shadow-uniform rounded-xl">
         <CardHeader className="text-center">
-          <CardTitle className="text-2xl font-bold">
+          <CardTitle className="text-xl font-medium">
             Smartsite Information
           </CardTitle>
-          <p className="text-xs">
+          <p className="text-xs text-gray-500">
             Input Below For AI SmartSite Build.
             <br />
             You Can Edit After Site Is Generated.
           </p>
         </CardHeader>
         <CardContent className="px-8">
-          <h2 className="text-xl font-semibold mb-4 text-gray-700">
+          <h2 className="text-lg font-medium mb-4 text-gray-700">
             Contact Details
           </h2>
           <form className="grid grid-cols-2 gap-6" onSubmit={handleSubmit}>
@@ -355,17 +336,58 @@ export default function SmartSiteInformation({
               />
             </div>
             <div className="flex justify-center col-span-2">
-              <Button
-                className="bg-black text-white w-1/4 hover:bg-gray-800"
+              <PrimaryButton
+                className="w-1/4"
                 type="submit"
                 disabled={isSubmitting}
               >
-                {isSubmitting ? "Creating..." : "Next"}
-              </Button>
+                {isSubmitting ? (
+                  <Loader color="black" className="animate-spin" />
+                ) : (
+                  "Save"
+                )}
+              </PrimaryButton>
             </div>
           </form>
         </CardContent>
       </div>
+      {isSuccessAccountCreateModalOpen && (
+        <CustomModal
+          isOpen={isSuccessAccountCreateModalOpen}
+          onCloseModal={setIsSuccessAccountCreateModalOpen}
+        >
+          <div className="w-full p-5">
+            <div className="flex flex-col items-center text-center space-y-6">
+              {/* Success Icon */}
+              <div className="w-16 h-16 bg-indigo-600 rounded-full flex items-center justify-center">
+                <Check className="w-10 h-10 text-white stroke-[3]" />
+              </div>
+
+              {/* Welcome Text */}
+              <div className="space-y-3">
+                <h1 className="text-2xl font-semibold text-gray-900">
+                  Welcome to Swop
+                </h1>
+                <p className=" text-gray-400">
+                  {`You've successfully created an account`}
+                </p>
+              </div>
+
+              {/* Spacer */}
+              <div className="h-10"></div>
+
+              {/* Protected by Privy */}
+              <div className="flex items-center gap-2 text-sm text-gray-600">
+                <span>Protected by</span>
+                <div className="flex items-center gap-1.5">
+                  <div className="w-2 h-2 bg-black rounded-full"></div>
+                  <span className="font-semibold text-black">privy</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </CustomModal>
+      )}
     </div>
   );
 }
@@ -391,7 +413,7 @@ function ContactField({
   };
 
   return (
-    <div className="flex items-center space-x-2 bg-white rounded-md shadow-sm overflow-hidden">
+    <div className="flex items-center space-x-2 bg-white rounded-md shadow-md overflow-hidden">
       <div className="p-2 border-r border-gray-300 h-full">{icon}</div>
       <Input
         className="flex-grow border-0 focus-visible:!ring-0 rounded-none px-1"
