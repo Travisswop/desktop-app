@@ -27,7 +27,6 @@ import SelectAvatorModal from "../modal/SelectAvatorModal";
 import userProfileImages from "../util/data/userProfileImage";
 import smatsiteBannerImageList from "../util/data/smartsiteBannerImageList";
 import smatsiteBackgroundImageList from "../util/data/smatsiteBackgroundImageList";
-import SmartsiteLivePreview from "./CreateSmartsiteLivePreview";
 import { sendCloudinaryImage } from "@/lib/SendCloudinaryImage";
 import { useUser } from "@/lib/UserContext";
 import { HexColorPicker } from "react-colorful";
@@ -87,11 +86,11 @@ const CreateSmartSite = ({ token }: { token: string }) => {
     onOpen();
   };
 
-  // useEffect(() => {
-  //   if (!session.isPremiumUser) {
-  //     router.push("/subscribe");
-  //   }
-  // }, [router, session.isPremiumUser]);
+  useEffect(() => {
+    if (user?.subscription?.status === "free") {
+      router.push("/subscription");
+    }
+  }, [router, user?.subscription?.status]);
 
   useEffect(() => {
     setFormData("backgroundImg", "5");

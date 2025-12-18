@@ -23,6 +23,9 @@ const SmartsitePage = () => {
     accessToken || ""
   );
 
+  console.log("useUser user", user);
+  console.log("data user", data);
+
   if (loading || isLoading) {
     return <SmartSitePageLoading />;
   }
@@ -99,7 +102,11 @@ const SmartsitePage = () => {
           ))}
 
         <Link
-          href={"/smartsite/create-smartsite"}
+          href={`${
+            user?.subscription?.status === "free"
+              ? "/subscription"
+              : "/smartsite/create-smartsite"
+          } `}
           className="bg-white px-4 py-[4rem] rounded-xl shadow-small flex flex-col gap-6 items-center"
         >
           <div className="p-5 bg-gray-200 w-max rounded-full">
