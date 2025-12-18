@@ -80,7 +80,7 @@ const CreateSmartSite = ({ token }: { token: string }) => {
 
   const router = useRouter();
 
-  const handleBannerModal = () => {
+  /*  */ const handleBannerModal = () => {
     setIsUserProfileModalOpen(false);
     setIsBannerModalOpen(true);
     onOpen();
@@ -674,3 +674,4 @@ const CreateSmartSite = ({ token }: { token: string }) => {
 };
 
 export default CreateSmartSite;
+/*  */
