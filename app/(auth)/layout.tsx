@@ -14,13 +14,9 @@ export default function AuthLayout({
   children: React.ReactNode;
 }) {
   return (
-    // <html lang="en" className={roboto.className}>
-    //   <body>
     <div className="flex items-center justify-center min-h-screen bg-gray-100 font-[figTree]">
       {children}
       <Toaster />
     </div>
-    //   </body>
-    // </html>
   );
 }

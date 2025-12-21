@@ -4,7 +4,6 @@ import { createLoginWalletBalance } from "@/actions/createWallet";
 import Loader from "@/components/loading/Loader";
 import { Card } from "@/components/ui/card";
 import { useUser } from "@/lib/UserContext";
-import astronot from "@/public/onboard/astronot.svg";
 import blackPlanet from "@/public/onboard/black-planet.svg";
 import swopLogo from "@/public/swopLogo.png";
 import { WalletItem } from "@/types/wallet";
@@ -486,18 +485,18 @@ const Login: React.FC = () => {
   }, []);
 
   // Loading states
-  if (!ready || loginFlow === LoginFlow.PROCESSING) {
-    return (
-      <div className="flex flex-col items-center justify-center min-h-screen">
-        <Loader />
-        <p className="mt-4 text-sm text-gray-600">
-          {loginFlow === LoginFlow.PROCESSING
-            ? "Processing your login..."
-            : "Initializing..."}
-        </p>
-      </div>
-    );
-  }
+  // if (!ready || loginFlow === LoginFlow.PROCESSING) {
+  //   return (
+  //     <div className="flex flex-col items-center justify-center min-h-screen">
+  //       <Loader />
+  //       <p className="mt-4 text-sm text-gray-600">
+  //         {loginFlow === LoginFlow.PROCESSING
+  //           ? "Processing your login..."
+  //           : "Initializing..."}
+  //       </p>
+  //     </div>
+  //   );
+  // }
 
   if (loginFlow === LoginFlow.SUCCESS) {
     return (
@@ -536,18 +535,6 @@ const Login: React.FC = () => {
 
   return (
     <div className="relative w-full max-w-2xl mx-auto p-8 flex justify-center items-center">
-      {/* Background Images */}
-      {/* <div className="absolute -top-[12%] left-[2%] w-32 h-32 animate-float">
-        <Image src={astronot} alt="astronot" className="w-40 h-auto" priority />
-      </div> */}
-      {/* <div className="absolute -bottom-[12%] left-[10%] w-32 h-32">
-        <Image
-          src={blackPlanet}
-          alt="blue planet"
-          className="w-60 h-auto"
-          priority
-        />
-      </div> */}
       {loginFlow === LoginFlow.EMAIL_INPUT && (
         <Card className="w-full bg-white shadow-small shadow-white rounded-3xl max-w-lg mx-auto p-10">
           <div className="flex flex-col items-center space-y-6 text-center pt-24 pb-20">
@@ -661,7 +648,10 @@ const Login: React.FC = () => {
               <p>
                 Expires in{" "}
                 <span className="font-semibold text-indigo-600">
-                  {formatTime(timeRemaining)}
+                  {formatTime(timeRemaining)}.
+                </span>
+                <span className="text-gray-600 font-medium ml-1">
+                  Resend code
                 </span>
               </p>
             ) : (
