@@ -485,18 +485,18 @@ const Login: React.FC = () => {
   }, []);
 
   // Loading states
-  // if (!ready || loginFlow === LoginFlow.PROCESSING) {
-  //   return (
-  //     <div className="flex flex-col items-center justify-center min-h-screen">
-  //       <Loader />
-  //       <p className="mt-4 text-sm text-gray-600">
-  //         {loginFlow === LoginFlow.PROCESSING
-  //           ? "Processing your login..."
-  //           : "Initializing..."}
-  //       </p>
-  //     </div>
-  //   );
-  // }
+  if (!ready || loginFlow === LoginFlow.PROCESSING) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-screen bg-gray-100">
+        <Loader />
+        <p className="mt-4 text-sm text-gray-600">
+          {loginFlow === LoginFlow.PROCESSING
+            ? "Processing your login..."
+            : "Initializing..."}
+        </p>
+      </div>
+    );
+  }
 
   if (loginFlow === LoginFlow.SUCCESS) {
     return (
