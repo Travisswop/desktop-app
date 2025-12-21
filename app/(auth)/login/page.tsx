@@ -537,33 +537,41 @@ const Login: React.FC = () => {
   return (
     <div className="relative w-full max-w-2xl mx-auto p-8 flex justify-center items-center">
       {/* Background Images */}
-      <div className="absolute -top-[12%] left-[2%] w-32 h-32 animate-float">
+      {/* <div className="absolute -top-[12%] left-[2%] w-32 h-32 animate-float">
         <Image src={astronot} alt="astronot" className="w-40 h-auto" priority />
-      </div>
-      <div className="absolute -bottom-[12%] left-[10%] w-32 h-32">
+      </div> */}
+      {/* <div className="absolute -bottom-[12%] left-[10%] w-32 h-32">
         <Image
           src={blackPlanet}
           alt="blue planet"
           className="w-60 h-auto"
           priority
         />
-      </div>
+      </div> */}
       {loginFlow === LoginFlow.EMAIL_INPUT && (
-        <Card className="w-full bg-white/15 backdrop-blur-md shadow-xl rounded-3xl max-w-lg mx-auto p-10">
+        <Card className="w-full bg-white shadow-small shadow-white rounded-3xl max-w-lg mx-auto p-10">
           <div className="flex flex-col items-center space-y-6 text-center pt-24 pb-20">
-            <Image
-              src={swopLogo}
-              alt="swop logo"
-              className="w-40 h-auto"
-              priority
-            />
+            <div className="flex items-center gap-2">
+              <Image
+                src={blackPlanet}
+                alt="blue planet"
+                className="w-16 h-auto"
+                priority
+              />
+              <Image
+                src={swopLogo}
+                alt="swop logo"
+                className="w-32 h-auto"
+                priority
+              />
+            </div>
 
             <form
               onSubmit={handleEmailSubmit}
               className="flex items-center border border-black rounded-xl overflow-hidden w-[350px]"
             >
               <div className="p-2 pl-4">
-                <RiMailSendLine className="text-gray-400" size={20} />
+                <RiMailSendLine size={20} />
               </div>
               <input
                 type="email"
@@ -576,7 +584,7 @@ const Login: React.FC = () => {
               <button
                 type="submit"
                 disabled={state.status === "sending-code"}
-                className="bg-black text-white p-2 rounded-lg m-1 px-4 hover:bg-gray-800 transition-colors disabled:opacity-50"
+                className="bg-black text-white p-2 rounded-lg m-1 px-3 hover:bg-gray-800 transition-colors disabled:opacity-50"
               >
                 <LuArrowRight className="text-gray-50" size={20} />
               </button>
@@ -597,7 +605,7 @@ const Login: React.FC = () => {
       )}
 
       {loginFlow === LoginFlow.OTP_INPUT && (
-        <div className="flex flex-col items-center justify-center p-8 bg-white/15 backdrop-blur-md rounded-2xl shadow-lg w-[420px] border z-30">
+        <div className="w-full bg-white shadow-small shadow-white rounded-3xl max-w-lg mx-auto p-10 flex flex-col items-center justify-center z-30 space-y-4">
           {/* Close & Back Buttons */}
           <div className="flex justify-between w-full text-gray-500">
             <button
@@ -609,22 +617,25 @@ const Login: React.FC = () => {
             >
               <GoArrowLeft className="text-gray-800 " size={25} />
             </button>
-            <span className="text-base -ml-5">Log in or sign up</span>
-            <button className="text-lg"></button>
           </div>
-          {/* Mail Icon */}
-          <RiMailSendLine className="text-indigo-500 mt-6" size={40} />
+          <div className="flex items-center gap-2">
+            <Image
+              src={blackPlanet}
+              alt="blue planet"
+              className="w-12 h-auto"
+              priority
+            />
+            <Image
+              src={swopLogo}
+              alt="swop logo"
+              className="w-28 h-auto"
+              priority
+            />
+          </div>
           {/* Title */}
-          <h2 className="font-semibold text-lg mt-4">
-            Enter Configuration Code
-          </h2>
-          {/* Email Info */}
-          <p className="text-sm text-gray-600 text-center mt-3">
-            Please check <span className="font-medium">{email}</span> for an
-            email from privy.io and enter your code below.
-          </p>
+          <h2 className="font-semibold text-xl pt-6">Enter Code</h2>
           {/* OTP Input Fields */}
-          <div className="flex justify-center gap-3 mt-12">
+          <div className="flex justify-center gap-3">
             {otp.map((_, index) => (
               <input
                 key={index}
@@ -641,11 +652,14 @@ const Login: React.FC = () => {
               />
             ))}
           </div>
+          <p className="text-center text-sm text-gray-500">
+            A one time authentication code has been <br /> sent to {email}.
+          </p>
           {/* Timer and Resend Code */}
-          <div className="text-sm text-gray-500 mt-5">
+          <div className="text-sm text-gray-500">
             {!canResend ? (
               <p>
-                Code expires in{" "}
+                Expires in{" "}
                 <span className="font-semibold text-indigo-600">
                   {formatTime(timeRemaining)}
                 </span>
