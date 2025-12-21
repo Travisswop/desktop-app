@@ -828,7 +828,7 @@ const SmartsiteIconLivePreview = ({
                               !formData.secondaryFontColor && "text-gray-400"
                             }`}
                           >
-                            Message me using the Swop wallet
+                            Message me on Swop
                           </p>
                         </div>
                       </button>
