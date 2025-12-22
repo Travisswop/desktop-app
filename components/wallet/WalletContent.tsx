@@ -61,6 +61,7 @@ import {
 } from "@/lib/utils/walletNotifications";
 import TransactionList from "./transaction/transaction-list";
 import { ScrollArea } from "../ui/scroll-area";
+import CustomModal from "../modal/CustomModal";
 
 // Token colors mapping for consistent visual representation
 const TOKEN_COLORS: Record<string, string> = {
@@ -640,20 +641,24 @@ const WalletContentInner = () => {
                 {tokenLoading && <Loader className="w-5 h-5 animate-spin" />}
               </div>
               <ScrollArea className="h-full pr-3 overflow-y-auto pb-10">
-                {selectedToken ? (
-                  <TokenDetails
-                    token={selectedToken}
-                    onBack={handleBack}
-                    onSend={handleSendClick}
-                  />
-                ) : (
-                  <TokenList
-                    tokens={tokens as unknown as TokenData[]}
-                    loading={tokenLoading}
-                    error={tokenError!}
-                    onSelectToken={handleTokenSelect}
-                  />
+                {selectedToken && (
+                  <CustomModal
+                    isOpen={selectedToken ? true : false}
+                    onCloseModal={setSelectedToken}
+                  >
+                    <TokenDetails
+                      token={selectedToken}
+                      onBack={handleBack}
+                      onSend={handleSendClick}
+                    />
+                  </CustomModal>
                 )}
+                <TokenList
+                  tokens={tokens as unknown as TokenData[]}
+                  loading={tokenLoading}
+                  error={tokenError!}
+                  onSelectToken={handleTokenSelect}
+                />
               </ScrollArea>
             </div>
             <div className="rounded-xl h-full bg-white flex-1 p-4 pb-2">
