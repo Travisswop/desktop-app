@@ -27,6 +27,11 @@ import { BsSendFill, BsThreeDots } from "react-icons/bs";
 import { AiOutlineSwap } from "react-icons/ai";
 import CustomModal from "@/components/modal/CustomModal";
 import GetQrCodeUsingWalletAddress from "../QRCode/GetQrCodeUsingWalletAddress";
+import { useMultiChainTokenData } from "@/lib/hooks/useToken";
+import { usePrivy } from "@privy-io/react-auth";
+import { useWalletAddresses, useWalletData } from "../hooks/useWalletData";
+import { SUPPORTED_CHAINS } from "../constants";
+import SwapTokenModal from "../SwapTokenModal";
 
 const CustomTooltip = ({
   active,
@@ -80,6 +85,7 @@ export default function TokenDetails({
   );
   const [openWalletQrOpen, setOpenWalletQrOpen] = useState(false);
   const [qrState, setQrState] = useState<"sol" | "eth" | "pol" | "base">("sol");
+  const [openWalletSwapOpen, setOpenWalletSwapOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
 
   // Lazy load chart data - only fetch when user selects a period
@@ -229,6 +235,25 @@ export default function TokenDetails({
       setQrState("eth");
     }
     setOpenWalletQrOpen(true);
+  };
+
+  const { authenticated, ready, user: PrivyUser } = usePrivy();
+  const walletData = useWalletData(authenticated, ready, PrivyUser);
+  const { solWalletAddress, evmWalletAddress } = useWalletAddresses(walletData);
+
+  const {
+    tokens,
+    loading: tokenLoading,
+    error: tokenError,
+    refetch: refetchTokens,
+  } = useMultiChainTokenData(
+    solWalletAddress,
+    evmWalletAddress,
+    SUPPORTED_CHAINS
+  );
+
+  const handleWalletSwapOpen = () => {
+    setOpenWalletSwapOpen(true);
   };
 
   return (
@@ -456,7 +481,10 @@ export default function TokenDetails({
             >
               <Wallet className="w-5 h-5" />
             </PrimaryButton>
-            <PrimaryButton className="py-2">
+            <PrimaryButton
+              onClick={() => handleWalletSwapOpen()}
+              className="py-2"
+            >
               <AiOutlineSwap className="w-5 h-5" />
             </PrimaryButton>
             <PrimaryButton className="py-2">
@@ -521,6 +549,15 @@ export default function TokenDetails({
           onCloseModal={setOpenWalletQrOpen}
         >
           <GetQrCodeUsingWalletAddress walletName={qrState} />
+        </CustomModal>
+      )}
+
+      {openWalletSwapOpen && (
+        <CustomModal
+          isOpen={openWalletSwapOpen}
+          onCloseModal={setOpenWalletSwapOpen}
+        >
+          <SwapTokenModal tokens={tokens} token={token} />
         </CustomModal>
       )}
     </>
