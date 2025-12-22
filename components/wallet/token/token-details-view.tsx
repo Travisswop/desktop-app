@@ -10,7 +10,6 @@ import {
   YAxis,
   Tooltip,
 } from "recharts";
-import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Send, Wallet } from "lucide-react";
 import { TokenData } from "@/types/token";
@@ -23,15 +22,17 @@ import {
 } from "@/components/ui/tooltip";
 import { useUser } from "@/lib/UserContext";
 import { PrimaryButton } from "@/components/ui/Button/PrimaryButton";
-import { BsSendFill, BsThreeDots } from "react-icons/bs";
+import { BsSendFill } from "react-icons/bs";
 import { AiOutlineSwap } from "react-icons/ai";
 import CustomModal from "@/components/modal/CustomModal";
 import GetQrCodeUsingWalletAddress from "../QRCode/GetQrCodeUsingWalletAddress";
 import { useMultiChainTokenData } from "@/lib/hooks/useToken";
-import { usePrivy } from "@privy-io/react-auth";
+import { usePrivy, useSolanaWallets } from "@privy-io/react-auth";
+import { useFundWallet } from "@privy-io/react-auth/solana";
 import { useWalletAddresses, useWalletData } from "../hooks/useWalletData";
 import { SUPPORTED_CHAINS } from "../constants";
 import SwapTokenModal from "../SwapTokenModal";
+import { FaDollarSign } from "react-icons/fa6";
 
 const CustomTooltip = ({
   active,
@@ -75,6 +76,9 @@ export default function TokenDetails({
 }: TokenDetailsProps) {
   console.log("tokenholafit", token);
   const { accessToken } = useUser();
+  const { fundWallet } = useFundWallet();
+  const { wallets: solanaWallets } = useSolanaWallets();
+
   if (!accessToken) {
     throw new Error("No access token found");
   }
@@ -86,6 +90,8 @@ export default function TokenDetails({
   const [openWalletQrOpen, setOpenWalletQrOpen] = useState(false);
   const [qrState, setQrState] = useState<"sol" | "eth" | "pol" | "base">("sol");
   const [openWalletSwapOpen, setOpenWalletSwapOpen] = useState(false);
+  const [openWalletOptionsOpen, setOpenWalletOptionsOpen] = useState(false);
+
   const [isLoading, setIsLoading] = useState(false);
 
   // Lazy load chart data - only fetch when user selects a period
@@ -254,6 +260,30 @@ export default function TokenDetails({
 
   const handleWalletSwapOpen = () => {
     setOpenWalletSwapOpen(true);
+  };
+
+  const solanaWalletAddress = solanaWallets?.[0]?.address;
+
+  const handleWalletOptionsOpen = async () => {
+    if (!solanaWalletAddress) {
+      console.error("No wallet address available");
+      return;
+    }
+
+    console.log("solWalletAddress", solanaWalletAddress);
+
+    setIsLoading(true);
+    try {
+      await fundWallet({
+        address: solanaWalletAddress,
+        asset: "USDC",
+        amount: "20",
+      });
+    } catch (error) {
+      console.error("Failed to open Coinbase funding:", error);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -487,8 +517,11 @@ export default function TokenDetails({
             >
               <AiOutlineSwap className="w-5 h-5" />
             </PrimaryButton>
-            <PrimaryButton className="py-2">
-              <BsThreeDots className="w-5 h-5" />
+            <PrimaryButton
+              onClick={() => handleWalletOptionsOpen()}
+              className="py-2"
+            >
+              <FaDollarSign className="w-5 h-5" />
             </PrimaryButton>
           </div>
 
@@ -558,6 +591,15 @@ export default function TokenDetails({
           onCloseModal={setOpenWalletSwapOpen}
         >
           <SwapTokenModal tokens={tokens} token={token} />
+        </CustomModal>
+      )}
+
+      {openWalletOptionsOpen && (
+        <CustomModal
+          isOpen={openWalletOptionsOpen}
+          onCloseModal={setOpenWalletOptionsOpen}
+        >
+          <p>options available</p>
         </CustomModal>
       )}
     </>

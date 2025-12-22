@@ -15,6 +15,7 @@ export default function WalletFundandSettingsPopup() {
   const { fundWallet } = useFundWallet();
   const { wallets: solanaWallets } = useSolanaWallets();
   const solanaWalletAddress = solanaWallets?.[0]?.address;
+
   const handleCoinbaseClick = async () => {
     if (!solanaWalletAddress) {
       console.error("No wallet address available");
@@ -34,6 +35,7 @@ export default function WalletFundandSettingsPopup() {
       setIsLoading(false);
     }
   };
+
   return (
     <section className="p-4 space-y-3">
       <button
