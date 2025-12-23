@@ -53,7 +53,7 @@ import PortfolioChart, { PortfolioAsset } from "../dashboard/PortfolioChart";
 // Utilities
 import Cookies from "js-cookie";
 import { createTransactionPayload } from "@/lib/utils/transactionUtils";
-import { Eye, EyeOff, Loader } from "lucide-react";
+import { Loader } from "lucide-react";
 import { useNewSocketChat } from "@/lib/context/NewSocketChatContext";
 import {
   getWalletNotificationService,
@@ -63,8 +63,6 @@ import TransactionList from "./transaction/transaction-list";
 import { ScrollArea } from "../ui/scroll-area";
 import CustomModal from "../modal/CustomModal";
 import { BsThreeDots } from "react-icons/bs";
-import { Switch } from "../ui/switch";
-import { useWalletHideBalanceStore } from "@/zustandStore/useWalletHideBalanceToggle";
 import WalletAssetsSettings from "./WalletAssetsSettings";
 
 // Token colors mapping for consistent visual representation
