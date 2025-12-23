@@ -2,7 +2,7 @@
 import { useWalletHideBalanceStore } from "@/zustandStore/useWalletHideBalanceToggle";
 import { Switch } from "../ui/switch";
 import { Eye, EyeOff, Search } from "lucide-react";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Input } from "../ui/input";
 import Image from "next/image";
 import { chainIcons } from "@/utils/staticData/tokenChainIcon";
@@ -12,6 +12,7 @@ import Cookies from "js-cookie";
 const WalletAssetsSettings = ({ tokens }: any) => {
   const { value, toggle } = useWalletHideBalanceStore();
   const [isManageTokenOpen, setIsManageTokenOpen] = useState(false);
+  const [searchTerm, setSearchTerm] = useState("");
 
   const [selectedTokens, setSelectedTokens] = useState<string[]>(() => {
     // Initialize state from cookie
@@ -45,6 +46,16 @@ const WalletAssetsSettings = ({ tokens }: any) => {
       return updated;
     });
   };
+
+  const filteredTokens = useMemo(() => {
+    if (!searchTerm.trim()) return tokens;
+
+    return tokens.filter((token: any) =>
+      token.symbol.toLowerCase().includes(searchTerm.toLowerCase())
+    );
+  }, [tokens, searchTerm]);
+
+  console.log("filter tokensss", filteredTokens);
 
   return (
     <div>
@@ -98,16 +109,18 @@ const WalletAssetsSettings = ({ tokens }: any) => {
             <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
             <Input
               type="text"
-              placeholder="Search..."
-              className="pl-12 pr-4 py-6 w-full bg-white border border-gray-200 rounded-2xl text-base placeholder:text-gray-400"
+              placeholder="Search by symbol..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="mb-2 pl-12 pr-4 py-6 w-full bg-white border border-gray-200 rounded-2xl text-base placeholder:text-gray-400"
             />
           </div>
 
           {/* Token List */}
           <div className="space-y-1">
-            {tokens.map((token) => (
+            {filteredTokens.map((token: any, index: number) => (
               <div
-                key={token.symbol}
+                key={index}
                 className="flex items-center justify-between py-3 px-2 border-b"
               >
                 <div className="flex items-center gap-4">
