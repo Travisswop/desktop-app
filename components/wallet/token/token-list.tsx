@@ -1,9 +1,7 @@
 "use client";
-
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-
+import Cookies from "js-cookie";
 import { TokenData } from "@/types/token";
-import { AlertCircle, Loader2 } from "lucide-react";
+import { AlertCircle } from "lucide-react";
 import TokenCardView from "./token-card-view";
 import React, { useMemo, useState } from "react";
 import TokenListView from "./token-list-view";
@@ -95,7 +93,24 @@ const TokenContent = ({
   viewMode: ViewMode;
   onSelectToken: (token: TokenData) => void;
 }) => {
-  if (tokens.length === 0) {
+  // Get hidden token addresses from cookie
+  const getHiddenTokenAddresses = () => {
+    const cookie = Cookies.get("selected_tokens");
+    if (!cookie) return [];
+    try {
+      return JSON.parse(cookie);
+    } catch (e) {
+      return [];
+    }
+  };
+
+  // Filter out tokens that are in the cookie
+  const hiddenAddresses = getHiddenTokenAddresses();
+  const visibleTokens = tokens.filter(
+    (token) => !hiddenAddresses.includes(token.address)
+  );
+
+  if (visibleTokens.length === 0) {
     return (
       <div className="text-center py-8 text-gray-500">
         No tokens found in your wallet
@@ -110,7 +125,7 @@ const TokenContent = ({
 
   return (
     <div className={containerClass}>
-      {tokens.map((token) => (
+      {visibleTokens.map((token) => (
         <TokenComponent
           key={`${token.chain}-${token.symbol}-${
             token.address || Math.random()
