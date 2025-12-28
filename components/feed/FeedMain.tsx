@@ -321,7 +321,7 @@ const FeedMain = memo(() => {
 
   const tab = useMemo(() => searchParams?.get("tab") || "feed", [searchParams]);
 
-  // console.log("user", user);
+  console.log("user", user);
 
   // Stable props for MainContent
   const mainContentProps = useMemo(
