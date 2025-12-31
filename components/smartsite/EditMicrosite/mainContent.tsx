@@ -4,13 +4,7 @@ import React, { useEffect, useState } from "react";
 import editIcon from "@/public/images/websites/edit-icon.svg";
 import { FiUser } from "react-icons/fi";
 import { TbUserSquare } from "react-icons/tb";
-import {
-  Select,
-  SelectItem,
-  Spinner,
-  Switch,
-  useDisclosure,
-} from "@nextui-org/react";
+import { Spinner, Switch, useDisclosure } from "@nextui-org/react";
 import { LiaFileMedicalSolid } from "react-icons/lia";
 import { IoMdLink } from "react-icons/io";
 import { PiAddressBook } from "react-icons/pi";
@@ -35,6 +29,17 @@ import { handleDeleteSmartSite } from "@/actions/deleteSmartsite";
 import Cookies from "js-cookie";
 import DeleteModal from "./DeleteModal";
 import logger from "@/utils/logger";
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectLabel,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { PrimaryButton } from "@/components/ui/Button/PrimaryButton";
+import { FaEdit } from "react-icons/fa";
 
 const EditSmartSite = ({ data, token }: any) => {
   const [selectedImage, setSelectedImage] = useState(null);
@@ -57,6 +62,8 @@ const EditSmartSite = ({ data, token }: any) => {
 
   const { formData: smartSiteEditFormData, setFormData }: any =
     useSmartsiteFormStore();
+
+  console.log("smartSiteEditFormData", smartSiteEditFormData);
 
   const [galleryImage, setGalleryImage] = useState(null);
   const [uploadedImageUrl, setUploadedImageUrl] = useState("");
@@ -175,100 +182,102 @@ const EditSmartSite = ({ data, token }: any) => {
     e.preventDefault();
     const formData = new FormData(e.currentTarget);
 
-    setGatedAccessError({
-      contractAddress: "",
-      tokenId: "",
-      eventLink: "",
-      network: "",
-    });
+    console.log("formData", formData);
 
-    if (isGatedAccessOpen) {
-      const errors = {
-        contractAddress: "",
-        tokenId: "",
-        eventLink: "",
-        network: "",
-      };
+    // setGatedAccessError({
+    //   contractAddress: "",
+    //   tokenId: "",
+    //   eventLink: "",
+    //   network: "",
+    // });
 
-      if (!formData.get("contractAddress")) {
-        errors.contractAddress = "Contract address can't be empty!";
-      }
+    // if (isGatedAccessOpen) {
+    //   const errors = {
+    //     contractAddress: "",
+    //     tokenId: "",
+    //     eventLink: "",
+    //     network: "",
+    //   };
 
-      if (!formData.get("tokenId")) {
-        errors.tokenId = "Token ID can't be empty!";
-      }
+    //   if (!formData.get("contractAddress")) {
+    //     errors.contractAddress = "Contract address can't be empty!";
+    //   }
 
-      if (!formData.get("eventLink")) {
-        errors.eventLink = "Mint Url can't be empty!";
-      } else {
-        const urlPattern = /^(https?:\/\/)/i;
-        if (!urlPattern.test(formData.get("eventLink") as string)) {
-          errors.eventLink = "Mint Url must start with http:// or https://";
-        }
-      }
+    //   if (!formData.get("tokenId")) {
+    //     errors.tokenId = "Token ID can't be empty!";
+    //   }
 
-      if (!formData.get("network")) {
-        errors.network = "Network can't be empty!";
-      }
+    //   if (!formData.get("eventLink")) {
+    //     errors.eventLink = "Mint Url can't be empty!";
+    //   } else {
+    //     const urlPattern = /^(https?:\/\/)/i;
+    //     if (!urlPattern.test(formData.get("eventLink") as string)) {
+    //       errors.eventLink = "Mint Url must start with http:// or https://";
+    //     }
+    //   }
 
-      setGatedAccessError(errors);
-      if (
-        errors.contractAddress ||
-        errors.eventLink ||
-        errors.tokenId ||
-        errors.network
-      ) {
-        setIsFormSubmitLoading(false);
-        return;
-      }
-    }
+    //   if (!formData.get("network")) {
+    //     errors.network = "Network can't be empty!";
+    //   }
 
-    const smartSiteInfo = {
-      _id: data.data._id,
-      name: formData.get("name") || "",
-      bio: formData.get("bio") || "",
-      brandImg: brandImage,
-      username: data.data.username || "",
-      profilePic: uploadedImageUrl || selectedImage || data.data.profilePic,
-      backgroundImg: smartSiteEditFormData.backgroundImg,
-      gatedAccess: isGatedAccessOpen,
-      gatedInfo: {
-        contractAddress: formData.get("contractAddress") || "",
-        tokenId: formData.get("tokenId") || "",
-        eventLink: formData.get("eventLink") || "",
-        network: formData.get("network") || "",
-      },
-      theme: smartSiteEditFormData.theme,
-      ens: data.data.ens || "",
-      primary: isPrimaryMicrosite,
-      web3enabled: isWeb3Enabled,
-      fontColor: smartSiteEditFormData.fontColor,
-      secondaryFontColor: smartSiteEditFormData.secondaryFontColor,
-      fontFamily: smartSiteEditFormData.fontType,
-      themeColor: smartSiteEditFormData.templateColor,
-      backgroundColor: smartSiteEditFormData.backgroundColor,
-    };
+    //   setGatedAccessError(errors);
+    //   if (
+    //     errors.contractAddress ||
+    //     errors.eventLink ||
+    //     errors.tokenId ||
+    //     errors.network
+    //   ) {
+    //     setIsFormSubmitLoading(false);
+    //     return;
+    //   }
+    // }
 
-    try {
-      const response = await handleSmartSiteUpdate(smartSiteInfo, token);
-      logger.log("response", response);
+    // const smartSiteInfo = {
+    //   _id: data.data._id,
+    //   name: formData.get("name") || "",
+    //   bio: formData.get("bio") || "",
+    //   brandImg: brandImage,
+    //   username: data.data.username || "",
+    //   profilePic: uploadedImageUrl || selectedImage || data.data.profilePic,
+    //   backgroundImg: smartSiteEditFormData.backgroundImg,
+    //   gatedAccess: isGatedAccessOpen,
+    //   gatedInfo: {
+    //     contractAddress: formData.get("contractAddress") || "",
+    //     tokenId: formData.get("tokenId") || "",
+    //     eventLink: formData.get("eventLink") || "",
+    //     network: formData.get("network") || "",
+    //   },
+    //   theme: smartSiteEditFormData.theme,
+    //   ens: data.data.ens || "",
+    //   primary: isPrimaryMicrosite,
+    //   web3enabled: isWeb3Enabled,
+    //   fontColor: smartSiteEditFormData.fontColor,
+    //   secondaryFontColor: smartSiteEditFormData.secondaryFontColor,
+    //   fontFamily: smartSiteEditFormData.fontType,
+    //   themeColor: smartSiteEditFormData.templateColor,
+    //   backgroundColor: smartSiteEditFormData.backgroundColor,
+    // };
 
-      if (response.state === "success") {
-        refetch();
-        router.push("/smartsite");
-        toast({
-          title: "Success",
-          description: "Smartsite updated successfully",
-        });
-      }
-    } catch (error) {
-      toast({
-        title: "Error",
-        description: "Something went wrong!",
-      });
-    } finally {
-      setIsFormSubmitLoading(false);
-    }
+    // try {
+    //   const response = await handleSmartSiteUpdate(smartSiteInfo, token);
+    //   logger.log("response", response);
+
+    //   if (response.state === "success") {
+    //     refetch();
+    //     router.push("/smartsite");
+    //     toast({
+    //       title: "Success",
+    //       description: "Smartsite updated successfully",
+    //     });
+    //   }
+    // } catch (error) {
+    //   toast({
+    //     title: "Error",
+    //     description: "Something went wrong!",
+    //   });
+    // } finally {
+    //   setIsFormSubmitLoading(false);
+    // }
   };
 
   const handleDeleteSmartsite = async () => {
@@ -336,11 +345,11 @@ const EditSmartSite = ({ data, token }: any) => {
   ];
 
   return (
-    <main className="h-[calc(100vh-150px)] overflow-hidden">
-      <div className="w-full lg:w-[84%] xl:w-[72%] 2xl:w-[68%] mx-auto bg-white py-4 px-[4%] lg:px-[10%] rounded-xl h-full overflow-y-auto">
+    <main className="h-full">
+      <div className="w-full lg:w-[84%] xl:w-[72%] 2xl:w-[68%] mx-auto bg-white py-4 rounded-xl">
         <form
           onSubmit={handleSmartSiteUpdateInfo}
-          className="flex flex-col gap-4 overflow-auto"
+          className="flex flex-col gap-10 justify-center h-full px-[4%] lg:px-[10%]"
         >
           <div className="">
             <div className="flex justify-center">
@@ -423,10 +432,10 @@ const EditSmartSite = ({ data, token }: any) => {
                   <input
                     type="text"
                     name="name"
-                    placeholder={`Jhon Smith`}
                     defaultValue={data.data.name}
                     onChange={handleChange}
-                    className="w-full border border-[#ede8e8] focus:border-[#e5e0e0] rounded-xl focus:outline-none pl-10 py-2 text-gray-700 bg-white"
+                    placeholder="Jhon Smith"
+                    className="w-full pl-10 pr-4 py-2.5 text-gray-700 bg-white rounded-2xl shadow-md shadow-gray-200 border border-gray-100 focus:outline-none"
                   />
                 </div>
               </div>
@@ -444,7 +453,7 @@ const EditSmartSite = ({ data, token }: any) => {
                     readOnly
                     value={data.data.profileUrl}
                     placeholder={`https://swopme.app/sp/fghh`}
-                    className="w-full border border-[#ede8e8] focus:border-[#e5e0e0] rounded-xl focus:outline-none pl-10 py-2 text-gray-700 bg-white cursor-not-allowed"
+                    className="w-full pl-10 pr-4 py-2.5 text-gray-700 bg-white rounded-2xl shadow-md shadow-gray-200 border border-gray-100 focus:outline-none"
                   />
                 </div>
               </div>
@@ -462,7 +471,7 @@ const EditSmartSite = ({ data, token }: any) => {
                     defaultValue={data.data.bio}
                     onChange={handleChange}
                     name="bio"
-                    className="w-full border border-[#ede8e8] focus:border-[#e5e0e0] rounded-xl focus:outline-none pl-10 py-2 text-gray-700 bg-white"
+                    className="w-full pl-10 pr-4 py-2.5 text-gray-700 bg-white rounded-2xl shadow-md shadow-gray-200 border border-gray-100 focus:outline-none"
                     rows={4}
                   />
                 </div>
@@ -470,19 +479,38 @@ const EditSmartSite = ({ data, token }: any) => {
             </div>
           </div>
           <div className="flex flex-wrap flex-col sm:flex-row items-start justify-between gap-x-5 gap-y-2">
-            <Select
-              variant="bordered"
-              selectedKeys={[smartSiteEditFormData.fontType]}
-              onChange={(e) => setFormData("fontType", e.target.value)}
-              label={
-                <span className="text-gray-600 font-medium">Select Font</span>
-              }
-              className="max-w-40 bg-white rounded-xl"
-            >
-              {fontType.map((font) => (
-                <SelectItem key={font.key}>{font.label}</SelectItem>
-              ))}
-            </Select>
+            <div className="flex flex-col gap-1">
+              <label htmlFor="name" className="font-medium text-gray-700">
+                Font Type
+              </label>
+
+              <Select
+                value={smartSiteEditFormData.fontType}
+                onValueChange={(value) => {
+                  handleChange({
+                    target: {
+                      name: "fontType",
+                      value: value,
+                    },
+                  });
+                }}
+              >
+                <SelectTrigger className="min-w-[140px] shadow-md border-gray-100">
+                  <SelectValue placeholder="Select a Font" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectGroup>
+                    <SelectLabel>Select Font</SelectLabel>
+                    {fontType.map((font) => (
+                      <SelectItem value={font.key} key={font.key}>
+                        {font.label}
+                      </SelectItem>
+                    ))}
+                  </SelectGroup>
+                </SelectContent>
+              </Select>
+            </div>
+
             <div>
               <p className="text-sm font-medium">Primary Text Color</p>
               <div className="flex items-center gap-2 mt-1">
@@ -608,8 +636,14 @@ const EditSmartSite = ({ data, token }: any) => {
               </div>
             </div>
           </div>
-          <div className="flex flex-col gap-2 xl:flex-row xl:items-center xl:justify-between">
-            <div className="flex items-center gap-8 border border-gray-300 rounded-xl pl-4 pr-3 py-2 text-lg font-medium text-gray-600 w-max">
+          <div className="flex flex-col gap-2">
+            <button
+              onClick={handleBannerModal}
+              className="flex items-center gap-4 font-medium text-gray-600"
+            >
+              Edit Background <FaEdit size={16} />
+            </button>
+            <div className="flex items-center gap-4 text-lg font-medium text-gray-600">
               <p className="text-base">Make Primary Microsite</p>
               <Switch
                 color="default"
@@ -620,16 +654,8 @@ const EditSmartSite = ({ data, token }: any) => {
                 aria-label="Lead Captures"
               />
             </div>
-            <AnimateButton
-              type="button"
-              onClick={handleBannerModal}
-              width="w-64"
-              className="!rounded-lg "
-            >
-              <LiaFileMedicalSolid size={20} /> Edit Background/Banner
-            </AnimateButton>
           </div>
-          <div className="flex items-center gap-8 border border-gray-300 rounded-xl pl-4 pr-3 py-2 text-lg font-medium text-gray-600 w-max">
+          {/* <div className="flex items-center gap-8 border border-gray-300 rounded-xl pl-4 pr-3 py-2 text-lg font-medium text-gray-600 w-max">
             <p className="text-base">Make Web3 Enabled</p>
             <Switch
               color="default"
@@ -639,8 +665,8 @@ const EditSmartSite = ({ data, token }: any) => {
               onValueChange={setIsWeb3Enabled}
               aria-label="Lead Captures"
             />
-          </div>
-          <div>
+          </div> */}
+          {/* <div>
             <p className="text-gray-700 font-medium">Your ENS Name</p>
             <div className="relative flex-1 mt-1">
               <input
@@ -658,8 +684,8 @@ const EditSmartSite = ({ data, token }: any) => {
                 </button>
               )}
             </div>
-          </div>
-          <div className="flex items-center gap-8 border border-gray-300 rounded-xl pl-4 pr-3 py-2 text-lg font-medium text-gray-600 w-max">
+          </div> */}
+          {/* <div className="flex items-center gap-8 border border-gray-300 rounded-xl pl-4 pr-3 py-2 text-lg font-medium text-gray-600 w-max">
             <p className="text-base">Gated Access</p>
             <Switch
               color="default"
@@ -668,8 +694,8 @@ const EditSmartSite = ({ data, token }: any) => {
               onValueChange={setIsGatedAccessOpen}
               aria-label="Lead Captures"
             />
-          </div>
-          {isGatedAccessOpen && (
+          </div> */}
+          {/* {isGatedAccessOpen && (
             <div className="bg-white p-5 flex flex-col gap-2">
               <div className="relative flex-1 mt-1">
                 <PiAddressBook
@@ -748,36 +774,32 @@ const EditSmartSite = ({ data, token }: any) => {
                 </p>
               )}
             </div>
-          )}
+          )} */}
 
-          <DynamicPrimaryBtn
-            className="py-3 text-base !gap-1"
-            disabled={isFormSubmitLoading}
-            type={"submit"}
-          >
-            {isFormSubmitLoading ? (
-              <Spinner size="sm" color="white" className="py-0.5" />
-            ) : (
-              <>
-                <LiaFileMedicalSolid size={20} />
-                Update
-              </>
-            )}
-          </DynamicPrimaryBtn>
-          <AnimateButton
-            type="button"
-            onClick={() => onDeleteOpen()}
-            className="py-2 hover:py-3 text-base !gap-1 bg-white text-black w-full"
-          >
-            {deleteLoading ? (
-              <Spinner size="sm" color="default" className="py-0.5" />
-            ) : (
-              <>
-                <MdDeleteOutline size={20} />
-                Delete
-              </>
-            )}
-          </AnimateButton>
+          <div className="flex items-center gap-2 md:gap-6 w-full sm:w-[90%] justify-center mx-auto">
+            <PrimaryButton
+              className="py-2.5 text-base w-full bg-black hover:bg-gray-800 text-white"
+              disabled={isFormSubmitLoading}
+              type={"submit"}
+            >
+              {isFormSubmitLoading ? (
+                <Spinner size="sm" color="white" className="py-0.5" />
+              ) : (
+                "Save"
+              )}
+            </PrimaryButton>
+            <PrimaryButton
+              type="button"
+              onClick={() => onDeleteOpen()}
+              className="py-2.5 text-base w-full"
+            >
+              {deleteLoading ? (
+                <Spinner size="sm" color="default" className="py-0.5" />
+              ) : (
+                "Delete"
+              )}
+            </PrimaryButton>
+          </div>
 
           {isDeleteOpen && (
             <DeleteModal
