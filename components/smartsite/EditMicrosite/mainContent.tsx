@@ -5,25 +5,19 @@ import editIcon from "@/public/images/websites/edit-icon.svg";
 import { FiUser } from "react-icons/fi";
 import { TbUserSquare } from "react-icons/tb";
 import { Spinner, Switch, useDisclosure } from "@nextui-org/react";
-import { LiaFileMedicalSolid } from "react-icons/lia";
-import { IoMdLink } from "react-icons/io";
-import { PiAddressBook } from "react-icons/pi";
 import SelectAvatorModal from "@/components/modal/SelectAvatorModal";
 import useSmartsiteFormStore from "@/zustandStore/EditSmartsiteInfo";
 import { handleSmartSiteUpdate } from "@/actions/update";
 import useSmartSiteApiDataStore from "@/zustandStore/UpdateSmartsiteInfo";
 import { useRouter } from "next/navigation";
 import { useToast } from "@/hooks/use-toast";
-import DynamicPrimaryBtn from "@/components/ui/Button/DynamicPrimaryBtn";
 import SelectBackgroudOrBannerModal from "@/components/modal/SelectBackgroudOrBannerModal";
 import isUrl from "@/lib/isUrl";
 import userProfileImages from "@/components/util/data/userProfileImage";
-import smatsiteBannerImageList from "@/components/util/data/smartsiteBannerImageList";
 import smatsiteBackgroundImageList from "@/components/util/data/smatsiteBackgroundImageList";
-import AnimateButton from "@/components/ui/Button/AnimateButton";
 import { sendCloudinaryImage } from "@/lib/SendCloudinaryImage";
 import { useDesktopUserData } from "@/components/tanstackQueryApi/getUserData";
-import { MdDeleteOutline, MdDone } from "react-icons/md";
+import { MdDone } from "react-icons/md";
 import Swal from "sweetalert2";
 import { handleDeleteSmartSite } from "@/actions/deleteSmartsite";
 import Cookies from "js-cookie";
@@ -55,6 +49,8 @@ const EditSmartSite = ({ data, token }: any) => {
     };
     getAccessToken();
   }, []);
+
+  logger.log("data test", data);
 
   const { refetch } = useDesktopUserData(data?.data?.parentId, accessToken);
 
@@ -93,28 +89,37 @@ const EditSmartSite = ({ data, token }: any) => {
 
   const router = useRouter();
 
-  const handleBannerModal = () => {
+  const handleBannerModal = (e: any) => {
+    e.preventDefault();
     setIsUserProfileModalOpen(false);
     setIsBannerModalOpen(true);
     onOpen();
   };
 
   useEffect(() => {
-    setFormData("backgroundImg", data.data.backgroundImg);
-    setFormData("bio", data.data.bio);
-    setFormData("galleryImg", "");
     setFormData("name", data.data.name);
+    setFormData("bio", data.data.bio);
+    setFormData("backgroundImg", data.data.backgroundImg);
+    setFormData("galleryImg", "");
     setFormData("theme", data.data.theme);
     setFormData("backgroundColor", data.data.backgroundColor);
+    setFormData("fontColor", data.data.fontColor);
+    setFormData("secondaryFontColor", data.data.secondaryFontColor);
+    setFormData("secondaryFontColor", data.data.secondaryFontColor);
+    setFormData("fontType", data.data.fontFamily);
     if (!selectedImage && !galleryImage) {
       setFormData("profileImg", data.data.profilePic);
     }
+    console.log("data.data.fontFamily", data.data.fontFamily);
   }, [
     data.data.backgroundColor,
     data.data.backgroundImg,
     data.data.bio,
+    data.data.fontColor,
+    data.data.fontFamily,
     data.data.name,
     data.data.profilePic,
+    data.data.secondaryFontColor,
     data.data.theme,
     galleryImage,
     selectedImage,
@@ -144,7 +149,8 @@ const EditSmartSite = ({ data, token }: any) => {
     setFormData("galleryImg", "");
   };
 
-  const handleUserProfileModal = () => {
+  const handleUserProfileModal = (e: any) => {
+    e.preventDefault();
     onOpen();
     setIsBannerModalOpen(false);
     setIsUserProfileModalOpen(true);
@@ -232,31 +238,33 @@ const EditSmartSite = ({ data, token }: any) => {
     //   }
     // }
 
-    // const smartSiteInfo = {
-    //   _id: data.data._id,
-    //   name: formData.get("name") || "",
-    //   bio: formData.get("bio") || "",
-    //   brandImg: brandImage,
-    //   username: data.data.username || "",
-    //   profilePic: uploadedImageUrl || selectedImage || data.data.profilePic,
-    //   backgroundImg: smartSiteEditFormData.backgroundImg,
-    //   gatedAccess: isGatedAccessOpen,
-    //   gatedInfo: {
-    //     contractAddress: formData.get("contractAddress") || "",
-    //     tokenId: formData.get("tokenId") || "",
-    //     eventLink: formData.get("eventLink") || "",
-    //     network: formData.get("network") || "",
-    //   },
-    //   theme: smartSiteEditFormData.theme,
-    //   ens: data.data.ens || "",
-    //   primary: isPrimaryMicrosite,
-    //   web3enabled: isWeb3Enabled,
-    //   fontColor: smartSiteEditFormData.fontColor,
-    //   secondaryFontColor: smartSiteEditFormData.secondaryFontColor,
-    //   fontFamily: smartSiteEditFormData.fontType,
-    //   themeColor: smartSiteEditFormData.templateColor,
-    //   backgroundColor: smartSiteEditFormData.backgroundColor,
-    // };
+    const smartSiteInfo = {
+      _id: data.data._id,
+      name: formData.get("name") || "",
+      bio: formData.get("bio") || "",
+      brandImg: brandImage,
+      username: data.data.username || "",
+      profilePic: uploadedImageUrl || selectedImage || data.data.profilePic,
+      backgroundImg: smartSiteEditFormData.backgroundImg,
+      // gatedAccess: isGatedAccessOpen,
+      // gatedInfo: {
+      //   contractAddress: formData.get("contractAddress") || "",
+      //   tokenId: formData.get("tokenId") || "",
+      //   eventLink: formData.get("eventLink") || "",
+      //   network: formData.get("network") || "",
+      // },
+      theme: smartSiteEditFormData.theme,
+      ens: data.data.ens || "",
+      primary: isPrimaryMicrosite,
+      // web3enabled: isWeb3Enabled,
+      fontColor: smartSiteEditFormData.fontColor,
+      secondaryFontColor: smartSiteEditFormData.secondaryFontColor,
+      fontFamily: smartSiteEditFormData.fontType || data.data.fontFamily,
+      themeColor: smartSiteEditFormData.templateColor,
+      backgroundColor: smartSiteEditFormData.backgroundColor,
+    };
+
+    console.log("smartSiteInfo payload", smartSiteInfo);
 
     // try {
     //   const response = await handleSmartSiteUpdate(smartSiteInfo, token);
@@ -322,6 +330,8 @@ const EditSmartSite = ({ data, token }: any) => {
   };
 
   const handleChange = (e: any) => {
+    console.log("hit");
+
     const { name, value } = e.target;
     setFormData(name, value);
   };
@@ -337,11 +347,11 @@ const EditSmartSite = ({ data, token }: any) => {
   }, [data, setSmartSiteData]);
 
   const fontType = [
-    { key: "roboto", label: "Roboto" },
-    { key: "poppins", label: "Poppins" },
-    { key: "openSans", label: "OpenSans" },
-    { key: "montserrat", label: "Montserrat" },
-    { key: "rubik", label: "Rubik" },
+    { key: "Roboto", label: "Roboto" },
+    { key: "Poppins", label: "Poppins" },
+    { key: "OpenSans", label: "OpenSans" },
+    { key: "Montserrat", label: "Montserrat" },
+    { key: "Rubik", label: "Rubik" },
   ];
 
   return (
@@ -485,7 +495,7 @@ const EditSmartSite = ({ data, token }: any) => {
               </label>
 
               <Select
-                value={smartSiteEditFormData.fontType}
+                value={smartSiteEditFormData.fontType || data.data.fontFamily}
                 onValueChange={(value) => {
                   handleChange({
                     target: {
@@ -512,23 +522,23 @@ const EditSmartSite = ({ data, token }: any) => {
             </div>
 
             <div>
-              <p className="text-sm font-medium">Primary Text Color</p>
+              <p className="text-sm font-medium">Primary Font Color</p>
               <div className="flex items-center gap-2 mt-1">
                 <button
                   type="button"
-                  onClick={() => setFormData("fontColor", "#808080")}
-                  className="bg-gray-400 w-[22px] h-[22px] rounded-full flex items-center justify-center"
+                  onClick={() => setFormData("fontColor", "gray")}
+                  className="bg-[gray] w-[22px] h-[22px] rounded-full flex items-center justify-center"
                 >
-                  {smartSiteEditFormData.fontColor === "#808080" && (
+                  {smartSiteEditFormData.fontColor === "gray" && (
                     <MdDone color="white" size={16} />
                   )}
                 </button>
                 <button
                   type="button"
-                  onClick={() => setFormData("fontColor", "#000000")}
+                  onClick={() => setFormData("fontColor", "black")}
                   className="bg-black w-[22px] h-[22px] rounded-full flex items-center justify-center"
                 >
-                  {smartSiteEditFormData.fontColor === "#000000" && (
+                  {smartSiteEditFormData.fontColor === "black" && (
                     <MdDone color="white" size={16} />
                   )}
                 </button>
@@ -541,7 +551,7 @@ const EditSmartSite = ({ data, token }: any) => {
                     <MdDone color="black" size={16} />
                   )}
                 </button>
-                <button
+                {/* <button
                   type="button"
                   onClick={() => setFormData("fontColor", "#ffffff")}
                   className="bg-[#ffffff] w-[22px] h-[22px] rounded-full flex items-center justify-center border border-black"
@@ -549,28 +559,28 @@ const EditSmartSite = ({ data, token }: any) => {
                   {smartSiteEditFormData.fontColor === "#ffffff" && (
                     <MdDone color="black" size={16} />
                   )}
-                </button>
+                </button> */}
               </div>
             </div>
             <div>
-              <p className="text-sm font-medium">Secondary Text Color</p>
+              <p className="text-sm font-medium">Secondary Font Color</p>
               <div className="flex items-center gap-2 mt-1">
                 <button
                   type="button"
-                  onClick={() => setFormData("secondaryFontColor", "#808080")}
-                  className="bg-gray-400 w-[22px] h-[22px] rounded-full flex items-center justify-center"
+                  onClick={() => setFormData("secondaryFontColor", "gray")}
+                  className="bg-[gray] w-[22px] h-[22px] rounded-full flex items-center justify-center"
                 >
-                  {smartSiteEditFormData.secondaryFontColor === "#808080" && (
+                  {smartSiteEditFormData.secondaryFontColor === "gray" && (
                     <MdDone color="white" size={16} />
                   )}
                 </button>
 
                 <button
                   type="button"
-                  onClick={() => setFormData("secondaryFontColor", "#000000")}
+                  onClick={() => setFormData("secondaryFontColor", "black")}
                   className="bg-black w-[22px] h-[22px] rounded-full flex items-center justify-center"
                 >
-                  {smartSiteEditFormData.secondaryFontColor === "#000000" && (
+                  {smartSiteEditFormData.secondaryFontColor === "black" && (
                     <MdDone color="white" size={16} />
                   )}
                 </button>
@@ -583,7 +593,7 @@ const EditSmartSite = ({ data, token }: any) => {
                     <MdDone color="black" size={16} />
                   )}
                 </button>
-                <button
+                {/* <button
                   type="button"
                   onClick={() => setFormData("secondaryFontColor", "#ffffff")}
                   className="bg-[#ffffff] w-[22px] h-[22px] rounded-full flex items-center justify-center border border-black"
@@ -591,10 +601,10 @@ const EditSmartSite = ({ data, token }: any) => {
                   {smartSiteEditFormData.secondaryFontColor === "#ffffff" && (
                     <MdDone color="black" size={16} />
                   )}
-                </button>
+                </button> */}
               </div>
             </div>
-            <div>
+            {/* <div>
               <p className="text-sm font-medium lg:text-end">Theme Color</p>
               <div className="flex items-center lg:justify-end gap-2 mt-1 w-36">
                 <button
@@ -634,10 +644,11 @@ const EditSmartSite = ({ data, token }: any) => {
                   )}
                 </button>
               </div>
-            </div>
+            </div> */}
           </div>
           <div className="flex flex-col gap-2">
             <button
+              type="button"
               onClick={handleBannerModal}
               className="flex items-center gap-4 font-medium text-gray-600"
             >
@@ -828,7 +839,6 @@ const EditSmartSite = ({ data, token }: any) => {
         <SelectBackgroudOrBannerModal
           isOpen={isOpen}
           onOpenChange={onOpenChange}
-          bannerImgArr={smatsiteBannerImageList}
           backgroundImgArr={smatsiteBackgroundImageList}
           setIsBannerModalOpen={setIsBannerModalOpen}
         />

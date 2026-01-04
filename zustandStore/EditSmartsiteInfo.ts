@@ -1,11 +1,10 @@
-import { create } from 'zustand';
+import { create } from "zustand";
 export type FontType =
-  | 'roboto'
-  | 'poppins'
-  | 'opensans'
-  | 'montserrat'
-  | 'rubik'
-  | 'inter';
+  | "Roboto"
+  | "Poppins"
+  | "OpenSans"
+  | "Montserrat"
+  | "Rubik";
 // Define the type for form data
 interface FormData {
   name: string;
@@ -24,26 +23,23 @@ interface FormData {
 // Define the type for the store state
 interface SmartsiteFormStore {
   formData: FormData;
-  setFormData: <K extends keyof FormData>(
-    field: K,
-    value: FormData[K]
-  ) => void;
+  setFormData: <K extends keyof FormData>(field: K, value: FormData[K]) => void;
 }
 
 // Create the Zustand store
 const useSmartsiteFormStore = create<SmartsiteFormStore>((set) => ({
   formData: {
-    name: '',
-    bio: '',
-    profileImg: '',
-    backgroundImg: '',
+    name: "",
+    bio: "",
+    profileImg: "",
+    backgroundImg: "",
     theme: true,
-    galleryImg: '',
-    backgroundColor: '',
-    fontColor: '',
-    secondaryFontColor: '',
-    fontType: 'roboto',
-    templateColor: '',
+    galleryImg: "",
+    backgroundColor: "",
+    fontColor: "",
+    secondaryFontColor: "",
+    fontType: "Roboto",
+    templateColor: "",
   },
   setFormData: (field, value) =>
     set((state) => ({
