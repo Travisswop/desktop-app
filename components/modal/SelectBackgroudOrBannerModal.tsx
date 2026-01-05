@@ -12,14 +12,18 @@ import {
   CarouselItem,
   type CarouselApi,
 } from "../ui/carousel";
+import { Loader } from "lucide-react";
 
 export default function SelectBackgroudOrBannerModal({
   isOpen,
   onOpenChange,
   backgroundImgArr,
   setIsBannerModalOpen,
+  onSmartSiteUpdateInfo,
 }: any) {
   const [isBackgroundColor, setIsBackgroundColor] = useState(false);
+  const [isBackgroundUpdateLoading, setIsBackgroundUpdateLoading] =
+    useState(false);
   const [color, setColor] = useState("#fee1e1ff");
   const [api, setApi] = useState<CarouselApi>();
   const [current, setCurrent] = useState(0);
@@ -27,6 +31,7 @@ export default function SelectBackgroudOrBannerModal({
   const { setFormData }: any = useSmartsiteFormStore();
 
   console.log("current", current);
+  console.log("isBackgroundColor", isBackgroundColor);
 
   useEffect(() => {
     if (!api) {
@@ -47,14 +52,24 @@ export default function SelectBackgroudOrBannerModal({
 
   const handleChooseBgAndColor = (e: any) => {
     e.preventDefault();
+    setIsBackgroundUpdateLoading(true);
+
+    let updatedData;
+
     if (isBackgroundColor) {
-      setFormData("backgroundColor", color);
-      setFormData("backgroundImg", "");
+      updatedData = {
+        backgroundColor: color,
+        backgroundImg: "",
+      };
     } else {
-      setFormData("backgroundImg", current + 1);
-      setFormData("backgroundColor", "");
+      updatedData = {
+        backgroundImg: current + 1,
+        backgroundColor: "",
+      };
     }
-    setIsBannerModalOpen(false);
+    console.log("updatedData log data", updatedData);
+    setFormData(updatedData);
+    onSmartSiteUpdateInfo(e, updatedData);
   };
 
   return (
@@ -164,8 +179,16 @@ export default function SelectBackgroudOrBannerModal({
           <PrimaryButton
             onClick={handleChooseBgAndColor}
             className="w-full py-2.5 gap-2 bg-gray-200"
+            disabled={isBackgroundUpdateLoading}
           >
-            Save
+            {isBackgroundUpdateLoading ? (
+              <span className="flex items-center gap-2">
+                Saving
+                <Loader className="w-6 h-6 animate-spin" />
+              </span>
+            ) : (
+              "Save"
+            )}
           </PrimaryButton>
         </div>
       </div>

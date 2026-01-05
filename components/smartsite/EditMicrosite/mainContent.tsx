@@ -183,13 +183,12 @@ const EditSmartSite = ({ data, token }: any) => {
     }
   };
 
-  const handleSmartSiteUpdateInfo = async (e: any) => {
+  const handleSmartSiteUpdateInfo = async (
+    e: any,
+    updatedData?: { backgroundColor: string; backgroundImg: string | number }
+  ) => {
     setIsFormSubmitLoading(true);
     e.preventDefault();
-    const formData = new FormData(e.currentTarget);
-
-    console.log("formData", formData);
-
     // setGatedAccessError({
     //   contractAddress: "",
     //   tokenId: "",
@@ -238,14 +237,19 @@ const EditSmartSite = ({ data, token }: any) => {
     //   }
     // }
 
+    console.log("updatedData1", updatedData);
+
     const smartSiteInfo = {
       _id: data.data._id,
-      name: formData.get("name") || "",
-      bio: formData.get("bio") || "",
+      name: smartSiteEditFormData.name || data.data.name,
+      bio: smartSiteEditFormData.bio || data.data.dio,
       brandImg: brandImage,
       username: data.data.username || "",
       profilePic: uploadedImageUrl || selectedImage || data.data.profilePic,
-      backgroundImg: smartSiteEditFormData.backgroundImg,
+      backgroundImg:
+        updatedData?.backgroundImg || updatedData?.backgroundColor
+          ? updatedData?.backgroundImg
+          : smartSiteEditFormData.backgroundImg,
       // gatedAccess: isGatedAccessOpen,
       // gatedInfo: {
       //   contractAddress: formData.get("contractAddress") || "",
@@ -261,7 +265,10 @@ const EditSmartSite = ({ data, token }: any) => {
       secondaryFontColor: smartSiteEditFormData.secondaryFontColor,
       fontFamily: smartSiteEditFormData.fontType || data.data.fontFamily,
       themeColor: smartSiteEditFormData.templateColor,
-      backgroundColor: smartSiteEditFormData.backgroundColor,
+      backgroundColor:
+        updatedData?.backgroundImg || updatedData?.backgroundColor
+          ? updatedData?.backgroundColor
+          : smartSiteEditFormData.backgroundColor,
     };
 
     console.log("smartSiteInfo payload", smartSiteInfo);
@@ -272,7 +279,8 @@ const EditSmartSite = ({ data, token }: any) => {
 
       if (response.state === "success") {
         refetch();
-        router.push("/smartsite");
+        router.push(`/smartsite/profile/${data.data._id}`);
+        setIsFormSubmitLoading(false);
         toast({
           title: "Success",
           description: "Smartsite updated successfully",
@@ -841,6 +849,7 @@ const EditSmartSite = ({ data, token }: any) => {
           onOpenChange={onOpenChange}
           backgroundImgArr={smatsiteBackgroundImageList}
           setIsBannerModalOpen={setIsBannerModalOpen}
+          onSmartSiteUpdateInfo={handleSmartSiteUpdateInfo}
         />
       )}
     </main>

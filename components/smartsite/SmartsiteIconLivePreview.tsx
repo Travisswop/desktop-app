@@ -308,27 +308,7 @@ const SmartsiteIconLivePreview = ({
           <div className={`flex flex-col justify-between`}>
             <div>
               <div className="relative">
-                {/* {!formData.theme && (
-                  <div className="bg-white p-2 rounded-xl shadow-md">
-                    <Image
-                      alt="banner image"
-                      src={`/images/smartsite-banner/${formData.backgroundImg}.png`}
-                      width={900}
-                      height={400}
-                      quality={100}
-                      className="rounded-xl w-full h-auto"
-                    />
-                  </div>
-                )} */}
-
-                <div
-                  className={"flex justify-center pt-10"}
-                  // className={` ${
-                  //   !formData.theme
-                  //     ? "absolute top-full -translate-y-1/2 left-1/2 -translate-x-1/2"
-                  //     : "flex justify-center pt-10"
-                  // } `}
-                >
+                <div className={"flex justify-center pt-10"}>
                   {formData.profileImg && (
                     <>
                       {isUrl(formData.profileImg) ? (
@@ -356,12 +336,7 @@ const SmartsiteIconLivePreview = ({
                   )}
                 </div>
               </div>
-              <div
-                className={`flex flex-col gap-3 h-full justify-start mt-4`}
-                // className={`${
-                //   !formData.theme ? "mt-14" : "mt-2"
-                // }  flex flex-col gap-3 h-full justify-start`}
-              >
+              <div className={`flex flex-col gap-3 h-full justify-start mt-4`}>
                 <div
                   className={`flex flex-col items-center text-center ${
                     formData.fontType &&
