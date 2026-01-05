@@ -48,12 +48,18 @@ export default function ClientProfile({ userName }: ClientProfileProps) {
     redirect(`/sp/${micrositeData.username}`);
   }
 
+  console.log("micrositeData", micrositeData);
+
   const {
     _id,
     name,
     bio,
     profilePic,
     backgroundImg,
+    backgroundColor,
+    fontColor,
+    secondaryFontColor,
+    fontFamily,
     info,
     gatedAccess,
     direct,
@@ -81,11 +87,6 @@ export default function ClientProfile({ userName }: ClientProfileProps) {
 
   const ensDomain = info.ensDomain[info.ensDomain.length - 1];
 
-  const bg =
-    typeof backgroundImg === "string" && backgroundImg.startsWith("https")
-      ? backgroundImg
-      : `/images/smartsite-background/${backgroundImg}.png`;
-
   return (
     <>
       {/* Token Gate Verification Modal - Shows when gatedInfo.isOn is true */}
@@ -94,8 +95,13 @@ export default function ClientProfile({ userName }: ClientProfileProps) {
       )}
 
       <div
-        style={{ backgroundImage: theme ? `url(${bg})` : "" }}
-        className="bg-cover bg-no-repeat h-screen overflow-y-auto"
+        style={{
+          backgroundImage: backgroundImg
+            ? `url(/images/smartsite-background/${backgroundImg}.png)`
+            : "none",
+          backgroundColor: backgroundColor && backgroundColor,
+        }}
+        className="bg-cover bg-no-repeat h-screen overflow-y-auto pt-6"
       >
         <main
           className={`flex max-w-md mx-auto min-h-screen flex-col items-center px-4 z-50`}
@@ -103,7 +109,7 @@ export default function ClientProfile({ userName }: ClientProfileProps) {
           <CartProvider>
             <Header
               avatar={profilePic}
-              cover={backgroundImg.toString()}
+              // cover={backgroundImg.toString()}
               name={name}
               parentId={parentId}
               micrositeId={_id}

@@ -23,8 +23,8 @@ import {
   ModalContent,
   useDisclosure,
 } from "@nextui-org/react";
-import { handleSmartSiteUpdate } from "@/actions/update";
-import { useRouter } from "next/navigation";
+// import { handleSmartSiteUpdate } from "@/actions/update";
+// import { useRouter } from "next/navigation";
 import toast from "react-hot-toast";
 import AnimateButton from "../ui/Button/AnimateButton";
 import { fontMap } from "@/lib/fonts";
@@ -50,15 +50,15 @@ const SmartsiteIconLivePreview = ({
   const setSmartSiteData = useUpdateSmartIcon((state: any) => state.setState);
   const { toggle } = useSideBarToggleStore();
 
-  console.log("data hhiss", data);
+  // console.log("data hhiss", data);
 
   const { isOn, setOff, setOn }: any = useSmallIconToggleStore();
   const iconData: any = useUpdateSmartIcon();
 
-  const [isPrimaryMicrosite, setIsPrimaryMicrosite] = useState<boolean>(false);
-  const [isLeadCapture, setIsLeadCapture] = useState<boolean>(false);
+  // const [isPrimaryMicrosite, setIsPrimaryMicrosite] = useState<boolean>(false);
+  // const [isLeadCapture, setIsLeadCapture] = useState<boolean>(false);
 
-  const [isPublishedLoading, setIsPublishedLoading] = useState(false);
+  // const [isPublishedLoading, setIsPublishedLoading] = useState(false);
 
   // console.log("data form live", data.info.socialLarge);
   const { formData, setFormData } = useSmartsiteFormStore();
@@ -71,7 +71,7 @@ const SmartsiteIconLivePreview = ({
 
   const { user, accessToken } = useUser();
 
-  console.log("user", user);
+  console.log("formDatagg", formData);
 
   useEffect(() => {
     if (data) {
@@ -87,62 +87,67 @@ const SmartsiteIconLivePreview = ({
     setOn(true);
   };
 
-  useEffect(() => {
-    if (data.primary) {
-      setIsPrimaryMicrosite(true);
-    }
-    if (data.leadCapture) {
-      setIsLeadCapture(true);
-    }
-  }, [data.leadCapture, data.primary]);
+  // useEffect(() => {
+  //   if (data.primary) {
+  //     setIsPrimaryMicrosite(true);
+  //   }
+  //   if (data.leadCapture) {
+  //     setIsLeadCapture(true);
+  //   }
+  // }, [data.leadCapture, data.primary]);
 
   // console.log("audio", data.info.audio);
 
   // console.log("formdata", formData);
   // console.log("data from live preview", data);
-  const router = useRouter();
+  // const router = useRouter();
 
   useEffect(() => {
     if (data) {
+      setFormData("name", data.name);
+      setFormData("bio", data.bio);
+      setFormData("profileImg", data.profilePic);
+      setFormData("backgroundImg", data.backgroundImg);
       setFormData("theme", data.theme);
-      setFormData("fontType", data.fontFamily);
+      setFormData("backgroundColor", data.backgroundColor);
       setFormData("fontColor", data.fontColor);
       setFormData("secondaryFontColor", data.secondaryFontColor);
+      setFormData("fontType", data.fontFamily);
       setFormData("templateColor", data.themeColor);
-      setFormData("backgroundColor", data.backgroundColor);
-      setFormData("backgroundImg", data.backgroundImg);
-      setFormData("profileImg", data.profilePic);
     }
   }, [data, setFormData]);
 
-  const handleSmartSiteUpdateInfo = async (e: any) => {
-    setIsPublishedLoading(true);
-    e.preventDefault();
+  // const handleSmartSiteUpdateInfo = async (e: any) => {
+  //   setIsPublishedLoading(true);
+  //   e.preventDefault();
 
-    const smartSiteInfo = {
-      _id: data._id,
-      primary: isPrimaryMicrosite,
-      leadCapture: isLeadCapture,
-    };
+  //   const smartSiteInfo = {
+  //     _id: data._id,
+  //     primary: isPrimaryMicrosite,
+  //     leadCapture: isLeadCapture,
+  //   };
 
-    try {
-      const response = await handleSmartSiteUpdate(smartSiteInfo, accessToken);
+  //   try {
+  //     const response = await handleSmartSiteUpdate(
+  //       smartSiteInfo,
+  //       accessToken || ""
+  //     );
 
-      if (response.state === "success") {
-        router.push("/smartsite");
-        toast.success("Smartsite published successfully");
-      } else if (response.state === "fail") {
-        toast.error(
-          response.message || "At least one primary smartsite required"
-        );
-      }
-    } catch (error: any) {
-      toast.error("Something went wrong!");
-      console.log("error", error);
-    } finally {
-      setIsPublishedLoading(false);
-    }
-  };
+  //     if (response.state === "success") {
+  //       router.push("/smartsite");
+  //       toast.success("Smartsite published successfully");
+  //     } else if (response.state === "fail") {
+  //       toast.error(
+  //         response.message || "At least one primary smartsite required"
+  //       );
+  //     }
+  //   } catch (error: any) {
+  //     toast.error("Something went wrong!");
+  //     console.log("error", error);
+  //   } finally {
+  //     setIsPublishedLoading(false);
+  //   }
+  // };
 
   const showReadMoreForBlog = (e: any, item: any) => {
     e.stopPropagation();
@@ -178,7 +183,10 @@ const SmartsiteIconLivePreview = ({
 
       console.log("payload", payload);
 
-      const response = await handleDeleteMarketPlace(payload, accessToken);
+      const response = await handleDeleteMarketPlace(
+        payload,
+        accessToken || ""
+      );
 
       console.log("response hola", response);
       console.log("accessToken", accessToken);
@@ -284,9 +292,10 @@ const SmartsiteIconLivePreview = ({
   return (
     <div
       style={{
-        backgroundImage: formData.theme
+        backgroundImage: formData.backgroundImg
           ? `url(/images/smartsite-background/${formData.backgroundImg}.png)`
           : "none",
+        backgroundColor: formData.backgroundColor && formData.backgroundColor,
       }}
       className="max-w-screen h-[calc(100vh-96px)] overflow-x-hidden -m-6 bg-cover bg-no-repeat overflow-y-auto"
     >
@@ -299,7 +308,7 @@ const SmartsiteIconLivePreview = ({
           <div className={`flex flex-col justify-between`}>
             <div>
               <div className="relative">
-                {!formData.theme && (
+                {/* {!formData.theme && (
                   <div className="bg-white p-2 rounded-xl shadow-md">
                     <Image
                       alt="banner image"
@@ -310,14 +319,15 @@ const SmartsiteIconLivePreview = ({
                       className="rounded-xl w-full h-auto"
                     />
                   </div>
-                )}
+                )} */}
 
                 <div
-                  className={` ${
-                    !formData.theme
-                      ? "absolute top-full -translate-y-1/2 left-1/2 -translate-x-1/2"
-                      : "flex justify-center pt-10"
-                  } `}
+                  className={"flex justify-center pt-10"}
+                  // className={` ${
+                  //   !formData.theme
+                  //     ? "absolute top-full -translate-y-1/2 left-1/2 -translate-x-1/2"
+                  //     : "flex justify-center pt-10"
+                  // } `}
                 >
                   {formData.profileImg && (
                     <>
@@ -347,9 +357,10 @@ const SmartsiteIconLivePreview = ({
                 </div>
               </div>
               <div
-                className={`${
-                  !formData.theme ? "mt-14" : "mt-2"
-                }  flex flex-col gap-3 h-full justify-start`}
+                className={`flex flex-col gap-3 h-full justify-start mt-4`}
+                // className={`${
+                //   !formData.theme ? "mt-14" : "mt-2"
+                // }  flex flex-col gap-3 h-full justify-start`}
               >
                 <div
                   className={`flex flex-col items-center text-center ${

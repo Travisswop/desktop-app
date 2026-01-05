@@ -26,7 +26,7 @@ const Bio: FC<Props> = ({ name, bio }) => {
         type: "easeInOut",
       }}
     >
-      <h1 className="text-xl sm:text-2xl font-bold text-center">{name}</h1>
+      <h1 className="text-xl font-bold text-center">{name}</h1>
       <div className="text-sm sm:text-md text-center text-slate-600">{bio}</div>
     </motion.div>
   );

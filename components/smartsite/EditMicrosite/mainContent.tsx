@@ -266,26 +266,26 @@ const EditSmartSite = ({ data, token }: any) => {
 
     console.log("smartSiteInfo payload", smartSiteInfo);
 
-    // try {
-    //   const response = await handleSmartSiteUpdate(smartSiteInfo, token);
-    //   logger.log("response", response);
+    try {
+      const response = await handleSmartSiteUpdate(smartSiteInfo, token);
+      logger.log("response", response);
 
-    //   if (response.state === "success") {
-    //     refetch();
-    //     router.push("/smartsite");
-    //     toast({
-    //       title: "Success",
-    //       description: "Smartsite updated successfully",
-    //     });
-    //   }
-    // } catch (error) {
-    //   toast({
-    //     title: "Error",
-    //     description: "Something went wrong!",
-    //   });
-    // } finally {
-    //   setIsFormSubmitLoading(false);
-    // }
+      if (response.state === "success") {
+        refetch();
+        router.push("/smartsite");
+        toast({
+          title: "Success",
+          description: "Smartsite updated successfully",
+        });
+      }
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Something went wrong!",
+      });
+    } finally {
+      setIsFormSubmitLoading(false);
+    }
   };
 
   const handleDeleteSmartsite = async () => {
