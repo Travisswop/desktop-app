@@ -1,4 +1,4 @@
-"use client";
+'use client';
 import {
   Check,
   Copy,
@@ -6,18 +6,22 @@ import {
   QrCodeIcon,
   Share2,
   Wallet,
-} from "lucide-react";
-import { useMemo, useRef, useState } from "react";
-import { BsBank } from "react-icons/bs";
-import ensImg from "@/public/images/ens.png";
-import Image from "next/image";
-import { PrimaryButton } from "../ui/Button/PrimaryButton";
-import { FaArrowLeftLong } from "react-icons/fa6";
-import { MdOutlineQrCodeScanner } from "react-icons/md";
-import { IoCopyOutline } from "react-icons/io5";
-import { QRCodeSVG } from "qrcode.react";
-import { useUser } from "@/lib/UserContext";
-import { usePrivy, useSolanaWallets, useWallets } from "@privy-io/react-auth";
+} from 'lucide-react';
+import { useMemo, useRef, useState } from 'react';
+import { BsBank } from 'react-icons/bs';
+import ensImg from '@/public/images/ens.png';
+import Image from 'next/image';
+import { PrimaryButton } from '../ui/Button/PrimaryButton';
+import { FaArrowLeftLong } from 'react-icons/fa6';
+import { MdOutlineQrCodeScanner } from 'react-icons/md';
+import { IoCopyOutline } from 'react-icons/io5';
+import { QRCodeSVG } from 'qrcode.react';
+import { useUser } from '@/lib/UserContext';
+import {
+  usePrivy,
+  useSolanaWallets,
+  useWallets,
+} from '@privy-io/react-auth';
 
 export default function ReceiveOptions() {
   const [navigateCryptoFiat, setNavigateCryptoFiat] = useState({
@@ -26,7 +30,7 @@ export default function ReceiveOptions() {
   });
 
   const [qrOpenStatus, setQrOpenStatus] = useState<
-    boolean | "sol" | "eth" | "pol" | "base"
+    boolean | 'sol' | 'eth' | 'pol' | 'base'
   >(false);
   const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
 
@@ -35,25 +39,29 @@ export default function ReceiveOptions() {
   const { user: privyUser } = usePrivy();
   const { user } = useUser();
 
-  console.log("user", user);
+  console.log('user', user);
 
   const { wallets: solWallets } = useSolanaWallets();
   const { wallets: ethWallets } = useWallets();
 
   const solWalletAddress = useMemo(() => {
     return solWallets?.find(
-      (w) => w.walletClientType === "privy" || w.connectorType === "embedded"
+      (w) =>
+        w.walletClientType === 'privy' ||
+        w.connectorType === 'embedded'
     )?.address;
   }, [solWallets]);
 
   const evmWalletAddress = useMemo(() => {
     return ethWallets?.find(
-      (w) => w.walletClientType === "privy" || w.connectorType === "embedded"
+      (w) =>
+        w.walletClientType === 'privy' ||
+        w.connectorType === 'embedded'
     )?.address;
   }, [ethWallets]);
 
-  console.log("solWallets", solWalletAddress);
-  console.log("ethWallets", evmWalletAddress);
+  console.log('solWallets', solWalletAddress);
+  console.log('ethWallets', evmWalletAddress);
 
   const handleCopy = (address: string, index: number) => {
     navigator.clipboard.writeText(address);
@@ -65,10 +73,10 @@ export default function ReceiveOptions() {
   };
 
   const handleShareUsername = async () => {
-    const username = user?.ens || user?.ensName || "Laiba1.Swop.Id";
+    const username = user?.ens || user?.ensName;
 
     const shareData = {
-      title: "My Swop ID",
+      title: 'My Swop ID',
       text: username,
     };
 
@@ -77,32 +85,32 @@ export default function ReceiveOptions() {
         await navigator.share(shareData);
       } else {
         await navigator.clipboard.writeText(username);
-        alert("Username copied to clipboard!");
+        alert('Username copied to clipboard!');
       }
     } catch (error) {
-      console.error("Error sharing username:", error);
+      console.error('Error sharing username:', error);
     }
   };
 
   const chainAddresses = [
     {
-      name: "Solana",
-      icon: "/assets/icons/SOL.png",
+      name: 'Solana',
+      icon: '/assets/icons/SOL.png',
       address: solWalletAddress,
     },
     {
-      name: "Ethereum",
-      icon: "/assets/icons/ETH.png",
+      name: 'Ethereum',
+      icon: '/assets/icons/ETH.png',
       address: evmWalletAddress,
     },
     {
-      name: "Polygon",
-      icon: "/assets/icons/POL.png",
+      name: 'Polygon',
+      icon: '/assets/icons/POL.png',
       address: evmWalletAddress,
     },
     {
-      name: "Base",
-      icon: "/assets/icons/base.png",
+      name: 'Base',
+      icon: '/assets/icons/base.png',
       address: evmWalletAddress,
     },
   ];
@@ -111,20 +119,20 @@ export default function ReceiveOptions() {
     if (!qrRef.current) return;
 
     try {
-      const html2canvas = (await import("html2canvas")).default;
+      const html2canvas = (await import('html2canvas')).default;
       const canvas = await html2canvas(qrRef.current, {
-        backgroundColor: "#ffffff",
+        backgroundColor: '#ffffff',
         scale: 2,
       });
 
-      const link = document.createElement("a");
+      const link = document.createElement('a');
       link.download = `swop-qr-${
-        privyUser?.email?.address?.split("@")[0] || "user"
+        privyUser?.email?.address?.split('@')[0] || 'user'
       }.png`;
-      link.href = canvas.toDataURL("image/png");
+      link.href = canvas.toDataURL('image/png');
       link.click();
     } catch (error) {
-      console.error("Error saving QR code:", error);
+      console.error('Error saving QR code:', error);
     }
   };
 
@@ -136,7 +144,7 @@ export default function ReceiveOptions() {
     const shareData = {
       title: `My Wallet Address`,
       text: `My Wallet Address: ${
-        qrOpenStatus === "eth" ? evmWalletAddress : solWalletAddress
+        qrOpenStatus === 'eth' ? evmWalletAddress : solWalletAddress
       }`,
     };
 
@@ -145,12 +153,12 @@ export default function ReceiveOptions() {
         await navigator.share(shareData);
       } else {
         await navigator.clipboard.writeText(
-          qrOpenStatus === "eth" ? evmWalletAddress : solWalletAddress
+          qrOpenStatus === 'eth' ? evmWalletAddress : solWalletAddress
         );
-        alert("Address copied to clipboard!");
+        alert('Address copied to clipboard!');
       }
     } catch (error) {
-      console.error("Error sharing:", error);
+      console.error('Error sharing:', error);
     }
   };
 
@@ -163,25 +171,28 @@ export default function ReceiveOptions() {
   };
 
   const handleQrOpen = (chain) => {
-    if (chain?.name === "Solana") {
-      setQrOpenStatus("sol");
-    } else if (chain?.name === "Ethereum") {
-      setQrOpenStatus("eth");
-    } else if (chain?.name === "Polygon") {
-      setQrOpenStatus("pol");
+    if (chain?.name === 'Solana') {
+      setQrOpenStatus('sol');
+    } else if (chain?.name === 'Ethereum') {
+      setQrOpenStatus('eth');
+    } else if (chain?.name === 'Polygon') {
+      setQrOpenStatus('pol');
     } else {
-      setQrOpenStatus("base");
+      setQrOpenStatus('base');
     }
   };
 
   return (
     <div
       className={`bg-white rounded-2xl ${
-        !navigateCryptoFiat.crypto && "p-4 px-6"
+        !navigateCryptoFiat.crypto && 'p-4 px-6'
       } space-y-4 shadow-sm`}
     >
       {(navigateCryptoFiat.crypto || navigateCryptoFiat.fiat) && (
-        <button onClick={handleBackBtn} className="absolute left-3 top-3">
+        <button
+          onClick={handleBackBtn}
+          className="absolute left-3 top-3"
+        >
           <FaArrowLeftLong />
         </button>
       )}
@@ -206,9 +217,9 @@ export default function ReceiveOptions() {
                 <div className="bg-white p-4">
                   <QRCodeSVG
                     value={
-                      qrOpenStatus === "eth"
-                        ? evmWalletAddress || ""
-                        : solWalletAddress || ""
+                      qrOpenStatus === 'eth'
+                        ? evmWalletAddress || ''
+                        : solWalletAddress || ''
                     }
                     size={200}
                     level="H"
@@ -216,11 +227,11 @@ export default function ReceiveOptions() {
                     //need to use local image
                     imageSettings={{
                       src:
-                        qrOpenStatus === "sol"
+                        qrOpenStatus === 'sol'
                           ? chainAddresses[0].icon
-                          : qrOpenStatus === "eth"
+                          : qrOpenStatus === 'eth'
                           ? chainAddresses[1].icon
-                          : qrOpenStatus === "base"
+                          : qrOpenStatus === 'base'
                           ? chainAddresses[3].icon
                           : chainAddresses[2].icon,
                       height: 40,
@@ -240,13 +251,13 @@ export default function ReceiveOptions() {
 
             <p className="text-center text-gray-500 text-sm max-w-md mx-auto mb-6 leading-relaxed">
               {`Use This Only To Receive Tokens or NFTs on the ${
-                qrOpenStatus === "sol"
-                  ? "Solana"
-                  : qrOpenStatus === "eth"
-                  ? "Etherium"
-                  : qrOpenStatus === "pol"
-                  ? "Polygon"
-                  : "Base"
+                qrOpenStatus === 'sol'
+                  ? 'Solana'
+                  : qrOpenStatus === 'eth'
+                  ? 'Etherium'
+                  : qrOpenStatus === 'pol'
+                  ? 'Polygon'
+                  : 'Base'
               } Blockchain`}
             </p>
 
@@ -287,26 +298,29 @@ export default function ReceiveOptions() {
 
                 <div className="text-start space-y-3 text-gray-500">
                   <p className="text-sm leading-relaxed">
-                    Your swop.id is your universal identity for messaging,
-                    payments, and publishing.
+                    Your swop.id is your universal identity for
+                    messaging, payments, and publishing.
                   </p>
-                  <p className="text-sm leading-relaxed">It gives you:</p>
+                  <p className="text-sm leading-relaxed">
+                    It gives you:
+                  </p>
                   <div className="text-left text-sm space-y-1 px-2">
                     <p>
-                      • One link to receive encrypted messages, post updates,
-                      and interact with bots.
+                      • One link to receive encrypted messages, post
+                      updates, and interact with bots.
                     </p>
                     <p>
-                      • One address to receive stablecoin payments instantly.
+                      • One address to receive stablecoin payments
+                      instantly.
                     </p>
                     <p>
-                      • One profile where your content, feed, and assets live —
-                      always on-chain, always yours.
+                      • One profile where your content, feed, and
+                      assets live — always on-chain, always yours.
                     </p>
                   </div>
                   <p className="text-sm leading-relaxed">
-                    Share your swop.id to stay connected, get paid, and grow
-                    your presence in one place.
+                    Share your swop.id to stay connected, get paid,
+                    and grow your presence in one place.
                   </p>
                 </div>
 
@@ -341,10 +355,11 @@ export default function ReceiveOptions() {
 
                     <p className="text-xs text-gray-600 font-mono">
                       {chain.address
-                        ? `${chain.address.slice(0, 4)}...${chain.address.slice(
-                            -4
-                          )}`
-                        : ""}
+                        ? `${chain.address.slice(
+                            0,
+                            4
+                          )}...${chain.address.slice(-4)}`
+                        : ''}
                     </p>
 
                     <div className="flex gap-1 mt-2">
@@ -358,11 +373,16 @@ export default function ReceiveOptions() {
 
                       {/* Share Button */}
                       <button
-                        onClick={() => handleCopy(chain.address, index)}
+                        onClick={() =>
+                          handleCopy(chain.address, index)
+                        }
                         className="p-1.5 hover:bg-gray-200 rounded-lg transition w-6 h-auto"
                       >
                         {copiedIndex === index ? (
-                          <Check size={12} className="text-green-600" />
+                          <Check
+                            size={12}
+                            className="text-green-600"
+                          />
                         ) : (
                           <IoCopyOutline />
                         )}
@@ -388,12 +408,16 @@ export default function ReceiveOptions() {
               </p>
 
               <p className="text-gray-600 text-sm leading-relaxed text-center">
-                Receive fiat money through your connected bank account.
+                Receive fiat money through your connected bank
+                account.
               </p>
 
               <button
                 onClick={() =>
-                  setNavigateCryptoFiat({ crypto: false, fiat: false })
+                  setNavigateCryptoFiat({
+                    crypto: false,
+                    fiat: false,
+                  })
                 }
                 className="w-full mt-2 bg-black text-white py-3 rounded-xl font-medium hover:opacity-90 transition"
               >
@@ -405,7 +429,9 @@ export default function ReceiveOptions() {
           {/* ---------- DEFAULT SCREEN ---------- */}
           {!navigateCryptoFiat.crypto && !navigateCryptoFiat.fiat && (
             <>
-              <h2 className="text-lg font-semibold text-gray-800">Receive</h2>
+              <h2 className="text-lg font-semibold text-gray-800">
+                Receive
+              </h2>
 
               <div
                 onClick={() =>
@@ -417,7 +443,9 @@ export default function ReceiveOptions() {
                   <Wallet className="w-5 h-5 text-gray-700" />
                 </div>
                 <div>
-                  <p className="text-base font-medium text-gray-900">Crypto</p>
+                  <p className="text-base font-medium text-gray-900">
+                    Crypto
+                  </p>
                   <p className="text-sm text-gray-500">
                     Receive assets from external wallet
                   </p>
@@ -434,7 +462,9 @@ export default function ReceiveOptions() {
                   <BsBank className="w-5 h-5 text-gray-700" />
                 </div>
                 <div>
-                  <p className="text-base font-medium text-gray-900">Fiat</p>
+                  <p className="text-base font-medium text-gray-900">
+                    Fiat
+                  </p>
                   <p className="text-sm text-gray-500">
                     Transfer money from bank
                   </p>
