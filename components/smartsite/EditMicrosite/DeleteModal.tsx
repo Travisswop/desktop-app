@@ -102,19 +102,19 @@ const DeleteModal = ({
                   </p>
                 ) : (
                   <>
-                    <Button
+                    <button
                       onClick={onClose}
                       className="px-8 py-2 rounded-lg bg-gray-100 text-gray-700 font-medium hover:bg-gray-200 transition-colors"
                     >
                       Cancel
-                    </Button>
-                    <Button
+                    </button>
+                    <button
                       onClick={handleDelete}
                       className="px-8 py-2 rounded-lg border-2 border-red-500 bg-white text-red-500 font-medium hover:bg-red-50 transition-colors flex items-center gap-2"
                     >
                       <MdDeleteOutline size={18} />
                       Delete
-                    </Button>
+                    </button>
                   </>
                 )}
               </ModalFooter>

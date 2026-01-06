@@ -134,27 +134,18 @@ const SocialSmall: FC<Props> = ({ data, socialType, parentId, number }) => {
           stiffness: 400,
           damping: 10,
         }}
-        className="flex rounded-full cursor-pointer "
+        className="flex rounded-full cursor-pointer justify-center"
       >
-        <div
-          style={{
-            position: "relative",
-            width: "25px",
-            height: "25px",
-          }}
-        >
-          <Image
-            src={
-              iconPath ? iconPath : `/images/small-icons/black/${trimIcon}.png`
-            }
-            alt={iconName}
-            fill
-            sizes="100vw"
-            style={{
-              objectFit: "contain",
-            }}
-          />
-        </div>
+        <Image
+          src={
+            iconPath ? iconPath : `/images/small-icons/black/${trimIcon}.png`
+          }
+          alt={iconName}
+          width={320}
+          height={320}
+          quality={100}
+          className="w-5 h-auto"
+        />
       </motion.div>
     </motion.div>
   );

@@ -40,6 +40,7 @@ import {
   CarouselItem,
 } from "@/components/ui/carousel";
 import { useUser } from "@/lib/UserContext";
+import distributeSmallIcons from "../util/distributeSmallIcons";
 
 const SmartsiteIconLivePreview = ({
   data,
@@ -201,73 +202,7 @@ const SmartsiteIconLivePreview = ({
     }
   };
 
-  const distributeIcons = (icons: any[]) => {
-    const length = icons.length;
-    let rows: any[][] = [];
-    if (length <= 6) {
-      rows = [icons]; // Single row
-    } else if (length <= 11) {
-      const firstRow = Math.ceil(length / 2) - 1;
-      // const secondRow = Math.ceil(length / 2) + 1;
-      rows = [icons.slice(0, firstRow), icons.slice(firstRow)];
-    } else if (length <= 14) {
-      const firstRow = Math.ceil(length / 3) - 2;
-      const secondRow = Math.ceil(length / 3);
-      // const thirdRow = Math.ceil(length / 3) + 2;
-      rows = [
-        icons.slice(0, firstRow),
-        icons.slice(firstRow, firstRow + secondRow),
-        icons.slice(firstRow + secondRow),
-      ];
-    } else if (length === 15) {
-      const firstRow = 4;
-      const secondRow = 5;
-      // const thirdRow = Math.ceil(length / 3) + 2;
-      rows = [
-        icons.slice(0, firstRow),
-        icons.slice(firstRow, firstRow + secondRow),
-        icons.slice(firstRow + secondRow),
-      ];
-    } else if (length === 16) {
-      const firstRow = 4;
-      const secondRow = 6;
-      // const thirdRow = Math.ceil(length / 3) + 2;
-      rows = [
-        icons.slice(0, firstRow),
-        icons.slice(firstRow, firstRow + secondRow),
-        icons.slice(firstRow + secondRow),
-      ];
-    } else if (length === 17) {
-      const firstRow = 5;
-      const secondRow = 6;
-      // const thirdRow = Math.ceil(length / 3) + 2;
-      rows = [
-        icons.slice(0, firstRow),
-        icons.slice(firstRow, firstRow + secondRow),
-        icons.slice(firstRow + secondRow),
-      ];
-    } else if (length === 18) {
-      const firstRow = 6;
-      const secondRow = 6;
-      // const thirdRow = Math.ceil(length / 3) + 2;
-      rows = [
-        icons.slice(0, firstRow),
-        icons.slice(firstRow, firstRow + secondRow),
-        icons.slice(firstRow + secondRow),
-      ];
-    } else {
-      // For lengths greater than 18, distribute icons into rows with a maximum of 6 icons per row
-      let start = 0;
-      while (start < length) {
-        rows.push(icons.slice(start, start + 6));
-        start += 6;
-      }
-    }
-
-    return rows;
-  };
-
-  const socialRows = distributeIcons(data.info.socialTop);
+  const socialRows = distributeSmallIcons(data.info.socialTop);
 
   // Add this helper function at the top of your component or in a separate utils file
   const groupMarketPlaceByType = (marketPlaceItems: any[]) => {
@@ -336,7 +271,7 @@ const SmartsiteIconLivePreview = ({
                   )}
                 </div>
               </div>
-              <div className={`flex flex-col gap-3 h-full justify-start mt-4`}>
+              <div className={`flex flex-col gap-5 h-full justify-start mt-4`}>
                 <div
                   className={`flex flex-col items-center text-center ${
                     formData.fontType &&
@@ -347,7 +282,7 @@ const SmartsiteIconLivePreview = ({
                     style={{
                       color: formData.fontColor && formData.fontColor,
                     }}
-                    className={`font-medium text-lg text-gray-900`}
+                    className={`font-semibold text-lg text-gray-900`}
                   >
                     {formData.name || data?.name}
                   </p>
@@ -362,45 +297,49 @@ const SmartsiteIconLivePreview = ({
                 </div>
 
                 {/* small icon display here start */}
-                {socialRows.map((row, rowIndex) => (
-                  <div
-                    key={rowIndex}
-                    className="flex justify-center gap-x-4 gap-y-2 flex-wrap"
-                  >
-                    {row.map((item: any, index: number) => (
-                      <button
-                        key={index}
-                        onClick={() =>
-                          handleTriggerUpdate({
-                            data: item,
-                            categoryForTrigger: "socialTop",
-                          })
-                        }
-                      >
-                        <Image
-                          src={getSmallIconImage(item.name, item.group) as any}
-                          alt="icon"
-                          style={
-                            formData.templateColor === "#ffffff" ||
-                            formData.templateColor === "#FFFFFF"
-                              ? { filter: "brightness(0) invert(1)" }
-                              : formData.templateColor === "#D3D3D3" ||
-                                formData.templateColor === "#808080"
-                              ? {
-                                  filter:
-                                    "brightness(0) saturate(0%) opacity(0.5)",
-                                }
-                              : tintStyle
+                <div className="space-y-4">
+                  {socialRows.map((row, rowIndex) => (
+                    <div
+                      key={rowIndex}
+                      className="flex justify-center gap-x-6 gap-y-4 flex-wrap"
+                    >
+                      {row.map((item: any, index: number) => (
+                        <button
+                          key={index}
+                          onClick={() =>
+                            handleTriggerUpdate({
+                              data: item,
+                              categoryForTrigger: "socialTop",
+                            })
                           }
-                          className="w-5 h-auto"
-                          width={1200}
-                          height={1200}
-                          quality={100}
-                        />
-                      </button>
-                    ))}
-                  </div>
-                ))}
+                        >
+                          <Image
+                            src={
+                              getSmallIconImage(item.name, item.group) as any
+                            }
+                            alt="icon"
+                            style={
+                              formData.templateColor === "#ffffff" ||
+                              formData.templateColor === "#FFFFFF"
+                                ? { filter: "brightness(0) invert(1)" }
+                                : formData.templateColor === "#D3D3D3" ||
+                                  formData.templateColor === "#808080"
+                                ? {
+                                    filter:
+                                      "brightness(0) saturate(0%) opacity(0.5)",
+                                  }
+                                : tintStyle
+                            }
+                            className="w-5 h-auto"
+                            width={1200}
+                            height={1200}
+                            quality={100}
+                          />
+                        </button>
+                      ))}
+                    </div>
+                  ))}
+                </div>
                 {/* small icon display here end */}
 
                 {/* marketPlace display here start */}

@@ -31,6 +31,7 @@ import { useUser } from "@/lib/UserContext";
 import LivePreviewTimeline from "@/components/feed/LivePreviewTimeline";
 import { useMicrositeData } from "./context/MicrositeContext";
 import TokenGateVerification from "@/components/publicProfile/TokenGateVerification";
+import distributeSmallIcons from "@/components/util/distributeSmallIcons";
 
 interface ClientProfileProps {
   userName: string;
@@ -116,24 +117,28 @@ export default function ClientProfile({ userName }: ClientProfileProps) {
               theme={theme}
               accessToken={accessToken ? accessToken : ""}
             />
-            <div className="my-4">
+            <div style={{ color: fontColor && fontColor }} className={`my-4`}>
               <Bio name={name} bio={bio} />
             </div>
 
             {/* Social Media Small */}
             {info?.socialTop && info.socialTop.length > 0 && (
-              <div
-                className="flex flex-row flex-wrap justify-center
-             gap-6 px-6 py-4"
-              >
-                {info.socialTop.map((social: any, index: number) => (
-                  <SocialSmall
-                    number={index}
-                    key={social.name}
-                    data={social}
-                    socialType="socialTop"
-                    parentId={parentId}
-                  />
+              <div className="space-y-4">
+                {distributeSmallIcons(info.socialTop).map((row, rowIndex) => (
+                  <div
+                    key={rowIndex}
+                    className="flex justify-center gap-x-6 gap-y-4 flex-wrap"
+                  >
+                    {row.map((item, index) => (
+                      <SocialSmall
+                        number={index}
+                        key={item.name}
+                        data={item}
+                        socialType="socialTop"
+                        parentId={parentId}
+                      />
+                    ))}
+                  </div>
                 ))}
               </div>
             )}
