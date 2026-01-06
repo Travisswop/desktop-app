@@ -1,13 +1,17 @@
-'use client';
+"use client";
 
-import { createContext, useContext, ReactNode } from 'react';
+import { createContext, useContext, ReactNode } from "react";
 
 interface MicrositeData {
   _id: string;
   name: string;
   bio: string;
   profilePic: string;
-  backgroundImg: string | number;
+  backgroundImg?: string | number;
+  backgroundColor?: string;
+  fontColor?: string;
+  secondaryFontColor?: string;
+  fontFamily?: string;
   info: any;
   gatedAccess: boolean;
   direct: boolean;
@@ -31,9 +35,7 @@ const MicrositeContext = createContext<MicrositeContextType>({
 export const useMicrositeData = () => {
   const context = useContext(MicrositeContext);
   if (!context) {
-    throw new Error(
-      'useMicrositeData must be used within a MicrositeProvider'
-    );
+    throw new Error("useMicrositeData must be used within a MicrositeProvider");
   }
   return context;
 };

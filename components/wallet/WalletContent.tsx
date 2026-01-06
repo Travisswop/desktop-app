@@ -53,7 +53,7 @@ import PortfolioChart, { PortfolioAsset } from "../dashboard/PortfolioChart";
 // Utilities
 import Cookies from "js-cookie";
 import { createTransactionPayload } from "@/lib/utils/transactionUtils";
-import { Loader, Loader2 } from "lucide-react";
+import { Loader } from "lucide-react";
 import { useNewSocketChat } from "@/lib/context/NewSocketChatContext";
 import {
   getWalletNotificationService,
@@ -61,6 +61,9 @@ import {
 } from "@/lib/utils/walletNotifications";
 import TransactionList from "./transaction/transaction-list";
 import { ScrollArea } from "../ui/scroll-area";
+import CustomModal from "../modal/CustomModal";
+import { BsThreeDots } from "react-icons/bs";
+import WalletAssetsSettings from "./WalletAssetsSettings";
 
 // Token colors mapping for consistent visual representation
 const TOKEN_COLORS: Record<string, string> = {
@@ -98,6 +101,8 @@ const WalletContentInner = () => {
   const [walletShareAddress, setWalletShareAddress] = useState("");
   const [qrcodeShareUrl, setQrcodeShareUrl] = useState("");
   const [QRCodeShareModalOpen, setQRCodeShareModalOpen] = useState(false);
+
+  const [walletSetting, setWalletSetting] = useState(false);
 
   // Hooks
   const { authenticated, ready, user: PrivyUser } = usePrivy();
@@ -171,6 +176,8 @@ const WalletContentInner = () => {
     evmWalletAddress,
     SUPPORTED_CHAINS
   );
+
+  console.log("tokens11", tokens);
 
   const {
     nfts,
@@ -635,25 +642,36 @@ const WalletContentInner = () => {
 
           <div className="flex gap-3 h-[30rem] overflow-hidden">
             <div className="rounded-xl bg-white flex-1 h-full p-4 pb-2">
-              <div className="flex items-center gap-1 mb-2">
-                <span className="font-bold text-lg text-gray-700">Assets</span>
-                {tokenLoading && <Loader className="w-5 h-5 animate-spin" />}
+              <div className="flex items-start gap-2 justify-between">
+                <div className="flex items-center gap-1 mb-2">
+                  <span className="font-bold text-lg text-gray-700">
+                    Assets
+                  </span>
+                  {tokenLoading && <Loader className="w-5 h-5 animate-spin" />}
+                </div>
+                <button onClick={() => setWalletSetting(true)}>
+                  <BsThreeDots size={26} color="gray" />
+                </button>
               </div>
               <ScrollArea className="h-full pr-3 overflow-y-auto pb-10">
-                {selectedToken ? (
-                  <TokenDetails
-                    token={selectedToken}
-                    onBack={handleBack}
-                    onSend={handleSendClick}
-                  />
-                ) : (
-                  <TokenList
-                    tokens={tokens as unknown as TokenData[]}
-                    loading={tokenLoading}
-                    error={tokenError!}
-                    onSelectToken={handleTokenSelect}
-                  />
+                {selectedToken && (
+                  <CustomModal
+                    isOpen={selectedToken ? true : false}
+                    onCloseModal={setSelectedToken}
+                  >
+                    <TokenDetails
+                      token={selectedToken}
+                      onBack={handleBack}
+                      onSend={handleSendClick}
+                    />
+                  </CustomModal>
                 )}
+                <TokenList
+                  tokens={tokens as unknown as TokenData[]}
+                  loading={tokenLoading}
+                  error={tokenError!}
+                  onSelectToken={handleTokenSelect}
+                />
               </ScrollArea>
             </div>
             <div className="rounded-xl h-full bg-white flex-1 p-4 pb-2">
@@ -707,6 +725,13 @@ const WalletContentInner = () => {
           <RedeemTokenList />
         </div>
       </div>
+
+      {/* wallet asset settings  */}
+      {walletSetting && (
+        <CustomModal isOpen={walletSetting} onCloseModal={setWalletSetting}>
+          <WalletAssetsSettings tokens={tokens} />
+        </CustomModal>
+      )}
 
       {/* All Modals */}
       <WalletModals

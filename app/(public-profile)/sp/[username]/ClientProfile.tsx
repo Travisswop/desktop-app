@@ -31,6 +31,7 @@ import { useUser } from "@/lib/UserContext";
 import LivePreviewTimeline from "@/components/feed/LivePreviewTimeline";
 import { useMicrositeData } from "./context/MicrositeContext";
 import TokenGateVerification from "@/components/publicProfile/TokenGateVerification";
+import distributeSmallIcons from "@/components/util/distributeSmallIcons";
 
 interface ClientProfileProps {
   userName: string;
@@ -48,12 +49,18 @@ export default function ClientProfile({ userName }: ClientProfileProps) {
     redirect(`/sp/${micrositeData.username}`);
   }
 
+  console.log("micrositeData", micrositeData);
+
   const {
     _id,
     name,
     bio,
     profilePic,
     backgroundImg,
+    backgroundColor,
+    fontColor,
+    secondaryFontColor,
+    fontFamily,
     info,
     gatedAccess,
     direct,
@@ -81,11 +88,6 @@ export default function ClientProfile({ userName }: ClientProfileProps) {
 
   const ensDomain = info.ensDomain[info.ensDomain.length - 1];
 
-  const bg =
-    typeof backgroundImg === "string" && backgroundImg.startsWith("https")
-      ? backgroundImg
-      : `/images/smartsite-background/${backgroundImg}.png`;
-
   return (
     <>
       {/* Token Gate Verification Modal - Shows when gatedInfo.isOn is true */}
@@ -94,8 +96,13 @@ export default function ClientProfile({ userName }: ClientProfileProps) {
       )}
 
       <div
-        style={{ backgroundImage: theme ? `url(${bg})` : "" }}
-        className="bg-cover bg-no-repeat h-screen overflow-y-auto"
+        style={{
+          backgroundImage: backgroundImg
+            ? `url(/images/smartsite-background/${backgroundImg}.png)`
+            : "none",
+          backgroundColor: backgroundColor && backgroundColor,
+        }}
+        className="bg-cover bg-no-repeat h-screen overflow-y-auto pt-6"
       >
         <main
           className={`flex max-w-md mx-auto min-h-screen flex-col items-center px-4 z-50`}
@@ -103,31 +110,35 @@ export default function ClientProfile({ userName }: ClientProfileProps) {
           <CartProvider>
             <Header
               avatar={profilePic}
-              cover={backgroundImg.toString()}
+              // cover={backgroundImg.toString()}
               name={name}
               parentId={parentId}
               micrositeId={_id}
               theme={theme}
               accessToken={accessToken ? accessToken : ""}
             />
-            <div className="my-4">
+            <div style={{ color: fontColor && fontColor }} className={`my-4`}>
               <Bio name={name} bio={bio} />
             </div>
 
             {/* Social Media Small */}
             {info?.socialTop && info.socialTop.length > 0 && (
-              <div
-                className="flex flex-row flex-wrap justify-center
-             gap-6 px-6 py-4"
-              >
-                {info.socialTop.map((social: any, index: number) => (
-                  <SocialSmall
-                    number={index}
-                    key={social.name}
-                    data={social}
-                    socialType="socialTop"
-                    parentId={parentId}
-                  />
+              <div className="space-y-4">
+                {distributeSmallIcons(info.socialTop).map((row, rowIndex) => (
+                  <div
+                    key={rowIndex}
+                    className="flex justify-center gap-x-6 gap-y-4 flex-wrap"
+                  >
+                    {row.map((item, index) => (
+                      <SocialSmall
+                        number={index}
+                        key={item.name}
+                        data={item}
+                        socialType="socialTop"
+                        parentId={parentId}
+                      />
+                    ))}
+                  </div>
                 ))}
               </div>
             )}

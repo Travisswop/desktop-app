@@ -346,9 +346,15 @@ const NATIVE_TOKENS_AND_USDC = {
   ],
 };
 
-export default function SwapTokenModal({ tokens }: { tokens: any[] }) {
+export default function SwapTokenModal({
+  tokens,
+  token,
+}: {
+  tokens: any[];
+  token?: any;
+}) {
   // State management
-  const [payToken, setPayToken] = useState<any>(tokens?.[0] || null);
+  const [payToken, setPayToken] = useState<any>(token || tokens?.[0] || null);
   const [receiveToken, setReceiveToken] = useState<any>(null);
   const [payAmount, setPayAmount] = useState("");
   const [receiveAmount, setReceiveAmount] = useState("");
@@ -380,6 +386,8 @@ export default function SwapTokenModal({ tokens }: { tokens: any[] }) {
   const [lastQuoteTime, setLastQuoteTime] = useState<number | null>(null);
 
   const [accessToken, setAccessToken] = useState("");
+
+  console.log("hola swap payToken", payToken);
 
   // Refs for intervals
   const quoteRefreshInterval = useRef<NodeJS.Timeout | null>(null);
@@ -2179,7 +2187,7 @@ export default function SwapTokenModal({ tokens }: { tokens: any[] }) {
   };
 
   return (
-    <div className="flex justify-center mt-10 relative">
+    <div className="flex justify-center mt-10 pb-4 relative">
       <Card className="w-full max-w-md p-4 rounded-2xl shadow-lg bg-white text-black">
         {/* Header with Settings */}
         <div className="flex items-center justify-between mb-4">

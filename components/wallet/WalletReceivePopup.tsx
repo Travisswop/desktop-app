@@ -39,7 +39,7 @@ export default function ReceiveOptions() {
   const { user: privyUser } = usePrivy();
   const { user } = useUser();
 
-  console.log('user', user);
+  // console.log("user", user);
 
   const { wallets: solWallets } = useSolanaWallets();
   const { wallets: ethWallets } = useWallets();
@@ -60,8 +60,8 @@ export default function ReceiveOptions() {
     )?.address;
   }, [ethWallets]);
 
-  console.log('solWallets', solWalletAddress);
-  console.log('ethWallets', evmWalletAddress);
+  // console.log("solWallets", solWalletAddress);
+  // console.log("ethWallets", evmWalletAddress);
 
   const handleCopy = (address: string, index: number) => {
     navigator.clipboard.writeText(address);
@@ -144,7 +144,11 @@ export default function ReceiveOptions() {
     const shareData = {
       title: `My Wallet Address`,
       text: `My Wallet Address: ${
-        qrOpenStatus === 'eth' ? evmWalletAddress : solWalletAddress
+        qrOpenStatus === 'eth' ||
+        qrOpenStatus === 'pol' ||
+        qrOpenStatus === 'base'
+          ? evmWalletAddress
+          : solWalletAddress
       }`,
     };
 
@@ -153,7 +157,11 @@ export default function ReceiveOptions() {
         await navigator.share(shareData);
       } else {
         await navigator.clipboard.writeText(
-          qrOpenStatus === 'eth' ? evmWalletAddress : solWalletAddress
+          qrOpenStatus === 'eth' ||
+            qrOpenStatus === 'pol' ||
+            qrOpenStatus === 'base'
+            ? evmWalletAddress
+            : solWalletAddress
         );
         alert('Address copied to clipboard!');
       }
@@ -217,7 +225,9 @@ export default function ReceiveOptions() {
                 <div className="bg-white p-4">
                   <QRCodeSVG
                     value={
-                      qrOpenStatus === 'eth'
+                      qrOpenStatus === 'eth' ||
+                      qrOpenStatus === 'pol' ||
+                      qrOpenStatus === 'base'
                         ? evmWalletAddress || ''
                         : solWalletAddress || ''
                     }

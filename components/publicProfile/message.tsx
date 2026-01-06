@@ -1,8 +1,8 @@
-'use client';
+"use client";
 
-import { FC } from 'react';
-import Image from 'next/image';
-import { motion } from 'framer-motion';
+import { FC } from "react";
+import Image from "next/image";
+import { motion } from "framer-motion";
 
 import {
   AlertDialog,
@@ -14,8 +14,8 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
   AlertDialogTrigger,
-} from '@/components/ui/alert-dialog';
-import { redirect } from 'next/navigation';
+} from "@/components/ui/alert-dialog";
+import { redirect } from "next/navigation";
 
 interface Props {
   data: {
@@ -34,19 +34,14 @@ const variants = {
   exit: { opacity: 0, x: -0, y: 25 },
 };
 
-const Message: FC<Props> = ({
-  data,
-  socialType,
-  parentId,
-  number,
-}) => {
+const Message: FC<Props> = ({ data, socialType, parentId, number }) => {
   const { _id, domain } = data;
 
   const delay = number + 0.1;
 
   const redirectToSwop = () => {
-    console.log('redirecting to swop');
-    return window.open('https://swopme.co', '_blank');
+    console.log("redirecting to swop");
+    return window.open("https://swopme.co", "_blank");
   };
 
   return (
@@ -58,12 +53,12 @@ const Message: FC<Props> = ({
       transition={{
         duration: 0.4,
         delay,
-        type: 'easeInOut',
+        type: "easeInOut",
       }}
     >
       <motion.div
         transition={{
-          type: 'spring',
+          type: "spring",
           stiffness: 400,
           damping: 10,
         }}
@@ -83,20 +78,16 @@ const Message: FC<Props> = ({
                 />
               </div>
               <div className="max-w-xs overflow-hidden ml-2">
-                <div className="text-md font-semibold">
-                  Message Me
-                </div>
-                <div className="text-xs">
-                  Message me using the swop wallet
-                </div>
+                <div className="text-md font-semibold">Message Me</div>
+                <div className="text-xs">Message me on swop</div>
               </div>
             </div>
           </AlertDialogTrigger>
           <AlertDialogContent>
             <AlertDialogHeader>
               <AlertDialogDescription>
-                You need to download the Swop app to message. Do you
-                want to download the app?
+                You need to download the Swop app to message. Do you want to
+                download the app?
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>

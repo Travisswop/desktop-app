@@ -78,6 +78,7 @@
     "gif-picker-react": "^1.4.0",
     "html-react-parser": "^5.2.2",
     "html2canvas": "^1.4.1",
+    "input-otp": "^1.4.2",
     "js-cookie": "^3.0.5",
     "jsbi": "^4.3.2",
     "json2csv": "^6.0.0-alpha.2",

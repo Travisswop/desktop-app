@@ -453,3 +453,22 @@ body {
     right: 0;
   }
 } */
+
+.react-colorful__saturation {
+  border-radius: 12px;
+}
+
+.react-colorful__hue,
+.react-colorful__alpha {
+  height: 12px;
+  border-radius: 9999px;
+  margin-top: 12px;
+}
+
+.react-colorful__pointer {
+  width: 16px;
+  height: 16px;
+  border-radius: 9999px;
+  border: 2px solid white;
+  box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.35);
+}

@@ -452,25 +452,29 @@ const Login: React.FC = () => {
     const isOtpComplete = otp.every((digit) => digit !== "");
 
     if (
-      state.status === "awaiting-code-input" &&
+      (state.status === "awaiting-code-input" || state.status === "error") &&
       isOtpComplete &&
       !loginProcessingRef.current
     ) {
       loginWithCode({ code: otp.join("") });
     }
+  }, [otp, state.status, loginWithCode]);
 
-    // Handle successful login
+  // Handle successful login
+  useEffect(() => {
     if (state.status === "done" && user && !loginProcessingRef.current) {
       handleLoginSuccess(user);
     }
+  }, [state.status, user, handleLoginSuccess]);
 
-    // Handle login errors
+  // Handle login errors
+  useEffect(() => {
     if (state.status === "error") {
       setLoginError("Invalid verification code. Please try again.");
       setOtp(new Array(otpLength).fill(""));
       loginProcessingRef.current = false;
     }
-  }, [otp, state.status, user, loginWithCode, handleLoginSuccess, otpLength]);
+  }, [state.status, otpLength]);
 
   // Cleanup
   useEffect(() => {

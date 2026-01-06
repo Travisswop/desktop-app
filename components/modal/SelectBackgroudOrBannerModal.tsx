@@ -1,19 +1,47 @@
 "use client";
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import Image from "next/image";
 import useSmartsiteFormStore from "@/zustandStore/EditSmartsiteInfo";
-import CustomModal from "./CustomModal"; // Adjust the import path as needed
+import CustomModal from "./CustomModal";
+import { PrimaryButton } from "../ui/Button/PrimaryButton";
+import { MdOutlineColorLens } from "react-icons/md";
+import { HexAlphaColorPicker } from "react-colorful";
+import {
+  Carousel,
+  CarouselContent,
+  CarouselItem,
+  type CarouselApi,
+} from "../ui/carousel";
+import { Loader } from "lucide-react";
 
 export default function SelectBackgroudOrBannerModal({
   isOpen,
   onOpenChange,
-  bannerImgArr,
   backgroundImgArr,
   setIsBannerModalOpen,
+  onSmartSiteUpdateInfo,
 }: any) {
-  const [isBannerImg, setIsBannerImg] = useState(true);
+  const [isBackgroundColor, setIsBackgroundColor] = useState(false);
+  const [isBackgroundUpdateLoading, setIsBackgroundUpdateLoading] =
+    useState(false);
+  const [color, setColor] = useState("#fee1e1ff");
+  const [api, setApi] = useState<CarouselApi>();
+  const [current, setCurrent] = useState(0);
 
   const { setFormData }: any = useSmartsiteFormStore();
+
+  console.log("current", current);
+  console.log("isBackgroundColor", isBackgroundColor);
+
+  useEffect(() => {
+    if (!api) {
+      return;
+    }
+    setCurrent(api.selectedScrollSnap());
+    api.on("select", () => {
+      setCurrent(api.selectedScrollSnap());
+    });
+  }, [api]);
 
   const handleClose = () => {
     setIsBannerModalOpen(false);
@@ -22,84 +50,147 @@ export default function SelectBackgroudOrBannerModal({
     }
   };
 
-  const selectBanner = (image: any) => {
-    setFormData("backgroundImg", image);
-    setFormData("theme", false);
-    setIsBannerModalOpen(false);
-  };
+  const handleChooseBgAndColor = (e: any) => {
+    e.preventDefault();
+    setIsBackgroundUpdateLoading(true);
 
-  const selectBackground = (image: any) => {
-    setFormData("backgroundImg", image);
-    setFormData("theme", true);
-    setIsBannerModalOpen(false);
+    let updatedData;
+
+    if (isBackgroundColor) {
+      updatedData = {
+        backgroundColor: color,
+        backgroundImg: "",
+      };
+    } else {
+      updatedData = {
+        backgroundImg: current + 1,
+        backgroundColor: "",
+      };
+    }
+    console.log("updatedData log data", updatedData);
+    setFormData(updatedData);
+    onSmartSiteUpdateInfo(e, updatedData);
   };
 
   return (
-    <CustomModal isOpen={isOpen} onCloseModal={handleClose} width="max-w-6xl">
-      <div className="w-[91%] mx-auto py-6">
-        <div className="text-center">
-          <div className="flex justify-center gap-3">
-            <button
-              className={`${
-                !isBannerImg
-                  ? "text-gray-700 font-medium underline underline-offset-4"
-                  : "text-gray-400 font-medium"
-              }`}
-              onClick={() => setIsBannerImg(false)}
-            >
-              Banner
-            </button>
-            <button
-              className={`${
-                isBannerImg
-                  ? "text-gray-700 font-medium underline underline-offset-4"
-                  : "text-gray-400 font-medium"
-              }`}
-              onClick={() => setIsBannerImg(true)}
-            >
-              Background
-            </button>
-          </div>
-          <p className="text-sm text-gray-500 my-3 font-medium">
-            Select from our wide variety of links and contact info below.
-          </p>
-        </div>
+    <CustomModal isOpen={isOpen} onCloseModal={handleClose} width="max-w-md">
+      <div className="w-[91%] mx-auto pb-6">
+        <p className={`text-center font-medium text-lg mb-3`}>
+          {!isBackgroundColor ? "Background" : "Background Color"}
+        </p>
 
-        {!isBannerImg ? (
-          <div className="grid grid-cols-4 gap-3">
-            {bannerImgArr.map((image: string, index: number) => (
-              <div key={index}>
-                <Image
-                  src={`/images/smartsite-banner/${image}.png`}
-                  alt="avator"
-                  width={663}
-                  height={324}
-                  className="cursor-pointer w-full h-auto rounded-lg"
-                  placeholder="blur"
-                  blurDataURL="/images/smartsite-banner/placeholder.svg"
-                  onClick={() => selectBanner(image)}
+        {isBackgroundColor ? (
+          <div className="flex justify-center py-12">
+            <div className="w-[300px] rounded-2xl bg-gradient-to-b from-slate-800 to-slate-900 p-4 shadow-xl">
+              <div className="rounded-xl overflow-hidden">
+                <HexAlphaColorPicker
+                  className="min-w-full min-h-64"
+                  color={color}
+                  onChange={setColor}
                 />
               </div>
-            ))}
+
+              <div className="mt-4 flex items-center gap-3">
+                <div
+                  className="h-9 w-9 rounded-full border border-slate-600"
+                  style={{ backgroundColor: color }}
+                />
+                <input
+                  value={color}
+                  onChange={(e) => setColor(e.target.value)}
+                  className="flex-1 rounded-xl border border-slate-600 bg-slate-800 px-3 py-2 text-sm text-white outline-none focus:border-slate-400"
+                />
+              </div>
+            </div>
           </div>
         ) : (
-          <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3">
-            {backgroundImgArr.map((image: string, index: number) => (
-              <div key={index}>
-                <Image
-                  src={`/images/smartsite-background/${image}.png`}
-                  alt="avator"
-                  width={600}
-                  height={1215}
-                  className="cursor-pointer w-full h-auto rounded-lg"
-                  placeholder="blur"
-                  blurDataURL="/images/smartsite-background/transparent-bg.png"
-                  onClick={() => selectBackground(image)}
+          <div className="relative py-8 overflow-hidden">
+            <Carousel
+              setApi={setApi}
+              opts={{
+                align: "center",
+                loop: true,
+              }}
+              className="w-full mx-auto overflow-hidden"
+            >
+              <CarouselContent className="-ml-2 md:-ml-2">
+                {backgroundImgArr.map((image: string, index: number) => (
+                  <CarouselItem
+                    key={index}
+                    className="pl-2 md:pl-4 basis-3/4 md:basis-2/3"
+                  >
+                    <div
+                      className={`relative group transition-all duration-500 ${
+                        current === index ? "scale-100 z-10" : "scale-90"
+                      }`}
+                      // onClick={() => selectBackground(image)}
+                    >
+                      <Image
+                        src={`/images/smartsite-background/${image}.png`}
+                        alt="background"
+                        width={600}
+                        height={900}
+                        quality={100}
+                        className="w-full h-auto rounded-3xl object-cover aspect-[3/4]"
+                        placeholder="blur"
+                        blurDataURL="/images/smartsite-background/transparent-bg.png"
+                      />
+                      <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 rounded-3xl transition-colors duration-300" />
+                    </div>
+                  </CarouselItem>
+                ))}
+              </CarouselContent>
+            </Carousel>
+
+            {/* Dots Indicator */}
+            <div className="flex justify-center items-center gap-1.5 h-10">
+              {backgroundImgArr.map((_: any, index: number) => (
+                <div
+                  key={index}
+                  className={`rounded-full transition-all duration-300 ${
+                    current === index
+                      ? "w-2 h-2 bg-gray-800"
+                      : "w-1.5 h-1.5 bg-gray-300"
+                  }`}
                 />
-              </div>
-            ))}
+              ))}
+            </div>
           </div>
         )}
+
+        <div className="w-full flex flex-col items-center gap-3 mt-5">
+          {isBackgroundColor ? (
+            <PrimaryButton
+              onClick={() => setIsBackgroundColor(false)}
+              className="w-full bg-black hover:bg-gray-800 text-white py-2.5 gap-2"
+            >
+              <MdOutlineColorLens size={20} />
+              Use Background
+            </PrimaryButton>
+          ) : (
+            <PrimaryButton
+              onClick={() => setIsBackgroundColor(true)}
+              className="w-full bg-black hover:bg-gray-800 text-white py-2.5 gap-2"
+            >
+              <MdOutlineColorLens size={20} />
+              Select Color
+            </PrimaryButton>
+          )}
+          <PrimaryButton
+            onClick={handleChooseBgAndColor}
+            className="w-full py-2.5 gap-2 bg-gray-200"
+            disabled={isBackgroundUpdateLoading}
+          >
+            {isBackgroundUpdateLoading ? (
+              <span className="flex items-center gap-2">
+                Saving
+                <Loader className="w-6 h-6 animate-spin" />
+              </span>
+            ) : (
+              "Save"
+            )}
+          </PrimaryButton>
+        </div>
       </div>
     </CustomModal>
   );

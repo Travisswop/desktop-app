@@ -23,8 +23,8 @@ import {
   ModalContent,
   useDisclosure,
 } from "@nextui-org/react";
-import { handleSmartSiteUpdate } from "@/actions/update";
-import { useRouter } from "next/navigation";
+// import { handleSmartSiteUpdate } from "@/actions/update";
+// import { useRouter } from "next/navigation";
 import toast from "react-hot-toast";
 import AnimateButton from "../ui/Button/AnimateButton";
 import { fontMap } from "@/lib/fonts";
@@ -40,6 +40,7 @@ import {
   CarouselItem,
 } from "@/components/ui/carousel";
 import { useUser } from "@/lib/UserContext";
+import distributeSmallIcons from "../util/distributeSmallIcons";
 
 const SmartsiteIconLivePreview = ({
   data,
@@ -50,15 +51,15 @@ const SmartsiteIconLivePreview = ({
   const setSmartSiteData = useUpdateSmartIcon((state: any) => state.setState);
   const { toggle } = useSideBarToggleStore();
 
-  console.log("data hhiss", data);
+  // console.log("data hhiss", data);
 
   const { isOn, setOff, setOn }: any = useSmallIconToggleStore();
   const iconData: any = useUpdateSmartIcon();
 
-  const [isPrimaryMicrosite, setIsPrimaryMicrosite] = useState<boolean>(false);
-  const [isLeadCapture, setIsLeadCapture] = useState<boolean>(false);
+  // const [isPrimaryMicrosite, setIsPrimaryMicrosite] = useState<boolean>(false);
+  // const [isLeadCapture, setIsLeadCapture] = useState<boolean>(false);
 
-  const [isPublishedLoading, setIsPublishedLoading] = useState(false);
+  // const [isPublishedLoading, setIsPublishedLoading] = useState(false);
 
   // console.log("data form live", data.info.socialLarge);
   const { formData, setFormData } = useSmartsiteFormStore();
@@ -71,7 +72,7 @@ const SmartsiteIconLivePreview = ({
 
   const { user, accessToken } = useUser();
 
-  console.log("user", user);
+  console.log("formDatagg", formData);
 
   useEffect(() => {
     if (data) {
@@ -87,62 +88,67 @@ const SmartsiteIconLivePreview = ({
     setOn(true);
   };
 
-  useEffect(() => {
-    if (data.primary) {
-      setIsPrimaryMicrosite(true);
-    }
-    if (data.leadCapture) {
-      setIsLeadCapture(true);
-    }
-  }, [data.leadCapture, data.primary]);
+  // useEffect(() => {
+  //   if (data.primary) {
+  //     setIsPrimaryMicrosite(true);
+  //   }
+  //   if (data.leadCapture) {
+  //     setIsLeadCapture(true);
+  //   }
+  // }, [data.leadCapture, data.primary]);
 
   // console.log("audio", data.info.audio);
 
   // console.log("formdata", formData);
   // console.log("data from live preview", data);
-  const router = useRouter();
+  // const router = useRouter();
 
   useEffect(() => {
     if (data) {
+      setFormData("name", data.name);
+      setFormData("bio", data.bio);
+      setFormData("profileImg", data.profilePic);
+      setFormData("backgroundImg", data.backgroundImg);
       setFormData("theme", data.theme);
-      setFormData("fontType", data.fontFamily);
+      setFormData("backgroundColor", data.backgroundColor);
       setFormData("fontColor", data.fontColor);
       setFormData("secondaryFontColor", data.secondaryFontColor);
+      setFormData("fontType", data.fontFamily);
       setFormData("templateColor", data.themeColor);
-      setFormData("backgroundColor", data.backgroundColor);
-      setFormData("backgroundImg", data.backgroundImg);
-      setFormData("profileImg", data.profilePic);
     }
   }, [data, setFormData]);
 
-  const handleSmartSiteUpdateInfo = async (e: any) => {
-    setIsPublishedLoading(true);
-    e.preventDefault();
+  // const handleSmartSiteUpdateInfo = async (e: any) => {
+  //   setIsPublishedLoading(true);
+  //   e.preventDefault();
 
-    const smartSiteInfo = {
-      _id: data._id,
-      primary: isPrimaryMicrosite,
-      leadCapture: isLeadCapture,
-    };
+  //   const smartSiteInfo = {
+  //     _id: data._id,
+  //     primary: isPrimaryMicrosite,
+  //     leadCapture: isLeadCapture,
+  //   };
 
-    try {
-      const response = await handleSmartSiteUpdate(smartSiteInfo, accessToken);
+  //   try {
+  //     const response = await handleSmartSiteUpdate(
+  //       smartSiteInfo,
+  //       accessToken || ""
+  //     );
 
-      if (response.state === "success") {
-        router.push("/smartsite");
-        toast.success("Smartsite published successfully");
-      } else if (response.state === "fail") {
-        toast.error(
-          response.message || "At least one primary smartsite required"
-        );
-      }
-    } catch (error: any) {
-      toast.error("Something went wrong!");
-      console.log("error", error);
-    } finally {
-      setIsPublishedLoading(false);
-    }
-  };
+  //     if (response.state === "success") {
+  //       router.push("/smartsite");
+  //       toast.success("Smartsite published successfully");
+  //     } else if (response.state === "fail") {
+  //       toast.error(
+  //         response.message || "At least one primary smartsite required"
+  //       );
+  //     }
+  //   } catch (error: any) {
+  //     toast.error("Something went wrong!");
+  //     console.log("error", error);
+  //   } finally {
+  //     setIsPublishedLoading(false);
+  //   }
+  // };
 
   const showReadMoreForBlog = (e: any, item: any) => {
     e.stopPropagation();
@@ -178,7 +184,10 @@ const SmartsiteIconLivePreview = ({
 
       console.log("payload", payload);
 
-      const response = await handleDeleteMarketPlace(payload, accessToken);
+      const response = await handleDeleteMarketPlace(
+        payload,
+        accessToken || ""
+      );
 
       console.log("response hola", response);
       console.log("accessToken", accessToken);
@@ -193,73 +202,7 @@ const SmartsiteIconLivePreview = ({
     }
   };
 
-  const distributeIcons = (icons: any[]) => {
-    const length = icons.length;
-    let rows: any[][] = [];
-    if (length <= 6) {
-      rows = [icons]; // Single row
-    } else if (length <= 11) {
-      const firstRow = Math.ceil(length / 2) - 1;
-      // const secondRow = Math.ceil(length / 2) + 1;
-      rows = [icons.slice(0, firstRow), icons.slice(firstRow)];
-    } else if (length <= 14) {
-      const firstRow = Math.ceil(length / 3) - 2;
-      const secondRow = Math.ceil(length / 3);
-      // const thirdRow = Math.ceil(length / 3) + 2;
-      rows = [
-        icons.slice(0, firstRow),
-        icons.slice(firstRow, firstRow + secondRow),
-        icons.slice(firstRow + secondRow),
-      ];
-    } else if (length === 15) {
-      const firstRow = 4;
-      const secondRow = 5;
-      // const thirdRow = Math.ceil(length / 3) + 2;
-      rows = [
-        icons.slice(0, firstRow),
-        icons.slice(firstRow, firstRow + secondRow),
-        icons.slice(firstRow + secondRow),
-      ];
-    } else if (length === 16) {
-      const firstRow = 4;
-      const secondRow = 6;
-      // const thirdRow = Math.ceil(length / 3) + 2;
-      rows = [
-        icons.slice(0, firstRow),
-        icons.slice(firstRow, firstRow + secondRow),
-        icons.slice(firstRow + secondRow),
-      ];
-    } else if (length === 17) {
-      const firstRow = 5;
-      const secondRow = 6;
-      // const thirdRow = Math.ceil(length / 3) + 2;
-      rows = [
-        icons.slice(0, firstRow),
-        icons.slice(firstRow, firstRow + secondRow),
-        icons.slice(firstRow + secondRow),
-      ];
-    } else if (length === 18) {
-      const firstRow = 6;
-      const secondRow = 6;
-      // const thirdRow = Math.ceil(length / 3) + 2;
-      rows = [
-        icons.slice(0, firstRow),
-        icons.slice(firstRow, firstRow + secondRow),
-        icons.slice(firstRow + secondRow),
-      ];
-    } else {
-      // For lengths greater than 18, distribute icons into rows with a maximum of 6 icons per row
-      let start = 0;
-      while (start < length) {
-        rows.push(icons.slice(start, start + 6));
-        start += 6;
-      }
-    }
-
-    return rows;
-  };
-
-  const socialRows = distributeIcons(data.info.socialTop);
+  const socialRows = distributeSmallIcons(data.info.socialTop);
 
   // Add this helper function at the top of your component or in a separate utils file
   const groupMarketPlaceByType = (marketPlaceItems: any[]) => {
@@ -284,9 +227,10 @@ const SmartsiteIconLivePreview = ({
   return (
     <div
       style={{
-        backgroundImage: formData.theme
+        backgroundImage: formData.backgroundImg
           ? `url(/images/smartsite-background/${formData.backgroundImg}.png)`
           : "none",
+        backgroundColor: formData.backgroundColor && formData.backgroundColor,
       }}
       className="max-w-screen h-[calc(100vh-96px)] overflow-x-hidden -m-6 bg-cover bg-no-repeat overflow-y-auto"
     >
@@ -299,26 +243,7 @@ const SmartsiteIconLivePreview = ({
           <div className={`flex flex-col justify-between`}>
             <div>
               <div className="relative">
-                {!formData.theme && (
-                  <div className="bg-white p-2 rounded-xl shadow-md">
-                    <Image
-                      alt="banner image"
-                      src={`/images/smartsite-banner/${formData.backgroundImg}.png`}
-                      width={900}
-                      height={400}
-                      quality={100}
-                      className="rounded-xl w-full h-auto"
-                    />
-                  </div>
-                )}
-
-                <div
-                  className={` ${
-                    !formData.theme
-                      ? "absolute top-full -translate-y-1/2 left-1/2 -translate-x-1/2"
-                      : "flex justify-center pt-10"
-                  } `}
-                >
+                <div className={"flex justify-center pt-10"}>
                   {formData.profileImg && (
                     <>
                       {isUrl(formData.profileImg) ? (
@@ -346,11 +271,7 @@ const SmartsiteIconLivePreview = ({
                   )}
                 </div>
               </div>
-              <div
-                className={`${
-                  !formData.theme ? "mt-14" : "mt-2"
-                }  flex flex-col gap-3 h-full justify-start`}
-              >
+              <div className={`flex flex-col gap-5 h-full justify-start mt-4`}>
                 <div
                   className={`flex flex-col items-center text-center ${
                     formData.fontType &&
@@ -361,7 +282,7 @@ const SmartsiteIconLivePreview = ({
                     style={{
                       color: formData.fontColor && formData.fontColor,
                     }}
-                    className={`font-medium text-lg text-gray-900`}
+                    className={`font-semibold text-lg text-gray-900`}
                   >
                     {formData.name || data?.name}
                   </p>
@@ -376,45 +297,49 @@ const SmartsiteIconLivePreview = ({
                 </div>
 
                 {/* small icon display here start */}
-                {socialRows.map((row, rowIndex) => (
-                  <div
-                    key={rowIndex}
-                    className="flex justify-center gap-x-4 gap-y-2 flex-wrap"
-                  >
-                    {row.map((item: any, index: number) => (
-                      <button
-                        key={index}
-                        onClick={() =>
-                          handleTriggerUpdate({
-                            data: item,
-                            categoryForTrigger: "socialTop",
-                          })
-                        }
-                      >
-                        <Image
-                          src={getSmallIconImage(item.name, item.group) as any}
-                          alt="icon"
-                          style={
-                            formData.templateColor === "#ffffff" ||
-                            formData.templateColor === "#FFFFFF"
-                              ? { filter: "brightness(0) invert(1)" }
-                              : formData.templateColor === "#D3D3D3" ||
-                                formData.templateColor === "#808080"
-                              ? {
-                                  filter:
-                                    "brightness(0) saturate(0%) opacity(0.5)",
-                                }
-                              : tintStyle
+                <div className="space-y-4">
+                  {socialRows.map((row, rowIndex) => (
+                    <div
+                      key={rowIndex}
+                      className="flex justify-center gap-x-6 gap-y-4 flex-wrap"
+                    >
+                      {row.map((item: any, index: number) => (
+                        <button
+                          key={index}
+                          onClick={() =>
+                            handleTriggerUpdate({
+                              data: item,
+                              categoryForTrigger: "socialTop",
+                            })
                           }
-                          className="w-5 h-auto"
-                          width={1200}
-                          height={1200}
-                          quality={100}
-                        />
-                      </button>
-                    ))}
-                  </div>
-                ))}
+                        >
+                          <Image
+                            src={
+                              getSmallIconImage(item.name, item.group) as any
+                            }
+                            alt="icon"
+                            style={
+                              formData.templateColor === "#ffffff" ||
+                              formData.templateColor === "#FFFFFF"
+                                ? { filter: "brightness(0) invert(1)" }
+                                : formData.templateColor === "#D3D3D3" ||
+                                  formData.templateColor === "#808080"
+                                ? {
+                                    filter:
+                                      "brightness(0) saturate(0%) opacity(0.5)",
+                                  }
+                                : tintStyle
+                            }
+                            className="w-5 h-auto"
+                            width={1200}
+                            height={1200}
+                            quality={100}
+                          />
+                        </button>
+                      ))}
+                    </div>
+                  ))}
+                </div>
                 {/* small icon display here end */}
 
                 {/* marketPlace display here start */}
@@ -828,7 +753,7 @@ const SmartsiteIconLivePreview = ({
                               !formData.secondaryFontColor && "text-gray-400"
                             }`}
                           >
-                            Message me using the Swop wallet
+                            Message me on Swop
                           </p>
                         </div>
                       </button>

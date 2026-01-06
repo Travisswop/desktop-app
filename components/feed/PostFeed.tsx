@@ -219,7 +219,7 @@ const PostFeed = ({
     }
   };
 
-  const MAX_LENGTH = 512;
+  const MAX_LENGTH = 2000;
 
   const handlePostChange = (e: any) => {
     const value = e.target.value;

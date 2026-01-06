@@ -35,11 +35,8 @@ export default function SelectAvatorModal({
       <div className="w-[91%] mx-auto py-6">
         <div className="text-center">
           <h2 className="text-xl font-bold text-gray-700">
-            Select Your Avator
+            Choose Your Avator
           </h2>
-          <p className="text-sm text-gray-600 my-3">
-            Select from our wide variety of links and contact info below.
-          </p>
         </div>
 
         <div className="grid grid-cols-8 gap-3">
@@ -50,7 +47,7 @@ export default function SelectAvatorModal({
                 alt="avator"
                 width={180}
                 height={180}
-                className="cursor-pointer"
+                className="cursor-pointer rounded-2xl"
                 placeholder="blur"
                 blurDataURL="/images/user_avator/placeholder.png"
                 onClick={() => selectAvator(image)}
