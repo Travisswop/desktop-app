@@ -32,6 +32,7 @@ import LivePreviewTimeline from '@/components/feed/LivePreviewTimeline';
 import { useMicrositeData } from './context/MicrositeContext';
 import TokenGateVerification from '@/components/publicProfile/TokenGateVerification';
 import distributeSmallIcons from '@/components/util/distributeSmallIcons';
+import { fontMap } from '@/lib/fonts';
 
 interface ClientProfileProps {
   userName: string;
@@ -107,7 +108,11 @@ export default function ClientProfile({
             : 'none',
           backgroundColor: backgroundColor && backgroundColor,
         }}
-        className="bg-cover bg-no-repeat h-screen overflow-y-auto pt-6"
+        className={`bg-cover bg-no-repeat h-screen overflow-y-auto pt-6 ${
+          fontFamily
+            ? fontMap[fontFamily?.toLowerCase() || 'roboto']
+            : ''
+        }`}
       >
         <main
           className={`flex max-w-md mx-auto min-h-screen flex-col items-center px-4 z-50`}
@@ -154,38 +159,6 @@ export default function ClientProfile({
               </div>
             )}
 
-            {/* Blog */}
-            {info?.blog && info.blog.length > 0 && (
-              <div className="w-full">
-                {info.blog.map((social: any, index: number) => (
-                  <Blog
-                    number={index}
-                    key={social._id}
-                    data={social}
-                    socialType="blog"
-                    parentId={parentId}
-                  />
-                ))}
-              </div>
-            )}
-            {/* Social Media Big */}
-            {info?.socialLarge && info.socialLarge.length > 0 && (
-              <div className="flex flex-row flex-wrap justify-evenly gap-4 sm:gap-10 my-4">
-                {info.socialLarge.map(
-                  (social: any, index: number) => (
-                    <SocialLarge
-                      number={index}
-                      key={index}
-                      data={social}
-                      socialType="socialLarge"
-                      parentId={parentId}
-                      accessToken={accessToken || ''}
-                    />
-                  )
-                )}
-              </div>
-            )}
-
             <div className="mt-4"></div>
 
             {/* market place - Grouped by nftType */}
@@ -196,7 +169,10 @@ export default function ClientProfile({
                 ).map(([nftType, items]: [string, any[]]) => (
                   <div key={nftType} className="w-full">
                     {/* Group Title */}
-                    <h3 className="text-xl font-semibold mb-1 capitalize">
+                    <h3
+                      style={{ color: fontColor && fontColor }}
+                      className="text-xl font-medium mb-1 capitalize"
+                    >
                       {nftType}
                     </h3>
 
@@ -223,6 +199,9 @@ export default function ClientProfile({
                                 number={index}
                                 userId={user?._id}
                                 accessToken={accessToken}
+                                secondaryFontColor={
+                                  secondaryFontColor
+                                }
                               />
                             </CarouselItem>
                           ))}
@@ -242,6 +221,7 @@ export default function ClientProfile({
                             number={index}
                             userId={user?._id}
                             accessToken={accessToken}
+                            secondaryFontColor={secondaryFontColor}
                           />
                         ))}
                       </div>
@@ -251,128 +231,170 @@ export default function ClientProfile({
               </div>
             )}
 
-            {/* Message */}
-            {/* ENS */}
-            {info?.ensDomain && info.ensDomain.length > 0 && (
+            {/* Blog */}
+            {info?.blog && info.blog.length > 0 && (
               <div className="w-full">
-                <Message
-                  number={0}
-                  key={ensDomain._id}
-                  data={ensDomain}
-                  socialType="ens"
-                  parentId={parentId}
-                />
-              </div>
-            )}
-            {/* Redeem Link */}
-            {info?.redeemLink && info.redeemLink.length > 0 && (
-              <div className="w-full">
-                {info.redeemLink.map((social: any, index: number) => (
-                  <Redeem
+                {info.blog.map((social: any, index: number) => (
+                  <Blog
                     number={index}
                     key={social._id}
                     data={social}
-                    socialType="redeemLink"
+                    socialType="blog"
+                    parentId={parentId}
+                    secondaryFontColor={secondaryFontColor}
+                  />
+                ))}
+              </div>
+            )}
+            {/* Social Media Big */}
+            {info?.socialLarge && info.socialLarge.length > 0 && (
+              <div className="w-full grid grid-cols-3 gap-4 sm:gap-10 my-4">
+                {info.socialLarge.map(
+                  (social: any, index: number) => (
+                    <SocialLarge
+                      number={index}
+                      key={index}
+                      data={social}
+                      socialType="socialLarge"
+                      parentId={parentId}
+                      fontColor={fontColor}
+                      accessToken={accessToken || ''}
+                    />
+                  )
+                )}
+              </div>
+            )}
+
+            <div
+              style={{
+                color: secondaryFontColor && secondaryFontColor,
+              }}
+            >
+              {/* Message */}
+              {/* ENS */}
+              {info?.ensDomain && info.ensDomain.length > 0 && (
+                <div className="w-full">
+                  <Message
+                    number={0}
+                    key={ensDomain._id}
+                    data={ensDomain}
+                    socialType="ens"
+                    parentId={parentId}
+                  />
+                </div>
+              )}
+              {/* Redeem Link */}
+              {info?.redeemLink && info.redeemLink.length > 0 && (
+                <div className="w-full">
+                  {info.redeemLink.map(
+                    (social: any, index: number) => (
+                      <Redeem
+                        number={index}
+                        key={social._id}
+                        data={social}
+                        socialType="redeemLink"
+                        parentId={parentId}
+                        accessToken={accessToken || ''}
+                      />
+                    )
+                  )}
+                </div>
+              )}
+
+              {/* Referral Code */}
+              {info.referral && info.referral.length > 0 && (
+                <div className="w-full">
+                  {info.referral.map((social: any, index: number) => (
+                    <Referral
+                      number={index}
+                      key={social._id}
+                      data={social}
+                      socialType="referral"
+                      parentId={parentId}
+                      accessToken={accessToken || ''}
+                    />
+                  ))}
+                </div>
+              )}
+
+              {/* ENS */}
+              {info?.ensDomain && info.ensDomain.length > 0 && (
+                <div className="w-full">
+                  <Ens
+                    number={0}
+                    key={ensDomain._id}
+                    data={ensDomain}
+                    socialType="ens"
                     parentId={parentId}
                     accessToken={accessToken || ''}
                   />
-                ))}
-              </div>
-            )}
+                </div>
+              )}
 
-            {/* Referral Code */}
-            {info.referral && info.referral.length > 0 && (
-              <div className="w-full">
-                {info.referral.map((social: any, index: number) => (
-                  <Referral
-                    number={index}
-                    key={social._id}
-                    data={social}
-                    socialType="referral"
-                    parentId={parentId}
-                    accessToken={accessToken || ''}
-                  />
-                ))}
-              </div>
-            )}
+              {/* Contact card */}
+              {info?.contact && info.contact.length > 0 && (
+                <div className="w-full">
+                  {info.contact.map((social: any, index: number) => (
+                    <Contact
+                      number={index}
+                      key={social._id}
+                      data={social}
+                      socialType="contact"
+                      parentId={parentId}
+                      accessToken={accessToken || ''}
+                    />
+                  ))}
+                </div>
+              )}
 
-            {/* ENS */}
-            {info?.ensDomain && info.ensDomain.length > 0 && (
-              <div className="w-full">
-                <Ens
-                  number={0}
-                  key={ensDomain._id}
-                  data={ensDomain}
-                  socialType="ens"
-                  parentId={parentId}
-                  accessToken={accessToken || ''}
-                />
-              </div>
-            )}
+              {/* InfoBar */}
+              {info?.infoBar && info.infoBar.length > 0 && (
+                <div className="w-full">
+                  {info.infoBar.map((social: any, index: number) => (
+                    <InfoBar
+                      number={index}
+                      key={social._id}
+                      data={social}
+                      socialType="infoBar"
+                      parentId={parentId}
+                      accessToken={accessToken || ''}
+                    />
+                  ))}
+                </div>
+              )}
 
-            {/* Contact card */}
-            {info?.contact && info.contact.length > 0 && (
-              <div className="w-full">
-                {info.contact.map((social: any, index: number) => (
-                  <Contact
-                    number={index}
-                    key={social._id}
-                    data={social}
-                    socialType="contact"
-                    parentId={parentId}
-                    accessToken={accessToken || ''}
-                  />
-                ))}
-              </div>
-            )}
+              {/* Product Payment */}
+              {info?.product && info.product.length > 0 && (
+                <div className="w-full">
+                  {info.product.map((social: any, index: number) => (
+                    <PaymentBar
+                      number={index}
+                      key={social._id}
+                      data={social}
+                      socialType="product"
+                      parentId={parentId}
+                      accessToken={accessToken || ''}
+                    />
+                  ))}
+                </div>
+              )}
 
-            {/* InfoBar */}
-            {info?.infoBar && info.infoBar.length > 0 && (
-              <div className="w-full">
-                {info.infoBar.map((social: any, index: number) => (
-                  <InfoBar
-                    number={index}
-                    key={social._id}
-                    data={social}
-                    socialType="infoBar"
-                    parentId={parentId}
-                    accessToken={accessToken || ''}
-                  />
-                ))}
-              </div>
-            )}
-
-            {/* Product Payment */}
-            {info?.product && info.product.length > 0 && (
-              <div className="w-full">
-                {info.product.map((social: any, index: number) => (
-                  <PaymentBar
-                    number={index}
-                    key={social._id}
-                    data={social}
-                    socialType="product"
-                    parentId={parentId}
-                    accessToken={accessToken || ''}
-                  />
-                ))}
-              </div>
-            )}
-
-            {/* Audio */}
-            {info?.audio && info.audio.length > 0 && (
-              <div className="w-full mt-1">
-                {info.audio.map((social: any, index: number) => (
-                  <MP3
-                    number={index}
-                    key={social._id}
-                    data={social}
-                    socialType="audio"
-                    parentId={parentId}
-                    length={info.audio.length}
-                  />
-                ))}
-              </div>
-            )}
+              {/* Audio */}
+              {info?.audio && info.audio.length > 0 && (
+                <div className="w-full mt-1">
+                  {info.audio.map((social: any, index: number) => (
+                    <MP3
+                      number={index}
+                      key={social._id}
+                      data={social}
+                      socialType="audio"
+                      parentId={parentId}
+                      length={info.audio.length}
+                    />
+                  ))}
+                </div>
+              )}
+            </div>
 
             {/* Video */}
             {info?.video && info.video.length > 0 && (

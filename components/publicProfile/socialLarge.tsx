@@ -23,6 +23,7 @@ interface Props {
   parentId: string;
   number: number;
   accessToken: string;
+  fontColor?: string;
 }
 
 const variants = {
@@ -57,6 +58,7 @@ const SocialLarge: FC<Props> = ({
   parentId,
   number,
   accessToken,
+  fontColor,
 }) => {
   const { toast } = useToast();
   const {
@@ -186,21 +188,27 @@ const SocialLarge: FC<Props> = ({
           stiffness: 400,
           damping: 10,
         }}
+        className="w-20 h-20 sm:w-24 sm:h-24"
       >
         <Image
-          className="object-fill w-24 h-24 sm:w-28 sm:h-28 rounded-[30px] bg-transparent shadow-lg "
+          className="w-full h-auto rounded-2xl"
           src={
             iconName.includes('http')
               ? iconName
               : `/images/social_logo/${trimIcon}.svg`
           }
           alt={iconName}
-          width={130}
-          height={130}
+          width={230}
+          height={230}
           priority
         />
       </motion.div>
-      <div className="text-xs">{name}</div>
+      <div
+        style={{ color: fontColor && fontColor }}
+        className="text-sm font-medium truncate"
+      >
+        {name}
+      </div>
     </motion.div>
   );
 };

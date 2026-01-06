@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 // "use client";
 // import { useState } from "react";
 // import Image from "next/image";
@@ -207,12 +208,19 @@ import { useState } from 'react';
 import Image from 'next/image';
 import { motion } from 'framer-motion';
 import { ShoppingCart, Loader2 } from 'lucide-react';
+=======
+"use client";
+import { useState } from "react";
+import Image from "next/image";
+import { motion } from "framer-motion";
+import { ShoppingCart, Loader2 } from "lucide-react";
+>>>>>>> edf10eee93ce0c0177d451e94bfe2137b182437d
 
 import { addProductToCart } from '@/actions/addToCartActions';
 import toast from 'react-hot-toast';
 import { useCart } from '@/app/(public-profile)/sp/[username]/cart/context/CartContext';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL;
+// const API_URL = process.env.NEXT_PUBLIC_API_URL;
 
 const variants = {
   hidden: { opacity: 0, x: 0, y: 25 },
@@ -227,6 +235,7 @@ const MarketPlace: any = ({
   userName,
   accessToken,
   userId,
+  secondaryFontColor,
 }: any) => {
   const [addToCartLoading, setAddToCartLoading] = useState(false);
   const [isExisting, setIsExisting] = useState(false);
@@ -238,6 +247,8 @@ const MarketPlace: any = ({
     templateId,
     itemDescription,
   } = data;
+
+  console.log("datass", data);
 
   const delay = number + 1 * 0.2;
 
@@ -355,6 +366,7 @@ const MarketPlace: any = ({
         </div>
 
         {/* Product Info */}
+<<<<<<< HEAD
         <div className="p-4 text-center">
           <h3 className="font-semibold text-gray-900 text-base mb-1 line-clamp-2">
             {itemName}
@@ -362,6 +374,14 @@ const MarketPlace: any = ({
           <p className="text-sm font-medium text-gray-700">
             ${itemPrice}
           </p>
+=======
+        <div
+          style={{ color: secondaryFontColor && secondaryFontColor }}
+          className="p-4 text-center"
+        >
+          <h3 className="font-medium text-base mb-1 truncate">{itemName}</h3>
+          <p className="text-sm">${itemPrice}</p>
+>>>>>>> edf10eee93ce0c0177d451e94bfe2137b182437d
         </div>
       </div>
     </motion.div>

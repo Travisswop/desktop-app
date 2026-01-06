@@ -25,6 +25,7 @@ interface Props {
   socialType: string;
   parentId: string;
   number: number;
+  secondaryFontColor?: string;
 }
 
 const variants = {
@@ -33,7 +34,13 @@ const variants = {
   exit: { opacity: 0, x: -0, y: 25 },
 };
 const API_URL = process.env.NEXT_PUBLIC_API_URL;
-const Blog: FC<Props> = ({ data, socialType, parentId, number }) => {
+const Blog: FC<Props> = ({
+  data,
+  socialType,
+  parentId,
+  number,
+  secondaryFontColor,
+}) => {
   const { _id, micrositeId, title, headline, description, image } = data;
 
   const openlink = async () => {
@@ -78,8 +85,11 @@ const Blog: FC<Props> = ({ data, socialType, parentId, number }) => {
           </SheetHeader>
         </SheetContent>
 
-        <div className="w-full p-2 bg-white border rounded-lg shadow mt-4">
-          <div className="relative w-full h-40 mb-2 overflow-hidden rounded-lg ">
+        <div
+          style={{ color: secondaryFontColor && secondaryFontColor }}
+          className="w-full p-2 bg-white border rounded-lg shadow mt-4"
+        >
+          {/* <div className="relative w-full h-40 mb-2 overflow-hidden rounded-lg">
             <Image
               src={image}
               alt={title}
@@ -89,15 +99,22 @@ const Blog: FC<Props> = ({ data, socialType, parentId, number }) => {
                 objectFit: "contain",
               }}
             />
+          </div> */}
+
+          <div className="relative">
+            <Image
+              src={image}
+              alt={title}
+              width={900}
+              height={500}
+              quality={100}
+              className="w-full h-36 2xl:h-48 object-cover rounded-lg"
+            />
           </div>
-          <h5 className="text-xl font-bold text-gray-900 dark:text-white">
-            {title}
-          </h5>
-          <p className="mb-5 text-sm text-gray-500 dark:text-gray-400">
-            {headline}
-          </p>
+          <h5 className="text-lg font-semibold mt-2">{title}</h5>
+          <p className="mb-2 text-sm">{headline}</p>
           <div className="flex items-end justify-end">
-            <SheetTrigger className="text-sm bg-slate-900 text-white rounded-full px-2 py-1">
+            <SheetTrigger className="text-xs bg-slate-900 text-white rounded-full px-2 py-1">
               Read More
             </SheetTrigger>
           </div>

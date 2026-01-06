@@ -1,5 +1,5 @@
-import { FC } from 'react';
-import Image from 'next/image';
+import { FC } from "react";
+import Image from "next/image";
 interface Props {
   brandIcon: string;
 }
@@ -7,16 +7,14 @@ interface Props {
 const Footer: FC<Props> = ({ brandIcon }) => {
   return (
     <div className="flex items-center my-8">
-      <div>
-        <Image
-          className="object-fill"
-          src={brandIcon}
-          alt="Twitter Logo"
-          width={150}
-          height={30}
-          priority
-        />
-      </div>
+      <Image
+        src={brandIcon}
+        alt="Twitter Logo"
+        width={250}
+        height={90}
+        className="w-28 h-auto"
+        priority
+      />
     </div>
   );
 };
