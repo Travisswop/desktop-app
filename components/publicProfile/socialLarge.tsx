@@ -22,6 +22,7 @@ interface Props {
   socialType: string;
   parentId: string;
   number: number;
+  fontColor?: string;
 }
 
 const variants = {
@@ -50,7 +51,13 @@ const socialInputTypes: SocialInputTypes = {
   Snapchat: "username",
 };
 
-const SocialLarge: FC<Props> = ({ data, socialType, parentId, number }) => {
+const SocialLarge: FC<Props> = ({
+  data,
+  socialType,
+  parentId,
+  number,
+  fontColor,
+}) => {
   const { toast } = useToast();
   const { _id, micrositeId, name, value, url, iconName, iconPath, group } =
     data;
@@ -166,21 +173,27 @@ const SocialLarge: FC<Props> = ({ data, socialType, parentId, number }) => {
           stiffness: 400,
           damping: 10,
         }}
+        className="w-20 h-20 sm:w-24 sm:h-24"
       >
         <Image
-          className="object-fill w-24 h-24 sm:w-28 sm:h-28 rounded-[30px] bg-transparent shadow-lg "
+          className="w-full h-auto rounded-2xl"
           src={
             iconName.includes("http")
               ? iconName
               : `/images/social_logo/${trimIcon}.svg`
           }
           alt={iconName}
-          width={130}
-          height={130}
+          width={230}
+          height={230}
           priority
         />
       </motion.div>
-      <div className="text-xs">{name}</div>
+      <div
+        style={{ color: fontColor && fontColor }}
+        className="text-sm font-medium truncate"
+      >
+        {name}
+      </div>
     </motion.div>
   );
 };

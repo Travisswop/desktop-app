@@ -6,37 +6,37 @@ import {
   Montserrat,
   Rubik,
   Inter,
-} from 'next/font/google';
+} from "next/font/google";
 
 export type FontType =
-  | 'roboto'
-  | 'poppins'
-  | 'opensans'
-  | 'montserrat'
-  | 'rubik'
-  | 'inter';
+  | "roboto"
+  | "poppins"
+  | "opensans"
+  | "montserrat"
+  | "rubik"
+  | "inter";
 
 const roboto = Roboto({
-  subsets: ['latin'],
-  weight: ['100', '300', '400', '500', '700', '900'],
+  subsets: ["latin"],
+  weight: ["100", "300", "400", "500", "700", "900"],
 });
 const poppins = Poppins({
-  subsets: ['latin'],
-  weight: ['400', '700'],
+  subsets: ["latin"],
+  weight: ["400", "700"],
 });
 const openSans = Open_Sans({
-  subsets: ['latin'],
-  weight: ['400', '700'],
+  subsets: ["latin"],
+  weight: ["400", "700"],
 });
 const montserrat = Montserrat({
-  subsets: ['latin'],
-  weight: ['400', '700'],
+  subsets: ["latin"],
+  weight: ["400", "700"],
 });
-const rubik = Rubik({ subsets: ['latin'], weight: ['400', '700'] });
+const rubik = Rubik({ subsets: ["latin"], weight: ["400", "700"] });
 
 const inter = Inter({
-  subsets: ['latin'],
-  weight: ['400', '500', '600', '700'],
+  subsets: ["latin"],
+  weight: ["400", "500", "600", "700"],
 });
 
 export const fontMap: any = {
