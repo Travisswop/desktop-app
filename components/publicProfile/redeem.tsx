@@ -25,6 +25,7 @@ interface Props {
   socialType: string;
   parentId: string;
   number: number;
+  accessToken: string;
 }
 
 const variants = {
@@ -38,6 +39,7 @@ const Redeem: FC<Props> = ({
   socialType,
   parentId,
   number,
+  accessToken,
 }) => {
   const {
     _id,
@@ -68,6 +70,11 @@ const Redeem: FC<Props> = ({
   }, [socialType, _id, parentId]);
 
   const openLink = useCallback(() => {
+    if (!accessToken) {
+      window.location.href =
+        'https://apps.apple.com/us/app/swop-connecting-the-world/id1593201322';
+      return;
+    }
     if (available > 0) {
       updateCount();
 

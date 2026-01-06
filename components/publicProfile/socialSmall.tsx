@@ -1,13 +1,14 @@
-"use client";
-import { FC } from "react";
-import Image from "next/image";
+'use client';
+import { FC } from 'react';
+import Image from 'next/image';
 // import { ToastAction } from '@/components/ui/toast';
-import { useToast } from "@/components/ui/use-toast";
-import { motion } from "framer-motion";
+import { useToast } from '@/components/ui/use-toast';
+import { motion } from 'framer-motion';
+import { getDeviceInfo } from '@/components/collectiVistUserInfo';
 // import { addSwopPoint } from '@/app/actions/addPoint';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL;
-
+const deviceInfo = getDeviceInfo();
 interface Props {
   data: {
     _id: string;
@@ -22,6 +23,7 @@ interface Props {
   socialType: string;
   parentId: string;
   number: number;
+  accessToken: string;
 }
 
 interface SocialInputTypes {
@@ -29,17 +31,17 @@ interface SocialInputTypes {
 }
 
 const socialInputTypes: SocialInputTypes = {
-  TikTok: "username",
-  Instagram: "username",
-  Facebook: "username",
-  Twitter: "username",
-  Snapchat: "username",
-  "Linked In": "username",
-  Github: "link",
-  YouTube: "link",
-  Bluesky: "link",
-  Rumble: "link",
-  Truth: "link",
+  TikTok: 'username',
+  Instagram: 'username',
+  Facebook: 'username',
+  Twitter: 'username',
+  Snapchat: 'username',
+  'Linked In': 'username',
+  Github: 'link',
+  YouTube: 'link',
+  Bluesky: 'link',
+  Rumble: 'link',
+  Truth: 'link',
 };
 
 const variants = {
@@ -47,18 +49,37 @@ const variants = {
   enter: { opacity: 1, x: 0, y: 0 },
   exit: { opacity: 0, x: -0, y: 25 },
 };
-const SocialSmall: FC<Props> = ({ data, socialType, parentId, number }) => {
+const SocialSmall: FC<Props> = ({
+  data,
+  socialType,
+  parentId,
+  number,
+  accessToken,
+}) => {
   const { toast } = useToast();
-  const { _id, micrositeId, name, value, url, iconName, iconPath, group } =
-    data;
+  const {
+    _id,
+    micrositeId,
+    name,
+    value,
+    url,
+    iconName,
+    iconPath,
+    group,
+  } = data;
 
   const openlink = async () => {
+    if (!accessToken) {
+      window.location.href =
+        'https://apps.apple.com/us/app/swop-connecting-the-world/id1593201322';
+      return;
+    }
     try {
       fetch(`${API_URL}/api/v1/web/updateCount`, {
-        method: "POST",
+        method: 'POST',
         headers: {
-          Accept: "application/json",
-          "Content-Type": "application/json",
+          Accept: 'application/json',
+          'Content-Type': 'application/json',
         },
         body: JSON.stringify({
           socialType,
@@ -71,14 +92,14 @@ const SocialSmall: FC<Props> = ({ data, socialType, parentId, number }) => {
     }
 
     switch (group) {
-      case "Social Media":
-        if (socialInputTypes[name] === "link") {
-          return window.open(value, "_self");
+      case 'Social Media':
+        if (socialInputTypes[name] === 'link') {
+          return window.open(value, '_self');
         }
-        if (value.includes("https") || value.includes("http")) {
-          return window.open(value, "_self");
+        if (value.includes('https') || value.includes('http')) {
+          return window.open(value, '_self');
         } else {
-          return window.open(`https://${url}/${value}`, "_self");
+          return window.open(`https://${url}/${value}`, '_self');
         }
       // if (name === 'Linked In') {
       //   return window.open(`https://${url}/in/${value}`, '_self');
@@ -88,31 +109,31 @@ const SocialSmall: FC<Props> = ({ data, socialType, parentId, number }) => {
       // }
       // return window.open(`https://${url}/${value}`, '_self');
       // break;
-      case "Commands":
-        if (name === "Email") {
-          return window.open(`mailto:${value}`, "_self");
+      case 'Commands':
+        if (name === 'Email') {
+          return window.open(`mailto:${value}`, '_self');
         }
-        return window.open(value, "_self");
+        return window.open(value, '_self');
         break;
-      case "Chat Links":
-        console.log("value", value);
-        if (name === "Whatsapp") {
-          return window.open(`https://wa.me/${value}?`, "_self");
+      case 'Chat Links':
+        console.log('value', value);
+        if (name === 'Whatsapp') {
+          return window.open(`https://wa.me/${value}?`, '_self');
         }
-        if (name === "Telegram") {
-          return window.open(`https://t.me/${value}?`, "_self");
+        if (name === 'Telegram') {
+          return window.open(`https://t.me/${value}?`, '_self');
         }
-        return window.open(`${value}`, "_self");
+        return window.open(`${value}`, '_self');
         break;
       default:
-        return window.open(value, "_self");
+        return window.open(value, '_self');
         break;
     }
   };
 
   const delay = 0.5;
 
-  const trimIcon = iconName.toLowerCase().trim().replace(" ", "");
+  const trimIcon = iconName.toLowerCase().trim().replace(' ', '');
 
   return (
     <motion.div
@@ -123,14 +144,14 @@ const SocialSmall: FC<Props> = ({ data, socialType, parentId, number }) => {
       transition={{
         duration: 0.4,
         delay,
-        type: "easeInOut",
+        type: 'easeInOut',
       }}
       onClick={openlink}
     >
       <motion.div
         whileHover={{ scale: 1.05 }}
         transition={{
-          type: "spring",
+          type: 'spring',
           stiffness: 400,
           damping: 10,
         }}
@@ -138,7 +159,9 @@ const SocialSmall: FC<Props> = ({ data, socialType, parentId, number }) => {
       >
         <Image
           src={
-            iconPath ? iconPath : `/images/small-icons/black/${trimIcon}.png`
+            iconPath
+              ? iconPath
+              : `/images/small-icons/black/${trimIcon}.png`
           }
           alt={iconName}
           width={320}

@@ -1,7 +1,7 @@
-"use client";
-import { FC } from "react";
-import Image from "next/image";
-import { motion } from "framer-motion";
+'use client';
+import { FC } from 'react';
+import Image from 'next/image';
+import { motion } from 'framer-motion';
 // import { addSwopPoint } from '@/app/actions/addPoint';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL;
@@ -19,23 +19,42 @@ interface Props {
   socialType: string;
   parentId: string;
   number: number;
+  accessToken: string;
 }
 const variants = {
   hidden: { opacity: 0, x: 0, y: 25 },
   enter: { opacity: 1, x: 0, y: 0 },
   exit: { opacity: 0, x: -0, y: 25 },
 };
-const PaymentBar: FC<Props> = ({ data, socialType, parentId, number }) => {
-  const { _id, micrositeId, title, paymentUrl, imageUrl, description, price } =
-    data;
+const PaymentBar: FC<Props> = ({
+  data,
+  socialType,
+  parentId,
+  number,
+  accessToken,
+}) => {
+  const {
+    _id,
+    micrositeId,
+    title,
+    paymentUrl,
+    imageUrl,
+    description,
+    price,
+  } = data;
 
   const openlink = async () => {
+    if (!accessToken) {
+      window.location.href =
+        'https://apps.apple.com/us/app/swop-connecting-the-world/id1593201322';
+      return;
+    }
     try {
       fetch(`${API_URL}/api/v1/web/updateCount`, {
-        method: "POST",
+        method: 'POST',
         headers: {
-          Accept: "application/json",
-          "Content-Type": "application/json",
+          Accept: 'application/json',
+          'Content-Type': 'application/json',
         },
         body: JSON.stringify({
           socialType,
@@ -46,7 +65,7 @@ const PaymentBar: FC<Props> = ({ data, socialType, parentId, number }) => {
     } catch (err) {
       console.log(err);
     }
-    return window.open(paymentUrl, "_self");
+    return window.open(paymentUrl, '_self');
   };
 
   const delay = number + 1 * 0.2;
@@ -60,12 +79,12 @@ const PaymentBar: FC<Props> = ({ data, socialType, parentId, number }) => {
       transition={{
         duration: 0.4,
         delay,
-        type: "easeInOut",
+        type: 'easeInOut',
       }}
     >
       <motion.div
         transition={{
-          type: "spring",
+          type: 'spring',
           stiffness: 400,
           damping: 10,
         }}

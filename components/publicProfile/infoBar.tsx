@@ -21,6 +21,7 @@ interface Props {
   socialType: string;
   parentId: string;
   number: number;
+  accessToken: string;
 }
 
 const variants = {
@@ -54,6 +55,7 @@ const InfoBar: FC<Props> = ({
   socialType,
   parentId,
   number,
+  accessToken,
 }) => {
   const {
     _id,
@@ -70,6 +72,11 @@ const InfoBar: FC<Props> = ({
   const { toast } = useToast();
 
   const openlink = async () => {
+    if (!accessToken) {
+      window.location.href =
+        'https://apps.apple.com/us/app/swop-connecting-the-world/id1593201322';
+      return;
+    }
     try {
       fetch(`${API_URL}/api/v1/web/updateCount`, {
         method: 'POST',

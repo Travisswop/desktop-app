@@ -16,6 +16,7 @@ interface Props {
   socialType: string;
   parentId: string;
   number: number;
+  accessToken: string;
 }
 
 const variants = {
@@ -24,10 +25,21 @@ const variants = {
   exit: { opacity: 0, x: -0, y: 25 },
 };
 
-const Ens: FC<Props> = ({ data, socialType, parentId, number }) => {
+const Ens: FC<Props> = ({
+  data,
+  socialType,
+  parentId,
+  number,
+  accessToken,
+}) => {
   const { _id, domain } = data;
   const { toast } = useToast();
   const openlink = async () => {
+    if (!accessToken) {
+      window.location.href =
+        'https://apps.apple.com/us/app/swop-connecting-the-world/id1593201322';
+      return;
+    }
     navigator.clipboard.writeText(domain);
     toast({
       title: 'Copied to clipboard',

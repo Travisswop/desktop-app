@@ -202,15 +202,15 @@
 
 // export default MarketPlace;
 
-"use client";
-import { useState } from "react";
-import Image from "next/image";
-import { motion } from "framer-motion";
-import { ShoppingCart, Loader2 } from "lucide-react";
+'use client';
+import { useState } from 'react';
+import Image from 'next/image';
+import { motion } from 'framer-motion';
+import { ShoppingCart, Loader2 } from 'lucide-react';
 
-import { addProductToCart } from "@/actions/addToCartActions";
-import toast from "react-hot-toast";
-import { useCart } from "@/app/(public-profile)/sp/[username]/cart/context/CartContext";
+import { addProductToCart } from '@/actions/addToCartActions';
+import toast from 'react-hot-toast';
+import { useCart } from '@/app/(public-profile)/sp/[username]/cart/context/CartContext';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL;
 
@@ -247,6 +247,12 @@ const MarketPlace: any = ({
     event.stopPropagation();
     setAddToCartLoading(true);
 
+    if (!accessToken) {
+      window.location.href =
+        'https://apps.apple.com/us/app/swop-connecting-the-world/id1593201322';
+      return;
+    }
+
     const cartItem = {
       _id: Math.random().toString(36).substring(2, 15),
       quantity: 1,
@@ -262,16 +268,16 @@ const MarketPlace: any = ({
         templateId: templateId,
         nftType:
           data.collectionMintAddress ===
-          "EFNUeHdd9dYNWaczMGfCtqThFea7HcL7xUdH8QNsYUcq"
-            ? ("phygital" as const)
-            : ("non-phygital" as const),
+          'EFNUeHdd9dYNWaczMGfCtqThFea7HcL7xUdH8QNsYUcq'
+            ? ('phygital' as const)
+            : ('non-phygital' as const),
       },
     };
 
     if (!accessToken) {
-      dispatch({ type: "ADD_ITEM", payload: cartItem });
+      dispatch({ type: 'ADD_ITEM', payload: cartItem });
       setAddToCartLoading(false);
-      toast.success("Item added to cart (offline)");
+      toast.success('Item added to cart (offline)');
       return;
     }
 
@@ -284,17 +290,23 @@ const MarketPlace: any = ({
         sellerId: sellerId,
       };
 
-      const response = await addProductToCart(cartData, accessToken, userName);
+      const response = await addProductToCart(
+        cartData,
+        accessToken,
+        userName
+      );
 
-      if (response.state === "success") {
-        dispatch({ type: "ADD_ITEM", payload: cartItem });
-        toast.success("Items added to cart");
+      if (response.state === 'success') {
+        dispatch({ type: 'ADD_ITEM', payload: cartItem });
+        toast.success('Items added to cart');
       } else {
-        throw new Error(response.message || "Failed to add item to cart");
+        throw new Error(
+          response.message || 'Failed to add item to cart'
+        );
       }
     } catch (error) {
-      console.error("Error adding to cart:", error);
-      toast.error("Failed to add item to cart. Please try again.");
+      console.error('Error adding to cart:', error);
+      toast.error('Failed to add item to cart. Please try again.');
     } finally {
       setAddToCartLoading(false);
     }
@@ -309,7 +321,7 @@ const MarketPlace: any = ({
       transition={{
         duration: 0.4,
         delay,
-        type: "easeInOut",
+        type: 'easeInOut',
       }}
       className="w-full"
     >
@@ -325,7 +337,7 @@ const MarketPlace: any = ({
           ) : (
             <ShoppingCart
               className={`w-5 h-5 ${
-                isExisting ? "text-gray-400" : "text-gray-700"
+                isExisting ? 'text-gray-400' : 'text-gray-700'
               }`}
             />
           )}
@@ -347,7 +359,9 @@ const MarketPlace: any = ({
           <h3 className="font-semibold text-gray-900 text-base mb-1 line-clamp-2">
             {itemName}
           </h3>
-          <p className="text-sm font-medium text-gray-700">${itemPrice}</p>
+          <p className="text-sm font-medium text-gray-700">
+            ${itemPrice}
+          </p>
         </div>
       </div>
     </motion.div>

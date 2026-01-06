@@ -17,6 +17,7 @@ interface Props {
   socialType: string;
   parentId: string;
   number: number;
+  accessToken: string;
 }
 
 const variants = {
@@ -30,11 +31,17 @@ const Referral: FC<Props> = ({
   socialType,
   parentId,
   number,
+  accessToken,
 }) => {
   const { _id, micrositeId, buttonName, referralCode, description } =
     data;
   const { toast } = useToast();
   const action = async () => {
+    if (!accessToken) {
+      window.location.href =
+        'https://apps.apple.com/us/app/swop-connecting-the-world/id1593201322';
+      return;
+    }
     navigator.clipboard.writeText(referralCode);
     toast({
       title: 'Copied to clipboard',

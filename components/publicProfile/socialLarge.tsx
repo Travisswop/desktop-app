@@ -1,9 +1,9 @@
-"use client";
-import { FC } from "react";
-import Image from "next/image";
+'use client';
+import { FC } from 'react';
+import Image from 'next/image';
 // import Link from 'next/link';
-import { useToast } from "@/components/ui/use-toast";
-import { motion } from "framer-motion";
+import { useToast } from '@/components/ui/use-toast';
+import { motion } from 'framer-motion';
 // import { addSwopPoint } from '@/app/actions/addPoint';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL;
@@ -22,6 +22,7 @@ interface Props {
   socialType: string;
   parentId: string;
   number: number;
+  accessToken: string;
 }
 
 const variants = {
@@ -35,33 +36,52 @@ interface SocialInputTypes {
 }
 
 const socialInputTypes: SocialInputTypes = {
-  Twitter: "username",
-  "Linked In": "username",
-  YouTube: "link",
-  Domus: "link",
-  Bluesky: "link",
-  Facebook: "username",
-  Github: "link",
-  Instagram: "username",
-  Rumble: "link",
-  TikTok: "username",
-  Truth: "link",
-  Threads: "link",
-  Snapchat: "username",
+  Twitter: 'username',
+  'Linked In': 'username',
+  YouTube: 'link',
+  Domus: 'link',
+  Bluesky: 'link',
+  Facebook: 'username',
+  Github: 'link',
+  Instagram: 'username',
+  Rumble: 'link',
+  TikTok: 'username',
+  Truth: 'link',
+  Threads: 'link',
+  Snapchat: 'username',
 };
 
-const SocialLarge: FC<Props> = ({ data, socialType, parentId, number }) => {
+const SocialLarge: FC<Props> = ({
+  data,
+  socialType,
+  parentId,
+  number,
+  accessToken,
+}) => {
   const { toast } = useToast();
-  const { _id, micrositeId, name, value, url, iconName, iconPath, group } =
-    data;
+  const {
+    _id,
+    micrositeId,
+    name,
+    value,
+    url,
+    iconName,
+    iconPath,
+    group,
+  } = data;
 
   const openlink = async () => {
+    if (!accessToken) {
+      window.location.href =
+        'https://apps.apple.com/us/app/swop-connecting-the-world/id1593201322';
+      return;
+    }
     try {
       fetch(`${API_URL}/api/v1/web/updateCount`, {
-        method: "POST",
+        method: 'POST',
         headers: {
-          Accept: "application/json",
-          "Content-Type": "application/json",
+          Accept: 'application/json',
+          'Content-Type': 'application/json',
         },
         body: JSON.stringify({
           socialType,
@@ -74,76 +94,76 @@ const SocialLarge: FC<Props> = ({ data, socialType, parentId, number }) => {
     }
 
     switch (group) {
-      case "Social Media":
-        if (socialInputTypes[name] === "link") {
-          return window.open(value, "_self");
+      case 'Social Media':
+        if (socialInputTypes[name] === 'link') {
+          return window.open(value, '_self');
         }
-        if (name === "Linked In") {
-          return window.open(`https://${url}/in/${value}`, "_self");
+        if (name === 'Linked In') {
+          return window.open(`https://${url}/in/${value}`, '_self');
         }
         // if (name === 'Snapchat') {
         //   return window.open(`${url}/add/${value}`, '_self');
         // }
         // return window.open(`https://${url}/${value}`, '_blank');
-        if (value.includes("https") || value.includes("http")) {
-          return window.open(value, "_self");
+        if (value.includes('https') || value.includes('http')) {
+          return window.open(value, '_self');
         } else {
-          return window.open(`https://${url}/${value}`, "_self");
+          return window.open(`https://${url}/${value}`, '_self');
         }
-      case "Chat Links":
-        if (name === "Whatsapp") {
-          return window.open(`https://wa.me/${value}?`, "_self");
+      case 'Chat Links':
+        if (name === 'Whatsapp') {
+          return window.open(`https://wa.me/${value}?`, '_self');
         }
-        if (name === "Telegram") {
-          return window.open(`https://t.me/${value}?`, "_self");
+        if (name === 'Telegram') {
+          return window.open(`https://t.me/${value}?`, '_self');
         }
-        return window.open(`${value}`, "_self");
-      case "Copy Address":
+        return window.open(`${value}`, '_self');
+      case 'Copy Address':
         navigator.clipboard.writeText(value);
         toast({
-          title: "Copied to clipboard",
+          title: 'Copied to clipboard',
         });
         break;
-      case "Command/Action":
-        if (name === "Email") {
-          return window.open(`mailto:${value}`, "_self");
+      case 'Command/Action':
+        if (name === 'Email') {
+          return window.open(`mailto:${value}`, '_self');
         }
-        if (name === "Call") {
-          return window.open(`tel:${value}`, "_self");
+        if (name === 'Call') {
+          return window.open(`tel:${value}`, '_self');
         }
-        if (name === "Text Message") {
-          return window.open(`sms:${value}`, "_self");
+        if (name === 'Text Message') {
+          return window.open(`sms:${value}`, '_self');
         }
 
         if (
-          name === "Send Crypto" ||
-          name === "ENS Message" ||
-          name === "Copy"
+          name === 'Send Crypto' ||
+          name === 'ENS Message' ||
+          name === 'Copy'
         ) {
           navigator.clipboard.writeText(value);
           toast({
-            title: "Copied to clipboard",
+            title: 'Copied to clipboard',
           });
           break;
         }
-        return window.open(value, "_self");
-      case "General Links":
-        if (name === "Invoice" || name === "Card Payment") {
+        return window.open(value, '_self');
+      case 'General Links':
+        if (name === 'Invoice' || name === 'Card Payment') {
           navigator.clipboard.writeText(value);
           toast({
-            title: "Copied to clipboard",
+            title: 'Copied to clipboard',
           });
           break;
         }
-        return window.open(value, "_self");
+        return window.open(value, '_self');
       default:
-        return window.open(value, "_self");
+        return window.open(value, '_self');
     }
   };
 
   const delay = 0.5;
 
-  const trimIcon = iconName.toLowerCase().trim().replace(" ", "");
+  const trimIcon = iconName.toLowerCase().trim().replace(' ', '');
 
   return (
     <motion.div
@@ -154,7 +174,7 @@ const SocialLarge: FC<Props> = ({ data, socialType, parentId, number }) => {
       transition={{
         duration: 0.4,
         delay,
-        type: "easeInOut",
+        type: 'easeInOut',
       }}
       onClick={openlink}
       className="flex flex-col gap-3 items-center justify-between cursor-pointer"
@@ -162,7 +182,7 @@ const SocialLarge: FC<Props> = ({ data, socialType, parentId, number }) => {
       <motion.div
         whileHover={{ scale: 1.05 }}
         transition={{
-          type: "spring",
+          type: 'spring',
           stiffness: 400,
           damping: 10,
         }}
@@ -170,7 +190,7 @@ const SocialLarge: FC<Props> = ({ data, socialType, parentId, number }) => {
         <Image
           className="object-fill w-24 h-24 sm:w-28 sm:h-28 rounded-[30px] bg-transparent shadow-lg "
           src={
-            iconName.includes("http")
+            iconName.includes('http')
               ? iconName
               : `/images/social_logo/${trimIcon}.svg`
           }
