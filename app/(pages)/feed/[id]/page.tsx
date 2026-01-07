@@ -36,7 +36,7 @@ export async function generateMetadata({
         description: description,
         images: [
           {
-            url: ogImageUrl,
+            url: feed?.content?.post_content[0].src,
             width: 1200,
             height: 630,
             alt: title,
@@ -53,7 +53,7 @@ export async function generateMetadata({
         card: "summary_large_image",
         title: title,
         description: description,
-        images: [ogImageUrl],
+        images: [feed?.content?.post_content[0].src],
         creator: `@${author}`,
       },
     };
