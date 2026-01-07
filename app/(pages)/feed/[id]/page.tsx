@@ -1,67 +1,71 @@
 import { getFeedDetails } from "@/actions/postFeed";
 import FeedDetails from "@/components/feed/FeedDetails";
 import FeedLoading from "@/components/loading/FeedLoading";
-import { Metadata } from "next";
+import { Metadata, ResolvingMetadata } from "next";
 import { cookies } from "next/headers";
 import Link from "next/link";
 import React, { Suspense } from "react";
 
-// Generate metadata for OG tags
-export async function generateMetadata({
-  params,
-}: {
+type Props = {
   params: Promise<{ id: string }>;
-}): Promise<Metadata> {
+  searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
+};
+
+export async function generateMetadata(
+  { params, searchParams }: Props,
+  parent: ResolvingMetadata
+): Promise<Metadata> {
   const { id } = await params;
 
   const url = `${process.env.NEXT_PUBLIC_API_URL}/api/v1/feed/${id}`;
 
   try {
-    const feedData = await getFeedDetails(url);
-    const feed = feedData?.data;
+    const responseData = await getFeedDetails(url);
+    const feed = responseData?.data;
 
-    // Use your custom OG image route
-    const ogImageUrl = `${process.env.NEXT_PUBLIC_APP_URL}/api/og/feed/${id}`;
+    if (!feed) {
+      return {
+        title: "Feed not found",
+        description: "No feed post available.",
+      };
+    }
 
-    const title = feed?.content?.title || "Check out this post!";
-    const description =
-      title.length > 155 ? title.substring(0, 155) + "..." : title;
-    const author = feed?.smartsiteUserName || "Anonymous";
+    console.log("feed meta data", feed);
 
     return {
-      title: `${title} - ${author}`,
-      description: description,
+      title: feed?.content?.title || "Swop Feed",
+      description: "Check out this swop feed",
       openGraph: {
-        title: title,
-        description: description,
+        title: feed?.content?.title || "Swop Feed",
+        description: "Check out this feed",
         images: [
           {
-            url: feed?.content?.post_content[0].src,
+            url: feed?.content?.post_content[0]?.src,
             width: 1200,
             height: 630,
-            alt: title,
+            alt: feed?.title || "Feed image",
           },
         ],
         type: "article",
         url: `${process.env.NEXT_PUBLIC_APP_URL}/feed/${id}`,
-        siteName: "Swop",
-        publishedTime: feed?.createdAt,
-        modifiedTime: feed?.updatedAt,
-        authors: [author],
       },
       twitter: {
         card: "summary_large_image",
-        title: title,
-        description: description,
-        images: [feed?.content?.post_content[0].src],
-        creator: `@${author}`,
+        title: feed?.content?.title || "Swop Feed",
+        description: "Check out this swop feed",
+        images: [feed?.content?.post_content[0]?.src],
       },
     };
   } catch (error) {
-    console.error("Metadata generation error:", error);
+    // Fallback metadata if fetch fails
     return {
       title: "Feed Details",
-      description: "Check out this post!",
+      description: "Check out this feed",
+      openGraph: {
+        title: "Feed Details",
+        description: "Check out this feed",
+        images: ["/default-og-image.jpg"],
+      },
     };
   }
 }
