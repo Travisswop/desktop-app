@@ -30,7 +30,55 @@ export async function generateMetadata(
       };
     }
 
-    console.log("feed meta data", feed);
+    //console.log("feed meta data", feed);
+
+    // Get the first post content item
+    const firstContent = feed?.content?.post_content?.[0];
+    const contentSrc = firstContent?.src;
+
+    // Helper function to generate video thumbnail from Cloudinary
+    const getCloudinaryThumbnail = (videoUrl: string): string => {
+      if (!videoUrl || !videoUrl.includes("cloudinary.com")) {
+        return "/default-og-image.jpg";
+      }
+
+      // Check if it's a video
+      const isVideo =
+        videoUrl.includes("/video/upload/") ||
+        videoUrl.match(/\.(mp4|mov|avi|webm|mkv)$/i);
+
+      if (!isVideo) {
+        return videoUrl; // Return as is if it's already an image
+      }
+
+      // Transform Cloudinary video URL to image thumbnail
+      // This extracts a frame from the video at 1 second
+      // Example: .../video/upload/v123/video.mov
+      // Becomes: .../video/upload/so_1.0,w_1200,h_630,c_fill/v123/video.jpg
+
+      const parts = videoUrl.split("/upload/");
+      if (parts.length !== 2) return "/default-og-image.jpg";
+
+      // Extract the public_id (remove file extension)
+      const publicIdWithExt = parts[1];
+      const publicId = publicIdWithExt.replace(
+        /\.(mp4|mov|avi|webm|mkv)$/i,
+        ""
+      );
+
+      // Build thumbnail URL with transformations
+      // so_1.0 = start offset at 1 second
+      // w_1200,h_630 = dimensions
+      // c_fill = crop to fill
+      // f_jpg = format as JPEG
+      const thumbnailUrl = `${parts[0]}/upload/so_1.0,w_1200,h_630,c_fill,f_jpg/${publicId}.jpg`;
+
+      return thumbnailUrl;
+    };
+
+    const displayImage = getCloudinaryThumbnail(
+      contentSrc || "/default-og-image.jpg"
+    );
 
     return {
       title: feed?.content?.title || "Swop Feed",
@@ -40,10 +88,10 @@ export async function generateMetadata(
         description: "Check out this feed",
         images: [
           {
-            url: feed?.content?.post_content[0]?.src,
+            url: displayImage,
             width: 1200,
             height: 630,
-            alt: feed?.title || "Feed image",
+            alt: feed?.content?.title || "Feed image",
           },
         ],
         type: "article",
@@ -53,7 +101,7 @@ export async function generateMetadata(
         card: "summary_large_image",
         title: feed?.content?.title || "Swop Feed",
         description: "Check out this swop feed",
-        images: [feed?.content?.post_content[0]?.src],
+        images: [displayImage],
       },
     };
   } catch (error) {
