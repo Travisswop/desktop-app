@@ -21,7 +21,7 @@ export async function generateMetadata({
     const feed = feedData?.data;
 
     // Use your custom OG image route
-    const ogImageUrl = `${process.env.NEXT_PUBLIC_BASE_URL}/api/og/feed/${id}`;
+    const ogImageUrl = `${process.env.NEXT_PUBLIC_APP_URL}/api/og/feed/${id}`;
 
     const title = feed?.content?.title || "Check out this post!";
     const description =
