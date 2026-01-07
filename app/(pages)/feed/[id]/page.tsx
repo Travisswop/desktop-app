@@ -1,112 +1,70 @@
 import { getFeedDetails } from "@/actions/postFeed";
 import FeedDetails from "@/components/feed/FeedDetails";
 import FeedLoading from "@/components/loading/FeedLoading";
+import { Metadata } from "next";
 import { cookies } from "next/headers";
 import Link from "next/link";
 import React, { Suspense } from "react";
-// import type { Metadata, ResolvingMetadata } from "next";
-// import isUrl from "@/lib/isUrl";
 
-// type Props = {
-//   params: { id: string } | Promise<{ id: string }>;
-// };
+// Generate metadata for OG tags
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}): Promise<Metadata> {
+  const { id } = await params;
 
-// export async function generateMetadata(
-//   { params }: Props,
-//   parent: ResolvingMetadata
-// ): Promise<Metadata> {
-//   const { id } = await params;
+  const url = `${process.env.NEXT_PUBLIC_API_URL}/api/v1/feed/${id}`;
 
-//   const feedData = await getFeedDetails(
-//     `${process.env.NEXT_PUBLIC_API_URL}/api/v1/feed/${id}`
-//   );
+  try {
+    const feedData = await getFeedDetails(url);
+    const feed = feedData?.data;
 
-//   const feed = feedData?.data;
-//   console.log("feedrr from meta data", feed);
+    // Use your custom OG image route
+    const ogImageUrl = `${process.env.NEXT_PUBLIC_BASE_URL}/api/og/feed/${id}`;
 
-//   if (!feed) {
-//     return {
-//       title: "Feed",
-//       description: "Feed details",
-//     };
-//   }
+    const title = feed?.content?.title || "Check out this post!";
+    const description =
+      title.length > 155 ? title.substring(0, 155) + "..." : title;
+    const author = feed?.smartsiteUserName || "Anonymous";
 
-//   // Get post content array
-//   const postContent = feed.content?.post_content || [];
-//   const firstMedia = postContent[0];
-
-//   // Determine media type
-//   const mediaType = firstMedia?.type;
-//   const isVideo = mediaType === "video";
-//   const isImage = mediaType === "image";
-//   const isGif = mediaType === "gif";
-
-//   // For metadata purposes, treat GIFs as images
-//   const hasVisualMedia = isImage || isGif || isVideo;
-
-//   // Get the media URL
-//   let mediaUrl = "";
-//   if (hasVisualMedia && firstMedia?.src) {
-//     mediaUrl = firstMedia.src;
-//   } else if (feed.smartsiteProfilePic) {
-//     mediaUrl = isUrl(feed.smartsiteProfilePic)
-//       ? feed.smartsiteProfilePic
-//       : `${process.env.NEXT_PUBLIC_API_URL}/images/user_avator/${feed.smartsiteProfilePic}@3x.png`;
-//   }
-
-//   // Create title and description
-//   const title =
-//     feed.content?.title || feed.smartsiteUserName || "Swop Feed Post";
-//   const description =
-//     feed.description ||
-//     feed.content?.description ||
-//     `Check out this post by ${feed.smartsiteUserName || "Swop user"}!`;
-
-//   return {
-//     title,
-//     description,
-//     openGraph: {
-//       title,
-//       description,
-//       url: `https://www.swopme.app/feed/${feed._id}`,
-//       siteName: "Swop",
-//       type: isVideo ? "video.other" : "article",
-//       // Remove fixed dimensions - let platforms handle responsive sizing
-//       images: mediaUrl
-//         ? [
-//             {
-//               url: mediaUrl,
-//               alt: title,
-//             },
-//           ]
-//         : [],
-//       ...(isVideo &&
-//         firstMedia?.src && {
-//           videos: [
-//             {
-//               url: firstMedia.src,
-//             },
-//           ],
-//         }),
-//     },
-//     twitter: {
-//       card: isVideo ? "player" : "summary_large_image",
-//       title,
-//       description,
-//       site: "@swopme",
-//       creator: feed.smartsiteUserName
-//         ? `@${feed.smartsiteUserName}`
-//         : undefined,
-//       images: mediaUrl ? [mediaUrl] : [],
-//       ...(isVideo &&
-//         firstMedia?.src && {
-//           player: {
-//             url: firstMedia.src,
-//           },
-//         }),
-//     },
-//   };
-// }
+    return {
+      title: `${title} - ${author}`,
+      description: description,
+      openGraph: {
+        title: title,
+        description: description,
+        images: [
+          {
+            url: ogImageUrl,
+            width: 1200,
+            height: 630,
+            alt: title,
+          },
+        ],
+        type: "article",
+        url: `${process.env.NEXT_PUBLIC_BASE_URL}/feed/${id}`,
+        siteName: "Your Site Name",
+        publishedTime: feed?.createdAt,
+        modifiedTime: feed?.updatedAt,
+        authors: [author],
+      },
+      twitter: {
+        card: "summary_large_image",
+        title: title,
+        description: description,
+        images: [ogImageUrl],
+        creator: `@${author}`,
+      },
+    };
+  } catch (error) {
+    console.error("Metadata generation error:", error);
+    return {
+      title: "Feed Details",
+      description: "Check out this post!",
+    };
+  }
+}
 
 const FeedDetailsPage = async ({
   params,
