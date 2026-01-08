@@ -12,6 +12,9 @@ export async function GET(request: Request) {
     const imageUrl = searchParams.get("image") || "";
     const date = searchParams.get("date") || "";
 
+    // Get the full URL for the logo (Edge Runtime needs absolute URLs)
+    const logoUrl = new URL("/astro-agent.png", request.url).toString();
+
     return new ImageResponse(
       (
         <div
@@ -87,26 +90,29 @@ export async function GET(request: Request) {
               paddingTop: "8px",
             }}
           >
-            {/* Swop Logo Placeholder - you'll need to fetch the actual logo */}
+            {/* Swop Logo */}
             <div
               style={{
                 width: "36px",
                 height: "36px",
                 borderRadius: "50%",
-                backgroundColor: "#3b82f6",
+                overflow: "hidden",
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
+                backgroundColor: "#f3f4f6",
               }}
             >
               <img
-                src={"/astro-agent.png"}
+                src={logoUrl}
+                width="36"
+                height="36"
                 style={{
                   width: "100%",
                   height: "100%",
-                  borderRadius: "100%",
+                  objectFit: "cover",
                 }}
-                alt="Feed"
+                alt="Swop"
               />
             </div>
             <div
