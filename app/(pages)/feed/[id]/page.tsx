@@ -94,19 +94,17 @@ export async function generateMetadata(
       return thumbnailUrl;
     };
 
-    const displayImage = getCloudinaryThumbnail(
-      contentSrc || "/default-og-image.jpg"
-    );
+    const displayImage = getCloudinaryThumbnail(contentSrc || "/og-image.png");
 
     return {
       title: feed?.content?.title || "Swop Feed",
-      description: "Check out this swop feed",
+      // description: "Check out this swop feed",
       openGraph: {
         title: feed?.content?.title || "Swop Feed",
-        description: "Check out this feed",
+        // description: "Check out this feed",
         images: [
           {
-            url: displayImage,
+            url: displayImage || "/og-image.png",
             width: 1200,
             height: 630,
             alt: feed?.content?.title || "Feed image",
@@ -119,7 +117,7 @@ export async function generateMetadata(
         card: "summary_large_image",
         title: feed?.content?.title || "Swop Feed",
         description: "Check out this swop feed",
-        images: [displayImage],
+        images: [displayImage || "/og-image.png"],
       },
     };
   } catch (error) {
@@ -130,7 +128,7 @@ export async function generateMetadata(
       openGraph: {
         title: "Feed Details",
         description: "Check out this feed",
-        images: ["/default-og-image.jpg"],
+        images: ["/og-image.png"],
       },
     };
   }
