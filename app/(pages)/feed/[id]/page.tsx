@@ -172,44 +172,66 @@ export async function generateMetadata(
       });
     };
 
-    // Generate dynamic OG image URL
-    const ogImageUrl =
-      `${process.env.NEXT_PUBLIC_APP_URL}/api/og-feed?` +
-      `ensName=${encodeURIComponent(smartsiteEnsName)}` +
-      `&title=${encodeURIComponent(feedTitle)}` +
-      `&image=${encodeURIComponent(contentSrc || "")}` +
-      `&date=${encodeURIComponent(formatDate(createdAt))}`;
+    // Helper function to optimize Cloudinary images
+    const getOptimizedImage = (imageUrl: string): string => {
+      if (!imageUrl) return `${process.env.NEXT_PUBLIC_APP_URL}/og-image.png`;
 
+      const isVideo =
+        imageUrl.includes("/video/upload/") ||
+        imageUrl.match(/\.(mp4|mov|avi|webm|mkv)$/i);
+
+      if (isVideo) {
+        // Extract thumbnail from video
+        const parts = imageUrl.split("/upload/");
+        if (parts.length !== 2)
+          return `${process.env.NEXT_PUBLIC_APP_URL}/og-image.png`;
+
+        const publicId = parts[1].replace(/\.(mp4|mov|avi|webm|mkv)$/i, "");
+        return `${parts[0]}/upload/so_1.0,w_1200,h_630,c_fill,f_jpg,q_auto/${publicId}.jpg`;
+      }
+
+      // For images
+      if (imageUrl.includes("cloudinary.com")) {
+        const parts = imageUrl.split("/upload/");
+        if (parts.length === 2) {
+          return `${parts[0]}/upload/f_auto,w_1200,h_630,c_fill,q_auto/${parts[1]}`;
+        }
+      }
+
+      return imageUrl;
+    };
+
+    const displayImage = getOptimizedImage(contentSrc);
     const feedDescription = `${smartsiteEnsName} • ${formatDate(createdAt)}`;
 
     return {
-      title: feedTitle,
+      title: `${feedTitle} | ${smartsiteEnsName}`,
       description: feedDescription,
       openGraph: {
         title: feedTitle,
         description: feedDescription,
         images: [
           {
-            url: ogImageUrl,
+            url: displayImage,
             width: 1200,
             height: 630,
             alt: feedTitle,
-            type: "image/png",
+            type: "image/jpeg",
           },
         ],
         type: "website",
         url: `${process.env.NEXT_PUBLIC_APP_URL}/feed/${id}`,
-        siteName: "Swop",
+        siteName: smartsiteEnsName,
       },
       twitter: {
         card: "summary_large_image",
         title: feedTitle,
         description: feedDescription,
-        images: [ogImageUrl],
+        images: [displayImage],
       },
       other: {
-        "og:image:secure_url": ogImageUrl,
-        "og:image:type": "image/png",
+        "og:image:secure_url": displayImage,
+        "og:image:type": "image/jpeg",
         "og:image:width": "1200",
         "og:image:height": "630",
       },
@@ -225,17 +247,8 @@ export async function generateMetadata(
       openGraph: {
         title: "Swop Feed",
         description: "Check out this post on Swop",
-        images: [
-          {
-            url: fallbackImage,
-            width: 1200,
-            height: 630,
-            alt: "Swop Feed",
-            type: "image/png",
-          },
-        ],
+        images: [fallbackImage],
         type: "website",
-        url: `${process.env.NEXT_PUBLIC_APP_URL}/feed/${id}`,
         siteName: "Swop",
       },
     };
