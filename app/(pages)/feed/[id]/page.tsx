@@ -149,8 +149,6 @@ export async function generateMetadata(
       feed = responseData?.repostedPostDetails;
     }
 
-    console.log("og response data", responseData);
-
     if (!feed) {
       return {
         title: "Feed not found",
@@ -158,66 +156,31 @@ export async function generateMetadata(
       };
     }
 
-    // Get the first post content item
     const firstContent = feed?.content?.post_content?.[0];
     const contentSrc = firstContent?.src;
+    const smartsiteEnsName = feed?.smartsiteEnsName || "swop.user";
+    const feedTitle = feed?.content?.title || "Swop Feed";
+    const createdAt = feed?.createdAt || new Date().toISOString();
 
-    // Helper function to generate video thumbnail from Cloudinary
-    const getCloudinaryThumbnail = (videoUrl: string): string => {
-      // Check if it's a video
-      const isVideo =
-        videoUrl.includes("/video/upload/") ||
-        videoUrl.match(/\.(mp4|mov|avi|webm|mkv)$/i);
-
-      if (!isVideo) {
-        // Check if it's a HEIC image and convert to JPG
-        if (videoUrl.match(/\.heic$/i)) {
-          const parts = videoUrl.split("/upload/");
-          if (parts.length === 2) {
-            // Add format transformation to convert HEIC to JPG
-            return `${
-              parts[0]
-            }/upload/f_jpg,w_1200,h_630,c_fill,q_auto/${parts[1].replace(
-              /\.heic$/i,
-              ".jpg"
-            )}`;
-          }
-        }
-
-        // For regular images, ensure optimal format and dimensions
-        if (videoUrl.includes("cloudinary.com")) {
-          const parts = videoUrl.split("/upload/");
-          if (parts.length === 2) {
-            return `${parts[0]}/upload/f_auto,w_1200,h_630,c_fill,q_auto/${parts[1]}`;
-          }
-        }
-
-        return videoUrl;
-      }
-
-      // Transform Cloudinary video URL to image thumbnail
-      const parts = videoUrl.split("/upload/");
-      if (parts.length !== 2) return "/default-og-image.jpg";
-
-      // Extract the public_id (remove file extension)
-      const publicIdWithExt = parts[1];
-      const publicId = publicIdWithExt.replace(
-        /\.(mp4|mov|avi|webm|mkv)$/i,
-        ""
-      );
-
-      // Build thumbnail URL with transformations
-      const thumbnailUrl = `${parts[0]}/upload/so_1.0,w_1200,h_630,c_fill,f_jpg,q_auto/${publicId}.jpg`;
-
-      return thumbnailUrl;
+    // Format date
+    const formatDate = (dateString: string) => {
+      const date = new Date(dateString);
+      return date.toLocaleDateString("en-US", {
+        month: "short",
+        day: "numeric",
+        year: "numeric",
+      });
     };
 
-    const displayImage = getCloudinaryThumbnail(contentSrc || "/og-image.png");
-    const feedTitle = feed?.content?.title || "Swop Feed";
-    const feedDescription =
-      feed?.content?.description ||
-      feed?.content?.title ||
-      "Check out this post on Swop";
+    // Generate dynamic OG image URL
+    const ogImageUrl =
+      `${process.env.NEXT_PUBLIC_APP_URL}/api/og-feed?` +
+      `ensName=${encodeURIComponent(smartsiteEnsName)}` +
+      `&title=${encodeURIComponent(feedTitle)}` +
+      `&image=${encodeURIComponent(contentSrc || "")}` +
+      `&date=${encodeURIComponent(formatDate(createdAt))}`;
+
+    const feedDescription = `${smartsiteEnsName} • ${formatDate(createdAt)}`;
 
     return {
       title: feedTitle,
@@ -227,28 +190,26 @@ export async function generateMetadata(
         description: feedDescription,
         images: [
           {
-            url: displayImage,
+            url: ogImageUrl,
             width: 1200,
             height: 630,
             alt: feedTitle,
-            type: "image/jpeg", // Explicitly specify image type
+            type: "image/png",
           },
         ],
-        type: "website", // Changed from "article" to "website"
+        type: "website",
         url: `${process.env.NEXT_PUBLIC_APP_URL}/feed/${id}`,
-        siteName: "Swop", // Add site name
+        siteName: "Swop",
       },
       twitter: {
         card: "summary_large_image",
         title: feedTitle,
         description: feedDescription,
-        images: [displayImage],
-        site: "@swop", // Add your Twitter handle if you have one
+        images: [ogImageUrl],
       },
-      // Add these additional meta tags
       other: {
-        "og:image:secure_url": displayImage,
-        "og:image:type": "image/jpeg",
+        "og:image:secure_url": ogImageUrl,
+        "og:image:type": "image/png",
         "og:image:width": "1200",
         "og:image:height": "630",
       },
@@ -256,7 +217,6 @@ export async function generateMetadata(
   } catch (error) {
     console.error("Error generating metadata:", error);
 
-    // Fallback metadata if fetch fails
     const fallbackImage = `${process.env.NEXT_PUBLIC_APP_URL}/og-image.png`;
 
     return {
@@ -277,12 +237,6 @@ export async function generateMetadata(
         type: "website",
         url: `${process.env.NEXT_PUBLIC_APP_URL}/feed/${id}`,
         siteName: "Swop",
-      },
-      twitter: {
-        card: "summary_large_image",
-        title: "Swop Feed",
-        description: "Check out this post on Swop",
-        images: [fallbackImage],
       },
     };
   }
