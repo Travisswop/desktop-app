@@ -97,12 +97,17 @@ export async function GET(request: Request) {
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
-                fontSize: "20px",
-                fontWeight: "bold",
-                color: "white",
               }}
             >
-              S
+              <img
+                src={"/astro-agent.png"}
+                style={{
+                  width: "100%",
+                  height: "100%",
+                  borderRadius: "100%",
+                }}
+                alt="Feed"
+              />
             </div>
             <div
               style={{
