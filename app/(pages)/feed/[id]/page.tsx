@@ -21,7 +21,12 @@ export async function generateMetadata(
 
   try {
     const responseData = await getFeedDetails(url);
-    const feed = responseData?.data;
+    let feed = responseData?.data;
+    if (responseData?.data?.postType === "repost") {
+      feed = responseData?.repostedPostDetails;
+    }
+
+    console.log("og response data", responseData);
 
     if (!feed) {
       return {
@@ -134,7 +139,7 @@ const FeedDetailsPage = async ({
 
   const feedData = await getFeedDetails(url);
 
-  console.log("feed data", feedData);
+  // console.log("feed data", feedData);
 
   return (
     <div className="relative flex flex-col items-center">
