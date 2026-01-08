@@ -53,7 +53,20 @@ export async function generateMetadata(
         videoUrl.match(/\.(mp4|mov|avi|webm|mkv)$/i);
 
       if (!isVideo) {
-        return videoUrl; // Return as is if it's already an image
+        // Check if it's a HEIC image and convert to JPG
+        if (videoUrl.match(/\.heic$/i)) {
+          const parts = videoUrl.split("/upload/");
+          if (parts.length === 2) {
+            // Add format transformation to convert HEIC to JPG
+            return `${
+              parts[0]
+            }/upload/f_jpg,w_1200,h_630,c_fill/${parts[1].replace(
+              /\.heic$/i,
+              ".jpg"
+            )}`;
+          }
+        }
+        return videoUrl; // Return image URL as-is for other formats
       }
 
       // Transform Cloudinary video URL to image thumbnail
