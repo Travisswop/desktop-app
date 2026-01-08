@@ -1,8 +1,6 @@
 // app/api/og-feed/route.tsx
 import { ImageResponse } from "next/og";
 
-export const runtime = "edge";
-
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
@@ -11,9 +9,6 @@ export async function GET(request: Request) {
     const title = searchParams.get("title") || "Swop Feed";
     const imageUrl = searchParams.get("image") || "";
     const date = searchParams.get("date") || "";
-
-    // Get the full URL for the logo (Edge Runtime needs absolute URLs)
-    const logoUrl = new URL("/astro-agent.png", request.url).toString();
 
     return new ImageResponse(
       (
@@ -24,17 +19,15 @@ export async function GET(request: Request) {
             display: "flex",
             flexDirection: "column",
             backgroundColor: "#ffffff",
-            padding: "50px 60px",
-            fontFamily: "system-ui, -apple-system, sans-serif",
           }}
         >
-          {/* ENS Name at top (bold) */}
+          {/* ENS Name at top */}
           <div
             style={{
-              fontSize: "32px",
-              fontWeight: "700",
-              color: "#1a1a1a",
-              marginBottom: "16px",
+              fontSize: "40px",
+              fontWeight: "bold",
+              color: "#000000",
+              padding: "40px 60px 20px 60px",
               display: "flex",
             }}
           >
@@ -44,39 +37,40 @@ export async function GET(request: Request) {
           {/* Title */}
           <div
             style={{
-              fontSize: "26px",
-              fontWeight: "500",
-              color: "#4a4a4a",
-              marginBottom: "32px",
-              lineHeight: 1.4,
-              maxHeight: "120px",
-              overflow: "hidden",
+              fontSize: "28px",
+              color: "#333333",
+              padding: "0 60px 30px 60px",
               display: "flex",
+              lineHeight: "1.4",
             }}
           >
             {title}
           </div>
 
-          {/* Main Image - takes remaining space */}
+          {/* Main Image */}
           {imageUrl && (
             <div
               style={{
                 display: "flex",
                 flex: 1,
-                marginBottom: "24px",
-                borderRadius: "16px",
+                margin: "0 60px 30px 60px",
+                backgroundColor: "#f5f5f5",
+                alignItems: "center",
+                justifyContent: "center",
+                borderRadius: "12px",
                 overflow: "hidden",
-                border: "1px solid #e5e5e5",
               }}
             >
               <img
                 src={imageUrl}
+                width="1080"
+                height="350"
                 style={{
                   width: "100%",
                   height: "100%",
                   objectFit: "cover",
                 }}
-                alt="Feed content"
+                alt="Feed"
               />
             </div>
           )}
@@ -86,39 +80,40 @@ export async function GET(request: Request) {
             style={{
               display: "flex",
               alignItems: "center",
-              gap: "14px",
-              paddingTop: "8px",
+              padding: "0 60px 40px 60px",
+              gap: "15px",
             }}
           >
             {/* Swop Logo */}
             <div
               style={{
-                width: "36px",
-                height: "36px",
+                width: "40px",
+                height: "40px",
                 borderRadius: "50%",
-                overflow: "hidden",
+                background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
-                backgroundColor: "#f3f4f6",
+                fontSize: "24px",
+                fontWeight: "bold",
+                color: "white",
               }}
             >
               <img
-                src={logoUrl}
-                width="36"
-                height="36"
+                src={`${process.env.NEXT_PUBLIC_APP_URL}/astro-agent.png`}
+                width="200"
+                height="200"
                 style={{
                   width: "100%",
                   height: "100%",
-                  objectFit: "cover",
                 }}
-                alt="Swop"
+                alt="swop"
               />
             </div>
             <div
               style={{
-                fontSize: "20px",
-                color: "#6b7280",
+                fontSize: "22px",
+                color: "#666666",
                 display: "flex",
               }}
             >
@@ -134,8 +129,28 @@ export async function GET(request: Request) {
     );
   } catch (e: any) {
     console.error("OG Image generation error:", e);
-    return new Response(`Failed to generate image: ${e.message}`, {
-      status: 500,
-    });
+
+    return new ImageResponse(
+      (
+        <div
+          style={{
+            height: "100%",
+            width: "100%",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            backgroundColor: "#fee",
+            fontSize: "30px",
+            color: "#c00",
+          }}
+        >
+          Error: {e.message}
+        </div>
+      ),
+      {
+        width: 1200,
+        height: 630,
+      }
+    );
   }
 }

@@ -176,6 +176,12 @@ const nextConfig: NextConfig = {
     "@xmtp/wasm-bindings",
     "@xmtp/proto",
   ],
+  // Explicitly enable experimental features for Next.js 15
+  experimental: {
+    serverActions: {
+      bodySizeLimit: "2mb",
+    },
+  },
 };
 
 export default nextConfig;
