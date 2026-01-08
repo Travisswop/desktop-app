@@ -43,9 +43,9 @@ export async function generateMetadata(
 
     // Helper function to generate video thumbnail from Cloudinary
     const getCloudinaryThumbnail = (videoUrl: string): string => {
-      if (!videoUrl || !videoUrl.includes("cloudinary.com")) {
-        return "/default-og-image.jpg";
-      }
+      // if (!videoUrl || !videoUrl.includes("cloudinary.com")) {
+      //   return "/default-og-image.jpg";
+      // }
 
       // Check if it's a video
       const isVideo =
