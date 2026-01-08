@@ -1,3 +1,4 @@
+// app/api/og-feed/route.tsx
 import { ImageResponse } from "next/og";
 
 export const runtime = "edge";
@@ -11,9 +12,6 @@ export async function GET(request: Request) {
     const imageUrl = searchParams.get("image") || "";
     const date = searchParams.get("date") || "";
 
-    // Load the Swop logo
-    const logoUrl = `${process.env.NEXT_PUBLIC_APP_URL}/astro-agent.png`;
-
     return new ImageResponse(
       (
         <div
@@ -23,16 +21,18 @@ export async function GET(request: Request) {
             display: "flex",
             flexDirection: "column",
             backgroundColor: "#ffffff",
-            padding: "40px",
+            padding: "50px 60px",
+            fontFamily: "system-ui, -apple-system, sans-serif",
           }}
         >
-          {/* ENS Name at top (bold, linked) */}
+          {/* ENS Name at top (bold) */}
           <div
             style={{
-              fontSize: "28px",
-              fontWeight: "bold",
-              color: "#000000",
-              marginBottom: "20px",
+              fontSize: "32px",
+              fontWeight: "700",
+              color: "#1a1a1a",
+              marginBottom: "16px",
+              display: "flex",
             }}
           >
             {ensName}
@@ -41,25 +41,29 @@ export async function GET(request: Request) {
           {/* Title */}
           <div
             style={{
-              fontSize: "40px",
-              fontWeight: "600",
-              color: "#1a1a1a",
-              marginBottom: "30px",
-              lineHeight: 1.3,
+              fontSize: "26px",
+              fontWeight: "500",
+              color: "#4a4a4a",
+              marginBottom: "32px",
+              lineHeight: 1.4,
+              maxHeight: "120px",
+              overflow: "hidden",
+              display: "flex",
             }}
           >
             {title}
           </div>
 
-          {/* Main Image */}
+          {/* Main Image - takes remaining space */}
           {imageUrl && (
             <div
               style={{
                 display: "flex",
                 flex: 1,
-                marginBottom: "30px",
-                borderRadius: "12px",
+                marginBottom: "24px",
+                borderRadius: "16px",
                 overflow: "hidden",
+                border: "1px solid #e5e5e5",
               }}
             >
               <img
@@ -79,22 +83,32 @@ export async function GET(request: Request) {
             style={{
               display: "flex",
               alignItems: "center",
-              gap: "12px",
+              gap: "14px",
+              paddingTop: "8px",
             }}
           >
-            <img
-              src={logoUrl}
-              width="32"
-              height="32"
+            {/* Swop Logo Placeholder - you'll need to fetch the actual logo */}
+            <div
               style={{
+                width: "36px",
+                height: "36px",
                 borderRadius: "50%",
+                backgroundColor: "#3b82f6",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                fontSize: "20px",
+                fontWeight: "bold",
+                color: "white",
               }}
-              alt="Swop logo"
-            />
+            >
+              S
+            </div>
             <div
               style={{
                 fontSize: "20px",
-                color: "#666666",
+                color: "#6b7280",
+                display: "flex",
               }}
             >
               Swop • {date}
@@ -107,9 +121,9 @@ export async function GET(request: Request) {
         height: 630,
       }
     );
-  } catch (e) {
-    console.error(e);
-    return new Response(`Failed to generate image`, {
+  } catch (e: any) {
+    console.error("OG Image generation error:", e);
+    return new Response(`Failed to generate image: ${e.message}`, {
       status: 500,
     });
   }
