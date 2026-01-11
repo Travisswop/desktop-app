@@ -225,6 +225,8 @@ const Feed = memo(
           const url = `${API_URL}/api/v1/feed/user/connect/post/${userId}?page=${currentPage}&limit=5`;
           const newFeedData = await getUserFeed(url, accessToken);
 
+          console.log("newFeedData", newFeedData);
+
           if (!newFeedData?.data) {
             setHasMore(false);
             return;
