@@ -350,6 +350,8 @@ const FeedMain = memo(() => {
     [searchParams]
   );
 
+  // console.log("user", user);
+
   // Stable props for MainContent
   const mainContentProps = useMemo(
     () => ({

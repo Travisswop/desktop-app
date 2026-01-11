@@ -91,6 +91,8 @@ const FeedItem = memo(
       feed?.smartsiteId?.name || feed?.smartsiteUserName || "Anonymous";
     const ensName = feed?.smartsiteId?.ens || feed?.smartsiteEnsName || "n/a";
 
+    // console.log("ensName", ensName);
+
     const handleTipOpen = (e: any) => {
       e.preventDefault();
       e.stopPropagation();

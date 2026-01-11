@@ -26,6 +26,7 @@ import { Loader } from "lucide-react";
 import feedNft from "@/public/images/feed_nft.png";
 import feedAI from "@/public/images/feed_AI.png";
 import getSingleSmartsiteData from "@/actions/singleSmartsiteDataFetching";
+import { formatEns } from "@/lib/formatEnsName";
 
 const PostFeed = ({
   primaryMicrositeImg,
@@ -56,6 +57,8 @@ const PostFeed = ({
   const [selectedMintForPost, setSelectedMintForPost] = useState<any>(null);
 
   // console.log("selectedMintForPost", selectedMintForPost);
+
+  console.log("userbb", user);
 
   const [primaryMicrositeDetails, setPrimaryMicrositeDetails] =
     useState<any>(null);
@@ -250,8 +253,10 @@ const PostFeed = ({
               {primaryMicrositeDetails && primaryMicrositeDetails.name}
             </p>
             <p className="text-sm text-gray-700">
-              {(primaryMicrositeDetails && primaryMicrositeDetails.ens) ||
-                primaryMicrositeDetails?.ensData?.name}
+              {formatEns(
+                (primaryMicrositeDetails && primaryMicrositeDetails.ens) ||
+                  primaryMicrositeDetails?.ensData?.name
+              )}
             </p>
           </div>
         </div>
