@@ -118,22 +118,56 @@ const TokenContent = ({
     );
   }
 
+  // Categorize tokens into Cash (USDC) and Crypto (everything else)
+  const cashTokens = visibleTokens.filter(
+    (token) => token.symbol.toUpperCase() === "USDC"
+  );
+  const cryptoTokens = visibleTokens.filter(
+    (token) => token.symbol.toUpperCase() !== "USDC"
+  );
+
   const containerClass =
     viewMode === "card" ? "grid grid-cols-1 md:grid-cols-2 gap-4" : "space-y-4";
 
   const TokenComponent = viewMode === "card" ? TokenCardView : TokenListView;
 
   return (
-    <div className={containerClass}>
-      {visibleTokens.map((token) => (
-        <TokenComponent
-          key={`${token.chain}-${token.symbol}-${
-            token.address || Math.random()
-          }`}
-          token={token}
-          onClick={() => onSelectToken(token)}
-        />
-      ))}
+    <div className="space-y-6">
+      {/* Cash Section */}
+      {cashTokens.length > 0 && (
+        <div>
+          <h2 className="text-lg font-bold mb-3 text-gray-900">Cash</h2>
+          <div className={containerClass}>
+            {cashTokens.map((token) => (
+              <TokenComponent
+                key={`${token.chain}-${token.symbol}-${
+                  token.address || Math.random()
+                }`}
+                token={token}
+                onClick={() => onSelectToken(token)}
+              />
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Crypto Section */}
+      {cryptoTokens.length > 0 && (
+        <div>
+          <h2 className="text-lg font-bold mb-3 text-gray-900">Crypto</h2>
+          <div className={containerClass}>
+            {cryptoTokens.map((token) => (
+              <TokenComponent
+                key={`${token.chain}-${token.symbol}-${
+                  token.address || Math.random()
+                }`}
+                token={token}
+                onClick={() => onSelectToken(token)}
+              />
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 };

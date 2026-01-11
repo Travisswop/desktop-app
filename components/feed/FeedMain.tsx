@@ -1,4 +1,4 @@
-"use client";
+'use client';
 
 import React, {
   Suspense,
@@ -7,24 +7,24 @@ import React, {
   memo,
   useMemo,
   useCallback,
-} from "react";
-import Feed from "./Feed";
-import Timeline from "./Timeline";
-import Transaction from "./Transaction";
-import { useUser } from "@/lib/UserContext";
-import { useSearchParams } from "next/navigation";
-import Connections from "./Connections";
-import Cookies from "js-cookie";
-import { FeedMainComponentLoading } from "../loading/TabSwitcherLoading";
-import SpotlightMap from "./SpotlightMap";
-import Ledger from "./Ledger";
-import PostFeed from "./PostFeed";
-import CustomModal from "../modal/CustomModal";
-import { useModalStore } from "@/zustandStore/modalstore";
+} from 'react';
+import Feed from './Feed';
+import Timeline from './Timeline';
+import Transaction from './Transaction';
+import { useUser } from '@/lib/UserContext';
+import { useSearchParams } from 'next/navigation';
+import Connections from './Connections';
+import Cookies from 'js-cookie';
+import { FeedMainComponentLoading } from '../loading/TabSwitcherLoading';
+import SpotlightMap from './SpotlightMap';
+import Ledger from './Ledger';
+import PostFeed from './PostFeed';
+import CustomModal from '../modal/CustomModal';
+import { useModalStore } from '@/zustandStore/modalstore';
 
 // Constants to avoid duplication
-const CONTAINER_HEIGHT = "calc(100vh - 150px)";
-const CONTAINER_WIDTH = "w-full sm:w-[520px]";
+const CONTAINER_HEIGHT = 'calc(100vh - 150px)';
+const CONTAINER_WIDTH = 'w-full sm:w-[520px]';
 const AUTH_FALLBACK_DELAY = 300;
 
 type AuthData = {
@@ -37,13 +37,13 @@ const useAuthData = (userId?: string) => {
   const [authData, setAuthData] = useState<AuthData | null>(null);
 
   const getTokenFromCookies = useCallback(
-    () => Cookies.get("access-token"),
+    () => Cookies.get('access-token'),
     []
   );
 
   const initializeAuth = useCallback(() => {
     const token = getTokenFromCookies();
-    const cookieUserId = Cookies.get("user-id");
+    const cookieUserId = Cookies.get('user-id');
 
     if (token && cookieUserId) {
       setAuthData({ userId: cookieUserId, accessToken: token });
@@ -55,7 +55,10 @@ const useAuthData = (userId?: string) => {
   // Initialize auth data once on mount
   useEffect(() => {
     initializeAuth();
-    const fallbackTimer = setTimeout(initializeAuth, AUTH_FALLBACK_DELAY);
+    const fallbackTimer = setTimeout(
+      initializeAuth,
+      AUTH_FALLBACK_DELAY
+    );
     return () => clearTimeout(fallbackTimer);
   }, [initializeAuth]);
 
@@ -88,15 +91,21 @@ const usePrimaryMicrositeImg = (microsites?: any[]) => {
   return useMemo(() => {
     if (microsites && microsites.length > 0) {
       const smartsite = microsites.find((m: any) => m.primary);
-      return smartsite?.profilePic || "";
+      return smartsite?.profilePic || '';
     }
-    return "";
+    return '';
   }, [microsites]);
 };
 
 // Memoized right sidebar component to prevent unnecessary rerenders
 const RightSidebar = memo(
-  ({ accessToken, userId }: { accessToken: string; userId: string }) => {
+  ({
+    accessToken,
+    userId,
+  }: {
+    accessToken: string;
+    userId: string;
+  }) => {
     // Create stable props for Connections to prevent re-renders
     const connectionsProps = useMemo(
       () => ({
@@ -121,7 +130,7 @@ const RightSidebar = memo(
   }
 );
 
-RightSidebar.displayName = "RightSidebar";
+RightSidebar.displayName = 'RightSidebar';
 
 // Separate container for posting state to isolate re-renders
 const PostingStateProvider = memo(
@@ -172,7 +181,7 @@ const PostingStateProvider = memo(
   }
 );
 
-PostingStateProvider.displayName = "PostingStateProvider";
+PostingStateProvider.displayName = 'PostingStateProvider';
 
 // Memoized main content area with isolated posting state
 const MainContent = memo(
@@ -219,7 +228,12 @@ const MainContent = memo(
 
     return (
       <PostingStateProvider>
-        {({ isPosting, setIsPosting, isPostLoading, setIsPostLoading }) => (
+        {({
+          isPosting,
+          setIsPosting,
+          isPostLoading,
+          setIsPostLoading,
+        }) => (
           <MainContentInner
             stableProps={stableProps}
             stablePostFeedProps={stablePostFeedProps}
@@ -236,7 +250,7 @@ const MainContent = memo(
   }
 );
 
-MainContent.displayName = "MainContent";
+MainContent.displayName = 'MainContent';
 
 // Separate inner component to handle the posting state props
 const MainContentInner = memo(
@@ -271,7 +285,13 @@ const MainContentInner = memo(
         setIsPostLoading,
         isPostLoading,
       }),
-      [stableProps, setIsPosting, isPosting, setIsPostLoading, isPostLoading]
+      [
+        stableProps,
+        setIsPosting,
+        isPosting,
+        setIsPostLoading,
+        isPostLoading,
+      ]
     );
 
     const postFeedProps = useMemo(
@@ -297,7 +317,11 @@ const MainContentInner = memo(
         className={`${CONTAINER_WIDTH} overflow-y-auto`}
       >
         {/* post new feed Modal */}
-        <CustomModal isOpen={isOpen} onClose={closeModal} title="Create Post">
+        <CustomModal
+          isOpen={isOpen}
+          onClose={closeModal}
+          title="Create Post"
+        >
           <PostFeed {...postFeedProps} />
         </CustomModal>
         {/* <hr /> */}
@@ -310,16 +334,21 @@ const MainContentInner = memo(
   }
 );
 
-MainContentInner.displayName = "MainContentInner";
+MainContentInner.displayName = 'MainContentInner';
 
 const FeedMain = memo(() => {
   const { user, loading: userLoading } = useUser();
   const searchParams = useSearchParams();
   const authData = useAuthData(user?._id);
   const { userId, accessToken } = useEffectiveAuth(authData, user);
-  const primaryMicrositeImg = usePrimaryMicrositeImg(user?.microsites);
+  const primaryMicrositeImg = usePrimaryMicrositeImg(
+    user?.microsites
+  );
 
-  const tab = useMemo(() => searchParams?.get("tab") || "feed", [searchParams]);
+  const tab = useMemo(
+    () => searchParams?.get('tab') || 'feed',
+    [searchParams]
+  );
 
   // console.log("user", user);
 
@@ -328,7 +357,7 @@ const FeedMain = memo(() => {
     () => ({
       userId: userId as string,
       accessToken: accessToken as string,
-      primaryMicrositeImg: primaryMicrositeImg || "",
+      primaryMicrositeImg: primaryMicrositeImg || '',
       tab,
     }),
     [userId, accessToken, primaryMicrositeImg, tab]
@@ -351,6 +380,6 @@ const FeedMain = memo(() => {
   );
 });
 
-FeedMain.displayName = "FeedMain";
+FeedMain.displayName = 'FeedMain';
 
 export default FeedMain;
