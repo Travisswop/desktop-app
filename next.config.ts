@@ -114,6 +114,14 @@ const nextConfig: NextConfig = {
       },
       {
         protocol: "https",
+        hostname: "media0.giphy.com",
+      },
+      {
+        protocol: "https",
+        hostname: "**.giphy.com",
+      },
+      {
+        protocol: "https",
         hostname: "app.apiswop.co",
       },
       {
@@ -168,6 +176,12 @@ const nextConfig: NextConfig = {
     "@xmtp/wasm-bindings",
     "@xmtp/proto",
   ],
+  // Explicitly enable experimental features for Next.js 15
+  experimental: {
+    serverActions: {
+      bodySizeLimit: "2mb",
+    },
+  },
 };
 
 export default nextConfig;

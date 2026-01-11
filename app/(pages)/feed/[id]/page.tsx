@@ -1,113 +1,294 @@
-import { getFeedDetails } from '@/actions/postFeed';
-import FeedDetails from '@/components/feed/FeedDetails';
-import FeedLoading from '@/components/loading/FeedLoading';
-import { cookies } from 'next/headers';
-import Link from 'next/link';
-import React, { Suspense } from 'react';
-import type { Metadata, ResolvingMetadata } from 'next';
-import isUrl from '@/lib/isUrl';
+import { getFeedDetails } from "@/actions/postFeed";
+import FeedDetails from "@/components/feed/FeedDetails";
+import FeedLoading from "@/components/loading/FeedLoading";
+import { Metadata, ResolvingMetadata } from "next";
+import { cookies } from "next/headers";
+import Link from "next/link";
+import React, { Suspense } from "react";
 
 type Props = {
-  params: { id: string } | Promise<{ id: string }>;
+  params: Promise<{ id: string }>;
+  searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
 };
 
+// export async function generateMetadata(
+//   { params, searchParams }: Props,
+//   parent: ResolvingMetadata
+// ): Promise<Metadata> {
+//   const { id } = await params;
+
+//   const url = `${process.env.NEXT_PUBLIC_API_URL}/api/v1/feed/${id}`;
+
+//   try {
+//     const responseData = await getFeedDetails(url);
+//     let feed = responseData?.data;
+//     if (responseData?.data?.postType === "repost") {
+//       feed = responseData?.repostedPostDetails;
+//     }
+
+//     console.log("og response data", responseData);
+
+//     if (!feed) {
+//       return {
+//         title: "Feed not found",
+//         description: "No feed post available.",
+//       };
+//     }
+
+//     //console.log("feed meta data", feed);
+
+//     // Get the first post content item
+//     const firstContent = feed?.content?.post_content?.[0];
+//     const contentSrc = firstContent?.src;
+
+//     // Helper function to generate video thumbnail from Cloudinary
+//     const getCloudinaryThumbnail = (videoUrl: string): string => {
+//       // if (!videoUrl || !videoUrl.includes("cloudinary.com")) {
+//       //   return "/default-og-image.jpg";
+//       // }
+
+//       // Check if it's a video
+//       const isVideo =
+//         videoUrl.includes("/video/upload/") ||
+//         videoUrl.match(/\.(mp4|mov|avi|webm|mkv)$/i);
+
+//       if (!isVideo) {
+//         // Check if it's a HEIC image and convert to JPG
+//         if (videoUrl.match(/\.heic$/i)) {
+//           const parts = videoUrl.split("/upload/");
+//           if (parts.length === 2) {
+//             // Add format transformation to convert HEIC to JPG
+//             return `${
+//               parts[0]
+//             }/upload/f_jpg,w_1200,h_630,c_fill/${parts[1].replace(
+//               /\.heic$/i,
+//               ".jpg"
+//             )}`;
+//           }
+//         }
+//         return videoUrl; // Return image URL as-is for other formats
+//       }
+
+//       // Transform Cloudinary video URL to image thumbnail
+//       // This extracts a frame from the video at 1 second
+//       // Example: .../video/upload/v123/video.mov
+//       // Becomes: .../video/upload/so_1.0,w_1200,h_630,c_fill/v123/video.jpg
+
+//       const parts = videoUrl.split("/upload/");
+//       if (parts.length !== 2) return "/default-og-image.jpg";
+
+//       // Extract the public_id (remove file extension)
+//       const publicIdWithExt = parts[1];
+//       const publicId = publicIdWithExt.replace(
+//         /\.(mp4|mov|avi|webm|mkv)$/i,
+//         ""
+//       );
+
+//       // Build thumbnail URL with transformations
+//       // so_1.0 = start offset at 1 second
+//       // w_1200,h_630 = dimensions
+//       // c_fill = crop to fill
+//       // f_jpg = format as JPEG
+//       const thumbnailUrl = `${parts[0]}/upload/so_1.0,w_1200,h_630,c_fill,f_jpg/${publicId}.jpg`;
+
+//       return thumbnailUrl;
+//     };
+
+//     const displayImage = getCloudinaryThumbnail(contentSrc || "/og-image.png");
+
+//     return {
+//       title: feed?.content?.title || "Swop Feed",
+//       // description: "Check out this swop feed",
+//       openGraph: {
+//         title: feed?.content?.title || "Swop Feed",
+//         // description: "Check out this feed",
+//         images: [
+//           {
+//             url: displayImage || "/og-image.png",
+//             width: 1200,
+//             height: 630,
+//             alt: feed?.content?.title || "Feed image",
+//           },
+//         ],
+//         type: "article",
+//         url: `${process.env.NEXT_PUBLIC_APP_URL}/feed/${id}`,
+//       },
+//       twitter: {
+//         card: "summary_large_image",
+//         title: feed?.content?.title || "Swop Feed",
+//         description: "Check out this swop feed",
+//         images: [displayImage || "/og-image.png"],
+//       },
+//     };
+//   } catch (error) {
+//     // Fallback metadata if fetch fails
+//     return {
+//       title: "Feed Details",
+//       description: "Check out this feed",
+//       openGraph: {
+//         title: "Feed Details",
+//         description: "Check out this feed",
+//         images: ["/og-image.png"],
+//       },
+//     };
+//   }
+// }
+
 export async function generateMetadata(
-  { params }: Props,
+  { params, searchParams }: Props,
   parent: ResolvingMetadata
 ): Promise<Metadata> {
   const { id } = await params;
+  const url = `${process.env.NEXT_PUBLIC_API_URL}/api/v1/feed/${id}`;
 
-  const feedData = await getFeedDetails(
-    `${process.env.NEXT_PUBLIC_API_URL}/api/v1/feed/${id}`
-  );
+  try {
+    const responseData = await getFeedDetails(url);
+    let feed = responseData?.data;
 
-  const feed = feedData?.data;
-  // console.log("feedrr", feed);
+    // Handle repost
+    if (responseData?.data?.postType === "repost") {
+      feed = responseData?.repostedPostDetails;
+    }
 
-  if (!feed) {
+    if (!feed) {
+      return {
+        title: "Feed not found",
+        description: "No feed post available.",
+      };
+    }
+
+    // First media content (if any)
+    const firstContent = feed?.content?.post_content?.[0];
+    const contentSrc = firstContent?.src;
+    const hasImage = Boolean(contentSrc);
+
+    // Metadata fields
+    const smartsiteEnsName =
+      feed?.smartsiteEnsName ||
+      feed?.smartsiteId?.ens ||
+      feed?.smartsiteId?.ensData?.name;
+
+    const feedTitle = feed?.content?.title || "Swop Feed";
+    const createdAt = feed?.createdAt || new Date().toISOString();
+
+    // Format date
+    const formatDate = (dateString: string) => {
+      const date = new Date(dateString);
+      return date.toLocaleDateString("en-US", {
+        month: "short",
+        day: "numeric",
+        year: "numeric",
+      });
+    };
+
+    // Cloudinary thumbnail helper
+    const getCloudinaryThumbnail = (url: string): string => {
+      const isVideo =
+        url.includes("/video/upload/") ||
+        url.match(/\.(mp4|mov|avi|webm|mkv)$/i);
+
+      // Image handling
+      if (!isVideo) {
+        // HEIC → JPG
+        if (url.match(/\.heic$/i)) {
+          const parts = url.split("/upload/");
+          if (parts.length === 2) {
+            return `${
+              parts[0]
+            }/upload/f_jpg,w_1200,h_630,c_fill,q_auto/${parts[1].replace(
+              /\.heic$/i,
+              ".jpg"
+            )}`;
+          }
+        }
+
+        // Normal Cloudinary image optimization
+        if (url.includes("cloudinary.com")) {
+          const parts = url.split("/upload/");
+          if (parts.length === 2) {
+            return `${parts[0]}/upload/f_auto,w_1200,h_630,c_fill,q_auto/${parts[1]}`;
+          }
+        }
+
+        return url;
+      }
+
+      // Video → thumbnail
+      const parts = url.split("/upload/");
+      if (parts.length !== 2) return "";
+
+      const publicId = parts[1].replace(/\.(mp4|mov|avi|webm|mkv)$/i, "");
+
+      return `${parts[0]}/upload/so_1.0,w_1200,h_630,c_fill,f_jpg,q_auto/${publicId}.jpg`;
+    };
+
+    let ogImageUrl: string | undefined;
+
+    if (hasImage && contentSrc) {
+      const feedImage = getCloudinaryThumbnail(contentSrc);
+
+      ogImageUrl =
+        `${process.env.NEXT_PUBLIC_APP_URL}/api/og-feed?` +
+        `ensName=${encodeURIComponent(smartsiteEnsName)}` +
+        `&title=${encodeURIComponent(feedTitle)}` +
+        `&image=${encodeURIComponent(feedImage)}` +
+        `&date=${encodeURIComponent(formatDate(createdAt))}`;
+    }
+
+    const description = `${smartsiteEnsName} • ${formatDate(createdAt)}`;
+
+    // Base metadata (text-only safe)
+    const metadata: Metadata = {
+      title: feedTitle,
+      description,
+      openGraph: {
+        title: feedTitle,
+        description,
+        type: "article",
+        url: `${process.env.NEXT_PUBLIC_APP_URL}/feed/${id}`,
+        siteName: "Swop",
+      },
+      twitter: {
+        card: hasImage ? "summary_large_image" : "summary",
+        title: feedTitle,
+        description,
+      },
+    };
+
+    // Attach images ONLY if media exists
+    if (hasImage && ogImageUrl) {
+      metadata.openGraph!.images = [
+        {
+          url: ogImageUrl,
+          width: 1200,
+          height: 630,
+          alt: feedTitle,
+          type: "image/png",
+        },
+      ];
+
+      metadata.twitter!.images = [ogImageUrl];
+
+      metadata.other = {
+        "og:image:secure_url": ogImageUrl,
+        "og:image:type": "image/png",
+        "og:image:width": "1200",
+        "og:image:height": "630",
+      };
+    }
+
+    return metadata;
+  } catch (error) {
+    console.error("Error generating metadata:", error);
+
     return {
-      title: 'Feed',
-      description: 'Feed details',
+      title: "Feed Details",
+      description: "Check out this feed",
+      twitter: {
+        card: "summary",
+      },
     };
   }
-
-  // Get post content array
-  const postContent = feed.content?.post_content || [];
-  const firstMedia = postContent[0];
-
-  // Determine media type
-  const mediaType = firstMedia?.type;
-  const isVideo = mediaType === 'video';
-  const isImage = mediaType === 'image';
-  const isGif = mediaType === 'gif';
-
-  // For metadata purposes, treat GIFs as images
-  const hasVisualMedia = isImage || isGif || isVideo;
-
-  // Get the media URL
-  let mediaUrl = '';
-  if (hasVisualMedia && firstMedia?.src) {
-    mediaUrl = firstMedia.src;
-  } else if (feed.smartsiteProfilePic) {
-    mediaUrl = isUrl(feed.smartsiteProfilePic)
-      ? feed.smartsiteProfilePic
-      : `${process.env.NEXT_PUBLIC_API_URL}/images/user_avator/${feed.smartsiteProfilePic}@3x.png`;
-  }
-
-  // Create title and description
-  const title =
-    feed.content?.title || feed.smartsiteUserName || 'Swop Feed Post';
-  const description =
-    feed.description ||
-    feed.content?.description ||
-    `Check out this post by ${
-      feed.smartsiteUserName || 'Swop user'
-    }!`;
-
-  return {
-    title,
-    description,
-    openGraph: {
-      title,
-      description,
-      url: `https://www.swopme.app/feed/${feed._id}`,
-      siteName: 'Swop',
-      type: isVideo ? 'video.other' : 'article',
-      // Remove fixed dimensions - let platforms handle responsive sizing
-      images: mediaUrl
-        ? [
-            {
-              url: mediaUrl,
-              alt: title,
-            },
-          ]
-        : [],
-      ...(isVideo &&
-        firstMedia?.src && {
-          videos: [
-            {
-              url: firstMedia.src,
-            },
-          ],
-        }),
-    },
-    twitter: {
-      card: isVideo ? 'player' : 'summary_large_image',
-      title,
-      description,
-      site: '@swopme',
-      creator: feed.smartsiteUserName
-        ? `@${feed.smartsiteUserName}`
-        : undefined,
-      images: mediaUrl ? [mediaUrl] : [],
-      ...(isVideo &&
-        firstMedia?.src && {
-          player: {
-            url: firstMedia.src,
-          },
-        }),
-    },
-  };
 }
 
 const FeedDetailsPage = async ({
@@ -117,8 +298,8 @@ const FeedDetailsPage = async ({
 }) => {
   const { id } = await params;
   const cookieStore = cookies();
-  const accessToken = (await cookieStore).get('access-token')?.value;
-  const userId = (await cookieStore).get('user-id')?.value;
+  const accessToken = (await cookieStore).get("access-token")?.value;
+  const userId = (await cookieStore).get("user-id")?.value;
 
   const url = userId
     ? `${process.env.NEXT_PUBLIC_API_URL}/api/v1/feed/${id}?userId=${userId}`
@@ -126,7 +307,7 @@ const FeedDetailsPage = async ({
 
   const feedData = await getFeedDetails(url);
 
-  console.log('feed data', feedData);
+  // console.log("feed data", feedData);
 
   return (
     <div className="relative flex flex-col items-center">
@@ -145,7 +326,7 @@ const FeedDetailsPage = async ({
         <div className="text-white bg-blue-500 py-4 w-full z-50 flex items-center gap-4 justify-between px-8 fixed bottom-0 left-0">
           <p className="text-lg font-bold">{`Don't miss what's happening`}</p>
           <Link
-            href={'/login'}
+            href={"/login"}
             className="border border-white rounded-full px-4 py-1 hover:bg-white hover:text-black font-medium"
           >
             Log in
