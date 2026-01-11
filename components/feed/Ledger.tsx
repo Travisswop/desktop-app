@@ -231,6 +231,8 @@ const Ledger = memo(
           const url = `${API_URL}/api/v1/feed/user/connect/non-post/${userId}?page=${currentPage}&limit=5`;
           const newFeedData = await getUserFeed(url, accessToken);
 
+          console.log("newFeedData in ledger", newFeedData);
+
           if (!newFeedData?.data) {
             setHasMore(false);
             return;

@@ -254,6 +254,14 @@ const IndividualFeedContentForFeedDetails = ({ feed }: any) => {
               </div>
             </div>
           )}
+          {feed.repostedPostDetails.postType === "poll" && (
+            <div className="w-max">
+              <p>{feed.repostedPostDetails.content.title}</p>
+              <div className="shadow-medium bg-white rounded-lg mt-2 p-2 relative">
+                poll
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </div>
