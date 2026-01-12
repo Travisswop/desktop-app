@@ -215,13 +215,13 @@ const Feed = memo(
         );
       } else if (transaction_type === "token") {
         return (
-          <p className="text-gray-600 text-sm">
+          <p className="text-black text-sm">
             Transferred{" "}
             <span className="font-medium">
               {amount.toFixed(2)} {token}
             </span>{" "}
             {tokenPrice && (
-              <span className="text-sm text-gray-600 font-medium mt-0.5">
+              <span className="text-sm font-medium mt-0.5">
                 (${Number(tokenPrice).toFixed(2)})
               </span>
             )}{" "}
