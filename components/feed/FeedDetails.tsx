@@ -17,6 +17,8 @@ import { formatEns } from "@/lib/formatEnsName";
 dayjs.extend(relativeTime);
 
 const FeedDetails = ({ feedData, feedDetails, accessToken }: any) => {
+  // console.log("feedData", feedData);
+
   const router = useRouter();
   const renderTransactionContent = (feed: any) => {
     const {

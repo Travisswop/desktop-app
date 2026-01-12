@@ -205,7 +205,16 @@ const FeedItem = memo(
 
               {/* Repost Content */}
               {feed.postType === "repost" && feed.repostedPostDetails ? (
-                <IndividualFeedContent feed={feed} />
+                <IndividualFeedContent
+                  feed={feed}
+                  userId={userId}
+                  token={accessToken}
+                  onVoteSuccess={(updated) => {
+                    if (onPostInteraction) {
+                      onPostInteraction(feed._id, updated);
+                    }
+                  }}
+                />
               ) : (
                 feed.postType === "repost" &&
                 !feed.repostedPostDetails && (
