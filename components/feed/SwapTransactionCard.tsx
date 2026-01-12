@@ -3,6 +3,8 @@ import React from "react";
 import Image from "next/image";
 import dayjs from "dayjs";
 import { useRouter } from "next/navigation";
+import TokenValueChangeFetcher from "../wallet/TokenValueChangeFetched";
+import { useUser } from "@/lib/UserContext";
 
 interface SwapTransactionCardProps {
   feed: any;
@@ -10,6 +12,8 @@ interface SwapTransactionCardProps {
 
 const SwapTransactionCard: React.FC<SwapTransactionCardProps> = ({ feed }) => {
   const router = useRouter();
+
+  const { accessToken } = useUser();
 
   const handleCopyTradeClick = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -102,7 +106,7 @@ const SwapTransactionCard: React.FC<SwapTransactionCardProps> = ({ feed }) => {
             >
               Copy Trade
             </button>
-            {feed.content.signature && (
+            {/* {feed.content.signature && (
               <div className="flex justify-end">
                 <a
                   onClick={(e) => e.stopPropagation()}
@@ -128,7 +132,11 @@ const SwapTransactionCard: React.FC<SwapTransactionCardProps> = ({ feed }) => {
                   </svg>
                 </a>
               </div>
-            )}
+            )} */}
+            <TokenValueChangeFetcher
+              outputToken={feed.content.outputToken}
+              token={accessToken || ""}
+            />
           </div>
         </div>
       </div>
