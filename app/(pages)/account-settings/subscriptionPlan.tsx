@@ -1,6 +1,5 @@
 "use client";
 import { Check } from "lucide-react";
-import { Button } from "@/components/ui/button";
 import {
   Card,
   CardContent,
@@ -150,7 +149,7 @@ export default function SubscriptionPlans() {
               </CardContent>
             </div>
             <CardFooter>
-              <button
+              <div
                 className={`w-full text-white rounded-lg ${
                   plan.isPopular
                     ? "bg-[#593ED3] hover:bg-purple-600"
@@ -160,7 +159,7 @@ export default function SubscriptionPlans() {
                 }`}
               >
                 <SubscribeButton plan={plan.name} />
-              </button>
+              </div>
             </CardFooter>
           </Card>
         ))}

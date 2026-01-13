@@ -14,9 +14,9 @@ import { useSearchParams } from "next/navigation";
 import { useModalStore } from "@/zustandStore/modalstore";
 import { IoAdd, IoClose } from "react-icons/io5";
 import { HiOutlineUsers } from "react-icons/hi";
-import { FaEdit } from "react-icons/fa";
+import { FaEdit, FaRegEdit } from "react-icons/fa";
 import { TbLockDollar } from "react-icons/tb";
-import { MdPhoneIphone } from "react-icons/md";
+import { MdPhoneIphone, MdQrCodeScanner } from "react-icons/md";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -46,6 +46,8 @@ import AddAudio from "../smartsite/EditMicrosite/audio/AddAudio";
 import AddMarketplace from "../smartsite/EditMicrosite/marketplace/AddMarketplace";
 import AddFeed from "../smartsite/EditMicrosite/feed/AddFeed";
 import { PrimaryButton } from "../ui/Button/PrimaryButton";
+import { FiEdit } from "react-icons/fi";
+import { AiOutlineFileAdd } from "react-icons/ai";
 
 const BottomNavContent = () => {
   const params = useParams();
@@ -597,31 +599,31 @@ const BottomNavContent = () => {
                 <DropdownMenuItem asChild className="cursor-pointer p-0">
                   <Link
                     href={`/smartsite/edit/${pageId}`}
-                    className="flex items-center gap-3 p-1 hover:bg-gray-50 rounded-lg transition-colors w-full"
+                    className="flex items-center gap-3 py-1.5 px-3 rounded-xl w-full"
                   >
-                    <div className="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center">
-                      <HiOutlineUsers />
+                    <div className="flex-1 text-start">
+                      <p className="font-semibold text-base">Edit Page</p>
+                      <p className="text-xs text-gray-500">
+                        Change Backgrounds
+                      </p>
                     </div>
-                    <div>
-                      <p className="font-medium text-sm">Edit Page</p>
-                      <p className="text-xs text-gray-500">Change Background</p>
-                    </div>
+                    <FiEdit className="min-w-5 min-h-5" />
                   </Link>
                 </DropdownMenuItem>
 
                 <DropdownMenuItem asChild className="cursor-pointer p-0">
                   <button
                     onClick={handleIconslistOpen}
-                    className="flex items-center gap-3 p-1 hover:bg-gray-50 rounded-lg transition-colors w-full"
+                    className="flex items-center gap-3 py-1.5 px-3 rounded-xl w-full"
                   >
-                    <div className="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center">
-                      <FaEdit />
-                    </div>
-                    <div>
-                      <p className="font-medium text-sm text-start">
-                        Add Button
+                    <div className="flex-1 text-start">
+                      <p className="font-semibold text-base">Add Template</p>
+                      <p className="text-xs text-gray-500">
+                        Design Your Smartsite
                       </p>
-                      <p className="text-xs text-gray-500">Link Templates</p>
+                    </div>
+                    <div className="flex-shrink-0">
+                      <AiOutlineFileAdd className="min-w-[22px] min-h-[22px]" />
                     </div>
                   </button>
                 </DropdownMenuItem>
@@ -629,14 +631,14 @@ const BottomNavContent = () => {
                 <DropdownMenuItem asChild className="cursor-pointer p-0">
                   <Link
                     href={`/smartsite/qr-code/${pageId}`}
-                    className="flex items-center gap-3 p-1 hover:bg-gray-50 rounded-lg transition-colors w-full"
+                    className="flex items-center gap-3 py-1.5 px-3 rounded-xl w-full"
                   >
-                    <div className="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center">
-                      <BiQrScan />
-                    </div>
-                    <div>
-                      <p className="font-medium text-sm">Edit QR</p>
+                    <div className="flex-1 text-start">
+                      <p className="font-semibold text-base">Edit QR</p>
                       <p className="text-xs text-gray-500">Customize QR</p>
+                    </div>
+                    <div className="flex-shrink-0">
+                      <MdQrCodeScanner className="min-w-[22px] min-h-[22px]" />
                     </div>
                   </Link>
                 </DropdownMenuItem>
@@ -644,16 +646,14 @@ const BottomNavContent = () => {
                 <DropdownMenuItem asChild className="cursor-pointer p-0">
                   <button
                     onClick={handleOpenActiveChip}
-                    className="flex items-center gap-3 p-1 hover:bg-gray-50 rounded-lg transition-colors w-full"
+                    className="flex items-center gap-3 py-1.5 px-3 rounded-xl w-full"
                   >
-                    <div className="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center">
-                      <VscChip />
+                    <div className="flex-1 text-start">
+                      <p className="font-semibold text-base">Activate</p>
+                      <p className="text-xs text-gray-500">Program Your Chip</p>
                     </div>
-                    <div>
-                      <p className="font-medium text-sm text-start">Activate</p>
-                      <p className="text-xs text-gray-500 text-start">
-                        Program Your Chip
-                      </p>
+                    <div className="flex-shrink-0">
+                      <VscChip className="min-w-[22px] min-h-[22px]" />
                     </div>
                   </button>
                 </DropdownMenuItem>
@@ -661,16 +661,16 @@ const BottomNavContent = () => {
                 <DropdownMenuItem asChild className="cursor-pointer p-0">
                   <Link
                     href={`/smartsite/token-gated/${pageId}`}
-                    className="flex items-center gap-3 p-1 hover:bg-gray-50 rounded-lg transition-colors w-full"
+                    className="flex items-center gap-3 py-1.5 px-3 rounded-xl w-full"
                   >
-                    <div className="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center">
-                      <TbLockDollar />
-                    </div>
-                    <div>
-                      <p className="font-medium text-sm">Token Gate</p>
+                    <div className="flex-1 text-start">
+                      <p className="font-semibold text-base">Token Gate</p>
                       <p className="text-xs text-gray-500">
                         Monetize Your Content
                       </p>
+                    </div>
+                    <div className="flex-shrink-0">
+                      <TbLockDollar className="min-w-[22px] min-h-[22px]" />
                     </div>
                   </Link>
                 </DropdownMenuItem>
