@@ -134,9 +134,22 @@ const BalanceChart: React.FC<BalanceChartProps> = ({
     return periodMap[period];
   };
 
-  // Get snapshot type based on period (hourly for 1day, daily for others)
-  const getSnapshotType = (period: TimePeriod) => {
-    return period === '1day' ? 'hourly' : 'daily';
+  // Get snapshot type based on period (hourly for 1day, all for all, daily for others)
+  const getSnapshotType = (
+    period: TimePeriod
+  ): 'hourly' | 'daily' | 'all' => {
+    const snapshotTypeMap: Record<
+      TimePeriod,
+      'hourly' | 'daily' | 'all'
+    > = {
+      '1day': 'hourly',
+      '7days': 'daily',
+      '1month': 'daily',
+      '6months': 'daily',
+      '1year': 'daily',
+      all: 'all',
+    };
+    return snapshotTypeMap[period];
   };
 
   // NEW: Fetch balance history using optimized BalanceSnapshot API

@@ -62,9 +62,12 @@ class TransactionAPI {
         return [];
       }
       if (response.status === '0') {
-        throw new Error(
-          response.message || 'Failed to fetch native transactions'
+        console.warn(
+          `API returned error for ${chain} native transactions:`,
+          response.message
         );
+        // Return empty array instead of throwing to prevent breaking the entire UI
+        return [];
       }
 
       return response.result || [];
@@ -73,7 +76,8 @@ class TransactionAPI {
         `Error fetching native transactions for ${chain}:`,
         error
       );
-      throw error;
+      // Return empty array instead of throwing to prevent breaking the entire UI
+      return [];
     }
   }
 
@@ -82,8 +86,6 @@ class TransactionAPI {
     address: string
   ): Promise<Transaction[]> {
     if (CHAINS[chain].type === 'solana') return [];
-
-    console.log('chain', CHAINS[chain]);
 
     try {
       const url = `${CHAINS[chain].transactionApiUrl}/api?address=${address}&apikey=${CHAINS[chain].accessToken}&chainid=${CHAINS[chain].chainId}&module=account&action=tokentx&startblock=0&endblock=99999999&sort=asc`;
@@ -98,8 +100,6 @@ class TransactionAPI {
       const response =
         await APIUtils.fetchWithRetry<ERC20ApiResponse>(url, options);
 
-      console.log('response', response);
-
       if (
         response.status === '0' &&
         response.message === 'No transactions found'
@@ -107,9 +107,12 @@ class TransactionAPI {
         return [];
       }
       if (response.status === '0') {
-        throw new Error(
-          response.message || 'Failed to fetch ERC20 transactions'
+        console.warn(
+          `API returned error for ${chain} ERC20 transactions:`,
+          response
         );
+        // Return empty array instead of throwing to prevent breaking the entire UI
+        return [];
       }
 
       return response.result || [];
@@ -118,7 +121,8 @@ class TransactionAPI {
         `Error fetching ERC20 transactions for ${chain}:`,
         error
       );
-      throw error;
+      // Return empty array instead of throwing to prevent breaking the entire UI
+      return [];
     }
   }
 

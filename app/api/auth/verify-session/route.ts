@@ -18,7 +18,7 @@ export async function GET(request: NextRequest) {
   try {
     const privy = new PrivyClient(
       process.env.NEXT_PUBLIC_PRIVY_APP_ID || '',
-      process.env.NEXT_PUBLIC_PRIVY_APP_SECRET || ''
+      process.env.PRIVY_APP_SECRET || ''
     );
 
     // Verify Privy token

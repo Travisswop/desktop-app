@@ -1,11 +1,15 @@
-import { useState, useEffect, useMemo } from "react";
-import { useSearchParams, useRouter, usePathname } from "next/navigation";
-import { ChainId } from "@lifi/widget";
-import LiFiPrivyWrapper from "./LiFiPrivyWrapper";
-import { useWallets, useSolanaWallets } from "@privy-io/react-auth";
-import { SolanaProvider } from "../SolanaProvider";
-import { PrimaryButton } from "../ui/Button/PrimaryButton";
-import { TbArrowsExchange2 } from "react-icons/tb";
+import { useState, useEffect, useMemo } from 'react';
+import {
+  useSearchParams,
+  useRouter,
+  usePathname,
+} from 'next/navigation';
+import { ChainId } from '@lifi/widget';
+import LiFiPrivyWrapper from './LiFiPrivyWrapper';
+import { useWallets, useSolanaWallets } from '@privy-io/react-auth';
+import { SolanaProvider } from '../SolanaProvider';
+import { PrimaryButton } from '../ui/Button/PrimaryButton';
+import { TbArrowsExchange2 } from 'react-icons/tb';
 
 interface SwapButtonProps {
   tokens: any[];
@@ -34,11 +38,9 @@ export default function SwapButton({
   const router = useRouter();
   const pathname = usePathname();
 
-  const inputTokenParam = searchParams?.get("inputToken");
-  const outputTokenParam = searchParams?.get("outputToken");
-  const amountParam = searchParams?.get("amount");
-
-  console.log("hola test", inputTokenParam, outputTokenParam, amountParam);
+  const inputTokenParam = searchParams?.get('inputToken');
+  const outputTokenParam = searchParams?.get('outputToken');
+  const amountParam = searchParams?.get('amount');
 
   // Auto-open modal if params exist
   useEffect(() => {
@@ -54,9 +56,9 @@ export default function SwapButton({
       (inputTokenParam || outputTokenParam || amountParam)
     ) {
       const newParams = new URLSearchParams(searchParams as any);
-      newParams.delete("inputToken");
-      newParams.delete("outputToken");
-      newParams.delete("amount");
+      newParams.delete('inputToken');
+      newParams.delete('outputToken');
+      newParams.delete('amount');
 
       router.replace(`${pathname}?${newParams.toString()}`);
     }
@@ -72,18 +74,18 @@ export default function SwapButton({
 
   const config = useMemo(
     () => ({
-      variant: "expandable",
-      integrator: "nextjs-example",
-      appearance: "light",
+      variant: 'expandable',
+      integrator: 'nextjs-example',
+      appearance: 'light',
       containerStyle: {
-        width: "100%",
-        height: "100%",
-        border: "none",
+        width: '100%',
+        height: '100%',
+        border: 'none',
       },
       theme: {
         container: {
-          border: "1px solid rgb(234, 234, 234)",
-          borderRadius: "16px",
+          border: '1px solid rgb(234, 234, 234)',
+          borderRadius: '16px',
         },
       },
       walletManagement: {
@@ -98,8 +100,8 @@ export default function SwapButton({
       sdkConfig: {
         rpcUrls: {
           [ChainId.SOL]: [
-            "https://chaotic-restless-putty.solana-mainnet.quiknode.pro/",
-            "https://dacey-pp61jd-fast-mainnet.helius-rpc.com/",
+            'https://chaotic-restless-putty.solana-mainnet.quiknode.pro/',
+            'https://dacey-pp61jd-fast-mainnet.helius-rpc.com/',
           ],
         },
       },

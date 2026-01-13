@@ -6,8 +6,10 @@ import { MarketService } from '@/services/market-service';
 import { MarketData } from '@/types/token';
 import { Loader2 } from 'lucide-react';
 import styles from './TokenTicker.module.css';
+import { useUser } from '@/lib/UserContext';
 
 const CHAIN_TO_COIN_GECKO_ID = [
+  'swop-2',
   'solana',
   'ethereum',
   'bitcoin',
@@ -18,12 +20,14 @@ const CHAIN_TO_COIN_GECKO_ID = [
 export default function TokenTicker() {
   const [tokens, setTokens] = useState<MarketData[]>([]);
   const [loading, setLoading] = useState(true);
+  const { accessToken } = useUser();
 
   useEffect(() => {
     const fetchTokenData = async () => {
       try {
         const { successful } = await MarketService.getBatchMarketData(
-          CHAIN_TO_COIN_GECKO_ID as string[]
+          CHAIN_TO_COIN_GECKO_ID as string[],
+          accessToken || ''
         );
 
         const tokensWithSparkline = await Promise.all(
@@ -31,7 +35,8 @@ export default function TokenTicker() {
             try {
               const history = await MarketService.getHistoricalPrices(
                 token.id,
-                1
+                1,
+                accessToken || ''
               );
 
               return {
@@ -39,18 +44,18 @@ export default function TokenTicker() {
                 sparklineData: history?.prices?.map(
                   (point: { price: number }) => point.price
                 ),
-              } as MarketData;
+              } as unknown as MarketData;
             } catch (error) {
               console.error(
                 `Error fetching 1H historical data for token ${token.id}:`,
                 error
               );
-              return token as MarketData;
+              return token as unknown as MarketData;
             }
           })
         );
 
-        setTokens(tokensWithSparkline as MarketData[]);
+        setTokens(tokensWithSparkline as unknown as MarketData[]);
       } catch (error) {
         console.error('Error fetching token data:', error);
       } finally {

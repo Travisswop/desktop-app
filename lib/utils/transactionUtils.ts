@@ -1,3 +1,25 @@
+import { SendFlowState } from '@/types/wallet-types';
+
+/**
+ * Calculate transaction amount in token units
+ * If sending in USD, converts USD to token amount using market price
+ * Otherwise returns the amount as-is
+ */
+export function calculateTransactionAmount(flowData: SendFlowState): string {
+  if (flowData.isUSD && flowData.token?.marketData?.price) {
+    const amountInUSD = Number(flowData.amount);
+    const tokenPrice = Number(flowData.token.marketData.price);
+
+    if (tokenPrice === 0) {
+      throw new Error('Token price cannot be zero');
+    }
+
+    const tokenAmount = amountInUSD / tokenPrice;
+    return tokenAmount.toString();
+  }
+  return flowData.amount;
+}
+
 export function createTransactionPayload({
   basePayload,
   sendFlow,

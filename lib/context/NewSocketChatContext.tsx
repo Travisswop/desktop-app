@@ -13,6 +13,7 @@ import { io, Socket } from 'socket.io-client';
 import { usePrivy } from '@privy-io/react-auth';
 // Removed unused import
 import { chatApiService } from '@/lib/api/chatService';
+import logger from '@/utils/logger';
 
 // Feature flag for V2 chat system
 // Set to true to use new unified messaging architecture
@@ -591,10 +592,11 @@ export const SocketChatProvider = ({
   const connect = useCallback(() => {
     if (!privyUser?.id || socketRef.current) return;
 
-    console.log(
+    logger.info(
       '🔌 [NewSocketChat] Connecting to socket:',
       SOCKET_URL
     );
+    logger.info('🔌 [NewSocketChat] Token:', privyUser?.id);
     setLoading(true);
     setError(null);
 
@@ -604,7 +606,7 @@ export const SocketChatProvider = ({
         if (typeof document === 'undefined') return null;
 
         const cookies = document.cookie.split(';');
-        console.log(
+        logger.info(
           '🍪 [NewSocketChat] Available cookies:',
           cookies.length
         );
@@ -613,7 +615,7 @@ export const SocketChatProvider = ({
           const [name, value] = cookie.trim().split('=');
           if (name === 'access-token') {
             const decodedValue = decodeURIComponent(value);
-            console.log(
+            logger.info(
               '✅ [NewSocketChat] Found access-token (first 20 chars):',
               decodedValue.substring(0, 20) + '...'
             );
@@ -621,7 +623,7 @@ export const SocketChatProvider = ({
             // Validate token format
             const parts = decodedValue.split('.');
             if (parts.length !== 3) {
-              console.error(
+              logger.error(
                 '❌ [NewSocketChat] Invalid JWT format - expected 3 parts, got',
                 parts.length
               );
@@ -632,10 +634,10 @@ export const SocketChatProvider = ({
           }
         }
 
-        console.log(
+        logger.error(
           '❌ [NewSocketChat] access-token cookie not found'
         );
-        console.log(
+        logger.info(
           '🍪 [NewSocketChat] Available cookie names:',
           cookies.map((c) => c.trim().split('=')[0]).join(', ')
         );
@@ -653,7 +655,7 @@ export const SocketChatProvider = ({
             return token;
           }
 
-          console.log(
+          logger.info(
             `⏳ [NewSocketChat] Waiting for access-token cookie... (attempt ${
               i + 1
             }/${maxRetries})`
@@ -666,10 +668,10 @@ export const SocketChatProvider = ({
       // Try to get token with retries
       waitForToken().then((jwtToken) => {
         if (!jwtToken) {
-          console.error(
+          logger.error(
             '❌ [NewSocketChat] No JWT token available in cookies after retries'
           );
-          console.error(
+          logger.error(
             '💡 [NewSocketChat] Please ensure you are logged in and the access-token cookie is set'
           );
           setError(
@@ -686,7 +688,7 @@ export const SocketChatProvider = ({
 
       return;
     } catch (err) {
-      console.error(
+      logger.error(
         '🚨 [NewSocketChat] Failed to create socket:',
         err
       );
@@ -699,10 +701,10 @@ export const SocketChatProvider = ({
   const initializeSocket = useCallback(
     (jwtToken: string) => {
       try {
-        console.log(
+        logger.info(
           '🔑 [NewSocketChat] Initializing socket with JWT token'
         );
-        console.log(
+        logger.info(
           '🔑 [NewSocketChat] Token length:',
           jwtToken.length
         );
@@ -727,12 +729,12 @@ export const SocketChatProvider = ({
 
         // Connection event handlers
         newSocket.on('connect', () => {
-          console.log('✅ [NewSocketChat] Connected to server');
-          console.log(
+          logger.info('✅ [NewSocketChat] Connected to server');
+          logger.info(
             '✅ [NewSocketChat] Transport:',
             newSocket.io.engine.transport.name
           );
-          console.log('✅ [NewSocketChat] Socket ID:', newSocket.id);
+          logger.info('✅ [NewSocketChat] Socket ID:', newSocket.id);
           setIsConnected(true);
           setLoading(false);
           setError(null);
@@ -746,14 +748,14 @@ export const SocketChatProvider = ({
 
         // Log transport upgrades
         newSocket.io.engine.on('upgrade', (transport: any) => {
-          console.log(
+          logger.info(
             '🔄 [NewSocketChat] Transport upgraded to:',
             transport.name
           );
         });
 
         newSocket.on('disconnect', (reason) => {
-          console.log('❌ [NewSocketChat] Disconnected:', reason);
+          logger.info('❌ [NewSocketChat] Disconnected:', reason);
           setIsConnected(false);
 
           // Auto-reconnect logic
@@ -764,8 +766,8 @@ export const SocketChatProvider = ({
         });
 
         newSocket.on('connect_error', (err) => {
-          console.error('🚨 [NewSocketChat] Connection error:', err);
-          console.error('🚨 [NewSocketChat] Error details:', {
+          logger.error('🚨 [NewSocketChat] Connection error:', err);
+          logger.error('🚨 [NewSocketChat] Error details:', {
             message: err.message,
             type: (err as any).type,
             description: (err as any).description,
@@ -774,12 +776,12 @@ export const SocketChatProvider = ({
 
           // Check for specific error types
           if (err.message.includes('websocket error')) {
-            console.error(
+            logger.error(
               '🚨 [NewSocketChat] WebSocket connection failed - trying polling transport'
             );
           }
           if (err.message.includes('xhr poll error')) {
-            console.error(
+            logger.error(
               '🚨 [NewSocketChat] Polling connection failed - check CORS and server availability'
             );
           }
@@ -790,8 +792,8 @@ export const SocketChatProvider = ({
         });
 
         // Chat event handlers matching backend implementation
-        console.log('📡 [NewSocketChat] Using Chat V2:', USE_CHAT_V2);
-        console.log('📡 [NewSocketChat] Listening for events:', {
+        logger.info('📡 [NewSocketChat] Using Chat V2:', USE_CHAT_V2);
+        logger.info('📡 [NewSocketChat] Listening for events:', {
           NEW_MESSAGE: EVENTS.NEW_MESSAGE,
           MESSAGES_READ: EVENTS.MESSAGES_READ,
           CONVERSATION_UPDATED: EVENTS.CONVERSATION_UPDATED,
@@ -800,7 +802,7 @@ export const SocketChatProvider = ({
         newSocket.on(
           EVENTS.NEW_MESSAGE,
           (data: { message: ChatMessage }) => {
-            console.log(
+            logger.info(
               '📨 [NewSocketChat] New message received (V2:',
               USE_CHAT_V2,
               '):',
@@ -835,7 +837,7 @@ export const SocketChatProvider = ({
             receiverId: string;
             readAt: Date;
           }) => {
-            console.log(
+            logger.info(
               '👁️ [NewSocketChat] Messages marked as read (V2:',
               USE_CHAT_V2,
               '):',
@@ -853,7 +855,7 @@ export const SocketChatProvider = ({
         newSocket.on(
           EVENTS.MESSAGE_DELETED,
           (data: { messageId: string; deletedAt: Date }) => {
-            console.log(
+            logger.info(
               '🗑️ [NewSocketChat] Message deleted (V2:',
               USE_CHAT_V2,
               '):',
@@ -867,7 +869,7 @@ export const SocketChatProvider = ({
         newSocket.on(
           EVENTS.MESSAGE_EDITED,
           (data: { message: ChatMessage }) => {
-            console.log(
+            logger.info(
               '✏️ [NewSocketChat] Message edited (V2:',
               USE_CHAT_V2,
               '):',
@@ -881,7 +883,7 @@ export const SocketChatProvider = ({
         );
 
         newSocket.on(EVENTS.CONVERSATION_UPDATED, () => {
-          console.log(
+          logger.info(
             '🔄 [NewSocketChat] Conversation updated (V2:',
             USE_CHAT_V2,
             ')'
@@ -893,7 +895,7 @@ export const SocketChatProvider = ({
         newSocket.on(
           EVENTS.USER_TYPING,
           (data: { userId: string; isTyping?: boolean }) => {
-            console.log(
+            logger.info(
               '⌨️ [NewSocketChat] User typing status (V2:',
               USE_CHAT_V2,
               '):',
@@ -907,7 +909,7 @@ export const SocketChatProvider = ({
         newSocket.on(
           'new_group_message',
           (data: { message: GroupMessage }) => {
-            console.log(
+            logger.info(
               '📨 [NewSocketChat] New group message received:',
               data
             );
@@ -932,7 +934,7 @@ export const SocketChatProvider = ({
         newSocket.on(
           'group_updated',
           (data: { groupId: string; group?: GroupChat }) => {
-            console.log('🔄 [NewSocketChat] Group updated:', data);
+            logger.info('🔄 [NewSocketChat] Group updated:', data);
             if (data.group) {
               setGroups((prev) =>
                 prev.map((g) =>
@@ -950,7 +952,7 @@ export const SocketChatProvider = ({
         newSocket.on(
           'group_member_added',
           (data: { groupId: string; member: any }) => {
-            console.log(
+            logger.info(
               '👥 [NewSocketChat] Group member added:',
               data
             );
@@ -961,7 +963,7 @@ export const SocketChatProvider = ({
         newSocket.on(
           'group_member_removed',
           (data: { groupId: string; member: any }) => {
-            console.log(
+            logger.info(
               '👥 [NewSocketChat] Group member removed:',
               data
             );
@@ -972,7 +974,7 @@ export const SocketChatProvider = ({
         newSocket.on(
           'group_deleted',
           (data: { groupId: string; deletedBy: string }) => {
-            console.log('🗑️ [NewSocketChat] Group deleted:', data);
+            logger.info('🗑️ [NewSocketChat] Group deleted:', data);
             setGroups((prev) =>
               prev.filter((g) => g._id !== data.groupId)
             );
@@ -987,7 +989,7 @@ export const SocketChatProvider = ({
         newSocket.on(
           'group_bot_added',
           (data: { groupId: string; botId: string }) => {
-            console.log(
+            logger.info(
               '🤖 [NewSocketChat] Bot added to group:',
               data
             );
@@ -1005,7 +1007,7 @@ export const SocketChatProvider = ({
             botId: string;
             success: boolean;
           }) => {
-            console.log(
+            logger.info(
               '🤖 [NewSocketChat] Bot command response:',
               data
             );
@@ -1020,7 +1022,7 @@ export const SocketChatProvider = ({
             operationId: string;
             operation: WalletOperationData;
           }) => {
-            console.log(
+            logger.info(
               '💰 [NewSocketChat] Wallet operation started:',
               data
             );
@@ -1040,7 +1042,7 @@ export const SocketChatProvider = ({
             transactionHash: string;
             operation: WalletOperationData;
           }) => {
-            console.log(
+            logger.info(
               '✅ [NewSocketChat] Wallet operation completed:',
               data
             );
@@ -1064,7 +1066,7 @@ export const SocketChatProvider = ({
             error: string;
             operation: WalletOperationData;
           }) => {
-            console.log(
+            logger.info(
               '❌ [NewSocketChat] Wallet operation failed:',
               data
             );
@@ -1082,7 +1084,7 @@ export const SocketChatProvider = ({
             operationId: string;
             operation: WalletOperationData;
           }) => {
-            console.log(
+            logger.info(
               '🔐 [NewSocketChat] Wallet operation requires approval:',
               data
             );
@@ -1101,7 +1103,7 @@ export const SocketChatProvider = ({
             result: any;
             success: boolean;
           }) => {
-            console.log(
+            logger.info(
               '🤖 [NewSocketChat] Agent command executed:',
               data
             );
@@ -1112,7 +1114,7 @@ export const SocketChatProvider = ({
         socketRef.current = newSocket;
         setSocket(newSocket);
       } catch (err) {
-        console.error(
+        logger.error(
           '🚨 [NewSocketChat] Failed to initialize socket:',
           err
         );
@@ -1126,7 +1128,7 @@ export const SocketChatProvider = ({
   // Disconnect from socket
   const disconnect = useCallback(() => {
     if (socketRef.current) {
-      console.log('🔌 [NewSocketChat] Disconnecting socket');
+      logger.info('🔌 [NewSocketChat] Disconnecting socket');
       socketRef.current.disconnect();
       socketRef.current = null;
       setSocket(null);
@@ -1141,7 +1143,7 @@ export const SocketChatProvider = ({
   // Schedule reconnection
   const scheduleReconnect = useCallback(() => {
     if (reconnectAttempts.current >= maxReconnectAttempts) {
-      console.log(
+      logger.info(
         '🚨 [NewSocketChat] Max reconnection attempts reached'
       );
       setError(
@@ -1156,7 +1158,7 @@ export const SocketChatProvider = ({
       1000 * Math.pow(2, reconnectAttempts.current),
       30000
     );
-    console.log(
+    logger.info(
       `🔄 [NewSocketChat] Scheduling reconnect in ${timeout}ms`
     );
 
@@ -1287,7 +1289,7 @@ export const SocketChatProvider = ({
       attachments?: any
     ): Promise<boolean> => {
       if (!socketRef.current || !isConnected) {
-        console.error('❌ [NewSocketChat] Socket not connected');
+        logger.error('❌ [NewSocketChat] Socket not connected');
         return false;
       }
 
@@ -1304,7 +1306,7 @@ export const SocketChatProvider = ({
         };
 
         // Emit through socket with callback (matching HTML test pattern)
-        console.log(
+        logger.info(
           '📤 [NewSocketChat] Sending message via:',
           EVENTS.SEND_MESSAGE
         );
@@ -1313,14 +1315,14 @@ export const SocketChatProvider = ({
           messageData,
           (response: { success: boolean; error?: string }) => {
             if (response?.success) {
-              console.log(
+              logger.info(
                 '✅ [NewSocketChat] Message sent successfully (V2:',
                 USE_CHAT_V2,
                 ')'
               );
               resolve(true);
             } else {
-              console.error(
+              logger.error(
                 '❌ [NewSocketChat] Failed to send message:',
                 response?.error
               );
@@ -1406,11 +1408,11 @@ export const SocketChatProvider = ({
             error?: string;
           }) => {
             if (response?.success && response.conversations) {
-              console.log(
+              logger.info(
                 '📋 [NewSocketChat] Received conversations:',
                 response.conversations.length
               );
-              console.log(
+              logger.info(
                 '📋 [NewSocketChat] First conversation sample:',
                 response.conversations[0]
               );
@@ -1421,7 +1423,7 @@ export const SocketChatProvider = ({
                 data: { conversations: response.conversations },
               });
             } else {
-              console.error(
+              logger.error(
                 '❌ [NewSocketChat] Failed to load conversations:',
                 response?.error
               );
@@ -1441,7 +1443,7 @@ export const SocketChatProvider = ({
   const refreshConversations = useCallback(async () => {
     const result = await getConversations();
     if (result.success) {
-      console.log('🔄 [NewSocketChat] Conversations refreshed');
+      logger.info('🔄 [NewSocketChat] Conversations refreshed');
     }
   }, [getConversations]);
 
@@ -1527,7 +1529,7 @@ export const SocketChatProvider = ({
   const refreshGroups = useCallback(async () => {
     const result = await getUserGroups();
     if (result.success) {
-      console.log('🔄 [NewSocketChat] Groups refreshed');
+      logger.info('🔄 [NewSocketChat] Groups refreshed');
     }
   }, [getUserGroups]);
 
@@ -1623,12 +1625,12 @@ export const SocketChatProvider = ({
           messageData,
           (response: { success: boolean; error?: string }) => {
             if (response?.success) {
-              console.log(
+              logger.info(
                 '✅ [NewSocketChat] Group message sent successfully'
               );
               resolve(true);
             } else {
-              console.error(
+              logger.error(
                 '❌ [NewSocketChat] Failed to send group message:',
                 response?.error
               );
@@ -1952,12 +1954,12 @@ export const SocketChatProvider = ({
           { senderId },
           (response: { success: boolean; error?: string }) => {
             if (response?.success) {
-              console.log(
+              logger.info(
                 '✅ [NewSocketChat] Messages marked as read'
               );
               resolve(true);
             } else {
-              console.error(
+              logger.error(
                 '❌ [NewSocketChat] Failed to mark messages as read:',
                 response?.error
               );
@@ -1984,7 +1986,7 @@ export const SocketChatProvider = ({
         }
         return false;
       } catch (error) {
-        console.error(
+        logger.error(
           '❌ [NewSocketChat] Failed to delete message:',
           error
         );
@@ -2015,7 +2017,7 @@ export const SocketChatProvider = ({
         }
         return false;
       } catch (error) {
-        console.error(
+        logger.error(
           '❌ [NewSocketChat] Failed to edit message:',
           error
         );
@@ -2080,7 +2082,7 @@ export const SocketChatProvider = ({
         }
         return false;
       } catch (error) {
-        console.error(
+        logger.error(
           '❌ [NewSocketChat] Failed to block user:',
           error
         );
@@ -2261,12 +2263,12 @@ export const SocketChatProvider = ({
               error?: string;
             }) => {
               if (response?.success) {
-                console.log(
+                logger.info(
                   '✅ [NewSocketChat] Joined conversation successfully'
                 );
                 resolve({ success: true });
               } else {
-                console.error(
+                logger.error(
                   '❌ [NewSocketChat] Failed to join conversation:',
                   response?.error
                 );

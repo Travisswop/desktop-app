@@ -1,12 +1,12 @@
-"use client";
-import Cookies from "js-cookie";
-import { TokenData } from "@/types/token";
-import { AlertCircle } from "lucide-react";
-import TokenCardView from "./token-card-view";
-import React, { useMemo, useState } from "react";
-import TokenListView from "./token-list-view";
+'use client';
+import Cookies from 'js-cookie';
+import { TokenData } from '@/types/token';
+import { AlertCircle } from 'lucide-react';
+import TokenCardView from './token-card-view';
+import React, { useMemo, useState } from 'react';
+import TokenListView from './token-list-view';
 
-type ViewMode = "card" | "list";
+type ViewMode = 'card' | 'list';
 interface TokenListProps {
   tokens: TokenData[];
   loading: boolean;
@@ -68,9 +68,12 @@ const ErrorAlert = ({ message }: { message: string }) => (
 
 const LoadingSkeleton = ({ viewMode }: { viewMode: ViewMode }) => {
   const skeletonItems = Array(4).fill(0);
-  const skeletonClass = viewMode === "card" ? "h-[200px]" : "h-[100px]";
+  const skeletonClass =
+    viewMode === 'card' ? 'h-[200px]' : 'h-[100px]';
   const containerClass =
-    viewMode === "card" ? "grid grid-cols-1 md:grid-cols-2 gap-4" : "space-y-4";
+    viewMode === 'card'
+      ? 'grid grid-cols-1 md:grid-cols-2 gap-4'
+      : 'space-y-4';
 
   return (
     <div className={containerClass}>
@@ -86,7 +89,7 @@ const LoadingSkeleton = ({ viewMode }: { viewMode: ViewMode }) => {
 
 const TokenContent = ({
   tokens,
-  viewMode = "list",
+  viewMode = 'list',
   onSelectToken,
 }: {
   tokens: TokenData[];
@@ -95,7 +98,7 @@ const TokenContent = ({
 }) => {
   // Get hidden token addresses from cookie
   const getHiddenTokenAddresses = () => {
-    const cookie = Cookies.get("selected_tokens");
+    const cookie = Cookies.get('selected_tokens');
     if (!cookie) return [];
     try {
       return JSON.parse(cookie);
@@ -120,23 +123,28 @@ const TokenContent = ({
 
   // Categorize tokens into Cash (USDC) and Crypto (everything else)
   const cashTokens = visibleTokens.filter(
-    (token) => token.symbol.toUpperCase() === "USDC"
+    (token) => token.symbol.toUpperCase() === 'USDC'
   );
   const cryptoTokens = visibleTokens.filter(
-    (token) => token.symbol.toUpperCase() !== "USDC"
+    (token) => token.symbol.toUpperCase() !== 'USDC'
   );
 
   const containerClass =
-    viewMode === "card" ? "grid grid-cols-1 md:grid-cols-2 gap-4" : "space-y-4";
+    viewMode === 'card'
+      ? 'grid grid-cols-1 md:grid-cols-2 gap-4'
+      : 'space-y-4';
 
-  const TokenComponent = viewMode === "card" ? TokenCardView : TokenListView;
+  const TokenComponent =
+    viewMode === 'card' ? TokenCardView : TokenListView;
 
   return (
     <div className="space-y-6">
       {/* Cash Section */}
       {cashTokens.length > 0 && (
         <div>
-          <h2 className="text-lg font-bold mb-3 text-gray-900">Cash</h2>
+          <h2 className="text-lg font-bold mb-3 text-gray-900">
+            Cash
+          </h2>
           <div className={containerClass}>
             {cashTokens.map((token) => (
               <TokenComponent
@@ -154,7 +162,9 @@ const TokenContent = ({
       {/* Crypto Section */}
       {cryptoTokens.length > 0 && (
         <div>
-          <h2 className="text-lg font-bold mb-3 text-gray-900">Crypto</h2>
+          <h2 className="text-lg font-bold mb-3 text-gray-900">
+            Crypto
+          </h2>
           <div className={containerClass}>
             {cryptoTokens.map((token) => (
               <TokenComponent
@@ -178,8 +188,7 @@ const TokenList = ({
   error,
   onSelectToken,
 }: TokenListProps) => {
-  const [viewMode] = useState<ViewMode>("card");
-
+  const [viewMode] = useState<ViewMode>('card');
   const content = useMemo(() => {
     if (loading) {
       return <LoadingSkeleton viewMode={viewMode} />;
@@ -187,7 +196,7 @@ const TokenList = ({
     return (
       <TokenContent
         tokens={tokens}
-        viewMode={"list"}
+        viewMode={'list'}
         onSelectToken={onSelectToken}
       />
     );

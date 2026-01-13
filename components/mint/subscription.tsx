@@ -9,6 +9,7 @@ import { useRouter } from 'next/navigation';
 import { DragEvent, useEffect, useState } from 'react';
 import 'react-datepicker/dist/react-datepicker.css';
 import MintAlertModal, { ModelInfo } from './MintAlertModal';
+
 interface FormData {
   name: string;
   nftType: string;

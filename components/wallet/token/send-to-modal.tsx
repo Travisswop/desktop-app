@@ -71,14 +71,10 @@ export default function SendToModal({
 
   const { user: userHookData, accessToken } = useUser();
 
-  console.log('selectedToken', selectedToken);
-
   // const { tokenContent } = useTokenSendStore();
 
   // Remove the local network assignment, always use the prop
   // const network = selectedToken?.chain || 'ETHEREUM';
-
-  console.log('network', network);
 
   const isValidAddress =
     searchQuery &&
@@ -130,13 +126,9 @@ export default function SendToModal({
     ) => void,
     setRedeemLink: (link: string) => void
   ) => {
-    console.log('solanaWallets', solanaWallets);
-
     const solanaWallet = solanaWallets?.find(
       (w: any) => w.walletClientType === 'privy'
     );
-
-    console.log('solanaWallet', solanaWallet);
 
     if (!solanaWallet?.address) {
       throw new Error(
@@ -310,7 +302,7 @@ export default function SendToModal({
         url,
         accessToken || ''
       );
-      console.log('data', data);
+
       if (data.state === 'success') {
         const results = data.data.results || [];
 

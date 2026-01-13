@@ -1,18 +1,18 @@
-"use client";
+'use client';
 
-import { Card } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { useMultiChainTransactionData } from "@/lib/hooks/useTransaction";
-import { Transaction } from "@/types/transaction";
-import { AlertCircle, Loader2 } from "lucide-react";
-import { useState, useMemo, useCallback } from "react";
-import TransactionDetails from "./transaction-details";
-import TransactionItem from "./transaction-item";
-import { ChainType, TokenData } from "@/types/token";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import { PrimaryButton } from "@/components/ui/Button/PrimaryButton";
+import { Card } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { useMultiChainTransactionData } from '@/lib/hooks/useTransaction';
+import { Transaction } from '@/types/transaction';
+import { AlertCircle, Loader2 } from 'lucide-react';
+import { useState, useMemo, useCallback, useEffect } from 'react';
+import TransactionDetails from './transaction-details';
+import TransactionItem from './transaction-item';
+import { ChainType, TokenData } from '@/types/token';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { PrimaryButton } from '@/components/ui/Button/PrimaryButton';
 
-type Network = "ETHEREUM" | "POLYGON" | "BASE" | "SOLANA";
+type Network = 'ETHEREUM' | 'POLYGON' | 'BASE' | 'SOLANA';
 
 // Constants
 const ITEMS_PER_PAGE = 20;
@@ -77,24 +77,28 @@ export default function TransactionList({
   tokens: TokenData[];
   newTransactions: any;
 }) {
-  console.log("tokens hola", tokens);
-  console.log("chains hola", chains);
-  console.log("newTransactions hola", newTransactions);
-
   const [selectedTransaction, setSelectedTransaction] =
     useState<Transaction | null>(null);
 
-  const [offset, setOffset] = useState(0);
+  const [displayLimit, setDisplayLimit] = useState(ITEMS_PER_PAGE);
 
-  // Fetch transactions
-  const { transactions, loading, error, hasMore, totalCount, refetch } =
-    useMultiChainTransactionData(solWalletAddress, evmWalletAddress, chains, {
-      limit: ITEMS_PER_PAGE,
-      offset,
-    });
-
-  console.log("transactions gg", transactions);
-  console.log("error", error);
+  // Fetch ALL transactions at once (no pagination at fetch level)
+  const {
+    transactions,
+    loading,
+    error,
+    hasMore,
+    totalCount,
+    refetch,
+  } = useMultiChainTransactionData(
+    solWalletAddress,
+    evmWalletAddress,
+    chains,
+    {
+      limit: 10000, // Fetch all transactions
+      offset: 0,
+    }
+  );
 
   // Helper function to detect spam/scam tokens - wrapped in useCallback to prevent recreation
   const isSpamToken = useCallback(
@@ -108,16 +112,16 @@ export default function TransactionList({
         /distribution/i,
       ];
 
-      const textToCheck = `${tokenSymbol || ""} ${tokenName || ""}`;
-      return spamIndicators.some((pattern) => pattern.test(textToCheck));
+      const textToCheck = `${tokenSymbol || ''} ${tokenName || ''}`;
+      return spamIndicators.some((pattern) =>
+        pattern.test(textToCheck)
+      );
     },
     []
   );
 
   // Filter transactions and add prices
   const processedTransactions = useMemo(() => {
-    console.log("hit");
-
     if (!tokens.length) return [];
 
     const allTransactions = [...transactions, ...newTransactions];
@@ -129,7 +133,7 @@ export default function TransactionList({
       }
 
       // Filter out failed transactions if they have error status
-      if (tx.isError === "1" || tx.txreceipt_status === "0") {
+      if (tx.isError === '1' || tx.txreceipt_status === '0') {
         return false;
       }
 
@@ -137,15 +141,15 @@ export default function TransactionList({
       tx.nativeTokenPrice = 1;
 
       // For native token transactions (no tokenSymbol), find the native token
-      if (!tx.tokenSymbol || tx.tokenSymbol === "") {
+      if (!tx.tokenSymbol || tx.tokenSymbol === '') {
         const nativeToken = tokens.find(
           (t: TokenData) =>
             t.isNative === true ||
-            t.symbol === "POL" ||
-            t.symbol === "MATIC" ||
-            t.symbol === "ETH" ||
-            t.symbol === "BASE" ||
-            t.symbol === "SOL"
+            t.symbol === 'POL' ||
+            t.symbol === 'MATIC' ||
+            t.symbol === 'ETH' ||
+            t.symbol === 'BASE' ||
+            t.symbol === 'SOL'
         );
 
         if (nativeToken) {
@@ -162,21 +166,31 @@ export default function TransactionList({
     });
   }, [isSpamToken, newTransactions, tokens, transactions]);
 
+  // Get transactions to display based on current limit
+  const displayedTransactions = useMemo(() => {
+    return processedTransactions.slice(0, displayLimit);
+  }, [processedTransactions, displayLimit]);
+
+  // Check if there are more transactions to load
+  const hasMoreToDisplay =
+    displayLimit < processedTransactions.length;
+
   // Wrap loadMore in useCallback to prevent recreation on every render
   const loadMore = useCallback(() => {
-    setOffset((prev) => prev + ITEMS_PER_PAGE);
+    setDisplayLimit((prev) => prev + ITEMS_PER_PAGE);
   }, []);
 
   // Wrap setSelectedTransaction handler in useCallback
-  const handleTransactionSelect = useCallback((transaction: Transaction) => {
-    setSelectedTransaction(transaction);
-  }, []);
+  const handleTransactionSelect = useCallback(
+    (transaction: Transaction) => {
+      setSelectedTransaction(transaction);
+    },
+    []
+  );
 
   const handleCloseDetails = useCallback(() => {
     setSelectedTransaction(null);
   }, []);
-
-  console.log("processedTransactions", processedTransactions);
 
   return (
     <>
@@ -185,14 +199,14 @@ export default function TransactionList({
           <div className="flex items-center justify-between">
             <p className="flex items-center gap-2 font-bold text-lg text-gray-700">
               Transactions
-              {loading && offset === 0 && (
+              {loading && (
                 <Loader2 className="w-4 h-4 animate-spin" />
               )}
             </p>
-            {totalCount > 0 && (
+            {processedTransactions.length > 0 && (
               <span className="text-sm text-muted-foreground">
-                Showing {Math.min(offset + ITEMS_PER_PAGE, totalCount)} of{" "}
-                {totalCount}
+                Showing {displayedTransactions.length} of{' '}
+                {processedTransactions.length}
               </span>
             )}
           </div>
@@ -206,12 +220,12 @@ export default function TransactionList({
             />
           )}
 
-          {loading && offset === 0 ? (
+          {loading && displayedTransactions.length === 0 ? (
             <TransactionSkeleton />
           ) : (
             <>
               <ScrollArea className="h-full pr-1 overflow-y-auto">
-                {processedTransactions.map((transaction) => (
+                {displayedTransactions.map((transaction) => (
                   <TransactionItem
                     key={
                       transaction.hash ||
@@ -224,13 +238,13 @@ export default function TransactionList({
                 ))}
               </ScrollArea>
 
-              {processedTransactions.length === 0 && (
+              {displayedTransactions.length === 0 && !loading && (
                 <div className="text-center py-8 text-black">
                   No transactions found
                 </div>
               )}
 
-              {hasMore && (
+              {hasMoreToDisplay && (
                 <div className="mt-4 flex justify-center sticky bottom-0 bg-white py-4">
                   <PrimaryButton
                     variant="outline"
@@ -244,7 +258,7 @@ export default function TransactionList({
                         Loading...
                       </>
                     ) : (
-                      "Load More"
+                      'Load More'
                     )}
                   </PrimaryButton>
                 </div>
@@ -256,11 +270,13 @@ export default function TransactionList({
       <TransactionDetails
         transaction={selectedTransaction}
         userAddress={
-          selectedTransaction?.network === "SOLANA"
+          selectedTransaction?.network === 'SOLANA'
             ? solWalletAddress
             : evmWalletAddress
         }
-        network={(selectedTransaction?.network || "SOLANA") as Network}
+        network={
+          (selectedTransaction?.network || 'SOLANA') as Network
+        }
         isOpen={!!selectedTransaction}
         onClose={handleCloseDetails}
       />

@@ -146,7 +146,6 @@ export class MarketService {
           signal: AbortSignal.timeout(15000), // 15 second timeout
         }
       );
-      console.log('Historical data response:', response);
 
       if (!response.ok) {
         throw new Error(
@@ -155,7 +154,6 @@ export class MarketService {
       }
 
       const result = await response.json();
-      console.log('Historical data:', result.data);
       return result.data;
     } catch (error) {
       console.error('Error fetching historical prices:', error);

@@ -21,7 +21,6 @@ const TokenImage = ({
 }: TokenImageProps) => {
   const [imageError, setImageError] = useState(false);
   const [fallbackError, setFallbackError] = useState(false);
-  console.log('🚀 ~ token:', token);
 
   // Determine the image source with fallback logic
   const getImageSrc = () => {

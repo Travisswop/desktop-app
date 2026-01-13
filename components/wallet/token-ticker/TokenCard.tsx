@@ -10,7 +10,7 @@ interface TokenCardProps {
 }
 
 export default function TokenCard({ token }: TokenCardProps) {
-  const isPositive = token.priceChangePercentage24h >= 0;
+  const isPositive = Number(token.priceChangePercentage24h) >= 0;
 
   return (
     <div className="min-w-[420px] bg-white rounded-2xl p-6 shadow-sm border border-gray-100 flex-shrink-0 relative">
@@ -39,10 +39,10 @@ export default function TokenCard({ token }: TokenCardProps) {
           <div className="mb-3">
             <p className="text-3xl text-gray-900">
               $
-              {token?.currentPrice?.toLocaleString('en-US', {
+              {Number(token?.price).toLocaleString('en-US', {
                 minimumFractionDigits: 2,
                 maximumFractionDigits:
-                  token?.currentPrice < 1 ? 6 : 2,
+                  Number(token?.price) < 1 ? 6 : 2,
               })}
             </p>
           </div>
@@ -57,7 +57,10 @@ export default function TokenCard({ token }: TokenCardProps) {
               }`}
             >
               {isPositive ? '+ ' : ''}
-              {Math.abs(token?.priceChangePercentage24h).toFixed(2)}%
+              {Math.abs(
+                Number(token?.priceChangePercentage24h)
+              ).toFixed(2)}
+              %
             </span>
           </div>
         </div>

@@ -1,17 +1,20 @@
-"use client";
-import React, { useEffect, useState } from "react";
-import Cookies from "js-cookie";
-import { TokenData } from "@/types/token";
-import TokenImage from "./token-image";
-import { BsThreeDots } from "react-icons/bs";
-import { useWalletHideBalanceStore } from "@/zustandStore/useWalletHideBalanceToggle";
+'use client';
+import React, { useEffect, useState } from 'react';
+import Cookies from 'js-cookie';
+import { TokenData } from '@/types/token';
+import TokenImage from './token-image';
+import { BsThreeDots } from 'react-icons/bs';
+import { useWalletHideBalanceStore } from '@/zustandStore/useWalletHideBalanceToggle';
 
 interface TokenCardProps {
   token: TokenData;
   onClick: () => void;
 }
 
-export default function TokenListView({ token, onClick }: TokenCardProps) {
+export default function TokenListView({
+  token,
+  onClick,
+}: TokenCardProps) {
   const [isBalanceHidden, setIsBalanceHidden] = useState(false);
   const { value } = useWalletHideBalanceStore();
   // const data = token.sparklineData;
@@ -58,9 +61,8 @@ export default function TokenListView({ token, onClick }: TokenCardProps) {
   // };
 
   useEffect(() => {
-    const savedPreference = Cookies.get("hideBalance");
-    setIsBalanceHidden(savedPreference === "true");
-    console.log("value tut", value);
+    const savedPreference = Cookies.get('hideBalance');
+    setIsBalanceHidden(savedPreference === 'true');
   }, [value]);
 
   return (
@@ -85,7 +87,9 @@ export default function TokenListView({ token, onClick }: TokenCardProps) {
                 />
               </div>
             ) : (
-              `${parseFloat(token.balance).toFixed(4)} ${token.symbol}`
+              `${parseFloat(token.balance).toFixed(4)} ${
+                token.symbol
+              }`
             )}
           </p>
         </div>
@@ -110,12 +114,14 @@ export default function TokenListView({ token, onClick }: TokenCardProps) {
                 {token.marketData?.price !== undefined &&
                 token.marketData?.price !== null ? (
                   `$${
-                    typeof token.marketData?.price === "number"
+                    typeof token.marketData?.price === 'number'
                       ? token.marketData?.price
-                      : "0.0000"
+                      : '0.0000'
                   }`
                 ) : (
-                  <span className="text-gray-500">Price unavailable</span>
+                  <span className="text-gray-500">
+                    Price unavailable
+                  </span>
                 )}
               </>
             )}
@@ -123,19 +129,24 @@ export default function TokenListView({ token, onClick }: TokenCardProps) {
           <div
             className={`text-xs ${
               token.marketData?.priceChangePercentage24h &&
-              parseFloat(token.marketData?.priceChangePercentage24h) >= 0
-                ? " text-green-700"
-                : " text-red-700"
+              parseFloat(
+                token.marketData?.priceChangePercentage24h
+              ) >= 0
+                ? ' text-green-700'
+                : ' text-red-700'
             }`}
           >
             {token.marketData?.priceChangePercentage24h ? (
               <>
                 {parseFloat(
-                  token.marketData?.priceChangePercentage24h || "0"
+                  token.marketData?.priceChangePercentage24h || '0'
                 ) >= 0
-                  ? "+"
-                  : ""}
-                {parseFloat(token.marketData?.priceChangePercentage24h || "0")}%
+                  ? '+'
+                  : ''}
+                {parseFloat(
+                  token.marketData?.priceChangePercentage24h || '0'
+                )}
+                %
               </>
             ) : (
               <div className="text-gray-500">No data available</div>
