@@ -19,8 +19,9 @@ import Link from "next/link";
 import { FiPlusCircle } from "react-icons/fi";
 import SwapTransactionCard from "./SwapTransactionCard";
 import { formatEns } from "@/lib/formatEnsName";
+import PollCard from "./PollCard";
 
-const IndividualFeedContent = ({ feed }: any) => {
+const IndividualFeedContent = ({ feed, userId, token, onVoteSuccess }: any) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [redeemFeedData, setRedeemFeedData] = useState({});
   const router = useRouter();
@@ -82,13 +83,13 @@ const IndividualFeedContent = ({ feed }: any) => {
       );
     } else if (transaction_type === "token") {
       return (
-        <p className="text-gray-600 text-sm">
+        <p className="text-black text-sm">
           Transferred{" "}
           <span className="font-medium">
             {amount.toFixed(2)} {token}
           </span>{" "}
           {tokenPrice && (
-            <span className="text-sm text-gray-600 font-medium mt-0.5">
+            <span className="text-sm text-black font-medium mt-0.5">
               (${Number(tokenPrice).toFixed(2)})
             </span>
           )}{" "}
@@ -137,12 +138,7 @@ const IndividualFeedContent = ({ feed }: any) => {
         {/* User and Feed Info */}
         <div className="w-full flex items-start justify-between">
           <div className="w-full">
-            <button
-              onClick={() =>
-                router.push(`/feed/${feed.repostedPostDetails._id}`)
-              }
-              className="flex items-center gap-1"
-            >
+            <div className="flex items-center gap-1">
               <p className="text-gray-700 font-semibold">
                 {feed.repostedPostDetails?.smartsiteId?.name ||
                   feed.repostedPostDetails?.smartsiteUserName ||
@@ -150,17 +146,16 @@ const IndividualFeedContent = ({ feed }: any) => {
               </p>
               <GoDotFill size={10} />
               <p className="text-gray-500 font-normal">
-                {formatEns(
-                  feed.repostedPostDetails?.smartsiteId?.ens ||
-                    feed.repostedPostDetails?.smartsiteEnsName ||
-                    "n/a"
-                )}
-              </p>
-              <GoDotFill size={10} />
-              <p className="text-gray-500 font-normal">
                 {dayjs(feed.repostedPostDetails.createdAt).fromNow()}
               </p>
-            </button>
+            </div>
+            <p className="text-gray-500 font-normal">
+              {formatEns(
+                feed.repostedPostDetails?.smartsiteId?.ens ||
+                  feed.repostedPostDetails?.smartsiteEnsName ||
+                  "n/a"
+              )}
+            </p>
             {/* Render Post Content */}
             {feed.repostedPostDetails.postType === "post" &&
               feed.repostedPostDetails.content.title && (
@@ -244,6 +239,15 @@ const IndividualFeedContent = ({ feed }: any) => {
             )}
             {feed.repostedPostDetails.postType === "transaction" &&
               renderTransactionContent(feed)}
+
+            {feed.repostedPostDetails.postType === "poll" && (
+              <PollCard
+                poll={feed.repostedPostDetails}
+                userId={userId}
+                token={token}
+                onVoteSuccess={onVoteSuccess}
+              />
+            )}
           </div>
         </div>
         <div>

@@ -27,6 +27,7 @@ import feedNft from "@/public/images/feed_nft.png";
 import feedAI from "@/public/images/feed_AI.png";
 import getSingleSmartsiteData from "@/actions/singleSmartsiteDataFetching";
 import { formatEns } from "@/lib/formatEnsName";
+import { CharacterCounter } from "./view/CharacterCountCircle";
 
 const PostFeed = ({
   primaryMicrositeImg,
@@ -471,6 +472,7 @@ const PostFeed = ({
             <button className="w-6 h-auto cursor-not-allowed">
               <Image src={feedAI} alt="AI" />
             </button>
+            <CharacterCounter current={postContent.length} max={MAX_LENGTH} />
           </div>
           <div className="w-full flex justify-center mt-5">
             <PrimaryButton

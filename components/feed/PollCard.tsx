@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { use, useState } from "react";
 import { cn } from "@/lib/utils";
 import { Progress } from "@nextui-org/react";
 import { AddPollVote } from "@/actions/postFeed";
@@ -16,6 +16,7 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import isUrl from "@/lib/isUrl";
+import { useRouter } from "next/navigation";
 
 interface PollCardProps {
   poll: any;
@@ -31,6 +32,7 @@ export default function PollCard({
   onVoteSuccess,
 }: PollCardProps) {
   const { accessToken } = useUser();
+  const router = useRouter();
 
   const [localPoll, setLocalPoll] = useState(poll?.content || {});
   const [voting, setVoting] = useState(false);
@@ -140,7 +142,10 @@ export default function PollCard({
 
       if (data.state === "success") {
         setLocalPoll(data.data.content || updatedPoll);
+        // router.refresh();
+        // toast.success(data.message);
         onVoteSuccess?.(data.data);
+        console.log("poll card success data", data);
       } else {
         toast.error(data.message);
         setLocalPoll(poll.content); // rollback
@@ -174,7 +179,8 @@ export default function PollCard({
               disabled={
                 localPoll?.isExpired ||
                 isTimeExpired(localPoll.expiresAt) ||
-                voting
+                voting ||
+                userSelected
               }
               onClick={() => handleVote(index)}
               className={cn(

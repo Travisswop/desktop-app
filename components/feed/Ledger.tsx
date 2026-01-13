@@ -196,13 +196,13 @@ const Ledger = memo(
         );
       } else if (transaction_type === "token") {
         return (
-          <p className="text-gray-600 text-sm">
+          <p className="text-black text-sm">
             Transferred{" "}
             <span className="font-medium">
               {amount.toFixed(2)} {token}
             </span>{" "}
             {tokenPrice && (
-              <span className="text-sm text-gray-600 font-medium mt-0.5">
+              <span className="text-sm text-black font-medium mt-0.5">
                 (${Number(tokenPrice).toFixed(2)})
               </span>
             )}{" "}
@@ -230,6 +230,8 @@ const Ledger = memo(
           const currentPage = reset ? 1 : pageRef.current;
           const url = `${API_URL}/api/v1/feed/user/connect/non-post/${userId}?page=${currentPage}&limit=5`;
           const newFeedData = await getUserFeed(url, accessToken);
+
+          console.log("newFeedData in ledger", newFeedData);
 
           if (!newFeedData?.data) {
             setHasMore(false);

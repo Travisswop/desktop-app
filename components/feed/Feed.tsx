@@ -131,10 +131,35 @@ const Feed = memo(
 
     const handlePostInteraction = useCallback(
       (postId: string, updates: Partial<FeedItemType>) => {
+        console.log("hit poll");
+        console.log("updates", updates);
+
         setFeedData((currentFeedData) =>
-          currentFeedData.map((item) =>
-            item._id === postId ? { ...item, ...updates } : item
-          )
+          currentFeedData.map((item) => {
+            if (
+              item._id === postId ||
+              item.repostedPostDetails?._id === postId
+            ) {
+              // Check if this is a repost
+              if (item.postType === "repost" && item.repostedPostDetails) {
+                // Update only the content inside repostedPostDetails
+                return {
+                  ...item,
+                  repostedPostDetails: {
+                    ...item.repostedPostDetails,
+                    content: {
+                      ...item.repostedPostDetails.content,
+                      ...updates,
+                    },
+                  },
+                };
+              } else {
+                // Regular post - update at top level
+                return { ...item, ...updates };
+              }
+            }
+            return item;
+          })
         );
       },
       []
@@ -190,13 +215,13 @@ const Feed = memo(
         );
       } else if (transaction_type === "token") {
         return (
-          <p className="text-gray-600 text-sm">
+          <p className="text-black text-sm">
             Transferred{" "}
             <span className="font-medium">
               {amount.toFixed(2)} {token}
             </span>{" "}
             {tokenPrice && (
-              <span className="text-sm text-gray-600 font-medium mt-0.5">
+              <span className="text-sm font-medium mt-0.5">
                 (${Number(tokenPrice).toFixed(2)})
               </span>
             )}{" "}
