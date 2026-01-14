@@ -50,15 +50,9 @@ export default function ChatContainer({
     'private' | 'group' | 'astro' | null
   >(null);
 
-  console.log('conversations', conversations);
-  console.log('groups', groups);
-  console.log('Using Chat V2:', USE_CHAT_V2);
-
   // Memoized function to load all data
   const loadInitialData = useCallback(() => {
     if (!socket) return;
-
-    console.log('init conv', EVENTS.GET_CONVERSATIONS);
     // Load conversations (using V2 if enabled)
     socket.emit(
       EVENTS.GET_CONVERSATIONS,
@@ -94,11 +88,7 @@ export default function ChatContainer({
 
   // Function to refresh selected chat data
   const refreshSelectedChat = useCallback(() => {
-    console.log('hit refreshSelectedChat in container');
-
     if (!socket || !selectedChat) return;
-
-    console.log('chatType1', chatType);
 
     if (chatType === 'group') {
       // Groups still use old event (no V2 yet)
@@ -107,12 +97,9 @@ export default function ChatContainer({
         { page: 1, limit: 20 },
         (res: any) => {
           if (res?.success) {
-            console.log('res for group', res);
-
             const updatedGroup = res.groups?.find(
               (conv: any) => conv._id === selectedChat._id
             );
-            console.log('updatedGroup', updatedGroup);
 
             if (updatedGroup) {
               setSelectedChat(updatedGroup);
@@ -148,7 +135,10 @@ export default function ChatContainer({
     // Socket event listeners for real-time updates
     const handleConversationUpdate = (data?: any) => {
       // Only process direct conversation updates
-      if (data?.conversationType && data.conversationType !== 'direct') {
+      if (
+        data?.conversationType &&
+        data.conversationType !== 'direct'
+      ) {
         return;
       }
       console.log('Conversation updated');
@@ -168,7 +158,10 @@ export default function ChatContainer({
 
     const handleNewMessage = (data?: any) => {
       // Only process direct messages
-      if (data?.conversationType && data.conversationType !== 'direct') {
+      if (
+        data?.conversationType &&
+        data.conversationType !== 'direct'
+      ) {
         return;
       }
       console.log('New message received (V2:', USE_CHAT_V2, ')');
@@ -183,7 +176,10 @@ export default function ChatContainer({
     const handleUnreadCountUpdated = (data?: any) => {
       // Only process for direct conversations
       // Backend already excludes agent conversations from unread count
-      if (data?.conversationType && data.conversationType !== 'direct') {
+      if (
+        data?.conversationType &&
+        data.conversationType !== 'direct'
+      ) {
         return;
       }
       console.log('Unread count updated (V2)');
@@ -317,10 +313,14 @@ export default function ChatContainer({
 
       <ChatArea
         selectedChat={selectedChat}
-        chatType={chatType}
+        chatType={chatType || 'private'}
         currentUser={currentUser}
         socket={socket}
         onChatUpdate={refreshSelectedChat} // Pass refresh function
+        onLeaveGroup={() => {
+          setSelectedChat(null);
+          setChatType(null);
+        }}
       />
     </div>
   );
