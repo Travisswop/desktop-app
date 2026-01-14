@@ -49,10 +49,6 @@ export default function DashboardMainContent() {
   const router = useRouter();
   const [analyticsData, setAnalyticsData] = useState(null);
 
-  console.log('analyticsData', analyticsData);
-
-  // console.log("user", user);
-
   // Get wallet addresses
   const solWalletAddress = useMemo(() => {
     return solanaWallets?.find(
@@ -161,8 +157,6 @@ export default function DashboardMainContent() {
 
   useEffect(() => {
     if (accessToken) {
-      console.log('hitana');
-
       const getInsightsData = async () => {
         const data = await fetchAnalyticsInfo(accessToken || '');
         setAnalyticsData(data);
@@ -177,17 +171,6 @@ export default function DashboardMainContent() {
 
   if (error) {
     return <div>Error loading dashboard: {error.message}</div>;
-  }
-
-  // Log followers data for debugging
-  if (followersData) {
-    console.log('Followers data:', {
-      total: followersData.data.totalFollowers,
-      source: followersData.data.source,
-      count: followersData.data.followers.length,
-      pagination: followersData.data.pagination,
-      followers: followersData.data.followers,
-    });
   }
 
   if (followersError) {

@@ -3,7 +3,7 @@ import PushToMintCollectionButton from '@/components/Button/PushToMintCollection
 import { sendCloudinaryImage } from '@/lib/SendCloudinaryImage';
 import { useUser } from '@/lib/UserContext';
 import { useDisclosure } from '@nextui-org/react';
-import { useSolanaWalletContext } from '@/lib/context/SolanaWalletContext';
+import { useSolanaWallets, usePrivy } from '@privy-io/react-auth';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { DragEvent, useEffect, useState } from 'react';
@@ -65,7 +65,8 @@ const CreateSubscription = ({
   >(null);
   const [imageUploading, setImageUploading] = useState(false);
   const { user, accessToken } = useUser();
-  const { solanaWallets: wallets } = useSolanaWalletContext();
+  const { ready, authenticated } = usePrivy();
+  const { wallets } = useSolanaWallets();
   const [waitForToken, setWaitForToken] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false); // Manage submission state
   const [formErrors, setFormErrors] = useState<
@@ -74,18 +75,24 @@ const CreateSubscription = ({
   const [imageError, setImageError] = useState<string | null>(null);
   const [walletLoaded, setWalletLoaded] = useState(false);
   const [checked, setChecked] = useState(false);
+  const [solanaAddress, setSolanaAddress] = useState<string | null>(
+    null
+  );
+
+  console.log('solana wallets', wallets);
 
   useEffect(() => {
-    if (wallets && wallets.length > 0) {
-      setWalletLoaded(true);
-      console.log('Solana wallet detected:', wallets[0]?.address);
-    } else {
-      setWalletLoaded(true);
-      console.log('No Solana wallet detected');
+    if (ready && authenticated) {
+      if (wallets && wallets.length > 0) {
+        setSolanaAddress(wallets[0]?.address || null);
+        setWalletLoaded(true);
+        console.log('Solana wallet detected:', wallets[0]?.address);
+      } else {
+        setWalletLoaded(true);
+        console.log('No Solana wallet detected');
+      }
     }
-  }, [wallets]);
-
-  const solanaAddress = wallets?.[0]?.address || null;
+  }, [ready, authenticated, wallets]);
 
   useEffect(() => {
     const timeoutId = setTimeout(() => {
@@ -792,10 +799,15 @@ const CreateSubscription = ({
                   onChange={() => setChecked(!checked)}
                   required
                 />{' '}
-                I agree with swop Minting
-                <span className="text-[#8A2BE2] underline ml-1">
+                I agree with Swop minting{' '}
+                <a
+                  href="https://www.swopme.co/privacy"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-[#8A2BE2] underline ml-1 hover:text-[#7028c1]"
+                >
                   Privacy & Policy
-                </span>
+                </a>
               </div>
 
               <PushToMintCollectionButton

@@ -1,3 +1,4 @@
+'use client';
 import CreateCollectible from '@/components/mint/collectible';
 import CreateCoupon from '@/components/mint/coupon';
 import CreateMembership from '@/components/mint/membership';
@@ -6,6 +7,7 @@ import CreatePhygital from '@/components/mint/phygital';
 import CreateSubscription from '@/components/mint/subscription';
 import Link from 'next/link';
 import { ArrowLeft } from 'lucide-react';
+import { use } from 'react';
 
 const COLLECTION_COMPONENTS = {
   collectible: CreateCollectible,
@@ -20,8 +22,8 @@ interface Props {
   params: Promise<{ type: string; mint_address: string }>;
 }
 
-const CreateNFTTemplatePage = async ({ params }: Props) => {
-  const { type, mint_address } = await params;
+const CreateNFTTemplatePage = ({ params }: Props) => {
+  const { type, mint_address } = use(params);
 
   const Component =
     COLLECTION_COMPONENTS[type as keyof typeof COLLECTION_COMPONENTS];

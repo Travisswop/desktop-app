@@ -59,12 +59,11 @@ const TransactionsListPreview: React.FC<TransactionsListProps> = ({
     currentPrice?: number
   ) => {
     const numValue = parseFloat(value);
-    console.log('numValue', numValue);
-    console.log('currentPrice', currentPrice);
+
     const usdValue = currentPrice
       ? (numValue * currentPrice).toFixed(4)
       : '0.00';
-    console.log('usdValue', usdValue);
+
     return {
       usd: usdValue,
       crypto: `${numValue.toFixed(4)}${tokenSymbol || ''}`,

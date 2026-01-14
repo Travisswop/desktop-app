@@ -1,11 +1,11 @@
-"use client";
-import React, { useEffect, useState } from "react";
-import { Copy, Check } from "lucide-react";
-import { PrimaryButton } from "../ui/Button/PrimaryButton";
-import Image from "next/image";
-import swopRewards from "@/public/assets/images/swop-rewards.png";
-import { useUser } from "@/lib/UserContext";
-import { FaGift } from "react-icons/fa";
+'use client';
+import React, { useEffect, useState } from 'react';
+import { Copy, Check } from 'lucide-react';
+import { PrimaryButton } from '../ui/Button/PrimaryButton';
+import Image from 'next/image';
+import swopRewards from '@/public/assets/images/swop-rewards.png';
+import { useUser } from '@/lib/UserContext';
+import { FaGift } from 'react-icons/fa';
 
 const RewardsCardPreview: React.FC = () => {
   const [copied, setCopied] = useState(false);
@@ -20,7 +20,7 @@ const RewardsCardPreview: React.FC = () => {
           `${process.env.NEXT_PUBLIC_API_URL}/api/v1/points/user/point/${user?._id}`
         );
         if (!response.ok) {
-          throw new Error("Failed to fetch data");
+          throw new Error('Failed to fetch data');
         }
         const result = await response.json();
         setPoints(result.availablePoints);
@@ -33,9 +33,7 @@ const RewardsCardPreview: React.FC = () => {
     }
   }, [user?._id]);
 
-  console.log("hola user", user);
-
-  const referralCode = "5eyQ0_kmv";
+  const referralCode = '5eyQ0_kmv';
 
   const handleCopy = () => {
     navigator.clipboard.writeText(referralCode);
@@ -48,7 +46,9 @@ const RewardsCardPreview: React.FC = () => {
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-2">
-          <h2 className="text-lg font-semibold text-gray-900">Rewards</h2>
+          <h2 className="text-lg font-semibold text-gray-900">
+            Rewards
+          </h2>
           <div className="w-4 h-4 rounded-full border-2 border-gray-400 flex items-center justify-center">
             <span className="text-xs text-gray-400">i</span>
           </div>
@@ -81,8 +81,8 @@ const RewardsCardPreview: React.FC = () => {
               Share unique code with Friends
             </h3>
             <p className="text-xs text-gray-500 leading-relaxed">
-              When your friend buys a product using it, you earn money. The more
-              you share, the more you earn.
+              When your friend buys a product using it, you earn
+              money. The more you share, the more you earn.
             </p>
           </div>
           <div className="flex items-center justify-between shadow-md p-2 px-3 rounded-lg">
@@ -90,7 +90,9 @@ const RewardsCardPreview: React.FC = () => {
               <span className="text-sm font-bold text-gray-800">
                 Referral Code
               </span>
-              <p className="text-sm text-gray-500">{user?.referralCode}</p>
+              <p className="text-sm text-gray-500">
+                {user?.referralCode}
+              </p>
             </div>
             <button
               onClick={handleCopy}
