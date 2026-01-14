@@ -11,6 +11,7 @@ import PostTypeMedia from "./view/PostTypeMedia";
 import Link from "next/link";
 import { FiPlusCircle } from "react-icons/fi";
 import { formatEns } from "@/lib/formatEnsName";
+import { makeLinksClickable } from "@/lib/makeLinksClickable";
 
 const IndividualFeedContentForFeedDetails = ({ feed }: any) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -125,10 +126,10 @@ const IndividualFeedContentForFeedDetails = ({ feed }: any) => {
         {/* User and Feed Info */}
         <div className="w-full flex items-start justify-between">
           <div>
-            <button
-              onClick={() =>
-                router.push(`/feed/${feed.repostedPostDetails._id}`)
-              }
+            <div
+              // onClick={() =>
+              //   router.push(`/feed/${feed.repostedPostDetails._id}`)
+              // }
               className="flex items-center gap-1"
             >
               <p className="text-gray-700 font-semibold">
@@ -138,32 +139,28 @@ const IndividualFeedContentForFeedDetails = ({ feed }: any) => {
               </p>
               <GoDotFill size={10} />
               <p className="text-gray-500 font-normal">
-                {formatEns(
-                  feed.repostedPostDetails?.smartsiteId?.ens ||
-                    feed.repostedPostDetails?.smartsiteEnsName ||
-                    "n/a"
-                )}
-              </p>
-              <GoDotFill size={10} />
-              <p className="text-gray-500 font-normal">
                 {dayjs(feed.repostedPostDetails.createdAt).fromNow()}
               </p>
-            </button>
+            </div>
+            <p className="text-gray-500 font-normal">
+              {formatEns(
+                feed.repostedPostDetails?.smartsiteId?.ens ||
+                  feed.repostedPostDetails?.smartsiteEnsName ||
+                  "n/a"
+              )}
+            </p>
             {/* Render Post Content */}
             {feed.repostedPostDetails.postType === "post" &&
               feed.repostedPostDetails.content.title && (
-                <button
-                  onClick={() => router.push(`/feed/${feed._id}`)}
-                  className="w-full text-start"
-                >
+                <div className="w-full text-start">
                   {feed.repostedPostDetails.content.title
                     .split("\n")
                     .map((line: string, index: number) => (
                       <p className="break-text" key={index}>
-                        {line}
+                        {makeLinksClickable(line)}
                       </p>
                     ))}
-                </button>
+                </div>
               )}
             {/* Render Redeem Content */}
             {feed.repostedPostDetails.postType === "redeem" && (
