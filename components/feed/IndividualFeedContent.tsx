@@ -88,13 +88,12 @@ const IndividualFeedContent = ({ feed, userId, token, onVoteSuccess }: any) => {
           <span className="font-medium">
             {amount.toFixed(2)} {token}
           </span>{" "}
-          {tokenPrice && (
-            <span className="text-sm text-black font-medium mt-0.5">
-              (${Number(tokenPrice).toFixed(2)})
-            </span>
-          )}{" "}
-          tokens to <span className="font-medium">{recipientDisplay}</span> on
-          the {chain}.
+          {tokenPrice && <span>(${Number(tokenPrice).toFixed(2)})</span>} tokens
+          to{" "}
+          <a href={`https://${recipientDisplay}`} target="_blank">
+            {formatEns(recipientDisplay)}
+          </a>{" "}
+          on the {chain}.
         </p>
       );
     } else {

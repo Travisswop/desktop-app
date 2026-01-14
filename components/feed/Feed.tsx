@@ -17,6 +17,7 @@ import RedeemClaimModal from "../modal/RedeemClaim";
 import { FeedMainComponentLoading } from "../loading/TabSwitcherLoading";
 import FeedLoading from "../loading/FeedLoading";
 import FeedItem from "./FeedItem";
+import { formatEns } from "@/lib/formatEnsName";
 
 dayjs.extend(relativeTime);
 interface FeedItemType {
@@ -220,13 +221,12 @@ const Feed = memo(
             <span className="font-medium">
               {amount.toFixed(2)} {token}
             </span>{" "}
-            {tokenPrice && (
-              <span className="text-sm font-medium mt-0.5">
-                (${Number(tokenPrice).toFixed(2)})
-              </span>
-            )}{" "}
-            tokens to <span className="font-medium">{recipientDisplay}</span> on
-            the {chain}.
+            {tokenPrice && <span>(${Number(tokenPrice).toFixed(2)})</span>}{" "}
+            tokens to{" "}
+            <a href={`https://${recipientDisplay}`} target="_blank">
+              {formatEns(recipientDisplay)}
+            </a>{" "}
+            on the {chain}.
           </p>
         );
       } else {
