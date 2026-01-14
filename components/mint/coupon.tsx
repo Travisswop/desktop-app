@@ -3,7 +3,7 @@ import PushToMintCollectionButton from '@/components/Button/PushToMintCollection
 import { sendCloudinaryImage } from '@/lib/SendCloudinaryImage';
 import { useUser } from '@/lib/UserContext';
 import { useDisclosure } from '@nextui-org/react';
-import { useSolanaWalletContext } from '@/lib/context/SolanaWalletContext';
+import { useSolanaWallets, usePrivy } from '@privy-io/react-auth';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { DragEvent, useEffect, useState } from 'react';
@@ -57,7 +57,8 @@ const CreateCoupon = ({ collectionId }: { collectionId: string }) => {
   >(null);
   const [imageUploading, setImageUploading] = useState(false);
   const { user, accessToken } = useUser();
-  const { solanaWallets: wallets } = useSolanaWalletContext();
+  const { ready, authenticated } = usePrivy();
+  const { wallets } = useSolanaWallets();
 
   const [isSubmitting, setIsSubmitting] = useState(false); // Manage submission state
   const [formErrors, setFormErrors] = useState<
@@ -71,15 +72,17 @@ const CreateCoupon = ({ collectionId }: { collectionId: string }) => {
   const [checked, setChecked] = useState(false);
 
   useEffect(() => {
-    if (wallets && wallets.length > 0) {
-      setSolanaAddress(wallets[0]?.address || null);
-      setWalletLoaded(true);
-      console.log('Solana wallet detected:', wallets[0]?.address);
-    } else {
-      setWalletLoaded(true);
-      console.log('No Solana wallet detected');
+    if (ready && authenticated) {
+      if (wallets && wallets.length > 0) {
+        setSolanaAddress(wallets[0]?.address || null);
+        setWalletLoaded(true);
+        console.log('Solana wallet detected:', wallets[0]?.address);
+      } else {
+        setWalletLoaded(true);
+        console.log('No Solana wallet detected');
+      }
     }
-  }, [wallets]);
+  }, [ready, authenticated, wallets]);
 
   const handleChange = (
     e: React.ChangeEvent<
@@ -778,9 +781,14 @@ const CreateCoupon = ({ collectionId }: { collectionId: string }) => {
                 />
                 <label htmlFor="termsAgreement">
                   I agree with Swop Minting{' '}
-                  <span className="text-[#8A2BE2] underline ml-1">
+                  <a
+                    href="https://www.swopme.co/privacy"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-[#8A2BE2] underline ml-1 hover:text-[#7028c1]"
+                  >
                     Privacy & Policy
-                  </span>
+                  </a>
                 </label>
               </div>
             </div>

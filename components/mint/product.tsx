@@ -3,8 +3,7 @@ import PushToMintCollectionButton from '@/components/Button/PushToMintCollection
 import { sendCloudinaryImage } from '@/lib/SendCloudinaryImage';
 import { useUser } from '@/lib/UserContext';
 import { useDisclosure } from '@nextui-org/react';
-import { usePrivy } from '@privy-io/react-auth';
-import { useSolanaWalletContext } from '@/lib/context/SolanaWalletContext';
+import { usePrivy, useSolanaWallets } from '@privy-io/react-auth';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { DragEvent, useEffect, useState } from 'react';
@@ -31,7 +30,7 @@ interface ModelInfo {
   details?: string;
 }
 
-const CreatePhygital = ({
+const CreateProduct = ({
   collectionId,
 }: {
   collectionId: string;
@@ -68,7 +67,7 @@ const CreatePhygital = ({
   const [imageError, setImageError] = useState<string | null>(null);
   const { user, accessToken } = useUser();
   const { ready, authenticated } = usePrivy();
-  const { solanaWallets: wallets } = useSolanaWalletContext();
+  const { wallets } = useSolanaWallets();
   const [walletLoaded, setWalletLoaded] = useState(false);
   const [solanaAddress, setSolanaAddress] = useState<string | null>(
     null
@@ -80,14 +79,15 @@ const CreatePhygital = ({
 
   // Handle wallet initialization
   useEffect(() => {
-    if (ready && authenticated && wallets && wallets.length > 0) {
-      setSolanaAddress(wallets[0]?.address || null);
-      setWalletLoaded(true);
-      console.log('Solana wallet detected:', wallets[0]?.address);
-    } else if (ready) {
-      // If Privy is ready but no wallet is found
-      setWalletLoaded(true);
-      console.log('No Solana wallet detected');
+    if (ready && authenticated) {
+      if (wallets && wallets.length > 0) {
+        setSolanaAddress(wallets[0]?.address || null);
+        setWalletLoaded(true);
+        console.log('Solana wallet detected:', wallets[0]?.address);
+      } else {
+        setWalletLoaded(true);
+        console.log('No Solana wallet detected');
+      }
     }
   }, [ready, authenticated, wallets]);
 
@@ -365,7 +365,7 @@ const CreatePhygital = ({
           <div className="bg-white p-4 rounded-lg shadow-md border border-gray-300">
             <div className="flex flex-col gap-4">
               <h2 className="text-2xl font-bold">
-                Create Phygital Item
+                Create Product Item
               </h2>
               <label className="-mt-2 block font-normal text-sm text-gray-600">
                 <span className="text-red-400"> *</span> Required
@@ -385,7 +385,7 @@ const CreatePhygital = ({
                   type="text"
                   id="name"
                   name="name"
-                  placeholder="Give your phygital item a name."
+                  placeholder="Give your product item a name."
                   value={formData.name}
                   onChange={handleChange}
                   className={`w-full border ${
@@ -401,7 +401,7 @@ const CreatePhygital = ({
                   </p>
                 )}
                 <p className="text-sm text-gray-500 mt-1">
-                  Note: Your phygital item name can&apos;t be changed
+                  Note: Your product item name can&apos;t be changed
                   after creation
                 </p>
               </div>
@@ -593,7 +593,7 @@ const CreatePhygital = ({
                   </p>
                 )}
                 <p className="text-sm text-gray-500 mt-1">
-                  Limit the number of times this phygital item can be
+                  Limit the number of times this product item can be
                   purchased
                 </p>
               </div>
@@ -656,12 +656,18 @@ const CreatePhygital = ({
                 <input
                   type="checkbox"
                   id="termsAgreement"
+                  checked={checked}
                   onChange={() => setChecked(!checked)}
                 />{' '}
-                I agree with swop Minting
-                <span className="text-[#8A2BE2] underline ml-1">
+                I agree with Swop minting{' '}
+                <a
+                  href="https://www.swopme.co/privacy"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-[#8A2BE2] underline ml-1 hover:text-[#7028c1]"
+                >
                   Privacy & Policy
-                </span>
+                </a>
               </div>
 
               <PushToMintCollectionButton
@@ -669,7 +675,7 @@ const CreatePhygital = ({
                 disabled={isSubmitting || !solanaAddress || !checked}
                 onClick={handleSubmit}
               >
-                {isSubmitting ? 'Creating...' : 'Create Phygital'}
+                {isSubmitting ? 'Creating...' : 'Create Product'}
               </PushToMintCollectionButton>
             </div>
           </div>
@@ -738,4 +744,4 @@ const CreatePhygital = ({
   );
 };
 
-export default CreatePhygital;
+export default CreateProduct;
