@@ -31,6 +31,8 @@ export default function SubscribeButton({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ plan, email: user?.email, userId: user?._id }),
       });
+      console.log("res free plan", res);
+
       toast.success("You are in free tier now");
       setLoading(false);
       return;

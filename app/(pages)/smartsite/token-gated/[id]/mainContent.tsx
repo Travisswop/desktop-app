@@ -1,23 +1,18 @@
-'use client';
-import {
-  ChevronDown,
-  Loader2,
-  Trash2,
-  CheckCircle2,
-} from 'lucide-react';
-import Image from 'next/image';
-import { useState, ChangeEvent, useMemo, useEffect } from 'react';
-import { useSolanaWallets, useWallets } from '@privy-io/react-auth';
-import { useMultiChainTokenData } from '@/lib/hooks/useToken';
-import { useNFT } from '@/lib/hooks/useNFT';
-import { useToast } from '@/hooks/use-toast';
-import Cookies from 'js-cookie';
-import { sendCloudinaryImage } from '@/lib/SendCloudinaryImage';
+"use client";
+import { ChevronDown, Loader2, Trash2, CheckCircle2 } from "lucide-react";
+import Image from "next/image";
+import { useState, ChangeEvent, useMemo, useEffect } from "react";
+import { useSolanaWallets, useWallets } from "@privy-io/react-auth";
+import { useMultiChainTokenData } from "@/lib/hooks/useToken";
+import { useNFT } from "@/lib/hooks/useNFT";
+import { useToast } from "@/hooks/use-toast";
+import Cookies from "js-cookie";
+import { sendCloudinaryImage } from "@/lib/SendCloudinaryImage";
 import {
   getTokenGating,
   updateTokenGating,
   deleteTokenGating,
-} from '@/actions/tokenGating';
+} from "@/actions/tokenGating";
 import {
   Dialog,
   DialogContent,
@@ -25,17 +20,15 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from '@/components/ui/dialog';
+} from "@/components/ui/dialog";
 
-type TokenType = 'NFT' | 'Token';
+type TokenType = "NFT" | "Token";
 
 interface TokenGatedContentProps {
   micrositeId: string;
 }
 
-const TokenGatedContent = ({
-  micrositeId,
-}: TokenGatedContentProps) => {
+const TokenGatedContent = ({ micrositeId }: TokenGatedContentProps) => {
   const { toast } = useToast();
   // Wallet hooks
   const { wallets: solanaWallets } = useSolanaWallets();
@@ -44,17 +37,13 @@ const TokenGatedContent = ({
   // Get wallet addresses
   const solWalletAddress = useMemo(() => {
     return solanaWallets?.find(
-      (w) =>
-        w.walletClientType === 'privy' ||
-        w.connectorType === 'embedded'
+      (w) => w.walletClientType === "privy" || w.connectorType === "embedded"
     )?.address;
   }, [solanaWallets]);
 
   const evmWalletAddress = useMemo(() => {
     return ethWallets?.find(
-      (w) =>
-        w.walletClientType === 'privy' ||
-        w.connectorType === 'embedded'
+      (w) => w.walletClientType === "privy" || w.connectorType === "embedded"
     )?.address;
   }, [ethWallets]);
 
@@ -62,53 +51,52 @@ const TokenGatedContent = ({
   const { tokens, loading: tokensLoading } = useMultiChainTokenData(
     solWalletAddress,
     evmWalletAddress,
-    ['SOLANA']
+    ["SOLANA"]
   );
 
   // Fetch NFTs from Solana wallet
   const { nfts, loading: nftsLoading } = useNFT(
     solWalletAddress,
     evmWalletAddress,
-    ['SOLANA']
+    ["SOLANA"]
   );
 
   // Component state
-  const [token, setToken] = useState<string>('');
+  const [token, setToken] = useState<string>("");
   const [isOn, setIsOn] = useState<boolean>(false);
-  const [tokenType, setTokenType] = useState<TokenType>('NFT');
-  const [selectedToken, setSelectedToken] = useState<string>('');
-  const [forwardLink, setForwardLink] = useState<string>('');
-  const [minRequired, setMinRequired] = useState<string>('');
+  const [tokenType, setTokenType] = useState<TokenType>("NFT");
+  const [selectedToken, setSelectedToken] = useState<string>("");
+  const [forwardLink, setForwardLink] = useState<string>("");
+  const [minRequired, setMinRequired] = useState<string>("");
   const [coverImage, setCoverImage] = useState<string | null>(null);
-  const [coverImagePreview, setCoverImagePreview] = useState<
-    string | null
-  >(null);
+  const [coverImagePreview, setCoverImagePreview] = useState<string | null>(
+    null
+  );
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [loading, setLoading] = useState<boolean>(false);
   const [fetching, setFetching] = useState<boolean>(true);
   const [deleting, setDeleting] = useState<boolean>(false);
-  const [uploadingImage, setUploadingImage] =
-    useState<boolean>(false);
+  const [uploadingImage, setUploadingImage] = useState<boolean>(false);
   const [showSaveModal, setShowSaveModal] = useState<boolean>(false);
 
   // Get access token from cookies on mount
   useEffect(() => {
-    const accessToken = Cookies.get('access-token');
-    setToken(accessToken || '');
+    const accessToken = Cookies.get("access-token");
+    setToken(accessToken || "");
   }, []);
 
   // Filter tokens and NFTs for Solana only
   const solanaTokens = useMemo(() => {
-    return tokens.filter((token) => token.chain === 'SOLANA');
+    return tokens.filter((token) => token.chain === "SOLANA");
   }, [tokens]);
 
   const solanaNFTs = useMemo(() => {
-    return nfts.filter((nft) => nft.network === 'solana');
+    return nfts.filter((nft) => nft.network === "solana");
   }, [nfts]);
 
   // Get current items based on token type
   const currentItems = useMemo(() => {
-    if (tokenType === 'NFT') {
+    if (tokenType === "NFT") {
       return solanaNFTs.map((nft) => ({
         value: nft.contract,
         label: nft.name,
@@ -133,9 +121,9 @@ const TokenGatedContent = ({
   // Handle token type change
   const handleTokenTypeChange = (type: TokenType) => {
     setTokenType(type);
-    setSelectedToken(''); // Reset selected token when switching types
-    if (type === 'NFT') {
-      setMinRequired(''); // Clear min required for NFTs (not applicable)
+    setSelectedToken(""); // Reset selected token when switching types
+    if (type === "NFT") {
+      setMinRequired(""); // Clear min required for NFTs (not applicable)
     }
   };
 
@@ -166,16 +154,13 @@ const TokenGatedContent = ({
 
         const response = await getTokenGating(micrositeId, token);
 
-        if (
-          response.state === 'success' &&
-          response.data?.gatedInfo
-        ) {
+        if (response.state === "success" && response.data?.gatedInfo) {
           const { gatedInfo } = response.data;
           setIsOn(gatedInfo.isOn || false);
-          setTokenType(gatedInfo.tokenType || 'NFT');
-          setSelectedToken(gatedInfo.selectedToken || '');
-          setForwardLink(gatedInfo.forwardLink || '');
-          setMinRequired(gatedInfo.minRequired?.toString() || '');
+          setTokenType(gatedInfo.tokenType || "NFT");
+          setSelectedToken(gatedInfo.selectedToken || "");
+          setForwardLink(gatedInfo.forwardLink || "");
+          setMinRequired(gatedInfo.minRequired?.toString() || "");
 
           // Set both the Cloudinary URL and preview
           if (gatedInfo.coverImage) {
@@ -184,15 +169,12 @@ const TokenGatedContent = ({
           }
         }
       } catch (error) {
-        console.error(
-          'Error fetching token gating configuration:',
-          error
-        );
+        console.error("Error fetching token gating configuration:", error);
         toast({
-          title: '❌ Loading Failed',
+          title: "❌ Loading Failed",
           description:
-            'Failed to load token gating configuration. Please refresh the page.',
-          variant: 'destructive',
+            "Failed to load token gating configuration. Please refresh the page.",
+          variant: "destructive",
         });
       } finally {
         setFetching(false);
@@ -223,57 +205,54 @@ const TokenGatedContent = ({
       // Validation
       if (!token) {
         toast({
-          title: 'Authentication Error',
-          description: 'Please log in to continue',
-          variant: 'destructive',
+          title: "Authentication Error",
+          description: "Please log in to continue",
+          variant: "destructive",
         });
         return;
       }
 
       if (!selectedToken && isOn) {
         toast({
-          title: 'Validation Error',
-          description: 'Please select a token or NFT',
-          variant: 'destructive',
+          title: "Validation Error",
+          description: "Please select a token or NFT",
+          variant: "destructive",
         });
         return;
       }
 
       if (
-        tokenType === 'Token' &&
+        tokenType === "Token" &&
         isOn &&
         (!minRequired || Number(minRequired) <= 0)
       ) {
         toast({
-          title: 'Validation Error',
-          description: 'Please enter a valid minimum token amount',
-          variant: 'destructive',
+          title: "Validation Error",
+          description: "Please enter a valid minimum token amount",
+          variant: "destructive",
         });
         return;
       }
 
       // Upload image to Cloudinary if a new image was selected
-      let cloudinaryImageUrl = coverImage || '';
+      let cloudinaryImageUrl = coverImage || "";
 
       if (imageFile) {
         try {
           setUploadingImage(true);
           toast({
-            title: '📤 Uploading Image',
+            title: "📤 Uploading Image",
             description:
-              'Please wait while we upload your cover image to Cloudinary...',
+              "Please wait while we upload your cover image to Cloudinary...",
           });
 
           // Convert file to base64 for Cloudinary upload
           const reader = new FileReader();
-          const base64Promise = new Promise<string>(
-            (resolve, reject) => {
-              reader.onloadend = () =>
-                resolve(reader.result as string);
-              reader.onerror = reject;
-              reader.readAsDataURL(imageFile);
-            }
-          );
+          const base64Promise = new Promise<string>((resolve, reject) => {
+            reader.onloadend = () => resolve(reader.result as string);
+            reader.onerror = reject;
+            reader.readAsDataURL(imageFile);
+          });
 
           const base64Image = await base64Promise;
           cloudinaryImageUrl = await sendCloudinaryImage(base64Image);
@@ -283,23 +262,20 @@ const TokenGatedContent = ({
           setImageFile(null); // Clear the file after successful upload
 
           toast({
-            title: '✓ Image Uploaded',
+            title: "✓ Image Uploaded",
             description:
-              'Your cover image has been uploaded successfully to Cloudinary.',
+              "Your cover image has been uploaded successfully to Cloudinary.",
           });
         } catch (uploadError: any) {
-          console.error(
-            'Error uploading image to Cloudinary:',
-            uploadError
-          );
+          console.error("Error uploading image to Cloudinary:", uploadError);
           toast({
-            title: '❌ Image Upload Failed',
+            title: "❌ Image Upload Failed",
             description:
               uploadError.message ||
-              'Failed to upload image to Cloudinary. Proceeding without cover image.',
-            variant: 'destructive',
+              "Failed to upload image to Cloudinary. Proceeding without cover image.",
+            variant: "destructive",
           });
-          cloudinaryImageUrl = ''; // Proceed without image
+          cloudinaryImageUrl = ""; // Proceed without image
         } finally {
           setUploadingImage(false);
         }
@@ -310,9 +286,9 @@ const TokenGatedContent = ({
         tokenType,
         selectedToken,
         forwardLink,
-        minRequired: tokenType === 'Token' ? Number(minRequired) : 1,
+        minRequired: tokenType === "Token" ? Number(minRequired) : 1,
         coverImage: cloudinaryImageUrl,
-        network: 'SOLANA' as const,
+        network: "SOLANA" as const,
       };
 
       const response = await updateTokenGating(
@@ -321,16 +297,16 @@ const TokenGatedContent = ({
         token
       );
 
-      if (response.state === 'success') {
+      if (response.state === "success") {
         // Build detailed success message
         let statusMessage = `Token gating is now ${
-          isOn ? 'ENABLED' : 'DISABLED'
+          isOn ? "ENABLED" : "DISABLED"
         }.`;
 
         if (isOn) {
           statusMessage += ` Users must own ${
-            tokenType === 'NFT'
-              ? 'the selected NFT'
+            tokenType === "NFT"
+              ? "the selected NFT"
               : `at least ${minRequired} ${selectedToken} tokens`
           } to access your SmartSite.`;
         } else {
@@ -338,25 +314,20 @@ const TokenGatedContent = ({
         }
 
         toast({
-          title: '✓ Configuration Saved Successfully',
+          title: "✓ Configuration Saved Successfully",
           description: statusMessage,
         });
       } else {
-        throw new Error(
-          response.message || 'Failed to save configuration'
-        );
+        throw new Error(response.message || "Failed to save configuration");
       }
     } catch (error: any) {
-      console.error(
-        'Error saving token gating configuration:',
-        error
-      );
+      console.error("Error saving token gating configuration:", error);
       toast({
-        title: '❌ Save Failed',
+        title: "❌ Save Failed",
         description:
           error.message ||
-          'Failed to save token gating configuration. Please try again.',
-        variant: 'destructive',
+          "Failed to save token gating configuration. Please try again.",
+        variant: "destructive",
       });
     } finally {
       setLoading(false);
@@ -368,7 +339,7 @@ const TokenGatedContent = ({
   const handleDelete = async () => {
     // Show confirmation dialog
     const confirmDelete = window.confirm(
-      'Are you sure you want to reset the token gating configuration? This will remove all token gating restrictions from your SmartSite and clear all settings.'
+      "Are you sure you want to reset the token gating configuration? This will remove all token gating restrictions from your SmartSite and clear all settings."
     );
 
     if (!confirmDelete) {
@@ -380,47 +351,42 @@ const TokenGatedContent = ({
 
       if (!token) {
         toast({
-          title: 'Authentication Error',
-          description: 'Please log in to continue',
-          variant: 'destructive',
+          title: "Authentication Error",
+          description: "Please log in to continue",
+          variant: "destructive",
         });
         return;
       }
 
       const response = await deleteTokenGating(micrositeId, token);
 
-      if (response.state === 'success') {
+      if (response.state === "success") {
         // Reset form to defaults
         setIsOn(false);
-        setTokenType('NFT');
-        setSelectedToken('');
-        setForwardLink('');
-        setMinRequired('');
+        setTokenType("NFT");
+        setSelectedToken("");
+        setForwardLink("");
+        setMinRequired("");
         setCoverImage(null);
         setCoverImagePreview(null);
         setImageFile(null);
 
         toast({
-          title: '✓ Configuration Reset',
+          title: "✓ Configuration Reset",
           description:
-            'All token gating settings have been cleared. Your SmartSite is now publicly accessible.',
+            "All token gating settings have been cleared. Your SmartSite is now publicly accessible.",
         });
       } else {
-        throw new Error(
-          response.message || 'Failed to delete configuration'
-        );
+        throw new Error(response.message || "Failed to delete configuration");
       }
     } catch (error: any) {
-      console.error(
-        'Error deleting token gating configuration:',
-        error
-      );
+      console.error("Error deleting token gating configuration:", error);
       toast({
-        title: '❌ Reset Failed',
+        title: "❌ Reset Failed",
         description:
           error.message ||
-          'Failed to reset token gating configuration. Please try again.',
-        variant: 'destructive',
+          "Failed to reset token gating configuration. Please try again.",
+        variant: "destructive",
       });
     } finally {
       setDeleting(false);
@@ -451,16 +417,14 @@ const TokenGatedContent = ({
           <div className="grid grid-cols-2 gap-6">
             {/* On/Off */}
             <div>
-              <label className="block text-sm font-medium mb-3">
-                On/Off:
-              </label>
+              <label className="block text-sm font-medium mb-3">On/Off:</label>
               <div className="bg-white rounded-full p-1 flex shadow-medium shadow-white">
                 <button
                   onClick={() => setIsOn(true)}
                   className={`flex-1 py-2.5 rounded-full font-medium transition-all duration-400 ${
                     isOn
-                      ? 'bg-gray-200 text-gray-900'
-                      : 'text-gray-600 hover:text-gray-900'
+                      ? "bg-gray-200 text-gray-900"
+                      : "text-gray-600 hover:text-gray-900"
                   }`}
                 >
                   On
@@ -469,8 +433,8 @@ const TokenGatedContent = ({
                   onClick={() => setIsOn(false)}
                   className={`flex-1 py-2.5 rounded-full font-medium transition-all duration-400 ${
                     !isOn
-                      ? 'bg-gray-200 text-gray-900'
-                      : 'text-gray-600 hover:text-gray-900'
+                      ? "bg-gray-200 text-gray-900"
+                      : "text-gray-600 hover:text-gray-900"
                   }`}
                 >
                   Off
@@ -485,26 +449,24 @@ const TokenGatedContent = ({
               </label>
               <div className="bg-white rounded-full p-1 flex shadow-medium">
                 <button
-                  onClick={() => handleTokenTypeChange('NFT')}
+                  onClick={() => handleTokenTypeChange("NFT")}
                   className={`flex-1 py-2.5 rounded-full font-medium transition-all duration-400 ${
-                    tokenType === 'NFT'
-                      ? 'bg-gray-200 text-gray-900'
-                      : 'text-gray-600 hover:text-gray-900'
+                    tokenType === "NFT"
+                      ? "bg-gray-200 text-gray-900"
+                      : "text-gray-600 hover:text-gray-900"
                   }`}
                 >
                   NFT
                   {!nftsLoading && solanaNFTs.length > 0 && (
-                    <span className="ml-1 text-xs">
-                      ({solanaNFTs.length})
-                    </span>
+                    <span className="ml-1 text-xs">({solanaNFTs.length})</span>
                   )}
                 </button>
                 <button
-                  onClick={() => handleTokenTypeChange('Token')}
+                  onClick={() => handleTokenTypeChange("Token")}
                   className={`flex-1 py-2.5 rounded-full font-medium transition-all duration-400 ${
-                    tokenType === 'Token'
-                      ? 'bg-gray-200 text-gray-900'
-                      : 'text-gray-600 hover:text-gray-900'
+                    tokenType === "Token"
+                      ? "bg-gray-200 text-gray-900"
+                      : "text-gray-600 hover:text-gray-900"
                   }`}
                 >
                   Token
@@ -529,9 +491,7 @@ const TokenGatedContent = ({
                 {tokensLoading || nftsLoading ? (
                   <div className="w-full px-4 py-3 bg-white rounded-xl shadow-medium flex items-center justify-center">
                     <Loader2 className="w-5 h-5 animate-spin text-gray-400" />
-                    <span className="ml-2 text-gray-500">
-                      Loading...
-                    </span>
+                    <span className="ml-2 text-gray-500">Loading...</span>
                   </div>
                 ) : (
                   <>
@@ -545,8 +505,7 @@ const TokenGatedContent = ({
                     >
                       {currentItems.length === 0 ? (
                         <option value="">
-                          No {tokenType === 'NFT' ? 'NFTs' : 'tokens'}{' '}
-                          found
+                          No {tokenType === "NFT" ? "NFTs" : "tokens"} found
                         </option>
                       ) : (
                         currentItems.map((item) => (
@@ -563,19 +522,16 @@ const TokenGatedContent = ({
                   </>
                 )}
               </div>
-              {currentItems.length === 0 &&
-                !tokensLoading &&
-                !nftsLoading && (
-                  <p className="text-red-600 text-sm mt-2">
-                    *You have no{' '}
-                    {tokenType === 'NFT' ? 'NFTs' : 'tokens'} in your
-                    Solana wallet.
-                  </p>
-                )}
+              {currentItems.length === 0 && !tokensLoading && !nftsLoading && (
+                <p className="text-red-600 text-sm mt-2">
+                  *You have no {tokenType === "NFT" ? "NFTs" : "tokens"} in your
+                  Solana wallet.
+                </p>
+              )}
               {currentItems.length > 0 && (
                 <p className="text-green-600 text-sm mt-2">
-                  {currentItems.length}{' '}
-                  {tokenType === 'NFT' ? 'NFTs' : 'tokens'} available
+                  {currentItems.length}{" "}
+                  {tokenType === "NFT" ? "NFTs" : "tokens"} available
                 </p>
               )}
             </div>
@@ -598,7 +554,7 @@ const TokenGatedContent = ({
           </div>
 
           {/* Min Required - Only show for Tokens */}
-          {tokenType === 'Token' && (
+          {tokenType === "Token" && (
             <div>
               <label className="block text-sm font-medium mb-3">
                 Min Required:
@@ -613,8 +569,7 @@ const TokenGatedContent = ({
                 placeholder="Enter minimum token amount (e.g., 100)"
               />
               <p className="text-gray-500 text-xs mt-1">
-                Minimum number of tokens required to access the gated
-                content
+                Minimum number of tokens required to access the gated content
               </p>
             </div>
           )}
@@ -698,7 +653,7 @@ const TokenGatedContent = ({
                   Saving...
                 </>
               ) : (
-                'Save Configuration'
+                "Save"
               )}
             </button>
 
@@ -737,9 +692,8 @@ const TokenGatedContent = ({
               </DialogTitle>
             </div>
             <DialogDescription className="text-base pt-2">
-              Are you sure you want to save this token gating
-              configuration? This will update how users access your
-              SmartSite.
+              Are you sure you want to save this token gating configuration?
+              This will update how users access your SmartSite.
             </DialogDescription>
           </DialogHeader>
 
