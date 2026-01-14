@@ -55,6 +55,8 @@ const FeedItem = memo(
   }: FeedItemProps) => {
     const [isTipModalOpen, setIsTipModalOpen] = useState(false);
 
+    console.log("feed from feed item", feed);
+
     dayjs.extend(relativeTime);
     dayjs.extend(updateLocale);
 
@@ -371,6 +373,7 @@ const FeedItem = memo(
             viewsCount={feed.viewsCount}
             onRepostSuccess={onRepostSuccess}
             onPostInteraction={onPostInteraction}
+            feed={feed}
           />
         </div>
       </div>

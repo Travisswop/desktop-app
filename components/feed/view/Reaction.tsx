@@ -1,6 +1,7 @@
 "use client";
 import {
   addFeedLikePoints,
+  deleteFeed,
   postFeed,
   postFeedLike,
   removeFeedLike,
@@ -63,6 +64,7 @@ interface ReactionProps {
   isFromFeedDetails?: boolean;
   onRepostSuccess?: () => void;
   onPostInteraction?: (postId: string, updates: Partial<FeedItemType>) => void;
+  feed?: any;
 }
 
 const Reaction = memo(
@@ -78,6 +80,7 @@ const Reaction = memo(
     isFromFeedDetails = false,
     onRepostSuccess,
     onPostInteraction,
+    feed,
   }: ReactionProps) => {
     const [liked, setLiked] = useState(isLiked);
     const [likeCount, setLikeCount] = useState(initialLikeCount);
@@ -285,6 +288,16 @@ const Reaction = memo(
       }
     };
 
+    const handleUndoRepost = async () => {
+      setRepostLoading(true);
+      const deletePost = await deleteFeed(postId, accessToken);
+      if (deletePost.state === "success") {
+        setRepostLoading(false);
+        toast.success("Undo Repost successfully");
+        router.refresh();
+      }
+    };
+
     return (
       <div className="relative">
         <div className="flex items-center justify-between gap-2 mt-2 text-gray-700 font-normal">
@@ -326,35 +339,70 @@ const Reaction = memo(
               </div>
             </PopoverTrigger>
             <PopoverContent className="w-52 p-2 rounded-lg shadow-lg border border-gray-200 bg-white">
-              <div className="">
-                <button
-                  onClick={(e: any) => {
-                    handlePostingRepost(e);
-                  }}
-                  disabled={repostLoading}
-                  className="w-full flex items-center gap-3 p-3 rounded-md hover:bg-gray-100 transition-colors duration-150"
-                >
-                  <BiRepost className="text-lg" size={24} />
-                  <span className="text-sm font-medium text-gray-900 flex items-center gap-1">
-                    Instant Repost{" "}
-                    {repostLoading && (
-                      <Loader size={20} className="animate-spin" />
-                    )}
-                  </span>
-                </button>
-
-                <button
-                  onClick={() => {
-                    onRepostModalOpen();
-                    setIsRepostPopOpen(false);
-                  }}
-                  className="w-full flex items-center gap-3 p-3 rounded-md hover:bg-gray-100 transition-colors duration-150"
-                >
-                  <BiEdit className="text-lg" />
-                  <span className="text-sm font-medium text-gray-900">
-                    Repost With Content
-                  </span>
-                </button>
+              <div>
+                {feed &&
+                feed?.postType === "repost" &&
+                feed?.userId === user?._id ? (
+                  <div className="">
+                    <button
+                      onClick={() => {
+                        handleUndoRepost();
+                      }}
+                      disabled={repostLoading}
+                      className="w-full flex items-center gap-3 p-3 rounded-md hover:bg-gray-100 transition-colors duration-150"
+                    >
+                      <BiRepost className="text-lg" size={24} />
+                      <span className="text-sm font-medium text-gray-900 flex items-center gap-1">
+                        Undo Repost{" "}
+                        {repostLoading && (
+                          <Loader size={20} className="animate-spin" />
+                        )}
+                      </span>
+                    </button>
+                    <button
+                      onClick={() => {
+                        onRepostModalOpen();
+                        setIsRepostPopOpen(false);
+                      }}
+                      className="w-full flex items-center gap-3 p-3 rounded-md hover:bg-gray-100 transition-colors duration-150"
+                    >
+                      <BiEdit className="text-lg" />
+                      <span className="text-sm font-medium text-gray-900">
+                        Repost With Content
+                      </span>
+                    </button>
+                  </div>
+                ) : (
+                  <div className="">
+                    <button
+                      onClick={(e: any) => {
+                        handlePostingRepost(e);
+                      }}
+                      disabled={repostLoading}
+                      className="w-full flex items-center gap-3 p-3 rounded-md hover:bg-gray-100 transition-colors duration-150"
+                    >
+                      <BiRepost className="text-lg" size={24} />
+                      <span className="text-sm font-medium text-gray-900 flex items-center gap-1">
+                        Instant Repost{" "}
+                        {repostLoading && (
+                          <Loader size={20} className="animate-spin" />
+                        )}
+                      </span>
+                    </button>
+                    <button
+                      onClick={() => {
+                        onRepostModalOpen();
+                        setIsRepostPopOpen(false);
+                      }}
+                      className="w-full flex items-center gap-3 p-3 rounded-md hover:bg-gray-100 transition-colors duration-150"
+                    >
+                      <BiEdit className="text-lg" />
+                      <span className="text-sm font-medium text-gray-900">
+                        Repost With Content
+                      </span>
+                    </button>
+                  </div>
+                )}
               </div>
             </PopoverContent>
           </Popover>
