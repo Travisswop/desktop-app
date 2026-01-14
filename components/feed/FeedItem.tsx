@@ -166,22 +166,6 @@ const FeedItem = memo(
               {(feed.postType === "post" || feed.postType === "repost") &&
                 feed.content.title && (
                   <div className="w-full text-start">
-                    {/* {feed.content.title
-                      .split("\n")
-                      .map((line: string, index: number) => {
-                        const { parts, urls } = makeLinksClickable(line);
-                        return (
-                          <div key={index}>
-                            <p className="break-text">{parts}</p>
-                            {urls.map((url, urlIndex) => (
-                              <LinkPreview
-                                key={`${index}-${urlIndex}`}
-                                url={url}
-                              />
-                            ))}
-                          </div>
-                        );
-                      })} */}
                     {/* Render Post Content */}
                     {(feed.postType === "post" || feed.postType === "repost") &&
                       feed.content.title && (
