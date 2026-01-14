@@ -40,6 +40,7 @@ import { BsEmojiSmile } from "react-icons/bs";
 import { Loader } from "lucide-react";
 import repostImg from "@/public/images/custom-icons/feed_repost.png";
 import Image from "next/image";
+import { useRouter } from "next/navigation";
 
 // Assuming FeedItemType is available or defined elsewhere
 interface FeedItemType {
@@ -95,6 +96,8 @@ const Reaction = memo(
     const [showEmojiPicker, setShowEmojiPicker] = useState(false);
     const [repostLoading, setRepostLoading] = useState(false);
     const [repostContentError, setRepostContentError] = useState("");
+
+    const router = useRouter();
 
     const emojiPickerRef = useRef<HTMLDivElement>(null);
 
@@ -264,12 +267,13 @@ const Reaction = memo(
         const data = await postFeed(payload, accessToken);
 
         if (data?.state === "success") {
-          toast.success("You reposted successfully!");
+          toast.success("Reposted successfully!");
           if (isRepostModalOpen) {
             onRepostModalChange();
           }
           onRepostSuccess?.();
           setIsRepostPopOpen(false);
+          router.refresh();
         }
         if (data?.state === "not-allowed") {
           toast.error("You not allowed to create feed post!");

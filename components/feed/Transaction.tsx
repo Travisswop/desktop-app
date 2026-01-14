@@ -1,30 +1,22 @@
-'use client';
+"use client";
 
-import { getSmartsiteFeed } from '@/actions/postFeed';
-import Image from 'next/image';
-import React, {
-  useState,
-  useEffect,
-  useRef,
-  useCallback,
-} from 'react';
-import { FaUser } from 'react-icons/fa';
-import { GoDotFill } from 'react-icons/go';
-import dayjs from 'dayjs';
-import { HiDotsHorizontal } from 'react-icons/hi';
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from '@nextui-org/react';
-import relativeTime from 'dayjs/plugin/relativeTime';
-import Reaction from './view/Reaction';
-import FeedLoading from '../loading/FeedLoading';
-import DeleteFeedModal from './DeleteFeedModal';
-import SwapTransactionCard from './SwapTransactionCard';
-import isUrl from '@/lib/isUrl';
-import { useUser } from '@/lib/UserContext';
-import { useRouter } from 'next/navigation';
+import { getSmartsiteFeed } from "@/actions/postFeed";
+import Image from "next/image";
+import React, { useState, useEffect, useRef, useCallback } from "react";
+import { FaUser } from "react-icons/fa";
+import { GoDotFill } from "react-icons/go";
+import dayjs from "dayjs";
+import { HiDotsHorizontal } from "react-icons/hi";
+import { Popover, PopoverContent, PopoverTrigger } from "@nextui-org/react";
+import relativeTime from "dayjs/plugin/relativeTime";
+import Reaction from "./view/Reaction";
+import FeedLoading from "../loading/FeedLoading";
+import DeleteFeedModal from "./DeleteFeedModal";
+import SwapTransactionCard from "./SwapTransactionCard";
+import isUrl from "@/lib/isUrl";
+import { useUser } from "@/lib/UserContext";
+import { useRouter } from "next/navigation";
+import { formatEns } from "@/lib/formatEnsName";
 
 dayjs.extend(relativeTime);
 
@@ -46,11 +38,11 @@ const Transaction = ({
   const observerRef = useRef<HTMLDivElement>(null);
   const isFetching = useRef(false);
   const pageRef = useRef(1);
-  const [smartsiteId, setSmartsiteId] = useState('');
+  const [smartsiteId, setSmartsiteId] = useState("");
 
   const { user } = useUser();
 
-  console.log('feedData', feedData);
+  console.log("feedData", feedData);
 
   useEffect(() => {
     if (user?.primaryMicrosite) {
@@ -68,7 +60,7 @@ const Transaction = ({
         const currentPage = reset ? 1 : pageRef.current;
         const url = `${process.env.NEXT_PUBLIC_API_URL}/api/v1/feed/transaction/${smartsiteId}?page=${currentPage}&limit=5`;
         const newFeedData = await getSmartsiteFeed(url, accessToken);
-        console.log('newFeedData', newFeedData);
+        console.log("newFeedData", newFeedData);
 
         if (newFeedData?.data) {
           if (reset) {
@@ -84,7 +76,7 @@ const Transaction = ({
           setHasMore(false);
         }
       } catch (error) {
-        console.error('Error fetching feed data: ', error);
+        console.error("Error fetching feed data: ", error);
       } finally {
         setIsPostLoading(false);
         isFetching.current = false;
@@ -115,9 +107,7 @@ const Transaction = ({
   useEffect(() => {
     if (!hasMore) return;
 
-    const observerCallback = (
-      entries: IntersectionObserverEntry[]
-    ) => {
+    const observerCallback = (entries: IntersectionObserverEntry[]) => {
       if (entries[0].isIntersecting && !isFetching.current) {
         fetchFeedData();
       }
@@ -125,7 +115,7 @@ const Transaction = ({
 
     const observer = new IntersectionObserver(observerCallback, {
       root: null,
-      rootMargin: '0px',
+      rootMargin: "0px",
       threshold: 1.0,
     });
 
@@ -157,18 +147,15 @@ const Transaction = ({
           5
         )}...${receiver_wallet_address.slice(-5)}`;
 
-    if (transaction_type === 'nft') {
+    if (transaction_type === "nft") {
       return (
         <div>
           <p className="text-gray-600 text-sm">
-            Sent NFT{' '}
+            Sent NFT{" "}
             <span className="font-medium text-base">
-              {feed.content.name || 'item'}
-            </span>{' '}
-            to{' '}
-            <span className="font-medium text-base">
-              {recipientDisplay}
-            </span>
+              {feed.content.name || "item"}
+            </span>{" "}
+            to <span className="font-medium text-base">{recipientDisplay}</span>
             .
           </p>
           {image && (
@@ -181,33 +168,31 @@ const Transaction = ({
                 className="w-full h-auto"
               />
               <p className="text-sm text-gray-600 font-medium mt-0.5 text-center">
-                {amount} {feed.content.currency || 'NFT'}
+                {amount} {feed.content.currency || "NFT"}
               </p>
             </div>
           )}
         </div>
       );
-    } else if (transaction_type === 'token') {
+    } else if (transaction_type === "token") {
       return (
-        <p className="text-gray-600 text-sm">
-          Transferred{' '}
+        <p className="text-black text-sm">
+          Transferred{" "}
           <span className="font-medium">
             {amount.toFixed(2)} {token}
-          </span>{' '}
-          {tokenPrice && (
-            <span className="text-sm text-gray-600 font-medium mt-0.5">
-              (${Number(tokenPrice).toFixed(2)})
-            </span>
-          )}{' '}
-          tokens to{' '}
-          <span className="font-medium">{recipientDisplay}</span> on
-          the {chain}.
+          </span>{" "}
+          {tokenPrice && <span>(${Number(tokenPrice).toFixed(2)})</span>} tokens
+          to{" "}
+          <a href={`https://${recipientDisplay}`} target="_blank">
+            {formatEns(recipientDisplay)}
+          </a>{" "}
+          on the {chain}.
         </p>
       );
     } else {
       return (
         <p className="text-gray-600 text-sm">
-          Executed a {transaction_type} transaction involving {amount}{' '}
+          Executed a {transaction_type} transaction involving {amount}{" "}
           {feed.content.currency}.
         </p>
       );
@@ -225,8 +210,7 @@ const Transaction = ({
             <div className="w-10 xl:w-12 h-10 xl:h-12 bg-gray-400 border border-gray-300 rounded-full overflow-hidden flex items-center justify-center">
               {(() => {
                 const profilePic =
-                  feed?.smartsiteId?.profilePic ||
-                  feed?.smartsiteProfilePic;
+                  feed?.smartsiteId?.profilePic || feed?.smartsiteProfilePic;
                 return profilePic && isUrl(profilePic) ? (
                   <Image
                     alt="user"
@@ -249,45 +233,38 @@ const Transaction = ({
                     <p className="text-gray-700 font-semibold">
                       {feed?.smartsiteId?.name ||
                         feed?.smartsiteUserName ||
-                        'Anonymous'}
+                        "Anonymous"}
                     </p>
                     <GoDotFill size={10} />
                     <p className="text-gray-500 font-normal">
                       {feed?.smartsiteId?.ens ||
                         feed?.smartsiteEnsName ||
-                        'n/a'}
+                        "n/a"}
                     </p>
                     <GoDotFill size={10} />
                     <p className="text-gray-500 font-normal">
                       {dayjs(feed.createdAt).fromNow()}
                     </p>
                   </div>
-                  {feed.postType === 'repost' &&
-                    feed.content.title && (
-                      <button
-                        onClick={() =>
-                          router.push(`/feed/${feed._id}`)
-                        }
-                      >
-                        {feed.content.title
-                          .split('\n')
-                          .map((line: any, index: number) => (
-                            <p className="break-text" key={index}>
-                              {line}
-                            </p>
-                          ))}
-                      </button>
-                    )}
-                  {feed.postType === 'swapTransaction' && (
+                  {feed.postType === "repost" && feed.content.title && (
+                    <button onClick={() => router.push(`/feed/${feed._id}`)}>
+                      {feed.content.title
+                        .split("\n")
+                        .map((line: any, index: number) => (
+                          <p className="break-text" key={index}>
+                            {line}
+                          </p>
+                        ))}
+                    </button>
+                  )}
+                  {feed.postType === "swapTransaction" && (
                     <SwapTransactionCard
                       feed={feed}
-                      onFeedClick={() =>
-                        router.push(`/feed/${feed._id}`)
-                      }
+                      onFeedClick={() => router.push(`/feed/${feed._id}`)}
                     />
                   )}
 
-                  {feed.postType === 'transaction' &&
+                  {feed.postType === "transaction" &&
                     renderTransactionContent(feed)}
                 </div>
                 {userId === feed.userId && (

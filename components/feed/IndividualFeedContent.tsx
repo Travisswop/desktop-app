@@ -20,6 +20,7 @@ import { FiPlusCircle } from "react-icons/fi";
 import SwapTransactionCard from "./SwapTransactionCard";
 import { formatEns } from "@/lib/formatEnsName";
 import PollCard from "./PollCard";
+import { makeLinksClickable } from "@/lib/makeLinksClickable";
 
 const IndividualFeedContent = ({ feed, userId, token, onVoteSuccess }: any) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -88,13 +89,12 @@ const IndividualFeedContent = ({ feed, userId, token, onVoteSuccess }: any) => {
           <span className="font-medium">
             {amount.toFixed(2)} {token}
           </span>{" "}
-          {tokenPrice && (
-            <span className="text-sm text-black font-medium mt-0.5">
-              (${Number(tokenPrice).toFixed(2)})
-            </span>
-          )}{" "}
-          tokens to <span className="font-medium">{recipientDisplay}</span> on
-          the {chain}.
+          {tokenPrice && <span>(${Number(tokenPrice).toFixed(2)})</span>} tokens
+          to{" "}
+          <a href={`https://${recipientDisplay}`} target="_blank">
+            {formatEns(recipientDisplay)}
+          </a>{" "}
+          on the {chain}.
         </p>
       );
     } else {
@@ -159,18 +159,28 @@ const IndividualFeedContent = ({ feed, userId, token, onVoteSuccess }: any) => {
             {/* Render Post Content */}
             {feed.repostedPostDetails.postType === "post" &&
               feed.repostedPostDetails.content.title && (
-                <button
-                  onClick={() => router.push(`/feed/${feed._id}`)}
-                  className="w-full text-start"
-                >
+                // <button
+                //   onClick={() => router.push(`/feed/${feed._id}`)}
+                //   className="w-full text-start"
+                // >
+                //   {feed.repostedPostDetails.content.title
+                //     .split("\n")
+                //     .map((line: string, index: number) => (
+                //       <p className="break-text" key={index}>
+                //         {line}
+                //       </p>
+                //     ))}
+                // </button>
+
+                <div className="w-full text-start">
                   {feed.repostedPostDetails.content.title
                     .split("\n")
                     .map((line: string, index: number) => (
                       <p className="break-text" key={index}>
-                        {line}
+                        {makeLinksClickable(line)}
                       </p>
                     ))}
-                </button>
+                </div>
               )}
 
             {feed.repostedPostDetails.postType === "swapTransaction" && (
