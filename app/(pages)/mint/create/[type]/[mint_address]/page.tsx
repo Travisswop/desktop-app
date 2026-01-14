@@ -3,19 +3,19 @@ import CreateCollectible from '@/components/mint/collectible';
 import CreateCoupon from '@/components/mint/coupon';
 import CreateMembership from '@/components/mint/membership';
 import CreateMenu from '@/components/mint/menu';
-import CreatePhygital from '@/components/mint/phygital';
+import CreateProduct from '@/components/mint/product';
 import CreateSubscription from '@/components/mint/subscription';
 import Link from 'next/link';
 import { ArrowLeft } from 'lucide-react';
 import { use } from 'react';
 
 const COLLECTION_COMPONENTS = {
-  collectible: CreateCollectible,
-  coupon: CreateCoupon,
-  membership: CreateMembership,
-  menu: CreateMenu,
-  phygitals: CreatePhygital,
-  subscription: CreateSubscription,
+  collectibles: CreateCollectible,
+  coupons: CreateCoupon,
+  memberships: CreateMembership,
+  menus: CreateMenu,
+  products: CreateProduct,
+  subscriptions: CreateSubscription,
 };
 
 interface Props {
