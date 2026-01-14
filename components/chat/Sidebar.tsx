@@ -1,11 +1,11 @@
 // app/components/Sidebar.js
-"use client";
-import { useState } from "react";
-import GroupModal from "./GroupModal";
-import isUrl from "@/lib/isUrl";
-import Image from "next/image";
-import { LiaTimesCircle } from "react-icons/lia";
-import { FcSearch } from "react-icons/fc";
+'use client';
+import { useState } from 'react';
+import GroupModal from './GroupModal';
+import isUrl from '@/lib/isUrl';
+import Image from 'next/image';
+import { LiaTimesCircle } from 'react-icons/lia';
+import { FcSearch } from 'react-icons/fc';
 
 export default function Sidebar({
   conversations,
@@ -16,13 +16,10 @@ export default function Sidebar({
   currentUser,
   socket,
 }) {
-  const [searchQuery, setSearchQuery] = useState("");
+  const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState([]);
   const [showSearchResults, setShowSearchResults] = useState(false);
   const [showGroupModal, setShowGroupModal] = useState(false);
-
-  console.log("searchResults", searchResults);
-  console.log("conversations", conversations);
 
   // Add Astro AI bot at the top of the list
   const astroBot = {
@@ -42,14 +39,14 @@ export default function Sidebar({
       lastActivity: item.lastMessage?.createdAt
         ? new Date(item.lastMessage.createdAt)
         : new Date(0),
-      type: "direct",
+      type: 'direct',
     })),
     ...groups.map((item) => ({
       ...item,
       lastActivity: item.lastMessage?.createdAt
         ? new Date(item.lastMessage.createdAt)
         : new Date(0),
-      type: "group",
+      type: 'group',
     })),
   ].sort((a, b) => {
     // Keep Astro pinned at top
@@ -57,8 +54,6 @@ export default function Sidebar({
     if (b.type === 'astro') return 1;
     return b.lastActivity - a.lastActivity;
   });
-
-  console.log("allItems", allItems);
 
   const handleSearch = (query) => {
     setSearchQuery(query);
@@ -69,7 +64,7 @@ export default function Sidebar({
 
     // Debounced search
     const timeoutId = setTimeout(() => {
-      socket.emit("search_contacts", { query, limit: 8 }, (res) => {
+      socket.emit('search_contacts', { query, limit: 8 }, (res) => {
         if (res?.success) {
           setSearchResults(res.results || []);
           setShowSearchResults(true);
@@ -81,8 +76,8 @@ export default function Sidebar({
   };
 
   const handleSearchResultClick = (user) => {
-    onSelectChat(user, "direct");
-    setSearchQuery("");
+    onSelectChat(user, 'direct');
+    setSearchQuery('');
     setShowSearchResults(false);
   };
 
@@ -92,23 +87,21 @@ export default function Sidebar({
   };
 
   return (
-    <div className="w-80 bg-white flex flex-col rounded-2xl overflow-hidden">
+    <div className="w-96 bg-white flex flex-col rounded-2xl overflow-hidden">
       {/* Header */}
-      <div className="p-4 border-b flex items-center gap-2 justify-between">
-        <h2 className="text-xl font-semibold">Chats</h2>
+      <div className="p-4 flex justify-end">
         <button
           onClick={() => setShowGroupModal(true)}
-          className="py-1.5 px-3 rounded-lg flex items-center justify-center gap-2 bg-black text-white text-sm"
+          className="py-1.5 px-3 rounded-lg flex items-center justify-center gap bg-zinc-200 text-black text-sm"
         >
-          <span>+</span>
-          New Group
+          Create Chat
         </button>
       </div>
 
       {/* Search */}
-      <div className="p-4 relative">
-        <div className="relative">
-          <div className="absolute left-3 top-1/2 transform -translate-y-1/2">
+      <div className="relative">
+        <div className="relative p-4">
+          <div className="absolute left-6 top-1/2 transform -translate-y-1/2">
             <FcSearch size={18} />
           </div>
           <input
@@ -121,19 +114,23 @@ export default function Sidebar({
           {searchQuery && (
             <button
               onClick={() => {
-                setSearchQuery("");
+                setSearchQuery('');
                 setShowSearchResults(false);
               }}
-              className="absolute right-3 top-1/2 transform -translate-y-1/2"
+              className="absolute right-4 top-1/2 transform -translate-y-1/2"
             >
               <LiaTimesCircle size={20} />
             </button>
           )}
         </div>
 
+        <div className="flex items-center py-2 px-4">
+          <h2 className="text-xl font-semibold">Messages</h2>
+        </div>
+
         {/* Search Results */}
         {showSearchResults && (
-          <div className="absolute bg-white top-full left-4 right-4 mt-2 bg-whatsapp-bg-secondary border border-whatsapp-border rounded-lg shadow-lg z-10 max-h-60 overflow-y-auto">
+          <div className="absolute bg-white top-full left-4 right-4 bg-whatsapp-bg-secondary border border-whatsapp-border rounded-lg shadow-lg z-10 max-h-60 overflow-y-auto">
             {searchResults.map((user, index) => (
               <div
                 key={index}
@@ -143,7 +140,9 @@ export default function Sidebar({
                 <div className="w-10 h-10 rounded-full bg-whatsapp-green flex items-center justify-center text-black font-semibold">
                   <Image
                     src={
-                      isUrl(user.avatar || user?.microsite?.profilePic)
+                      isUrl(
+                        user.avatar || user?.microsite?.profilePic
+                      )
                         ? user.avatar || user?.microsite?.profilePic
                         : `/images/user_avator/${
                             user.avatar || user?.microsite?.profilePic
@@ -157,10 +156,10 @@ export default function Sidebar({
                 </div>
                 <div>
                   <div className="font-medium">
-                    {user.displayName || user.name || "Unknown User"}
+                    {user.displayName || user.name || 'Unknown User'}
                   </div>
                   <div className="text-sm text-whatsapp-text-secondary">
-                    {user.ens || user.microsite.ens || ""}
+                    {user.ens || user.microsite.ens || ''}
                   </div>
                 </div>
               </div>
@@ -170,7 +169,7 @@ export default function Sidebar({
       </div>
 
       {/* Conversations List */}
-      <div className="flex-1 overflow-y-auto">
+      <div className="flex-1 overflow-y-auto px-4">
         {allItems.length === 0 ? (
           <div className="text-center text-whatsapp-text-secondary py-8">
             No conversations yet
@@ -198,14 +197,20 @@ export default function Sidebar({
               if (item.type === 'direct') {
                 const name = item.microsite?.name || item.name || '';
                 const ens = item.microsite?.ens || '';
-                return name.toLowerCase().includes(query) || ens.toLowerCase().includes(query);
+                return (
+                  name.toLowerCase().includes(query) ||
+                  ens.toLowerCase().includes(query)
+                );
               }
 
               // Filter groups
               if (item.type === 'group') {
                 const name = item.name || '';
                 const description = item.description || '';
-                return name.toLowerCase().includes(query) || description.toLowerCase().includes(query);
+                return (
+                  name.toLowerCase().includes(query) ||
+                  description.toLowerCase().includes(query)
+                );
               }
 
               return true;
@@ -235,16 +240,21 @@ export default function Sidebar({
           onClose={() => setShowGroupModal(false)}
           socket={socket}
           currentUser={currentUser}
-          onGroupCreated={(group) => onSelectChat(group, "group")}
+          onGroupCreated={(group) => onSelectChat(group, 'group')}
         />
       )}
     </div>
   );
 }
 
-function ConversationItem({ item, isSelected, onClick, currentUser }) {
-  const isGroup = item.type === "group";
-  const isAstro = item.type === "astro";
+function ConversationItem({
+  item,
+  isSelected,
+  onClick,
+  currentUser,
+}) {
+  const isGroup = item.type === 'group';
+  const isAstro = item.type === 'astro';
 
   const getDisplayInfo = () => {
     if (isAstro) {
@@ -259,7 +269,7 @@ function ConversationItem({ item, isSelected, onClick, currentUser }) {
       return {
         name: item.name,
         avatar: item.settings?.groupInfo?.groupPicture,
-        lastMessage: item.lastMessage?.message || "No messages yet",
+        lastMessage: item.lastMessage?.message || 'No messages yet',
         unreadCount: item.unreadCount || 0,
         hasBot: item.botUsers?.length > 0,
         memberCount: item.participants?.length || 0,
@@ -270,10 +280,11 @@ function ConversationItem({ item, isSelected, onClick, currentUser }) {
         (p) => String(p._id || p) !== String(currentUser)
       );
       return {
-        name: item.microsite?.name || other?.name || "Unknown User",
+        name: item.microsite?.name || other?.name || 'Unknown User',
         avatar: item.microsite?.profilePic || other?.profilePic,
         lastMessage:
-          item.lastMessage?.message || "Tap to start a conversation...",
+          item.lastMessage?.message ||
+          'Tap to start a conversation...',
         unreadCount: item.unreadCount || 0,
         isOnline: other?.isOnline || false,
       };
@@ -283,15 +294,15 @@ function ConversationItem({ item, isSelected, onClick, currentUser }) {
   const info = getDisplayInfo();
   const lastTime = item.lastMessage?.createdAt
     ? formatTimeAgo(new Date(item.lastMessage.createdAt))
-    : "";
+    : '';
 
   return (
     <div
       onClick={onClick}
-      className={`p-4 border-b border-whatsapp-border cursor-pointer transition-colors ${
+      className={`p-4 border-b border-whatsapp-border cursor-pointer transition-colors flex items-center justify-between ${
         isSelected
-          ? "bg-whatsapp-teal-dark"
-          : "bg-whatsapp-bg-secondary hover:bg-whatsapp-hover"
+          ? 'bg-whatsapp-teal-dark'
+          : 'bg-whatsapp-bg-secondary hover:bg-whatsapp-hover'
       }`}
     >
       <div className="flex items-center gap-3">
@@ -316,10 +327,10 @@ function ConversationItem({ item, isSelected, onClick, currentUser }) {
           ) : (
             <div
               className={`w-12 h-12 rounded-full flex items-center justify-center text-white font-semibold ${
-                isGroup ? "bg-orange-500" : "bg-whatsapp-green"
+                isGroup ? 'bg-orange-500' : 'bg-whatsapp-green'
               }`}
             >
-              {isGroup ? "👥" : info.name.charAt(0).toUpperCase()}
+              {isGroup ? '👥' : info.name.charAt(0).toUpperCase()}
             </div>
           )}
 
@@ -337,16 +348,9 @@ function ConversationItem({ item, isSelected, onClick, currentUser }) {
           ) : (
             <div
               className={`absolute bottom-0 right-0 w-3 h-3 rounded-full border-2 border-whatsapp-bg-secondary ${
-                info.isOnline ? "bg-green-500" : "bg-gray-500"
+                info.isOnline ? 'bg-green-500' : 'bg-gray-500'
               }`}
             />
-          )}
-
-          {/* Unread count */}
-          {info.unreadCount > 0 && (
-            <div className="absolute -top-1 -right-1 bg-black text-white rounded-full w-5 h-5 flex items-center justify-center text-xs font-bold">
-              {info.unreadCount > 99 ? "99+" : info.unreadCount}
-            </div>
           )}
         </div>
 
@@ -360,18 +364,31 @@ function ConversationItem({ item, isSelected, onClick, currentUser }) {
                   AI
                 </span>
               )}
-              {isGroup && <div>{item.settings.isPublic ? "🌏" : "🔒"}</div>}
+              {isGroup && (
+                <div>{item.settings.isPublic ? '🌏' : '🔒'}</div>
+              )}
             </div>
-            <span className="text-xs text-whatsapp-text-secondary whitespace-nowrap">
-              {lastTime}
-            </span>
           </div>
-          <p className={`text-sm truncate ${isAstro ? 'text-blue-600' : 'text-whatsapp-text-secondary'}`}>
+          <p
+            className={`text-sm truncate ${
+              isAstro
+                ? 'text-blue-600'
+                : 'text-whatsapp-text-secondary'
+            }`}
+          >
             {isGroup
               ? `${info.memberCount} members • ${info.lastMessage}`
               : info.lastMessage}
           </p>
         </div>
+      </div>
+      {/* Unread count */}
+      <div className="flex items-center gap-1">
+        {info.unreadCount > 0 && (
+          <div className="bg-black text-white rounded-full w-5 h-5 flex items-center justify-center text-xs font-bold">
+            {info.unreadCount > 99 ? '99+' : info.unreadCount}
+          </div>
+        )}
       </div>
     </div>
   );
@@ -386,7 +403,7 @@ function formatTimeAgo(date) {
   const days = Math.floor(hours / 24);
 
   if (days > 0) {
-    if (days === 1) return "Yesterday";
+    if (days === 1) return 'Yesterday';
     if (days < 7) return `${days}d ago`;
     return date.toLocaleDateString();
   } else if (hours > 0) {
@@ -394,6 +411,6 @@ function formatTimeAgo(date) {
   } else if (minutes > 0) {
     return `${minutes}m ago`;
   } else {
-    return "Just now";
+    return 'Just now';
   }
 }

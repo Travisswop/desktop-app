@@ -18,11 +18,6 @@ export default function ChatPage() {
 
   const { user, accessToken, loading: userLoading } = useUser();
 
-  console.log('user', user);
-  console.log('currentUser', currentUser);
-  console.log('connectionStatus', connectionStatus);
-  console.log('userLoading', userLoading);
-
   const { socket, connectSocket, disconnectSocket } = useSocket({
     onConnect: () => {
       setConnectionStatus({ connected: true, text: 'Connected' });
@@ -146,7 +141,8 @@ export default function ChatPage() {
                 Connection Issue
               </h2>
               <p className="mb-6 text-sm text-gray-600">
-                We're having trouble connecting to the chat server. This could be due to:
+                We're having trouble connecting to the chat server.
+                This could be due to:
               </p>
               <ul className="mb-6 text-xs text-gray-500 text-left space-y-2 max-w-xs mx-auto">
                 <li className="flex items-start gap-2">
@@ -186,7 +182,9 @@ export default function ChatPage() {
             </div>
 
             <h2 className="mb-2 text-xl font-semibold text-gray-900">
-              {!user || !accessToken ? 'Initializing Chat...' : 'Connecting to Chat...'}
+              {!user || !accessToken
+                ? 'Initializing Chat...'
+                : 'Connecting to Chat...'}
             </h2>
 
             <p className="mb-6 text-sm text-gray-500">
@@ -199,18 +197,28 @@ export default function ChatPage() {
 
             {/* Animated dots */}
             <div className="flex justify-center gap-2 mb-6">
-              <div className="h-2 w-2 rounded-full bg-blue-500 animate-bounce" style={{ animationDelay: '0ms' }} />
-              <div className="h-2 w-2 rounded-full bg-blue-500 animate-bounce" style={{ animationDelay: '150ms' }} />
-              <div className="h-2 w-2 rounded-full bg-blue-500 animate-bounce" style={{ animationDelay: '300ms' }} />
+              <div
+                className="h-2 w-2 rounded-full bg-blue-500 animate-bounce"
+                style={{ animationDelay: '0ms' }}
+              />
+              <div
+                className="h-2 w-2 rounded-full bg-blue-500 animate-bounce"
+                style={{ animationDelay: '150ms' }}
+              />
+              <div
+                className="h-2 w-2 rounded-full bg-blue-500 animate-bounce"
+                style={{ animationDelay: '300ms' }}
+              />
             </div>
 
             {/* Progress bar */}
             <div className="w-full h-1 bg-gray-200 rounded-full overflow-hidden">
-              <div className="h-full bg-gradient-to-r from-blue-500 to-purple-500 animate-[shimmer_2s_ease-in-out_infinite]"
-                   style={{
-                     width: '60%',
-                     animation: 'shimmer 2s ease-in-out infinite'
-                   }}
+              <div
+                className="h-full bg-gradient-to-r from-blue-500 to-purple-500 animate-[shimmer_2s_ease-in-out_infinite]"
+                style={{
+                  width: '60%',
+                  animation: 'shimmer 2s ease-in-out infinite',
+                }}
               />
             </div>
 
@@ -223,8 +231,12 @@ export default function ChatPage() {
         {/* Add shimmer animation */}
         <style jsx>{`
           @keyframes shimmer {
-            0% { transform: translateX(-100%); }
-            100% { transform: translateX(300%); }
+            0% {
+              transform: translateX(-100%);
+            }
+            100% {
+              transform: translateX(300%);
+            }
           }
         `}</style>
       </div>

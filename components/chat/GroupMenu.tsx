@@ -1,11 +1,11 @@
 // app/components/GroupMenu.tsx
-"use client";
-import { useState, useEffect, useCallback } from "react";
-import Image from "next/image";
-import isUrl from "@/lib/isUrl";
-import toast from "react-hot-toast";
-import { useUser } from "@/lib/UserContext";
-import { Loader } from "lucide-react";
+'use client';
+import { useState, useEffect, useCallback } from 'react';
+import Image from 'next/image';
+import isUrl from '@/lib/isUrl';
+import toast from 'react-hot-toast';
+import { useUser } from '@/lib/UserContext';
+import { Loader } from 'lucide-react';
 
 // ==================== TYPE DEFINITIONS ====================
 
@@ -47,6 +47,7 @@ interface GroupMenuProps {
   socket: any;
   currentUser: string;
   onGroupUpdate?: () => void;
+  onLeaveGroup?: () => void;
 }
 
 interface SearchResponse {
@@ -66,11 +67,11 @@ interface SocketResponse {
 
 type ModalType =
   | null
-  | "addMember"
-  | "removeMember"
-  | "editGroup"
-  | "deleteGroup"
-  | "leaveGroup";
+  | 'addMember'
+  | 'removeMember'
+  | 'editGroup'
+  | 'deleteGroup'
+  | 'leaveGroup';
 
 // ==================== MAIN COMPONENT ====================
 
@@ -79,6 +80,7 @@ export default function GroupMenu({
   socket,
   currentUser,
   onGroupUpdate,
+  onLeaveGroup,
 }: GroupMenuProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [activeModal, setActiveModal] = useState<ModalType>(null);
@@ -88,44 +90,44 @@ export default function GroupMenu({
 
   const menuItems = [
     {
-      label: "👥 Add Member",
+      label: '👥 Add Member',
       action: () => {
-        setActiveModal("addMember");
+        setActiveModal('addMember');
         closeMenu();
       },
-      color: "default",
+      color: 'default',
     },
     {
-      label: "👤 Remove Member",
+      label: '👤 Remove Member',
       action: () => {
-        setActiveModal("removeMember");
+        setActiveModal('removeMember');
         closeMenu();
       },
-      color: "default",
+      color: 'default',
     },
     {
-      label: "✏️ Edit Group",
+      label: '✏️ Edit Group',
       action: () => {
-        setActiveModal("editGroup");
+        setActiveModal('editGroup');
         closeMenu();
       },
-      color: "default",
+      color: 'default',
     },
     {
-      label: "🚪 Leave Group",
+      label: '🚪 Leave Group',
       action: () => {
-        setActiveModal("leaveGroup");
+        setActiveModal('leaveGroup');
         closeMenu();
       },
-      color: "warning",
+      color: 'warning',
     },
     {
-      label: "🗑️ Delete Group",
+      label: '🗑️ Delete Group',
       action: () => {
-        setActiveModal("deleteGroup");
+        setActiveModal('deleteGroup');
         closeMenu();
       },
-      color: "danger",
+      color: 'danger',
     },
   ];
 
@@ -150,11 +152,11 @@ export default function GroupMenu({
                 key={index}
                 onClick={item.action}
                 className={`w-full text-left px-4 py-3 border-b border-gray-200 last:border-b-0 transition-colors ${
-                  item.color === "danger"
-                    ? "text-red-600 hover:bg-red-50"
-                    : item.color === "warning"
-                    ? "text-orange-600 hover:bg-orange-50"
-                    : "text-gray-700 hover:bg-gray-50"
+                  item.color === 'danger'
+                    ? 'text-red-600 hover:bg-red-50'
+                    : item.color === 'warning'
+                    ? 'text-orange-600 hover:bg-orange-50'
+                    : 'text-gray-700 hover:bg-gray-50'
                 }`}
               >
                 {item.label}
@@ -165,7 +167,7 @@ export default function GroupMenu({
       )}
 
       {/* Modals */}
-      {activeModal === "addMember" && (
+      {activeModal === 'addMember' && (
         <AddMemberModal
           group={group}
           socket={socket}
@@ -175,7 +177,7 @@ export default function GroupMenu({
         />
       )}
 
-      {activeModal === "removeMember" && (
+      {activeModal === 'removeMember' && (
         <RemoveMemberModal
           group={group}
           socket={socket}
@@ -185,7 +187,7 @@ export default function GroupMenu({
         />
       )}
 
-      {activeModal === "editGroup" && (
+      {activeModal === 'editGroup' && (
         <EditGroupModal
           group={group}
           socket={socket}
@@ -194,15 +196,16 @@ export default function GroupMenu({
         />
       )}
 
-      {activeModal === "leaveGroup" && (
+      {activeModal === 'leaveGroup' && (
         <LeaveGroupModal
           group={group}
           onClose={closeModal}
           onSuccess={onGroupUpdate}
+          onLeaveGroup={onLeaveGroup}
         />
       )}
 
-      {activeModal === "deleteGroup" && (
+      {activeModal === 'deleteGroup' && (
         <DeleteGroupModal
           group={group}
           socket={socket}
@@ -229,10 +232,12 @@ function AddMemberModal({
   onClose: () => void;
   onSuccess?: () => void;
 }) {
-  const [searchQuery, setSearchQuery] = useState("");
+  const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<User[]>([]);
   const [isSearching, setIsSearching] = useState(false);
-  const [addingUserId, setAddingUserId] = useState<string | null>(null);
+  const [addingUserId, setAddingUserId] = useState<string | null>(
+    null
+  );
 
   // const { toast } = useToast();
 
@@ -245,7 +250,7 @@ function AddMemberModal({
 
       setIsSearching(true);
       socket.emit(
-        "search_users",
+        'search_users',
         { query, limit: 10, forGroupCreation: true },
         (response: SearchResponse) => {
           if (response.success) {
@@ -281,26 +286,29 @@ function AddMemberModal({
     setAddingUserId(userId);
 
     socket.emit(
-      "add_group_member",
+      'add_group_member',
       {
         groupId: group._id,
         userIdToAdd: userId,
-        role: "member",
+        role: 'member',
       },
       (response: SocketResponse) => {
         if (response.success) {
           toast.success(`${displayName} added successfully!`, {
-            position: "top-right",
+            position: 'top-right',
           });
 
-          setSearchQuery("");
+          setSearchQuery('');
           setSearchResults([]);
           onSuccess?.();
           onClose();
         } else {
-          toast.error(`Failed to add ${displayName}: ${response.error}`, {
-            position: "top-right",
-          });
+          toast.error(
+            `Failed to add ${displayName}: ${response.error}`,
+            {
+              position: 'top-right',
+            }
+          );
         }
         setAddingUserId(null);
       }
@@ -321,7 +329,9 @@ function AddMemberModal({
               ×
             </button>
           </div>
-          <p className="text-sm text-gray-600 mt-1">Group: {group.name}</p>
+          <p className="text-sm text-gray-600 mt-1">
+            Group: {group.name}
+          </p>
         </div>
 
         {/* Search */}
@@ -334,7 +344,9 @@ function AddMemberModal({
               placeholder="Search username, ENS, or name..."
               className="w-full px-4 py-2 pl-10 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
-            <span className="absolute left-3 top-2.5 text-gray-400">🔍</span>
+            <span className="absolute left-3 top-2.5 text-gray-400">
+              🔍
+            </span>
           </div>
         </div>
 
@@ -346,7 +358,9 @@ function AddMemberModal({
             </div>
           ) : searchResults.length === 0 ? (
             <div className="text-center py-8 text-gray-500">
-              {searchQuery ? "No users found" : "Start typing to search"}
+              {searchQuery
+                ? 'No users found'
+                : 'Start typing to search'}
             </div>
           ) : (
             <div className="space-y-2">
@@ -384,13 +398,13 @@ function AddMemberModal({
                     onClick={() =>
                       handleAddMember(
                         user._id,
-                        user.displayName || user.name || "User"
+                        user.displayName || user.name || 'User'
                       )
                     }
                     disabled={addingUserId === user._id}
                     className="px-4 py-2 bg-black text-white rounded-lg hover:bg-gray-800 disabled:bg-gray-400 disabled:cursor-not-allowed text-sm"
                   >
-                    {addingUserId === user._id ? "Adding..." : "Add"}
+                    {addingUserId === user._id ? 'Adding...' : 'Add'}
                   </button>
                 </div>
               ))}
@@ -417,12 +431,17 @@ function RemoveMemberModal({
   onClose: () => void;
   onSuccess?: () => void;
 }) {
-  const [removingUserId, setRemovingUserId] = useState<string | null>(null);
-  const [confirmingUser, setConfirmingUser] = useState<User | null>(null);
+  const [removingUserId, setRemovingUserId] = useState<string | null>(
+    null
+  );
+  const [confirmingUser, setConfirmingUser] = useState<User | null>(
+    null
+  );
 
   // Filter out current user (can't remove yourself)
   const removableMembers =
-    group.participants?.filter((p) => p.userId._id !== currentUser) || [];
+    group.participants?.filter((p) => p.userId._id !== currentUser) ||
+    [];
 
   const confirmRemoveMember = (user: User) => {
     setConfirmingUser(user);
@@ -434,7 +453,7 @@ function RemoveMemberModal({
     setRemovingUserId(user._id);
 
     socket.emit(
-      "remove_group_member",
+      'remove_group_member',
       {
         groupId: group._id,
         userIdToRemove: user._id,
@@ -442,15 +461,18 @@ function RemoveMemberModal({
       (response: SocketResponse) => {
         if (response.success) {
           toast.success(`${user.name} removed successfully!`, {
-            position: "top-right",
+            position: 'top-right',
           });
           onSuccess?.();
           setConfirmingUser(null);
           onClose();
         } else {
-          toast.error(`Failed to remove ${user.name}: ${response.error}`, {
-            position: "top-right",
-          });
+          toast.error(
+            `Failed to remove ${user.name}: ${response.error}`,
+            {
+              position: 'top-right',
+            }
+          );
         }
         setRemovingUserId(null);
       }
@@ -473,7 +495,9 @@ function RemoveMemberModal({
                 ×
               </button>
             </div>
-            <p className="text-sm text-gray-600 mt-1">Group: {group.name}</p>
+            <p className="text-sm text-gray-600 mt-1">
+              Group: {group.name}
+            </p>
           </div>
 
           {/* Members List */}
@@ -510,9 +534,11 @@ function RemoveMemberModal({
                           </div>
                         )}
                         <div>
-                          <div className="font-medium">{user.name}</div>
+                          <div className="font-medium">
+                            {user.name}
+                          </div>
                           <div className="text-sm text-gray-500">
-                            {user.username || user.ens || ""}
+                            {user.username || user.ens || ''}
                           </div>
                         </div>
                       </div>
@@ -521,7 +547,9 @@ function RemoveMemberModal({
                         disabled={removingUserId === user._id}
                         className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-sm"
                       >
-                        {removingUserId === user._id ? "Removing..." : "Remove"}
+                        {removingUserId === user._id
+                          ? 'Removing...'
+                          : 'Remove'}
                       </button>
                     </div>
                   );
@@ -540,8 +568,8 @@ function RemoveMemberModal({
               ⚠️ Remove Member
             </h3>
             <p className="text-gray-700 mb-6">
-              Are you sure you want to remove{" "}
-              <strong>{confirmingUser.name}</strong> from the group{" "}
+              Are you sure you want to remove{' '}
+              <strong>{confirmingUser.name}</strong> from the group{' '}
               <strong>{group.name}</strong>?
             </p>
             <div className="flex justify-end gap-3">
@@ -557,8 +585,8 @@ function RemoveMemberModal({
                 className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
               >
                 {removingUserId === confirmingUser._id
-                  ? "Removing..."
-                  : "Yes, Remove"}
+                  ? 'Removing...'
+                  : 'Yes, Remove'}
               </button>
             </div>
           </div>
@@ -581,9 +609,9 @@ function EditGroupModal({
   onClose: () => void;
   onSuccess?: () => void;
 }) {
-  const [groupName, setGroupName] = useState(group.name || "");
+  const [groupName, setGroupName] = useState(group.name || '');
   const [groupDescription, setGroupDescription] = useState(
-    group.description || ""
+    group.description || ''
   );
   const [groupPhoto, setGroupPhoto] = useState<File | null>(null);
   const [photoPreview, setPhotoPreview] = useState<string | null>(
@@ -594,11 +622,13 @@ function EditGroupModal({
 
   const { accessToken } = useUser();
 
-  const handlePhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handlePhotoChange = (
+    e: React.ChangeEvent<HTMLInputElement>
+  ) => {
     const file = e.target.files?.[0];
     if (file) {
       if (file.size > 5 * 1024 * 1024) {
-        alert("Photo must be smaller than 5MB");
+        alert('Photo must be smaller than 5MB');
         return;
       }
       setGroupPhoto(file);
@@ -607,41 +637,42 @@ function EditGroupModal({
   };
 
   const handleRemovePhoto = async () => {
-    if (!confirm("Are you sure you want to remove the group photos?")) return;
+    if (!confirm('Are you sure you want to remove the group photos?'))
+      return;
 
     try {
       setIsRemovingPhoto(true);
       const response = await fetch(
         `${process.env.NEXT_PUBLIC_API_URL}/api/v1/group/${group._id}/photo`,
         {
-          method: "DELETE",
+          method: 'DELETE',
           headers: {
             Authorization: `Bearer ${accessToken}`,
-            "Content-Type": "application/json",
+            'Content-Type': 'application/json',
           },
         }
       );
 
       const data = await response.json();
-      console.log("data response", data);
+      console.log('data response', data);
 
       if (data.success) {
         setPhotoPreview(null);
         toast.success(`Group photo removed successfully!`, {
-          position: "top-right",
+          position: 'top-right',
         });
         onSuccess?.();
         setIsRemovingPhoto(false);
       } else {
         toast.error(`Failed to remove photo: ${data.message}`, {
-          position: "top-right",
+          position: 'top-right',
         });
         setIsRemovingPhoto(false);
       }
     } catch (error) {
-      console.error("Error removing photo:", error);
-      toast.error("Error removing group photo", {
-        position: "top-right",
+      console.error('Error removing photo:', error);
+      toast.error('Error removing group photo', {
+        position: 'top-right',
       });
       setIsRemovingPhoto(false);
     }
@@ -649,8 +680,8 @@ function EditGroupModal({
 
   const handleSave = async () => {
     if (!groupName.trim()) {
-      toast("Group name is required", {
-        position: "top-right",
+      toast('Group name is required', {
+        position: 'top-right',
       });
       return;
     }
@@ -663,15 +694,15 @@ function EditGroupModal({
       // Update name and description
       if (
         groupName !== group.name ||
-        groupDescription !== (group.description || "")
+        groupDescription !== (group.description || '')
       ) {
         const response = await fetch(
           `${process.env.NEXT_PUBLIC_API_URL}/api/v1/group/${group._id}/info`,
           {
-            method: "PUT",
+            method: 'PUT',
             headers: {
               Authorization: `Bearer ${accessToken}`,
-              "Content-Type": "application/json",
+              'Content-Type': 'application/json',
             },
             body: JSON.stringify({
               name: groupName,
@@ -682,13 +713,15 @@ function EditGroupModal({
 
         const data = await response.json();
         if (!data.success) {
-          throw new Error(data.message || "Failed to update group info");
+          throw new Error(
+            data.message || 'Failed to update group info'
+          );
         }
         hasChanges = true;
 
         // Emit socket event for real-time updates
         if (socket) {
-          socket.emit("update_group_info", {
+          socket.emit('update_group_info', {
             groupId: group._id,
             name: groupName,
             description: groupDescription,
@@ -699,12 +732,12 @@ function EditGroupModal({
       // Upload new photo
       if (groupPhoto) {
         const formData = new FormData();
-        formData.append("groupPhoto", groupPhoto);
+        formData.append('groupPhoto', groupPhoto);
 
         const response = await fetch(
           `${process.env.NEXT_PUBLIC_API_URL}/api/v1/group/${group._id}/photo`,
           {
-            method: "POST",
+            method: 'POST',
             headers: {
               Authorization: `Bearer ${accessToken}`,
             },
@@ -714,26 +747,26 @@ function EditGroupModal({
 
         const data = await response.json();
         if (!data.success) {
-          throw new Error(data.message || "Failed to upload photo");
+          throw new Error(data.message || 'Failed to upload photo');
         }
         hasChanges = true;
       }
 
       if (hasChanges) {
-        toast.success("Group updated successfully!", {
-          position: "top-right",
+        toast.success('Group updated successfully!', {
+          position: 'top-right',
         });
         onSuccess?.();
         onClose();
       } else {
-        toast("No changes to save", {
-          position: "top-right",
+        toast('No changes to save', {
+          position: 'top-right',
         });
       }
     } catch (error: any) {
-      console.error("Error updating group:", error);
+      console.error('Error updating group:', error);
       toast.error(`Error: ${error.message}`, {
-        position: "top-right",
+        position: 'top-right',
       });
     } finally {
       setIsSaving(false);
@@ -786,7 +819,9 @@ function EditGroupModal({
                   className="hidden"
                 />
                 <button
-                  onClick={() => document.getElementById("photoInput")?.click()}
+                  onClick={() =>
+                    document.getElementById('photoInput')?.click()
+                  }
                   className="w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
                 >
                   📷 Choose Photo
@@ -799,7 +834,7 @@ function EditGroupModal({
                     {isRemovingPhoto ? (
                       <Loader className="w-6 h-auto animate-spin mx-auto text-white" />
                     ) : (
-                      "🗑️ Remove Photo"
+                      '🗑️ Remove Photo'
                     )}
                   </button>
                 )}
@@ -851,7 +886,7 @@ function EditGroupModal({
             disabled={isSaving}
             className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
           >
-            {isSaving ? "Saving..." : "Save Changes"}
+            {isSaving ? 'Saving...' : 'Save Changes'}
           </button>
         </div>
       </div>
@@ -865,10 +900,12 @@ function LeaveGroupModal({
   group,
   onClose,
   onSuccess,
+  onLeaveGroup,
 }: {
   group: Group;
   onClose: () => void;
   onSuccess?: () => void;
+  onLeaveGroup?: () => void;
 }) {
   const [isLeaving, setIsLeaving] = useState(false);
 
@@ -881,30 +918,32 @@ function LeaveGroupModal({
       const response = await fetch(
         `${process.env.NEXT_PUBLIC_API_URL}/api/v1/group/${group._id}/leave`,
         {
-          method: "POST",
+          method: 'POST',
           headers: {
             Authorization: `Bearer ${accessToken}`,
-            "Content-Type": "application/json",
+            'Content-Type': 'application/json',
           },
         }
       );
 
       const data = await response.json();
+      console.log('data response', data);
       if (data.success) {
-        toast.success("Left group successfully", {
-          position: "top-right",
+        toast.success('Left group successfully', {
+          position: 'top-right',
         });
         onSuccess?.();
+        onLeaveGroup?.();
         onClose();
       } else {
         toast.error(`Failed to leave group: ${data.message}`, {
-          position: "top-right",
+          position: 'top-right',
         });
       }
     } catch (error) {
-      console.error("Error leaving group:", error);
-      toast.error("Error leaving group", {
-        position: "top-right",
+      console.error('Error leaving group:', error);
+      toast.error('Error leaving group', {
+        position: 'top-right',
       });
     } finally {
       setIsLeaving(false);
@@ -918,12 +957,13 @@ function LeaveGroupModal({
           🚪 Leave Group
         </h3>
         <p className="text-gray-700 mb-6">
-          Are you sure you want to leave the group <strong>{group.name}</strong>
+          Are you sure you want to leave the group{' '}
+          <strong>{group.name}</strong>
           ?
           <br />
           <br />
-          You will no longer receive messages from this group and will need to
-          be re-added by an admin to join again.
+          You will no longer receive messages from this group and will
+          need to be re-added by an admin to join again.
         </p>
         <div className="flex justify-end gap-3">
           <button
@@ -937,7 +977,7 @@ function LeaveGroupModal({
             disabled={isLeaving}
             className="px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
           >
-            {isLeaving ? "Leaving..." : "Leave Group"}
+            {isLeaving ? 'Leaving...' : 'Leave Group'}
           </button>
         </div>
       </div>
@@ -964,18 +1004,18 @@ function DeleteGroupModal({
     setIsDeleting(true);
 
     socket.emit(
-      "delete_group",
+      'delete_group',
       { groupId: group._id },
       (response: SocketResponse) => {
         if (response.success) {
-          toast.success("Group deleted successfully", {
-            position: "top-right",
+          toast.success('Group deleted successfully', {
+            position: 'top-right',
           });
           onSuccess?.();
           onClose();
         } else {
           toast.error(`Failed to delete group: ${response.error}`, {
-            position: "top-right",
+            position: 'top-right',
           });
         }
         setIsDeleting(false);
@@ -990,13 +1030,13 @@ function DeleteGroupModal({
           ⚠️ Delete Group
         </h3>
         <p className="text-gray-700 mb-6">
-          Are you sure you want to delete the group{" "}
+          Are you sure you want to delete the group{' '}
           <strong>{group.name}</strong>?
           <br />
           <br />
           <strong className="text-red-600">
             This action cannot be undone.
-          </strong>{" "}
+          </strong>{' '}
           All messages and group data will be permanently deleted.
         </p>
         <div className="flex justify-end gap-3">
@@ -1011,7 +1051,7 @@ function DeleteGroupModal({
             disabled={isDeleting}
             className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
           >
-            {isDeleting ? "Deleting..." : "Delete Group"}
+            {isDeleting ? 'Deleting...' : 'Delete Group'}
           </button>
         </div>
       </div>
