@@ -41,7 +41,7 @@ import { BsEmojiSmile } from "react-icons/bs";
 import { Loader } from "lucide-react";
 import repostImg from "@/public/images/custom-icons/feed_repost.png";
 import Image from "next/image";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 
 // Assuming FeedItemType is available or defined elsewhere
 interface FeedItemType {
@@ -101,8 +101,11 @@ const Reaction = memo(
     const [repostContentError, setRepostContentError] = useState("");
 
     const router = useRouter();
-
     const emojiPickerRef = useRef<HTMLDivElement>(null);
+    const searchParams = useSearchParams();
+    const tab = searchParams && searchParams?.get("tab"); // "ledger"
+
+    console.log("tab", tab);
 
     // Memoized formatted counts
     const formattedCounts = useMemo(
@@ -263,8 +266,11 @@ const Reaction = memo(
         content: {
           postId: postId,
           title: postContent,
+          isFromFeed: tab === "ledger" ? false : true,
         },
       };
+
+      console.log("payload for repost", payload);
 
       try {
         const data = await postFeed(payload, accessToken);

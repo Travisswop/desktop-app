@@ -157,31 +157,19 @@ const IndividualFeedContent = ({ feed, userId, token, onVoteSuccess }: any) => {
               )}
             </p>
             {/* Render Post Content */}
-            {feed.repostedPostDetails.postType === "post" &&
-              feed.repostedPostDetails.content.title && (
-                // <button
-                //   onClick={() => router.push(`/feed/${feed._id}`)}
-                //   className="w-full text-start"
-                // >
-                //   {feed.repostedPostDetails.content.title
-                //     .split("\n")
-                //     .map((line: string, index: number) => (
-                //       <p className="break-text" key={index}>
-                //         {line}
-                //       </p>
-                //     ))}
-                // </button>
-
-                <div className="w-full text-start">
-                  {feed.repostedPostDetails.content.title
-                    .split("\n")
-                    .map((line: string, index: number) => (
-                      <p className="break-text" key={index}>
-                        {makeLinksClickable(line)}
-                      </p>
-                    ))}
-                </div>
-              )}
+            {feed.repostedPostDetails.postType === "post" ||
+              (feed.repostedPostDetails.postType === "repost" &&
+                feed.repostedPostDetails.content.title && (
+                  <div className="w-full text-start">
+                    {feed.repostedPostDetails.content.title
+                      .split("\n")
+                      .map((line: string, index: number) => (
+                        <p className="break-text" key={index}>
+                          {makeLinksClickable(line)}
+                        </p>
+                      ))}
+                  </div>
+                ))}
 
             {feed.repostedPostDetails.postType === "swapTransaction" && (
               <SwapTransactionCard
