@@ -136,6 +136,118 @@ export class TransactionService {
   }
 
   /**
+   * Builds a Solana token transfer transaction without sending it.
+   * Used for Privy's native gas sponsorship where Privy handles signing and sending.
+   */
+  static async buildSolanaTokenTransfer(
+    solanaWallet: any,
+    sendFlow: SendFlowState,
+    connection: Connection
+  ): Promise<SolanaTransaction> {
+    if (!solanaWallet) throw new Error("No Solana wallet found");
+
+    if (!sendFlow.token) {
+      throw new Error("No token found");
+    }
+
+    let amount = parseFloat(sendFlow.amount);
+
+    if (sendFlow.isUSD && sendFlow.token?.marketData?.price) {
+      amount = amount / parseFloat(sendFlow.token.marketData.price);
+    }
+
+    const tx = new SolanaTransaction();
+
+    if (!sendFlow.token?.address) {
+      // Native SOL transfer
+      const lamports = Math.floor(amount * 1e9);
+
+      tx.add(
+        SystemProgram.transfer({
+          fromPubkey: new PublicKey(solanaWallet.address),
+          toPubkey: new PublicKey(sendFlow.recipient?.address || ""),
+          lamports,
+        })
+      );
+    } else {
+      // SPL Token transfer
+      const programId = await getSolanaTokenProgramId(
+        connection,
+        sendFlow.token.address
+      );
+      const associatedTokenProgramId = getAssociatedTokenProgramId(programId);
+
+      const fromTokenAccount = await getAssociatedTokenAddress(
+        new PublicKey(sendFlow.token.address),
+        new PublicKey(solanaWallet.address),
+        false,
+        programId,
+        associatedTokenProgramId
+      );
+
+      const toTokenAccount = await getAssociatedTokenAddress(
+        new PublicKey(sendFlow.token.address),
+        new PublicKey(sendFlow.recipient?.address || ""),
+        false,
+        programId,
+        associatedTokenProgramId
+      );
+
+      // Create recipient token account if needed
+      if (!(await connection.getAccountInfo(toTokenAccount))) {
+        tx.add(
+          createAssociatedTokenAccountInstruction(
+            new PublicKey(solanaWallet.address),
+            toTokenAccount,
+            new PublicKey(sendFlow.recipient?.address || ""),
+            new PublicKey(sendFlow.token.address),
+            programId,
+            associatedTokenProgramId
+          )
+        );
+      }
+
+      const tokenAmount = Math.floor(
+        amount * Math.pow(10, sendFlow.token.decimals)
+      );
+
+      const isToken2022 = programId.equals(TOKEN_2022_PROGRAM_ID);
+      if (isToken2022) {
+        tx.add(
+          createTransferCheckedInstruction(
+            fromTokenAccount,
+            new PublicKey(sendFlow.token.address),
+            toTokenAccount,
+            new PublicKey(solanaWallet.address),
+            tokenAmount,
+            sendFlow.token.decimals,
+            [],
+            programId
+          )
+        );
+      } else {
+        tx.add(
+          createTransferInstruction(
+            fromTokenAccount,
+            toTokenAccount,
+            new PublicKey(solanaWallet.address),
+            tokenAmount,
+            [],
+            programId
+          )
+        );
+      }
+    }
+
+    // Set up transaction metadata (blockhash and fee payer will be set by Privy)
+    const { blockhash } = await connection.getLatestBlockhash();
+    tx.recentBlockhash = blockhash;
+    tx.feePayer = new PublicKey(solanaWallet.address);
+
+    return tx;
+  }
+
+  /**
    * Handles token transfer on Solana network
    */
   static async handleSolanaSend(
@@ -719,139 +831,90 @@ export class TransactionService {
   }
 
   /**
-   * Submits a transaction using Privy's native gas sponsorship
+   * Submits a sponsored transaction using the backend's subsidy wallet as fee payer.
+   *
+   * Flow:
+   * 1. Build transaction with backend's FEE_PAYER_ADDRESS as fee payer
+   * 2. User's wallet signs the transaction (for transfer authority)
+   * 3. Backend signs as fee payer and submits
+   *
+   * Note: user and generateAuthorizationSignature params are kept for API compatibility
+   * but are no longer used with the relay transaction approach.
    */
   static async submitPrivyNativeSponsoredTransaction(
     tx: SolanaTransaction,
     solanaWallet: any,
     connection: Connection,
-    user: any,
-    generateAuthorizationSignature: (input: any) => Promise<any>
+    _user?: any,
+    _generateAuthorizationSignature?: (input: any) => Promise<any>
   ) {
     try {
-      // Set up transaction with proper blockhash and fee payer
+      // Get the fee payer address from environment
+      const feePayerAddress = process.env.NEXT_PUBLIC_FEE_PAYER_ADDRESS;
+
+      if (!feePayerAddress) {
+        throw new Error("Fee payer address not configured");
+      }
+
+      console.log("=== Sponsored Transaction (Subsidy Wallet) ===");
+      console.log("User wallet:", solanaWallet.address);
+      console.log("Fee payer (backend):", feePayerAddress);
+
+      // Set up transaction with backend's wallet as fee payer
       const { blockhash } = await connection.getLatestBlockhash();
       tx.recentBlockhash = blockhash;
-      tx.feePayer = new PublicKey(solanaWallet.address);
+      tx.feePayer = new PublicKey(feePayerAddress); // Backend pays gas
 
-      // Sign the transaction with the user's wallet
+      // User signs the transaction (for transfer authority)
+      // This works because the user is the authority for the token transfer
+      console.log("Requesting user signature for transfer...");
       const signedTx = await solanaWallet.signTransaction(tx);
+      console.log("User signed the transaction");
 
-      // Serialize the signed transaction
-      const serializedTransaction = Buffer.from(signedTx.serialize()).toString(
-        "base64"
-      );
+      // Serialize the partially signed transaction (user signed, fee payer not yet)
+      const serializedTransaction = Buffer.from(
+        signedTx.serialize({ requireAllSignatures: false, verifySignatures: false })
+      ).toString("base64");
 
-      // Get the correct Solana wallet ID from user's linkedAccounts
-      let walletId: string | null = null;
+      console.log("Transaction serialized, length:", serializedTransaction.length);
 
-      if (user?.linkedAccounts) {
-        // Find the Solana wallet in linkedAccounts
-        const solanaWalletAccount = user.linkedAccounts.find(
-          (account: any) =>
-            account.type === "wallet" &&
-            account.chainType === "solana" &&
-            account.address === solanaWallet.address
-        );
-        walletId = solanaWalletAccount?.id;
-      }
-
-      // Fallback to the old method if user object is not provided
-      if (!walletId) {
-        walletId = solanaWallet.id || solanaWallet.address;
-        console.warn(
-          "Using fallback wallet ID. Consider passing user object for correct wallet ID."
-        );
-      }
-
-      if (!walletId) {
-        throw new Error(
-          "Could not determine wallet ID for sponsored transaction"
-        );
-      }
-
-      // Call our backend API for Privy native gas sponsorship
-      // Generate authorization signature client-side to match backend RPC
-      const caip2 = "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp";
-
-      const input = {
-        version: 1,
-        url: `https://api.privy.io/v1/wallets/${walletId}/rpc`,
-        method: "POST",
-        headers: {
-          "privy-app-id": process.env.NEXT_PUBLIC_PRIVY_APP_ID,
-        },
-        body: {
-          method: "signAndSendTransaction",
-          caip2,
-          params: {
-            transaction: serializedTransaction,
-            encoding: "base64",
-          },
-          sponsor: true,
-        },
-      } as const;
-
-      console.log(
-        "Generating authorization signature for input:",
-        JSON.stringify(input, null, 2)
-      );
-
-      const sigResult = await generateAuthorizationSignature(input);
-      console.log("Authorization signature result:", sigResult);
-
-      const authorizationSignature =
-        typeof sigResult === "string"
-          ? sigResult
-          : sigResult?.authorizationSignature || sigResult?.signature || "";
-
-      if (!authorizationSignature) {
-        console.error(
-          "Failed to extract authorization signature from result:",
-          sigResult
-        );
-        throw new Error("Failed to generate authorization signature");
-      }
-
-      console.log("Using authorization signature:", authorizationSignature);
-
+      // Send to backend's relay endpoint for fee payer signature and submission
       const response = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL}/api/v5/wallet/sponsored-transaction`,
+        `${process.env.NEXT_PUBLIC_API_URL}/api/v5/wallet/relay-transaction`,
         {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
           },
           body: JSON.stringify({
-            walletId,
             transaction: serializedTransaction,
-            authorizationSignature,
           }),
         }
       );
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => null);
-        console.error("Sponsored transaction API error:", {
+        console.error("Relay transaction API error:", {
           status: response.status,
           statusText: response.statusText,
           errorData,
         });
         throw new Error(
-          errorData?.error ||
+          errorData?.error || errorData?.message ||
             `API error: ${response.status} ${response.statusText}`
         );
       }
 
       const result = await response.json();
 
-      if (!result.success) {
-        throw new Error(result.error || "Sponsored transaction failed");
+      if (!result.transactionHash) {
+        throw new Error(result.error || "Relay transaction failed - no hash returned");
       }
 
-      return result.signature || result.transactionId;
+      console.log("Sponsored transaction successful:", result.transactionHash);
+      return result.transactionHash;
     } catch (error) {
-      console.error("Privy native sponsored transaction failed:", error);
+      console.error("Sponsored transaction failed:", error);
       throw new Error(
         "Sponsored transaction failed: " + (error as Error).message
       );
