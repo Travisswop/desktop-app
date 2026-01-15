@@ -408,7 +408,7 @@ export default function MethodSelector({
                   </p>
                 </div>
               </button>
-              <button
+              {/* <button
                 onClick={handleSelectBank}
                 // onClick={() =>
                 //   setSendFlow((prev: any) => ({ ...prev, step: "bank-assets" }))
@@ -424,7 +424,7 @@ export default function MethodSelector({
                     Send solana USDC to your bank
                   </p>
                 </div>
-              </button>
+              </button> */}
             </div>
           </div>
         )}
