@@ -33,6 +33,10 @@ import logger from "@/utils/logger";
 import { useSolanaWallets } from "@privy-io/react-auth/solana";
 import GooglePlacesAutocomplete from "react-google-places-autocomplete";
 import { PrimaryButton } from "../ui/Button/PrimaryButton";
+import PhoneInput from "react-phone-number-input";
+import "react-phone-number-input/style.css";
+import { parsePhoneNumber, isValidPhoneNumber } from "libphonenumber-js";
+import CountrySelect from "./CountrySelect";
 
 interface RegistrationProps {
   user: PrivyUser;
@@ -46,6 +50,8 @@ export default function Registration({ user, onComplete }: RegistrationProps) {
   const [name, setName] = useState(user?.name || "");
   const [bio, setBio] = useState("");
   const [phone, setPhone] = useState("");
+  const [countryCode, setCountryCode] = useState("US");
+  const [countryFlag, setCountryFlag] = useState("🇺🇸");
   const [birthdate, setBirthdate] = useState(0);
   const [apartment, setApartment] = useState("");
   const [address, setAddress] = useState("");
@@ -343,6 +349,29 @@ export default function Registration({ user, onComplete }: RegistrationProps) {
     }
   };
 
+  // Handle phone number change with validation
+  const handlePhoneChange = (value: string | undefined) => {
+    setPhone(value || "");
+
+    if (value) {
+      try {
+        const phoneNumber = parsePhoneNumber(value);
+        console.log("phoneNumber", phoneNumber);
+
+        if (phoneNumber) {
+          setCountryCode(
+            phoneNumber.countryCallingCode
+              ? `+${phoneNumber.countryCallingCode}`
+              : "+1"
+          );
+          setCountryFlag(phoneNumber.country ? `${phoneNumber.country}` : "US");
+        }
+      } catch (error) {
+        console.error("Error parsing phone number:", error);
+      }
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -351,6 +380,17 @@ export default function Registration({ user, onComplete }: RegistrationProps) {
         variant: "destructive",
         title: "Error",
         description: "Name is required.",
+      });
+      return;
+    }
+
+    // Validate phone number
+    if (phone && !isValidPhoneNumber(phone)) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description:
+          "Please enter a valid phone number for the selected country.",
       });
       return;
     }
@@ -368,9 +408,9 @@ export default function Registration({ user, onComplete }: RegistrationProps) {
       // Refresh wallet data after creation
       refreshWalletData();
 
-      logger.info(
-        "Wallet creation completed, proceeding with user registration..."
-      );
+      // logger.info(
+      //   "Wallet creation completed, proceeding with user registration..."
+      // );
 
       // Process profile image
       let avatarUrl = profileImage;
@@ -404,8 +444,8 @@ export default function Registration({ user, onComplete }: RegistrationProps) {
         dob: birthdate.toString(),
         profilePic: avatarUrl,
         apt: apartment || "",
-        countryFlag: "US",
-        countryCode: "US",
+        countryFlag: countryFlag,
+        countryCode: countryCode,
         privyId: privyUser?.id,
         ethereumWallet: ethereumWallet?.address,
         solanaWallet: solanaWallet?.address,
@@ -557,18 +597,16 @@ export default function Registration({ user, onComplete }: RegistrationProps) {
                       <span style={{ color: "red" }}>*</span>
                     </p>
                   </Label>
-                  <div className="relative w-full">
-                    <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground">
-                      <Phone className="h-4 w-4" />
-                    </span>
-                    <Input
-                      id="phone"
-                      type="tel"
-                      placeholder="Enter your phone number"
+                  <div className="phone-input-wrapper">
+                    <PhoneInput
+                      international
+                      countryCallingCodeEditable={false}
+                      defaultCountry="US"
                       value={phone}
-                      onChange={(e) => setPhone(e.target.value)}
-                      required
-                      className="pl-8 focus:!ring-1 !ring-gray-300"
+                      onChange={handlePhoneChange}
+                      placeholder="Enter phone number"
+                      countrySelectComponent={CountrySelect}
+                      className="phone-input"
                     />
                   </div>
                 </div>
@@ -605,7 +643,7 @@ export default function Registration({ user, onComplete }: RegistrationProps) {
                   </Label>
                   <div className="relative w-full">
                     <span
-                      className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground cursor-pointer"
+                      className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground cursor-pointer z-10"
                       onClick={() =>
                         (
                           document.getElementById(
@@ -619,14 +657,19 @@ export default function Registration({ user, onComplete }: RegistrationProps) {
                     <Input
                       id="birthdate"
                       type="date"
+                      max={new Date().toISOString().split("T")[0]}
                       value={
                         birthdate
                           ? new Date(birthdate).toISOString().split("T")[0]
                           : ""
                       }
-                      onChange={(e) =>
-                        setBirthdate(new Date(e.target.value).getTime())
-                      }
+                      onChange={(e) => {
+                        const selectedDate = new Date(e.target.value).getTime();
+                        const today = new Date().setHours(23, 59, 59, 999);
+                        if (selectedDate <= today) {
+                          setBirthdate(selectedDate);
+                        }
+                      }}
                       className="pl-8 appearance-none focus:ring-1 ring-gray-300 custom-date-input"
                     />
                   </div>
@@ -654,11 +697,10 @@ export default function Registration({ user, onComplete }: RegistrationProps) {
                         styles: {
                           control: (base, state) => ({
                             ...base,
-                            paddingLeft: "1.35rem", // space for icon
-                            // minHeight: "42px",
+                            paddingLeft: "1.35rem",
                             borderRadius: "0.5rem",
                             border: state.isFocused
-                              ? "1px solid #edebeb" // focus (blue-600)
+                              ? "1px solid #edebeb"
                               : "1px solid #edebeb",
                             boxShadow: state.isFocused
                               ? "1px solid #edebeb"
@@ -666,7 +708,7 @@ export default function Registration({ user, onComplete }: RegistrationProps) {
                             "&:hover": {
                               border: state.isFocused
                                 ? "1px solid #edebeb"
-                                : "1px solid #edebeb", // hover (gray-300)
+                                : "1px solid #edebeb",
                             },
                           }),
                           input: (base) => ({
@@ -730,6 +772,46 @@ export default function Registration({ user, onComplete }: RegistrationProps) {
           )}
         </CardContent>
       </div>
+
+      <style jsx global>{`
+        .phone-input-wrapper .PhoneInput {
+          width: 100%;
+        }
+
+        .phone-input-wrapper .PhoneInputInput {
+          border: 1px solid #edebeb;
+          border-radius: 0.5rem;
+          padding: 0.5rem 0.75rem;
+          font-size: 0.875rem;
+          width: 100%;
+          outline: none;
+        }
+
+        .phone-input-wrapper .PhoneInputInput:focus {
+          border-color: #d1d5db;
+          ring: 1px solid #d1d5db;
+        }
+
+        .phone-input-wrapper .PhoneInputCountry {
+          margin-right: 0.5rem;
+        }
+
+        .phone-input-wrapper .PhoneInputCountrySelect {
+          border: none;
+          background: transparent;
+          cursor: pointer;
+        }
+
+        .phone-input-wrapper .PhoneInputCountrySelectArrow {
+          width: 0.375rem;
+          height: 0.375rem;
+          border-style: solid;
+          border-color: #6b7280;
+          border-width: 0 2px 2px 0;
+          transform: rotate(45deg);
+          margin-left: 0.25rem;
+        }
+      `}</style>
     </div>
   );
 }
