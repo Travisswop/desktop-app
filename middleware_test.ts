@@ -8,12 +8,12 @@ type AuthCacheEntry = {
   lastVerified?: number;
 };
 
-// Constants
-const CACHE_DURATION = 15 * 60 * 1000; // 15 minutes
-const EXTENDED_CACHE_DURATION = 2 * 60 * 60 * 1000; // 2 hours
-const VERIFICATION_INTERVAL = 5 * 60 * 1000; // 5 minutes
+// Constants - Proper session management
+const CACHE_TTL = 15 * 60 * 1000; // 15 minutes - cache validity period
+const VERIFICATION_INTERVAL = 30 * 60 * 1000; // 30 minutes - background refresh interval
+const EXTENDED_CACHE_DURATION = 24 * 60 * 60 * 1000; // 24 hours - maximum cache lifetime
 const MAX_CACHE_SIZE = 1000;
-const MAX_RETRIES = 2;
+const MAX_RETRIES = 3;
 
 const PROTECTED_ROUTES = new Set([
   "/",
@@ -148,22 +148,31 @@ function isPublicRoute(pathname: string): boolean {
 
 function cleanupCache(): void {
   const now = Date.now();
-  const expiredTime = now - EXTENDED_CACHE_DURATION;
+  const entries = [...authCache.entries()];
 
-  for (const [key, entry] of authCache.entries()) {
-    if (entry.timestamp < expiredTime) {
+  // Delete expired entries (older than EXTENDED_CACHE_DURATION)
+  let deletedCount = 0;
+  for (const [key, entry] of entries) {
+    if (now - entry.timestamp > EXTENDED_CACHE_DURATION) {
       authCache.delete(key);
+      deletedCount++;
     }
   }
 
+  if (deletedCount > 0) {
+    console.log(`Cleaned up ${deletedCount} expired cache entries`);
+  }
+
+  // If still over capacity after cleanup, delete oldest entries
   if (authCache.size > MAX_CACHE_SIZE) {
-    const entries = [...authCache.entries()].sort(
+    const sortedEntries = [...authCache.entries()].sort(
       (a, b) => a[1].timestamp - b[1].timestamp
     );
 
-    entries
-      .slice(0, authCache.size - MAX_CACHE_SIZE)
-      .forEach(([key]) => authCache.delete(key));
+    const toDelete = authCache.size - MAX_CACHE_SIZE;
+    sortedEntries.slice(0, toDelete).forEach(([key]) => authCache.delete(key));
+
+    console.log(`Cache over capacity, deleted ${toDelete} oldest entries`);
   }
 }
 
@@ -224,7 +233,7 @@ function handleMobileRedirect(
 function validateEnvironment(): boolean {
   const requiredEnvVars = {
     NEXT_PUBLIC_PRIVY_APP_ID: process.env.NEXT_PUBLIC_PRIVY_APP_ID,
-    NEXT_PUBLIC_PRIVY_APP_SECRET: process.env.NEXT_PUBLIC_PRIVY_APP_SECRET,
+    PRIVY_APP_SECRET: process.env.PRIVY_APP_SECRET,
   };
 
   const missingVars = Object.entries(requiredEnvVars)
@@ -260,9 +269,9 @@ async function verifyTokenWithRetry(
         throw error;
       }
 
-      await new Promise((resolve) =>
-        setTimeout(resolve, Math.pow(2, attempt) * 1000)
-      );
+      // Exponential backoff with jitter
+      const delay = Math.pow(2, attempt) * 1000 + Math.random() * 1000;
+      await new Promise((resolve) => setTimeout(resolve, delay));
     }
   }
 
@@ -273,7 +282,7 @@ async function fetchWithTimeout(
   url: string,
   options: RequestInit & { timeout?: number } = {}
 ): Promise<Response> {
-  const { timeout = 5000, ...fetchOptions } = options;
+  const { timeout = 10000, ...fetchOptions } = options;
 
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), timeout);
@@ -291,14 +300,6 @@ async function fetchWithTimeout(
   }
 }
 
-function shouldReVerifyToken(
-  cachedResult: AuthCacheEntry,
-  now: number
-): boolean {
-  const lastVerified = cachedResult.lastVerified || cachedResult.timestamp;
-  return now - lastVerified > VERIFICATION_INTERVAL;
-}
-
 async function backgroundTokenVerification(
   token: string,
   cacheKey: string
@@ -306,7 +307,7 @@ async function backgroundTokenVerification(
   try {
     const privyServer = new PrivyClient(
       process.env.NEXT_PUBLIC_PRIVY_APP_ID!,
-      process.env.NEXT_PUBLIC_PRIVY_APP_SECRET!
+      process.env.PRIVY_APP_SECRET!
     );
 
     const verificationResult = await verifyTokenWithRetry(privyServer, token);
@@ -314,15 +315,35 @@ async function backgroundTokenVerification(
 
     const existingCache = authCache.get(cacheKey);
     if (existingCache) {
+      // Update cache with actual verification result
       authCache.set(cacheKey, {
-        ...existingCache,
+        timestamp: now,
         isValid: verificationResult.isValid,
-        userId: verificationResult.userId,
+        userId: verificationResult.isValid
+          ? verificationResult.userId
+          : existingCache.userId,
         lastVerified: now,
       });
+
+      if (verificationResult.isValid) {
+        console.log("Background verification successful, cache updated");
+      } else {
+        console.warn("Background verification failed, cache marked invalid");
+      }
     }
   } catch (error) {
-    console.error("Background token verification failed:", error);
+    console.error("Background token verification error:", error);
+
+    // Mark cache as invalid on error
+    const existingCache = authCache.get(cacheKey);
+    if (existingCache) {
+      authCache.set(cacheKey, {
+        ...existingCache,
+        timestamp: Date.now(),
+        isValid: false,
+        lastVerified: Date.now(),
+      });
+    }
   }
 }
 
@@ -335,7 +356,7 @@ async function checkUserInBackend(userId: string): Promise<{
       `${process.env.NEXT_PUBLIC_API_URL}/api/v2/desktop/user/getPrivyUser/${userId}`,
       {
         headers: { "Content-Type": "application/json" },
-        timeout: 5000,
+        timeout: 10000,
       }
     );
 
@@ -355,76 +376,64 @@ async function verifyAndCacheToken(
   cachedResult: AuthCacheEntry | undefined,
   now: number
 ): Promise<{ isValid: boolean; userId: string }> {
-  // Valid cached result within primary cache duration
-  if (cachedResult && now - cachedResult.timestamp < CACHE_DURATION) {
-    const isValid = cachedResult.isValid;
-    const userId = cachedResult.userId || "";
+  // Check if we have a valid cached result within TTL
+  if (cachedResult) {
+    const age = now - cachedResult.timestamp;
+    const cacheAge = Math.floor(age / 60000);
 
-    // Background re-verification if needed
-    if (isValid && shouldReVerifyToken(cachedResult, now)) {
-      backgroundTokenVerification(token, cacheKey);
-    }
+    console.log(
+      `Cache hit: age=${cacheAge} minutes, valid=${cachedResult.isValid}`
+    );
 
-    return { isValid, userId };
-  }
+    // Only trust cache if it's within TTL and was previously valid
+    if (age < CACHE_TTL && cachedResult.isValid) {
+      console.log("Returning valid cached result");
 
-  // Extended cache with fresh verification attempt
-  if (cachedResult && now - cachedResult.timestamp < EXTENDED_CACHE_DURATION) {
-    try {
-      const privyServer = new PrivyClient(
-        process.env.NEXT_PUBLIC_PRIVY_APP_ID!,
-        process.env.NEXT_PUBLIC_PRIVY_APP_SECRET!
-      );
-
-      const verificationResult = await verifyTokenWithRetry(privyServer, token);
-
-      authCache.set(cacheKey, {
-        timestamp: now,
-        isValid: verificationResult.isValid,
-        userId: verificationResult.userId,
-        lastVerified: now,
-      });
-
-      return verificationResult;
-    } catch (tokenError) {
-      console.error(
-        "Token verification failed, using cached result:",
-        tokenError
-      );
-
-      // Fallback to cached result
-      authCache.set(cacheKey, {
-        ...cachedResult,
-        timestamp: now,
-      });
+      // Trigger background verification if needed (non-blocking)
+      if (age > VERIFICATION_INTERVAL) {
+        console.log("Triggering background verification");
+        backgroundTokenVerification(token, cacheKey).catch(() => {
+          // Log but don't throw
+        });
+      }
 
       return {
-        isValid: cachedResult.isValid,
+        isValid: true,
         userId: cachedResult.userId || "",
       };
     }
+
+    // Cache expired or invalid - need to re-verify
+    console.log("Cache expired or invalid, re-verifying token");
   }
 
-  // No cache or expired, fresh verification
+  // No cache or expired - verify token with Privy
+  console.log("Verifying token with Privy");
+
   try {
     const privyServer = new PrivyClient(
       process.env.NEXT_PUBLIC_PRIVY_APP_ID!,
-      process.env.NEXT_PUBLIC_PRIVY_APP_SECRET!
+      process.env.PRIVY_APP_SECRET!
     );
 
     const verificationResult = await verifyTokenWithRetry(privyServer, token);
 
+    console.log("Token verification result:", verificationResult.isValid);
+
+    // Cache the ACTUAL verification result
     authCache.set(cacheKey, {
       timestamp: now,
       isValid: verificationResult.isValid,
-      userId: verificationResult.userId,
+      userId: verificationResult.userId || "",
       lastVerified: now,
     });
 
+    // Return the actual verification result
     return verificationResult;
-  } catch (tokenError) {
-    console.error("Token verification failed:", tokenError);
+  } catch (error) {
+    console.error("Token verification failed:", error);
 
+    // Cache the failure to prevent repeated verification attempts
     authCache.set(cacheKey, {
       timestamp: now,
       isValid: false,
@@ -432,7 +441,11 @@ async function verifyAndCacheToken(
       lastVerified: now,
     });
 
-    return { isValid: false, userId: "" };
+    // Return actual failure
+    return {
+      isValid: false,
+      userId: "",
+    };
   }
 }
 
@@ -445,26 +458,35 @@ async function handleAuthenticatedUser(
     return null; // Continue with normal flow
   }
 
+  // If userId is empty (from failed verification), skip backend check
+  if (!userId) {
+    // On /login, go to onboard
+    if (pathname === "/login") {
+      return createRedirect(req, "/onboard", false);
+    }
+    // On /onboard, let them stay
+    return NextResponse.next();
+  }
+
   // Handle /onboard route
   if (pathname === "/onboard") {
     try {
       const { exists, status } = await checkUserInBackend(userId);
 
       if (exists) {
-        console.log(
-          `API call succeeded for userId: ${userId}, redirecting to /`
-        );
+        console.log(`User exists, redirecting to /`);
         return createRedirect(req, "/", false);
       } else if (status === 404) {
         return NextResponse.next();
       } else {
-        console.warn(
-          `API returned status ${status} for user ${userId}, allowing onboard access`
-        );
+        console.warn(`API returned status ${status}, allowing onboard access`);
         return NextResponse.next();
       }
     } catch (error) {
-      console.error("Error checking user in backend:", error);
+      console.error(
+        "Error checking user in backend (allowing onboard):",
+        error
+      );
       return NextResponse.next();
     }
   }
@@ -475,20 +497,17 @@ async function handleAuthenticatedUser(
       const { exists, status } = await checkUserInBackend(userId);
 
       if (exists) {
-        console.log(
-          `API call succeeded for userId: ${userId}, redirecting to /`
-        );
+        console.log(`User exists, redirecting to /`);
         return createRedirect(req, "/", false);
-      } else if (status === 404) {
-        return createRedirect(req, "/onboard", false);
       } else {
-        console.log(
-          `API call failed for userId: ${userId}, status: ${status}, redirecting to /onboard`
-        );
+        console.log(`User doesn't exist, redirecting to /onboard`);
         return createRedirect(req, "/onboard", false);
       }
     } catch (error) {
-      console.error("Error checking user in backend:", error);
+      console.error(
+        "Error checking user in backend (redirecting to onboard):",
+        error
+      );
       return createRedirect(req, "/onboard", false);
     }
   }
@@ -520,48 +539,97 @@ export async function middleware(req: NextRequest) {
     }
 
     const token = req.cookies.get("privy-token")?.value;
+    const accessToken = req.cookies.get("access-token")?.value;
 
-    // Handle authenticated users
-    if (token) {
+    // If token cookie exists, validate it before allowing access
+    if (token || accessToken) {
+      console.log(`[AUTH] Token found for path: ${pathname}`, {
+        hasPrivyToken: !!token,
+        hasAccessToken: !!accessToken,
+      });
+
       try {
+        // Use privy-token if available, fallback to access-token
+        const authToken = token || accessToken;
+        if (!authToken) {
+          console.error(
+            "[AUTH] Both tokens are undefined, this should not happen"
+          );
+          return response;
+        }
+
         cleanupCache();
-        const cacheKey = token;
+        const cacheKey = authToken;
         const cachedResult = authCache.get(cacheKey);
         const now = Date.now();
 
+        console.log(`[AUTH] Cache status:`, {
+          hasCached: !!cachedResult,
+          cacheAge: cachedResult
+            ? Math.floor((now - cachedResult.timestamp) / 60000)
+            : null,
+        });
+
         const { isValid, userId } = await verifyAndCacheToken(
-          token,
+          authToken,
           cacheKey,
           cachedResult,
           now
         );
 
-        if (isValid && userId) {
+        console.log(`[AUTH] Verification result:`, {
+          isValid,
+          hasUserId: !!userId,
+        });
+
+        // Token is valid - allow access
+        if (isValid) {
           const authRedirect = await handleAuthenticatedUser(
             req,
             pathname,
             userId
           );
           if (authRedirect) {
+            console.log(`[AUTH] Redirecting authenticated user`);
             return authRedirect;
           }
 
-          // User is authenticated and not on auth route
+          console.log(`[AUTH] Allowing authenticated access to: ${pathname}`);
           return response;
         }
+
+        // Token is invalid - clear cookies and redirect to login if accessing protected route
+        console.warn("[AUTH] Token validation failed, clearing session");
+
+        if (isProtectedRoute(pathname)) {
+          return createRedirect(req, "/login", true);
+        }
+
+        // For non-protected routes, clear cookies but allow access
+        const responseWithClearedCookies = NextResponse.next();
+        responseWithClearedCookies.cookies.delete("privy-token");
+        responseWithClearedCookies.cookies.delete("access-token");
+        responseWithClearedCookies.cookies.delete("privy-id-token");
+        responseWithClearedCookies.cookies.delete("privy-refresh-token");
+        return responseWithClearedCookies;
       } catch (error) {
-        console.error("Authentication error:", error);
+        console.error("[AUTH] Error during authentication:", error);
+
+        // On authentication error, redirect to login for protected routes
+        if (isProtectedRoute(pathname)) {
+          return createRedirect(req, "/login", true);
+        }
+
+        return response;
       }
     }
 
-    // Handle unauthenticated requests
-    if (isProtectedRoute(pathname) && !token) {
-      return createRedirect(req, "/login", true);
-    } else if (isProtectedRoute(pathname) && token) {
-      console.log(
-        "Token present but invalid or not verified, allowing fallback check"
-      );
-      return NextResponse.next();
+    console.log(`[AUTH] No token found for path: ${pathname}`);
+
+    // NO TOKEN: Only redirect to login if accessing protected route
+    if (isProtectedRoute(pathname)) {
+      console.log(`[AUTH] Protected route without token, redirecting to login`);
+      return createRedirect(req, "/login", false);
     }
 
     // Add CSP headers in production
@@ -584,11 +652,22 @@ export async function middleware(req: NextRequest) {
       path: req.nextUrl.pathname,
     });
 
-    if (isAuthRoute(req.nextUrl.pathname)) {
+    // On any error, check if token exists
+    const token = req.cookies.get("privy-token")?.value;
+    const accessToken = req.cookies.get("access-token")?.value;
+
+    // If either token exists, ALWAYS let them through
+    if (token || accessToken) {
+      console.log("Error occurred but token exists, allowing access");
       return NextResponse.next();
     }
 
-    return createRedirect(req, "/login", true);
+    // Only redirect if genuinely no token AND on protected route
+    if (isProtectedRoute(req.nextUrl.pathname)) {
+      return createRedirect(req, "/login", false);
+    }
+
+    return NextResponse.next();
   }
 }
 
