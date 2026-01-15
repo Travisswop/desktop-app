@@ -303,6 +303,8 @@ export default function SendToModal({
         accessToken || ''
       );
 
+      console.log('data', data);
+
       if (data.state === 'success') {
         const results = data.data.results || [];
 

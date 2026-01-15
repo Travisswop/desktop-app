@@ -12,9 +12,12 @@ import {
 import {
   usePrivy,
   useWallets,
-  useSolanaWallets,
   useAuthorizationSignature,
 } from '@privy-io/react-auth';
+import {
+  useSolanaWallets,
+  useSendTransaction,
+} from '@privy-io/react-auth/solana';
 import { useSolanaWalletContext } from '@/lib/context/SolanaWalletContext';
 import { Connection } from '@solana/web3.js';
 import { useToast } from '@/hooks/use-toast';
@@ -189,6 +192,9 @@ const WalletContentInner = () => {
     wallets: directSolanaWallets,
     createWallet: createSolanaWallet,
   } = useSolanaWallets();
+
+  // Privy's native sponsored transaction hook
+  const { sendTransaction } = useSendTransaction();
 
   const { solanaWallets } = useSolanaWalletContext();
   const { toast } = useToast();
@@ -479,26 +485,45 @@ const WalletContentInner = () => {
       } else if (sendFlow.token) {
         // Handle token transfer
         if (sendFlow.token.chain.toUpperCase() === 'SOLANA') {
-          const result = await TransactionService.handleSolanaSend(
-            solanaWallet,
-            sendFlow,
-            connection,
-            PrivyUser,
-            generateAuthorizationSignature
-          );
-
-          hash = result;
-
-          // For sponsored transactions (USDC/SWOP), Privy handles confirmation
-          // For regular transactions, we need to confirm manually
+          // Check if this should be a sponsored transaction
           const isSponsored =
-            sendFlow.token?.address === USDC_ADDRESS ||
-            sendFlow.token?.address === SWOP_ADDRESS;
+            !sendFlow.isOrder &&
+            (sendFlow.token?.address === USDC_ADDRESS ||
+              sendFlow.token?.address === SWOP_ADDRESS);
 
-          if (hash && !isSponsored) {
+          if (isSponsored) {
+            // Use Privy's native gas sponsorship
+            console.log('=== Using Privy Native Gas Sponsorship ===');
+
+            // Build the transaction without sending
+            const transaction =
+              await TransactionService.buildSolanaTokenTransfer(
+                solanaWallet,
+                sendFlow,
+                connection
+              );
+
+            // Use Privy's sendTransaction - gas sponsorship is configured in Privy dashboard
+            // Make sure gas sponsorship is enabled in Privy dashboard for Solana
+            const result = await sendTransaction({
+              transaction,
+              connection,
+            });
+
+            hash = result.signature;
+            console.log('Sponsored transaction signature:', hash);
+          } else {
+            // Regular transaction flow (user pays gas)
+            const result =
+              await TransactionService.handleSolanaSendWithoutSponsorship(
+                solanaWallet,
+                sendFlow,
+                connection
+              );
+
+            hash = result;
             await connection.confirmTransaction(hash);
           }
-          // If sponsored, the transaction is already confirmed by Privy
         } else {
           // EVM token transfer
           await evmWallet?.switchChain(
@@ -533,7 +558,7 @@ const WalletContentInner = () => {
     PrivyUser,
     ethWallets,
     refetchNFTs,
-    generateAuthorizationSignature,
+    sendTransaction,
   ]);
 
   // Main transaction handler
