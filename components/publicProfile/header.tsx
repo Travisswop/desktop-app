@@ -123,7 +123,7 @@ const PublicProfileHeader: FC<Props> = ({
           <ProfileImage avatar={avatar} name={name} />
 
           {user && user?.ensName !== userName && !isAlreadyConnected && (
-            <div className="absolute -right-2 bottom-2 ml-2">
+            <div className="absolute -right-3 bottom-2 ml-2">
               <Dialog open={openDC} onOpenChange={setOpenDC}>
                 <DialogTrigger>
                   <div className="bg-white border-2 rounded-full border-black p-1">

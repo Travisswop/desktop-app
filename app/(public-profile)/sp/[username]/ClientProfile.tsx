@@ -151,8 +151,6 @@ export default function ClientProfile({ userName }: ClientProfileProps) {
               </div>
             )}
 
-            <div className="mt-4"></div>
-
             {/* market place - Grouped by nftType */}
             {info?.marketPlace && info.marketPlace.length > 0 && (
               <div className="w-full space-y-3 mb-4">
@@ -160,12 +158,14 @@ export default function ClientProfile({ userName }: ClientProfileProps) {
                   ([nftType, items]: [string, any[]]) => (
                     <div key={nftType} className="w-full">
                       {/* Group Title */}
-                      <h3
-                        style={{ color: fontColor && fontColor }}
-                        className="text-xl font-medium mb-1 capitalize"
+                      <h2
+                        style={{
+                          color: fontColor ? fontColor : "black",
+                        }}
+                        className="text-base font-semibold capitalize mb-1"
                       >
                         {nftType}
-                      </h3>
+                      </h2>
 
                       {/* If items > 2, show carousel, else show grid */}
                       {items.length > 2 ? (
@@ -173,6 +173,7 @@ export default function ClientProfile({ userName }: ClientProfileProps) {
                           opts={{
                             align: "start",
                             loop: true,
+                            slidesToScroll: 2,
                           }}
                           className="w-full"
                         >
@@ -180,7 +181,7 @@ export default function ClientProfile({ userName }: ClientProfileProps) {
                             {items.map((item, index) => (
                               <CarouselItem
                                 key={item._id}
-                                className="pl-2 md:pl-4 basis-full sm:basis-1/2"
+                                className="pl-2 md:pl-3 basis-[45%]"
                               >
                                 <MarketPlace
                                   data={item}
@@ -190,16 +191,14 @@ export default function ClientProfile({ userName }: ClientProfileProps) {
                                   number={index}
                                   userId={user?._id}
                                   accessToken={accessToken}
-                                  secondaryFontColor={secondaryFontColor}
+                                  fontColor={fontColor}
                                 />
                               </CarouselItem>
                             ))}
                           </CarouselContent>
-                          <CarouselPrevious className="left-0" />
-                          <CarouselNext className="right-0" />
                         </Carousel>
                       ) : (
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div className="grid grid-cols-2 gap-2">
                           {items.map((item, index) => (
                             <MarketPlace
                               key={item._id}

@@ -343,7 +343,7 @@ const SmartsiteIconLivePreview = ({
                     {Object.entries(
                       groupMarketPlaceByType(data.info.marketPlace),
                     ).map(([nftType, items]) => (
-                      <div key={nftType} className="flex flex-col gap-y-3">
+                      <div key={nftType} className="flex flex-col gap-y-1">
                         <h3
                           style={{
                             color: formData.fontColor
@@ -360,6 +360,7 @@ const SmartsiteIconLivePreview = ({
                             opts={{
                               align: "start",
                               loop: false,
+                              slidesToScroll: 2,
                             }}
                             className="w-full"
                           >
@@ -369,14 +370,7 @@ const SmartsiteIconLivePreview = ({
                                   key={item._id}
                                   className="pl-2 md:pl-3 basis-[45%]"
                                 >
-                                  <div
-                                    style={{
-                                      backgroundColor: formData.templateColor
-                                        ? formData.templateColor
-                                        : "white",
-                                    }}
-                                    className="rounded-xl shadow-small hover:shadow-medium transition-all duration-200 relative overflow-hidden group"
-                                  >
+                                  <div className="bg-white rounded-xl shadow-small hover:shadow-medium transition-all duration-200 relative overflow-hidden group">
                                     <button
                                       onClick={() =>
                                         handleMarketPlaceDelete(
@@ -393,7 +387,7 @@ const SmartsiteIconLivePreview = ({
                                     </button>
 
                                     <div className="flex flex-col">
-                                      <div className="relative w-full aspect-square overflow-hidden">
+                                      <div className="relative aspect-square overflow-hidden m-6 mx-10 rounded-md">
                                         <Image
                                           src={item.itemImageUrl}
                                           alt={item.itemName}
@@ -403,19 +397,19 @@ const SmartsiteIconLivePreview = ({
                                         />
                                       </div>
 
-                                      <div className="p-3">
-                                        <div
-                                          style={{
-                                            color: formData.secondaryFontColor
-                                              ? formData.secondaryFontColor
-                                              : "black",
-                                          }}
-                                          className="flex flex-col gap-0.5"
-                                        >
-                                          <p className="text-sm font-semibold line-clamp-1">
+                                      <div className="p-3 pt-0">
+                                        <div className="flex flex-col gap-0.5">
+                                          <p
+                                            style={{
+                                              color: formData.fontColor
+                                                ? formData.fontColor
+                                                : "black",
+                                            }}
+                                            className="text-sm font-semibold line-clamp-1"
+                                          >
                                             {item.itemName}
                                           </p>
-                                          <p className="text-xs font-medium mt-0.5">
+                                          <p className="text-xs font-medium mt-0.5 bg-gray-100 w-max px-2 py-0.5 rounded-md">
                                             ${item.itemPrice}
                                           </p>
                                         </div>
@@ -431,12 +425,7 @@ const SmartsiteIconLivePreview = ({
                             {items.map((item: any) => (
                               <div
                                 key={item._id}
-                                style={{
-                                  backgroundColor: formData.templateColor
-                                    ? formData.templateColor
-                                    : "white",
-                                }}
-                                className="rounded-xl shadow-small hover:shadow-medium transition-all duration-200 relative overflow-hidden group"
+                                className="bg-white rounded-xl shadow-small hover:shadow-medium transition-all duration-200 relative overflow-hidden group"
                               >
                                 <button
                                   onClick={() =>
@@ -454,7 +443,7 @@ const SmartsiteIconLivePreview = ({
                                 </button>
 
                                 <div className="flex flex-col">
-                                  <div className="relative w-full aspect-square overflow-hidden">
+                                  <div className="relative aspect-square overflow-hidden m-6 mx-12 rounded-md">
                                     <Image
                                       src={item.itemImageUrl}
                                       alt={item.itemName}
@@ -464,19 +453,19 @@ const SmartsiteIconLivePreview = ({
                                     />
                                   </div>
 
-                                  <div className="p-3">
-                                    <div
-                                      style={{
-                                        color: formData.secondaryFontColor
-                                          ? formData.secondaryFontColor
-                                          : "black",
-                                      }}
-                                      className="flex flex-col gap-0.5"
-                                    >
-                                      <p className="text-sm font-semibold line-clamp-1">
+                                  <div className="p-3 pt-0">
+                                    <div className="flex flex-col gap-0.5">
+                                      <p
+                                        style={{
+                                          color: formData.fontColor
+                                            ? formData.fontColor
+                                            : "black",
+                                        }}
+                                        className="text-sm font-semibold line-clamp-1"
+                                      >
                                         {item.itemName}
                                       </p>
-                                      <p className="text-xs font-medium mt-0.5">
+                                      <p className="text-xs font-medium mt-0.5 bg-gray-100 w-max px-2 py-0.5 rounded-md">
                                         ${item.itemPrice}
                                       </p>
                                     </div>
@@ -512,34 +501,32 @@ const SmartsiteIconLivePreview = ({
                         className="shadow-small hover:shadow-medium p-2 2xl:p-3 rounded-lg cursor-pointer"
                       >
                         <div>
-                          <div>
-                            <div className="relative">
-                              <Image
-                                src={item.image}
-                                alt={item.title}
-                                width={600}
-                                height={400}
-                                className="w-full h-24 2xl:h-28 object-cover rounded-lg"
-                              />
-                            </div>
-                            <div
-                              style={{
-                                color: formData.secondaryFontColor
-                                  ? formData.secondaryFontColor
-                                  : "black",
-                              }}
-                            >
-                              {item?.title && (
-                                <p className="text-sm font-medium mt-1">
-                                  {item.title}
-                                </p>
-                              )}
-                              {item?.headline && (
-                                <p className="text-xs truncate">
-                                  {item.headline}
-                                </p>
-                              )}
-                            </div>
+                          <div className="relative">
+                            <Image
+                              src={item.image}
+                              alt={item.title}
+                              width={600}
+                              height={400}
+                              className="w-full h-24 2xl:h-28 object-cover rounded-lg"
+                            />
+                          </div>
+                          <div
+                            style={{
+                              color: formData.secondaryFontColor
+                                ? formData.secondaryFontColor
+                                : "black",
+                            }}
+                          >
+                            {item?.title && (
+                              <p className="text-sm font-medium mt-1">
+                                {item.title}
+                              </p>
+                            )}
+                            {item?.headline && (
+                              <p className="text-xs truncate">
+                                {item.headline}
+                              </p>
+                            )}
                           </div>
                         </div>
                         <div className="flex flex-wrap justify-end items-center mt-3 gap-2">
