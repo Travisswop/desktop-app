@@ -20,7 +20,7 @@ const SmartsitePage = () => {
 
   const { data, error, isLoading } = useDesktopUserData(
     user?._id,
-    accessToken || ""
+    accessToken || "",
   );
 
   console.log("useUser user", user);
@@ -33,6 +33,7 @@ const SmartsitePage = () => {
   if (error) {
     return <p>Something Went Wrong!</p>;
   }
+
   return (
     <div className="">
       <div className="flex items-center justify-between mb-3">

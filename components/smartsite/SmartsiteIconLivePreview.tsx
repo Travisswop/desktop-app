@@ -1,6 +1,6 @@
 "use client";
 import Image from "next/image";
-import React, { useEffect, useState } from "react";
+import React, { FC, useEffect, useState } from "react";
 import swop from "@/public/images/live-preview/swop.svg";
 import useSmartsiteFormStore from "@/zustandStore/EditSmartsiteInfo";
 import useUpdateSmartIcon from "@/zustandStore/UpdateSmartIcon";
@@ -41,6 +41,38 @@ import {
 } from "@/components/ui/carousel";
 import { useUser } from "@/lib/UserContext";
 import distributeSmallIcons from "../util/distributeSmallIcons";
+import Bio from "../publicProfile/bio";
+import Header from "../publicProfile/header";
+import getSmallIconColorFilter from "@/utils/smallIconColorFilter";
+import { MotionButton } from "../Motion";
+interface ColoredIconProps {
+  src: string;
+  color: string;
+  className?: string;
+}
+
+const ColoredIcon: FC<ColoredIconProps> = ({
+  src,
+  color,
+  className = "w-5 h-5",
+}) => {
+  return (
+    <div
+      className={className}
+      style={{
+        backgroundColor: color,
+        WebkitMaskImage: `url(${src})`,
+        maskImage: `url(${src})`,
+        WebkitMaskSize: "contain",
+        maskSize: "contain",
+        WebkitMaskRepeat: "no-repeat",
+        maskRepeat: "no-repeat",
+        WebkitMaskPosition: "center",
+        maskPosition: "center",
+      }}
+    />
+  );
+};
 
 const SmartsiteIconLivePreview = ({
   data,
@@ -67,7 +99,7 @@ const SmartsiteIconLivePreview = ({
   // console.log("form data from live preview data", data.info.socialLarge);
 
   const setSmartSiteApiData = useSmartSiteApiDataStore(
-    (state: any) => state.setSmartSiteData
+    (state: any) => state.setSmartSiteData,
   );
 
   const { user, accessToken } = useUser();
@@ -186,7 +218,7 @@ const SmartsiteIconLivePreview = ({
 
       const response = await handleDeleteMarketPlace(
         payload,
-        accessToken || ""
+        accessToken || "",
       );
 
       console.log("response hola", response);
@@ -234,7 +266,7 @@ const SmartsiteIconLivePreview = ({
       }}
       className="max-w-screen h-[calc(100vh-96px)] overflow-x-hidden -m-6 bg-cover bg-no-repeat overflow-y-auto"
     >
-      <div className="relative min-w-96 max-w-[500px] mx-auto h-full ">
+      <div className="relative max-w-md mx-auto h-full ">
         <section
           className={`${
             formData.fontType && fontMap[formData.fontType.toLowerCase()]
@@ -242,59 +274,23 @@ const SmartsiteIconLivePreview = ({
         >
           <div className={`flex flex-col justify-between`}>
             <div>
-              <div className="relative">
-                <div className={"flex justify-center pt-10"}>
-                  {formData.profileImg && (
-                    <>
-                      {isUrl(formData.profileImg) ? (
-                        <div className="relative w-28 xl:w-32 h-28 xl:h-32 overflow-hidden border-3 border-white rounded-full">
-                          <Image
-                            alt="user image"
-                            src={formData.profileImg}
-                            quality={100}
-                            fill
-                          />
-                        </div>
-                      ) : (
-                        <div className="w-28 xl:w-32 h-28 xl:h-32 overflow-hidden border-3 border-white rounded-full">
-                          <Image
-                            alt="user image"
-                            src={`/images/user_avator/${formData.profileImg}@3x.png`}
-                            width={1200}
-                            height={1200}
-                            quality={100}
-                            className="w-full h-full shadow-medium"
-                          />
-                        </div>
-                      )}
-                    </>
-                  )}
-                </div>
-              </div>
-              <div className={`flex flex-col gap-5 h-full justify-start mt-4`}>
-                <div
-                  className={`flex flex-col items-center text-center ${
-                    formData.fontType &&
-                    fontMap[formData.fontType.toLowerCase()]
-                  }`}
-                >
-                  <p
-                    style={{
-                      color: formData.fontColor && formData.fontColor,
-                    }}
-                    className={`font-semibold text-lg text-gray-900`}
-                  >
-                    {formData.name || data?.name}
-                  </p>
-                  <p
-                    style={{
-                      color: formData.fontColor && formData.fontColor,
-                    }}
-                    className={`font-medium text-sm text-gray-800`}
-                  >
-                    {formData.bio || data?.bio}
-                  </p>
-                </div>
+              <div className={`space-y-5 h-full justify-start mt-10`}>
+                <Header
+                  isFromPublicProfile={false}
+                  avatar={data.profilePic}
+                  // cover={backgroundImg.toString()}
+                  name={data.name}
+                  parentId={data.parentId}
+                  micrositeId={data._id}
+                  theme={data.theme}
+                  accessToken={accessToken ? accessToken : ""}
+                />
+                <Bio
+                  name={data.name}
+                  bio={data.bio}
+                  primaryFontColor={data.fontColor}
+                  secondaryFontColor={data.secondaryFontColor}
+                />
 
                 {/* small icon display here start */}
                 <div className="space-y-4">
@@ -304,7 +300,13 @@ const SmartsiteIconLivePreview = ({
                       className="flex justify-center gap-x-6 gap-y-4 flex-wrap"
                     >
                       {row.map((item: any, index: number) => (
-                        <button
+                        <MotionButton
+                          whileHover={{ scale: 1.05 }}
+                          transition={{
+                            type: "spring",
+                            stiffness: 400,
+                            damping: 10,
+                          }}
                           key={index}
                           onClick={() =>
                             handleTriggerUpdate({
@@ -318,24 +320,17 @@ const SmartsiteIconLivePreview = ({
                               getSmallIconImage(item.name, item.group) as any
                             }
                             alt="icon"
-                            style={
-                              formData.templateColor === "#ffffff" ||
-                              formData.templateColor === "#FFFFFF"
-                                ? { filter: "brightness(0) invert(1)" }
-                                : formData.templateColor === "#D3D3D3" ||
-                                  formData.templateColor === "#808080"
-                                ? {
-                                    filter:
-                                      "brightness(0) saturate(0%) opacity(0.5)",
-                                  }
-                                : tintStyle
-                            }
                             className="w-5 h-auto"
                             width={1200}
                             height={1200}
                             quality={100}
+                            style={{
+                              filter: getSmallIconColorFilter(
+                                formData.fontColor,
+                              ),
+                            }}
                           />
-                        </button>
+                        </MotionButton>
                       ))}
                     </div>
                   ))}
@@ -346,7 +341,7 @@ const SmartsiteIconLivePreview = ({
                 {data.info.marketPlace.length > 0 && (
                   <div className="flex flex-col gap-y-5 px-3">
                     {Object.entries(
-                      groupMarketPlaceByType(data.info.marketPlace)
+                      groupMarketPlaceByType(data.info.marketPlace),
                     ).map(([nftType, items]) => (
                       <div key={nftType} className="flex flex-col gap-y-3">
                         <h3
@@ -386,7 +381,7 @@ const SmartsiteIconLivePreview = ({
                                       onClick={() =>
                                         handleMarketPlaceDelete(
                                           item._id,
-                                          item.micrositeId
+                                          item.micrositeId,
                                         )
                                       }
                                       className="absolute top-2 right-2 z-10 bg-white rounded-lg p-1.5 shadow-sm hover:bg-red-50 transition-all opacity-0 group-hover:opacity-100"
@@ -447,7 +442,7 @@ const SmartsiteIconLivePreview = ({
                                   onClick={() =>
                                     handleMarketPlaceDelete(
                                       item._id,
-                                      item.micrositeId
+                                      item.micrositeId,
                                     )
                                   }
                                   className="absolute top-2 right-2 z-10 bg-white rounded-lg p-1.5 shadow-sm hover:bg-red-50 transition-all opacity-0 group-hover:opacity-100"
@@ -668,12 +663,12 @@ const SmartsiteIconLivePreview = ({
                             formData.secondaryFontColor === "#ffffff"
                               ? { filter: "brightness(0) invert(1)" }
                               : formData.secondaryFontColor === "#D3D3D3" ||
-                                formData.secondaryFontColor === "#808080"
-                              ? {
-                                  filter:
-                                    "brightness(0) saturate(0%) opacity(0.5)",
-                                }
-                              : tintStyle
+                                  formData.secondaryFontColor === "#808080"
+                                ? {
+                                    filter:
+                                      "brightness(0) saturate(0%) opacity(0.5)",
+                                  }
+                                : tintStyle
                           }
                         />
                         <div
@@ -728,12 +723,12 @@ const SmartsiteIconLivePreview = ({
                             formData.secondaryFontColor === "#ffffff"
                               ? { filter: "brightness(0) invert(1)" }
                               : formData.secondaryFontColor === "#D3D3D3" ||
-                                formData.secondaryFontColor === "#808080"
-                              ? {
-                                  filter:
-                                    "brightness(0) saturate(0%) opacity(0.5)",
-                                }
-                              : tintStyle
+                                  formData.secondaryFontColor === "#808080"
+                                ? {
+                                    filter:
+                                      "brightness(0) saturate(0%) opacity(0.5)",
+                                  }
+                                : tintStyle
                           }
                           alt="icon"
                           quality={100}
@@ -850,12 +845,12 @@ const SmartsiteIconLivePreview = ({
                                     filter: "brightness(0) invert(1)",
                                   }
                                 : formData.secondaryFontColor === "#D3D3D3" ||
-                                  formData.secondaryFontColor === "#808080"
-                                ? {
-                                    filter:
-                                      "brightness(0) saturate(0%) opacity(0.5)",
-                                  }
-                                : tintStyle
+                                    formData.secondaryFontColor === "#808080"
+                                  ? {
+                                      filter:
+                                        "brightness(0) saturate(0%) opacity(0.5)",
+                                    }
+                                  : tintStyle
                             }
                           />
                           <div
@@ -937,12 +932,12 @@ const SmartsiteIconLivePreview = ({
                             formData.secondaryFontColor === "#ffffff"
                               ? { filter: "brightness(0) invert(1)" }
                               : formData.secondaryFontColor === "#D3D3D3" ||
-                                formData.secondaryFontColor === "#808080"
-                              ? {
-                                  filter:
-                                    "brightness(0) saturate(0%) opacity(0.5)",
-                                }
-                              : tintStyle
+                                  formData.secondaryFontColor === "#808080"
+                                ? {
+                                    filter:
+                                      "brightness(0) saturate(0%) opacity(0.5)",
+                                  }
+                                : tintStyle
                           }
                           alt="icon"
                           quality={100}

@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Image from "next/image";
-import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -10,7 +9,6 @@ import {
   Upload,
   User,
   User2,
-  Phone,
   Mail,
   Calendar,
   Building,
@@ -20,9 +18,6 @@ import {
 import { PrivyUser, OnboardingData } from "@/lib/types";
 import { uploadImageToCloudinary } from "@/lib/cloudinary";
 import { useToast } from "@/hooks/use-toast";
-import astronot from "@/public/onboard/astronot.svg";
-import blackPlanet from "@/public/onboard/black-planet.svg";
-import editIcon from "@/public/images/websites/edit-icon.svg";
 import { useDisclosure } from "@nextui-org/react";
 import userProfileImages from "../util/data/userProfileImage";
 import SelectAvatorModal from "../modal/SelectAvatorModal";
@@ -57,7 +52,7 @@ export default function Registration({ user, onComplete }: RegistrationProps) {
   const [address, setAddress] = useState("");
   const [profileImage, setProfileImage] = useState("1");
   const [profileImageUrl, setProfileImageUrl] = useState(
-    "/images/user_avator/1.png?height=32&width=32"
+    "/images/user_avator/1.png?height=32&width=32",
   );
   const [walletData, setWalletData] = useState<WalletItem[]>([]);
   const [isUserProfileModalOpen, setIsUserProfileModalOpen] = useState(false);
@@ -168,13 +163,13 @@ export default function Registration({ user, onComplete }: RegistrationProps) {
       }
 
       logger.info(
-        `Authentication status: authenticated=${authenticated}, ready=${ready}, user=${!!privyUser}`
+        `Authentication status: authenticated=${authenticated}, ready=${ready}, user=${!!privyUser}`,
       );
 
       // Add a small delay to ensure authentication is fully propagated
       await new Promise((resolve) => setTimeout(resolve, 500));
       logger.info(
-        "Authentication delay complete, proceeding with wallet creation..."
+        "Authentication delay complete, proceeding with wallet creation...",
       );
 
       // Check if user already has wallets
@@ -182,21 +177,21 @@ export default function Registration({ user, onComplete }: RegistrationProps) {
         (account: any) =>
           account.chainType === "ethereum" &&
           (account.walletClientType === "privy" ||
-            account.connectorType === "embedded")
+            account.connectorType === "embedded"),
       );
 
       const hasSolanaWallet = privyUser?.linkedAccounts.some(
         (account: any) =>
           account.chainType === "solana" &&
           (account.walletClientType === "privy" ||
-            account.connectorType === "embedded")
+            account.connectorType === "embedded"),
       );
 
       logger.info(
-        `Wallet status check - Ethereum: ${hasEthereumWallet}, Solana: ${hasSolanaWallet}`
+        `Wallet status check - Ethereum: ${hasEthereumWallet}, Solana: ${hasSolanaWallet}`,
       );
       logger.info(
-        `Wallets created state - Ethereum: ${walletsCreated.ethereum}, Solana: ${walletsCreated.solana}`
+        `Wallets created state - Ethereum: ${walletsCreated.ethereum}, Solana: ${walletsCreated.solana}`,
       );
 
       // Create Ethereum wallet if needed
@@ -207,7 +202,7 @@ export default function Registration({ user, onComplete }: RegistrationProps) {
           // Double-check authentication before wallet creation
           if (!authenticated || !ready || !privyUser) {
             logger.error(
-              "Authentication state changed during wallet creation - aborting Ethereum wallet creation"
+              "Authentication state changed during wallet creation - aborting Ethereum wallet creation",
             );
             return;
           }
@@ -225,25 +220,25 @@ export default function Registration({ user, onComplete }: RegistrationProps) {
               return { status: "already_exists" };
             }
             logger.error(
-              `Ethereum wallet creation error: ${JSON.stringify(error)}`
+              `Ethereum wallet creation error: ${JSON.stringify(error)}`,
             );
             throw error;
           });
 
           logger.info(
-            `Ethereum wallet creation result: ${JSON.stringify(result)}`
+            `Ethereum wallet creation result: ${JSON.stringify(result)}`,
           );
           setWalletsCreated((prev) => ({ ...prev, ethereum: true }));
           logger.info("Ethereum wallet creation complete");
         } catch (err) {
           logger.error(
-            `Ethereum wallet creation failed: ${JSON.stringify(err)}`
+            `Ethereum wallet creation failed: ${JSON.stringify(err)}`,
           );
           // Don't mark as created if there was a real error
         }
       } else {
         logger.info(
-          "Skipping Ethereum wallet creation - already exists or already created"
+          "Skipping Ethereum wallet creation - already exists or already created",
         );
       }
 
@@ -255,7 +250,7 @@ export default function Registration({ user, onComplete }: RegistrationProps) {
           // Double-check authentication before wallet creation
           if (!authenticated || !ready || !privyUser) {
             logger.error(
-              "Authentication state changed during wallet creation - aborting Solana wallet creation"
+              "Authentication state changed during wallet creation - aborting Solana wallet creation",
             );
             return;
           }
@@ -272,13 +267,13 @@ export default function Registration({ user, onComplete }: RegistrationProps) {
               return { status: "already_exists" };
             }
             logger.error(
-              `Solana wallet creation error: ${JSON.stringify(error)}`
+              `Solana wallet creation error: ${JSON.stringify(error)}`,
             );
             throw error;
           });
 
           logger.info(
-            `Solana wallet creation result: ${JSON.stringify(result)}`
+            `Solana wallet creation result: ${JSON.stringify(result)}`,
           );
           setWalletsCreated((prev) => ({ ...prev, solana: true }));
           logger.info("Solana wallet creation complete");
@@ -287,13 +282,13 @@ export default function Registration({ user, onComplete }: RegistrationProps) {
         }
       } else {
         logger.info(
-          "Skipping Solana wallet creation - already exists or already created"
+          "Skipping Solana wallet creation - already exists or already created",
         );
       }
 
       // Final status check
       logger.info(
-        `Final wallet creation status: ${JSON.stringify(walletsCreated)}`
+        `Final wallet creation status: ${JSON.stringify(walletsCreated)}`,
       );
     } catch (error) {
       logger.error(`Error in wallet creation flow: ${JSON.stringify(error)}`);
@@ -362,7 +357,7 @@ export default function Registration({ user, onComplete }: RegistrationProps) {
           setCountryCode(
             phoneNumber.countryCallingCode
               ? `+${phoneNumber.countryCallingCode}`
-              : "+1"
+              : "+1",
           );
           setCountryFlag(phoneNumber.country ? `${phoneNumber.country}` : "US");
         }
@@ -460,7 +455,7 @@ export default function Registration({ user, onComplete }: RegistrationProps) {
             "Content-Type": "application/json",
           },
           body: JSON.stringify(userData),
-        }
+        },
       );
 
       if (!response.ok) {
@@ -469,7 +464,7 @@ export default function Registration({ user, onComplete }: RegistrationProps) {
           .catch(() => ({ message: "Unknown error" }));
         console.error("Registration error:", errorData);
         throw new Error(
-          errorData.message || "Failed to create user and smartsite"
+          errorData.message || "Failed to create user and smartsite",
         );
       }
 
@@ -647,7 +642,7 @@ export default function Registration({ user, onComplete }: RegistrationProps) {
                       onClick={() =>
                         (
                           document.getElementById(
-                            "birthdate"
+                            "birthdate",
                           ) as HTMLInputElement
                         )?.showPicker()
                       }
