@@ -71,7 +71,7 @@ export default function ClientProfile({ userName }: ClientProfileProps) {
     ens,
   } = micrositeData;
 
-  console.log("info", info);
+  console.log("info.infoBar", info.infoBar);
 
   const groupMarketPlaceByType = (marketPlaceItems: any[]) => {
     const grouped: { [key: string]: any[] } = {};
