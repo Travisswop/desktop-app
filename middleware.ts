@@ -261,8 +261,8 @@ async function verifyTokenWithRetry(
         .auth()
         .verifyAccessToken(token);
       return {
-        isValid: Boolean(verifiedClaims.userId),
-        userId: verifiedClaims.userId || "",
+        isValid: Boolean(verifiedClaims.user_id),
+        userId: verifiedClaims.user_id || "",
       };
     } catch (error) {
       console.error(`Token verification attempt ${attempt + 1} failed:`, error);
@@ -319,6 +319,8 @@ async function backgroundTokenVerification(
       appId: process.env.NEXT_PUBLIC_PRIVY_APP_ID!,
       appSecret: process.env.PRIVY_APP_SECRET!,
     });
+
+    console.log("privy ", newPrivy)
 
     const verificationResult = await verifyTokenWithRetry(
       newPrivy,

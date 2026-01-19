@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
-import { PrivyClient } from "@privy-io/server-auth";
+import { PrivyClient } from "@privy-io/node";
 
 export async function POST(request: NextRequest) {
   const privyToken = request.cookies.get("privy-token")?.value;
@@ -14,15 +14,14 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const privy = new PrivyClient(
-      process.env.NEXT_PUBLIC_PRIVY_APP_ID || "",
-      process.env.PRIVY_APP_SECRET || ""
-    );
+    const privy = new PrivyClient({
+      appId: process.env.NEXT_PUBLIC_PRIVY_APP_ID!,
+      appSecret: process.env.PRIVY_APP_SECRET!,
+    });
 
-    // Verify Privy token
-    const { userId } = await privy.verifyAuthToken(privyToken);
+    const { user_id} = await privy.utils().auth().verifyAccessToken(privyToken)
 
-    if (!userId) {
+    if (!user_id) {
       return NextResponse.json(
         { error: "Invalid Privy token" },
         { status: 401 }

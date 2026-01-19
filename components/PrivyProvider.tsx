@@ -1,20 +1,56 @@
 'use client';
 import { PrivyProvider as Privy } from '@privy-io/react-auth';
 import { toSolanaWalletConnectors } from '@privy-io/react-auth/solana';
-import {
-  createSolanaRpc,
-  createSolanaRpcSubscriptions,
-} from '@solana/kit';
-const solanaConnectors = toSolanaWalletConnectors();
+import { useState, useEffect } from 'react';
+
+interface SolanaConfig {
+  rpcs: {
+    'solana:mainnet': {
+      rpc: any;
+      rpcSubscriptions: any;
+    };
+  };
+}
 
 export default function PrivyProvider({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  // Enhanced debugging for production
+  const [solanaConnectors, setSolanaConnectors] = useState<any>(undefined);
+  const [solanaConfig, setSolanaConfig] = useState<SolanaConfig | undefined>(undefined);
+
   const isProduction = process.env.NODE_ENV === 'production';
   const appId = process.env.NEXT_PUBLIC_PRIVY_APP_ID;
+
+  // Initialize Solana config only on client side after mount
+  useEffect(() => {
+    // Initialize Solana connectors
+    const connectors = toSolanaWalletConnectors();
+    setSolanaConnectors(connectors);
+
+    // Initialize Solana RPC config
+    const initSolanaConfig = async () => {
+      const rpcUrl = process.env.NEXT_PUBLIC_SOLANA_RPC_URL;
+      const socketUrl = process.env.NEXT_PUBLIC_SOLANA_SOCKET_URL;
+
+      if (!rpcUrl || !socketUrl) return;
+
+      // Dynamic import to avoid SSR issues
+      const { createSolanaRpc, createSolanaRpcSubscriptions } = await import('@solana/kit');
+
+      setSolanaConfig({
+        rpcs: {
+          'solana:mainnet': {
+            rpc: createSolanaRpc(rpcUrl),
+            rpcSubscriptions: createSolanaRpcSubscriptions(socketUrl),
+          },
+        },
+      });
+    };
+
+    initSolanaConfig();
+  }, []);
 
   // Validate configuration
   if (!appId) {
@@ -53,23 +89,16 @@ export default function PrivyProvider({
           theme: 'light',
           accentColor: '#000000',
         },
-        externalWallets: {
-          solana: {
-            connectors: solanaConnectors,
-          },
-        },
-        solana: {
-          rpcs: {
-            'solana:mainnet': {
-              rpc: createSolanaRpc(
-                process.env.NEXT_PUBLIC_SOLANA_RPC_URL!
-              ),
-              rpcSubscriptions: createSolanaRpcSubscriptions(
-                process.env.NEXT_PUBLIC_SOLANA_SOCKET_URL!
-              ),
+        ...(solanaConnectors && {
+          externalWallets: {
+            solana: {
+              connectors: solanaConnectors,
             },
           },
-        },
+        }),
+        ...(solanaConfig && {
+          solana: solanaConfig,
+        }),
         // Production-specific settings
         ...(isProduction && {
           defaultChainId: 1, // Ethereum mainnet for production
