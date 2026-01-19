@@ -1074,18 +1074,14 @@ export default function SwapTokenModal({
       queryParams.append('integrator', 'SWOP');
       queryParams.append('fee', '0.005');
 
-      const lifiApiKey =
-        process.env.NEXT_PUBLIC_LIFI_API_KEY ||
-        '7923d347-6f3d-4a14-a255-900c41eb3014.b23bf79f-23e8-401c-af60-2fa01ab79650';
-
       const response = await fetch(
-        `https://li.quest/v1/quote?${queryParams}`,
+        `${process.env.NEXT_PUBLIC_LIFI_API_URL}/quote?${queryParams}`,
         {
           method: 'GET',
           headers: {
             Accept: 'application/json',
             'Content-Type': 'application/json',
-            'x-lifi-api-key': lifiApiKey,
+            'x-lifi-api-key': process.env.NEXT_PUBLIC_LIFI_API_KEY || '',
           },
         }
       );
