@@ -97,19 +97,19 @@ const SocialSmall: FC<Props> = ({
         }
       case "Commands":
         if (name === "Email") {
-          return window.open(`mailto:${value}`, "_self");
+          return window.open(`mailto:${value}`, "_blank");
         }
-        return window.open(value, "_self");
+        return window.open(value, "_blank");
       case "Chat Links":
         if (name === "Whatsapp") {
-          return window.open(`https://wa.me/${value}?`, "_self");
+          return window.open(`https://wa.me/${value}?`, "_blank");
         }
         if (name === "Telegram") {
-          return window.open(`https://t.me/${value}?`, "_self");
+          return window.open(`https://t.me/${value}?`, "_blank");
         }
-        return window.open(`${value}`, "_self");
+        return window.open(`${value}`, "_blank");
       default:
-        return window.open(value, "_self");
+        return window.open(value, "_blank");
     }
   };
 
