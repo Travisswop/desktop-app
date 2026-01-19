@@ -178,7 +178,8 @@ const WalletContentInner = () => {
   const walletCreationAttempted = useRef(false);
 
   // Hooks
-  const { authenticated, ready, user: PrivyUser } = usePrivy();
+  const { authenticated, ready, user: PrivyUser, getAccessToken } =
+    usePrivy();
 
   const { wallets: ethWallets } = useWallets();
 
@@ -427,6 +428,32 @@ const WalletContentInner = () => {
           selectedSolanaWallet?.address
         );
         console.log('RPC URL configured:', !!rpcUrl);
+        console.log('authenticated:', authenticated);
+
+        // Verify authentication before signing
+        if (!authenticated) {
+          throw new Error(
+            'Please log in to send transactions. Your session may have expired.'
+          );
+        }
+
+        // Get fresh access token to ensure session is valid
+        let privyAccessToken: string | null = null;
+        try {
+          privyAccessToken = await getAccessToken();
+          console.log('Privy auth token available:', !!privyAccessToken);
+        } catch (tokenError) {
+          console.error('Failed to get Privy access token:', tokenError);
+          throw new Error(
+            'Authentication session expired. Please refresh the page and log in again.'
+          );
+        }
+
+        if (!privyAccessToken) {
+          throw new Error(
+            'Authentication token not available. Please refresh the page and log in again.'
+          );
+        }
 
         if (!selectedSolanaWallet) {
           // Check if wallet exists in linked accounts but not in wallets array
@@ -650,6 +677,8 @@ const WalletContentInner = () => {
     refetchNFTs,
     signAndSendTransaction,
     selectedSolanaWallet,
+    authenticated,
+    getAccessToken,
   ]);
 
   // Main transaction handler
