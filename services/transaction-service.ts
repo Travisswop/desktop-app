@@ -878,9 +878,9 @@ export class TransactionService {
 
       console.log("Transaction serialized, length:", serializedTransaction.length);
 
-      // Send to backend's relay endpoint for fee payer signature and submission
+      // Send to backend's sponsor endpoint for fee payer signature and submission
       const response = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL}/api/v5/wallet/relay-transaction`,
+        `${process.env.NEXT_PUBLIC_API_URL}/api/v5/wallet/sponsor-transaction`,
         {
           method: "POST",
           headers: {

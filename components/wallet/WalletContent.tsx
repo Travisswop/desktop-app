@@ -190,12 +190,7 @@ const WalletContentInner = () => {
   const selectedSolanaWallet = useMemo(() => {
     if (!solanaReady || !directSolanaWallets.length) return undefined;
 
-    // Find the first wallet with a valid address
-    const walletWithAddress = directSolanaWallets.find(
-      (w) => w.address && w.address.length > 0
-    );
-
-    return walletWithAddress || directSolanaWallets[0];
+    return directSolanaWallets[0];
   }, [solanaReady, directSolanaWallets]);
 
   const { createWallet } = useCreateWallet();
