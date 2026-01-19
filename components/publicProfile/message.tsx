@@ -12,10 +12,9 @@ import {
   AlertDialogDescription,
   AlertDialogFooter,
   AlertDialogHeader,
-  AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { redirect } from "next/navigation";
+import InfoCardContent from "./InfoCardContent";
 
 interface Props {
   data: {
@@ -26,6 +25,8 @@ interface Props {
   socialType: string;
   parentId: string;
   number: number;
+  fontColor?: string;
+  secondaryFontColor?: string;
 }
 
 const variants = {
@@ -34,7 +35,14 @@ const variants = {
   exit: { opacity: 0, x: -0, y: 25 },
 };
 
-const Message: FC<Props> = ({ data, socialType, parentId, number }) => {
+const Message: FC<Props> = ({
+  data,
+  socialType,
+  parentId,
+  number,
+  fontColor,
+  secondaryFontColor,
+}) => {
   const { _id, domain } = data;
 
   const delay = number + 0.1;
@@ -67,20 +75,22 @@ const Message: FC<Props> = ({ data, socialType, parentId, number }) => {
         <AlertDialog>
           <AlertDialogTrigger asChild>
             <div className="flex relative cursor-pointer">
-              <div>
-                <Image
-                  className="object-fill w-14 h-14"
-                  src="/images/outline-icons/message.svg"
-                  alt={domain}
-                  width={80}
-                  height={80}
-                  priority
+              <Image
+                className="object-fill w-10 h-auto"
+                src="/images/outline-icons/message.svg"
+                alt={domain}
+                width={80}
+                height={80}
+                priority
+              />
+              {
+                <InfoCardContent
+                  title="Message Me"
+                  description="Message me on swop"
+                  fontColor={fontColor}
+                  secondaryFontColor={secondaryFontColor}
                 />
-              </div>
-              <div className="max-w-xs overflow-hidden ml-2">
-                <div className="text-md font-semibold">Message Me</div>
-                <div className="text-xs">Message me on swop</div>
-              </div>
+              }
             </div>
           </AlertDialogTrigger>
           <AlertDialogContent>

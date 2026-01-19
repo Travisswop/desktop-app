@@ -230,6 +230,7 @@ export default function ClientProfile({ userName }: ClientProfileProps) {
                     data={social}
                     socialType="blog"
                     parentId={parentId}
+                    fontColor={fontColor}
                     secondaryFontColor={secondaryFontColor}
                   />
                 ))}
@@ -267,6 +268,8 @@ export default function ClientProfile({ userName }: ClientProfileProps) {
                     data={ensDomain}
                     socialType="ens"
                     parentId={parentId}
+                    fontColor={fontColor}
+                    secondaryFontColor={secondaryFontColor}
                   />
                 </div>
               )}
@@ -312,6 +315,8 @@ export default function ClientProfile({ userName }: ClientProfileProps) {
                     socialType="ens"
                     parentId={parentId}
                     accessToken={accessToken || ""}
+                    fontColor={fontColor}
+                    secondaryFontColor={secondaryFontColor}
                   />
                 </div>
               )}
@@ -327,6 +332,8 @@ export default function ClientProfile({ userName }: ClientProfileProps) {
                       socialType="contact"
                       parentId={parentId}
                       accessToken={accessToken || ""}
+                      fontColor={fontColor}
+                      secondaryFontColor={secondaryFontColor}
                     />
                   ))}
                 </div>
@@ -343,6 +350,8 @@ export default function ClientProfile({ userName }: ClientProfileProps) {
                       socialType="infoBar"
                       parentId={parentId}
                       accessToken={accessToken || ""}
+                      fontColor={fontColor}
+                      secondaryFontColor={secondaryFontColor}
                     />
                   ))}
                 </div>
@@ -359,6 +368,8 @@ export default function ClientProfile({ userName }: ClientProfileProps) {
                       socialType="product"
                       parentId={parentId}
                       accessToken={accessToken || ""}
+                      fontColor={fontColor}
+                      secondaryFontColor={secondaryFontColor}
                     />
                   ))}
                 </div>
@@ -375,6 +386,8 @@ export default function ClientProfile({ userName }: ClientProfileProps) {
                       socialType="audio"
                       parentId={parentId}
                       length={info.audio.length}
+                      fontColor={fontColor}
+                      secondaryFontColor={secondaryFontColor}
                     />
                   ))}
                 </div>

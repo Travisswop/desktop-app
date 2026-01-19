@@ -4,6 +4,7 @@ import { FC } from "react";
 import Image from "next/image";
 import { motion } from "framer-motion";
 import toast from "react-hot-toast";
+import InfoCardContent from "./InfoCardContent";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL;
 
@@ -17,6 +18,8 @@ interface Props {
   parentId: string;
   number: number;
   accessToken: string;
+  fontColor?: string;
+  secondaryFontColor?: string;
 }
 
 const variants = {
@@ -31,6 +34,8 @@ const Ens: FC<Props> = ({
   parentId,
   number,
   accessToken,
+  fontColor,
+  secondaryFontColor,
 }) => {
   const { _id, domain } = data;
   const openlink = async () => {
@@ -80,24 +85,27 @@ const Ens: FC<Props> = ({
           damping: 10,
         }}
         onClick={openlink}
-        className="my-1 flex flex-row gap-2 items-center cursor-pointer bg-white shadow-xl p-2 rounded-[12px]"
+        className="my-1 flex items-center cursor-pointer bg-white shadow-xl p-2 rounded-[12px]"
       >
         <div>
           <Image
-            className="object-fill w-14 h-14"
+            className="object-fill w-10 h-auto"
             src="/images/outline-icons/ethereum.svg"
             alt={domain}
-            width={80}
-            height={80}
+            width={320}
+            height={280}
+            quality={100}
             priority
           />
         </div>
-        <div className="max-w-xs overflow-hidden">
-          <div className="text-md font-semibold">{domain}</div>
-          <div className="text-xs">
-            Use my swop.id to send to my self custodial wallet
-          </div>
-        </div>
+        {
+          <InfoCardContent
+            title={domain}
+            description="Use my swop.id to send to my self custodial wallet"
+            fontColor={fontColor}
+            secondaryFontColor={secondaryFontColor}
+          />
+        }
       </motion.div>
     </motion.div>
   );

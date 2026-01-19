@@ -1,7 +1,8 @@
-'use client';
-import { FC } from 'react';
-import Image from 'next/image';
-import { motion } from 'framer-motion';
+"use client";
+import { FC } from "react";
+import Image from "next/image";
+import { motion } from "framer-motion";
+import InfoCardContent from "./InfoCardContent";
 // import { addSwopPoint } from '@/app/actions/addPoint';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL;
@@ -20,6 +21,8 @@ interface Props {
   parentId: string;
   number: number;
   accessToken: string;
+  fontColor?: string;
+  secondaryFontColor?: string;
 }
 const variants = {
   hidden: { opacity: 0, x: 0, y: 25 },
@@ -32,29 +35,24 @@ const PaymentBar: FC<Props> = ({
   parentId,
   number,
   accessToken,
+  fontColor,
+  secondaryFontColor,
 }) => {
-  const {
-    _id,
-    micrositeId,
-    title,
-    paymentUrl,
-    imageUrl,
-    description,
-    price,
-  } = data;
+  const { _id, micrositeId, title, paymentUrl, imageUrl, description, price } =
+    data;
 
   const openlink = async () => {
     if (!accessToken) {
       window.location.href =
-        'https://apps.apple.com/us/app/swop-connecting-the-world/id1593201322';
+        "https://apps.apple.com/us/app/swop-connecting-the-world/id1593201322";
       return;
     }
     try {
       fetch(`${API_URL}/api/v1/web/updateCount`, {
-        method: 'POST',
+        method: "POST",
         headers: {
-          Accept: 'application/json',
-          'Content-Type': 'application/json',
+          Accept: "application/json",
+          "Content-Type": "application/json",
         },
         body: JSON.stringify({
           socialType,
@@ -65,7 +63,7 @@ const PaymentBar: FC<Props> = ({
     } catch (err) {
       console.log(err);
     }
-    return window.open(paymentUrl, '_self');
+    return window.open(paymentUrl, "_self");
   };
 
   const delay = number + 1 * 0.2;
@@ -79,22 +77,22 @@ const PaymentBar: FC<Props> = ({
       transition={{
         duration: 0.4,
         delay,
-        type: 'easeInOut',
+        type: "easeInOut",
       }}
     >
       <motion.div
         transition={{
-          type: 'spring',
+          type: "spring",
           stiffness: 400,
           damping: 10,
         }}
         onClick={() => openlink()}
         className="my-1.5 flex justify-between items-center cursor-pointer bg-white shadow-2xl p-2 rounded-[12px]"
       >
-        <div className="flex flex-row gap-2 items-center ">
+        <div className="flex flex-row items-center">
           <div>
             <Image
-              className="object-fill w-16 h-16  rounded-[12px]"
+              className="object-fill w-10 h-auto rounded-md"
               src={imageUrl}
               alt={title}
               width={80}
@@ -102,13 +100,17 @@ const PaymentBar: FC<Props> = ({
               priority
             />
           </div>
-          <div>
-            <div className="text-md font-semibold">{title}</div>
-            <div className="text-xs">{description}</div>
-          </div>
+          {
+            <InfoCardContent
+              title={title}
+              description={description}
+              fontColor={fontColor}
+              secondaryFontColor={secondaryFontColor}
+            />
+          }
         </div>
         <div>
-          <span className="font-bold">${price}</span>
+          <span className="font-medium text-sm">${price}</span>
         </div>
       </motion.div>
     </motion.div>
