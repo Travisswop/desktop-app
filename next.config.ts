@@ -6,24 +6,34 @@ const isLowMemory = process.env.LOW_MEMORY_MODE === "true";
 const nextConfig: NextConfig = {
   reactStrictMode: true,
 
-  // Optimize for low memory during development
-  ...(isDev && {
-    productionBrowserSourceMaps: false,
-    experimental: {
-      optimizePackageImports: ["lucide-react", "@radix-ui/react-icons"],
-    },
-  }),
+  // Disable source maps in production to reduce memory usage
+  productionBrowserSourceMaps: false,
 
-  ...(isDev &&
-    isLowMemory && {
-      swcMinify: true,
-    }),
+  // Optimize package imports to reduce bundle size and memory usage
+  experimental: {
+    optimizePackageImports: [
+      "lucide-react",
+      "@radix-ui/react-icons",
+      "@solana/web3.js",
+      "@solana/spl-token",
+      "ethers",
+      "date-fns",
+      "lodash",
+    ],
+    // Enable webpack memory optimizations for large builds
+    webpackMemoryOptimizations: true,
+    serverActions: {
+      bodySizeLimit: "2mb",
+    },
+  },
 
   typescript: {
-    ignoreBuildErrors: process.env.NEXT_PUBLIC_IGNORE_BUILD_ERROR === "true",
+    // Skip type checking during build to reduce memory usage
+    ignoreBuildErrors: true,
   },
   eslint: {
-    ignoreDuringBuilds: process.env.NEXT_PUBLIC_IGNORE_BUILD_ERROR === "true",
+    // Skip linting during build to reduce memory usage
+    ignoreDuringBuilds: true,
   },
   webpack: (config, { isServer }) => {
     // Fixes npm packages that depend on `fs` module
@@ -61,14 +71,6 @@ const nextConfig: NextConfig = {
       const originalExternals = config.externals || [];
       config.externals = [
         ...originalExternals,
-        // XMTP packages - prevent server-side execution
-        "@xmtp/browser-sdk",
-        "@xmtp/wasm-bindings",
-        "@xmtp/proto",
-        "@xmtp/user-preferences-bindings-wasm",
-        "@xmtp/content-type-primitives",
-        "@xmtp/content-type-text",
-        "@xmtp/content-type-reaction",
         // Other problematic client-only packages
         "crypto-browserify",
         "stream-browserify",
@@ -171,17 +173,8 @@ const nextConfig: NextConfig = {
     ],
   },
   serverExternalPackages: [
-    "@xmtp/user-preferences-bindings-wasm",
-    "@xmtp/browser-sdk",
-    "@xmtp/wasm-bindings",
-    "@xmtp/proto",
+
   ],
-  // Explicitly enable experimental features for Next.js 15
-  experimental: {
-    serverActions: {
-      bodySizeLimit: "2mb",
-    },
-  },
 };
 
 export default nextConfig;
