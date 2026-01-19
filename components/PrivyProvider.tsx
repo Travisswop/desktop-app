@@ -1,7 +1,7 @@
 'use client';
 import { PrivyProvider as Privy } from '@privy-io/react-auth';
 import { toSolanaWalletConnectors } from '@privy-io/react-auth/solana';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 
 interface SolanaConfig {
   rpcs: {
@@ -19,13 +19,17 @@ export default function PrivyProvider({
 }) {
   const [solanaConnectors, setSolanaConnectors] = useState<any>(undefined);
   const [solanaConfig, setSolanaConfig] = useState<SolanaConfig | undefined>(undefined);
+  const initRef = useRef(false);
 
   const isProduction = process.env.NODE_ENV === 'production';
   const appId = process.env.NEXT_PUBLIC_PRIVY_APP_ID;
 
   // Initialize Solana config only on client side after mount
   useEffect(() => {
-    // Initialize Solana connectors
+    if (initRef.current) return;
+    initRef.current = true;
+
+    // Initialize Solana connectors synchronously
     const connectors = toSolanaWalletConnectors();
     setSolanaConnectors(connectors);
 
@@ -34,19 +38,30 @@ export default function PrivyProvider({
       const rpcUrl = process.env.NEXT_PUBLIC_SOLANA_RPC_URL;
       const socketUrl = process.env.NEXT_PUBLIC_SOLANA_SOCKET_URL;
 
-      if (!rpcUrl || !socketUrl) return;
+      if (!rpcUrl || !socketUrl) {
+        console.warn(
+          'Solana RPC URLs not configured, using default Privy config'
+        );
+        return;
+      }
 
-      // Dynamic import to avoid SSR issues
-      const { createSolanaRpc, createSolanaRpcSubscriptions } = await import('@solana/kit');
+      try {
+        // Dynamic import to avoid SSR issues
+        const { createSolanaRpc, createSolanaRpcSubscriptions } =
+          await import('@solana/kit');
 
-      setSolanaConfig({
-        rpcs: {
-          'solana:mainnet': {
-            rpc: createSolanaRpc(rpcUrl),
-            rpcSubscriptions: createSolanaRpcSubscriptions(socketUrl),
+        setSolanaConfig({
+          rpcs: {
+            'solana:mainnet': {
+              rpc: createSolanaRpc(rpcUrl),
+              rpcSubscriptions: createSolanaRpcSubscriptions(socketUrl),
+            },
           },
-        },
-      });
+        });
+        console.log('Solana RPC config initialized successfully');
+      } catch (error) {
+        console.error('Failed to initialize Solana config:', error);
+      }
     };
 
     initSolanaConfig();

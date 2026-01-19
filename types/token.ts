@@ -19,6 +19,7 @@ export interface MarketData {
   coinrankingUrl: string;
   btcPrice: string;
   contractAddresses: string[];
+  priceChangePercentage24h: string;
   // Additional properties for token details view
   price: string; // Current price as string
   change?: string; // Price change percentage

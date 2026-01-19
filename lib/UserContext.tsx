@@ -311,7 +311,6 @@ export function UserProvider({
 
         const data = await response.json();
         const { user: userData, token } = data;
-        console.log('userData', userData);
 
         if (!userData || !token) {
           throw new Error('Invalid response structure');
