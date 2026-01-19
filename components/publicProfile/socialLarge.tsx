@@ -1,10 +1,8 @@
 "use client";
 import { FC } from "react";
 import Image from "next/image";
-// import Link from 'next/link';
-import { useToast } from "@/components/ui/use-toast";
 import { motion } from "framer-motion";
-// import { addSwopPoint } from '@/app/actions/addPoint';
+import toast from "react-hot-toast";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL;
 
@@ -60,9 +58,10 @@ const SocialLarge: FC<Props> = ({
   accessToken,
   fontColor,
 }) => {
-  const { toast } = useToast();
   const { _id, micrositeId, name, value, url, iconName, iconPath, group } =
     data;
+
+  console.log("data social large", data);
 
   const openlink = async () => {
     // if (!accessToken) {
@@ -88,34 +87,54 @@ const SocialLarge: FC<Props> = ({
     }
 
     switch (group) {
+      case "Call To Action":
+        if (iconName.startsWith("Copy")) {
+          navigator.clipboard.writeText(value);
+          toast.success("Copied to clipboard", {
+            position: "top-right",
+          });
+          return;
+        } else if (iconName === "Call" || iconName === "Mobile") {
+          const phone = value.replace(/[^+\d]/g, "");
+          window.location.href = `tel:${phone}`;
+          return;
+        } else if (iconName === "Email") {
+          window.location.href = `mailto:${value}`;
+          return;
+        } else {
+          return window.open(value, "_blank");
+        }
+      case "Link":
+        return window.open(`https://${url}`, "_blank");
+
       case "Social Media":
         if (socialInputTypes[name] === "link") {
-          return window.open(value, "_self");
+          return window.open(value, "_blank");
         }
         if (name === "Linked In") {
-          return window.open(`https://${url}/in/${value}`, "_self");
+          return window.open(`https://${url}/in/${value}`, "_blank");
         }
         // if (name === 'Snapchat') {
         //   return window.open(`${url}/add/${value}`, '_self');
         // }
         // return window.open(`https://${url}/${value}`, '_blank');
         if (value.includes("https") || value.includes("http")) {
-          return window.open(value, "_self");
+          return window.open(value, "_blank");
         } else {
-          return window.open(`https://${url}/${value}`, "_self");
+          return window.open(`https://${url}/${value}`, "_blank");
         }
       case "Chat Links":
         if (name === "Whatsapp") {
-          return window.open(`https://wa.me/${value}?`, "_self");
+          return window.open(`https://wa.me/${value}?`, "_blank");
         }
         if (name === "Telegram") {
-          return window.open(`https://t.me/${value}?`, "_self");
+          return window.open(`https://t.me/${value}?`, "_blank");
         }
         return window.open(`${value}`, "_self");
       case "Copy Address":
         navigator.clipboard.writeText(value);
-        toast({
-          title: "Copied to clipboard",
+        toast.success("Copied to clipboard", {
+          position: "top-right",
         });
         break;
       case "Command/Action":
@@ -135,23 +154,23 @@ const SocialLarge: FC<Props> = ({
           name === "Copy"
         ) {
           navigator.clipboard.writeText(value);
-          toast({
-            title: "Copied to clipboard",
+          toast.success("Copied to clipboard", {
+            position: "top-right",
           });
           break;
         }
-        return window.open(value, "_self");
+        return window.open(value, "_blank");
       case "General Links":
         if (name === "Invoice" || name === "Card Payment") {
           navigator.clipboard.writeText(value);
-          toast({
-            title: "Copied to clipboard",
+          toast.success("Copied to clipboard", {
+            position: "top-right",
           });
           break;
         }
-        return window.open(value, "_self");
+        return window.open(value, "_blank");
       default:
-        return window.open(value, "_self");
+        return window.open(value, "_blank");
     }
   };
 
