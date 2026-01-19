@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
-import { PrivyClient } from '@privy-io/server-auth';
+import { PrivyClient } from '@privy-io/node';
 
 export async function GET(request: NextRequest) {
   const privyToken = request.cookies.get('privy-token')?.value;

@@ -261,8 +261,8 @@ async function verifyTokenWithRetry(
         .auth()
         .verifyAccessToken(token);
       return {
-        isValid: Boolean(verifiedClaims.userId),
-        userId: verifiedClaims.userId || "",
+        isValid: Boolean(verifiedClaims.user_id),
+        userId: verifiedClaims.user_id || "",
       };
     } catch (error) {
       console.error(`Token verification attempt ${attempt + 1} failed:`, error);
