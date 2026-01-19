@@ -185,9 +185,17 @@ const WalletContentInner = () => {
   const { ready: solanaReady, wallets: directSolanaWallets } =
     useSolanaWallets();
 
-  const selectedSolanaWallet = solanaReady
-    ? directSolanaWallets[0]
-    : undefined;
+  // Find the first Solana wallet with a valid address
+  const selectedSolanaWallet = useMemo(() => {
+    if (!solanaReady || !directSolanaWallets.length) return undefined;
+
+    // Find the first wallet with a valid address
+    const walletWithAddress = directSolanaWallets.find(
+      (w) => w.address && w.address.length > 0
+    );
+
+    return walletWithAddress || directSolanaWallets[0];
+  }, [solanaReady, directSolanaWallets]);
 
   const { createWallet } = useCreateWallet();
 
@@ -391,33 +399,73 @@ const WalletContentInner = () => {
   // Optimized transaction execution
   const executeTransaction = useCallback(async () => {
     try {
-      const connection = new Connection(
-        process.env.NEXT_PUBLIC_SOLANA_RPC_URL!,
-        'confirmed'
-      );
+      // Validate RPC URL
+      const rpcUrl = process.env.NEXT_PUBLIC_SOLANA_RPC_URL;
+      if (!rpcUrl) {
+        throw new Error(
+          'Solana RPC URL not configured. Please check environment settings.'
+        );
+      }
+
+      const connection = new Connection(rpcUrl, 'confirmed');
 
       // Check if we have a Solana wallet when needed
-      if (
-        (sendFlow.token?.chain?.toUpperCase() === 'SOLANA' ||
-          sendFlow.network.toUpperCase() === 'SOLANA') &&
-        !selectedSolanaWallet
-      ) {
-        // Check if wallet exists in linked accounts but not in wallets array
-        const linkedAccounts = (PrivyUser?.linkedAccounts ||
-          []) as PrivyLinkedAccount[];
-        const hasSolanaAccount = linkedAccounts.some(
-          isSolanaWalletAccount
-        );
+      const isSolanaTransaction =
+        sendFlow.token?.chain?.toUpperCase() === 'SOLANA' ||
+        sendFlow.network.toUpperCase() === 'SOLANA';
 
-        if (hasSolanaAccount) {
-          throw new Error(
-            'Solana wallet found in account but not accessible. Please refresh the page and try again.'
+      if (isSolanaTransaction) {
+        // Log wallet state for debugging production issues
+        console.log('=== Solana Transaction Debug ===');
+        console.log('solanaReady:', solanaReady);
+        console.log(
+          'directSolanaWallets count:',
+          directSolanaWallets.length
+        );
+        console.log(
+          'selectedSolanaWallet address:',
+          selectedSolanaWallet?.address
+        );
+        console.log('RPC URL configured:', !!rpcUrl);
+
+        if (!selectedSolanaWallet) {
+          // Check if wallet exists in linked accounts but not in wallets array
+          const linkedAccounts = (PrivyUser?.linkedAccounts ||
+            []) as PrivyLinkedAccount[];
+          const hasSolanaAccount = linkedAccounts.some(
+            isSolanaWalletAccount
           );
-        } else {
+
+          if (hasSolanaAccount) {
+            throw new Error(
+              'Solana wallet found in account but not accessible. Please refresh the page and try again.'
+            );
+          } else {
+            throw new Error(
+              'No Solana wallet found. Please connect a Solana wallet.'
+            );
+          }
+        }
+
+        // Verify wallet has a valid address
+        if (!selectedSolanaWallet.address) {
           throw new Error(
-            'No Solana wallet found. Please connect a Solana wallet.'
+            'Solana wallet address is not available. Please refresh the page and try again.'
           );
         }
+
+        // Test RPC connection before proceeding
+        try {
+          await connection.getLatestBlockhash();
+        } catch (rpcError) {
+          console.error('RPC connection failed:', rpcError);
+          throw new Error(
+            'Unable to connect to Solana network. Please check your connection and try again.'
+          );
+        }
+      } else if (!selectedSolanaWallet) {
+        // Non-Solana transaction but still log for debugging
+        console.log('=== Non-Solana Transaction ===');
       }
 
       // Find Ethereum wallet
@@ -470,7 +518,6 @@ const WalletContentInner = () => {
 
           if (isSponsored) {
             // Use Privy's native gas sponsorship
-            console.log('=== Using Privy Native Gas Sponsorship ===');
 
             // Build the transaction without sending
             const transaction =
@@ -487,18 +534,36 @@ const WalletContentInner = () => {
               verifySignatures: false,
             });
 
-            const result = await signAndSendTransaction({
-              transaction: new Uint8Array(serializedTransaction),
-              wallet: selectedSolanaWallet!,
-              options: {
-                sponsor: true,
-              },
-            });
+            try {
+              const result = await signAndSendTransaction({
+                transaction: new Uint8Array(serializedTransaction),
+                wallet: selectedSolanaWallet!,
+                options: {
+                  sponsor: true,
+                },
+              });
 
-            hash = bs58.encode(result.signature);
-            console.log('Sponsored transaction signature:', hash);
+              hash = bs58.encode(result.signature);
+            } catch (privyError) {
+              // Fallback: Use backend relay for sponsored transactions
+              console.warn(
+                'Privy signAndSendTransaction failed, falling back to backend relay:',
+                privyError
+              );
+
+              hash =
+                await TransactionService.submitPrivyNativeSponsoredTransaction(
+                  transaction,
+                  selectedSolanaWallet,
+                  connection
+                );
+              console.log(
+                'Fallback sponsored transaction signature:',
+                hash
+              );
+            }
           } else {
-            // Regular transaction flow (user pays gas) - using Privy hook
+            // Regular transaction flow (user pays gas)
             console.log('=== Regular Solana Transaction (User Pays Gas) ===');
 
             // Build the transaction without sending
@@ -509,19 +574,45 @@ const WalletContentInner = () => {
                 connection
               );
 
-            // Use Privy's signAndSendTransaction without sponsor option
-            const serializedTransaction = transaction.serialize({
-              requireAllSignatures: false,
-              verifySignatures: false,
-            });
+            try {
+              // Try Privy's signAndSendTransaction first
+              const serializedTransaction = transaction.serialize({
+                requireAllSignatures: false,
+                verifySignatures: false,
+              });
 
-            const result = await signAndSendTransaction({
-              transaction: new Uint8Array(serializedTransaction),
-              wallet: selectedSolanaWallet!,
-            });
+              const result = await signAndSendTransaction({
+                transaction: new Uint8Array(serializedTransaction),
+                wallet: selectedSolanaWallet!,
+              });
 
-            hash = bs58.encode(result.signature);
-            console.log('Transaction signature:', hash);
+              hash = bs58.encode(result.signature);
+              console.log('Transaction signature:', hash);
+            } catch (privyError) {
+              // Fallback: Use direct wallet signing if Privy hook fails
+              console.warn(
+                'Privy signAndSendTransaction failed, falling back to direct signing:',
+                privyError
+              );
+
+              // Use the wallet's signTransaction method directly with proper input format
+              const serializedForSigning = transaction.serialize({
+                requireAllSignatures: false,
+                verifySignatures: false,
+              });
+
+              const signResult = await selectedSolanaWallet!.signTransaction({
+                transaction: new Uint8Array(serializedForSigning),
+              });
+
+              // Send the signed transaction
+              const signature = await connection.sendRawTransaction(
+                Buffer.from(signResult.signedTransaction)
+              );
+
+              hash = signature;
+              console.log('Fallback transaction signature:', hash);
+            }
           }
         } else {
           // EVM token transfer
@@ -551,6 +642,7 @@ const WalletContentInner = () => {
       };
     }
   }, [
+    solanaReady,
     directSolanaWallets,
     sendFlow,
     PrivyUser,

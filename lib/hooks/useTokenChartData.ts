@@ -1,6 +1,5 @@
 import { UseQueryResult, useQuery } from '@tanstack/react-query';
 import { MarketService } from '@/services/market-service';
-import { useUser } from '@/lib/UserContext';
 
 interface ChartDataPoint {
   timestamp: number;
@@ -71,10 +70,6 @@ async function fetchChartData(
         `Native token mapping not found for chain: ${chain}`
       );
     }
-
-    console.log(
-      `[useTokenChartData] Native token detected: ${chain} → ${tokenId}`
-    );
   } else {
     // For contract tokens, resolve address to CoinGecko ID via backend
 
@@ -90,9 +85,6 @@ async function fetchChartData(
       );
     }
 
-    console.log(
-      `[useTokenChartData] Contract token resolved: ${tokenAddress} → ${tokenId}`
-    );
   }
 
   // Step 2: Fetch historical data for the period
@@ -102,14 +94,6 @@ async function fetchChartData(
     days,
     accessToken
   );
-
-  console.log(`[useTokenChartData] ${tokenId} - ${period}:`, {
-    days,
-    priceCount: historicalData.prices.length,
-    firstPrice: historicalData.prices[0],
-    lastPrice:
-      historicalData.prices[historicalData.prices.length - 1],
-  });
 
   // Step 3: Transform data to chart format
   // Note: CoinGecko returns timestamps in milliseconds

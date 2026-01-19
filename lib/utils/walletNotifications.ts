@@ -71,7 +71,6 @@ export class WalletNotificationService {
       return;
     }
 
-    console.log('[WalletNotificationService] Emitting wallet:token_sent event', data);
 
     this.socket.emit('wallet:token_sent', {
       tokenSymbol: data.tokenSymbol,
@@ -102,7 +101,6 @@ export class WalletNotificationService {
       return;
     }
 
-    console.log('[WalletNotificationService] Emitting wallet:nft_sent event', data);
 
     this.socket.emit('wallet:nft_sent', {
       nftName: data.nftName,
@@ -132,7 +130,6 @@ export class WalletNotificationService {
       return;
     }
 
-    console.log('[WalletNotificationService] Emitting wallet:swap_completed event', data);
 
     this.socket.emit('wallet:swap_completed', {
       inputTokenSymbol: data.inputTokenSymbol,
@@ -164,7 +161,6 @@ export class WalletNotificationService {
       return;
     }
 
-    console.log('[WalletNotificationService] Emitting wallet:swap_failed event', data);
 
     this.socket.emit('wallet:swap_failed', {
       inputTokenSymbol: data.inputTokenSymbol,

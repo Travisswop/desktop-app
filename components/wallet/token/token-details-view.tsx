@@ -80,7 +80,7 @@ export default function TokenDetails({
   onBack,
   onSend,
 }: TokenDetailsProps) {
-  console.log('tokenholafit', token);
+
   const { accessToken } = useUser();
   const { fundWallet } = useFundWallet();
   const { wallets: solanaWallets } = useSolanaWallets();
@@ -115,7 +115,7 @@ export default function TokenDetails({
     selectedPeriod === '1D',
     accessToken
   );
-  console.log('Day data:', day);
+
   const week = useTokenChartData(
     token.address,
     token.chain,
@@ -144,30 +144,6 @@ export default function TokenDetails({
     selectedPeriod === 'Max',
     accessToken
   );
-
-  // Debug: Log when year or max data changes
-  useEffect(() => {
-    if (selectedPeriod === '1Y' && year.data) {
-      console.log('[TokenDetails] 1Y Chart Data:', {
-        dataPoints: year.data.sparklineData.length,
-        change: (year.data.change as string) || '0',
-        firstPoint: year.data.sparklineData[0],
-        lastPoint:
-          year.data.sparklineData[year.data.sparklineData.length - 1],
-        samplePoints: year.data.sparklineData.slice(0, 5),
-      });
-    }
-    if (selectedPeriod === 'Max' && max.data) {
-      console.log('[TokenDetails] Max Chart Data:', {
-        dataPoints: max.data.sparklineData.length,
-        change: (max.data.change as string) || '0',
-        firstPoint: max.data.sparklineData[0],
-        lastPoint:
-          max.data.sparklineData[max.data.sparklineData.length - 1],
-        samplePoints: max.data.sparklineData.slice(0, 5),
-      });
-    }
-  }, [selectedPeriod, year.data, max.data]);
 
   // Determine chart color - use token color or default based on price change
   const strokeColor =
@@ -217,21 +193,6 @@ export default function TokenDetails({
       ];
 
     if (newData && newData.length > 0) {
-      // Debug log for chart data
-      console.log(
-        `[TokenDetails] Updating chart for ${selectedPeriod}:`,
-        {
-          token: token.symbol,
-          period: selectedPeriod,
-          dataPoints: newData.length,
-          change: newChange,
-          firstPoint: newData[0],
-          lastPoint: newData[newData.length - 1],
-          // Check for flat lines
-          uniqueValues: new Set(newData.map((d) => d.value)).size,
-        }
-      );
-
       setChartData(newData);
       setChangePercentage(newChange);
     } else {
@@ -297,9 +258,12 @@ export default function TokenDetails({
 
     setIsLoading(true);
     try {
-      await fundWallet(solanaWalletAddress, {
-        asset: 'USDC',
-        amount: '20',
+      await fundWallet({
+        address: solanaWalletAddress,
+        options: {
+          asset: 'USDC',
+          amount: '20',
+        }
       });
     } catch (error) {
       console.error('Failed to open Coinbase funding:', error);
