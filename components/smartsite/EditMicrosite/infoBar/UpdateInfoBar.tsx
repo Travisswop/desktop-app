@@ -111,12 +111,12 @@ const UpdateInfoBar = ({ iconDataObj, isOn, setOff }: any) => {
   useEffect(() => {
     const data = iconData.icons.find(
       (item: any) =>
-        item.category === (selectedIconType || iconDataObj.data.group)
+        item.category === (selectedIconType || iconDataObj.data.group),
     );
     if (data) {
       const iconDatas = data.icons.find(
         (item: any) =>
-          item.name === selectedIcon.icon || iconDataObj.data.iconName
+          item.name === selectedIcon.icon || iconDataObj.data.iconName,
       );
       setSelectedIcon(iconDatas);
       setSelectedIconData(data);
@@ -156,7 +156,7 @@ const UpdateInfoBar = ({ iconDataObj, isOn, setOff }: any) => {
     const formData = new FormData(e.currentTarget);
     const infobarInfo = {
       _id: iconDataObj.data._id,
-      micrositeId: state.data._id,
+      micrositeId: state._id,
       title: formData.get("url"),
       link: selectedIcon.url,
       buttonName: buttonName,
@@ -184,7 +184,7 @@ const UpdateInfoBar = ({ iconDataObj, isOn, setOff }: any) => {
     try {
       const data = await updateInfoBar(
         selectedIconType === "custom" ? updateInfobarInfo : infobarInfo,
-        token
+        token,
       );
       // console.log("data", data);
 
