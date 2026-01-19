@@ -16,17 +16,16 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const privy = new PrivyClient(
-      process.env.NEXT_PUBLIC_PRIVY_APP_ID || '',
-      process.env.PRIVY_APP_SECRET || ''
-    );
+    const privy = new PrivyClient({
+      appId: process.env.NEXT_PUBLIC_PRIVY_APP_ID!,
+      appSecret: process.env.PRIVY_APP_SECRET!,
+    });
 
-    // Verify Privy token
-    const { userId } = await privy.verifyAuthToken(privyToken);
+    const { user_id} = await privy.utils().auth().verifyAccessToken(privyToken)
 
-    if (!userId) {
+    if (!user_id) {
       return NextResponse.json(
-        { error: 'Invalid Privy token', isValid: false },
+        { error: "Invalid Privy token" },
         { status: 401 }
       );
     }
@@ -55,7 +54,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({
       isValid: true,
       expiresIn: data.expiresIn,
-      userId,
+      userId: user_id,
     });
   } catch (error) {
     console.error('Session verification error:', error);

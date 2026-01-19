@@ -320,6 +320,8 @@ async function backgroundTokenVerification(
       appSecret: process.env.PRIVY_APP_SECRET!,
     });
 
+    console.log("privy ", newPrivy)
+
     const verificationResult = await verifyTokenWithRetry(
       newPrivy,
       newPrivy,
