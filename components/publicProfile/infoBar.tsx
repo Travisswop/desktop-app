@@ -1,9 +1,9 @@
-'use client';
+"use client";
 
-import { FC } from 'react';
-import Image from 'next/image';
-import { motion } from 'framer-motion';
-import { useToast } from '@/components/ui/use-toast';
+import { FC } from "react";
+import Image from "next/image";
+import { motion } from "framer-motion";
+import toast from "react-hot-toast";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL;
 interface Props {
@@ -35,19 +35,19 @@ interface SocialInputTypes {
 }
 
 const socialInputTypes: SocialInputTypes = {
-  Twitter: 'username',
-  'Linked In': 'username',
-  YouTube: 'link',
-  Domus: 'link',
-  Bluesky: 'link',
-  Facebook: 'username',
-  Github: 'link',
-  Instagram: 'username',
-  Rumble: 'link',
-  TikTok: 'username',
-  Truth: 'link',
-  Threads: 'link',
-  Snapchat: 'username',
+  Twitter: "username",
+  "Linked In": "username",
+  YouTube: "link",
+  Domus: "link",
+  Bluesky: "link",
+  Facebook: "username",
+  Github: "link",
+  Instagram: "username",
+  Rumble: "link",
+  TikTok: "username",
+  Truth: "link",
+  Threads: "link",
+  Snapchat: "username",
 };
 
 const InfoBar: FC<Props> = ({
@@ -69,20 +69,20 @@ const InfoBar: FC<Props> = ({
     group,
   } = data;
 
-  const { toast } = useToast();
+  console.log("iconName", iconName);
 
   const openlink = async () => {
-    if (!accessToken) {
-      window.location.href =
-        'https://apps.apple.com/us/app/swop-connecting-the-world/id1593201322';
-      return;
-    }
+    // if (!accessToken) {
+    //   window.location.href =
+    //     'https://apps.apple.com/us/app/swop-connecting-the-world/id1593201322';
+    //   return;
+    // }
     try {
       fetch(`${API_URL}/api/v1/web/updateCount`, {
-        method: 'POST',
+        method: "POST",
         headers: {
-          Accept: 'application/json',
-          'Content-Type': 'application/json',
+          Accept: "application/json",
+          "Content-Type": "application/json",
         },
         body: JSON.stringify({
           socialType,
@@ -95,80 +95,95 @@ const InfoBar: FC<Props> = ({
     }
 
     switch (group) {
-      case 'Social Media':
-        if (socialInputTypes[iconName] === 'link') {
-          return window.open(title, '_self');
+      case "Social Media":
+        if (socialInputTypes[iconName] === "link") {
+          return window.open(title, "_blank");
         }
-        // if (iconName === 'Linked In') {
-        //   return window.open(`https://${link}/in/${title}`, '_self');
-        // }
-        // if (iconName === 'Snapchat') {
-        //   return window.open(`${link}/add/${title}`, '_self');
-        // }
-        // return window.open(`https://${link}/${title}`, '_self');
-        if (title.includes('https') || title.includes('http')) {
-          return window.open(title, '_self');
+        if (title.includes("https") || title.includes("http")) {
+          return window.open(title, "_blank");
         } else {
-          return window.open(`https://${link}/${title}`, '_self');
+          return window.open(`https://${link}/${title}`, "_blank");
         }
-      case 'Chat Links':
-        if (iconName === 'Whatsapp') {
-          return window.open(`https://wa.me/${title}?`, '_self');
+      case "Call To Action":
+        if ("Email" === iconName) {
+          return window.open(`mailto:${title}`, "_blank");
         }
-        if (iconName === 'Telegram') {
-          return window.open(`https://t.me/${title}?`, '_self');
+        if (iconName === "Call" || iconName === "Mobile") {
+          const phone = title.replace(/[^+\d]/g, "");
+          window.location.href = `tel:${phone}`;
+          return;
+        } else {
+          window.open(title, "_blank");
+          return;
         }
-        return window.open(`${title}`, '_self');
-      case 'Copy Address':
+      case "Chat Links":
+        if (iconName === "Whatsapp") {
+          return window.open(`https://wa.me/${title}?`, "_blank");
+        }
+        if (iconName === "Telegram") {
+          return window.open(`https://t.me/${title}?`, "_blank");
+        }
+        return window.open(`${title}`, "_blank");
+      case "Copy Address":
         navigator.clipboard.writeText(title);
-        toast({
-          title: 'Copied to clipboard',
+        toast.success("Copied to clipboard", {
+          position: "top-right",
         });
         break;
-      case 'Command/Action':
-        if (iconName === 'Email') {
-          return window.open(`mailto:${title}`, '_self');
+      case "Command/Action":
+        if (iconName === "Email") {
+          window.location.href = `mailto:${title}`;
+          return;
         }
-        if (iconName === 'Call') {
-          return window.open(`tel:${title}`, '_self');
+        if (iconName === "Address" || iconName === "Map") {
+          window.open(
+            `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(title)}`,
+            "_blank",
+          );
+          return;
         }
-        if (iconName === 'Text Message') {
-          return window.open(`sms:${title}`, '_self');
+        if (iconName === "Call") {
+          window.location.href = `tel:${title}`;
+          return;
+        }
+
+        if (iconName === "Text Message") {
+          window.location.href = `sms:${title}`;
+          return;
         }
 
         if (
-          iconName === 'Send Crypto' ||
-          iconName === 'ENS Message' ||
-          iconName === 'Copy'
+          iconName === "Send Crypto" ||
+          iconName === "ENS Message" ||
+          iconName === "Copy"
         ) {
           navigator.clipboard.writeText(title);
-          toast({
-            title: 'Copied to clipboard',
+          toast.success("Copied to clipboard", {
+            position: "top-right",
           });
           break;
         }
-        if (title.toLowerCase().startsWith('www')) {
-          console.log('www');
-          return window.open(`https://${title}`, '_self');
+        if (title.toLowerCase().startsWith("www")) {
+          return window.open(`https://${title}`, "_blank");
         }
-        return window.open(title, '_self');
-      case 'General Links':
-        if (iconName === 'Invoice' || iconName === 'Card Payment') {
+        return window.open(title, "_blank");
+      case "General Links":
+        if (iconName === "Invoice" || iconName === "Card Payment") {
           navigator.clipboard.writeText(title);
-          toast({
-            title: 'Copied to clipboard',
+          toast.success("Copied to clipboard", {
+            position: "top-right",
           });
           break;
         }
-        return window.open(title, '_self');
+        return window.open(title, "_blank");
       default:
-        return window.open(title, '_self');
+        return window.open(title, "_blank");
     }
   };
 
   // const delay = number / 0.1;
 
-  const trimIcon = iconName.toLowerCase().trim().replace(' ', '');
+  const trimIcon = iconName.toLowerCase().trim().replace(" ", "");
 
   return (
     <motion.div
@@ -179,12 +194,12 @@ const InfoBar: FC<Props> = ({
       transition={{
         duration: 0.4,
         delay: 0.2,
-        type: 'easeInOut',
+        type: "easeInOut",
       }}
     >
       <motion.div
         transition={{
-          type: 'spring',
+          type: "spring",
           stiffness: 400,
           damping: 10,
         }}
@@ -195,7 +210,7 @@ const InfoBar: FC<Props> = ({
           <Image
             className="object-fill w-14 h-14"
             src={
-              iconName.includes('http')
+              iconName.includes("http")
                 ? iconName
                 : `/images/social_logo/${trimIcon}.svg`
             }

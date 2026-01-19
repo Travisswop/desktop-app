@@ -1,12 +1,12 @@
-'use client';
-import { useState } from 'react';
-import Image from 'next/image';
-import { motion } from 'framer-motion';
-import { ShoppingCart, Loader2 } from 'lucide-react';
+"use client";
+import { useState } from "react";
+import Image from "next/image";
+import { motion } from "framer-motion";
+import { ShoppingCart, Loader2 } from "lucide-react";
 
-import { addProductToCart } from '@/actions/addToCartActions';
-import toast from 'react-hot-toast';
-import { useCart } from '@/app/(public-profile)/sp/[username]/cart/context/CartContext';
+import { addProductToCart } from "@/actions/addToCartActions";
+import toast from "react-hot-toast";
+import { useCart } from "@/app/(public-profile)/sp/[username]/cart/context/CartContext";
 
 // const API_URL = process.env.NEXT_PUBLIC_API_URL;
 
@@ -23,7 +23,7 @@ const MarketPlace: any = ({
   userName,
   accessToken,
   userId,
-  secondaryFontColor,
+  fontColor,
 }: any) => {
   const [addToCartLoading, setAddToCartLoading] = useState(false);
   const [isExisting, setIsExisting] = useState(false);
@@ -36,7 +36,7 @@ const MarketPlace: any = ({
     itemDescription,
   } = data;
 
-  console.log('datass', data);
+  console.log("datass", data);
 
   const delay = number + 1 * 0.2;
 
@@ -48,7 +48,7 @@ const MarketPlace: any = ({
 
     if (!accessToken) {
       window.location.href =
-        'https://apps.apple.com/us/app/swop-connecting-the-world/id1593201322';
+        "https://apps.apple.com/us/app/swop-connecting-the-world/id1593201322";
       return;
     }
 
@@ -67,16 +67,16 @@ const MarketPlace: any = ({
         templateId: templateId,
         nftType:
           data.collectionMintAddress ===
-          'EFNUeHdd9dYNWaczMGfCtqThFea7HcL7xUdH8QNsYUcq'
-            ? ('phygital' as const)
-            : ('non-phygital' as const),
+          "EFNUeHdd9dYNWaczMGfCtqThFea7HcL7xUdH8QNsYUcq"
+            ? ("phygital" as const)
+            : ("non-phygital" as const),
       },
     };
 
     if (!accessToken) {
-      dispatch({ type: 'ADD_ITEM', payload: cartItem });
+      dispatch({ type: "ADD_ITEM", payload: cartItem });
       setAddToCartLoading(false);
-      toast.success('Item added to cart (offline)');
+      toast.success("Item added to cart (offline)");
       return;
     }
 
@@ -89,23 +89,17 @@ const MarketPlace: any = ({
         sellerId: sellerId,
       };
 
-      const response = await addProductToCart(
-        cartData,
-        accessToken,
-        userName
-      );
+      const response = await addProductToCart(cartData, accessToken, userName);
 
-      if (response.state === 'success') {
-        dispatch({ type: 'ADD_ITEM', payload: cartItem });
-        toast.success('Items added to cart');
+      if (response.state === "success") {
+        dispatch({ type: "ADD_ITEM", payload: cartItem });
+        toast.success("Items added to cart");
       } else {
-        throw new Error(
-          response.message || 'Failed to add item to cart'
-        );
+        throw new Error(response.message || "Failed to add item to cart");
       }
     } catch (error) {
-      console.error('Error adding to cart:', error);
-      toast.error('Failed to add item to cart. Please try again.');
+      console.error("Error adding to cart:", error);
+      toast.error("Failed to add item to cart. Please try again.");
     } finally {
       setAddToCartLoading(false);
     }
@@ -120,7 +114,7 @@ const MarketPlace: any = ({
       transition={{
         duration: 0.4,
         delay,
-        type: 'easeInOut',
+        type: "easeInOut",
       }}
       className="w-full"
     >
@@ -136,14 +130,14 @@ const MarketPlace: any = ({
           ) : (
             <ShoppingCart
               className={`w-5 h-5 ${
-                isExisting ? 'text-gray-400' : 'text-gray-700'
+                isExisting ? "text-gray-400" : "text-gray-700"
               }`}
             />
           )}
         </button>
 
         {/* Product Image */}
-        <div className="relative w-full aspect-square flex items-center justify-center p-8 pb-0 pt-12">
+        {/* <div className="relative w-full aspect-square flex items-center justify-center p-8 pb-0 pt-12">
           <Image
             src={itemImageUrl}
             alt={itemName}
@@ -151,17 +145,41 @@ const MarketPlace: any = ({
             height={300}
             className="w-full h-full object-contain"
           />
+        </div> */}
+
+        <div className="relative aspect-square overflow-hidden m-6 mx-10 rounded-md">
+          <Image
+            src={itemImageUrl}
+            alt={itemName}
+            fill
+            quality={100}
+            className="object-cover group-hover:scale-105 transition-transform duration-200"
+          />
         </div>
 
         {/* Product Info */}
-        <div
+        {/* <div
           style={{ color: secondaryFontColor && secondaryFontColor }}
-          className="p-4 text-center"
+          className="p-4 pt-0 text-center"
         >
-          <h3 className="font-medium text-base mb-1 truncate">
-            {itemName}
-          </h3>
+          <h3 className="font-medium text-base mb-1 truncate">{itemName}</h3>
           <p className="text-sm">${itemPrice}</p>
+        </div> */}
+
+        <div className="p-3 pt-0">
+          <div className="flex flex-col gap-0.5">
+            <p
+              style={{
+                color: fontColor ? fontColor : "black",
+              }}
+              className="text-sm font-semibold line-clamp-1"
+            >
+              {itemName}
+            </p>
+            <p className="text-xs font-medium mt-0.5 bg-gray-100 w-max px-2 py-0.5 rounded-md">
+              ${itemPrice}
+            </p>
+          </div>
         </div>
       </div>
     </motion.div>

@@ -1,46 +1,44 @@
-'use client';
+"use client";
 
-import Header from '@/components/publicProfile/header';
-import Bio from '@/components/publicProfile/bio';
-import Blog from '@/components/publicProfile/blog';
-import SocialLarge from '@/components/publicProfile/socialLarge';
-import SocialSmall from '@/components/publicProfile/socialSmall';
-import Ens from '@/components/publicProfile/ens';
-import MP3 from '@/components/publicProfile/mp3';
-import Referral from '@/components/publicProfile/referral';
-import Redeem from '@/components/publicProfile/redeem';
-import EmbedVideo from '@/components/publicProfile/embedvideo';
-import Message from '@/components/publicProfile/message';
-import Contact from '@/components/publicProfile/contact';
-import InfoBar from '@/components/publicProfile/infoBar';
-import PaymentBar from '@/components/publicProfile/paymentBar';
-import Footer from '@/components/publicProfile/footer';
-import { redirect } from 'next/navigation';
-import { Toaster } from '@/components/ui/toaster';
-import MarketPlace from '@/components/publicProfile/MarketPlace';
+import Header from "@/components/publicProfile/header";
+import Bio from "@/components/publicProfile/bio";
+import Blog from "@/components/publicProfile/blog";
+import SocialLarge from "@/components/publicProfile/socialLarge";
+import SocialSmall from "@/components/publicProfile/socialSmall";
+import Ens from "@/components/publicProfile/ens";
+import MP3 from "@/components/publicProfile/mp3";
+import Referral from "@/components/publicProfile/referral";
+import Redeem from "@/components/publicProfile/redeem";
+import EmbedVideo from "@/components/publicProfile/embedvideo";
+import Message from "@/components/publicProfile/message";
+import Contact from "@/components/publicProfile/contact";
+import InfoBar from "@/components/publicProfile/infoBar";
+import PaymentBar from "@/components/publicProfile/paymentBar";
+import Footer from "@/components/publicProfile/footer";
+import { redirect } from "next/navigation";
+import { Toaster } from "@/components/ui/toaster";
+import MarketPlace from "@/components/publicProfile/MarketPlace";
 import {
   Carousel,
   CarouselContent,
   CarouselItem,
   CarouselNext,
   CarouselPrevious,
-} from '@/components/ui/carousel';
+} from "@/components/ui/carousel";
 
-import { CartProvider } from './cart/context/CartContext';
-import { useUser } from '@/lib/UserContext';
-import LivePreviewTimeline from '@/components/feed/LivePreviewTimeline';
-import { useMicrositeData } from './context/MicrositeContext';
-import TokenGateVerification from '@/components/publicProfile/TokenGateVerification';
-import distributeSmallIcons from '@/components/util/distributeSmallIcons';
-import { fontMap } from '@/lib/fonts';
+import { CartProvider } from "./cart/context/CartContext";
+import { useUser } from "@/lib/UserContext";
+import LivePreviewTimeline from "@/components/feed/LivePreviewTimeline";
+import { useMicrositeData } from "./context/MicrositeContext";
+import TokenGateVerification from "@/components/publicProfile/TokenGateVerification";
+import distributeSmallIcons from "@/components/util/distributeSmallIcons";
+import { fontMap } from "@/lib/fonts";
 
 interface ClientProfileProps {
   userName: string;
 }
 
-export default function ClientProfile({
-  userName,
-}: ClientProfileProps) {
+export default function ClientProfile({ userName }: ClientProfileProps) {
   const { micrositeData } = useMicrositeData();
   const { user, accessToken } = useUser();
 
@@ -52,7 +50,7 @@ export default function ClientProfile({
     redirect(`/sp/${micrositeData.username}`);
   }
 
-  console.log('micrositeData', micrositeData);
+  console.log("micrositeData", micrositeData);
 
   const {
     _id,
@@ -73,13 +71,13 @@ export default function ClientProfile({
     ens,
   } = micrositeData;
 
-  console.log('info', info);
+  console.log("info.infoBar", info.infoBar);
 
   const groupMarketPlaceByType = (marketPlaceItems: any[]) => {
     const grouped: { [key: string]: any[] } = {};
 
     marketPlaceItems.forEach((item) => {
-      const nftType = item.templateId?.nftType || 'other';
+      const nftType = item.templateId?.nftType || "other";
       if (!grouped[nftType]) {
         grouped[nftType] = [];
       }
@@ -95,27 +93,22 @@ export default function ClientProfile({
     <>
       {/* Token Gate Verification Modal - Shows when gatedInfo.isOn is true */}
       {gatedInfo?.isOn && (
-        <TokenGateVerification
-          gatedInfo={gatedInfo}
-          micrositeName={name}
-        />
+        <TokenGateVerification gatedInfo={gatedInfo} micrositeName={name} />
       )}
 
       <div
         style={{
           backgroundImage: backgroundImg
             ? `url(/images/smartsite-background/${backgroundImg}.png)`
-            : 'none',
+            : "none",
           backgroundColor: backgroundColor && backgroundColor,
         }}
-        className={`bg-cover bg-no-repeat h-screen overflow-y-auto pt-6 ${
-          fontFamily
-            ? fontMap[fontFamily?.toLowerCase() || 'roboto']
-            : ''
+        className={`bg-cover bg-no-repeat h-screen overflow-y-auto px-4 lg:px-0 pt-6 ${
+          fontFamily ? fontMap[fontFamily?.toLowerCase() || "roboto"] : ""
         }`}
       >
         <main
-          className={`flex max-w-md mx-auto min-h-screen flex-col items-center px-4 z-50`}
+          className={`flex max-w-md mx-auto min-h-screen flex-col items-center z-50 space-y-5`}
         >
           <CartProvider>
             <Header
@@ -125,109 +118,105 @@ export default function ClientProfile({
               parentId={parentId}
               micrositeId={_id}
               theme={theme}
-              accessToken={accessToken ? accessToken : ''}
+              accessToken={accessToken ? accessToken : ""}
             />
-            <div
-              style={{ color: fontColor && fontColor }}
-              className={`my-4`}
-            >
-              <Bio name={name} bio={bio} />
-            </div>
+            <Bio
+              name={name}
+              bio={bio}
+              primaryFontColor={fontColor}
+              secondaryFontColor={secondaryFontColor}
+            />
 
             {/* Social Media Small */}
             {info?.socialTop && info.socialTop.length > 0 && (
               <div className="space-y-4">
-                {distributeSmallIcons(info.socialTop).map(
-                  (row, rowIndex) => (
-                    <div
-                      key={rowIndex}
-                      className="flex justify-center gap-x-6 gap-y-4 flex-wrap"
-                    >
-                      {row.map((item, index) => (
-                        <SocialSmall
-                          number={index}
-                          key={item.name}
-                          data={item}
-                          socialType="socialTop"
-                          parentId={parentId}
-                          accessToken={accessToken || ''}
-                        />
-                      ))}
-                    </div>
-                  )
-                )}
+                {distributeSmallIcons(info.socialTop).map((row, rowIndex) => (
+                  <div
+                    key={rowIndex}
+                    className="flex justify-center gap-x-6 gap-y-4 flex-wrap"
+                  >
+                    {row.map((item, index) => (
+                      <SocialSmall
+                        number={index}
+                        key={item.name}
+                        data={item}
+                        socialType="socialTop"
+                        parentId={parentId}
+                        accessToken={accessToken || ""}
+                        fontColor={fontColor || "#000000"}
+                      />
+                    ))}
+                  </div>
+                ))}
               </div>
             )}
-
-            <div className="mt-4"></div>
 
             {/* market place - Grouped by nftType */}
             {info?.marketPlace && info.marketPlace.length > 0 && (
               <div className="w-full space-y-3 mb-4">
-                {Object.entries(
-                  groupMarketPlaceByType(info.marketPlace)
-                ).map(([nftType, items]: [string, any[]]) => (
-                  <div key={nftType} className="w-full">
-                    {/* Group Title */}
-                    <h3
-                      style={{ color: fontColor && fontColor }}
-                      className="text-xl font-medium mb-1 capitalize"
-                    >
-                      {nftType}
-                    </h3>
-
-                    {/* If items > 2, show carousel, else show grid */}
-                    {items.length > 2 ? (
-                      <Carousel
-                        opts={{
-                          align: 'start',
-                          loop: true,
+                {Object.entries(groupMarketPlaceByType(info.marketPlace)).map(
+                  ([nftType, items]: [string, any[]]) => (
+                    <div key={nftType} className="w-full">
+                      {/* Group Title */}
+                      <h2
+                        style={{
+                          color: fontColor ? fontColor : "black",
                         }}
-                        className="w-full"
+                        className="text-base font-semibold capitalize mb-1"
                       >
-                        <CarouselContent className="-ml-2 md:-ml-4">
+                        {nftType}
+                      </h2>
+
+                      {/* If items > 2, show carousel, else show grid */}
+                      {items.length > 2 ? (
+                        <Carousel
+                          opts={{
+                            align: "start",
+                            loop: true,
+                            slidesToScroll: 2,
+                          }}
+                          className="w-full"
+                        >
+                          <CarouselContent className="-ml-2 md:-ml-4">
+                            {items.map((item, index) => (
+                              <CarouselItem
+                                key={item._id}
+                                className="pl-2 md:pl-3 basis-[45%]"
+                              >
+                                <MarketPlace
+                                  data={item}
+                                  socialType="redeemLink"
+                                  sellerId={_id}
+                                  userName={userName}
+                                  number={index}
+                                  userId={user?._id}
+                                  accessToken={accessToken}
+                                  fontColor={fontColor}
+                                />
+                              </CarouselItem>
+                            ))}
+                          </CarouselContent>
+                        </Carousel>
+                      ) : (
+                        <div className="grid grid-cols-2 gap-2">
                           {items.map((item, index) => (
-                            <CarouselItem
+                            <MarketPlace
                               key={item._id}
-                              className="pl-2 md:pl-4 basis-full sm:basis-1/2"
-                            >
-                              <MarketPlace
-                                data={item}
-                                socialType="redeemLink"
-                                sellerId={_id}
-                                userName={userName}
-                                number={index}
-                                userId={user?._id}
-                                accessToken={accessToken}
-                                secondaryFontColor={
-                                  secondaryFontColor
-                                }
-                              />
-                            </CarouselItem>
+                              data={item}
+                              socialType="redeemLink"
+                              sellerId={_id}
+                              userName={userName}
+                              number={index}
+                              userId={user?._id}
+                              accessToken={accessToken}
+                              secondaryFontColor={secondaryFontColor}
+                            />
                           ))}
-                        </CarouselContent>
-                        <CarouselPrevious className="left-0" />
-                        <CarouselNext className="right-0" />
-                      </Carousel>
-                    ) : (
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        {items.map((item, index) => (
-                          <MarketPlace
-                            key={item._id}
-                            data={item}
-                            socialType="redeemLink"
-                            sellerId={_id}
-                            userName={userName}
-                            number={index}
-                            userId={user?._id}
-                            accessToken={accessToken}
-                            secondaryFontColor={secondaryFontColor}
-                          />
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                ))}
+                        </div>
+                      )}
+                    </div>
+                  ),
+                )}
               </div>
             )}
 
@@ -249,19 +238,17 @@ export default function ClientProfile({
             {/* Social Media Big */}
             {info?.socialLarge && info.socialLarge.length > 0 && (
               <div className="w-full grid grid-cols-3 gap-4 sm:gap-10 my-4">
-                {info.socialLarge.map(
-                  (social: any, index: number) => (
-                    <SocialLarge
-                      number={index}
-                      key={index}
-                      data={social}
-                      socialType="socialLarge"
-                      parentId={parentId}
-                      fontColor={fontColor}
-                      accessToken={accessToken || ''}
-                    />
-                  )
-                )}
+                {info.socialLarge.map((social: any, index: number) => (
+                  <SocialLarge
+                    number={index}
+                    key={index}
+                    data={social}
+                    socialType="socialLarge"
+                    parentId={parentId}
+                    fontColor={fontColor}
+                    accessToken={accessToken || ""}
+                  />
+                ))}
               </div>
             )}
 
@@ -286,18 +273,16 @@ export default function ClientProfile({
               {/* Redeem Link */}
               {info?.redeemLink && info.redeemLink.length > 0 && (
                 <div className="w-full">
-                  {info.redeemLink.map(
-                    (social: any, index: number) => (
-                      <Redeem
-                        number={index}
-                        key={social._id}
-                        data={social}
-                        socialType="redeemLink"
-                        parentId={parentId}
-                        accessToken={accessToken || ''}
-                      />
-                    )
-                  )}
+                  {info.redeemLink.map((social: any, index: number) => (
+                    <Redeem
+                      number={index}
+                      key={social._id}
+                      data={social}
+                      socialType="redeemLink"
+                      parentId={parentId}
+                      accessToken={accessToken || ""}
+                    />
+                  ))}
                 </div>
               )}
 
@@ -311,7 +296,7 @@ export default function ClientProfile({
                       data={social}
                       socialType="referral"
                       parentId={parentId}
-                      accessToken={accessToken || ''}
+                      accessToken={accessToken || ""}
                     />
                   ))}
                 </div>
@@ -326,7 +311,7 @@ export default function ClientProfile({
                     data={ensDomain}
                     socialType="ens"
                     parentId={parentId}
-                    accessToken={accessToken || ''}
+                    accessToken={accessToken || ""}
                   />
                 </div>
               )}
@@ -341,7 +326,7 @@ export default function ClientProfile({
                       data={social}
                       socialType="contact"
                       parentId={parentId}
-                      accessToken={accessToken || ''}
+                      accessToken={accessToken || ""}
                     />
                   ))}
                 </div>
@@ -357,7 +342,7 @@ export default function ClientProfile({
                       data={social}
                       socialType="infoBar"
                       parentId={parentId}
-                      accessToken={accessToken || ''}
+                      accessToken={accessToken || ""}
                     />
                   ))}
                 </div>
@@ -373,7 +358,7 @@ export default function ClientProfile({
                       data={social}
                       socialType="product"
                       parentId={parentId}
-                      accessToken={accessToken || ''}
+                      accessToken={accessToken || ""}
                     />
                   ))}
                 </div>
@@ -424,8 +409,8 @@ export default function ClientProfile({
 
             {micrositeData?.showFeed && (
               <LivePreviewTimeline
-                accessToken={accessToken || ''}
-                userId={user?._id || ''}
+                accessToken={accessToken || ""}
+                userId={user?._id || ""}
                 micrositeId={micrositeData._id}
                 isPostLoading={false}
                 isPosting={false}

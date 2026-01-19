@@ -1,46 +1,42 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
-import Image from 'next/image';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import {
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card';
+import { useCallback, useEffect, useState } from "react";
+import Image from "next/image";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Upload,
   User,
   User2,
-  Phone,
   Mail,
   Calendar,
   Building,
   MapPin,
   Loader,
-} from 'lucide-react';
-import { PrivyUser, OnboardingData } from '@/lib/types';
-import { uploadImageToCloudinary } from '@/lib/cloudinary';
-import { useToast } from '@/hooks/use-toast';
-import astronot from '@/public/onboard/astronot.svg';
-import blackPlanet from '@/public/onboard/black-planet.svg';
-import editIcon from '@/public/images/websites/edit-icon.svg';
-import { useDisclosure } from '@nextui-org/react';
-import userProfileImages from '../util/data/userProfileImage';
-import SelectAvatorModal from '../modal/SelectAvatorModal';
-import { useCreateWallet, usePrivy } from '@privy-io/react-auth';
-import { WalletItem } from '@/types/wallet';
-import { createWalletBalance } from '@/actions/createWallet';
-import logger from '@/utils/logger';
+} from "lucide-react";
+import { PrivyUser, OnboardingData } from "@/lib/types";
+import { uploadImageToCloudinary } from "@/lib/cloudinary";
+import { useToast } from "@/hooks/use-toast";
+import astronot from "@/public/onboard/astronot.svg";
+import blackPlanet from "@/public/onboard/black-planet.svg";
+import editIcon from "@/public/images/websites/edit-icon.svg";
+import { useDisclosure } from "@nextui-org/react";
+import userProfileImages from "../util/data/userProfileImage";
+import SelectAvatorModal from "../modal/SelectAvatorModal";
+import { useCreateWallet, usePrivy } from "@privy-io/react-auth";
+import { WalletItem } from "@/types/wallet";
+import { createWalletBalance } from "@/actions/createWallet";
+import logger from "@/utils/logger";
+import GooglePlacesAutocomplete from "react-google-places-autocomplete";
+import { PrimaryButton } from "../ui/Button/PrimaryButton";
+import PhoneInput from "react-phone-number-input";
+import "react-phone-number-input/style.css";
+import { parsePhoneNumber, isValidPhoneNumber } from "libphonenumber-js";
+import CountrySelect from "./CountrySelect";
 import {
-  useWallets as useSolanaWallets,
-  useSignAndSendTransaction,
   useCreateWallet as useSolanaCreateWallet,
 } from '@privy-io/react-auth/solana';
-import GooglePlacesAutocomplete from 'react-google-places-autocomplete';
-import { PrimaryButton } from '../ui/Button/PrimaryButton';
 
 interface RegistrationProps {
   user: PrivyUser;
@@ -54,15 +50,17 @@ export default function Registration({
 }: RegistrationProps) {
   const { toast } = useToast();
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [name, setName] = useState(user?.name || '');
-  const [bio, setBio] = useState('');
-  const [phone, setPhone] = useState('');
+  const [name, setName] = useState(user?.name || "");
+  const [bio, setBio] = useState("");
+  const [phone, setPhone] = useState("");
+  const [countryCode, setCountryCode] = useState("US");
+  const [countryFlag, setCountryFlag] = useState("🇺🇸");
   const [birthdate, setBirthdate] = useState(0);
   const [apartment, setApartment] = useState('');
   const [address, setAddress] = useState('');
   const [profileImage, setProfileImage] = useState('1');
   const [profileImageUrl, setProfileImageUrl] = useState(
-    '/images/user_avator/1.png?height=32&width=32'
+    "/images/user_avator/1.png?height=32&width=32",
   );
   const [walletData, setWalletData] = useState<WalletItem[]>([]);
   const [isUserProfileModalOpen, setIsUserProfileModalOpen] =
@@ -179,35 +177,35 @@ export default function Registration({
       }
 
       logger.info(
-        `Authentication status: authenticated=${authenticated}, ready=${ready}, user=${!!privyUser}`
+        `Authentication status: authenticated=${authenticated}, ready=${ready}, user=${!!privyUser}`,
       );
 
       // Add a small delay to ensure authentication is fully propagated
       await new Promise((resolve) => setTimeout(resolve, 500));
       logger.info(
-        'Authentication delay complete, proceeding with wallet creation...'
+        "Authentication delay complete, proceeding with wallet creation...",
       );
 
       // Check if user already has wallets
       const hasEthereumWallet = privyUser?.linkedAccounts.some(
         (account: any) =>
-          account.chainType === 'ethereum' &&
-          (account.walletClientType === 'privy' ||
-            account.connectorType === 'embedded')
+          account.chainType === "ethereum" &&
+          (account.walletClientType === "privy" ||
+            account.connectorType === "embedded"),
       );
 
       const hasSolanaWallet = privyUser?.linkedAccounts.some(
         (account: any) =>
-          account.chainType === 'solana' &&
-          (account.walletClientType === 'privy' ||
-            account.connectorType === 'embedded')
+          account.chainType === "solana" &&
+          (account.walletClientType === "privy" ||
+            account.connectorType === "embedded"),
       );
 
       logger.info(
-        `Wallet status check - Ethereum: ${hasEthereumWallet}, Solana: ${hasSolanaWallet}`
+        `Wallet status check - Ethereum: ${hasEthereumWallet}, Solana: ${hasSolanaWallet}`,
       );
       logger.info(
-        `Wallets created state - Ethereum: ${walletsCreated.ethereum}, Solana: ${walletsCreated.solana}`
+        `Wallets created state - Ethereum: ${walletsCreated.ethereum}, Solana: ${walletsCreated.solana}`,
       );
 
       // Create Ethereum wallet if needed
@@ -218,7 +216,7 @@ export default function Registration({
           // Double-check authentication before wallet creation
           if (!authenticated || !ready || !privyUser) {
             logger.error(
-              'Authentication state changed during wallet creation - aborting Ethereum wallet creation'
+              "Authentication state changed during wallet creation - aborting Ethereum wallet creation",
             );
             return;
           }
@@ -238,29 +236,25 @@ export default function Registration({
               return { status: 'already_exists' };
             }
             logger.error(
-              `Ethereum wallet creation error: ${JSON.stringify(
-                error
-              )}`
+              `Ethereum wallet creation error: ${JSON.stringify(error)}`,
             );
             throw error;
           });
 
           logger.info(
-            `Ethereum wallet creation result: ${JSON.stringify(
-              result
-            )}`
+            `Ethereum wallet creation result: ${JSON.stringify(result)}`,
           );
           setWalletsCreated((prev) => ({ ...prev, ethereum: true }));
           logger.info('Ethereum wallet creation complete');
         } catch (err) {
           logger.error(
-            `Ethereum wallet creation failed: ${JSON.stringify(err)}`
+            `Ethereum wallet creation failed: ${JSON.stringify(err)}`,
           );
           // Don't mark as created if there was a real error
         }
       } else {
         logger.info(
-          'Skipping Ethereum wallet creation - already exists or already created'
+          "Skipping Ethereum wallet creation - already exists or already created",
         );
       }
 
@@ -272,7 +266,7 @@ export default function Registration({
           // Double-check authentication before wallet creation
           if (!authenticated || !ready || !privyUser) {
             logger.error(
-              'Authentication state changed during wallet creation - aborting Solana wallet creation'
+              "Authentication state changed during wallet creation - aborting Solana wallet creation",
             );
             return;
           }
@@ -291,13 +285,13 @@ export default function Registration({
               return { status: 'already_exists' };
             }
             logger.error(
-              `Solana wallet creation error: ${JSON.stringify(error)}`
+              `Solana wallet creation error: ${JSON.stringify(error)}`,
             );
             throw error;
           });
 
           logger.info(
-            `Solana wallet creation result: ${JSON.stringify(result)}`
+            `Solana wallet creation result: ${JSON.stringify(result)}`,
           );
           setWalletsCreated((prev) => ({ ...prev, solana: true }));
           logger.info('Solana wallet creation complete');
@@ -308,15 +302,13 @@ export default function Registration({
         }
       } else {
         logger.info(
-          'Skipping Solana wallet creation - already exists or already created'
+          "Skipping Solana wallet creation - already exists or already created",
         );
       }
 
       // Final status check
       logger.info(
-        `Final wallet creation status: ${JSON.stringify(
-          walletsCreated
-        )}`
+        `Final wallet creation status: ${JSON.stringify(walletsCreated)}`,
       );
     } catch (error) {
       logger.error(
@@ -384,6 +376,29 @@ export default function Registration({
     }
   };
 
+  // Handle phone number change with validation
+  const handlePhoneChange = (value: string | undefined) => {
+    setPhone(value || "");
+
+    if (value) {
+      try {
+        const phoneNumber = parsePhoneNumber(value);
+        console.log("phoneNumber", phoneNumber);
+
+        if (phoneNumber) {
+          setCountryCode(
+            phoneNumber.countryCallingCode
+              ? `+${phoneNumber.countryCallingCode}`
+              : "+1",
+          );
+          setCountryFlag(phoneNumber.country ? `${phoneNumber.country}` : "US");
+        }
+      } catch (error) {
+        console.error("Error parsing phone number:", error);
+      }
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -392,6 +407,17 @@ export default function Registration({
         variant: 'destructive',
         title: 'Error',
         description: 'Name is required.',
+      });
+      return;
+    }
+
+    // Validate phone number
+    if (phone && !isValidPhoneNumber(phone)) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description:
+          "Please enter a valid phone number for the selected country.",
       });
       return;
     }
@@ -409,9 +435,9 @@ export default function Registration({
       // Refresh wallet data after creation
       refreshWalletData();
 
-      logger.info(
-        'Wallet creation completed, proceeding with user registration...'
-      );
+      // logger.info(
+      //   "Wallet creation completed, proceeding with user registration..."
+      // );
 
       // Process profile image
       let avatarUrl = profileImage;
@@ -448,9 +474,9 @@ export default function Registration({
         bio: bio || '',
         dob: birthdate.toString(),
         profilePic: avatarUrl,
-        apt: apartment || '',
-        countryFlag: 'US',
-        countryCode: 'US',
+        apt: apartment || "",
+        countryFlag: countryFlag,
+        countryCode: countryCode,
         privyId: privyUser?.id,
         ethereumWallet: ethereumWallet?.address,
         solanaWallet: solanaWallet?.address,
@@ -465,7 +491,7 @@ export default function Registration({
             'Content-Type': 'application/json',
           },
           body: JSON.stringify(userData),
-        }
+        },
       );
 
       if (!response.ok) {
@@ -474,7 +500,7 @@ export default function Registration({
           .catch(() => ({ message: 'Unknown error' }));
         console.error('Registration error:', errorData);
         throw new Error(
-          errorData.message || 'Failed to create user and smartsite'
+          errorData.message || "Failed to create user and smartsite",
         );
       }
 
@@ -608,18 +634,16 @@ export default function Registration({
                       <span style={{ color: 'red' }}>*</span>
                     </p>
                   </Label>
-                  <div className="relative w-full">
-                    <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground">
-                      <Phone className="h-4 w-4" />
-                    </span>
-                    <Input
-                      id="phone"
-                      type="tel"
-                      placeholder="Enter your phone number"
+                  <div className="phone-input-wrapper">
+                    <PhoneInput
+                      international
+                      countryCallingCodeEditable={false}
+                      defaultCountry="US"
                       value={phone}
-                      onChange={(e) => setPhone(e.target.value)}
-                      required
-                      className="pl-8 focus:!ring-1 !ring-gray-300"
+                      onChange={handlePhoneChange}
+                      placeholder="Enter phone number"
+                      countrySelectComponent={CountrySelect}
+                      className="phone-input"
                     />
                   </div>
                 </div>
@@ -656,11 +680,11 @@ export default function Registration({
                   </Label>
                   <div className="relative w-full">
                     <span
-                      className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground cursor-pointer"
+                      className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground cursor-pointer z-10"
                       onClick={() =>
                         (
                           document.getElementById(
-                            'birthdate'
+                            "birthdate",
                           ) as HTMLInputElement
                         )?.showPicker()
                       }
@@ -670,6 +694,7 @@ export default function Registration({
                     <Input
                       id="birthdate"
                       type="date"
+                      max={new Date().toISOString().split("T")[0]}
                       value={
                         birthdate
                           ? new Date(birthdate)
@@ -677,11 +702,13 @@ export default function Registration({
                               .split('T')[0]
                           : ''
                       }
-                      onChange={(e) =>
-                        setBirthdate(
-                          new Date(e.target.value).getTime()
-                        )
-                      }
+                      onChange={(e) => {
+                        const selectedDate = new Date(e.target.value).getTime();
+                        const today = new Date().setHours(23, 59, 59, 999);
+                        if (selectedDate <= today) {
+                          setBirthdate(selectedDate);
+                        }
+                      }}
                       className="pl-8 appearance-none focus:ring-1 ring-gray-300 custom-date-input"
                     />
                   </div>
@@ -710,19 +737,18 @@ export default function Registration({
                         styles: {
                           control: (base, state) => ({
                             ...base,
-                            paddingLeft: '1.35rem', // space for icon
-                            // minHeight: "42px",
-                            borderRadius: '0.5rem',
+                            paddingLeft: "1.35rem",
+                            borderRadius: "0.5rem",
                             border: state.isFocused
-                              ? '1px solid #edebeb' // focus (blue-600)
-                              : '1px solid #edebeb',
+                              ? "1px solid #edebeb"
+                              : "1px solid #edebeb",
                             boxShadow: state.isFocused
                               ? '1px solid #edebeb'
                               : 'none',
                             '&:hover': {
                               border: state.isFocused
-                                ? '1px solid #edebeb'
-                                : '1px solid #edebeb', // hover (gray-300)
+                                ? "1px solid #edebeb"
+                                : "1px solid #edebeb",
                             },
                           }),
                           input: (base) => ({
@@ -790,6 +816,46 @@ export default function Registration({
           )}
         </CardContent>
       </div>
+
+      <style jsx global>{`
+        .phone-input-wrapper .PhoneInput {
+          width: 100%;
+        }
+
+        .phone-input-wrapper .PhoneInputInput {
+          border: 1px solid #edebeb;
+          border-radius: 0.5rem;
+          padding: 0.5rem 0.75rem;
+          font-size: 0.875rem;
+          width: 100%;
+          outline: none;
+        }
+
+        .phone-input-wrapper .PhoneInputInput:focus {
+          border-color: #d1d5db;
+          ring: 1px solid #d1d5db;
+        }
+
+        .phone-input-wrapper .PhoneInputCountry {
+          margin-right: 0.5rem;
+        }
+
+        .phone-input-wrapper .PhoneInputCountrySelect {
+          border: none;
+          background: transparent;
+          cursor: pointer;
+        }
+
+        .phone-input-wrapper .PhoneInputCountrySelectArrow {
+          width: 0.375rem;
+          height: 0.375rem;
+          border-style: solid;
+          border-color: #6b7280;
+          border-width: 0 2px 2px 0;
+          transform: rotate(45deg);
+          margin-left: 0.25rem;
+        }
+      `}</style>
     </div>
   );
 }

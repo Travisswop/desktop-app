@@ -1,23 +1,22 @@
-'use client';
-import { FC, useState } from 'react';
-import { CheckCircle, Loader } from 'lucide-react';
+"use client";
+import { FC, useState } from "react";
+import { CheckCircle, Loader } from "lucide-react";
 import {
   DialogDescription,
   DialogHeader,
   DialogTitle,
   DialogFooter,
-} from '@/components/ui/dialog';
-import { Label } from '@/components/ui/label';
-import { Input } from '@/components/ui/input';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
-import { Toaster } from '@/components/ui/toaster';
-import { useToast } from '@/components/ui/use-toast';
+} from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
+import { Toaster } from "@/components/ui/toaster";
+import { useToast } from "@/components/ui/use-toast";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL;
 
-const wait = () =>
-  new Promise((resolve) => setTimeout(resolve, 2500));
+const wait = () => new Promise((resolve) => setTimeout(resolve, 2500));
 
 interface Props {
   data: {
@@ -35,35 +34,32 @@ const Subscribe: FC<Props> = ({ data, handler }) => {
   const [subscribeInfo, setSubscribeInfo] = useState({
     parentId: data.parentId,
     micrositeId: data.micrositeId,
-    name: '',
-    jobTitle: '',
-    mobileNo: '',
-    email: '',
-    walletAddress: '',
-    website: '',
+    name: "",
+    jobTitle: "",
+    mobileNo: "",
+    email: "",
+    walletAddress: "",
+    website: "",
   });
   const submitData = async () => {
     const option = {
-      method: 'POST',
+      method: "POST",
       body: JSON.stringify(subscribeInfo),
       headers: {
-        'Content-Type': 'application/json',
+        "Content-Type": "application/json",
       },
     };
-    const response = await fetch(
-      `${API_URL}/api/v1/web/subscribe`,
-      option
-    );
+    const response = await fetch(`${API_URL}/api/v1/web/subscribe`, option);
     const result = await response.json();
 
-    if (result.state === 'success') {
+    if (result.state === "success") {
       setLoader(false);
       setSuccess(true);
       wait().then(() => handler(true));
     } else {
       setLoader(false);
       toast({
-        title: 'Something went wrong',
+        title: "Something went wrong",
       });
     }
   };
@@ -72,19 +68,19 @@ const Subscribe: FC<Props> = ({ data, handler }) => {
     // handler(true);
     if (!subscribeInfo.name) {
       toast({
-        title: 'Enter your name',
+        title: "Enter your name",
       });
       return;
     }
     if (!subscribeInfo.mobileNo) {
       toast({
-        title: 'Enter your mobile no.',
+        title: "Enter your mobile no.",
       });
       return;
     }
     if (!subscribeInfo.email) {
       toast({
-        title: 'Enter your email',
+        title: "Enter your email",
       });
       return;
     }
@@ -98,11 +94,10 @@ const Subscribe: FC<Props> = ({ data, handler }) => {
           Subscribe to Unlock Exclusive Content
         </DialogTitle>
         <DialogDescription>
-          To get in touch with{' '}
-          <span className="font-bold">{data.name}</span>, please fill
-          out the following form with accurate information. Your
-          privacy is important to us, and all the data provided will
-          be handled in accordance with our privacy policy.
+          To get in touch with <span className="font-bold">{data.name}</span>,
+          please fill out the following form with accurate information. Your
+          privacy is important to us, and all the data provided will be handled
+          in accordance with our privacy policy.
         </DialogDescription>
       </DialogHeader>
       <Card>
@@ -218,17 +213,13 @@ const Subscribe: FC<Props> = ({ data, handler }) => {
       <DialogFooter>
         <Button
           onClick={subscribe}
-          className={success ? 'text-lime-600' : 'text-gray-50'}
+          className={success ? "text-lime-600" : "text-gray-50"}
         >
-          <span
-            className={success ? 'text-lime-600' : 'text-gray-50'}
-          >
+          <span className={success ? "text-lime-600" : "text-gray-50"}>
             Subscribe
           </span>
           {success && <CheckCircle className=" ml-2 h-5 w-5" />}
-          {loader && (
-            <Loader className=" ml-2 h-5 w-5 animate-spin " />
-          )}
+          {loader && <Loader className=" ml-2 h-5 w-5 animate-spin " />}
         </Button>
         <Toaster />
       </DialogFooter>

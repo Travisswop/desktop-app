@@ -1,8 +1,8 @@
-'use client';
-import { FC } from 'react';
-import Image from 'next/image';
-import { downloadVCard } from '@/lib/vCardUtils';
-import { motion } from 'framer-motion';
+"use client";
+import { FC } from "react";
+import Image from "next/image";
+import { downloadVCard } from "@/lib/vCardUtils";
+import { motion } from "framer-motion";
 const API_URL = process.env.NEXT_PUBLIC_API_URL;
 interface Props {
   data: {
@@ -26,37 +26,33 @@ const variants = {
   exit: { opacity: 0, x: -0, y: 25 },
 };
 
-const download = async (
-  data: any,
-  parentId: string,
-  accessToken: string
-) => {
-  if (!accessToken) {
-    window.location.href =
-      'https://apps.apple.com/us/app/swop-connecting-the-world/id1593201322';
-    return;
-  }
+const download = async (data: any, parentId: string, accessToken: string) => {
+  // if (!accessToken) {
+  //   window.location.href =
+  //     'https://apps.apple.com/us/app/swop-connecting-the-world/id1593201322';
+  //   return;
+  // }
 
   const vCard = await downloadVCard(data);
-  const blob = new Blob([vCard], { type: 'text/vcard' });
+  const blob = new Blob([vCard], { type: "text/vcard" });
   const url = window.URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.setAttribute('hidden', '');
-  a.setAttribute('href', url);
-  a.setAttribute('download', `${data.name}.vcf`);
+  const a = document.createElement("a");
+  a.setAttribute("hidden", "");
+  a.setAttribute("href", url);
+  a.setAttribute("download", `${data.name}.vcf`);
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
 
   try {
     fetch(`${API_URL}/api/v1/web/updateCount`, {
-      method: 'POST',
+      method: "POST",
       headers: {
-        Accept: 'application/json',
-        'Content-Type': 'application/json',
+        Accept: "application/json",
+        "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        socialType: 'contact',
+        socialType: "contact",
         socialId: data._id,
         parentId,
       }),
@@ -73,15 +69,7 @@ const Contact: FC<Props> = ({
   number,
   accessToken,
 }) => {
-  const {
-    _id,
-    micrositeId,
-    name,
-    mobileNo,
-    email,
-    address,
-    websiteUrl,
-  } = data;
+  const { _id, micrositeId, name, mobileNo, email, address, websiteUrl } = data;
   const delay = number + 1 * 0.2;
   return (
     <motion.div
@@ -92,12 +80,12 @@ const Contact: FC<Props> = ({
       transition={{
         duration: 0.4,
         delay,
-        type: 'easeInOut',
+        type: "easeInOut",
       }}
     >
       <motion.div
         transition={{
-          type: 'spring',
+          type: "spring",
           stiffness: 400,
           damping: 10,
         }}
