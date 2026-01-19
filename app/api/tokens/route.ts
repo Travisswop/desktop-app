@@ -61,7 +61,7 @@ export async function GET(request: NextRequest) {
   try {
     // Connect to Solana network
     const connection = new Connection(
-      process.env.NEXT_PUBLIC_QUICKNODE_SOLANA_URL!
+      process.env.NEXT_PUBLIC_SOLANA_RPC_URL!
     );
 
     // Get wallet address from URL params

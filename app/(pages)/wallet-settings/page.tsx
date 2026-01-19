@@ -19,7 +19,11 @@ import { useMfaEnrollment, usePrivy } from "@privy-io/react-auth";
 import { useState, useRef } from "react";
 import CustomModal from "@/components/modal/CustomModal";
 import { SiEthereum, SiSolana } from "react-icons/si";
-import { useSolanaWallets, useFundWallet } from "@privy-io/react-auth/solana";
+import {
+  useWallets as useSolanaWallets,
+  useFundWallet,
+  useExportWallet as useSolanaExportWallet,
+} from "@privy-io/react-auth/solana";
 import coinbaseImg from "@/public/images/coinbase.png";
 import bridgeImg from "@/public/images/bridge.png";
 import Image from "next/image";
@@ -35,8 +39,8 @@ export default function WalletSetting() {
   const [openBuyCryptoModal, setOpenBuyCryptoModal] = useState(false);
   const [openSwopIdModal, setOpenSwopIdModal] = useState(false);
   const { exportWallet, user: privyUser } = usePrivy();
-  const { exportWallet: exportSolanaWallet, wallets: solanaWallets } =
-    useSolanaWallets();
+  const { wallets: solanaWallets } = useSolanaWallets();
+  const { exportWallet: exportSolanaWallet } = useSolanaExportWallet();
   const { fundWallet } = useFundWallet();
   const [isLoading, setIsLoading] = useState(false);
   const qrRef = useRef<HTMLDivElement>(null);

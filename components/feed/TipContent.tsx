@@ -12,9 +12,9 @@ import {
 import {
   usePrivy,
   useWallets,
-  useSolanaWallets,
   useAuthorizationSignature,
 } from '@privy-io/react-auth';
+import { useWallets as useSolanaWallets } from '@privy-io/react-auth/solana';
 import { SUPPORTED_CHAINS } from '../wallet/constants';
 import { useMultiChainTokenData } from '@/lib/hooks/useToken';
 import { Connection } from '@solana/web3.js';
@@ -180,7 +180,7 @@ const TipContentModal: React.FC<TipContentModalProps> = ({
   //   async (recipientWalletAddress: string) => {
   //     try {
   //       const connection = new Connection(
-  //         process.env.NEXT_PUBLIC_QUICKNODE_SOLANA_URL!,
+  //         process.env.NEXT_PUBLIC_SOLANA_RPC_URL!,
   //         "confirmed"
   //       );
   //       const availableSolanaWallets = directSolanaWallets || [];
@@ -276,7 +276,7 @@ const TipContentModal: React.FC<TipContentModalProps> = ({
     async (recipientWalletAddress: string) => {
       try {
         const connection = new Connection(
-          process.env.NEXT_PUBLIC_QUICKNODE_SOLANA_URL!,
+          process.env.NEXT_PUBLIC_SOLANA_RPC_URL!,
           'confirmed'
         );
 

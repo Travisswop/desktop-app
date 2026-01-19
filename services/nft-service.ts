@@ -231,7 +231,7 @@ class SolanaNFTServiceClass {
     'https://mainnet.helius-rpc.com';
   // Note: QuickNode endpoint requires DAS (Digital Asset Standard) API add-on
   private static readonly QUICKNODE_API_ENDPOINT =
-    process.env.NEXT_PUBLIC_QUICKNODE_SOLANA_ENDPOINT;
+    process.env.NEXT_PUBLIC_SOLANA_RPC_URL;
 
   static async getNFTs(ownerAddress: string): Promise<NFT[]> {
     logger.info(

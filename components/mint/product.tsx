@@ -3,7 +3,8 @@ import PushToMintCollectionButton from '@/components/Button/PushToMintCollection
 import { sendCloudinaryImage } from '@/lib/SendCloudinaryImage';
 import { useUser } from '@/lib/UserContext';
 import { useDisclosure } from '@nextui-org/react';
-import { usePrivy, useSolanaWallets } from '@privy-io/react-auth';
+import { usePrivy } from '@privy-io/react-auth';
+import { useWallets as useSolanaWallets } from '@privy-io/react-auth/solana';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { DragEvent, useEffect, useState } from 'react';

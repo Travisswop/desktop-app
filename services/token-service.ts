@@ -1,8 +1,5 @@
 import { ethers } from 'ethers';
-import {
-  Connection,
-  PublicKey,
-} from '@solana/web3.js';
+import { Connection, PublicKey } from '@solana/web3.js';
 import {
   getAccount,
   getAssociatedTokenAddress,
@@ -87,7 +84,7 @@ export class TokenAPIService {
 
   static async getTokenBalances(chain: EVMChain, address: string) {
     const response = await this.fetchWithRetry(
-      CHAINS[chain].alchemyUrl!,
+      CHAINS[chain].rpcUrl!,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -117,10 +114,11 @@ export class TokenAPIService {
     try {
       // If we have an address and chain, use the backend CoinGecko Pro API
       if (params.address && params.chain) {
-        const marketData = await MarketService.getTokenMarketDataByAddress(
-          params.address,
-          params.chain
-        );
+        const marketData =
+          await MarketService.getTokenMarketDataByAddress(
+            params.address,
+            params.chain
+          );
 
         // Map CoinGecko response to CoinRanking-like format for backward compatibility
         return {
@@ -134,7 +132,8 @@ export class TokenAPIService {
           iconUrl: marketData.image || '',
           listedAt: 0,
           tier: 0,
-          change: marketData.priceChangePercentage24h?.toString() || '0',
+          change:
+            marketData.priceChangePercentage24h?.toString() || '0',
           rank: marketData.marketCapRank || 0,
           sparkline: [],
           lowVolume: false,
@@ -146,7 +145,9 @@ export class TokenAPIService {
 
       // If we have a uuid (CoinGecko ID), use the backend API
       if (params.uuid) {
-        const marketData = await MarketService.getTokenMarketData(params.uuid);
+        const marketData = await MarketService.getTokenMarketData(
+          params.uuid
+        );
 
         // Map CoinGecko response to CoinRanking-like format
         return {
@@ -160,7 +161,8 @@ export class TokenAPIService {
           iconUrl: marketData.image || '',
           listedAt: 0,
           tier: 0,
-          change: marketData.priceChangePercentage24h?.toString() || '0',
+          change:
+            marketData.priceChangePercentage24h?.toString() || '0',
           rank: marketData.marketCapRank || 0,
           sparkline: [],
           lowVolume: false,
@@ -170,28 +172,14 @@ export class TokenAPIService {
         };
       }
 
-      logger.error('getMarketData called without address+chain or uuid');
+      logger.error(
+        'getMarketData called without address+chain or uuid'
+      );
       return null;
     } catch (error) {
       logger.error('Error fetching market data from backend:', error);
       return null;
     }
-  }
-
-  static async getTokensData(address: string[]) {
-    const url = `https://api.coinranking.com/v2/coins?contractAddresses[]=${address.join(
-      '&contractAddresses[]='
-    )}`;
-
-    const response = await fetch(url, {
-      headers: {
-        'x-access-token':
-          process.env.NEXT_PUBLIC_COIN_RANKING_API_KEY || '',
-      },
-    });
-
-    const result = await response.json();
-    return result.data.coins;
   }
 
   static async getTimeSeriesData(uuid: string, period = '1h') {
@@ -214,7 +202,10 @@ export class TokenAPIService {
       const days = periodToDaysMap[period] || 7;
 
       // Use backend CoinGecko Pro API for historical data
-      const historicalData = await MarketService.getHistoricalPrices(uuid, days);
+      const historicalData = await MarketService.getHistoricalPrices(
+        uuid,
+        days
+      );
 
       // Map CoinGecko response to CoinRanking-like format for backward compatibility
       return {
@@ -225,7 +216,10 @@ export class TokenAPIService {
         })),
       };
     } catch (error) {
-      logger.error('Error fetching time series data from backend:', error);
+      logger.error(
+        'Error fetching time series data from backend:',
+        error
+      );
       return {
         change: '0',
         history: [],
@@ -321,7 +315,7 @@ export class TokenContractService {
   }
 
   private static async formatNativeToken(chain: ChainType) {
-    const nativeToken = CHAINS[chain].nativeToken;
+    const nativeToken = CHAINS[chain as keyof typeof CHAINS].nativeToken;
     const marketData = await TokenAPIService.getMarketData({
       uuid: nativeToken.uuid,
     });
@@ -356,7 +350,7 @@ export class SolanaService {
 
     try {
       const connection = new Connection(
-        process.env.NEXT_PUBLIC_QUICKNODE_SOLANA_URL!,
+        process.env.NEXT_PUBLIC_SOLANA_RPC_URL!,
         'confirmed'
       );
       logger.info('Solana connection established');
@@ -466,7 +460,9 @@ export class SolanaService {
 
       // Handle SWOP token separately using backend CoinGecko API
       // (filtered out from getTokenAccountsData to prevent duplicates)
-      logger.info('Processing SWOP token separately with backend CoinGecko API');
+      logger.info(
+        'Processing SWOP token separately with backend CoinGecko API'
+      );
       const swopTokenBalance = await this.getSwopTokenBalance(
         walletAddress
       );
@@ -532,7 +528,7 @@ export class SolanaService {
       }
 
       const timeSeriesData = await TokenAPIService.getTimeSeriesData(
-        marketData.uuid
+        marketData.uuid || ''
       );
 
       const nativeToken = {
@@ -645,7 +641,7 @@ export class SolanaService {
             !marketData.uuid.startsWith('direct-')
           ) {
             timeSeriesData = await TokenAPIService.getTimeSeriesData(
-              marketData.uuid
+              marketData.uuid || ''
             );
           }
 
@@ -709,7 +705,7 @@ export class SolanaService {
     );
 
     const connection = new Connection(
-      process.env.NEXT_PUBLIC_QUICKNODE_SOLANA_URL!,
+      process.env.NEXT_PUBLIC_SOLANA_RPC_URL!,
       'confirmed'
     );
     const publicKey = new PublicKey(walletAddress);

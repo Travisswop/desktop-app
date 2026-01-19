@@ -2,7 +2,8 @@
 import { ChevronDown, Loader2, Trash2, CheckCircle2 } from "lucide-react";
 import Image from "next/image";
 import { useState, ChangeEvent, useMemo, useEffect } from "react";
-import { useSolanaWallets, useWallets } from "@privy-io/react-auth";
+import { useWallets } from "@privy-io/react-auth";
+import { useWallets as useSolanaWallets } from "@privy-io/react-auth/solana";
 import { useMultiChainTokenData } from "@/lib/hooks/useToken";
 import { useNFT } from "@/lib/hooks/useNFT";
 import { useToast } from "@/hooks/use-toast";

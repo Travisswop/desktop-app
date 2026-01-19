@@ -1,4 +1,4 @@
-"use client";
+'use client';
 
 import { useCallback, useEffect, useState } from "react";
 import Image from "next/image";
@@ -18,6 +18,9 @@ import {
 import { PrivyUser, OnboardingData } from "@/lib/types";
 import { uploadImageToCloudinary } from "@/lib/cloudinary";
 import { useToast } from "@/hooks/use-toast";
+import astronot from "@/public/onboard/astronot.svg";
+import blackPlanet from "@/public/onboard/black-planet.svg";
+import editIcon from "@/public/images/websites/edit-icon.svg";
 import { useDisclosure } from "@nextui-org/react";
 import userProfileImages from "../util/data/userProfileImage";
 import SelectAvatorModal from "../modal/SelectAvatorModal";
@@ -25,13 +28,15 @@ import { useCreateWallet, usePrivy } from "@privy-io/react-auth";
 import { WalletItem } from "@/types/wallet";
 import { createWalletBalance } from "@/actions/createWallet";
 import logger from "@/utils/logger";
-import { useSolanaWallets } from "@privy-io/react-auth/solana";
 import GooglePlacesAutocomplete from "react-google-places-autocomplete";
 import { PrimaryButton } from "../ui/Button/PrimaryButton";
 import PhoneInput from "react-phone-number-input";
 import "react-phone-number-input/style.css";
 import { parsePhoneNumber, isValidPhoneNumber } from "libphonenumber-js";
 import CountrySelect from "./CountrySelect";
+import {
+  useCreateWallet as useSolanaCreateWallet,
+} from '@privy-io/react-auth/solana';
 
 interface RegistrationProps {
   user: PrivyUser;
@@ -39,7 +44,10 @@ interface RegistrationProps {
   createPrivyWallets?: () => Promise<void>;
 }
 
-export default function Registration({ user, onComplete }: RegistrationProps) {
+export default function Registration({
+  user,
+  onComplete,
+}: RegistrationProps) {
   const { toast } = useToast();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [name, setName] = useState(user?.name || "");
@@ -48,16 +56,17 @@ export default function Registration({ user, onComplete }: RegistrationProps) {
   const [countryCode, setCountryCode] = useState("US");
   const [countryFlag, setCountryFlag] = useState("🇺🇸");
   const [birthdate, setBirthdate] = useState(0);
-  const [apartment, setApartment] = useState("");
-  const [address, setAddress] = useState("");
-  const [profileImage, setProfileImage] = useState("1");
+  const [apartment, setApartment] = useState('');
+  const [address, setAddress] = useState('');
+  const [profileImage, setProfileImage] = useState('1');
   const [profileImageUrl, setProfileImageUrl] = useState(
     "/images/user_avator/1.png?height=32&width=32",
   );
   const [walletData, setWalletData] = useState<WalletItem[]>([]);
-  const [isUserProfileModalOpen, setIsUserProfileModalOpen] = useState(false);
+  const [isUserProfileModalOpen, setIsUserProfileModalOpen] =
+    useState(false);
 
-  console.log("address", address);
+  console.log('address', address);
 
   // Add wallet creation state management
   const [walletsCreated, setWalletsCreated] = useState({
@@ -67,14 +76,15 @@ export default function Registration({ user, onComplete }: RegistrationProps) {
 
   const { isOpen, onOpen, onOpenChange } = useDisclosure();
   const { authenticated, ready, user: privyUser } = usePrivy();
-  const { createWallet: createSolanaWallet } = useSolanaWallets();
+  const { createWallet: createSolanaWallet } =
+    useSolanaCreateWallet();
 
   const { createWallet } = useCreateWallet({
     onSuccess: ({ wallet }) => {
-      logger.info("wallet", wallet);
+      logger.info('wallet', wallet);
     },
     onError: (error) => {
-      logger.error("error", error);
+      logger.error('error', error);
     },
   });
 
@@ -83,21 +93,21 @@ export default function Registration({ user, onComplete }: RegistrationProps) {
     if (authenticated && ready && privyUser) {
       const linkedWallets = privyUser?.linkedAccounts
         .map((item: any) => {
-          if (item.chainType === "ethereum") {
+          if (item.chainType === 'ethereum') {
             return {
               address: item.address,
               isActive:
-                item.walletClientType === "privy" ||
-                item.connectorType === "embedded",
+                item.walletClientType === 'privy' ||
+                item.connectorType === 'embedded',
               isEVM: true,
               walletClientType: item.walletClientType,
             };
-          } else if (item.chainType === "solana") {
+          } else if (item.chainType === 'solana') {
             return {
               address: item.address,
               isActive:
-                item.walletClientType === "privy" ||
-                item.connectorType === "embedded",
+                item.walletClientType === 'privy' ||
+                item.connectorType === 'embedded',
               isEVM: false,
               walletClientType: item.walletClientType,
             };
@@ -115,21 +125,21 @@ export default function Registration({ user, onComplete }: RegistrationProps) {
     if (authenticated && ready && privyUser) {
       const linkedWallets = privyUser?.linkedAccounts
         .map((item: any) => {
-          if (item.chainType === "ethereum") {
+          if (item.chainType === 'ethereum') {
             return {
               address: item.address,
               isActive:
-                item.walletClientType === "privy" ||
-                item.connectorType === "embedded",
+                item.walletClientType === 'privy' ||
+                item.connectorType === 'embedded',
               isEVM: true,
               walletClientType: item.walletClientType,
             };
-          } else if (item.chainType === "solana") {
+          } else if (item.chainType === 'solana') {
             return {
               address: item.address,
               isActive:
-                item.walletClientType === "privy" ||
-                item.connectorType === "embedded",
+                item.walletClientType === 'privy' ||
+                item.connectorType === 'embedded',
               isEVM: false,
               walletClientType: item.walletClientType,
             };
@@ -144,21 +154,25 @@ export default function Registration({ user, onComplete }: RegistrationProps) {
 
   const createPrivyWallets = useCallback(async () => {
     try {
-      logger.info("Starting wallet creation process...");
+      logger.info('Starting wallet creation process...');
 
       // Add authentication checks
       if (!authenticated) {
-        logger.error("User is not authenticated - cannot create wallets");
+        logger.error(
+          'User is not authenticated - cannot create wallets'
+        );
         return;
       }
 
       if (!ready) {
-        logger.error("Privy is not ready - cannot create wallets");
+        logger.error('Privy is not ready - cannot create wallets');
         return;
       }
 
       if (!privyUser) {
-        logger.error("User object is not available - cannot create wallets");
+        logger.error(
+          'User object is not available - cannot create wallets'
+        );
         return;
       }
 
@@ -197,7 +211,7 @@ export default function Registration({ user, onComplete }: RegistrationProps) {
       // Create Ethereum wallet if needed
       if (!hasEthereumWallet && !walletsCreated.ethereum) {
         try {
-          logger.info("Attempting to create Ethereum wallet...");
+          logger.info('Attempting to create Ethereum wallet...');
 
           // Double-check authentication before wallet creation
           if (!authenticated || !ready || !privyUser) {
@@ -210,14 +224,16 @@ export default function Registration({ user, onComplete }: RegistrationProps) {
           const result = await createWallet().catch((error) => {
             // Handle embedded_wallet_already_exists as a success case
             if (
-              error === "embedded_wallet_already_exists" ||
+              error === 'embedded_wallet_already_exists' ||
               (error &&
-                typeof error === "object" &&
-                "message" in error &&
-                error.message === "embedded_wallet_already_exists")
+                typeof error === 'object' &&
+                'message' in error &&
+                error.message === 'embedded_wallet_already_exists')
             ) {
-              logger.info("Ethereum wallet already exists, marking as created");
-              return { status: "already_exists" };
+              logger.info(
+                'Ethereum wallet already exists, marking as created'
+              );
+              return { status: 'already_exists' };
             }
             logger.error(
               `Ethereum wallet creation error: ${JSON.stringify(error)}`,
@@ -229,7 +245,7 @@ export default function Registration({ user, onComplete }: RegistrationProps) {
             `Ethereum wallet creation result: ${JSON.stringify(result)}`,
           );
           setWalletsCreated((prev) => ({ ...prev, ethereum: true }));
-          logger.info("Ethereum wallet creation complete");
+          logger.info('Ethereum wallet creation complete');
         } catch (err) {
           logger.error(
             `Ethereum wallet creation failed: ${JSON.stringify(err)}`,
@@ -245,7 +261,7 @@ export default function Registration({ user, onComplete }: RegistrationProps) {
       // Create Solana wallet if needed
       if (!hasSolanaWallet && !walletsCreated.solana) {
         try {
-          logger.info("Attempting to create Solana wallet...");
+          logger.info('Attempting to create Solana wallet...');
 
           // Double-check authentication before wallet creation
           if (!authenticated || !ready || !privyUser) {
@@ -257,14 +273,16 @@ export default function Registration({ user, onComplete }: RegistrationProps) {
 
           const result = await createSolanaWallet().catch((error) => {
             if (
-              error === "embedded_wallet_already_exists" ||
+              error === 'embedded_wallet_already_exists' ||
               (error &&
-                typeof error === "object" &&
-                "message" in error &&
-                error.message === "embedded_wallet_already_exists")
+                typeof error === 'object' &&
+                'message' in error &&
+                error.message === 'embedded_wallet_already_exists')
             ) {
-              logger.info("Solana wallet already exists, marking as created");
-              return { status: "already_exists" };
+              logger.info(
+                'Solana wallet already exists, marking as created'
+              );
+              return { status: 'already_exists' };
             }
             logger.error(
               `Solana wallet creation error: ${JSON.stringify(error)}`,
@@ -276,9 +294,11 @@ export default function Registration({ user, onComplete }: RegistrationProps) {
             `Solana wallet creation result: ${JSON.stringify(result)}`,
           );
           setWalletsCreated((prev) => ({ ...prev, solana: true }));
-          logger.info("Solana wallet creation complete");
+          logger.info('Solana wallet creation complete');
         } catch (err) {
-          logger.error(`Solana wallet creation failed: ${JSON.stringify(err)}`);
+          logger.error(
+            `Solana wallet creation failed: ${JSON.stringify(err)}`
+          );
         }
       } else {
         logger.info(
@@ -291,7 +311,9 @@ export default function Registration({ user, onComplete }: RegistrationProps) {
         `Final wallet creation status: ${JSON.stringify(walletsCreated)}`,
       );
     } catch (error) {
-      logger.error(`Error in wallet creation flow: ${JSON.stringify(error)}`);
+      logger.error(
+        `Error in wallet creation flow: ${JSON.stringify(error)}`
+      );
       // Still mark wallets as attempted to prevent infinite loops
       setWalletsCreated({ ethereum: true, solana: true });
     }
@@ -312,12 +334,18 @@ export default function Registration({ user, onComplete }: RegistrationProps) {
       privyUser &&
       (!walletsCreated.ethereum || !walletsCreated.solana)
     ) {
-      logger.info("Auto-creating wallets on authentication...");
+      logger.info('Auto-creating wallets on authentication...');
       createPrivyWallets().catch((error) => {
-        logger.error("Auto wallet creation failed:", error);
+        logger.error('Auto wallet creation failed:', error);
       });
     }
-  }, [authenticated, ready, privyUser, walletsCreated, createPrivyWallets]);
+  }, [
+    authenticated,
+    ready,
+    privyUser,
+    walletsCreated,
+    createPrivyWallets,
+  ]);
 
   const handleUserProfileModal = () => {
     onOpen();
@@ -327,11 +355,15 @@ export default function Registration({ user, onComplete }: RegistrationProps) {
   // Handle avatar image selection
   const handleSelectImage = (image: any) => {
     setProfileImage(image);
-    setProfileImageUrl(`/images/user_avator/${image}.png?height=32&width=32`);
+    setProfileImageUrl(
+      `/images/user_avator/${image}.png?height=32&width=32`
+    );
   };
 
   // Handle custom image upload
-  const handleImageUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImageUpload = (
+    event: React.ChangeEvent<HTMLInputElement>
+  ) => {
     const file = event.target.files?.[0];
     if (file) {
       onOpenChange();
@@ -372,9 +404,9 @@ export default function Registration({ user, onComplete }: RegistrationProps) {
 
     if (!name.trim()) {
       toast({
-        variant: "destructive",
-        title: "Error",
-        description: "Name is required.",
+        variant: 'destructive',
+        title: 'Error',
+        description: 'Name is required.',
       });
       return;
     }
@@ -394,7 +426,7 @@ export default function Registration({ user, onComplete }: RegistrationProps) {
 
     try {
       // Create wallets first and wait for completion
-      logger.info("Starting wallet creation in registration form...");
+      logger.info('Starting wallet creation in registration form...');
       await createPrivyWallets();
 
       // Add a small delay to ensure wallet data is updated
@@ -409,20 +441,24 @@ export default function Registration({ user, onComplete }: RegistrationProps) {
 
       // Process profile image
       let avatarUrl = profileImage;
-      if (profileImage && profileImage.startsWith("data:image")) {
+      if (profileImage && profileImage.startsWith('data:image')) {
         try {
           avatarUrl = await uploadImageToCloudinary(profileImage);
         } catch (error) {
-          logger.error("Error uploading image to Cloudinary:", error);
-          avatarUrl = "1"; // Default image if upload fails
+          logger.error('Error uploading image to Cloudinary:', error);
+          avatarUrl = '1'; // Default image if upload fails
         }
       }
 
       // Find wallet addresses
-      const ethereumWallet = walletData.find((wallet) => wallet?.isEVM);
-      const solanaWallet = walletData.find((wallet) => !wallet?.isEVM);
+      const ethereumWallet = walletData.find(
+        (wallet) => wallet?.isEVM
+      );
+      const solanaWallet = walletData.find(
+        (wallet) => !wallet?.isEVM
+      );
 
-      logger.info("Wallet data for registration:", {
+      logger.info('Wallet data for registration:', {
         walletData,
         ethereumWallet: ethereumWallet?.address,
         solanaWallet: solanaWallet?.address,
@@ -433,9 +469,9 @@ export default function Registration({ user, onComplete }: RegistrationProps) {
       const userData = {
         name,
         email: user.email,
-        mobileNo: phone || "",
-        address: address?.label || "",
-        bio: bio || "",
+        mobileNo: phone || '',
+        address: address?.label || '',
+        bio: bio || '',
         dob: birthdate.toString(),
         profilePic: avatarUrl,
         apt: apartment || "",
@@ -450,9 +486,9 @@ export default function Registration({ user, onComplete }: RegistrationProps) {
       const response = await fetch(
         `${process.env.NEXT_PUBLIC_API_URL}/api/v2/desktop/user/create`,
         {
-          method: "POST",
+          method: 'POST',
           headers: {
-            "Content-Type": "application/json",
+            'Content-Type': 'application/json',
           },
           body: JSON.stringify(userData),
         },
@@ -461,15 +497,15 @@ export default function Registration({ user, onComplete }: RegistrationProps) {
       if (!response.ok) {
         const errorData = await response
           .json()
-          .catch(() => ({ message: "Unknown error" }));
-        console.error("Registration error:", errorData);
+          .catch(() => ({ message: 'Unknown error' }));
+        console.error('Registration error:', errorData);
         throw new Error(
           errorData.message || "Failed to create user and smartsite",
         );
       }
 
       const result = await response.json();
-      console.log("Registration success:", result);
+      console.log('Registration success:', result);
 
       // Create wallet balance record
       const walletPayload = {
@@ -478,17 +514,17 @@ export default function Registration({ user, onComplete }: RegistrationProps) {
         userId: result.data._id,
       };
 
-      console.log("Wallet payload:", walletPayload);
+      console.log('Wallet payload:', walletPayload);
       //problem in this api
       try {
         await createWalletBalance(walletPayload);
       } catch (error) {
-        console.error("Error creating wallet balance:", error);
+        console.error('Error creating wallet balance:', error);
       }
 
       toast({
-        title: "Success",
-        description: "Account has been created successfully!",
+        title: 'Success',
+        description: 'Account has been created successfully!',
       });
 
       // Pass the data to parent component
@@ -496,11 +532,11 @@ export default function Registration({ user, onComplete }: RegistrationProps) {
         userInfo: result.data,
       });
     } catch (error) {
-      logger.error("Error creating account:", error);
+      logger.error('Error creating account:', error);
       toast({
-        variant: "destructive",
-        title: "Error",
-        description: "Failed to create Account. Please try again.",
+        variant: 'destructive',
+        title: 'Error',
+        description: 'Failed to create Account. Please try again.',
       });
     } finally {
       setIsSubmitting(false);
@@ -546,9 +582,12 @@ export default function Registration({ user, onComplete }: RegistrationProps) {
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="space-y-2">
-                  <Label htmlFor="name" className="flex items-center space-x-2">
+                  <Label
+                    htmlFor="name"
+                    className="flex items-center space-x-2"
+                  >
                     <p>
-                      Name<span style={{ color: "red" }}>*</span>
+                      Name<span style={{ color: 'red' }}>*</span>
                     </p>
                   </Label>
                   <div className="relative w-full">
@@ -566,7 +605,10 @@ export default function Registration({ user, onComplete }: RegistrationProps) {
                   </div>
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="bio" className="flex items-center space-x-2">
+                  <Label
+                    htmlFor="bio"
+                    className="flex items-center space-x-2"
+                  >
                     <p>Bio</p>
                   </Label>
                   <div className="relative w-full">
@@ -589,7 +631,7 @@ export default function Registration({ user, onComplete }: RegistrationProps) {
                   >
                     <p>
                       Phone Number
-                      <span style={{ color: "red" }}>*</span>
+                      <span style={{ color: 'red' }}>*</span>
                     </p>
                   </Label>
                   <div className="phone-input-wrapper">
@@ -611,7 +653,7 @@ export default function Registration({ user, onComplete }: RegistrationProps) {
                     className="flex items-center space-x-2"
                   >
                     <p>
-                      Email<span style={{ color: "red" }}>*</span>
+                      Email<span style={{ color: 'red' }}>*</span>
                     </p>
                   </Label>
                   <div className="relative w-full">
@@ -655,8 +697,10 @@ export default function Registration({ user, onComplete }: RegistrationProps) {
                       max={new Date().toISOString().split("T")[0]}
                       value={
                         birthdate
-                          ? new Date(birthdate).toISOString().split("T")[0]
-                          : ""
+                          ? new Date(birthdate)
+                              .toISOString()
+                              .split('T')[0]
+                          : ''
                       }
                       onChange={(e) => {
                         const selectedDate = new Date(e.target.value).getTime();
@@ -683,12 +727,13 @@ export default function Registration({ user, onComplete }: RegistrationProps) {
 
                     <GooglePlacesAutocomplete
                       apiKey={
-                        process.env.NEXT_PUBLIC_GOOGLE_PLACES_API_KEY || ""
+                        process.env
+                          .NEXT_PUBLIC_GOOGLE_PLACES_API_KEY || ''
                       }
                       selectProps={{
                         value: address,
                         onChange: setAddress as any,
-                        placeholder: "Enter address",
+                        placeholder: 'Enter address',
                         styles: {
                           control: (base, state) => ({
                             ...base,
@@ -698,9 +743,9 @@ export default function Registration({ user, onComplete }: RegistrationProps) {
                               ? "1px solid #edebeb"
                               : "1px solid #edebeb",
                             boxShadow: state.isFocused
-                              ? "1px solid #edebeb"
-                              : "none",
-                            "&:hover": {
+                              ? '1px solid #edebeb'
+                              : 'none',
+                            '&:hover': {
                               border: state.isFocused
                                 ? "1px solid #edebeb"
                                 : "1px solid #edebeb",
@@ -747,9 +792,13 @@ export default function Registration({ user, onComplete }: RegistrationProps) {
                   disabled={isSubmitting}
                 >
                   {isSubmitting ? (
-                    <Loader size={20} color="black" className="animate-spin" />
+                    <Loader
+                      size={20}
+                      color="black"
+                      className="animate-spin"
+                    />
                   ) : (
-                    "Save"
+                    'Save'
                   )}
                 </PrimaryButton>
               </div>

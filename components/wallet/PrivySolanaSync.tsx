@@ -1,6 +1,6 @@
 'use client';
 
-import { useSolanaWallets } from '@privy-io/react-auth';
+import { useWallets as useSolanaWallets } from '@privy-io/react-auth/solana';
 import { useWallet } from '@solana/wallet-adapter-react';
 import { useEffect } from 'react';
 

@@ -7,7 +7,7 @@ export async function calculateEVMGasFee(
 ): Promise<string> {
   try {
     const provider = new ethers.JsonRpcProvider(
-      CHAINS[chain].alchemyUrl
+      CHAINS[chain as keyof typeof CHAINS].rpcUrl
     );
 
     // Estimate gas limit for the transaction

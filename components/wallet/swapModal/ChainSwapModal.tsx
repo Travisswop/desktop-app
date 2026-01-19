@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useSolanaWallets, useWallets } from '@privy-io/react-auth';
+import { useWallets } from '@privy-io/react-auth';
+import { useWallets as useSolanaWallets } from '@privy-io/react-auth/solana';
 import SwapModal from './SwapModal';
 import {
     Dialog,

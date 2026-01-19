@@ -5,7 +5,7 @@ import {
   SolTxDetails,
   Transaction,
 } from '@/types/transaction';
-import { CHAINS, CHAIN_CONFIG } from '@/types/config';
+import { CHAINS } from '@/types/config';
 import { APIUtils } from '@/utils/api';
 
 class TransactionAPI {

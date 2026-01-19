@@ -18,6 +18,16 @@ export interface TransactionData {
   action: string;
   toEnsName?: string;
   tokenSymbol?: string;
+  // Swap-specific fields
+  swapMode?: 'ExactIn' | 'ExactOut';
+  fromTokenSymbol?: string;
+  toTokenSymbol?: string;
+  outputAmount?: number;
+  quote?: {
+    inputAmount?: string;
+    outputAmount?: string;
+    priceImpactPct?: number;
+  };
 }
 
 export interface AIAgentMessage {
@@ -41,6 +51,7 @@ export interface AIAgentMessage {
 
 export interface AIAgentResponse {
   message: AIAgentMessage;
+  agentMessage?: AIAgentMessage;
   action: string;
   params: Record<string, any>;
   requiresConfirmation: boolean;

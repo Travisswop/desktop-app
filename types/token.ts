@@ -3,20 +3,27 @@ export type ChainType =
   | 'POLYGON'
   | 'BASE'
   | 'SOLANA'
-  | 'SEPOLIA';
 export type EVMChain = Exclude<ChainType, 'SOLANA'>;
 
 export interface MarketData {
   symbol: string;
   name: string;
-  image: string;
-  priceChangePercentage24h: string;
-  sparklineData?: number[];
+  marketCap: string;
+  '24hVolume': string;
+  listedAt: number;
+  iconUrl: string;
+  tier: number;
+  rank: number;
+  sparkline: number[];
+  lowVolume: boolean;
+  coinrankingUrl: string;
+  btcPrice: string;
+  contractAddresses: string[];
   // Additional properties for token details view
   price: string; // Current price as string
   change?: string; // Price change percentage
   color?: string; // Color for chart styling
-  uuid?: string; // Legacy CoinRanking ID (optional)
+  uuid?: string | undefined; // Legacy CoinRanking ID (optional)
 }
 
 export interface TimeSeriesData {

@@ -1,5 +1,5 @@
-import { PrivyClient } from "@privy-io/server-auth";
-import { NextRequest, NextResponse } from "next/server";
+import { PrivyClient as NewPrivyClient } from '@privy-io/node';
+import { NextRequest, NextResponse } from 'next/server';
 
 type AuthCacheEntry = {
   timestamp: number;
@@ -162,7 +162,7 @@ function cleanupCache(): void {
     // If we found old entries, delete them
     if (entriesToDelete.length > 0) {
       entriesToDelete.forEach(([key]) => {
-        console.log("Deleting truly stale cache entry");
+        console.log('Deleting truly stale cache entry');
         authCache.delete(key);
       });
     } else if (authCache.size > MAX_CACHE_SIZE * 1.5) {
@@ -231,7 +231,7 @@ function handleMobileRedirect(
 function validateEnvironment(): boolean {
   const requiredEnvVars = {
     NEXT_PUBLIC_PRIVY_APP_ID: process.env.NEXT_PUBLIC_PRIVY_APP_ID,
-    NEXT_PUBLIC_PRIVY_APP_SECRET: process.env.NEXT_PUBLIC_PRIVY_APP_SECRET,
+    PRIVY_APP_SECRET: process.env.PRIVY_APP_SECRET,
   };
 
   const missingVars = Object.entries(requiredEnvVars)
@@ -249,13 +249,17 @@ function validateEnvironment(): boolean {
 }
 
 async function verifyTokenWithRetry(
-  privyServer: PrivyClient,
+  privyServer: NewPrivyClient,
+  newPrivy: NewPrivyClient,
   token: string,
   maxRetries: number = MAX_RETRIES
 ): Promise<{ isValid: boolean; userId: string }> {
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
     try {
-      const verifiedClaims = await privyServer.verifyAuthToken(token);
+      const verifiedClaims = await newPrivy
+        .utils()
+        .auth()
+        .verifyAccessToken(token);
       return {
         isValid: Boolean(verifiedClaims.userId),
         userId: verifiedClaims.userId || "",
@@ -311,12 +315,16 @@ async function backgroundTokenVerification(
   cacheKey: string
 ): Promise<void> {
   try {
-    const privyServer = new PrivyClient(
-      process.env.NEXT_PUBLIC_PRIVY_APP_ID!,
-      process.env.NEXT_PUBLIC_PRIVY_APP_SECRET!
-    );
+    const newPrivy = new NewPrivyClient({
+      appId: process.env.NEXT_PUBLIC_PRIVY_APP_ID!,
+      appSecret: process.env.PRIVY_APP_SECRET!,
+    });
 
-    const verificationResult = await verifyTokenWithRetry(privyServer, token);
+    const verificationResult = await verifyTokenWithRetry(
+      newPrivy,
+      newPrivy,
+      token
+    );
     const now = Date.now();
 
     const existingCache = authCache.get(cacheKey);
@@ -404,34 +412,41 @@ async function verifyAndCacheToken(
   }
 
   // No cache - attempt first verification, but ALWAYS succeed
-  console.log("No cache found, attempting first verification");
+  console.log('No cache found, attempting first verification');
 
   try {
-    const privyServer = new PrivyClient(
-      process.env.NEXT_PUBLIC_PRIVY_APP_ID!,
-      process.env.NEXT_PUBLIC_PRIVY_APP_SECRET!
+    const newPrivy = new NewPrivyClient({
+      appId: process.env.NEXT_PUBLIC_PRIVY_APP_ID!,
+      appSecret: process.env.PRIVY_APP_SECRET!,
+    });
+
+    const verificationResult = await verifyTokenWithRetry(
+      newPrivy,
+      newPrivy,
+      token
     );
 
-    const verificationResult = await verifyTokenWithRetry(privyServer, token);
-
-    console.log("First verification successful:", verificationResult.isValid);
+    console.log(
+      'First verification successful:',
+      verificationResult.isValid
+    );
 
     // Cache the result - but force isValid to true
     authCache.set(cacheKey, {
       timestamp: now,
       isValid: true, // Force true regardless of verification result
-      userId: verificationResult.userId || "",
+      userId: verificationResult.userId || '',
       lastVerified: now,
     });
 
     // Return true even if verification said false
     return {
       isValid: true,
-      userId: verificationResult.userId || "",
+      userId: verificationResult.userId || '',
     };
   } catch (error) {
     console.error(
-      "First verification failed, but allowing access anyway:",
+      'First verification failed, but allowing access anyway:',
       error
     );
 
@@ -439,14 +454,14 @@ async function verifyAndCacheToken(
     authCache.set(cacheKey, {
       timestamp: now,
       isValid: true, // Trust the cookie existence
-      userId: "",
+      userId: '',
       lastVerified: now,
     });
 
     // Always succeed
     return {
       isValid: true,
-      userId: "",
+      userId: '',
     };
   }
 }
@@ -602,13 +617,15 @@ export async function middleware(req: NextRequest) {
 
         // This should NEVER happen, but just in case
         console.error(
-          "[AUTH] WARNING: Token marked invalid despite cookie existing!"
+          '[AUTH] WARNING: Token marked invalid despite cookie existing!'
         );
-        console.log("[AUTH] Allowing access anyway due to cookie presence");
+        console.log(
+          '[AUTH] Allowing access anyway due to cookie presence'
+        );
         return response;
       } catch (error) {
         console.error(
-          "[AUTH] Error during authentication (allowing access):",
+          '[AUTH] Error during authentication (allowing access):',
           error
         );
         return response;

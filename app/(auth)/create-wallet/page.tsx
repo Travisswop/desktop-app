@@ -30,7 +30,10 @@ import {
   useWallets,
   useLogout,
 } from '@privy-io/react-auth';
-import { useSolanaWallets } from '@privy-io/react-auth/solana';
+import {
+  useWallets as useSolanaWallets,
+  useCreateWallet as useSolanaCreateWallet,
+} from '@privy-io/react-auth/solana';
 
 interface WalletCreationStep {
   step: 'input' | 'verify' | 'success';
@@ -40,8 +43,8 @@ const CreateWalletPage: React.FC = () => {
   const router = useRouter();
   const { authenticated, ready, user } = usePrivy();
   const { wallets: ethWallets } = useWallets();
-  const { wallets: solanaWallets, createWallet: createSolanaWallet } =
-    useSolanaWallets();
+  const { wallets: solanaWallets } = useSolanaWallets();
+  const { createWallet: createSolanaWallet } = useSolanaCreateWallet();
   const { createWallet: createEthereumWallet } = useCreateWallet();
   const { logout } = useLogout();
 

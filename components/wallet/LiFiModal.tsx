@@ -4,7 +4,10 @@ import { LiFiWidget, WidgetConfig } from "@lifi/widget";
 import { WidgetEvent, useWidgetEvents } from "@lifi/widget";
 import { useEffect, useMemo, useState } from "react";
 import { ChainId } from "@lifi/widget";
-import { useWallets, useSolanaWallets } from "@privy-io/react-auth";
+import { useWallets } from '@privy-io/react-auth';
+import {
+  useWallets as useSolanaWallets,
+} from '@privy-io/react-auth/solana';
 import { useWallet } from "@solana/wallet-adapter-react";
 import { PrivySolanaSync } from "./PrivySolanaSync";
 import { PrivyWalletAdapter } from "./PrivyWalletAdapter"; // Import your adapter
@@ -232,7 +235,7 @@ export default function LiFiModal({
       integrator,
       sdkConfig: {
         rpcUrls: {
-          [ChainId.SOL]: [process.env.NEXT_PUBLIC_QUICKNODE_SOLANA_ENDPOINT],
+          [ChainId.SOL]: [process.env.NEXT_PUBLIC_SOLANA_RPC_URL],
         },
       },
     };

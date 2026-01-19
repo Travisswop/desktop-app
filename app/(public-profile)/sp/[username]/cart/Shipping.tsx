@@ -164,7 +164,7 @@ const PaymentShipping: React.FC<{
       // Connection setup
       setTransactionStage(TRANSACTION_STAGES.PROCESSING);
       const connection = new Connection(
-        process.env.NEXT_PUBLIC_QUICKNODE_SOLANA_URL!,
+        process.env.NEXT_PUBLIC_SOLANA_RPC_URL!,
         'confirmed'
       );
 

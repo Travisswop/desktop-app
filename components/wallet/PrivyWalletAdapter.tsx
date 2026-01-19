@@ -1,12 +1,8 @@
 'use client';
 
 import {
-  WalletAdapter,
-  WalletAdapterProps,
   WalletReadyState,
   WalletName,
-  SendTransactionOptions,
-  TransactionOrVersionedTransaction,
 } from '@solana/wallet-adapter-base';
 import {
   BaseWalletAdapter,
@@ -17,43 +13,17 @@ import {
   WalletSignTransactionError,
 } from '@solana/wallet-adapter-base';
 import {
-  Connection,
   PublicKey,
   Transaction,
-  TransactionSignature,
   VersionedTransaction,
 } from '@solana/web3.js';
-import type { Wallet } from '@privy-io/react-auth';
-import {
-  useSignTransaction,
-  useSolanaWallets,
-} from '@privy-io/react-auth/solana';
-import { clusterApiUrl } from '@solana/web3.js';
+import type { ConnectedStandardSolanaWallet } from '@privy-io/react-auth/solana';
 
-// Create a connection instance for mainnet
-const connection = new Connection(
-  process.env.NEXT_PUBLIC_QUICKNODE_SOLANA_ENDPOINT ||
-    clusterApiUrl('mainnet-beta')
-);
-
-// Type guard to check if wallet has Solana-specific methods
-function isSolanaWallet(wallet: Wallet | null): wallet is Wallet & {
-  signTransaction: (
-    transaction: Transaction | VersionedTransaction
-  ) => Promise<Transaction | VersionedTransaction>;
-  signAllTransactions: (
-    transactions: (Transaction | VersionedTransaction)[]
-  ) => Promise<(Transaction | VersionedTransaction)[]>;
-} {
-  return !!(
-    wallet &&
-    'signTransaction' in wallet &&
-    'signAllTransactions' in wallet
-  );
-}
+// Type for Privy Solana wallet in v3.0
+type PrivySolanaWallet = ConnectedStandardSolanaWallet | null;
 
 export interface PrivyWalletAdapterConfig {
-  wallet: Wallet | null;
+  wallet: PrivySolanaWallet;
 }
 
 export const PrivyWalletName = 'Privy' as WalletName<'Privy'>;
@@ -65,7 +35,7 @@ export class PrivyWalletAdapter extends BaseWalletAdapter {
     'https://assets-global.website-files.com/63e8cc07a5728fdf70046de1/63e8cd07a5728fe413046e15_privy-logo.svg';
   supportedTransactionVersions = null;
 
-  private _wallet: Wallet | null;
+  private _wallet: PrivySolanaWallet;
   private _publicKey: PublicKey | null;
   private _connecting: boolean;
   private _readyState: WalletReadyState;
@@ -207,7 +177,7 @@ export class PrivyWalletAdapter extends BaseWalletAdapter {
   }
 
   // Update the wallet reference
-  updateWallet(wallet: Wallet | null) {
+  updateWallet(wallet: PrivySolanaWallet) {
     const wasConnected = this.connected;
     this._wallet = wallet;
     this._readyState = wallet

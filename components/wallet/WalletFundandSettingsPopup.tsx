@@ -1,12 +1,15 @@
-"use client";
-import { Wallet } from "lucide-react";
-import { useState } from "react";
-import { BsBank } from "react-icons/bs";
-import CustomModal from "../modal/CustomModal";
-import { useSolanaWallets, useFundWallet } from "@privy-io/react-auth/solana";
-import Image from "next/image";
-import coinbaseImg from "@/public/images/coinbase.png";
-import bridgeImg from "@/public/images/bridge.png";
+'use client';
+import { Wallet } from 'lucide-react';
+import { useState } from 'react';
+import { BsBank } from 'react-icons/bs';
+import CustomModal from '../modal/CustomModal';
+import {
+  useWallets as useSolanaWallets,
+  useFundWallet,
+} from '@privy-io/react-auth/solana';
+import Image from 'next/image';
+import coinbaseImg from '@/public/images/coinbase.png';
+import bridgeImg from '@/public/images/bridge.png';
 
 export default function WalletFundandSettingsPopup() {
   const [isFundWalletOpen, setIsFundWalletOpen] = useState(false);
@@ -18,7 +21,7 @@ export default function WalletFundandSettingsPopup() {
 
   const handleCoinbaseClick = async () => {
     if (!solanaWalletAddress) {
-      console.error("No wallet address available");
+      console.error('No wallet address available');
       return;
     }
 
@@ -26,11 +29,13 @@ export default function WalletFundandSettingsPopup() {
     try {
       await fundWallet({
         address: solanaWalletAddress,
-        asset: "USDC",
-        amount: "20",
+        options: {
+          asset: 'USDC',
+          amount: '20',
+        },
       });
     } catch (error) {
-      console.error("Failed to open Coinbase funding:", error);
+      console.error('Failed to open Coinbase funding:', error);
     } finally {
       setIsLoading(false);
     }
@@ -60,8 +65,12 @@ export default function WalletFundandSettingsPopup() {
           <BsBank className="w-5 h-5 text-gray-700" />
         </div>
         <div>
-          <p className="text-base font-medium text-gray-900">Settings</p>
-          <p className="text-sm text-gray-500">Open Wallet Settings</p>
+          <p className="text-base font-medium text-gray-900">
+            Settings
+          </p>
+          <p className="text-sm text-gray-500">
+            Open Wallet Settings
+          </p>
         </div>
       </a>
 
@@ -120,7 +129,9 @@ export default function WalletFundandSettingsPopup() {
               <div className="text-center pt-4">
                 <p className="text-xs text-gray-500 flex items-center justify-center gap-1">
                   Protected by
-                  <span className="font-semibold text-gray-700">privy</span>
+                  <span className="font-semibold text-gray-700">
+                    privy
+                  </span>
                 </p>
               </div>
             </div>
