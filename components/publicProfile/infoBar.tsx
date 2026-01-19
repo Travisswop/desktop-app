@@ -4,6 +4,7 @@ import { FC } from "react";
 import Image from "next/image";
 import { motion } from "framer-motion";
 import toast from "react-hot-toast";
+import InfoCardContent from "./InfoCardContent";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL;
 interface Props {
@@ -22,6 +23,8 @@ interface Props {
   parentId: string;
   number: number;
   accessToken: string;
+  fontColor?: string;
+  secondaryFontColor?: string;
 }
 
 const variants = {
@@ -56,6 +59,8 @@ const InfoBar: FC<Props> = ({
   parentId,
   number,
   accessToken,
+  fontColor,
+  secondaryFontColor,
 }) => {
   const {
     _id,
@@ -204,11 +209,11 @@ const InfoBar: FC<Props> = ({
           damping: 10,
         }}
         onClick={openlink}
-        className="my-2 flex flex-row gap-2 items-center cursor-pointer bg-white shadow-xl p-2 rounded-[12px]"
+        className="my-2 flex flex-row items-center cursor-pointer bg-white shadow-xl p-2 rounded-[12px]"
       >
         <div>
           <Image
-            className="object-fill w-14 h-14"
+            className="object-fill w-10 h-auto"
             src={
               iconName.includes("http")
                 ? iconName
@@ -220,10 +225,14 @@ const InfoBar: FC<Props> = ({
             priority
           />
         </div>
-        <div className="max-w-xs overflow-hidden ml-2">
-          <div className="text-md font-semibold">{buttonName}</div>
-          <div className="text-xs">{description}</div>
-        </div>
+        {
+          <InfoCardContent
+            title={buttonName}
+            description={description}
+            fontColor={fontColor}
+            secondaryFontColor={secondaryFontColor}
+          />
+        }
       </motion.div>
     </motion.div>
   );

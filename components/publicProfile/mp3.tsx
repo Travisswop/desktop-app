@@ -1,8 +1,11 @@
-'use client';
+"use client";
 
-import { FC } from 'react';
-import Image from 'next/image';
-import { motion } from 'framer-motion';
+import { FC } from "react";
+import Image from "next/image";
+import { motion } from "framer-motion";
+import InfoCardContent from "./InfoCardContent";
+import AudioPlayer from "react-h5-audio-player";
+import { FaPause, FaPlay } from "react-icons/fa6";
 
 interface Props {
   data: {
@@ -16,6 +19,8 @@ interface Props {
   parentId: string;
   number: number;
   length: number;
+  fontColor?: string;
+  secondaryFontColor?: string;
 }
 
 const variants = {
@@ -30,6 +35,8 @@ const MP3: FC<Props> = ({
   parentId,
   number,
   length,
+  fontColor,
+  secondaryFontColor,
 }) => {
   const { name, coverPhoto, fileUrl } = data;
 
@@ -44,36 +51,56 @@ const MP3: FC<Props> = ({
       transition={{
         duration: 0.4,
         delay,
-        type: 'easeInOut',
+        type: "easeInOut",
       }}
     >
       <motion.div
         transition={{
-          type: 'spring',
+          type: "spring",
           stiffness: 400,
           damping: 10,
         }}
         className={`${
-          number === length - 1 ? 'mb-0' : 'mb-2'
-        } flex flex-row gap-2 items-center cursor-pointer bg-white shadow-2xl p-2 rounded-[12px]`}
+          number === length - 1 ? "mb-0" : "mb-2"
+        } flex flex-row gap-2 items-center cursor-pointer bg-white shadow-2xl p-2 rounded-[12px] w-full`}
       >
-        <div>
-          <Image
-            className="object-fill w-16 h-16 rounded-[12px]"
-            src={coverPhoto}
-            alt={name}
-            width={80}
-            height={80}
-            priority
-          />
-        </div>
-        <div className="max-w-xs overflow-hidden">
-          <figure>
-            <audio controls>
-              <source src={fileUrl} type="audio/mpeg" />
-              Your browser does not support the audio element.
-            </audio>
-          </figure>
+        <div className="flex items-center justify-between w-full">
+          <div className="flex flex-1 items-center">
+            <div className="relative">
+              <Image
+                src={coverPhoto}
+                alt="cover photo"
+                width={320}
+                height={280}
+                className="object-fill w-10 h-10 rounded-md"
+                quality={100}
+              />
+            </div>
+            {
+              <InfoCardContent
+                title={name}
+                description={"Tap play button to listen the audio"}
+                fontColor={fontColor}
+                secondaryFontColor={secondaryFontColor}
+              />
+            }
+          </div>
+          <div className="custom-audio">
+            <AudioPlayer
+              key={fileUrl}
+              autoPlay={false}
+              src={fileUrl}
+              showJumpControls={false}
+              customAdditionalControls={[]}
+              customVolumeControls={[]}
+              layout="stacked-reverse"
+              className={`!w-max !p-0 !shadow-none translate-y-1 rounded-full`}
+              customIcons={{
+                play: <FaPlay className="text-xl" />,
+                pause: <FaPause className="text-xl" />,
+              }}
+            />
+          </div>
         </div>
       </motion.div>
     </motion.div>

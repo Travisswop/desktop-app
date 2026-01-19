@@ -25,6 +25,7 @@ interface Props {
   socialType: string;
   parentId: string;
   number: number;
+  fontColor?: string;
   secondaryFontColor?: string;
 }
 
@@ -39,6 +40,7 @@ const Blog: FC<Props> = ({
   socialType,
   parentId,
   number,
+  fontColor,
   secondaryFontColor,
 }) => {
   const { _id, micrositeId, title, headline, description, image } = data;
@@ -85,10 +87,7 @@ const Blog: FC<Props> = ({
           </SheetHeader>
         </SheetContent>
 
-        <div
-          style={{ color: secondaryFontColor && secondaryFontColor }}
-          className="w-full p-2 bg-white border rounded-lg shadow mt-4"
-        >
+        <div className="w-full p-2 bg-white border rounded-lg shadow mt-4">
           {/* <div className="relative w-full h-40 mb-2 overflow-hidden rounded-lg">
             <Image
               src={image}
@@ -105,16 +104,23 @@ const Blog: FC<Props> = ({
             <Image
               src={image}
               alt={title}
-              width={900}
-              height={500}
+              width={1200}
+              height={600}
               quality={100}
               className="w-full h-36 2xl:h-48 object-cover rounded-lg"
             />
           </div>
-          <h5 className="text-lg font-semibold mt-2">{title}</h5>
-          <p className="mb-2 text-sm">{headline}</p>
+          <h2
+            style={{ color: fontColor }}
+            className="text-lg font-semibold mt-2"
+          >
+            {title}
+          </h2>
+          <p style={{ color: secondaryFontColor }} className="mb-2 text-sm">
+            {headline}
+          </p>
           <div className="flex items-end justify-end">
-            <SheetTrigger className="text-xs bg-slate-900 text-white rounded-full px-2 py-1">
+            <SheetTrigger className="text-xs bg-slate-900 text-white rounded-full px-3 py-1">
               Read More
             </SheetTrigger>
           </div>

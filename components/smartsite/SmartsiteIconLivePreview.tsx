@@ -505,9 +505,10 @@ const SmartsiteIconLivePreview = ({
                             <Image
                               src={item.image}
                               alt={item.title}
-                              width={600}
-                              height={400}
-                              className="w-full h-24 2xl:h-28 object-cover rounded-lg"
+                              width={1200}
+                              height={600}
+                              quality={100}
+                              className="w-full h-36 2xl:h-48 object-cover rounded-lg"
                             />
                           </div>
                           <div
@@ -1145,17 +1146,17 @@ const SmartsiteIconLivePreview = ({
                                   customIcons={{
                                     play: (
                                       <FaPlay
-                                        style={{
-                                          color: formData.secondaryFontColor,
-                                        }}
+                                        // style={{
+                                        //   color: formData.secondaryFontColor,
+                                        // }}
                                         className="text-xl"
                                       />
                                     ), // Your custom play icon
                                     pause: (
                                       <FaPause
-                                        style={{
-                                          color: formData.secondaryFontColor,
-                                        }}
+                                        // style={{
+                                        //   color: formData.secondaryFontColor,
+                                        // }}
                                         className="text-xl"
                                       />
                                     ), // Your custom pause icon

@@ -3,6 +3,7 @@ import { FC } from "react";
 import Image from "next/image";
 import { downloadVCard } from "@/lib/vCardUtils";
 import { motion } from "framer-motion";
+import InfoCardContent from "./InfoCardContent";
 const API_URL = process.env.NEXT_PUBLIC_API_URL;
 interface Props {
   data: {
@@ -18,6 +19,8 @@ interface Props {
   parentId: string;
   number: number;
   accessToken: string;
+  fontColor?: string;
+  secondaryFontColor?: string;
 }
 
 const variants = {
@@ -68,6 +71,8 @@ const Contact: FC<Props> = ({
   parentId,
   number,
   accessToken,
+  fontColor,
+  secondaryFontColor,
 }) => {
   const { _id, micrositeId, name, mobileNo, email, address, websiteUrl } = data;
   const delay = number + 1 * 0.2;
@@ -90,11 +95,11 @@ const Contact: FC<Props> = ({
           damping: 10,
         }}
         onClick={() => download(data, parentId, accessToken)}
-        className="my-1 flex flex-row gap-2 items-center cursor-pointer bg-white shadow-xl p-2 rounded-[12px]"
+        className="my-1 flex flex-row items-center cursor-pointer bg-white shadow-xl p-2 rounded-[12px]"
       >
         <div>
           <Image
-            className="object-fill w-14 h-14"
+            className="object-fill w-10 h-auto"
             src="/images/outline-icons/contact.svg"
             alt={name}
             width={80}
@@ -102,10 +107,18 @@ const Contact: FC<Props> = ({
             priority
           />
         </div>
-        <div>
+        {/* <div>
           <div className="text-md font-semibold">{name}</div>
           <div className="text-xs">{mobileNo}</div>
-        </div>
+        </div> */}
+        {
+          <InfoCardContent
+            title={name}
+            description={mobileNo}
+            fontColor={fontColor}
+            secondaryFontColor={secondaryFontColor}
+          />
+        }
       </motion.div>
     </motion.div>
   );
