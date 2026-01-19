@@ -4,8 +4,12 @@ import AnimateButton from '@/components/ui/Button/AnimateButton';
 import { truncateWalletAddress } from '@/lib/tranacateWalletAddress';
 import { useUser } from '@/lib/UserContext';
 import { TransactionService } from '@/services/transaction-service';
-import { useSolanaWalletContext } from '@/lib/context/SolanaWalletContext';
+import {
+  useWallets as useSolanaWallets,
+  useSignAndSendTransaction,
+} from '@privy-io/react-auth/solana';
 import { Connection } from '@solana/web3.js';
+import bs58 from 'bs58';
 import {
   AlertCircle,
   ArrowRight,
@@ -14,7 +18,7 @@ import {
 } from 'lucide-react';
 import Image from 'next/image';
 import { useParams, useRouter } from 'next/navigation';
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { CartItem, PaymentMethod, Status } from './components/types';
 import { Network } from '@/types/wallet-types';
 import { useCart } from './context/CartContext';
@@ -64,7 +68,21 @@ const PaymentShipping: React.FC<{
   const [orderId, setOrderId] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [transactionHash, setTransactionHash] = useState('');
-  const { solanaWallets } = useSolanaWalletContext();
+
+  // Privy v3 Solana wallet hooks
+  const { ready: solanaReady, wallets: directSolanaWallets } = useSolanaWallets();
+  const { signAndSendTransaction } = useSignAndSendTransaction();
+
+  // Find the first Solana wallet with a valid address
+  const selectedSolanaWallet = useMemo(() => {
+    if (!solanaReady || !directSolanaWallets.length) return undefined;
+    // Find the first wallet with a valid address
+    const walletWithAddress = directSolanaWallets.find(
+      (w) => w.address && w.address.length > 0
+    );
+    return walletWithAddress || directSolanaWallets[0];
+  }, [solanaReady, directSolanaWallets]);
+
   const params = useParams();
   const router = useRouter();
 
@@ -139,13 +157,13 @@ const PaymentShipping: React.FC<{
     setTransactionStage(TRANSACTION_STAGES.INITIATING);
 
     try {
-      // Find wallet
-      const solanaWallet = solanaWallets?.find(
-        (w) => w.walletClientType === 'privy'
-      );
+      // Check wallet availability
+      if (!selectedSolanaWallet) {
+        throw new Error('Solana wallet not found. Please connect your wallet.');
+      }
 
-      if (!solanaWallet) {
-        throw new Error('Solana wallet not found');
+      if (!selectedSolanaWallet.address) {
+        throw new Error('Solana wallet address is not available. Please refresh and try again.');
       }
 
       const sendFlow = {
@@ -168,13 +186,46 @@ const PaymentShipping: React.FC<{
         'confirmed'
       );
 
-      // Process transaction
-      const hash = await TransactionService.handleSolanaSend(
-        solanaWallet,
+      // Build the transaction
+      const transaction = await TransactionService.buildSolanaTokenTransfer(
+        selectedSolanaWallet,
         sendFlow,
-        connection,
-        null // Public profile page doesn't have access to Privy user object
+        connection
       );
+
+      // Serialize and send using Privy's signAndSendTransaction
+      const serializedTransaction = transaction.serialize({
+        requireAllSignatures: false,
+        verifySignatures: false,
+      });
+
+      let hash: string;
+      try {
+        const result = await signAndSendTransaction({
+          transaction: new Uint8Array(serializedTransaction),
+          wallet: selectedSolanaWallet,
+        });
+        hash = bs58.encode(result.signature);
+      } catch (privyError) {
+        // Fallback: Use direct wallet signing if Privy hook fails
+        console.warn(
+          'Privy signAndSendTransaction failed, falling back to direct signing:',
+          privyError
+        );
+
+        const serializedForSigning = transaction.serialize({
+          requireAllSignatures: false,
+          verifySignatures: false,
+        });
+
+        const signResult = await selectedSolanaWallet.signTransaction({
+          transaction: new Uint8Array(serializedForSigning),
+        });
+
+        hash = await connection.sendRawTransaction(
+          Buffer.from(signResult.signedTransaction)
+        );
+      }
 
       setTransactionHash(hash);
       setTransactionStage(TRANSACTION_STAGES.CONFIRMING);

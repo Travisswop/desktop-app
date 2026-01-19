@@ -165,7 +165,6 @@ export const CartProvider: React.FC<{
 }> = ({ children }) => {
   const { user, loading: userLoading, accessToken } = useUser();
   const { micrositeData } = useMicrositeData();
-  console.log('micrositeData', micrositeData);
   const [sellerId, setSellerId] = useState<string | null>(null);
   const params = useParams();
   const username = params?.username as string;

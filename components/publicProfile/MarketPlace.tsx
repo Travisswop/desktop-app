@@ -36,8 +36,6 @@ const MarketPlace: any = ({
     itemDescription,
   } = data;
 
-  console.log("datass", data);
-
   const delay = number + 1 * 0.2;
 
   const { dispatch } = useCart();
