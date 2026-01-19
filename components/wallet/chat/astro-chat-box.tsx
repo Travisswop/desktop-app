@@ -12,15 +12,9 @@ import {
 import { useAIAgent } from '@/hooks/useAIAgent';
 import { cn } from '@/lib/utils';
 import {
-  useSolanaWallets,
+  useWallets as useSolanaWallets,
   useSignTransaction,
 } from '@privy-io/react-auth/solana';
-import {
-  Transaction,
-  VersionedTransaction,
-  Connection,
-  clusterApiUrl,
-} from '@solana/web3.js';
 import aiAgentService, {
   TransactionData,
 } from '@/services/aiAgentService';
@@ -34,12 +28,6 @@ import {
   BetAmountModal,
 } from '@/components/prediction-markets';
 import { type Currency } from '@/types/predictionMarkets';
-
-// Create a connection instance for signing transactions
-const connection = new Connection(
-  process.env.NEXT_PUBLIC_QUICKNODE_SOLANA_ENDPOINT ||
-    clusterApiUrl('mainnet-beta')
-);
 
 interface AstroMessage {
   id: string;
@@ -253,7 +241,7 @@ export default function AstroChatBox() {
         setPendingAction({
           action: response.action,
           params: response.params,
-          messageId: response.agentMessage._id,
+          messageId: response.agentMessage?._id || response.message._id,
           transactionData: response.transactionData,
         });
       }
@@ -295,80 +283,56 @@ export default function AstroChatBox() {
           pendingAction.transactionData
         );
 
-        // Deserialize the transaction - swap uses VersionedTransaction
-        let signedTx;
-        try {
-          if (pendingAction.action === 'swap_tokens') {
-            console.log(
-              '🔄 Deserializing VersionedTransaction for swap...'
-            );
-            const transaction = VersionedTransaction.deserialize(
-              Buffer.from(
-                pendingAction.transactionData.serializedTransaction,
-                'base64'
-              )
-            );
-
-            console.log(
-              '✅ VersionedTransaction deserialized, requesting signature...'
-            );
-
-            // Sign with Privy
-            signedTx = await signTransaction({
-              transaction,
-              connection,
-            });
-          } else {
-            console.log('📝 Deserializing regular Transaction...');
-            const transaction = Transaction.from(
-              Buffer.from(
-                pendingAction.transactionData.serializedTransaction,
-                'base64'
-              )
-            );
-
-            console.log(
-              '✅ Transaction deserialized, requesting signature...'
-            );
-
-            // Sign with Privy
-            signedTx = await signTransaction({
-              transaction,
-              connection,
-            });
-          }
-        } catch (deserializeError) {
-          console.error(
-            '❌ Error deserializing transaction:',
-            deserializeError
-          );
-          throw new Error(
-            'Failed to deserialize transaction. Please try again.'
-          );
+        // Get the active wallet for signing
+        const activeWallet = solanaWallets[0];
+        if (!activeWallet) {
+          throw new Error('No Solana wallet available for signing');
         }
 
-        console.log('✅ Transaction signed by user');
-        console.log(
-          '📦 Signed transaction type:',
-          signedTx.constructor.name
-        );
-
-        // Serialize signed transaction
-        let signedTransactionBase64;
-        if (pendingAction.action === 'swap_tokens') {
-          // For VersionedTransaction, serialize returns Uint8Array directly
-          const serialized = signedTx.serialize();
-          console.log(
-            '📦 Serialized versioned transaction length:',
-            serialized.length
+        // Deserialize and sign the transaction - Privy 3.0 expects Uint8Array
+        let signedTransactionBase64: string;
+        try {
+          // Get the raw transaction bytes
+          const transactionBytes = Buffer.from(
+            pendingAction.transactionData.serializedTransaction,
+            'base64'
           );
+
+          if (pendingAction.action === 'swap_tokens') {
+            console.log(
+              '🔄 Signing VersionedTransaction for swap...'
+            );
+          } else {
+            console.log('📝 Signing regular Transaction...');
+          }
+
+          console.log(
+            '✅ Transaction prepared, requesting signature...'
+          );
+
+          // Sign with Privy 3.0 - pass Uint8Array and wallet
+          const { signedTransaction } = await signTransaction({
+            transaction: new Uint8Array(transactionBytes),
+            wallet: activeWallet,
+          });
+
+          console.log('✅ Transaction signed by user');
+          console.log(
+            '📦 Signed transaction length:',
+            signedTransaction.length
+          );
+
+          // Convert signed transaction to base64
           signedTransactionBase64 =
-            Buffer.from(serialized).toString('base64');
-        } else {
-          // For regular Transaction, serialize returns Buffer
-          signedTransactionBase64 = signedTx
-            .serialize()
-            .toString('base64');
+            Buffer.from(signedTransaction).toString('base64');
+        } catch (signError) {
+          console.error(
+            '❌ Error signing transaction:',
+            signError
+          );
+          throw new Error(
+            'Failed to sign transaction. Please try again.'
+          );
         }
 
         console.log(

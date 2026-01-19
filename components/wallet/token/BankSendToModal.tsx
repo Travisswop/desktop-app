@@ -234,7 +234,7 @@ export default function BankSendToModal({
     // const connection = new Connection(clusterApiUrl('devnet'));
 
     const connection = new Connection(
-      process.env.NEXT_PUBLIC_QUICKNODE_SOLANA_URL ||
+      process.env.NEXT_PUBLIC_SOLANA_RPC_URL ||
         'https://api.devnet.solana.com'
     );
 

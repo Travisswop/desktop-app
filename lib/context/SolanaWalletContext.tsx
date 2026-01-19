@@ -7,7 +7,10 @@ import React, {
   useState,
   useMemo,
 } from 'react';
-import { useSolanaWallets } from '@privy-io/react-auth';
+import {
+  useWallets as useSolanaWallets,
+  useCreateWallet as useSolanaCreateWallet,
+} from '@privy-io/react-auth/solana';
 import logger from '../../utils/logger';
 
 interface SolanaWalletContextType {
@@ -23,7 +26,8 @@ const SolanaWalletContext = createContext<SolanaWalletContextType>({
 export const SolanaWalletProvider: React.FC<{
   children: React.ReactNode;
 }> = ({ children }) => {
-  const { wallets, createWallet } = useSolanaWallets();
+  const { wallets } = useSolanaWallets();
+  const { createWallet } = useSolanaCreateWallet();
   const [storedWallets, setStoredWallets] = useState<
     any[] | undefined
   >(wallets);

@@ -1,9 +1,11 @@
-"use client";
+'use client';
 
-import { useEffect, useState } from "react";
-import { usePrivy, useWallets, useSolanaWallets } from "@privy-io/react-auth";
+import { useEffect, useState } from 'react';
+import { usePrivy, useWallets } from '@privy-io/react-auth';
+import { useWallets as useSolanaWallets } from '@privy-io/react-auth/solana';
+
 // import LiFiModal from "./LiFiModal";
-import SwapTokenModal from "./SwapTokenModal";
+import SwapTokenModal from './SwapTokenModal';
 
 interface LiFiPrivyWrapperProps {
   config: any;
@@ -26,7 +28,7 @@ export default function LiFiPrivyWrapper({
       setIsReady(true);
 
       // Log wallet status
-      console.log("LiFiPrivyWrapper ready with wallets:", {
+      console.log('LiFiPrivyWrapper ready with wallets:', {
         ethWallets: wallets.length,
         solWallets: solWallets?.length || 0,
         authenticated,
@@ -53,7 +55,11 @@ export default function LiFiPrivyWrapper({
   }
 
   if (!isReady) {
-    return <div className="p-4 text-center">Loading wallet integration...</div>;
+    return (
+      <div className="p-4 text-center">
+        Loading wallet integration...
+      </div>
+    );
   }
 
   return (

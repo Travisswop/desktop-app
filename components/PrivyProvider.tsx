@@ -1,8 +1,10 @@
 'use client';
-
 import { PrivyProvider as Privy } from '@privy-io/react-auth';
 import { toSolanaWalletConnectors } from '@privy-io/react-auth/solana';
-
+import {
+  createSolanaRpc,
+  createSolanaRpcSubscriptions,
+} from '@solana/kit';
 const solanaConnectors = toSolanaWalletConnectors();
 
 export default function PrivyProvider({
@@ -56,14 +58,18 @@ export default function PrivyProvider({
             connectors: solanaConnectors,
           },
         },
-        solanaClusters: [
-          {
-            name: 'mainnet-beta',
-            rpcUrl:
-              process.env.NEXT_PUBLIC_QUICKNODE_SOLANA_URL ||
-              'https://chaotic-restless-putty.solana-mainnet.quiknode.pro/',
+        solana: {
+          rpcs: {
+            'solana:mainnet': {
+              rpc: createSolanaRpc(
+                process.env.NEXT_PUBLIC_SOLANA_RPC_URL!
+              ),
+              rpcSubscriptions: createSolanaRpcSubscriptions(
+                process.env.NEXT_PUBLIC_SOLANA_SOCKET_URL!
+              ),
+            },
           },
-        ],
+        },
         // Production-specific settings
         ...(isProduction && {
           defaultChainId: 1, // Ethereum mainnet for production

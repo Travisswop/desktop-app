@@ -1,66 +1,113 @@
 'use client';
 
-import { useSignTransaction } from '@privy-io/react-auth/solana';
-import { Connection, clusterApiUrl } from '@solana/web3.js';
+import { useWallets, useSignTransaction } from '@privy-io/react-auth/solana';
 import {
   createContext,
   useContext,
   useCallback,
   useEffect,
+  useMemo,
 } from 'react';
-
-// Create a connection instance for mainnet
-const connection = new Connection(
-  process.env.NEXT_PUBLIC_QUICKNODE_SOLANA_ENDPOINT ||
-    clusterApiUrl('mainnet-beta')
-);
+import {
+  Transaction,
+  VersionedTransaction,
+} from '@solana/web3.js';
 
 interface PrivyTransactionSignerContextType {
-  signTransaction: (transaction: any) => Promise<any>;
-  signAllTransactions: (transactions: any[]) => Promise<any[]>;
+  signTransaction: (
+    transaction: Transaction | VersionedTransaction
+  ) => Promise<Transaction | VersionedTransaction>;
+  signAllTransactions: (
+    transactions: (Transaction | VersionedTransaction)[]
+  ) => Promise<(Transaction | VersionedTransaction)[]>;
 }
 
 const PrivyTransactionSignerContext =
   createContext<PrivyTransactionSignerContextType | null>(null);
+
+// Helper to serialize transaction to Uint8Array for Privy 3.0
+function serializeTransaction(
+  transaction: Transaction | VersionedTransaction
+): Uint8Array {
+  if (transaction instanceof VersionedTransaction) {
+    return transaction.serialize();
+  }
+  return transaction.serialize({ verifySignatures: false });
+}
+
+// Helper to deserialize Uint8Array back to transaction
+function deserializeTransaction(
+  serialized: Uint8Array,
+  originalTransaction: Transaction | VersionedTransaction
+): Transaction | VersionedTransaction {
+  if (originalTransaction instanceof VersionedTransaction) {
+    return VersionedTransaction.deserialize(serialized);
+  }
+  return Transaction.from(serialized);
+}
 
 export function PrivyTransactionSignerProvider({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  const { signTransaction: privySignTransaction } =
-    useSignTransaction();
+  const { wallets, ready } = useWallets();
+  const { signTransaction: privySignTransaction } = useSignTransaction();
+
+  const wallet = useMemo(() => wallets[0], [wallets]);
 
   const signTransaction = useCallback(
-    async (transaction: any) => {
+    async (
+      transaction: Transaction | VersionedTransaction
+    ): Promise<Transaction | VersionedTransaction> => {
       if (!privySignTransaction) {
         throw new Error('Privy signTransaction not available');
       }
 
-      return await privySignTransaction({
-        transaction,
-        connection,
+      if (!wallet) {
+        throw new Error('No wallet available');
+      }
+
+      // Privy 3.0 expects Uint8Array and returns { signedTransaction: Uint8Array }
+      const serializedTx = serializeTransaction(transaction);
+      const { signedTransaction } = await privySignTransaction({
+        wallet,
+        transaction: serializedTx,
       });
+
+      // Deserialize back to the original transaction type
+      return deserializeTransaction(signedTransaction, transaction);
     },
-    [privySignTransaction]
+    [privySignTransaction, wallet]
   );
 
   const signAllTransactions = useCallback(
-    async (transactions: any[]) => {
+    async (
+      transactions: (Transaction | VersionedTransaction)[]
+    ): Promise<(Transaction | VersionedTransaction)[]> => {
       if (!privySignTransaction) {
         throw new Error('Privy signTransaction not available');
       }
 
-      return await Promise.all(
-        transactions.map((tx) =>
-          privySignTransaction({
-            transaction: tx,
-            connection,
-          })
-        )
+      if (!wallet) {
+        throw new Error('No wallet available');
+      }
+
+      // Sign all transactions sequentially
+      const signedTransactions = await Promise.all(
+        transactions.map(async (tx) => {
+          const serializedTx = serializeTransaction(tx);
+          const { signedTransaction } = await privySignTransaction({
+            wallet,
+            transaction: serializedTx,
+          });
+          return deserializeTransaction(signedTransaction, tx);
+        })
       );
+
+      return signedTransactions;
     },
-    [privySignTransaction]
+    [privySignTransaction, wallet]
   );
 
   // Set up global access to the signer

@@ -110,7 +110,7 @@ export interface SolTransaction {
 export interface ChainConfig {
   baseUrl: string;
   accessToken: string | undefined;
-  alchemyUrl: string | undefined;
+  rpcUrl: string | undefined;
   decimal: number;
   name: string;
   symbol: string;

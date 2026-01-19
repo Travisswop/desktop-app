@@ -14,10 +14,6 @@ This directory contains the implementation for collecting platform fees from Jup
 
 Create a `.env.local` file in the root of your project with the following:
 
-```
-# Platform fee wallet configuration - private key for HPmEbq6VMzE8dqRuFjLrNNxmqzjvP72jCofoFap5vBR2
-NEXT_PUBLIC_FEE_PAYER_PRIVATE_KEY=YOUR_PRIVATE_KEY_IN_BASE58
-```
 
 Replace `YOUR_PRIVATE_KEY_IN_BASE58` with the private key of your fee wallet. This key is used to:
 - Sign transactions that create token accounts for collecting fees

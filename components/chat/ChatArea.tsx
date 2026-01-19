@@ -9,28 +9,14 @@ import AstroChatBox from '@/components/wallet/chat/astro-chat-box';
 import { BsFillSendFill } from 'react-icons/bs';
 // ==================== FEATURE FLAGS ====================
 
-// Feature flag for V2 chat system
-const USE_CHAT_V2 = process.env.NEXT_PUBLIC_USE_CHAT_V2 === 'true';
-
 // Socket event names (V1 or V2 based on feature flag)
-const EVENTS = USE_CHAT_V2
-  ? {
-      SEND_MESSAGE: 'send_message_v2',
-      NEW_MESSAGE: 'new_message_v2',
-      GET_CONVERSATION_HISTORY: 'get_conversation_history_v2',
-      MARK_MESSAGES_READ: 'mark_messages_read_v2',
-      JOIN_CONVERSATION: 'join_conversation_v2',
-    }
-  : {
+const EVENTS = {
       SEND_MESSAGE: 'send_message',
       NEW_MESSAGE: 'new_message',
       GET_CONVERSATION_HISTORY: 'get_conversation_history',
       MARK_MESSAGES_READ: 'mark_messages_read',
       JOIN_CONVERSATION: 'join_conversation',
     };
-
-console.log('[ChatArea] Using Chat V2:', USE_CHAT_V2);
-console.log('[ChatArea] Event names:', EVENTS);
 
 // ==================== TYPE DEFINITIONS ====================
 
@@ -162,10 +148,7 @@ export default function ChatArea({
         ? 'get_group_messages'
         : EVENTS.GET_CONVERSATION_HISTORY;
 
-      // For V2, use participant._id as receiverId, for V1 use selectedChat._id
-      const receiverId = USE_CHAT_V2
-        ? selectedChat.participant?._id
-        : selectedChat._id;
+      const receiverId = selectedChat._id;
 
       const payload = isGroup
         ? {
@@ -357,11 +340,7 @@ export default function ChatArea({
     if (isGroup) {
       socket.emit('join_group', { groupId: selectedChat._id });
     } else {
-      // For V2, use participant._id, for V1 use selectedChat._id
-      const receiverId = USE_CHAT_V2
-        ? selectedChat?.participant?._id ||
-          selectedChat?.microsite?.parentId
-        : selectedChat?._id || selectedChat?.microsite?.parentId;
+      const receiverId = selectedChat?._id || selectedChat?.microsite?.parentId;
 
       console.log(
         '[ChatArea] Joining conversation with receiverId:',
@@ -394,10 +373,7 @@ export default function ChatArea({
 
       const msg = data.message;
 
-      // For V2, compare with participant._id, for V1 compare with selectedChat._id
-      const otherParticipantId = USE_CHAT_V2
-        ? selectedChat?.participant?._id
-        : selectedChat._id;
+      const otherParticipantId = selectedChat._id;
 
       const isForCurrentChat = isGroup
         ? msg.groupId === selectedChat._id
@@ -477,10 +453,8 @@ export default function ChatArea({
           }
         }
       } else {
-        // For V2, compare with participant._id, for V1 compare with selectedChat._id
-        const otherParticipantId = USE_CHAT_V2
-          ? selectedChat?.participant?._id
-          : selectedChat._id;
+
+        const otherParticipantId = selectedChat._id;
 
         if (data.userId === otherParticipantId) {
           setIsTyping(data.isTyping);
@@ -576,13 +550,7 @@ export default function ChatArea({
       message: newMessage,
     });
 
-    console.log('is group gg', isGroup);
-
-    // For V2, use participant._id, for V1 fallback to microsite.parentId
-    const receiverId = USE_CHAT_V2
-      ? selectedChat?.participant?._id ||
-        selectedChat?.microsite?.parentId
-      : selectedChat?.microsite?.parentId;
+    const receiverId = selectedChat?.microsite?.parentId;
 
     const messageData = isGroup
       ? {

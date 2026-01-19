@@ -2,7 +2,7 @@ import { useQueries } from '@tanstack/react-query';
 import { ChainType } from '@/types/token';
 import { UseNFTResult } from '@/types/nft';
 import { useMemo } from 'react';
-import { CHAIN_CONFIG } from '@/types/config';
+import { EVM_CHAIN_CONFIG } from '@/types/config';
 import {
   NFTService,
   processNFTCollections,
@@ -24,9 +24,9 @@ export const useNFT = (
         queryKey: ['nfts', chain, evmWalletAddress],
         queryFn: () =>
           NFTService.getNFTsForChain(
-            CHAIN_CONFIG[chain].network,
+            EVM_CHAIN_CONFIG[chain as keyof typeof EVM_CHAIN_CONFIG].network,
             evmWalletAddress!,
-            CHAIN_CONFIG[chain].alchemyUrl
+            EVM_CHAIN_CONFIG[chain as keyof typeof EVM_CHAIN_CONFIG].apiKey
           ),
         enabled: Boolean(evmWalletAddress),
         retry: 2,

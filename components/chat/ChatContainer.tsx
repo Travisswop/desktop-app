@@ -9,24 +9,7 @@ interface ChatContainerProps {
   setUnreadCount: (count: number) => void;
 }
 
-// Feature flag for V2 chat system
-// Set to true to use new unified messaging architecture
-const USE_CHAT_V2 = process.env.NEXT_PUBLIC_USE_CHAT_V2 === 'true';
-
-// Socket event names (V1 or V2 based on feature flag)
-const EVENTS = USE_CHAT_V2
-  ? {
-      GET_CONVERSATIONS: 'get_conversations_v2',
-      GET_UNREAD_COUNT: 'get_unread_count_v2',
-      NEW_MESSAGE: 'new_message_v2',
-      CONVERSATION_UPDATED: 'conversation_updated_v2',
-      UNREAD_COUNT_UPDATED: 'unread_count_updated_v2',
-      MESSAGES_READ: 'messages_read_v2',
-      MESSAGE_DELETED: 'message_deleted_v2',
-      MESSAGE_EDITED: 'message_edited_v2',
-      USER_TYPING: 'user_typing_v2',
-    }
-  : {
+const EVENTS = {
       GET_CONVERSATIONS: 'get_conversations',
       GET_UNREAD_COUNT: 'get_unread_count',
       NEW_MESSAGE: 'new_message',
@@ -164,7 +147,7 @@ export default function ChatContainer({
       ) {
         return;
       }
-      console.log('New message received (V2:', USE_CHAT_V2, ')');
+
       loadInitialData();
     };
 

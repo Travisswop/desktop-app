@@ -6,7 +6,8 @@ import {
 } from 'next/navigation';
 import { ChainId } from '@lifi/widget';
 import LiFiPrivyWrapper from './LiFiPrivyWrapper';
-import { useWallets, useSolanaWallets } from '@privy-io/react-auth';
+import { useWallets } from '@privy-io/react-auth';
+import { useWallets as useSolanaWallets } from '@privy-io/react-auth/solana';
 import { SolanaProvider } from '../SolanaProvider';
 import { PrimaryButton } from '../ui/Button/PrimaryButton';
 import { TbArrowsExchange2 } from 'react-icons/tb';

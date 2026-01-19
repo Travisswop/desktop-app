@@ -49,7 +49,7 @@ export default function AssetSelector({
     if (!asset) return null;
     return (
       <button
-        key={asset.symbol}
+        key={asset.symbol + asset.address}
         onClick={() => onNext(asset)}
         className="w-full flex items-center justify-between p-3 rounded-xl hover:bg-gray-50 transition-colors shadow-md  mb-2"
       >

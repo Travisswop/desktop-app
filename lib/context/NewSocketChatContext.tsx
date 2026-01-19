@@ -15,40 +15,7 @@ import { usePrivy } from '@privy-io/react-auth';
 import { chatApiService } from '@/lib/api/chatService';
 import logger from '@/utils/logger';
 
-// Feature flag for V2 chat system
-// Set to true to use new unified messaging architecture
-const USE_CHAT_V2 = process.env.NEXT_PUBLIC_USE_CHAT_V2 === 'true';
-
-// Socket event names (V1 or V2 based on feature flag)
-const EVENTS = USE_CHAT_V2
-  ? {
-      // Direct chat events
-      SEND_MESSAGE: 'send_message_v2',
-      GET_CONVERSATION_HISTORY: 'get_conversation_history_v2',
-      GET_CONVERSATIONS: 'get_conversations_v2',
-      MARK_MESSAGES_READ: 'mark_messages_read_v2',
-      DELETE_MESSAGE: 'delete_message_v2',
-      EDIT_MESSAGE: 'edit_message_v2',
-      SEARCH_CONTACTS: 'search_contacts_v2',
-      BLOCK_USER: 'block_user_v2',
-      UNBLOCK_USER: 'unblock_user_v2',
-      TYPING_START: 'typing_start_v2',
-      TYPING_STOP: 'typing_stop_v2',
-      JOIN_CONVERSATION: 'join_conversation_v2',
-      LEAVE_CONVERSATION: 'leave_conversation_v2',
-      GET_UNREAD_COUNT: 'get_unread_count_v2',
-      SEARCH_MESSAGES: 'search_messages_v2',
-
-      // Received events
-      NEW_MESSAGE: 'new_message_v2',
-      MESSAGES_READ: 'messages_read_v2',
-      MESSAGE_DELETED: 'message_deleted_v2',
-      MESSAGE_EDITED: 'message_edited_v2',
-      CONVERSATION_UPDATED: 'conversation_updated_v2',
-      USER_TYPING: 'user_typing_v2',
-      UNREAD_COUNT_UPDATED: 'unread_count_updated_v2',
-    }
-  : {
+const EVENTS = {
       // Direct chat events (old)
       SEND_MESSAGE: 'send_message',
       GET_CONVERSATION_HISTORY: 'get_conversation_history',
@@ -792,7 +759,6 @@ export const SocketChatProvider = ({
         });
 
         // Chat event handlers matching backend implementation
-        logger.info('📡 [NewSocketChat] Using Chat V2:', USE_CHAT_V2);
         logger.info('📡 [NewSocketChat] Listening for events:', {
           NEW_MESSAGE: EVENTS.NEW_MESSAGE,
           MESSAGES_READ: EVENTS.MESSAGES_READ,
@@ -802,13 +768,6 @@ export const SocketChatProvider = ({
         newSocket.on(
           EVENTS.NEW_MESSAGE,
           (data: { message: ChatMessage }) => {
-            logger.info(
-              '📨 [NewSocketChat] New message received (V2:',
-              USE_CHAT_V2,
-              '):',
-              data
-            );
-
             if (!data?.message) return;
             const message = data.message;
 
@@ -837,12 +796,7 @@ export const SocketChatProvider = ({
             receiverId: string;
             readAt: Date;
           }) => {
-            logger.info(
-              '👁️ [NewSocketChat] Messages marked as read (V2:',
-              USE_CHAT_V2,
-              '):',
-              data
-            );
+
             // Update read status in messages
             updateMessageReadStatus(
               data.senderId,
@@ -855,12 +809,6 @@ export const SocketChatProvider = ({
         newSocket.on(
           EVENTS.MESSAGE_DELETED,
           (data: { messageId: string; deletedAt: Date }) => {
-            logger.info(
-              '🗑️ [NewSocketChat] Message deleted (V2:',
-              USE_CHAT_V2,
-              '):',
-              data
-            );
             // Update message deletion status
             updateMessageDeletion(data.messageId, data.deletedAt);
           }
@@ -869,12 +817,6 @@ export const SocketChatProvider = ({
         newSocket.on(
           EVENTS.MESSAGE_EDITED,
           (data: { message: ChatMessage }) => {
-            logger.info(
-              '✏️ [NewSocketChat] Message edited (V2:',
-              USE_CHAT_V2,
-              '):',
-              data
-            );
             // Update the edited message
             if (data?.message) {
               updateEditedMessage(data.message);
@@ -883,11 +825,6 @@ export const SocketChatProvider = ({
         );
 
         newSocket.on(EVENTS.CONVERSATION_UPDATED, () => {
-          logger.info(
-            '🔄 [NewSocketChat] Conversation updated (V2:',
-            USE_CHAT_V2,
-            ')'
-          );
           // Refresh conversations when they're updated
           refreshConversations();
         });
@@ -895,12 +832,6 @@ export const SocketChatProvider = ({
         newSocket.on(
           EVENTS.USER_TYPING,
           (data: { userId: string; isTyping?: boolean }) => {
-            logger.info(
-              '⌨️ [NewSocketChat] User typing status (V2:',
-              USE_CHAT_V2,
-              '):',
-              data
-            );
             // Handle typing indicators if needed
           }
         );
@@ -1315,11 +1246,6 @@ export const SocketChatProvider = ({
           messageData,
           (response: { success: boolean; error?: string }) => {
             if (response?.success) {
-              logger.info(
-                '✅ [NewSocketChat] Message sent successfully (V2:',
-                USE_CHAT_V2,
-                ')'
-              );
               resolve(true);
             } else {
               logger.error(

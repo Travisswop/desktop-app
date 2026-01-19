@@ -1,7 +1,7 @@
-"use client";
+'use client';
 
-import { useState, useEffect } from "react";
-import { useTokenChartData } from "@/lib/hooks/useTokenChartData";
+import { useState, useEffect } from 'react';
+import { useTokenChartData } from '@/lib/hooks/useTokenChartData';
 import {
   Area,
   AreaChart,
@@ -9,30 +9,34 @@ import {
   XAxis,
   YAxis,
   Tooltip,
-} from "recharts";
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Send, Wallet } from "lucide-react";
-import { TokenData } from "@/types/token";
-import TokenImage from "./token-image";
-import { TooltipProvider } from "@/components/ui/tooltip";
+} from 'recharts';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Send, Wallet } from 'lucide-react';
+import { TokenData } from '@/types/token';
+import TokenImage from './token-image';
+import { TooltipProvider } from '@/components/ui/tooltip';
 import {
   TooltipContent,
   TooltipTrigger,
   Tooltip as TooltipUI,
-} from "@/components/ui/tooltip";
-import { useUser } from "@/lib/UserContext";
-import { PrimaryButton } from "@/components/ui/Button/PrimaryButton";
-import { BsSendFill } from "react-icons/bs";
-import { AiOutlineSwap } from "react-icons/ai";
-import CustomModal from "@/components/modal/CustomModal";
-import GetQrCodeUsingWalletAddress from "../QRCode/GetQrCodeUsingWalletAddress";
-import { useMultiChainTokenData } from "@/lib/hooks/useToken";
-import { usePrivy, useSolanaWallets } from "@privy-io/react-auth";
-import { useFundWallet } from "@privy-io/react-auth/solana";
-import { useWalletAddresses, useWalletData } from "../hooks/useWalletData";
-import { SUPPORTED_CHAINS } from "../constants";
-import SwapTokenModal from "../SwapTokenModal";
-import { FaDollarSign } from "react-icons/fa6";
+} from '@/components/ui/tooltip';
+import { useUser } from '@/lib/UserContext';
+import { PrimaryButton } from '@/components/ui/Button/PrimaryButton';
+import { BsSendFill } from 'react-icons/bs';
+import { AiOutlineSwap } from 'react-icons/ai';
+import CustomModal from '@/components/modal/CustomModal';
+import GetQrCodeUsingWalletAddress from '../QRCode/GetQrCodeUsingWalletAddress';
+import { useMultiChainTokenData } from '@/lib/hooks/useToken';
+import { usePrivy } from '@privy-io/react-auth';
+import { useWallets as useSolanaWallets } from '@privy-io/react-auth/solana';
+import { useFundWallet } from '@privy-io/react-auth/solana';
+import {
+  useWalletAddresses,
+  useWalletData,
+} from '../hooks/useWalletData';
+import { SUPPORTED_CHAINS } from '../constants';
+import SwapTokenModal from '../SwapTokenModal';
+import { FaDollarSign } from 'react-icons/fa6';
 
 const CustomTooltip = ({
   active,
@@ -48,15 +52,17 @@ any) => {
     return (
       <div className="bg-white p-2 border rounded shadow-sm">
         <p className="text-sm text-gray-600">
-          {new Date(timestamp).toLocaleString("en-US", {
-            month: "short",
-            day: "numeric",
-            hour: "numeric",
-            minute: "2-digit",
+          {new Date(timestamp).toLocaleString('en-US', {
+            month: 'short',
+            day: 'numeric',
+            hour: 'numeric',
+            minute: '2-digit',
             hour12: true,
           })}
         </p>
-        <p className="text-sm font-bold">${payload[0].value.toFixed(4)}</p>
+        <p className="text-sm font-bold">
+          ${payload[0].value.toFixed(4)}
+        </p>
       </div>
     );
   }
@@ -74,23 +80,28 @@ export default function TokenDetails({
   onBack,
   onSend,
 }: TokenDetailsProps) {
-  console.log("tokenholafit", token);
+  console.log('tokenholafit', token);
   const { accessToken } = useUser();
   const { fundWallet } = useFundWallet();
   const { wallets: solanaWallets } = useSolanaWallets();
 
   if (!accessToken) {
-    throw new Error("No access token found");
+    throw new Error('No access token found');
   }
-  const [selectedPeriod, setSelectedPeriod] = useState("1D");
-  const [chartData, setChartData] = useState(token.timeSeriesData["1D"] || []);
+  const [selectedPeriod, setSelectedPeriod] = useState('1D');
+  const [chartData, setChartData] = useState(
+    token.timeSeriesData['1D'] || []
+  );
   const [changePercentage, setChangePercentage] = useState(
     token.marketData.priceChangePercentage24h
   );
   const [openWalletQrOpen, setOpenWalletQrOpen] = useState(false);
-  const [qrState, setQrState] = useState<"sol" | "eth" | "pol" | "base">("sol");
+  const [qrState, setQrState] = useState<
+    'sol' | 'eth' | 'pol' | 'base'
+  >('sol');
   const [openWalletSwapOpen, setOpenWalletSwapOpen] = useState(false);
-  const [openWalletOptionsOpen, setOpenWalletOptionsOpen] = useState(false);
+  const [openWalletOptionsOpen, setOpenWalletOptionsOpen] =
+    useState(false);
 
   const [isLoading, setIsLoading] = useState(false);
 
@@ -100,57 +111,59 @@ export default function TokenDetails({
   const day = useTokenChartData(
     token.address, // Can be null for native tokens
     token.chain,
-    "1D",
-    selectedPeriod === "1D",
+    '1D',
+    selectedPeriod === '1D',
     accessToken
   );
-  console.log("Day data:", day);
+  console.log('Day data:', day);
   const week = useTokenChartData(
     token.address,
     token.chain,
-    "1W",
-    selectedPeriod === "1W",
+    '1W',
+    selectedPeriod === '1W',
     accessToken
   );
   const month = useTokenChartData(
     token.address,
     token.chain,
-    "1M",
-    selectedPeriod === "1M",
+    '1M',
+    selectedPeriod === '1M',
     accessToken
   );
   const year = useTokenChartData(
     token.address,
     token.chain,
-    "1Y",
-    selectedPeriod === "1Y",
+    '1Y',
+    selectedPeriod === '1Y',
     accessToken
   );
   const max = useTokenChartData(
     token.address,
     token.chain,
-    "Max",
-    selectedPeriod === "Max",
+    'Max',
+    selectedPeriod === 'Max',
     accessToken
   );
 
   // Debug: Log when year or max data changes
   useEffect(() => {
-    if (selectedPeriod === "1Y" && year.data) {
-      console.log("[TokenDetails] 1Y Chart Data:", {
+    if (selectedPeriod === '1Y' && year.data) {
+      console.log('[TokenDetails] 1Y Chart Data:', {
         dataPoints: year.data.sparklineData.length,
-        change: (year.data.change as string) || "0",
+        change: (year.data.change as string) || '0',
         firstPoint: year.data.sparklineData[0],
-        lastPoint: year.data.sparklineData[year.data.sparklineData.length - 1],
+        lastPoint:
+          year.data.sparklineData[year.data.sparklineData.length - 1],
         samplePoints: year.data.sparklineData.slice(0, 5),
       });
     }
-    if (selectedPeriod === "Max" && max.data) {
-      console.log("[TokenDetails] Max Chart Data:", {
+    if (selectedPeriod === 'Max' && max.data) {
+      console.log('[TokenDetails] Max Chart Data:', {
         dataPoints: max.data.sparklineData.length,
-        change: (max.data.change as string) || "0",
+        change: (max.data.change as string) || '0',
         firstPoint: max.data.sparklineData[0],
-        lastPoint: max.data.sparklineData[max.data.sparklineData.length - 1],
+        lastPoint:
+          max.data.sparklineData[max.data.sparklineData.length - 1],
         samplePoints: max.data.sparklineData.slice(0, 5),
       });
     }
@@ -159,61 +172,72 @@ export default function TokenDetails({
   // Determine chart color - use token color or default based on price change
   const strokeColor =
     token.marketData.color ||
-    (parseFloat(changePercentage || "0") >= 0 ? "#22c55e" : "#ef4444");
+    (parseFloat(changePercentage || '0') >= 0
+      ? '#22c55e'
+      : '#ef4444');
 
   // Update chart data when period changes or data is fetched
   useEffect(() => {
     const timeSeriesMap = {
-      "1D": day.data?.sparklineData || [],
-      "1W": week.data?.sparklineData || [],
-      "1M": month.data?.sparklineData || [],
-      "1Y": year.data?.sparklineData || [],
+      '1D': day.data?.sparklineData || [],
+      '1W': week.data?.sparklineData || [],
+      '1M': month.data?.sparklineData || [],
+      '1Y': year.data?.sparklineData || [],
       Max: max.data?.sparklineData || [],
     };
 
     const changePercentageMap = {
-      "1D": (day.data?.change as string) || "0",
-      "1W": (week.data?.change as string) || "0",
-      "1M": (month.data?.change as string) || "0",
-      "1Y": (year.data?.change as string) || "0",
-      Max: (max.data?.change as string) || "0",
+      '1D': (day.data?.change as string) || '0',
+      '1W': (week.data?.change as string) || '0',
+      '1M': (month.data?.change as string) || '0',
+      '1Y': (year.data?.change as string) || '0',
+      Max: (max.data?.change as string) || '0',
     };
 
     // Determine loading state
     const loadingStates = {
-      "1D": day.isLoading,
-      "1W": week.isLoading,
-      "1M": month.isLoading,
-      "1Y": year.isLoading,
+      '1D': day.isLoading,
+      '1W': week.isLoading,
+      '1M': month.isLoading,
+      '1Y': year.isLoading,
       Max: max.isLoading,
     };
 
     setIsLoading(
-      loadingStates[selectedPeriod as keyof typeof loadingStates] || false
+      loadingStates[selectedPeriod as keyof typeof loadingStates] ||
+        false
     );
 
     // Only update if we have data for the selected period
-    const newData = timeSeriesMap[selectedPeriod as keyof typeof timeSeriesMap];
+    const newData =
+      timeSeriesMap[selectedPeriod as keyof typeof timeSeriesMap];
     const newChange =
-      changePercentageMap[selectedPeriod as keyof typeof changePercentageMap];
+      changePercentageMap[
+        selectedPeriod as keyof typeof changePercentageMap
+      ];
 
     if (newData && newData.length > 0) {
       // Debug log for chart data
-      console.log(`[TokenDetails] Updating chart for ${selectedPeriod}:`, {
-        token: token.symbol,
-        period: selectedPeriod,
-        dataPoints: newData.length,
-        change: newChange,
-        firstPoint: newData[0],
-        lastPoint: newData[newData.length - 1],
-        // Check for flat lines
-        uniqueValues: new Set(newData.map((d) => d.value)).size,
-      });
+      console.log(
+        `[TokenDetails] Updating chart for ${selectedPeriod}:`,
+        {
+          token: token.symbol,
+          period: selectedPeriod,
+          dataPoints: newData.length,
+          change: newChange,
+          firstPoint: newData[0],
+          lastPoint: newData[newData.length - 1],
+          // Check for flat lines
+          uniqueValues: new Set(newData.map((d) => d.value)).size,
+        }
+      );
 
       setChartData(newData);
       setChangePercentage(newChange);
     } else {
-      console.warn(`[TokenDetails] No data available for ${selectedPeriod}`);
+      console.warn(
+        `[TokenDetails] No data available for ${selectedPeriod}`
+      );
     }
   }, [
     selectedPeriod,
@@ -231,21 +255,22 @@ export default function TokenDetails({
   ]);
 
   const handleWalletQrOpen = () => {
-    if (token.chain.toLowerCase() === "solana") {
-      setQrState("sol");
-    } else if (token.chain.toLowerCase() === "polygon") {
-      setQrState("pol");
-    } else if (token.chain.toLowerCase() === "base") {
-      setQrState("base");
+    if (token.chain.toLowerCase() === 'solana') {
+      setQrState('sol');
+    } else if (token.chain.toLowerCase() === 'polygon') {
+      setQrState('pol');
+    } else if (token.chain.toLowerCase() === 'base') {
+      setQrState('base');
     } else {
-      setQrState("eth");
+      setQrState('eth');
     }
     setOpenWalletQrOpen(true);
   };
 
   const { authenticated, ready, user: PrivyUser } = usePrivy();
   const walletData = useWalletData(authenticated, ready, PrivyUser);
-  const { solWalletAddress, evmWalletAddress } = useWalletAddresses(walletData);
+  const { solWalletAddress, evmWalletAddress } =
+    useWalletAddresses(walletData);
 
   const {
     tokens,
@@ -266,21 +291,18 @@ export default function TokenDetails({
 
   const handleWalletOptionsOpen = async () => {
     if (!solanaWalletAddress) {
-      console.error("No wallet address available");
+      console.error('No wallet address available');
       return;
     }
 
-    console.log("solWalletAddress", solanaWalletAddress);
-
     setIsLoading(true);
     try {
-      await fundWallet({
-        address: solanaWalletAddress,
-        asset: "USDC",
-        amount: "20",
+      await fundWallet(solanaWalletAddress, {
+        asset: 'USDC',
+        amount: '20',
       });
     } catch (error) {
-      console.error("Failed to open Coinbase funding:", error);
+      console.error('Failed to open Coinbase funding:', error);
     } finally {
       setIsLoading(false);
     }
@@ -303,23 +325,25 @@ export default function TokenDetails({
             <div className="flex-1">
               <h1 className="text-2xl font-bold">
                 {token.marketData?.price
-                  ? `$${parseFloat(token.marketData.price.toString()).toFixed(
-                      4
-                    )}`
-                  : "Price unavailable"}
+                  ? `$${parseFloat(
+                      token.marketData.price.toString()
+                    ).toFixed(4)}`
+                  : 'Price unavailable'}
               </h1>
-              <p className="text-sm text-muted-foreground">{token.name}</p>
+              <p className="text-sm text-muted-foreground">
+                {token.name}
+              </p>
             </div>
             {changePercentage && (
               <div
                 className={`text-sm ${
                   parseFloat(changePercentage) > 0
-                    ? "text-green-500"
-                    : "text-red-500"
+                    ? 'text-green-500'
+                    : 'text-red-500'
                 }`}
               >
                 <span className="font-medium">
-                  {parseFloat(changePercentage) > 0 ? "+" : ""}
+                  {parseFloat(changePercentage) > 0 ? '+' : ''}
                   {parseFloat(changePercentage).toFixed(2)}%
                 </span>
                 <div className="text-xs">{selectedPeriod}</div>
@@ -376,20 +400,23 @@ export default function TokenDetails({
                       dataKey="timestamp"
                       hide={true}
                       tickFormatter={(timestamp) =>
-                        new Date(timestamp).toLocaleTimeString("en-US", {
-                          hour: "numeric",
-                          minute: "2-digit",
-                          hour12: true,
-                        })
+                        new Date(timestamp).toLocaleTimeString(
+                          'en-US',
+                          {
+                            hour: 'numeric',
+                            minute: '2-digit',
+                            hour12: true,
+                          }
+                        )
                       }
                       type="number"
                       scale="time"
-                      domain={["auto", "auto"]}
+                      domain={['auto', 'auto']}
                       tickLine={false}
                       axisLine={false}
                       minTickGap={30}
                     />
-                    <YAxis domain={["auto", "auto"]} hide />
+                    <YAxis domain={['auto', 'auto']} hide />
                     <Tooltip
                       content={<CustomTooltip />}
                       cursor={{
@@ -416,34 +443,34 @@ export default function TokenDetails({
                 <TabsList className="grid w-full grid-cols-5">
                   <TabsTrigger
                     value="1D"
-                    onClick={() => setSelectedPeriod("1D")}
+                    onClick={() => setSelectedPeriod('1D')}
                   >
                     1D
                   </TabsTrigger>
                   <TabsTrigger
                     value="1W"
-                    onClick={() => setSelectedPeriod("1W")}
+                    onClick={() => setSelectedPeriod('1W')}
                   >
                     1W
                   </TabsTrigger>
                   <TabsTrigger
                     value="1M"
-                    onClick={() => setSelectedPeriod("1M")}
+                    onClick={() => setSelectedPeriod('1M')}
                   >
                     1M
                   </TabsTrigger>
                   <TabsTrigger
                     value="1Y"
-                    onClick={() => setSelectedPeriod("1Y")}
+                    onClick={() => setSelectedPeriod('1Y')}
                   >
                     1Y
                   </TabsTrigger>
-                  <TabsTrigger
+                  {/* <TabsTrigger
                     value="Max"
                     onClick={() => setSelectedPeriod("Max")}
                   >
                     Max
-                  </TabsTrigger>
+                  </TabsTrigger> */}
                 </TabsList>
               </Tabs>
             </div>
@@ -475,7 +502,7 @@ export default function TokenDetails({
                     parseFloat(token.balance) *
                     parseFloat(token.marketData.price)
                   ).toFixed(4)}`
-                : "Value unavailable"}
+                : 'Value unavailable'}
             </span>
           </div>
 

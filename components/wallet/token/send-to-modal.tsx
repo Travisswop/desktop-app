@@ -14,7 +14,7 @@ import { TokenData } from '@/types/token';
 
 import { TransactionService } from '@/services/transaction-service';
 import { usePrivy } from '@privy-io/react-auth';
-import { useSolanaWallets } from '@privy-io/react-auth/solana';
+import { useWallets as useSolanaWallets } from '@privy-io/react-auth/solana';
 import { BsSendFill } from 'react-icons/bs';
 import isUrl from '@/lib/isUrl';
 import { useUser } from '@/lib/UserContext';
@@ -139,7 +139,7 @@ export default function SendToModal({
     // const connection = new Connection(clusterApiUrl('devnet'));
 
     const connection = new Connection(
-      process.env.NEXT_PUBLIC_QUICKNODE_SOLANA_URL ||
+      process.env.NEXT_PUBLIC_SOLANA_RPC_URL ||
         'https://api.devnet.solana.com'
     );
 

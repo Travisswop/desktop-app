@@ -17,11 +17,8 @@ import { MdOutlineQrCodeScanner } from 'react-icons/md';
 import { IoCopyOutline } from 'react-icons/io5';
 import { QRCodeSVG } from 'qrcode.react';
 import { useUser } from '@/lib/UserContext';
-import {
-  usePrivy,
-  useSolanaWallets,
-  useWallets,
-} from '@privy-io/react-auth';
+import { usePrivy, useWallets } from '@privy-io/react-auth';
+import { useWallets as useSolanaWallets } from '@privy-io/react-auth/solana';
 
 export default function ReceiveOptions() {
   const [navigateCryptoFiat, setNavigateCryptoFiat] = useState({
@@ -39,18 +36,12 @@ export default function ReceiveOptions() {
   const { user: privyUser } = usePrivy();
   const { user } = useUser();
 
-  // console.log("user", user);
-
-  const { wallets: solWallets } = useSolanaWallets();
+  const { ready: solanaReady, wallets: solWallets } =
+    useSolanaWallets();
+  const solWalletAddress = solanaReady
+    ? solWallets[0]?.address
+    : undefined;
   const { wallets: ethWallets } = useWallets();
-
-  const solWalletAddress = useMemo(() => {
-    return solWallets?.find(
-      (w) =>
-        w.walletClientType === 'privy' ||
-        w.connectorType === 'embedded'
-    )?.address;
-  }, [solWallets]);
 
   const evmWalletAddress = useMemo(() => {
     return ethWallets?.find(
@@ -59,9 +50,6 @@ export default function ReceiveOptions() {
         w.connectorType === 'embedded'
     )?.address;
   }, [ethWallets]);
-
-  // console.log("solWallets", solWalletAddress);
-  // console.log("ethWallets", evmWalletAddress);
 
   const handleCopy = (address: string, index: number) => {
     navigator.clipboard.writeText(address);
