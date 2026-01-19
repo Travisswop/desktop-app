@@ -62,6 +62,8 @@ const SocialSmall: FC<Props> = ({
   const { _id, micrositeId, name, value, url, iconName, iconPath, group } =
     data;
 
+  console.log("data small icons", data);
+
   const openlink = async () => {
     // if (!accessToken) {
     //   window.location.href =
@@ -97,7 +99,7 @@ const SocialSmall: FC<Props> = ({
         }
       case "Commands":
         if (name === "Email") {
-          return window.open(`mailto:${value}`, "_blank");
+          return window.open(`mailto:${value}`, "_self");
         }
         return window.open(value, "_blank");
       case "Chat Links":
@@ -147,7 +149,7 @@ const SocialSmall: FC<Props> = ({
           width={320}
           height={320}
           quality={100}
-          className="w-5 h-auto"
+          className={`${iconName === "Facebook" ? "w-4 h-auto" : "w-5 h-auto"} h-auto`}
           style={{
             filter: getSmallIconColorFilter(fontColor),
           }}

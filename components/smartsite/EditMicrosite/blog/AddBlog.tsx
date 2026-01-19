@@ -17,7 +17,7 @@ import placeholder from "@/public/images/image-placeholder.webp";
 import { PrimaryButton } from "@/components/ui/Button/PrimaryButton";
 import { Loader } from "lucide-react";
 
-const AddBlog = ({ handleRemoveIcon }: any) => {
+const AddBlog = ({ onCloseModal }: any) => {
   const state: any = useSmartSiteApiDataStore((state) => state);
   //const sesstionState = useLoggedInUserStore((state) => state.state.user); //get session value
   const [accessToken, setAccessToken] = useState("");
@@ -110,7 +110,7 @@ const AddBlog = ({ handleRemoveIcon }: any) => {
         const data = await postBlog(info, accessToken);
         if ((data.state = "success")) {
           toast.success("Blog created successfully");
-          handleRemoveIcon("Blog");
+          onCloseModal();
         } else {
           toast.error("Something went wrong");
         }

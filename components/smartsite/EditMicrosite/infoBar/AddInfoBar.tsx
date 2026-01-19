@@ -96,7 +96,7 @@ const AddInfoBar = ({ onCloseModal }: any) => {
   useEffect(() => {
     if (selectedIconType) {
       const data = iconData.icons.find(
-        (item: any) => item.category === selectedIconType
+        (item: any) => item.category === selectedIconType,
       );
       setSelectedIconData(data);
     }
@@ -144,7 +144,7 @@ const AddInfoBar = ({ onCloseModal }: any) => {
       group: selectedIconData?.category,
     };
     const customInfobarInfo = {
-      micrositeId: state.data._id,
+      micrositeId: state._id,
       title: formData.get("url"),
       link: "custom",
       buttonName: buttonName,
@@ -169,7 +169,7 @@ const AddInfoBar = ({ onCloseModal }: any) => {
         selectedIconType === "Upload Custom Image"
           ? customInfobarInfo
           : infobarInfo,
-        accessToken
+        accessToken,
       );
       console.log("data", data);
 

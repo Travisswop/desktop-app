@@ -103,7 +103,7 @@ export default function ClientProfile({ userName }: ClientProfileProps) {
             : "none",
           backgroundColor: backgroundColor && backgroundColor,
         }}
-        className={`bg-cover bg-no-repeat h-screen overflow-y-auto px-4 lg:px-0 pt-6 ${
+        className={`bg-cover scrollbar-hide bg-no-repeat h-screen overflow-y-auto px-4 lg:px-0 pt-6 ${
           fontFamily ? fontMap[fontFamily?.toLowerCase() || "roboto"] : ""
         }`}
       >

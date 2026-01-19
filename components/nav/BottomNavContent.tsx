@@ -63,7 +63,7 @@ const BottomNavContent = () => {
 
   const tab = useMemo(
     () => searchParams && searchParams.get("tab"),
-    [searchParams]
+    [searchParams],
   );
 
   // console.log("params", params);
@@ -147,7 +147,7 @@ const BottomNavContent = () => {
     return templates.filter(
       (template) =>
         template.title.toLowerCase().includes(query) ||
-        template.description.toLowerCase().includes(query)
+        template.description.toLowerCase().includes(query),
     );
   }, [searchQuery]);
 

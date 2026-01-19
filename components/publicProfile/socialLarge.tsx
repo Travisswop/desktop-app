@@ -3,6 +3,7 @@ import { FC } from "react";
 import Image from "next/image";
 import { motion } from "framer-motion";
 import toast from "react-hot-toast";
+import normalizeUrl from "@/utils/normalizeUrl";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL;
 
@@ -61,7 +62,7 @@ const SocialLarge: FC<Props> = ({
   const { _id, micrositeId, name, value, url, iconName, iconPath, group } =
     data;
 
-  console.log("data social large", data);
+  // console.log("data social large", data);
 
   const openlink = async () => {
     // if (!accessToken) {
@@ -101,11 +102,22 @@ const SocialLarge: FC<Props> = ({
         } else if (iconName === "Email") {
           window.location.href = `mailto:${value}`;
           return;
+        } else if (iconName === "Text Message") {
+          window.location.href = `sms:${value}`;
+          return;
         } else {
-          return window.open(value, "_blank");
+          return window.open(
+            normalizeUrl(value),
+            "_blank",
+            "noopener,noreferrer",
+          );
         }
       case "Link":
-        return window.open(`https://${url}`, "_blank");
+        return window.open(
+          normalizeUrl(value),
+          "_blank",
+          "noopener,noreferrer",
+        );
 
       case "Social Media":
         if (socialInputTypes[name] === "link") {
@@ -130,7 +142,11 @@ const SocialLarge: FC<Props> = ({
         if (name === "Telegram") {
           return window.open(`https://t.me/${value}?`, "_blank");
         }
-        return window.open(`${value}`, "_self");
+        return window.open(
+          normalizeUrl(value),
+          "_blank",
+          "noopener,noreferrer",
+        );
       case "Copy Address":
         navigator.clipboard.writeText(value);
         toast.success("Copied to clipboard", {
@@ -159,7 +175,7 @@ const SocialLarge: FC<Props> = ({
           });
           break;
         }
-        return window.open(value, "_blank");
+        return window.open(value, "_blank", "noopener,noreferrer");
       case "General Links":
         if (name === "Invoice" || name === "Card Payment") {
           navigator.clipboard.writeText(value);
@@ -168,9 +184,17 @@ const SocialLarge: FC<Props> = ({
           });
           break;
         }
-        return window.open(value, "_blank");
+        return window.open(
+          normalizeUrl(value),
+          "_blank",
+          "noopener,noreferrer",
+        );
       default:
-        return window.open(value, "_blank");
+        return window.open(
+          normalizeUrl(value),
+          "_blank",
+          "noopener,noreferrer",
+        );
     }
   };
 

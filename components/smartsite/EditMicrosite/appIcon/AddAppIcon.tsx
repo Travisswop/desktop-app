@@ -8,13 +8,11 @@ import {
   Tooltip,
 } from "@nextui-org/react";
 import { IoLinkOutline } from "react-icons/io5";
-import { LiaFileMedicalSolid } from "react-icons/lia";
 import useSmartSiteApiDataStore from "@/zustandStore/UpdateSmartsiteInfo";
 import { postAppIcon } from "@/actions/appIcon";
-import { FaAngleDown, FaTimes } from "react-icons/fa";
+import { FaAngleDown } from "react-icons/fa";
 import { icon, newIcons } from "@/components/util/data/smartsiteIconData";
 import { isEmptyObject } from "@/components/util/checkIsEmptyObject";
-import AnimateButton from "@/components/ui/Button/AnimateButton";
 import { MdInfoOutline } from "react-icons/md";
 import { AppIconMap, AppSelectedIconType } from "@/types/smallIcon";
 import toast from "react-hot-toast";
@@ -25,8 +23,11 @@ import { sendCloudinaryImage } from "@/lib/SendCloudinaryImage";
 import { PrimaryButton } from "@/components/ui/Button/PrimaryButton";
 import { Loader } from "lucide-react";
 
-const AddAppIcon = ({ handleRemoveIcon }: any) => {
+const AddAppIcon = ({ onCloseModal }: any) => {
   const state: any = useSmartSiteApiDataStore((state) => state); //get small icon store value
+
+  // console.log("state data", state);
+
   const { accessToken }: any = useUser();
   const [selectedIconType, setSelectedIconType] =
     useState<AppSelectedIconType>("Link");
@@ -51,7 +52,7 @@ const AddAppIcon = ({ handleRemoveIcon }: any) => {
   useEffect(() => {
     if (selectedIconType) {
       const data = iconData.icons.find(
-        (item: any) => item.category === selectedIconType
+        (item: any) => item.category === selectedIconType,
       );
       setSelectedIconData(data);
     }
@@ -83,7 +84,7 @@ const AddAppIcon = ({ handleRemoveIcon }: any) => {
     e.preventDefault();
     const formData = new FormData(e.currentTarget);
     const appIconInfo = {
-      micrositeId: state.data._id,
+      micrositeId: state._id,
       name: selectedIcon.name,
       value: formData.get("url"),
       url: selectedIcon.url,
@@ -92,7 +93,7 @@ const AddAppIcon = ({ handleRemoveIcon }: any) => {
       group: selectedIconData?.category,
     };
     const customIconInfo = {
-      micrositeId: state.data._id,
+      micrositeId: state._id,
       name: formData.get("customName") || "Custom name",
       value: formData.get("url"),
       url: "custom",
@@ -111,13 +112,13 @@ const AddAppIcon = ({ handleRemoveIcon }: any) => {
     try {
       const data = await postAppIcon(
         selectedIconType === "Custom Image" ? customIconInfo : appIconInfo,
-        accessToken
+        accessToken,
       );
       console.log("data", data);
 
       if ((data.state = "success")) {
         toast.success("App icon created successfully");
-        handleRemoveIcon("App Icon");
+        onCloseModal();
       } else {
         toast.error("Something went wrong");
       }
