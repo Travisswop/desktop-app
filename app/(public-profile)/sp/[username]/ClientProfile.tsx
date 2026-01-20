@@ -182,7 +182,7 @@ export default function ClientProfile({ userName }: ClientProfileProps) {
                             {items.map((item, index) => (
                               <CarouselItem
                                 key={item._id}
-                                className="pl-2 md:pl-3 basis-[45%]"
+                                className="pl-3 basis-[45%]"
                               >
                                 <MarketPlace
                                   data={item}
@@ -199,7 +199,7 @@ export default function ClientProfile({ userName }: ClientProfileProps) {
                           </CarouselContent>
                         </Carousel>
                       ) : (
-                        <div className="grid grid-cols-2 gap-2">
+                        <div className="grid grid-cols-2 gap-3 mr-10 ml-1">
                           {items.map((item, index) => (
                             <MarketPlace
                               key={item._id}

@@ -114,10 +114,9 @@ const MarketPlace: any = ({
         delay,
         type: "easeInOut",
       }}
-      className="w-full"
+      className="w-full "
     >
       <div className="relative bg-white rounded-2xl shadow-lg overflow-hidden hover:shadow-xl transition-shadow duration-300">
-        {/* Cart Icon Button - Top Right */}
         <button
           onClick={handleAddToCart}
           disabled={addToCartLoading || isExisting}
@@ -134,17 +133,6 @@ const MarketPlace: any = ({
           )}
         </button>
 
-        {/* Product Image */}
-        {/* <div className="relative w-full aspect-square flex items-center justify-center p-8 pb-0 pt-12">
-          <Image
-            src={itemImageUrl}
-            alt={itemName}
-            width={300}
-            height={300}
-            className="w-full h-full object-contain"
-          />
-        </div> */}
-
         <div className="relative aspect-square overflow-hidden m-6 mx-10 rounded-md">
           <Image
             src={itemImageUrl}
@@ -154,15 +142,6 @@ const MarketPlace: any = ({
             className="object-cover group-hover:scale-105 transition-transform duration-200"
           />
         </div>
-
-        {/* Product Info */}
-        {/* <div
-          style={{ color: secondaryFontColor && secondaryFontColor }}
-          className="p-4 pt-0 text-center"
-        >
-          <h3 className="font-medium text-base mb-1 truncate">{itemName}</h3>
-          <p className="text-sm">${itemPrice}</p>
-        </div> */}
 
         <div className="p-3 pt-0">
           <div className="flex flex-col gap-0.5">
