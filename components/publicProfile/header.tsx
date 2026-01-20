@@ -59,6 +59,7 @@ const PublicProfileHeader: FC<Props> = ({
   const userName = params?.username;
 
   console.log("isAlreadyConnected", isAlreadyConnected);
+  console.log("user", user);
 
   useEffect(() => {
     if (user && userName) {
@@ -66,7 +67,11 @@ const PublicProfileHeader: FC<Props> = ({
         const res = await getEnsDataUsingEns(userName);
         const resId = res.domainOwner._id;
 
-        if (user && user.connectionIds.includes(resId)) {
+        const isAlreadySubscribe = user?.connections?.followers?.find(
+          (item) => item?.account?._id === resId,
+        );
+
+        if (isAlreadySubscribe || user?.connectionIds?.includes(resId)) {
           setIsAlreadyConnected(true);
         } else {
           setIsAlreadyConnected(false);
