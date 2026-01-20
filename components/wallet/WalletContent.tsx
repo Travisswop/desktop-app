@@ -532,14 +532,7 @@ const WalletContentInner = () => {
       } else if (sendFlow.token) {
         // Handle token transfer
         if (sendFlow.token.chain.toUpperCase() === 'SOLANA') {
-          // Check if this should be a sponsored transaction
-          const isSponsored =
-            !sendFlow.isOrder &&
-            (sendFlow.token?.address === USDC_ADDRESS ||
-              sendFlow.token?.address === SWOP_ADDRESS);
-
-          if (isSponsored) {
-            // Use Privy's native gas sponsorship
+          // Use Privy's native gas sponsorship
 
             // Build the transaction without sending
             const transaction =
@@ -560,9 +553,7 @@ const WalletContentInner = () => {
               const result = await signAndSendTransaction({
                 transaction: new Uint8Array(serializedTransaction),
                 wallet: selectedSolanaWallet!,
-                options: {
-                  sponsor: true,
-                },
+
               });
 
               hash = bs58.encode(result.signature);
@@ -584,58 +575,6 @@ const WalletContentInner = () => {
                 hash
               );
             }
-          } else {
-            // Regular transaction flow (user pays gas)
-            console.log('=== Regular Solana Transaction (User Pays Gas) ===');
-
-            // Build the transaction without sending
-            const transaction =
-              await TransactionService.buildSolanaTokenTransfer(
-                selectedSolanaWallet,
-                sendFlow,
-                connection
-              );
-
-            try {
-              // Try Privy's signAndSendTransaction first
-              const serializedTransaction = transaction.serialize({
-                requireAllSignatures: false,
-                verifySignatures: false,
-              });
-
-              const result = await signAndSendTransaction({
-                transaction: new Uint8Array(serializedTransaction),
-                wallet: selectedSolanaWallet!,
-              });
-
-              hash = bs58.encode(result.signature);
-              console.log('Transaction signature:', hash);
-            } catch (privyError) {
-              // Fallback: Use direct wallet signing if Privy hook fails
-              console.warn(
-                'Privy signAndSendTransaction failed, falling back to direct signing:',
-                privyError
-              );
-
-              // Use the wallet's signTransaction method directly with proper input format
-              const serializedForSigning = transaction.serialize({
-                requireAllSignatures: false,
-                verifySignatures: false,
-              });
-
-              const signResult = await selectedSolanaWallet!.signTransaction({
-                transaction: new Uint8Array(serializedForSigning),
-              });
-
-              // Send the signed transaction
-              const signature = await connection.sendRawTransaction(
-                Buffer.from(signResult.signedTransaction)
-              );
-
-              hash = signature;
-              console.log('Fallback transaction signature:', hash);
-            }
-          }
         } else {
           // EVM token transfer
           await evmWallet?.switchChain(
