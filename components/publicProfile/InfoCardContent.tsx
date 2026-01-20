@@ -3,6 +3,7 @@ interface Props {
   secondaryFontColor?: string;
   title: string;
   description: string;
+  children?: React.ReactNode;
 }
 
 const InfoCardContent = ({
@@ -10,6 +11,7 @@ const InfoCardContent = ({
   secondaryFontColor,
   title,
   description,
+  children,
 }: Props) => {
   return (
     <div className="ml-3">
@@ -19,6 +21,7 @@ const InfoCardContent = ({
       <div style={{ color: secondaryFontColor }} className="text-xs">
         {description}
       </div>
+      {children}
     </div>
   );
 };

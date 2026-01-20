@@ -1,9 +1,10 @@
-'use client';
+"use client";
 
-import { FC } from 'react';
-import Image from 'next/image';
-import { motion } from 'framer-motion';
-import { useToast } from '@/components/ui/use-toast';
+import { FC } from "react";
+import Image from "next/image";
+import { motion } from "framer-motion";
+import { useToast } from "@/components/ui/use-toast";
+import InfoCardContent from "./InfoCardContent";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL;
 interface Props {
@@ -18,6 +19,8 @@ interface Props {
   parentId: string;
   number: number;
   accessToken: string;
+  fontColor?: string;
+  secondaryFontColor?: string;
 }
 
 const variants = {
@@ -32,26 +35,27 @@ const Referral: FC<Props> = ({
   parentId,
   number,
   accessToken,
+  fontColor,
+  secondaryFontColor,
 }) => {
-  const { _id, micrositeId, buttonName, referralCode, description } =
-    data;
+  const { _id, micrositeId, buttonName, referralCode, description } = data;
   const { toast } = useToast();
   const action = async () => {
-    if (!accessToken) {
-      window.location.href =
-        'https://apps.apple.com/us/app/swop-connecting-the-world/id1593201322';
-      return;
-    }
+    // if (!accessToken) {
+    //   window.location.href =
+    //     'https://apps.apple.com/us/app/swop-connecting-the-world/id1593201322';
+    //   return;
+    // }
     navigator.clipboard.writeText(referralCode);
     toast({
-      title: 'Copied to clipboard',
+      title: "Copied to clipboard",
     });
     try {
       fetch(`${API_URL}/api/v1/web/updateCount`, {
-        method: 'POST',
+        method: "POST",
         headers: {
-          Accept: 'application/json',
-          'Content-Type': 'application/json',
+          Accept: "application/json",
+          "Content-Type": "application/json",
         },
         body: JSON.stringify({
           socialType,
@@ -75,33 +79,37 @@ const Referral: FC<Props> = ({
       transition={{
         duration: 0.4,
         delay,
-        type: 'easeInOut',
+        type: "easeInOut",
       }}
       onClick={action}
       className="w-full"
     >
       <motion.div
         transition={{
-          type: 'spring',
+          type: "spring",
           stiffness: 400,
           damping: 10,
         }}
-        className="mb-3 flex flex-row gap-2 items-center cursor-pointer bg-white shadow-2xl p-2 rounded-[12px]"
+        className="mb-3 flex flex-row items-center cursor-pointer bg-white shadow-2xl p-2 rounded-[12px]"
       >
         <div>
           <Image
-            className="object-fill w-16 h-16 rounded-[12px]"
+            className="object-fill w-12 h-12 rounded-[12px]"
             src="/share.svg"
             alt={buttonName}
-            width={80}
-            height={80}
+            width={260}
+            height={260}
             priority
           />
         </div>
-        <div className="max-w-xs overflow-hidden">
-          <div className="text-md font-semibold">{buttonName}</div>
-          <div className="text-xs">{description}</div>
-        </div>
+        {
+          <InfoCardContent
+            title={buttonName}
+            description={description}
+            fontColor={fontColor}
+            secondaryFontColor={secondaryFontColor}
+          />
+        }
       </motion.div>
     </motion.div>
   );

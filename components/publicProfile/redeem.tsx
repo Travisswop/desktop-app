@@ -1,9 +1,10 @@
-'use client';
+"use client";
 
-import { FC, useCallback, useEffect, useState } from 'react';
-import Image from 'next/image';
-import { motion } from 'framer-motion';
-import { useToast } from '@/components/ui/use-toast';
+import { FC, useCallback, useEffect, useState } from "react";
+import Image from "next/image";
+import { motion } from "framer-motion";
+import InfoCardContent from "./InfoCardContent";
+import toast from "react-hot-toast";
 // import { addSwopPoint } from '@/app/actions/addPoint';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL;
@@ -26,6 +27,8 @@ interface Props {
   parentId: string;
   number: number;
   accessToken: string;
+  fontColor?: string;
+  secondaryFontColor?: string;
 }
 
 const variants = {
@@ -40,6 +43,8 @@ const Redeem: FC<Props> = ({
   parentId,
   number,
   accessToken,
+  fontColor,
+  secondaryFontColor,
 }) => {
   const {
     _id,
@@ -53,46 +58,34 @@ const Redeem: FC<Props> = ({
   } = data;
 
   const [available, setAvailable] = useState(0);
-  const { toast } = useToast();
 
   const updateCount = useCallback(async () => {
     try {
       fetch(`${API_URL}/api/v1/web/updateCount`, {
-        method: 'POST',
+        method: "POST",
         headers: {
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
         },
         body: JSON.stringify({ socialType, socialId: _id, parentId }),
       });
     } catch (err) {
-      console.error('Error updating count:', err);
+      console.error("Error updating count:", err);
     }
   }, [socialType, _id, parentId]);
 
   const openLink = useCallback(() => {
-    if (!accessToken) {
-      window.location.href =
-        'https://apps.apple.com/us/app/swop-connecting-the-world/id1593201322';
-      return;
-    }
     if (available > 0) {
       updateCount();
-
-      return window.open(
-        `https://redeem.swopme.app/${poolId}`,
-        '_self'
-      );
+      return window.open(`https://redeem.swopme.app/${poolId}`, "_blank");
     } else {
-      toast({
-        title: '0 avail amount to claim',
-      });
+      toast.error("0 available amount to claim");
     }
   }, [updateCount, poolId, available]);
 
   useEffect(() => {
     const fetchValidLinks = async () => {
       const response = await fetch(
-        `${API_URL}/api/v2/desktop/wallet/getRedeemTokenFromPool/${poolId}`
+        `${API_URL}/api/v2/desktop/wallet/getRedeemTokenFromPool/${poolId}`,
       );
       const { data } = await response.json();
       if (data.pool && data.redeemed) {
@@ -114,39 +107,42 @@ const Redeem: FC<Props> = ({
       transition={{
         duration: 0.4,
         delay,
-        type: 'easeInOut',
+        type: "easeInOut",
       }}
       className="w-full"
     >
       <motion.div
         transition={{
-          type: 'spring',
+          type: "spring",
           stiffness: 400,
           damping: 10,
         }}
         onClick={openLink}
-        className="my-1 flex flex-row gap-2 items-center cursor-pointer bg-white shadow-2xl p-3 rounded-[12px] relative"
+        className="my-1 flex flex-row items-center cursor-pointer bg-white shadow-xl p-3 rounded-[12px] relative"
       >
         <div>
           <Image
-            className="object-fill w-20 h-20 rounded-[12px]"
+            className="object-fill w-12 h-12 rounded-full"
             src={imageUrl}
             alt={mintName}
-            width={80}
-            height={80}
+            width={320}
+            height={280}
             priority
           />
         </div>
-        <div className="max-w-xs overflow-hidden">
-          <h4 className="text-md font-semibold">{mintName}</h4>
-          <p className="text-xs ">{description}</p>
-          <span className="text-xs font-bold">
-            {available} Available
-          </span>
-        </div>
-        <div className="absolute right-2 bottom-2">
+        {
+          <InfoCardContent
+            title={mintName}
+            description={description}
+            fontColor={fontColor}
+            secondaryFontColor={secondaryFontColor}
+          >
+            <span className="text-xs font-bold">{available} Available</span>
+          </InfoCardContent>
+        }
+        {/* <div className="absolute right-2 bottom-2">
           <Image src={tokenUrl} alt="redeem" width={18} height={18} />
-        </div>
+        </div> */}
       </motion.div>
     </motion.div>
   );

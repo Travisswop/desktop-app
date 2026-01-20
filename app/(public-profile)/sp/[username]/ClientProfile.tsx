@@ -285,6 +285,8 @@ export default function ClientProfile({ userName }: ClientProfileProps) {
                       socialType="redeemLink"
                       parentId={parentId}
                       accessToken={accessToken || ""}
+                      fontColor={fontColor}
+                      secondaryFontColor={secondaryFontColor}
                     />
                   ))}
                 </div>
@@ -301,6 +303,8 @@ export default function ClientProfile({ userName }: ClientProfileProps) {
                       socialType="referral"
                       parentId={parentId}
                       accessToken={accessToken || ""}
+                      fontColor={fontColor}
+                      secondaryFontColor={secondaryFontColor}
                     />
                   ))}
                 </div>
