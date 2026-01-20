@@ -74,7 +74,7 @@ const InfoBar: FC<Props> = ({
     group,
   } = data;
 
-  console.log("iconName", iconName);
+  // console.log("data from info bar", data);
 
   const openlink = async () => {
     // if (!accessToken) {
@@ -226,6 +226,7 @@ const InfoBar: FC<Props> = ({
             priority
           />
         </div>
+
         {
           <InfoCardContent
             title={buttonName}
