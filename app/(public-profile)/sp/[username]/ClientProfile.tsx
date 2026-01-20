@@ -173,12 +173,12 @@ export default function ClientProfile({ userName }: ClientProfileProps) {
                         <Carousel
                           opts={{
                             align: "start",
-                            loop: true,
+                            loop: false,
                             slidesToScroll: 2,
                           }}
-                          className="w-full"
+                          className="w-full "
                         >
-                          <CarouselContent className="-ml-2 md:-ml-4">
+                          <CarouselContent className="-ml-2">
                             {items.map((item, index) => (
                               <CarouselItem
                                 key={item._id}
@@ -199,7 +199,7 @@ export default function ClientProfile({ userName }: ClientProfileProps) {
                           </CarouselContent>
                         </Carousel>
                       ) : (
-                        <div className="grid grid-cols-2 gap-3 mr-10 ml-1">
+                        <div className="grid grid-cols-2 gap-3 mr-[11%] sm:mr-12 ml-1">
                           {items.map((item, index) => (
                             <MarketPlace
                               key={item._id}
