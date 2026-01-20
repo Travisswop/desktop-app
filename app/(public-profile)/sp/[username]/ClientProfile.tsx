@@ -239,7 +239,7 @@ export default function ClientProfile({ userName }: ClientProfileProps) {
             )}
             {/* Social Media Big */}
             {info?.socialLarge && info.socialLarge.length > 0 && (
-              <div className="w-full grid grid-cols-3 gap-4 sm:gap-10 my-4">
+              <div className="w-full flex flex-wrap items-center justify-center gap-y-6 my-4">
                 {info.socialLarge.map((social: any, index: number) => (
                   <SocialLarge
                     number={index}
