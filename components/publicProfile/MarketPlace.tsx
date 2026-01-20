@@ -149,7 +149,7 @@ const MarketPlace: any = ({
               style={{
                 color: fontColor ? fontColor : "black",
               }}
-              className="text-sm font-semibold line-clamp-1"
+              className="text-sm font-medium line-clamp-1"
             >
               {itemName}
             </p>

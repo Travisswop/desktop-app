@@ -13,7 +13,7 @@ const InfoCardContent = ({
 }: Props) => {
   return (
     <div className="ml-3">
-      <div style={{ color: fontColor }} className="font-[600] text-sm">
+      <div style={{ color: fontColor }} className="font-medium text-sm">
         {title}
       </div>
       <div style={{ color: secondaryFontColor }} className="text-xs">

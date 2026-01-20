@@ -163,7 +163,7 @@ export default function ClientProfile({ userName }: ClientProfileProps) {
                         style={{
                           color: fontColor ? fontColor : "black",
                         }}
-                        className="text-base font-semibold capitalize mb-1"
+                        className="text-base font-medium capitalize mb-1"
                       >
                         {nftType}
                       </h2>
@@ -258,6 +258,7 @@ export default function ClientProfile({ userName }: ClientProfileProps) {
               style={{
                 color: secondaryFontColor && secondaryFontColor,
               }}
+              className="w-full"
             >
               {/* Message */}
               {/* ENS */}

@@ -201,6 +201,7 @@ const InfoBar: FC<Props> = ({
         delay: 0.2,
         type: "easeInOut",
       }}
+      className="w-full"
     >
       <motion.div
         transition={{
@@ -209,7 +210,7 @@ const InfoBar: FC<Props> = ({
           damping: 10,
         }}
         onClick={openlink}
-        className="my-2 flex flex-row items-center cursor-pointer bg-white shadow-xl p-2 rounded-[12px]"
+        className="my-2 flex flex-row items-center cursor-pointer bg-white shadow-xl p-2 rounded-[12px] w-full"
       >
         <div>
           <Image

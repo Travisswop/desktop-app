@@ -101,7 +101,7 @@ const Ens: FC<Props> = ({
         {
           <InfoCardContent
             title={domain}
-            description="Use my swop.id to send to my self custodial wallet"
+            description="Pay me using my swop.id"
             fontColor={fontColor}
             secondaryFontColor={secondaryFontColor}
           />

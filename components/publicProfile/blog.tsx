@@ -110,10 +110,7 @@ const Blog: FC<Props> = ({
               className="w-full h-36 2xl:h-48 object-cover rounded-lg"
             />
           </div>
-          <h2
-            style={{ color: fontColor }}
-            className="text-lg font-semibold mt-2"
-          >
+          <h2 style={{ color: fontColor }} className="font-medium mt-2">
             {title}
           </h2>
           <p style={{ color: secondaryFontColor }} className="mb-2 text-sm">
