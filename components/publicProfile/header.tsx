@@ -58,6 +58,8 @@ const PublicProfileHeader: FC<Props> = ({
   const params = useParams<{ username: string }>();
   const userName = params?.username;
 
+  console.log("isAlreadyConnected", isAlreadyConnected);
+
   useEffect(() => {
     if (user && userName) {
       const fetchEnsData = async () => {
