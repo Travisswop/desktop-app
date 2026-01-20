@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Image from "next/image";
 import { motion } from "framer-motion";
 import { ShoppingCart, Loader2 } from "lucide-react";
@@ -7,6 +7,7 @@ import { ShoppingCart, Loader2 } from "lucide-react";
 import { addProductToCart } from "@/actions/addToCartActions";
 import toast from "react-hot-toast";
 import { useCart } from "@/app/(public-profile)/sp/[username]/cart/context/CartContext";
+import { useUser } from "@/lib/UserContext";
 
 // const API_URL = process.env.NEXT_PUBLIC_API_URL;
 
@@ -26,7 +27,7 @@ const MarketPlace: any = ({
   fontColor,
 }: any) => {
   const [addToCartLoading, setAddToCartLoading] = useState(false);
-  const [isExisting, setIsExisting] = useState(false);
+  const [isExisting, setIsExisting] = useState(true);
   const {
     itemImageUrl,
     itemName,
@@ -36,6 +37,14 @@ const MarketPlace: any = ({
     itemDescription,
   } = data;
 
+  const { user } = useUser();
+
+  console.log("data from user", user);
+  console.log("data from marketplace", data);
+  console.log("data from marketplace userId", userId);
+  console.log("data from marketplace userName", userName);
+  console.log("isExisting", isExisting);
+
   const delay = number + 1 * 0.2;
 
   const { dispatch } = useCart();
@@ -43,12 +52,6 @@ const MarketPlace: any = ({
   const handleAddToCart = async (event: React.MouseEvent) => {
     event.stopPropagation();
     setAddToCartLoading(true);
-
-    if (!accessToken) {
-      window.location.href =
-        "https://apps.apple.com/us/app/swop-connecting-the-world/id1593201322";
-      return;
-    }
 
     const cartItem = {
       _id: Math.random().toString(36).substring(2, 15),
@@ -103,6 +106,25 @@ const MarketPlace: any = ({
     }
   };
 
+  useEffect(() => {
+    if (user) {
+      const isMyPublicProfile = user?.microsites?.find(
+        (item) =>
+          item?.ens === userName ||
+          item?.ensData?.ens === userName ||
+          item?.ensData?.ensData?.name === userName,
+      );
+
+      if (isMyPublicProfile) {
+        setIsExisting(true);
+      } else {
+        setIsExisting(false);
+      }
+    } else {
+      setIsExisting(false);
+    }
+  }, [user, userName]);
+
   return (
     <motion.div
       initial="hidden"
@@ -117,21 +139,23 @@ const MarketPlace: any = ({
       className="w-full "
     >
       <div className="relative bg-white rounded-2xl shadow-lg overflow-hidden hover:shadow-xl transition-shadow duration-300">
-        <button
-          onClick={handleAddToCart}
-          disabled={addToCartLoading || isExisting}
-          className="absolute top-3 right-3 z-10 disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          {addToCartLoading ? (
-            <Loader2 className="w-5 h-5 animate-spin text-gray-700" />
-          ) : (
-            <ShoppingCart
-              className={`w-5 h-5 ${
-                isExisting ? "text-gray-400" : "text-gray-700"
-              }`}
-            />
-          )}
-        </button>
+        {!isExisting && (
+          <button
+            onClick={handleAddToCart}
+            disabled={addToCartLoading || isExisting}
+            className="absolute top-3 right-3 z-10 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {addToCartLoading ? (
+              <Loader2 className="w-5 h-5 animate-spin text-gray-700" />
+            ) : (
+              <ShoppingCart
+                className={`w-5 h-5 ${
+                  isExisting ? "text-gray-400" : "text-gray-700"
+                }`}
+              />
+            )}
+          </button>
+        )}
 
         <div className="relative aspect-square overflow-hidden m-6 mx-10 rounded-md">
           <Image

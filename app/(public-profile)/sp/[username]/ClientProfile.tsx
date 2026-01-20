@@ -114,7 +114,6 @@ export default function ClientProfile({ userName }: ClientProfileProps) {
           <CartProvider>
             <Header
               avatar={profilePic}
-              // cover={backgroundImg.toString()}
               name={name}
               parentId={parentId}
               micrositeId={_id}
