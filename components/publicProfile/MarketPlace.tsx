@@ -107,23 +107,27 @@ const MarketPlace: any = ({
   };
 
   useEffect(() => {
-    if (user) {
-      const isMyPublicProfile = user?.microsites?.find(
-        (item) =>
-          item?.ens === userName ||
-          item?.ensData?.ens === userName ||
-          item?.ensData?.ensData?.name === userName,
-      );
+    if (!accessToken) {
+      setIsExisting(false);
+    } else {
+      if (user) {
+        const isMyPublicProfile = user?.microsites?.find(
+          (item) =>
+            item?.ens === userName ||
+            item?.ensData?.ens === userName ||
+            item?.ensData?.ensData?.name === userName,
+        );
 
-      if (isMyPublicProfile) {
-        setIsExisting(true);
+        if (isMyPublicProfile) {
+          setIsExisting(true);
+        } else {
+          setIsExisting(false);
+        }
       } else {
         setIsExisting(false);
       }
-    } else {
-      setIsExisting(false);
     }
-  }, [user, userName]);
+  }, [accessToken, user, userName]);
 
   return (
     <motion.div
@@ -138,7 +142,7 @@ const MarketPlace: any = ({
       }}
       className="w-full "
     >
-      <div className="relative bg-white rounded-2xl shadow-lg overflow-hidden hover:shadow-xl transition-shadow duration-300">
+      <div className="relative bg-white rounded-2xl shadow-md overflow-hidden">
         {!isExisting && (
           <button
             onClick={handleAddToCart}

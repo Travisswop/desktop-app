@@ -111,7 +111,7 @@ export default function ClientProfile({ userName }: ClientProfileProps) {
         }`}
       >
         <main
-          className={`flex max-w-md mx-auto min-h-screen flex-col items-center z-50 space-y-5`}
+          className={`flex max-w-md mx-auto min-h-screen flex-col items-center z-50 space-y-5 overflow-x-hidden`}
         >
           <CartProvider>
             <Header
@@ -155,7 +155,7 @@ export default function ClientProfile({ userName }: ClientProfileProps) {
 
             {/* market place - Grouped by nftType */}
             {info?.marketPlace && info.marketPlace.length > 0 && (
-              <div className="w-full space-y-3 mb-4">
+              <div className="w-full space-y-1 mb-4">
                 {Object.entries(groupMarketPlaceByType(info.marketPlace)).map(
                   ([nftType, items]: [string, any[]]) => (
                     <div key={nftType} className="w-full">
@@ -177,9 +177,9 @@ export default function ClientProfile({ userName }: ClientProfileProps) {
                             loop: false,
                             slidesToScroll: 2,
                           }}
-                          className="w-full "
+                          className="w-full [&>div]:overflow-visible"
                         >
-                          <CarouselContent className="-ml-2">
+                          <CarouselContent className="-ml-2 pb-4 px-1">
                             {items.map((item, index) => (
                               <CarouselItem
                                 key={item._id}
@@ -200,7 +200,7 @@ export default function ClientProfile({ userName }: ClientProfileProps) {
                           </CarouselContent>
                         </Carousel>
                       ) : (
-                        <div className="grid grid-cols-2 gap-3 mr-[11%] sm:mr-12 ml-1">
+                        <div className="grid grid-cols-2 gap-3 mr-[11%] sm:mr-12 ml-1 pb-4">
                           {items.map((item, index) => (
                             <MarketPlace
                               key={item._id}
@@ -224,7 +224,7 @@ export default function ClientProfile({ userName }: ClientProfileProps) {
 
             {/* Blog */}
             {info?.blog && info.blog.length > 0 && (
-              <div className="w-full">
+              <div className="w-full space-y-4 -pt-4">
                 {info.blog.map((social: any, index: number) => (
                   <Blog
                     number={index}

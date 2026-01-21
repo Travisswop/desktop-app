@@ -87,19 +87,7 @@ const Blog: FC<Props> = ({
           </SheetHeader>
         </SheetContent>
 
-        <div className="w-full p-2 bg-white border rounded-lg shadow mt-4">
-          {/* <div className="relative w-full h-40 mb-2 overflow-hidden rounded-lg">
-            <Image
-              src={image}
-              alt={title}
-              fill
-              sizes="100vw"
-              style={{
-                objectFit: "contain",
-              }}
-            />
-          </div> */}
-
+        <div className="w-full p-2 bg-white border rounded-lg shadow">
           <div className="relative">
             <Image
               src={image}
