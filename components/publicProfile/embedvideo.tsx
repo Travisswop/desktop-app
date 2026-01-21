@@ -46,6 +46,11 @@ const EmbedVideo: FC<Props> = ({ data }) => {
   const [rumbleEmbedUrl, setRumbleEmbedUrl] = useState<string | null>(null);
   const [isLoadingRumble, setIsLoadingRumble] = useState(false);
 
+  const [tiktokResolvedUrl, setTiktokResolvedUrl] = useState<string | null>(
+    null,
+  );
+  const [isLoadingTiktok, setIsLoadingTiktok] = useState(false);
+
   console.log("rumbleEmbedUrl", rumbleEmbedUrl);
 
   const isValidUrl = checkValidUrl(videoUrl);
@@ -101,6 +106,59 @@ const EmbedVideo: FC<Props> = ({ data }) => {
     }
   }, [type, videoUrl, isValidUrl]);
 
+  // Resolve TikTok short URLs
+  useEffect(() => {
+    if (type?.toLowerCase() === "tiktok" && isValidUrl) {
+      // Check if it's a short URL (vt.tiktok.com or vm.tiktok.com)
+      if (
+        videoUrl.includes("vt.tiktok.com") ||
+        videoUrl.includes("vm.tiktok.com")
+      ) {
+        setIsLoadingTiktok(true);
+        fetch(`/api/tiktok-resolve?url=${encodeURIComponent(videoUrl)}`)
+          .then((res) => res.json())
+          .then((data) => {
+            if (data.resolvedUrl) {
+              setTiktokResolvedUrl(data.resolvedUrl);
+            }
+          })
+          .catch((err) => console.error("Error resolving TikTok URL:", err))
+          .finally(() => setIsLoadingTiktok(false));
+      } else {
+        // It's already a full URL
+        setTiktokResolvedUrl(videoUrl);
+      }
+    }
+  }, [type, videoUrl, isValidUrl]);
+
+  const streamableEmbedUrl =
+    type?.toLowerCase() === "streamable" && isValidUrl
+      ? (() => {
+          try {
+            const url = new URL(videoUrl);
+
+            // Check if it's already an embed URL
+            if (url.pathname.includes("/e/")) {
+              return videoUrl;
+            }
+
+            // Extract video ID from Streamable URL
+            // Format: https://streamable.com/[video-id]
+            const pathMatch = url.pathname.match(/\/([a-z0-9]+)/i);
+
+            if (pathMatch && pathMatch[1]) {
+              const videoId = pathMatch[1];
+              // Return embed URL - Streamable uses format: https://streamable.com/e/[video-id]
+              return `https://streamable.com/e/${videoId}`;
+            }
+
+            return null;
+          } catch {
+            return null;
+          }
+        })()
+      : null;
+
   const isYouTubeShort = (url: string) =>
     url.includes("/shorts/") || url.includes("youtube.com/shorts");
 
@@ -134,17 +192,6 @@ const EmbedVideo: FC<Props> = ({ data }) => {
               )}
             </div>
           </div>
-        )}
-
-        {/* TikTok */}
-        {type === "tiktok" && (
-          <AspectWrapper>
-            {isValidUrl ? (
-              <TikTokEmbed url={videoUrl} />
-            ) : (
-              <VideoContainer videoUrl={videoUrl} />
-            )}
-          </AspectWrapper>
         )}
 
         {/* X / Twitter */}
@@ -201,10 +248,56 @@ const EmbedVideo: FC<Props> = ({ data }) => {
           </div>
         )}
 
+        {/* Streamable */}
+        {type?.toLowerCase() === "streamable" && (
+          <div className="w-full">
+            {streamableEmbedUrl ? (
+              <iframe
+                src={streamableEmbedUrl}
+                className="w-full rounded-lg"
+                height="350"
+                width="100%"
+                frameBorder="0"
+                allowFullScreen
+                allow="autoplay; encrypted-media"
+              />
+            ) : (
+              <AspectWrapper>
+                <VideoContainer videoUrl={videoUrl} />
+              </AspectWrapper>
+            )}
+          </div>
+        )}
+
+        {/* TikTok */}
+        {type?.toLowerCase() === "tiktok" && (
+          <div className="w-full flex justify-center">
+            {isLoadingTiktok ? (
+              <div className="w-full max-h-[575px] bg-gray-100 rounded-lg flex items-center justify-center">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
+              </div>
+            ) : tiktokResolvedUrl ? (
+              <div className="w-full">
+                <TikTokEmbed url={tiktokResolvedUrl} width={"100%"} />
+              </div>
+            ) : (
+              <div className="w-full">
+                <VideoContainer videoUrl={videoUrl} />
+              </div>
+            )}
+          </div>
+        )}
+
         {/* Fallback */}
-        {!["youtube", "tiktok", "twitter", "x", "spotify", "rumble"].includes(
-          type,
-        ) && (
+        {![
+          "youtube",
+          "tiktok",
+          "twitter",
+          "x",
+          "spotify",
+          "rumble",
+          "streamable",
+        ].includes(type) && (
           <AspectWrapper>
             <VideoContainer videoUrl={videoUrl} />
           </AspectWrapper>

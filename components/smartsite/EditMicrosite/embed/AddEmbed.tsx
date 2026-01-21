@@ -60,7 +60,7 @@ const AddEmbed = ({ handleRemoveIcon }: any) => {
     e.preventDefault();
     const formData = new FormData(e.currentTarget);
     const embedInfo = {
-      micrositeId: state.data._id,
+      micrositeId: state._id,
       link: formData.get("url"),
       type:
         selectedIcon.category === "X"
