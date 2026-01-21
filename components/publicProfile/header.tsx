@@ -4,7 +4,7 @@ import Image from "next/image";
 import { Dialog, DialogContent, DialogTrigger } from "@/components/ui/dialog";
 import Subscribe from "./subscribe";
 import Connect from "./connect";
-import { FaCartShopping, FaRegStar } from "react-icons/fa6";
+import { FaRegStar } from "react-icons/fa6";
 import { useParams, usePathname, useRouter } from "next/navigation";
 import { useCart } from "@/app/(public-profile)/sp/[username]/cart/context/CartContext";
 import { useUser } from "@/lib/UserContext";
@@ -29,7 +29,7 @@ const ProfileImage: FC<{ avatar: string; name: string; size?: string }> = ({
   name,
   size = "w-24 h-24",
 }) => (
-  <div className={`border-4 rounded-full border-white shadow-lg ${size}`}>
+  <div className={`border-4 rounded-full border-white shadow-medium ${size}`}>
     <Image
       src={isUrl(avatar) ? avatar : `/images/user_avator/${avatar}@3x.png`}
       alt={name}
@@ -58,13 +58,20 @@ const PublicProfileHeader: FC<Props> = ({
   const params = useParams<{ username: string }>();
   const userName = params?.username;
 
+  console.log("isAlreadyConnected", isAlreadyConnected);
+  console.log("user", user);
+
   useEffect(() => {
     if (user && userName) {
       const fetchEnsData = async () => {
         const res = await getEnsDataUsingEns(userName);
         const resId = res.domainOwner._id;
 
-        if (user && user.connectionIds.includes(resId)) {
+        const isAlreadySubscribe = user?.connections?.followers?.find(
+          (item) => item?.account?._id === resId,
+        );
+
+        if (isAlreadySubscribe || user?.connectionIds?.includes(resId)) {
           setIsAlreadyConnected(true);
         } else {
           setIsAlreadyConnected(false);
@@ -81,7 +88,7 @@ const PublicProfileHeader: FC<Props> = ({
 
   return (
     <div className="w-full">
-      <div className="w-full flex items-start justify-between px-6">
+      <div className="w-full flex items-start justify-between px-6 pt-2">
         <div className="cursor-pointer">
           <Dialog open={open} onOpenChange={setOpen}>
             <DialogTrigger>

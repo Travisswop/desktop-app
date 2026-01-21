@@ -74,7 +74,7 @@ const InfoBar: FC<Props> = ({
     group,
   } = data;
 
-  console.log("iconName", iconName);
+  // console.log("data from info bar", data);
 
   const openlink = async () => {
     // if (!accessToken) {
@@ -201,6 +201,7 @@ const InfoBar: FC<Props> = ({
         delay: 0.2,
         type: "easeInOut",
       }}
+      className="w-full"
     >
       <motion.div
         transition={{
@@ -209,7 +210,7 @@ const InfoBar: FC<Props> = ({
           damping: 10,
         }}
         onClick={openlink}
-        className="my-2 flex flex-row items-center cursor-pointer bg-white shadow-xl p-2 rounded-[12px]"
+        className="my-2 mx-1 flex flex-row items-center cursor-pointer bg-white shadow-small p-2 rounded-[12px] max-w-full"
       >
         <div>
           <Image
@@ -225,6 +226,7 @@ const InfoBar: FC<Props> = ({
             priority
           />
         </div>
+
         {
           <InfoCardContent
             title={buttonName}

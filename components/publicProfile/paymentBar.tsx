@@ -87,7 +87,7 @@ const PaymentBar: FC<Props> = ({
           damping: 10,
         }}
         onClick={() => openlink()}
-        className="my-1.5 flex justify-between items-center cursor-pointer bg-white shadow-2xl p-2 rounded-[12px]"
+        className="max-w-full my-2 mx-1 flex justify-between items-center cursor-pointer bg-white shadow-small p-2 rounded-[12px]"
       >
         <div className="flex flex-row items-center">
           <div>

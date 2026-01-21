@@ -33,6 +33,8 @@ import { useMicrositeData } from "./context/MicrositeContext";
 import TokenGateVerification from "@/components/publicProfile/TokenGateVerification";
 import distributeSmallIcons from "@/components/util/distributeSmallIcons";
 import { fontMap } from "@/lib/fonts";
+import Image from "next/image";
+import getMediaType from "@/utils/getMediaType";
 
 interface ClientProfileProps {
   userName: string;
@@ -71,7 +73,7 @@ export default function ClientProfile({ userName }: ClientProfileProps) {
     ens,
   } = micrositeData;
 
-  console.log("info.infoBar", info.infoBar);
+  console.log("info hola", info);
 
   const groupMarketPlaceByType = (marketPlaceItems: any[]) => {
     const grouped: { [key: string]: any[] } = {};
@@ -98,9 +100,10 @@ export default function ClientProfile({ userName }: ClientProfileProps) {
 
       <div
         style={{
-          backgroundImage: backgroundImg
-            ? `url(/images/smartsite-background/${backgroundImg}.png)`
-            : "none",
+          backgroundImage:
+            backgroundImg && !backgroundColor
+              ? `url(/images/smartsite-background/${backgroundImg}.png)`
+              : "none",
           backgroundColor: backgroundColor && backgroundColor,
         }}
         className={`bg-cover scrollbar-hide bg-no-repeat h-screen overflow-y-auto px-4 lg:px-0 pt-6 ${
@@ -108,12 +111,11 @@ export default function ClientProfile({ userName }: ClientProfileProps) {
         }`}
       >
         <main
-          className={`flex max-w-md mx-auto min-h-screen flex-col items-center z-50 space-y-5`}
+          className={`flex max-w-md mx-auto min-h-screen flex-col items-center z-50 space-y-5 overflow-x-hidden`}
         >
           <CartProvider>
             <Header
               avatar={profilePic}
-              // cover={backgroundImg.toString()}
               name={name}
               parentId={parentId}
               micrositeId={_id}
@@ -153,7 +155,7 @@ export default function ClientProfile({ userName }: ClientProfileProps) {
 
             {/* market place - Grouped by nftType */}
             {info?.marketPlace && info.marketPlace.length > 0 && (
-              <div className="w-full space-y-3 mb-4">
+              <div className="w-full space-y-1 mb-4">
                 {Object.entries(groupMarketPlaceByType(info.marketPlace)).map(
                   ([nftType, items]: [string, any[]]) => (
                     <div key={nftType} className="w-full">
@@ -162,7 +164,7 @@ export default function ClientProfile({ userName }: ClientProfileProps) {
                         style={{
                           color: fontColor ? fontColor : "black",
                         }}
-                        className="text-base font-semibold capitalize mb-1"
+                        className="text-base font-medium capitalize mb-1"
                       >
                         {nftType}
                       </h2>
@@ -172,16 +174,16 @@ export default function ClientProfile({ userName }: ClientProfileProps) {
                         <Carousel
                           opts={{
                             align: "start",
-                            loop: true,
+                            loop: false,
                             slidesToScroll: 2,
                           }}
-                          className="w-full"
+                          className="w-full [&>div]:overflow-visible"
                         >
-                          <CarouselContent className="-ml-2 md:-ml-4">
+                          <CarouselContent className="-ml-2 pb-4 px-1">
                             {items.map((item, index) => (
                               <CarouselItem
                                 key={item._id}
-                                className="pl-2 md:pl-3 basis-[45%]"
+                                className="pl-3 basis-[45%]"
                               >
                                 <MarketPlace
                                   data={item}
@@ -198,7 +200,7 @@ export default function ClientProfile({ userName }: ClientProfileProps) {
                           </CarouselContent>
                         </Carousel>
                       ) : (
-                        <div className="grid grid-cols-2 gap-2">
+                        <div className="grid grid-cols-2 gap-3 mr-[11%] sm:mr-12 ml-1 pb-4">
                           {items.map((item, index) => (
                             <MarketPlace
                               key={item._id}
@@ -222,7 +224,7 @@ export default function ClientProfile({ userName }: ClientProfileProps) {
 
             {/* Blog */}
             {info?.blog && info.blog.length > 0 && (
-              <div className="w-full">
+              <div className="w-full space-y-4 -pt-4">
                 {info.blog.map((social: any, index: number) => (
                   <Blog
                     number={index}
@@ -238,7 +240,7 @@ export default function ClientProfile({ userName }: ClientProfileProps) {
             )}
             {/* Social Media Big */}
             {info?.socialLarge && info.socialLarge.length > 0 && (
-              <div className="w-full grid grid-cols-3 gap-4 sm:gap-10 my-4">
+              <div className="w-full flex flex-wrap items-center justify-center gap-y-6 my-4">
                 {info.socialLarge.map((social: any, index: number) => (
                   <SocialLarge
                     number={index}
@@ -257,9 +259,9 @@ export default function ClientProfile({ userName }: ClientProfileProps) {
               style={{
                 color: secondaryFontColor && secondaryFontColor,
               }}
+              className="w-full"
             >
               {/* Message */}
-              {/* ENS */}
               {info?.ensDomain && info.ensDomain.length > 0 && (
                 <div className="w-full">
                   <Message
@@ -284,6 +286,8 @@ export default function ClientProfile({ userName }: ClientProfileProps) {
                       socialType="redeemLink"
                       parentId={parentId}
                       accessToken={accessToken || ""}
+                      fontColor={fontColor}
+                      secondaryFontColor={secondaryFontColor}
                     />
                   ))}
                 </div>
@@ -300,6 +304,8 @@ export default function ClientProfile({ userName }: ClientProfileProps) {
                       socialType="referral"
                       parentId={parentId}
                       accessToken={accessToken || ""}
+                      fontColor={fontColor}
+                      secondaryFontColor={secondaryFontColor}
                     />
                   ))}
                 </div>
@@ -394,26 +400,62 @@ export default function ClientProfile({ userName }: ClientProfileProps) {
               )}
             </div>
 
-            {/* Video */}
+            {/* Image / Video Section */}
             {info?.video && info.video.length > 0 && (
-              <div className="w-full">
-                {info.video.map((social: any, index: number) => (
-                  <div key={index} className="my-2">
-                    <video
-                      className="w-full h-76 max-w-full border border-gray-200 rounded-lg dark:border-gray-700"
-                      controls
+              <div className="w-full space-y-4">
+                {info.video.map((item: any, index: number) => {
+                  const mediaType = getMediaType(item.link);
+
+                  return (
+                    <div
+                      key={item._id}
+                      className="w-full overflow-hidden rounded-xl border border-gray-200 dark:border-gray-700 bg-white/70 dark:bg-black/30 shadow-sm"
                     >
-                      <source src={social.link} type="video/mp4" />
-                      Your browser does not support the video tag.
-                    </video>
-                  </div>
-                ))}
+                      {/* Media */}
+                      <div className="relative w-full aspect-video bg-black">
+                        {mediaType === "video" && (
+                          <video
+                            className="absolute inset-0 h-full w-full object-cover"
+                            controls
+                            preload="metadata"
+                          >
+                            <source src={item.link} type="video/mp4" />
+                            Your browser does not support the video tag.
+                          </video>
+                        )}
+
+                        {mediaType === "image" && (
+                          <Image
+                            src={item.link}
+                            alt={item.title || "Media"}
+                            fill
+                            sizes="(max-width: 768px) 100vw, 480px"
+                            className="object-cover"
+                            priority={index === 0}
+                          />
+                        )}
+                      </div>
+
+                      {/* Metadata */}
+                      {item.title && (
+                        <div className="px-4 py-3">
+                          <p
+                            className="text-sm font-medium truncate"
+                            style={{ color: fontColor || "#000" }}
+                          >
+                            {item.title}
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
             )}
 
             {/* Embeded Link */}
             {info?.videoUrl && info.videoUrl.length > 0 && (
-              <div className="w-full">
+              <div className="w-full space-y-3">
                 {info.videoUrl.map((social: any, index: number) => (
                   <EmbedVideo key={social._id} data={social} />
                 ))}

@@ -214,7 +214,7 @@ const SocialLarge: FC<Props> = ({
         type: "easeInOut",
       }}
       onClick={openlink}
-      className="flex flex-col gap-2 items-center justify-between cursor-pointer"
+      className="flex flex-col gap-2 items-center justify-between cursor-pointer w-1/3"
     >
       <motion.div
         whileHover={{ scale: 1.05 }}
