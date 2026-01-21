@@ -15,6 +15,12 @@ import { cn } from "@/lib/utils";
 import { PrimaryButton } from "@/components/ui/Button/PrimaryButton";
 import CustomModal from "@/components/modal/CustomModal";
 
+// Rent-exempt minimum for a token account (in SOL)
+// This is approximately 0.00203928 SOL (2,039,280 lamports)
+const TOKEN_ACCOUNT_RENT_EXEMPT = 0.00203928;
+// Additional buffer for transaction fees
+const TRANSACTION_FEE_BUFFER = 0.001;
+
 interface RedeemModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -34,6 +40,7 @@ interface RedeemModalProps {
   tokenAmount: number;
   isUSD: boolean;
   tokenPrice: string;
+  solBalance?: number; // User's SOL balance for rent calculation
 }
 
 export interface RedeemConfig {
@@ -60,6 +67,7 @@ export default function RedeemModal({
   tokenAmount,
   isUSD,
   tokenPrice,
+  solBalance = 0,
 }: RedeemModalProps) {
   const [totalToken, setTotalToken] = useState(0);
   const [maxWallets, setMaxWallets] = useState("");
@@ -67,6 +75,7 @@ export default function RedeemModal({
   const [isProcessing, setIsProcessing] = useState(false);
   const [redeemLink, setRedeemLink] = useState("");
   const [tokensPerWallet, setTokensPerWallet] = useState(0);
+  const [requiredSol, setRequiredSol] = useState(0);
   const [steps, setSteps] = useState<ProcessingStep[]>([
     {
       status: "pending",
@@ -99,11 +108,19 @@ export default function RedeemModal({
     if (numValue > 0) {
       const perWallet = totalToken / numValue;
       setTokensPerWallet(perWallet);
+      // Calculate required SOL: rent for temp token account + transaction fees
+      // We need 1 token account for the temp wallet + buffer for fees
+      const required = TOKEN_ACCOUNT_RENT_EXEMPT + TRANSACTION_FEE_BUFFER;
+      setRequiredSol(required);
     } else {
-      setTokensPerWallet(0); // Reset tokensPerWallet if numValue is invalid
+      setTokensPerWallet(0);
+      setRequiredSol(0);
     }
     setMaxWallets(numValue.toString());
   };
+
+  // Check if user has sufficient SOL balance
+  const hasInsufficientSol = requiredSol > 0 && solBalance < requiredSol;
 
   const updateStep = (
     index: number,
@@ -277,6 +294,59 @@ export default function RedeemModal({
                 </div>
               </div>
 
+              {/* SOL Balance Warning */}
+              {requiredSol > 0 && (
+                <div
+                  className={cn(
+                    "p-4 rounded-lg flex items-start gap-2",
+                    hasInsufficientSol ? "bg-red-50" : "bg-green-50"
+                  )}
+                >
+                  <Info
+                    className={cn(
+                      "w-4 h-4 mt-0.5",
+                      hasInsufficientSol ? "text-red-500" : "text-green-500"
+                    )}
+                  />
+                  <div className="flex-1">
+                    <div
+                      className={cn(
+                        "text-sm font-medium",
+                        hasInsufficientSol ? "text-red-700" : "text-green-700"
+                      )}
+                    >
+                      SOL Required for Transaction
+                    </div>
+                    <div className="text-sm text-gray-600 mt-1 space-y-1">
+                      <div className="flex justify-between">
+                        <span>Required:</span>
+                        <span className="font-medium">
+                          {requiredSol.toFixed(6)} SOL
+                        </span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span>Your Balance:</span>
+                        <span
+                          className={cn(
+                            "font-medium",
+                            hasInsufficientSol ? "text-red-600" : "text-green-600"
+                          )}
+                        >
+                          {solBalance.toFixed(6)} SOL
+                        </span>
+                      </div>
+                    </div>
+                    {hasInsufficientSol && (
+                      <div className="text-xs text-red-600 mt-2 font-medium">
+                        Please add at least{" "}
+                        {(requiredSol - solBalance).toFixed(6)} SOL to your
+                        wallet to continue.
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
               {errorMessage && (
                 <div className="text-red-500 text-sm flex items-center gap-2 bg-red-50 p-3 rounded-lg">
                   <Info className="w-4 h-4" />
@@ -288,10 +358,12 @@ export default function RedeemModal({
             <div className="flex justify-end gap-3 mt-4">
               <PrimaryButton
                 onClick={handleConfirm}
-                disabled={!maxWallets || tokensPerWallet <= 0}
+                disabled={
+                  !maxWallets || tokensPerWallet <= 0 || hasInsufficientSol
+                }
                 className="w-full py-2"
               >
-                Create Link
+                {hasInsufficientSol ? "Insufficient SOL Balance" : "Create Link"}
               </PrimaryButton>
             </div>
           </>

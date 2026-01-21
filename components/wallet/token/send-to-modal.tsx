@@ -14,7 +14,10 @@ import { TokenData } from '@/types/token';
 
 import { TransactionService } from '@/services/transaction-service';
 import { usePrivy } from '@privy-io/react-auth';
-import { useWallets as useSolanaWallets } from '@privy-io/react-auth/solana';
+import {
+  useWallets as useSolanaWallets,
+  useSignTransaction,
+} from '@privy-io/react-auth/solana';
 import { BsSendFill } from 'react-icons/bs';
 import isUrl from '@/lib/isUrl';
 import { useUser } from '@/lib/UserContext';
@@ -44,6 +47,7 @@ interface SendToModalProps {
   selectedToken: TokenData;
   amount: string;
   isUSD: boolean;
+  solBalance?: number; // User's SOL balance for rent calculation
 }
 
 export default function SendToModal({
@@ -55,8 +59,10 @@ export default function SendToModal({
   selectedToken,
   amount,
   isUSD,
+  solBalance = 0,
 }: SendToModalProps) {
   const { user } = usePrivy();
+  const { signTransaction } = useSignTransaction();
   const [searchQuery, setSearchQuery] = useState('');
   const [debouncedQuery] = useDebounce(searchQuery, 500);
   const [addressError, setAddressError] = useState(false);
@@ -126,9 +132,7 @@ export default function SendToModal({
     ) => void,
     setRedeemLink: (link: string) => void
   ) => {
-    const solanaWallet = solanaWallets?.find(
-      (w: any) => w.walletClientType === 'privy'
-    );
+    const solanaWallet = solanaWallets[0]
 
     if (!solanaWallet?.address) {
       throw new Error(
@@ -184,18 +188,41 @@ export default function SendToModal({
       const setupTx = Transaction.from(
         Buffer.from(data.serializedTransaction, 'base64')
       );
-      const signedSetupTx = await solanaWallet.signTransaction(
-        setupTx
+      // Serialize transaction to Uint8Array for Privy v3
+      const serializedSetupTx = new Uint8Array(
+        setupTx.serialize({
+          requireAllSignatures: false,
+          verifySignatures: false,
+        })
       );
+      // Use Privy v3 signTransaction hook
+      const { signedTransaction: signedSetupTx } = await signTransaction({
+        transaction: serializedSetupTx,
+        wallet: solanaWallet,
+      });
       const setupSignature = await connection.sendRawTransaction(
-        signedSetupTx.serialize()
+        signedSetupTx
       );
       await connection.confirmTransaction(setupSignature);
       await new Promise((resolve) => setTimeout(resolve, 2000));
-    } catch (error) {
+    } catch (error: any) {
       await deleteRedeemLink(user?.id || '', data.poolId);
-      console.error('error', error);
-      throw new Error('Failed to set up temporary account');
+      console.error('Setup transaction error:', error);
+
+      // Extract meaningful error message from SendTransactionError
+      let errorMessage = 'Failed to set up temporary account';
+      if (error?.logs) {
+        const logs = Array.isArray(error.logs) ? error.logs : [];
+        if (logs.some((log: string) => log.includes('insufficient lamports'))) {
+          errorMessage =
+            'Insufficient SOL balance to cover rent fees. Please add more SOL to your wallet.';
+        }
+      } else if (error?.message?.includes('insufficient lamports')) {
+        errorMessage =
+          'Insufficient SOL balance to cover rent fees. Please add more SOL to your wallet.';
+      }
+
+      throw new Error(errorMessage);
     }
 
     // Update step 2 to completed and step 3 to processing
@@ -214,7 +241,8 @@ export default function SendToModal({
             tokenAddress: selectedToken.address,
             tokenDecimals: selectedToken.decimals,
             tempAddress: data.tempAddress,
-          }
+          },
+          signTransaction // Pass Privy v3 signTransaction function
         );
 
       await connection.confirmTransaction(txSignature);
@@ -484,6 +512,7 @@ export default function SendToModal({
           tokenSymbol={selectedToken.symbol}
           tokenDecimals={selectedToken.decimals}
           tokenPrice={selectedToken.marketData?.price || '0'}
+          solBalance={solBalance}
           isUSD={isUSD}
         />
       )}

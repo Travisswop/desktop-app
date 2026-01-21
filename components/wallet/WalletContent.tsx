@@ -76,6 +76,7 @@ import { ScrollArea } from '../ui/scroll-area';
 import CustomModal from '../modal/CustomModal';
 import { BsThreeDots } from 'react-icons/bs';
 import WalletAssetsSettings from './WalletAssetsSettings';
+import { PredictionMarketsTab } from './prediction-markets';
 
 // Token colors mapping for consistent visual representation
 const TOKEN_COLORS: Record<string, string> = {
@@ -386,6 +387,15 @@ const WalletContentInner = () => {
       '0',
     [tokens]
   );
+
+  // Get the native SOL balance for rent calculations
+  const solBalance = useMemo(() => {
+    const solToken = tokens.find(
+      (token) =>
+        token.isNative && token.chain?.toUpperCase() === 'SOLANA'
+    );
+    return solToken ? parseFloat(solToken.balance) || 0 : 0;
+  }, [tokens]);
 
   const currentWalletAddress = useMemo(
     () => evmWalletAddress || solWalletAddress,
@@ -861,6 +871,11 @@ const WalletContentInner = () => {
         </div>
       </div>
 
+      {/* Prediction Markets Section */}
+      {/* <div className="mt-6">
+        <PredictionMarketsTab />
+      </div> */}
+
       {/* wallet asset settings  */}
       {walletSetting && (
         <CustomModal
@@ -898,6 +913,7 @@ const WalletContentInner = () => {
         QRCodeShareModalOpen={QRCodeShareModalOpen}
         qrcodeShareUrl={qrcodeShareUrl}
         setSendFlow={setSendFlow}
+        solBalance={solBalance}
       />
 
       <Toaster />
