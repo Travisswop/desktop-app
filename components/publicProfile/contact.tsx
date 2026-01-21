@@ -96,7 +96,7 @@ const Contact: FC<Props> = ({
           damping: 10,
         }}
         onClick={() => download(data, parentId, accessToken)}
-        className="my-1 flex flex-row items-center cursor-pointer bg-white shadow-xl p-2 rounded-[12px] w-full"
+        className="my-2 mx-1 flex flex-row items-center cursor-pointer bg-white shadow-small p-2 rounded-[12px] max-w-full"
       >
         <div>
           <Image

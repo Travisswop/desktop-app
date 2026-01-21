@@ -262,7 +262,6 @@ export default function ClientProfile({ userName }: ClientProfileProps) {
               className="w-full"
             >
               {/* Message */}
-              {/* ENS */}
               {info?.ensDomain && info.ensDomain.length > 0 && (
                 <div className="w-full">
                   <Message

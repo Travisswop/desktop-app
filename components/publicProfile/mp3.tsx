@@ -62,7 +62,7 @@ const MP3: FC<Props> = ({
         }}
         className={`${
           number === length - 1 ? "mb-0" : "mb-2"
-        } flex flex-row gap-2 items-center cursor-pointer bg-white shadow-2xl p-2 rounded-[12px] w-full`}
+        } mx-1 flex flex-row gap-2 items-center cursor-pointer bg-white shadow-small p-2 rounded-[12px] max-w-full`}
       >
         <div className="flex items-center justify-between w-full">
           <div className="flex flex-1 items-center">

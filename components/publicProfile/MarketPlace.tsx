@@ -39,11 +39,11 @@ const MarketPlace: any = ({
 
   const { user } = useUser();
 
-  console.log("data from user", user);
-  console.log("data from marketplace", data);
-  console.log("data from marketplace userId", userId);
-  console.log("data from marketplace userName", userName);
-  console.log("isExisting", isExisting);
+  // console.log("data from user", user);
+  // console.log("data from marketplace", data);
+  // console.log("data from marketplace userId", userId);
+  // console.log("data from marketplace userName", userName);
+  // console.log("isExisting", isExisting);
 
   const delay = number + 1 * 0.2;
 
@@ -142,7 +142,7 @@ const MarketPlace: any = ({
       }}
       className="w-full "
     >
-      <div className="relative bg-white rounded-2xl shadow-md overflow-hidden">
+      <div className="relative bg-white rounded-2xl shadow-small overflow-hidden">
         {!isExisting && (
           <button
             onClick={handleAddToCart}

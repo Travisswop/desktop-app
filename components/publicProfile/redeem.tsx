@@ -118,7 +118,7 @@ const Redeem: FC<Props> = ({
           damping: 10,
         }}
         onClick={openLink}
-        className="my-1 flex flex-row items-center cursor-pointer bg-white shadow-xl p-3 rounded-[12px] relative"
+        className="max-w-full my-2 mx-1 flex flex-row items-center cursor-pointer bg-white shadow-small p-3 rounded-[12px] relative"
       >
         <div>
           <Image

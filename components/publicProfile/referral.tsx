@@ -90,7 +90,7 @@ const Referral: FC<Props> = ({
           stiffness: 400,
           damping: 10,
         }}
-        className="mb-3 flex flex-row items-center cursor-pointer bg-white shadow-2xl p-2 rounded-[12px]"
+        className="max-w-full mb-2 mx-1 flex flex-row items-center cursor-pointer bg-white shadow-medium p-2 rounded-[12px]"
       >
         <div>
           <Image

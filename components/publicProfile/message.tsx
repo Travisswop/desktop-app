@@ -70,7 +70,7 @@ const Message: FC<Props> = ({
           stiffness: 400,
           damping: 10,
         }}
-        className="my-1.5 flex flex-row gap-2 items-center cursor-pointer bg-white shadow-xl p-2 rounded-[12px]"
+        className="max-w-full my-2 mx-1 flex flex-row gap-2 items-center cursor-pointer bg-white shadow-small p-2 rounded-[12px]"
       >
         <AlertDialog>
           <AlertDialogTrigger asChild>
