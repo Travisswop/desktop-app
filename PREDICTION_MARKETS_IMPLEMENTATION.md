@@ -246,8 +246,6 @@ await connection.confirmTransaction(signature, 'confirmed');
 ```env
 NEXT_PUBLIC_SOLANA_RPC_URL=https://api.mainnet-beta.solana.com
 NEXT_PUBLIC_API_URL=http://localhost:4000
-NEXT_PUBLIC_DFLOW_API_URL=https://api.dflow.net
-NEXT_PUBLIC_DFLOW_API_KEY=your-dflow-api-key
 ```
 
 **Backend (.env):**

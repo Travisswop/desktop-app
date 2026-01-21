@@ -22,10 +22,6 @@ import {
 const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
 
-// DFlow API configuration
-const DFLOW_API_BASE = process.env.NEXT_PUBLIC_DFLOW_API_URL || 'https://api.dflow.net';
-const DFLOW_API_KEY = process.env.NEXT_PUBLIC_DFLOW_API_KEY || '';
-
 // USDC mint address on Solana
 const USDC_MINT = 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v';
 
