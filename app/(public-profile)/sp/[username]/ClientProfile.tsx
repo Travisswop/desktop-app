@@ -455,7 +455,7 @@ export default function ClientProfile({ userName }: ClientProfileProps) {
 
             {/* Embeded Link */}
             {info?.videoUrl && info.videoUrl.length > 0 && (
-              <div className="w-full">
+              <div className="w-full space-y-3">
                 {info.videoUrl.map((social: any, index: number) => (
                   <EmbedVideo key={social._id} data={social} />
                 ))}
