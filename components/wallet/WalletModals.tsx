@@ -56,6 +56,7 @@ interface WalletModalsProps {
   QRCodeShareModalOpen: boolean;
   qrcodeShareUrl: string;
   setSendFlow: React.Dispatch<React.SetStateAction<SendFlowState>>;
+  solBalance?: number; // User's SOL balance for rent calculation in redeem
 }
 
 const WalletModals: React.FC<WalletModalsProps> = ({
@@ -84,6 +85,7 @@ const WalletModals: React.FC<WalletModalsProps> = ({
   QRCodeShareModalOpen,
   qrcodeShareUrl,
   setSendFlow,
+  solBalance = 0,
 }) => {
   return (
     <>
@@ -165,6 +167,7 @@ const WalletModals: React.FC<WalletModalsProps> = ({
         selectedToken={sendFlow.token!}
         amount={sendFlow.amount!}
         isUSD={sendFlow.isUSD}
+        solBalance={solBalance}
       />
 
       {/* Standard confirmation screen */}

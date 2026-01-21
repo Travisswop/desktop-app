@@ -7,8 +7,8 @@ import { type MarketStatus } from '@/types/predictionMarkets';
 /**
  * Format volume number to readable string
  */
-export const formatVolume = (volume: number | undefined): string => {
-  if (!volume) return 'N/A';
+export const formatVolume = (volume: number | undefined | null): string => {
+  if (volume === undefined || volume === null) return 'N/A';
 
   if (volume >= 1000000) {
     return `$${(volume / 1000000).toFixed(2)}M`;

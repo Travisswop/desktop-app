@@ -698,6 +698,10 @@ export class TransactionService {
 
   /**
    * Handles token redeem setup and transfer
+   * @param solanaWallet - The connected Solana wallet
+   * @param connection - Solana connection instance
+   * @param config - Transaction configuration
+   * @param signTransactionFn - Privy v3 signTransaction function from useSignTransaction hook
    */
   static async handleRedeemTransaction(
     solanaWallet: any,
@@ -707,7 +711,11 @@ export class TransactionService {
       tokenAddress: string | null;
       tokenDecimals: number;
       tempAddress: string;
-    }
+    },
+    signTransactionFn?: (input: {
+      transaction: Uint8Array;
+      wallet: any;
+    }) => Promise<{ signedTransaction: Uint8Array }>
   ) {
     if (!solanaWallet) throw new Error("No Solana wallet found");
 
@@ -726,8 +734,20 @@ export class TransactionService {
       tx.recentBlockhash = blockhash;
       tx.feePayer = new PublicKey(solanaWallet.address);
 
-      const signedTx = await solanaWallet.signTransaction(tx);
-      return await connection.sendRawTransaction(signedTx.serialize());
+      // Use Privy v3 signTransaction if provided, otherwise fall back to legacy
+      if (signTransactionFn) {
+        const serializedTx = new Uint8Array(
+          tx.serialize({ requireAllSignatures: false, verifySignatures: false })
+        );
+        const { signedTransaction } = await signTransactionFn({
+          transaction: serializedTx,
+          wallet: solanaWallet,
+        });
+        return await connection.sendRawTransaction(signedTransaction);
+      } else {
+        const signedTx = await solanaWallet.signTransaction(tx);
+        return await connection.sendRawTransaction(signedTx.serialize());
+      }
     } else {
       // SPL Token transfer
       const programId = await getSolanaTokenProgramId(
@@ -825,8 +845,20 @@ export class TransactionService {
       tx.recentBlockhash = blockhash;
       tx.feePayer = new PublicKey(solanaWallet.address);
 
-      const signedTx = await solanaWallet.signTransaction(tx);
-      return await connection.sendRawTransaction(signedTx.serialize());
+      // Use Privy v3 signTransaction if provided, otherwise fall back to legacy
+      if (signTransactionFn) {
+        const serializedTx = new Uint8Array(
+          tx.serialize({ requireAllSignatures: false, verifySignatures: false })
+        );
+        const { signedTransaction } = await signTransactionFn({
+          transaction: serializedTx,
+          wallet: solanaWallet,
+        });
+        return await connection.sendRawTransaction(signedTransaction);
+      } else {
+        const signedTx = await solanaWallet.signTransaction(tx);
+        return await connection.sendRawTransaction(signedTx.serialize());
+      }
     }
   }
 
