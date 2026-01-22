@@ -1,9 +1,3 @@
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -153,7 +147,6 @@ export default function RedeemModal({
         updateStep,
         setRedeemLink
       );
-      console.log("res", res);
     } catch (error: any) {
       console.error(error);
 
@@ -358,12 +351,10 @@ export default function RedeemModal({
             <div className="flex justify-end gap-3 mt-4">
               <PrimaryButton
                 onClick={handleConfirm}
-                disabled={
-                  !maxWallets || tokensPerWallet <= 0 || hasInsufficientSol
-                }
+                disabled={!maxWallets || tokensPerWallet <= 0}
                 className="w-full py-2"
               >
-                {hasInsufficientSol ? "Insufficient SOL Balance" : "Create Link"}
+                Create Link
               </PrimaryButton>
             </div>
           </>

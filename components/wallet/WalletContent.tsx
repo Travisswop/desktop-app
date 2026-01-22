@@ -563,7 +563,9 @@ const WalletContentInner = () => {
               const result = await signAndSendTransaction({
                 transaction: new Uint8Array(serializedTransaction),
                 wallet: selectedSolanaWallet!,
-
+                options: {
+                  sponsor: true
+                }
               });
 
               hash = bs58.encode(result.signature);
