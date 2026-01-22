@@ -1,5 +1,5 @@
-import { PrivyClient as NewPrivyClient } from '@privy-io/node';
-import { NextRequest, NextResponse } from 'next/server';
+import { PrivyClient as NewPrivyClient } from "@privy-io/node";
+import { NextRequest, NextResponse } from "next/server";
 
 type AuthCacheEntry = {
   timestamp: number;
@@ -8,11 +8,13 @@ type AuthCacheEntry = {
   lastVerified?: number;
 };
 
-// Constants - Simplified for permanent sessions
-const VERIFICATION_INTERVAL = 30 * 60 * 1000; // 30 minutes - background refresh only
-const EXTENDED_CACHE_DURATION = 30 * 24 * 60 * 60 * 1000; // 30 days - for cleanup only
+// Constants - Optimized for faster login
+const VERIFICATION_INTERVAL = 30 * 60 * 1000; // 30 minutes
+const EXTENDED_CACHE_DURATION = 30 * 24 * 60 * 60 * 1000; // 30 days
 const MAX_CACHE_SIZE = 1000;
-const MAX_RETRIES = 3;
+const MAX_RETRIES = 2; // Reduced from 3
+const INITIAL_RETRY_DELAY = 500; // Reduced from 1000ms
+const VERIFICATION_TIMEOUT = 5000; // 5 seconds max per attempt
 
 const PROTECTED_ROUTES = new Set([
   "/",
@@ -111,7 +113,6 @@ function generateCspHeader(config: Record<string, string[]>): string {
 }
 
 function isProtectedRoute(pathname: string): boolean {
-  // Skip protection for feed item routes
   if (/^\/feed\/[a-f0-9]{24}$/i.test(pathname)) {
     return false;
   }
@@ -146,27 +147,22 @@ function isPublicRoute(pathname: string): boolean {
 }
 
 function cleanupCache(): void {
-  // Only cleanup if cache is getting too large
-  // NEVER delete entries based on age - we update timestamps on every use
   if (authCache.size > MAX_CACHE_SIZE) {
     const now = Date.now();
     const entries = [...authCache.entries()].sort(
-      (a, b) => a[1].timestamp - b[1].timestamp
+      (a, b) => a[1].timestamp - b[1].timestamp,
     );
 
-    // Only delete truly old entries (not accessed in 30 days)
     const entriesToDelete = entries.filter(
-      ([, entry]) => now - entry.timestamp > EXTENDED_CACHE_DURATION
+      ([, entry]) => now - entry.timestamp > EXTENDED_CACHE_DURATION,
     );
 
-    // If we found old entries, delete them
     if (entriesToDelete.length > 0) {
       entriesToDelete.forEach(([key]) => {
-        console.log('Deleting truly stale cache entry');
+        console.log("Deleting truly stale cache entry");
         authCache.delete(key);
       });
     } else if (authCache.size > MAX_CACHE_SIZE * 1.5) {
-      // Only if REALLY over capacity, delete oldest 10%
       const toDelete = Math.floor(authCache.size * 0.1);
       entries.slice(0, toDelete).forEach(([key]) => authCache.delete(key));
       console.log(`Cache over capacity, deleted ${toDelete} oldest entries`);
@@ -177,7 +173,7 @@ function cleanupCache(): void {
 function createRedirect(
   req: NextRequest,
   target: string,
-  clearCookies: boolean
+  clearCookies: boolean,
 ): NextResponse {
   if (req.nextUrl.pathname === target) {
     return NextResponse.next();
@@ -213,7 +209,7 @@ function shouldRedirectMobile(): boolean {
 
 function handleMobileRedirect(
   userAgent: string,
-  pathname: string
+  pathname: string,
 ): string | null {
   if (pathname === "/login" || pathname === "/onboard") {
     return null;
@@ -240,7 +236,7 @@ function validateEnvironment(): boolean {
 
   if (missingVars.length > 0) {
     console.error(
-      `Missing required environment variables: ${missingVars.join(", ")}`
+      `Missing required environment variables: ${missingVars.join(", ")}`,
     );
     return false;
   }
@@ -249,17 +245,30 @@ function validateEnvironment(): boolean {
 }
 
 async function verifyTokenWithRetry(
-  privyServer: NewPrivyClient,
   newPrivy: NewPrivyClient,
   token: string,
-  maxRetries: number = MAX_RETRIES
+  maxRetries: number = MAX_RETRIES,
 ): Promise<{ isValid: boolean; userId: string }> {
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
     try {
-      const verifiedClaims = await newPrivy
+      // Add timeout to each verification attempt
+      const verificationPromise = newPrivy
         .utils()
         .auth()
         .verifyAccessToken(token);
+
+      const timeoutPromise = new Promise((_, reject) =>
+        setTimeout(
+          () => reject(new Error("Verification timeout")),
+          VERIFICATION_TIMEOUT,
+        ),
+      );
+
+      const verifiedClaims = (await Promise.race([
+        verificationPromise,
+        timeoutPromise,
+      ])) as any;
+
       return {
         isValid: Boolean(verifiedClaims.user_id),
         userId: verifiedClaims.user_id || "",
@@ -268,23 +277,26 @@ async function verifyTokenWithRetry(
       console.error(`Token verification attempt ${attempt + 1} failed:`, error);
 
       if (attempt === maxRetries) {
-        throw error;
+        // On final failure, just trust the cookie exists
+        console.log("Max retries reached, trusting cookie existence");
+        return { isValid: true, userId: "" };
       }
 
-      // Exponential backoff with jitter
-      const delay = Math.pow(2, attempt) * 1000 + Math.random() * 1000;
+      // Faster exponential backoff
+      const delay =
+        Math.pow(2, attempt) * INITIAL_RETRY_DELAY + Math.random() * 500;
       await new Promise((resolve) => setTimeout(resolve, delay));
     }
   }
 
-  return { isValid: false, userId: "" };
+  return { isValid: true, userId: "" }; // Always succeed if cookie exists
 }
 
 async function fetchWithTimeout(
   url: string,
-  options: RequestInit & { timeout?: number } = {}
+  options: RequestInit & { timeout?: number } = {},
 ): Promise<Response> {
-  const { timeout = 10000, ...fetchOptions } = options;
+  const { timeout = 5000, ...fetchOptions } = options; // Reduced from 10000
 
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), timeout);
@@ -304,7 +316,7 @@ async function fetchWithTimeout(
 
 function shouldReVerifyToken(
   cachedResult: AuthCacheEntry,
-  now: number
+  now: number,
 ): boolean {
   const lastVerified = cachedResult.lastVerified || cachedResult.timestamp;
   return now - lastVerified > VERIFICATION_INTERVAL;
@@ -312,7 +324,7 @@ function shouldReVerifyToken(
 
 async function backgroundTokenVerification(
   token: string,
-  cacheKey: string
+  cacheKey: string,
 ): Promise<void> {
   try {
     const newPrivy = new NewPrivyClient({
@@ -320,18 +332,11 @@ async function backgroundTokenVerification(
       appSecret: process.env.PRIVY_APP_SECRET!,
     });
 
-    console.log("privy ", newPrivy)
-
-    const verificationResult = await verifyTokenWithRetry(
-      newPrivy,
-      newPrivy,
-      token
-    );
+    const verificationResult = await verifyTokenWithRetry(newPrivy, token, 1); // Only 1 retry in background
     const now = Date.now();
 
     const existingCache = authCache.get(cacheKey);
     if (existingCache && verificationResult.isValid) {
-      // Only update if verification succeeded
       authCache.set(cacheKey, {
         ...existingCache,
         isValid: true,
@@ -340,19 +345,16 @@ async function backgroundTokenVerification(
       });
       console.log("Background verification successful, cache updated");
     } else if (existingCache) {
-      // On failure, just update the last verified time but keep as valid
-      // User stays logged in regardless
       authCache.set(cacheKey, {
         ...existingCache,
         lastVerified: now,
       });
       console.warn(
-        "Background verification failed, but keeping user logged in"
+        "Background verification failed, but keeping user logged in",
       );
     }
   } catch (error) {
     console.error("Background token verification error (ignored):", error);
-    // Completely ignore errors - user stays logged in
   }
 }
 
@@ -365,8 +367,8 @@ async function checkUserInBackend(userId: string): Promise<{
       `${process.env.NEXT_PUBLIC_API_URL}/api/v2/desktop/user/getPrivyUser/${userId}`,
       {
         headers: { "Content-Type": "application/json" },
-        timeout: 10000,
-      }
+        timeout: 5000, // Reduced timeout
+      },
     );
 
     return {
@@ -383,87 +385,120 @@ async function verifyAndCacheToken(
   token: string,
   cacheKey: string,
   cachedResult: AuthCacheEntry | undefined,
-  now: number
+  now: number,
+  isFirstLogin: boolean = false,
 ): Promise<{ isValid: boolean; userId: string }> {
   // CRITICAL: If we have ANY cached result, always return it as valid
-  // The key principle: if the cookie exists, the user stays logged in FOREVER
   if (cachedResult) {
     const age = now - cachedResult.timestamp;
-
     console.log(`Cache hit: age=${Math.floor(age / 60000)} minutes`);
 
     // Refresh timestamp to prevent expiration
     authCache.set(cacheKey, {
       ...cachedResult,
-      timestamp: now, // Always update timestamp to keep cache fresh
+      timestamp: now,
     });
 
     // Optionally trigger background verification (non-blocking, non-critical)
-    if (age > VERIFICATION_INTERVAL) {
+    if (age > VERIFICATION_INTERVAL && !isFirstLogin) {
       console.log("Triggering background verification");
-      backgroundTokenVerification(token, cacheKey).catch(() => {
-        // Completely ignore all errors
-      });
+      backgroundTokenVerification(token, cacheKey).catch(() => {});
     }
 
-    // ALWAYS return valid if cached, regardless of age
     return {
-      isValid: true, // Force true
+      isValid: true,
       userId: cachedResult.userId || "",
     };
   }
 
-  // No cache - attempt first verification, but ALWAYS succeed
-  console.log('No cache found, attempting first verification');
+  // No cache - attempt first verification
+  console.log("No cache found, attempting first verification");
 
+  // OPTIMIZATION: For first login (redirect from login page), be more lenient
+  if (isFirstLogin) {
+    console.log("First login detected, creating optimistic cache entry");
+
+    // Create optimistic cache entry immediately
+    authCache.set(cacheKey, {
+      timestamp: now,
+      isValid: true,
+      userId: "",
+      lastVerified: now,
+    });
+
+    // Try verification in background, but don't wait
+    (async () => {
+      try {
+        const newPrivy = new NewPrivyClient({
+          appId: process.env.NEXT_PUBLIC_PRIVY_APP_ID!,
+          appSecret: process.env.PRIVY_APP_SECRET!,
+        });
+
+        const verificationResult = await verifyTokenWithRetry(
+          newPrivy,
+          token,
+          1,
+        );
+
+        if (verificationResult.userId) {
+          authCache.set(cacheKey, {
+            timestamp: now,
+            isValid: true,
+            userId: verificationResult.userId,
+            lastVerified: now,
+          });
+          console.log("Background verification completed with userId");
+        }
+      } catch (error) {
+        console.log("Background verification failed (ignored):", error);
+      }
+    })();
+
+    // Return immediately
+    return {
+      isValid: true,
+      userId: "",
+    };
+  }
+
+  // Regular flow (not first login)
   try {
     const newPrivy = new NewPrivyClient({
       appId: process.env.NEXT_PUBLIC_PRIVY_APP_ID!,
       appSecret: process.env.PRIVY_APP_SECRET!,
     });
 
-    const verificationResult = await verifyTokenWithRetry(
-      newPrivy,
-      newPrivy,
-      token
-    );
+    const verificationResult = await verifyTokenWithRetry(newPrivy, token);
 
-    console.log(
-      'First verification successful:',
-      verificationResult.isValid
-    );
+    console.log("First verification result:", verificationResult.isValid);
 
-    // Cache the result - but force isValid to true
     authCache.set(cacheKey, {
       timestamp: now,
-      isValid: true, // Force true regardless of verification result
-      userId: verificationResult.userId || '',
+      isValid: true,
+      userId: verificationResult.userId || "",
       lastVerified: now,
     });
 
-    // Return true even if verification said false
     return {
       isValid: true,
-      userId: verificationResult.userId || '',
+      userId: verificationResult.userId || "",
     };
   } catch (error) {
     console.error(
-      'First verification failed, but allowing access anyway:',
-      error
+      "First verification failed, but allowing access anyway:",
+      error,
     );
 
-    // Create cache entry as valid anyway
     authCache.set(cacheKey, {
       timestamp: now,
-      isValid: true, // Trust the cookie existence
-      userId: '',
+      isValid: true,
+      userId: "",
       lastVerified: now,
     });
 
-    // Always succeed
     return {
       isValid: true,
-      userId: '',
+      userId: "",
     };
   }
 }
@@ -471,19 +506,17 @@ async function verifyAndCacheToken(
 async function handleAuthenticatedUser(
   req: NextRequest,
   pathname: string,
-  userId: string
+  userId: string,
 ): Promise<NextResponse | null> {
   if (!isAuthRoute(pathname)) {
-    return null; // Continue with normal flow
+    return null;
   }
 
   // If userId is empty (from failed verification), skip backend check
   if (!userId) {
-    // On /login, go to onboard
     if (pathname === "/login") {
       return createRedirect(req, "/onboard", false);
     }
-    // On /onboard, let them stay
     return NextResponse.next();
   }
 
@@ -504,7 +537,7 @@ async function handleAuthenticatedUser(
     } catch (error) {
       console.error(
         "Error checking user in backend (allowing onboard):",
-        error
+        error,
       );
       return NextResponse.next();
     }
@@ -525,7 +558,7 @@ async function handleAuthenticatedUser(
     } catch (error) {
       console.error(
         "Error checking user in backend (redirecting to onboard):",
-        error
+        error,
       );
       return createRedirect(req, "/onboard", false);
     }
@@ -559,21 +592,20 @@ export async function middleware(req: NextRequest) {
 
     const token = req.cookies.get("privy-token")?.value;
     const accessToken = req.cookies.get("access-token")?.value;
+    const userId = req.cookies.get("user-id")?.value;
 
-    // THE KEY RULE: If either token cookie exists, user is logged in. Period.
+    // THE KEY RULE: If either token cookie exists, user is logged in
     if (token || accessToken) {
       console.log(`[AUTH] Token found for path: ${pathname}`, {
         hasPrivyToken: !!token,
         hasAccessToken: !!accessToken,
+        hasUserId: !!userId,
       });
 
       try {
-        // Use privy-token if available, fallback to access-token
         const authToken = token || accessToken;
         if (!authToken) {
-          console.error(
-            "[AUTH] Both tokens are undefined, this should not happen"
-          );
+          console.error("[AUTH] Both tokens are undefined");
           return response;
         }
 
@@ -582,32 +614,40 @@ export async function middleware(req: NextRequest) {
         const cachedResult = authCache.get(cacheKey);
         const now = Date.now();
 
+        // Detect if this is likely a fresh login (user-id cookie just set)
+        const isFirstLogin = !!userId && !cachedResult;
+
         console.log(`[AUTH] Cache status:`, {
           hasCached: !!cachedResult,
           cacheAge: cachedResult
             ? Math.floor((now - cachedResult.timestamp) / 60000)
             : null,
+          isFirstLogin,
         });
 
-        const { isValid, userId } = await verifyAndCacheToken(
+        const { isValid, userId: verifiedUserId } = await verifyAndCacheToken(
           authToken,
           cacheKey,
           cachedResult,
-          now
+          now,
+          isFirstLogin,
         );
 
         console.log(`[AUTH] Verification result:`, {
           isValid,
-          hasUserId: !!userId,
+          hasUserId: !!(verifiedUserId || userId),
         });
 
-        // This should ALWAYS be true now
         if (isValid) {
+          // Use the cookie userId if verification didn't return one
+          const finalUserId = verifiedUserId || userId || "";
+
           const authRedirect = await handleAuthenticatedUser(
             req,
             pathname,
-            userId
+            finalUserId,
           );
+
           if (authRedirect) {
             console.log(`[AUTH] Redirecting authenticated user`);
             return authRedirect;
@@ -617,18 +657,15 @@ export async function middleware(req: NextRequest) {
           return response;
         }
 
-        // This should NEVER happen, but just in case
         console.error(
-          '[AUTH] WARNING: Token marked invalid despite cookie existing!'
+          "[AUTH] WARNING: Token marked invalid despite cookie existing!",
         );
-        console.log(
-          '[AUTH] Allowing access anyway due to cookie presence'
-        );
+        console.log("[AUTH] Allowing access anyway due to cookie presence");
         return response;
       } catch (error) {
         console.error(
-          '[AUTH] Error during authentication (allowing access):',
-          error
+          "[AUTH] Error during authentication (allowing access):",
+          error,
         );
         return response;
       }
@@ -662,17 +699,14 @@ export async function middleware(req: NextRequest) {
       path: req.nextUrl.pathname,
     });
 
-    // On any error, check if token exists
     const token = req.cookies.get("privy-token")?.value;
     const accessToken = req.cookies.get("access-token")?.value;
 
-    // If either token exists, ALWAYS let them through
     if (token || accessToken) {
       console.log("Error occurred but token exists, allowing access");
       return NextResponse.next();
     }
 
-    // Only redirect if genuinely no token AND on protected route
     if (isProtectedRoute(req.nextUrl.pathname)) {
       return createRedirect(req, "/login", false);
     }

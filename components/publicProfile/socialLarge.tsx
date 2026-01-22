@@ -62,7 +62,7 @@ const SocialLarge: FC<Props> = ({
   const { _id, micrositeId, name, value, url, iconName, iconPath, group } =
     data;
 
-  // console.log("data social large", data);
+  console.log("data social large", data);
 
   const openlink = async () => {
     // if (!accessToken) {

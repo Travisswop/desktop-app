@@ -166,7 +166,7 @@ export default function ClientProfile({ userName }: ClientProfileProps) {
                         }}
                         className="text-base font-medium capitalize mb-1"
                       >
-                        {nftType}
+                        {nftType === "phygital" ? "Product" : nftType}
                       </h2>
 
                       {/* If items > 2, show carousel, else show grid */}
