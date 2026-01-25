@@ -4,13 +4,7 @@ import React, { useEffect, useState } from "react";
 import profileEditIcon from "@/public/images/websites/profile-edit.png";
 import { FiMinus, FiPlus, FiUser } from "react-icons/fi";
 import { TbUserSquare } from "react-icons/tb";
-import {
-  Select,
-  SelectItem,
-  Spinner,
-  Switch,
-  useDisclosure,
-} from "@nextui-org/react";
+import { Spinner, Switch, useDisclosure } from "@nextui-org/react";
 import { LiaFileMedicalSolid } from "react-icons/lia";
 import { IoMdLink } from "react-icons/io";
 import { PiAddressBook } from "react-icons/pi";
@@ -31,6 +25,16 @@ import { sendCloudinaryImage } from "@/lib/SendCloudinaryImage";
 import { useUser } from "@/lib/UserContext";
 import { HexColorPicker } from "react-colorful";
 import { useDesktopUserData } from "../tanstackQueryApi/getUserData";
+
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectLabel,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 const CreateSmartSite = ({ token }: { token: string }) => {
   const { formData, setFormData } = useSmartsiteFormStore();
@@ -86,11 +90,11 @@ const CreateSmartSite = ({ token }: { token: string }) => {
     onOpen();
   };
 
-  useEffect(() => {
-    if (user?.subscription?.status === "free") {
-      router.push("/subscription");
-    }
-  }, [router, user?.subscription?.status]);
+  // useEffect(() => {
+  //   if (user?.subscription?.status === "free") {
+  //     router.push("/subscription");
+  //   }
+  // }, [router, user?.subscription?.status]);
 
   useEffect(() => {
     setFormData("backgroundImg", "5");
@@ -153,7 +157,7 @@ const CreateSmartSite = ({ token }: { token: string }) => {
     const newFormData = new FormData(e.currentTarget);
     // console.log("formData", formData);
 
-    console.log("hit");
+    // console.log("hit");
 
     setGatedAccessError({
       contractAddress: "",
@@ -282,11 +286,11 @@ const CreateSmartSite = ({ token }: { token: string }) => {
   ];
 
   return (
-    <div className="h-[calc(100vh-150px)] overflow-hidden">
-      <div className="w-full lg:w-[84%] xl:w-[72%] 2xl:w-[68%] mx-auto bg-white py-4 px-[4%] lg:px-[10%] rounded-xl h-full overflow-y-auto">
+    <div className="h-full">
+      <div className="w-full lg:w-[84%] xl:w-[72%] 2xl:w-[68%] mx-auto bg-white py-4 rounded-xl">
         <form
           onSubmit={handleSmartSiteUpdateInfo}
-          className="flex flex-col gap-4 overflow-auto"
+          className="flex flex-col gap-10 justify-center h-full px-[4%] lg:px-[10%]"
         >
           <div className="">
             <div className="flex justify-center">
@@ -366,9 +370,9 @@ const CreateSmartSite = ({ token }: { token: string }) => {
                     name="name"
                     required={true}
                     defaultValue={""}
-                    placeholder={`Type your name`}
+                    placeholder={`Jhon Smith`}
                     onChange={handleChange}
-                    className="w-full border border-[#ede8e8] focus:border-[#e5e0e0] rounded-xl focus:outline-none pl-10 py-2 text-gray-700 bg-white"
+                    className="w-full pl-10 pr-4 py-2.5 text-gray-700 bg-white rounded-2xl shadow-md shadow-gray-200 border border-gray-100 focus:outline-none"
                   />
                 </div>
               </div>
@@ -382,20 +386,20 @@ const CreateSmartSite = ({ token }: { token: string }) => {
                     size={18}
                   />
                   <textarea
-                    placeholder={`Type your bio`}
+                    placeholder={`Real State Manager`}
                     defaultValue={""}
                     required={true}
                     onChange={handleChange}
                     name="bio"
-                    className="w-full border border-[#ede8e8] focus:border-[#e5e0e0] rounded-xl focus:outline-none pl-10 py-2 text-gray-700 bg-white"
+                    className="w-full pl-10 pr-4 py-2.5 text-gray-700 bg-white rounded-2xl shadow-md shadow-gray-200 border border-gray-100 focus:outline-none"
                     rows={4}
                   />
                 </div>
               </div>
             </div>
           </div>
-          <div className="flex flex-col sm:flex-row flex-wrap items-start justify-between gap-x-6 gap-y-3">
-            <Select
+          <div className="flex flex-wrap flex-col sm:flex-row items-start justify-between gap-x-5 gap-y-2">
+            {/* <Select
               variant="bordered"
               selectedKeys={[formData.fontType]}
               onChange={(e) => setFormData("fontType", e.target.value as any)}
@@ -407,7 +411,38 @@ const CreateSmartSite = ({ token }: { token: string }) => {
               {fontType.map((font) => (
                 <SelectItem key={font.key}>{font.label}</SelectItem>
               ))}
-            </Select>
+            </Select> */}
+            <div className="flex flex-col gap-1">
+              <label htmlFor="name" className="font-medium text-gray-700">
+                Font Type
+              </label>
+
+              <Select
+                value={formData.fontType}
+                onValueChange={(value) => {
+                  handleChange({
+                    target: {
+                      name: "fontType",
+                      value: value,
+                    },
+                  });
+                }}
+              >
+                <SelectTrigger className="min-w-[140px] shadow-md border-gray-100">
+                  <SelectValue placeholder="Select a Font" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectGroup>
+                    <SelectLabel>Select Font</SelectLabel>
+                    {fontType.map((font) => (
+                      <SelectItem value={font.key} key={font.key}>
+                        {font.label}
+                      </SelectItem>
+                    ))}
+                  </SelectGroup>
+                </SelectContent>
+              </Select>
+            </div>
             <div>
               <p className="text-sm font-medium">Font Color</p>
               <div className="flex items-center gap-2 mt-1">
@@ -441,7 +476,9 @@ const CreateSmartSite = ({ token }: { token: string }) => {
               </div>
             </div>
             <div>
-              <p className="text-sm font-medium sm:text-end">Templates Color</p>
+              <p className="text-sm font-medium sm:text-end">
+                Secondary Font Color
+              </p>
               <div className="flex items-center sm:justify-end gap-2 mt-1 w-36">
                 <button
                   type="button"
@@ -485,7 +522,7 @@ const CreateSmartSite = ({ token }: { token: string }) => {
                     </button>
                   )}
 
-                <div className="relative">
+                {/* <div className="relative">
                   <button
                     type="button"
                     onClick={() =>
@@ -513,7 +550,7 @@ const CreateSmartSite = ({ token }: { token: string }) => {
                       />
                     </div>
                   )}
-                </div>
+                </div> */}
               </div>
             </div>
           </div>
