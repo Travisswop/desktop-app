@@ -128,6 +128,11 @@ const EditProfileContent = ({ data, token }: any) => {
         (microsite: any) => microsite.primary,
       );
 
+      console.log(
+        "primaryMicrosite?.ens?.toLowerCase()",
+        primaryMicrosite?.ens?.toLowerCase(),
+      );
+
       // Delete ENS name if exists
       if (primaryMicrosite?.ens?.includes(".swop.id")) {
         await deleteEnsName(primaryMicrosite?.ens?.toLowerCase());
