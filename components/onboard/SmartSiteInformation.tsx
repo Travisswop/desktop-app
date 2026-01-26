@@ -182,7 +182,7 @@ export default function SmartSiteInformation({
             infoBar,
             contact,
           }),
-        }
+        },
       );
 
       if (!response.ok) {
@@ -342,7 +342,10 @@ export default function SmartSiteInformation({
                 disabled={isSubmitting}
               >
                 {isSubmitting ? (
-                  <Loader color="black" className="animate-spin" />
+                  <span className="flex items-center gap-2">
+                    Saving
+                    <Loader size={20} color="black" className="animate-spin" />
+                  </span>
                 ) : (
                   "Save"
                 )}
