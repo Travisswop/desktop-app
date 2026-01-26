@@ -134,7 +134,7 @@ const EditProfileContent = ({ data, token }: any) => {
       }
 
       // Delete user account
-      // await deleteUserAccount();
+      await deleteUserAccount();
     } catch (error) {
       console.error("Error requesting account deletion:", error);
       toast.error("Something went wrong!");
