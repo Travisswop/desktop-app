@@ -39,6 +39,7 @@ export {
 // Re-export validation constants
 export {
   MIN_ORDER_SIZE,
+  MIN_ORDER_AMOUNT,
   MIN_PRICE_CENTS,
   MAX_PRICE_CENTS,
   DUST_THRESHOLD,

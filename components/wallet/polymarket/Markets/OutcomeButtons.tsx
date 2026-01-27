@@ -59,10 +59,10 @@ export default function OutcomeButtons({
               disabled={isClosed || disabled || !tokenId}
               className={`py-2 px-3 rounded-lg font-medium text-sm transition-all ${
                 isClosed || disabled
-                  ? 'bg-gray-700/50 text-gray-500 cursor-not-allowed'
+                  ? 'bg-gray-100 text-gray-400 cursor-not-allowed border border-gray-200'
                   : isYes
-                    ? 'bg-green-500/20 hover:bg-green-500/30 text-green-400 border border-green-500/30'
-                    : 'bg-red-500/20 hover:bg-red-500/30 text-red-400 border border-red-500/30'
+                    ? 'bg-green-50 hover:bg-green-100 text-green-700 border border-green-200'
+                    : 'bg-red-50 hover:bg-red-100 text-red-700 border border-red-200'
               }`}
             >
               <span className="block text-xs mb-0.5">{outcome}</span>
@@ -98,8 +98,8 @@ export default function OutcomeButtons({
             disabled={isClosed || disabled || !tokenId}
             className={`w-full py-2 px-3 rounded-lg font-medium text-sm transition-all flex items-center justify-between ${
               isClosed || disabled
-                ? 'bg-gray-700/50 text-gray-500 cursor-not-allowed'
-                : 'bg-blue-500/20 hover:bg-blue-500/30 text-blue-400 border border-blue-500/30'
+                ? 'bg-gray-100 text-gray-400 cursor-not-allowed border border-gray-200'
+                : 'bg-gray-50 hover:bg-gray-100 text-gray-900 border border-gray-200'
             }`}
           >
             <span className="truncate">{outcome}</span>

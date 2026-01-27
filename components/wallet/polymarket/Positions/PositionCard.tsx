@@ -1,9 +1,9 @@
-"use client";
+'use client';
 
-import type { PolymarketPosition } from "@/hooks/polymarket";
-import Card from "../shared/Card";
-import Badge from "../shared/Badge";
-import { formatCurrency, formatPercentage } from "@/lib/polymarket/formatting";
+import type { PolymarketPosition } from '@/hooks/polymarket';
+import Card from '../shared/Card';
+import Badge from '../shared/Badge';
+import { formatCurrency, formatPercentage } from '@/lib/polymarket/formatting';
 
 interface PositionCardProps {
   position: PolymarketPosition;
@@ -39,7 +39,7 @@ export default function PositionCard({
           <img
             src={position.icon}
             alt=""
-            className="w-12 h-12 rounded flex-shrink-0 object-cover"
+            className="w-12 h-12 rounded-lg flex-shrink-0 object-cover border border-gray-100"
           />
         )}
 
@@ -47,10 +47,10 @@ export default function PositionCard({
           {/* Title and Outcome */}
           <div className="flex items-start justify-between gap-2 mb-2">
             <div className="flex-1 min-w-0">
-              <h4 className="font-semibold text-sm text-white line-clamp-1">
+              <h4 className="font-semibold text-sm text-gray-900 line-clamp-1">
                 {position.title}
               </h4>
-              <p className="text-sm text-blue-400">{position.outcome}</p>
+              <p className="text-sm text-gray-600">{position.outcome}</p>
             </div>
             {isRedeemable && <Badge variant="success">Redeemable</Badge>}
             {isPendingVerification && (
@@ -61,26 +61,26 @@ export default function PositionCard({
           {/* Position Stats */}
           <div className="grid grid-cols-4 gap-2 text-sm mb-3">
             <div>
-              <p className="text-gray-400 text-xs">Size</p>
-              <p className="text-white font-medium">
+              <p className="text-gray-500 text-xs">Size</p>
+              <p className="text-gray-900 font-medium">
                 {position.size.toFixed(2)}
               </p>
             </div>
             <div>
-              <p className="text-gray-400 text-xs">Avg Price</p>
-              <p className="text-white font-medium">
+              <p className="text-gray-500 text-xs">Avg Price</p>
+              <p className="text-gray-900 font-medium">
                 {Math.round(position.avgPrice * 100)}¢
               </p>
             </div>
             <div>
-              <p className="text-gray-400 text-xs">Current</p>
-              <p className="text-white font-medium">
+              <p className="text-gray-500 text-xs">Current</p>
+              <p className="text-gray-900 font-medium">
                 {Math.round(position.curPrice * 100)}¢
               </p>
             </div>
             <div>
-              <p className="text-gray-400 text-xs">Value</p>
-              <p className="text-white font-medium">
+              <p className="text-gray-500 text-xs">Value</p>
+              <p className="text-gray-900 font-medium">
                 {formatCurrency(position.currentValue)}
               </p>
             </div>
@@ -89,11 +89,11 @@ export default function PositionCard({
           {/* PnL */}
           <div className="flex items-center gap-4 mb-3">
             <div>
-              <p className="text-gray-400 text-xs">P&L</p>
+              <p className="text-gray-500 text-xs">P&L</p>
               <p
-                className={`font-bold ${isProfitable ? "text-green-400" : "text-red-400"}`}
+                className={`font-bold ${isProfitable ? 'text-green-600' : 'text-red-600'}`}
               >
-                {isProfitable ? "+" : ""}
+                {isProfitable ? '+' : ''}
                 {formatCurrency(position.cashPnl)} (
                 {formatPercentage(position.percentPnl)})
               </p>
@@ -106,9 +106,9 @@ export default function PositionCard({
               <button
                 onClick={() => onRedeem(position)}
                 disabled={isRedeeming || !canRedeem}
-                className="flex-1 py-2 bg-green-600 hover:bg-green-700 disabled:bg-gray-600 disabled:cursor-not-allowed text-white text-sm font-medium rounded-lg transition-colors"
+                className="flex-1 py-2 bg-green-600 hover:bg-green-700 disabled:bg-gray-300 disabled:cursor-not-allowed text-white text-sm font-medium rounded-lg transition-colors"
               >
-                {isRedeeming ? "Redeeming..." : "Redeem"}
+                {isRedeeming ? 'Redeeming...' : 'Redeem'}
               </button>
             ) : (
               <button
@@ -116,13 +116,13 @@ export default function PositionCard({
                 disabled={
                   isSelling || isPendingVerification || isSubmitting || !canSell
                 }
-                className="flex-1 py-2 bg-red-600 hover:bg-red-700 disabled:bg-gray-600 disabled:cursor-not-allowed text-white text-sm font-medium rounded-lg transition-colors"
+                className="flex-1 py-2 bg-red-600 hover:bg-red-700 disabled:bg-gray-300 disabled:cursor-not-allowed text-white text-sm font-medium rounded-lg transition-colors"
               >
                 {isSelling
-                  ? "Selling..."
+                  ? 'Selling...'
                   : isPendingVerification
-                    ? "Processing..."
-                    : "Sell"}
+                    ? 'Processing...'
+                    : 'Sell'}
               </button>
             )}
           </div>

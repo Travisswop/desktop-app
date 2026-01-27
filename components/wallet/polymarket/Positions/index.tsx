@@ -1,19 +1,28 @@
-"use client";
+'use client';
 
-import { useState, useMemo, useEffect } from "react";
-import { useQueryClient } from "@tanstack/react-query";
-import { useClobOrder, useRedeemPosition, useUserPositions, PolymarketPosition } from "@/hooks/polymarket";
-import { usePolymarketWallet } from "@/providers/polymarket";
-import { useTrading } from "@/providers/polymarket";
+import { useState, useMemo, useEffect } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
+import {
+  useClobOrder,
+  useRedeemPosition,
+  useUserPositions,
+  PolymarketPosition,
+} from '@/hooks/polymarket';
+import { usePolymarketWallet } from '@/providers/polymarket';
+import { useTrading } from '@/providers/polymarket';
 
-import ErrorState from "../shared/ErrorState";
-import EmptyState from "../shared/EmptyState";
-import LoadingState from "../shared/LoadingState";
-import PositionCard from "./PositionCard";
-import PositionFilters from "./PositionFilters";
+import ErrorState from '../shared/ErrorState';
+import EmptyState from '../shared/EmptyState';
+import LoadingState from '../shared/LoadingState';
+import PositionCard from './PositionCard';
+import PositionFilters from './PositionFilters';
 
-import { createPollingInterval } from "@/lib/polymarket/polling";
-import { DUST_THRESHOLD, POLLING_DURATION, POLLING_INTERVAL } from "@/constants/polymarket";
+import { createPollingInterval } from '@/lib/polymarket/polling';
+import {
+  DUST_THRESHOLD,
+  POLLING_DURATION,
+  POLLING_INTERVAL,
+} from '@/constants/polymarket';
 
 export default function UserPositions() {
   const { clobClient, relayClient, safeAddress } = useTrading();
@@ -63,23 +72,23 @@ export default function UserPositions() {
       await submitOrder({
         tokenId: position.asset,
         size: position.size,
-        side: "SELL",
+        side: 'SELL',
         negRisk: position.negativeRisk,
         isMarketOrder: true,
       });
 
       setPendingVerification((prev) =>
-        new Map(prev).set(position.asset, position.size)
+        new Map(prev).set(position.asset, position.size),
       );
 
-      queryClient.invalidateQueries({ queryKey: ["polymarket-positions"] });
+      queryClient.invalidateQueries({ queryKey: ['polymarket-positions'] });
 
       createPollingInterval(
         () => {
-          queryClient.invalidateQueries({ queryKey: ["polymarket-positions"] });
+          queryClient.invalidateQueries({ queryKey: ['polymarket-positions'] });
         },
         POLLING_INTERVAL,
-        POLLING_DURATION
+        POLLING_DURATION,
       );
 
       setTimeout(() => {
@@ -90,7 +99,7 @@ export default function UserPositions() {
         });
       }, POLLING_DURATION);
     } catch (err) {
-      console.error("Failed to sell position:", err);
+      console.error('Failed to sell position:', err);
     } finally {
       setSellingAsset(null);
     }
@@ -110,19 +119,19 @@ export default function UserPositions() {
         size: position.size,
       });
 
-      queryClient.invalidateQueries({ queryKey: ["polymarket-positions"] });
-      queryClient.invalidateQueries({ queryKey: ["usdcBalance"] });
+      queryClient.invalidateQueries({ queryKey: ['polymarket-positions'] });
+      queryClient.invalidateQueries({ queryKey: ['usdcBalance'] });
 
       createPollingInterval(
         () => {
-          queryClient.invalidateQueries({ queryKey: ["polymarket-positions"] });
-          queryClient.invalidateQueries({ queryKey: ["usdcBalance"] });
+          queryClient.invalidateQueries({ queryKey: ['polymarket-positions'] });
+          queryClient.invalidateQueries({ queryKey: ['usdcBalance'] });
         },
         POLLING_INTERVAL,
-        POLLING_DURATION
+        POLLING_DURATION,
       );
     } catch (err) {
-      console.error("Failed to redeem position:", err);
+      console.error('Failed to redeem position:', err);
     } finally {
       setRedeemingAsset(null);
     }
@@ -168,8 +177,8 @@ export default function UserPositions() {
 
       {/* Dust Warning Banner */}
       {hideDust && positions && positions.length > activePositions.length && (
-        <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-lg p-3">
-          <p className="text-yellow-300 text-sm">
+        <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">
+          <p className="text-amber-700 text-sm">
             Hiding {positions.length - activePositions.length} dust position(s)
             (value &lt; ${DUST_THRESHOLD.toFixed(2)})
           </p>

@@ -1,17 +1,17 @@
-"use client";
+'use client';
 
-import { usePolymarketWallet } from "@/providers/polymarket";
+import { usePolymarketWallet } from '@/providers/polymarket';
 
-import SessionInfo from "./SessionInfo";
-import SessionStatus from "./SessionStatus";
-import SessionSuccess from "./SessionSuccess";
-import SessionActions from "./SessionActions";
-import SessionProgress from "./SessionProgress";
+import SessionInfo from './SessionInfo';
+import SessionStatus from './SessionStatus';
+import SessionSuccess from './SessionSuccess';
+import SessionActions from './SessionActions';
+import SessionProgress from './SessionProgress';
 
 import type {
   TradingSession as TradingSessionType,
   SessionStep,
-} from "@/lib/polymarket/session";
+} from '@/lib/polymarket/session';
 
 interface Props {
   session: TradingSessionType | null;
@@ -37,16 +37,16 @@ export default function TradingSession({
   }
 
   return (
-    <div className="bg-white/5 backdrop-blur-md rounded-lg p-6 border border-white/10">
+    <div className="bg-white rounded-xl p-4 border border-gray-100 shadow-sm">
       <SessionStatus isComplete={isComplete} />
       <SessionInfo isComplete={isComplete} />
       <SessionProgress currentStep={currentStep} />
       {isComplete && session && <SessionSuccess session={session} />}
 
       {error && (
-        <div className="bg-red-500/10 border border-red-500/20 rounded p-4 mb-4">
-          <p className="text-sm text-red-300 font-medium mb-2">Error</p>
-          <pre className="text-xs text-red-400 whitespace-pre-wrap">
+        <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-4">
+          <p className="text-sm text-red-700 font-medium mb-1">Error</p>
+          <pre className="text-xs text-red-600 whitespace-pre-wrap">
             {error.message}
           </pre>
         </div>

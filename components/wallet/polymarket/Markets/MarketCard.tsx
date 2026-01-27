@@ -29,6 +29,7 @@ export default function MarketCard({
   disabled = false,
   onOutcomeClick,
 }: MarketCardProps) {
+  console.log('market', market);
   const volumeUSD = parseFloat(
     String(market.volume24hr || market.volume || '0'),
   );
@@ -52,14 +53,14 @@ export default function MarketCard({
           <img
             src={market.icon || market.eventIcon}
             alt=""
-            className="w-12 h-12 rounded flex-shrink-0 object-cover"
+            className="w-12 h-12 rounded-lg flex-shrink-0 object-cover border border-gray-100"
           />
         )}
 
         <div className="flex-1 min-w-0">
           {/* Market Title and Closed Badge */}
           <div className="flex items-start justify-between gap-2 mb-2">
-            <h4 className="font-semibold text-base line-clamp-2 flex-1">
+            <h4 className="font-semibold text-base text-gray-900 line-clamp-2 flex-1">
               {market.question}
             </h4>
             {isClosed && <Badge variant="closed">Closed</Badge>}

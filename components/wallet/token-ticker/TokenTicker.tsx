@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import TokenCard from './TokenCard';
 import { MarketService } from '@/services/market-service';
 import { MarketData } from '@/types/token';
@@ -17,57 +17,51 @@ const CHAIN_TO_COIN_GECKO_ID = [
   'binancecoin',
 ];
 
-export default function TokenTicker() {
-  const [tokens, setTokens] = useState<MarketData[]>([]);
-  const [loading, setLoading] = useState(true);
-  const { accessToken } = useUser();
+const fetchTokenTickerData = async (accessToken: string): Promise<MarketData[]> => {
+  const { successful } = await MarketService.getBatchMarketData(
+    CHAIN_TO_COIN_GECKO_ID as string[],
+    accessToken || ''
+  );
 
-  useEffect(() => {
-    const fetchTokenData = async () => {
+  const tokensWithSparkline = await Promise.all(
+    successful.map(async (token) => {
       try {
-        const { successful } = await MarketService.getBatchMarketData(
-          CHAIN_TO_COIN_GECKO_ID as string[],
+        const history = await MarketService.getHistoricalPrices(
+          token.id,
+          1,
           accessToken || ''
         );
 
-        const tokensWithSparkline = await Promise.all(
-          successful.map(async (token) => {
-            try {
-              const history = await MarketService.getHistoricalPrices(
-                token.id,
-                1,
-                accessToken || ''
-              );
-
-              return {
-                ...token,
-                sparklineData: history?.prices?.map(
-                  (point: { price: number }) => point.price
-                ),
-              } as unknown as MarketData;
-            } catch (error) {
-              console.error(
-                `Error fetching 1H historical data for token ${token.id}:`,
-                error
-              );
-              return token as unknown as MarketData;
-            }
-          })
-        );
-
-        setTokens(tokensWithSparkline as unknown as MarketData[]);
+        return {
+          ...token,
+          sparklineData: history?.prices?.map(
+            (point: { price: number }) => point.price
+          ),
+        } as unknown as MarketData;
       } catch (error) {
-        console.error('Error fetching token data:', error);
-      } finally {
-        setLoading(false);
+        console.error(
+          `Error fetching 1H historical data for token ${token.id}:`,
+          error
+        );
+        return token as unknown as MarketData;
       }
-    };
+    })
+  );
 
-    fetchTokenData();
-    // Refresh data every 60 seconds
-    const interval = setInterval(fetchTokenData, 60000);
-    return () => clearInterval(interval);
-  }, []);
+  return tokensWithSparkline as unknown as MarketData[];
+};
+
+export default function TokenTicker() {
+  const { accessToken } = useUser();
+
+  const { data: tokens = [], isLoading: loading } = useQuery({
+    queryKey: ['tokenTicker'],
+    queryFn: () => fetchTokenTickerData(accessToken || ''),
+    staleTime: 60 * 1000, // Data stays fresh for 60 seconds
+    gcTime: 5 * 60 * 1000, // Cache persists for 5 minutes
+    refetchInterval: 60 * 1000, // Refresh every 60 seconds
+    refetchOnWindowFocus: false,
+  });
 
   if (loading) {
     return (

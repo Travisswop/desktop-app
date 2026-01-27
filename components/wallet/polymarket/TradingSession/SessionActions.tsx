@@ -1,4 +1,4 @@
-import type { SessionStep } from "@/lib/polymarket/session";
+import type { SessionStep } from '@/lib/polymarket/session';
 
 interface SessionActionsProps {
   isComplete: boolean | undefined;
@@ -13,13 +13,13 @@ export default function SessionActions({
   onInitialize,
   onEnd,
 }: SessionActionsProps) {
-  const isProcessing = currentStep !== "idle" && currentStep !== "complete";
+  const isProcessing = currentStep !== 'idle' && currentStep !== 'complete';
 
   if (isComplete) {
     return (
       <button
         onClick={onEnd}
-        className="w-full py-3 bg-red-600/20 hover:bg-red-600/30 text-red-400 font-medium rounded-lg transition-colors border border-red-500/30"
+        className="w-full py-3 bg-red-50 hover:bg-red-100 text-red-600 font-medium rounded-lg transition-colors border border-red-200"
       >
         End Session
       </button>
@@ -30,9 +30,9 @@ export default function SessionActions({
     <button
       onClick={onInitialize}
       disabled={isProcessing}
-      className="w-full py-3 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 disabled:cursor-not-allowed text-white font-bold rounded-lg transition-colors"
+      className="w-full py-3 bg-black hover:bg-gray-800 disabled:bg-gray-300 disabled:cursor-not-allowed text-white font-bold rounded-lg transition-colors"
     >
-      {isProcessing ? "Initializing..." : "Initialize Trading Session"}
+      {isProcessing ? 'Initializing...' : 'Initialize Trading Session'}
     </button>
   );
 }

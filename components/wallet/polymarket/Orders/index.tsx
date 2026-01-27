@@ -1,18 +1,18 @@
-"use client";
+'use client';
 
-import { useState } from "react";
-import { useTrading } from "@/providers/polymarket";
-import { useActiveOrders, useClobOrder } from "@/hooks/polymarket";
+import { useState } from 'react';
+import { useTrading } from '@/providers/polymarket';
+import { useActiveOrders, useClobOrder } from '@/hooks/polymarket';
 
-import ErrorState from "../shared/ErrorState";
-import EmptyState from "../shared/EmptyState";
-import LoadingState from "../shared/LoadingState";
-import OrderCard from "./OrderCard";
+import ErrorState from '../shared/ErrorState';
+import EmptyState from '../shared/EmptyState';
+import LoadingState from '../shared/LoadingState';
+import OrderCard from './OrderCard';
 
 export default function ActiveOrders() {
   const { clobClient, safeAddress } = useTrading();
   const [cancellingOrderId, setCancellingOrderId] = useState<string | null>(
-    null
+    null,
   );
 
   const {
@@ -28,7 +28,7 @@ export default function ActiveOrders() {
     try {
       await cancelOrder(orderId);
     } catch (err) {
-      console.error("Failed to cancel order:", err);
+      console.error('Failed to cancel order:', err);
     } finally {
       setCancellingOrderId(null);
     }
@@ -54,7 +54,7 @@ export default function ActiveOrders() {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <h3 className="text-lg font-bold text-white">
+        <h3 className="text-lg font-bold text-gray-900">
           Open Orders ({orders.length})
         </h3>
       </div>

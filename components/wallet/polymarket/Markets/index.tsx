@@ -1,8 +1,8 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useTrading } from '@/providers/polymarket';
-import { useMarkets } from '@/hooks/polymarket';
+import { useMarkets, usePolygonBalances, useUserPositions } from '@/hooks/polymarket';
 import {
   type CategoryId,
   DEFAULT_CATEGORY,
@@ -16,19 +16,27 @@ import MarketCard from './MarketCard';
 import CategoryTabs from './CategoryTabs';
 import OrderPlacementModal from '../OrderModal';
 
+type SelectedMarket = {
+  marketTitle: string;
+  outcome: string;
+  price: number;
+  tokenId: string;
+  negRisk: boolean;
+  yesTokenId: string;
+  noTokenId: string;
+  yesPrice: number;
+  noPrice: number;
+};
+
 export default function HighVolumeMarkets() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [activeCategory, setActiveCategory] =
     useState<CategoryId>(DEFAULT_CATEGORY);
-  const [selectedOutcome, setSelectedOutcome] = useState<{
-    marketTitle: string;
-    outcome: string;
-    price: number;
-    tokenId: string;
-    negRisk: boolean;
-  } | null>(null);
+  const [selectedMarket, setSelectedMarket] = useState<SelectedMarket | null>(null);
 
-  const { clobClient, isGeoblocked } = useTrading();
+  const { clobClient, isGeoblocked, safeAddress } = useTrading();
+  const { usdcBalance } = usePolygonBalances(safeAddress);
+  const { data: positions } = useUserPositions(safeAddress);
 
   const {
     data: markets,
@@ -42,6 +50,25 @@ export default function HighVolumeMarkets() {
   const category = getCategoryById(activeCategory);
   const categoryLabel = category?.label || 'Markets';
 
+  // Calculate share balances for selected market
+  const { yesShares, noShares } = useMemo(() => {
+    if (!selectedMarket || !positions) {
+      return { yesShares: 0, noShares: 0 };
+    }
+
+    const yesPosition = positions.find(
+      (p) => p.asset === selectedMarket.yesTokenId
+    );
+    const noPosition = positions.find(
+      (p) => p.asset === selectedMarket.noTokenId
+    );
+
+    return {
+      yesShares: yesPosition?.size || 0,
+      noShares: noPosition?.size || 0,
+    };
+  }, [selectedMarket, positions]);
+
   const handleOutcomeClick = (
     marketTitle: string,
     outcome: string,
@@ -49,19 +76,37 @@ export default function HighVolumeMarkets() {
     tokenId: string,
     negRisk: boolean,
   ) => {
-    setSelectedOutcome({
+    // Find the market to get both token IDs and prices
+    const market = markets?.find((m) => m.question === marketTitle);
+    if (!market) return;
+
+    const tokenIds = market.clobTokenIds
+      ? JSON.parse(market.clobTokenIds)
+      : [];
+
+    const yesTokenId = tokenIds[0] || tokenId;
+    const noTokenId = tokenIds[1] || '';
+
+    const yesPrice = market.realtimePrices?.[yesTokenId]?.bidPrice || price;
+    const noPrice = market.realtimePrices?.[noTokenId]?.bidPrice || (1 - price);
+
+    setSelectedMarket({
       marketTitle,
       outcome,
       price,
       tokenId,
       negRisk,
+      yesTokenId,
+      noTokenId,
+      yesPrice,
+      noPrice,
     });
     setIsModalOpen(true);
   };
 
   const handleCloseModal = () => {
     setIsModalOpen(false);
-    setSelectedOutcome(null);
+    setSelectedMarket(null);
   };
 
   const handleCategoryChange = (categoryId: CategoryId) => {
@@ -79,11 +124,11 @@ export default function HighVolumeMarkets() {
 
         {/* Header */}
         <div className="flex items-center justify-between">
-          <h3 className="text-xl font-bold ">
+          <h3 className="text-lg font-bold text-gray-900">
             {categoryLabel} Markets{' '}
             {markets ? `(${markets.length})` : ''}
           </h3>
-          <p className="text-xs ">Sorted by volume + liquidity</p>
+          <p className="text-xs text-gray-500">Sorted by volume + liquidity</p>
         </div>
 
         {/* Loading State */}
@@ -124,16 +169,23 @@ export default function HighVolumeMarkets() {
       </div>
 
       {/* Order Placement Modal */}
-      {selectedOutcome && (
+      {selectedMarket && (
         <OrderPlacementModal
           isOpen={isModalOpen}
           onClose={handleCloseModal}
-          marketTitle={selectedOutcome.marketTitle}
-          outcome={selectedOutcome.outcome}
-          currentPrice={selectedOutcome.price}
-          tokenId={selectedOutcome.tokenId}
-          negRisk={selectedOutcome.negRisk}
+          marketTitle={selectedMarket.marketTitle}
+          outcome={selectedMarket.outcome}
+          currentPrice={selectedMarket.price}
+          tokenId={selectedMarket.tokenId}
+          negRisk={selectedMarket.negRisk}
           clobClient={clobClient}
+          balance={usdcBalance}
+          yesPrice={selectedMarket.yesPrice}
+          noPrice={selectedMarket.noPrice}
+          yesTokenId={selectedMarket.yesTokenId}
+          noTokenId={selectedMarket.noTokenId}
+          yesShares={yesShares}
+          noShares={noShares}
         />
       )}
     </>

@@ -1,19 +1,19 @@
-import type { SessionStep } from "@/lib/polymarket/session";
+import type { SessionStep } from '@/lib/polymarket/session';
 
 interface SessionProgressProps {
   currentStep: SessionStep;
 }
 
 const steps: { id: SessionStep; label: string }[] = [
-  { id: "checking", label: "Checking session..." },
-  { id: "deploying", label: "Deploying Safe wallet..." },
-  { id: "credentials", label: "Creating API credentials..." },
-  { id: "approvals", label: "Setting token approvals..." },
-  { id: "complete", label: "Session ready!" },
+  { id: 'checking', label: 'Checking session...' },
+  { id: 'deploying', label: 'Deploying Safe wallet...' },
+  { id: 'credentials', label: 'Creating API credentials...' },
+  { id: 'approvals', label: 'Setting token approvals...' },
+  { id: 'complete', label: 'Session ready!' },
 ];
 
 export default function SessionProgress({ currentStep }: SessionProgressProps) {
-  if (currentStep === "idle") return null;
+  if (currentStep === 'idle') return null;
 
   const currentIndex = steps.findIndex((s) => s.id === currentStep);
 
@@ -27,16 +27,16 @@ export default function SessionProgress({ currentStep }: SessionProgressProps) {
           return (
             <div
               key={step.id}
-              className={`flex items-center gap-3 p-2 rounded ${
+              className={`flex items-center gap-3 p-2 rounded-lg ${
                 isActive
-                  ? "bg-blue-500/20 border border-blue-500/30"
+                  ? 'bg-blue-50 border border-blue-200'
                   : isComplete
-                    ? "bg-green-500/10"
-                    : "bg-gray-800/30"
+                    ? 'bg-green-50 border border-green-100'
+                    : 'bg-gray-50 border border-gray-100'
               }`}
             >
               {isActive ? (
-                <div className="w-4 h-4 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
+                <div className="w-4 h-4 border-2 border-black border-t-transparent rounded-full animate-spin" />
               ) : isComplete ? (
                 <div className="w-4 h-4 bg-green-500 rounded-full flex items-center justify-center">
                   <svg
@@ -54,15 +54,15 @@ export default function SessionProgress({ currentStep }: SessionProgressProps) {
                   </svg>
                 </div>
               ) : (
-                <div className="w-4 h-4 border border-gray-500 rounded-full" />
+                <div className="w-4 h-4 border border-gray-300 rounded-full" />
               )}
               <span
                 className={`text-sm ${
                   isActive
-                    ? "text-blue-400 font-medium"
+                    ? 'text-gray-900 font-medium'
                     : isComplete
-                      ? "text-green-400"
-                      : "text-gray-500"
+                      ? 'text-green-700'
+                      : 'text-gray-400'
                 }`}
               >
                 {step.label}

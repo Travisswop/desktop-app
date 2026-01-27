@@ -6,11 +6,13 @@ interface CardProps {
 
 export default function Card({
   children,
-  className = "",
+  className = '',
   hover = false,
 }: CardProps) {
-  const baseStyles = "bg-white/5 backdrop-blur-md rounded-lg border border-white/10";
-  const hoverStyles = hover ? "hover:bg-white/10 transition-colors" : "";
+  const baseStyles = 'bg-white rounded-xl border border-gray-100 shadow-sm';
+  const hoverStyles = hover
+    ? 'hover:shadow-md hover:border-gray-200 transition-all duration-200'
+    : '';
 
   return (
     <div className={`${baseStyles} ${hoverStyles} ${className}`}>

@@ -1,4 +1,4 @@
-"use client";
+'use client';
 
 interface PositionFiltersProps {
   positionCount: number;
@@ -13,18 +13,18 @@ export default function PositionFilters({
 }: PositionFiltersProps) {
   return (
     <div className="flex items-center justify-between">
-      <h3 className="text-lg font-bold text-white">
+      <h3 className="text-lg font-bold text-gray-900">
         Positions ({positionCount})
       </h3>
       <button
         onClick={onToggleHideDust}
-        className={`px-3 py-1.5 rounded text-sm font-medium transition-colors ${
+        className={`px-3 py-1.5 rounded-full text-sm font-medium transition-colors ${
           hideDust
-            ? "bg-blue-500/20 text-blue-400"
-            : "bg-gray-700/50 text-gray-400"
+            ? 'bg-black text-white'
+            : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
         }`}
       >
-        {hideDust ? "Show Dust" : "Hide Dust"}
+        {hideDust ? 'Show Dust' : 'Hide Dust'}
       </button>
     </div>
   );
