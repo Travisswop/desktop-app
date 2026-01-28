@@ -1,20 +1,18 @@
-"use client";
+'use client';
 
-import { useClobOrder, useTickSize } from "@/hooks/polymarket";
-import { useState, useEffect, useRef } from "react";
-import { usePolymarketWallet } from "@/providers/polymarket";
+import { useClobOrder, useTickSize } from '@/hooks/polymarket';
+import { useState, useEffect, useRef } from 'react';
+import { usePolymarketWallet } from '@/providers/polymarket';
 
-import Portal from "../shared/Portal";
-import BuySellToggle from "./BuySellToggle";
-import OutcomeSelector from "./OutcomeSelector";
-import AmountInput from "./AmountInput";
-import SharesInput from "./SharesInput";
-import ToWinDisplay from "./ToWinDisplay";
-import YoullReceiveDisplay from "./YoullReceiveDisplay";
+import Portal from '../shared/Portal';
+import BuySellToggle from './BuySellToggle';
+import OutcomeSelector from './OutcomeSelector';
+import AmountInput from './AmountInput';
+import SharesInput from './SharesInput';
+import ToWinDisplay from './ToWinDisplay';
+import YoullReceiveDisplay from './YoullReceiveDisplay';
 
-import { MIN_ORDER_SIZE, MIN_ORDER_AMOUNT } from "@/constants/polymarket";
-import type { ClobClient } from "@polymarket/clob-client";
-import { isValidSize } from "@/lib/polymarket/validation";
+import type { ClobClient } from '@polymarket/clob-client';
 
 function isValidTickPrice(price: number, tickSize: number): boolean {
   if (tickSize <= 0) return false;
@@ -39,6 +37,7 @@ type OrderPlacementModalProps = {
   balance?: number;
   yesShares?: number;
   noShares?: number;
+  orderMinSize?: number;
 };
 
 export default function OrderPlacementModal({
@@ -57,26 +56,31 @@ export default function OrderPlacementModal({
   balance = 0,
   yesShares = 0,
   noShares = 0,
+  orderMinSize = 5,
 }: OrderPlacementModalProps) {
-  const [inputValue, setInputValue] = useState<string>("");
-  const [orderType, setOrderType] = useState<"market" | "limit">("market");
-  const [side, setSide] = useState<"BUY" | "SELL">("BUY");
-  const [selectedOutcome, setSelectedOutcome] = useState<"yes" | "no">(
-    outcome.toLowerCase() === "no" ? "no" : "yes"
+  const [inputValue, setInputValue] = useState<string>('');
+  const [orderType, setOrderType] = useState<'market' | 'limit'>(
+    'market',
   );
-  const [limitPrice, setLimitPrice] = useState<string>("");
+  const [side, setSide] = useState<'BUY' | 'SELL'>('BUY');
+  const [selectedOutcome, setSelectedOutcome] = useState<
+    'yes' | 'no'
+  >(outcome.toLowerCase() === 'no' ? 'no' : 'yes');
+  const [limitPrice, setLimitPrice] = useState<string>('');
   const [localError, setLocalError] = useState<string | null>(null);
   const [showSuccess, setShowSuccess] = useState(false);
 
   const { eoaAddress } = usePolymarketWallet();
   const modalRef = useRef<HTMLDivElement>(null);
 
-  const activeTokenId = selectedOutcome === "yes" ? yesTokenId : (noTokenId || tokenId);
-  const activePrice = selectedOutcome === "yes" ? yesPrice : noPrice;
-  const activeShareBalance = selectedOutcome === "yes" ? yesShares : noShares;
+  const activeTokenId =
+    selectedOutcome === 'yes' ? yesTokenId : noTokenId || tokenId;
+  const activePrice = selectedOutcome === 'yes' ? yesPrice : noPrice;
+  const activeShareBalance =
+    selectedOutcome === 'yes' ? yesShares : noShares;
 
   const { tickSize, isLoading: isLoadingTickSize } = useTickSize(
-    isOpen ? activeTokenId : null
+    isOpen ? activeTokenId : null,
   );
 
   const {
@@ -88,11 +92,13 @@ export default function OrderPlacementModal({
 
   useEffect(() => {
     if (isOpen) {
-      setInputValue("");
-      setOrderType("market");
-      setSide("BUY");
-      setSelectedOutcome(outcome.toLowerCase() === "no" ? "no" : "yes");
-      setLimitPrice("");
+      setInputValue('');
+      setOrderType('market');
+      setSide('BUY');
+      setSelectedOutcome(
+        outcome.toLowerCase() === 'no' ? 'no' : 'yes',
+      );
+      setLimitPrice('');
       setLocalError(null);
       setShowSuccess(false);
     }
@@ -100,7 +106,7 @@ export default function OrderPlacementModal({
 
   // Reset input when switching between buy/sell
   useEffect(() => {
-    setInputValue("");
+    setInputValue('');
     setLocalError(null);
   }, [side]);
 
@@ -116,22 +122,23 @@ export default function OrderPlacementModal({
 
   useEffect(() => {
     const handleEscape = (e: KeyboardEvent) => {
-      if (e.key === "Escape" && isOpen) {
+      if (e.key === 'Escape' && isOpen) {
         onClose();
       }
     };
-    document.addEventListener("keydown", handleEscape);
-    return () => document.removeEventListener("keydown", handleEscape);
+    document.addEventListener('keydown', handleEscape);
+    return () =>
+      document.removeEventListener('keydown', handleEscape);
   }, [isOpen, onClose]);
 
   useEffect(() => {
     if (isOpen) {
-      document.body.style.overflow = "hidden";
+      document.body.style.overflow = 'hidden';
     } else {
-      document.body.style.overflow = "unset";
+      document.body.style.overflow = 'unset';
     }
     return () => {
-      document.body.style.overflow = "unset";
+      document.body.style.overflow = 'unset';
     };
   }, [isOpen]);
 
@@ -139,52 +146,65 @@ export default function OrderPlacementModal({
 
   const inputNum = parseFloat(inputValue) || 0;
   const limitPriceNum = parseFloat(limitPrice) || 0;
-  const effectivePrice = orderType === "limit" ? limitPriceNum : activePrice;
+  const effectivePrice =
+    orderType === 'limit' ? limitPriceNum : activePrice;
 
   // For BUY: input is dollar amount, calculate shares
   // For SELL: input is shares, calculate dollar amount to receive
-  const shares = side === "BUY"
-    ? (effectivePrice > 0 ? inputNum / effectivePrice : 0)
-    : inputNum;
+  const shares =
+    side === 'BUY'
+      ? effectivePrice > 0
+        ? inputNum / effectivePrice
+        : 0
+      : inputNum;
 
-  const potentialWin = side === "BUY" ? shares : 0;
-  const amountToReceive = side === "SELL" ? inputNum * effectivePrice : 0;
+  const potentialWin = side === 'BUY' ? shares : 0;
+  const amountToReceive =
+    side === 'SELL' ? inputNum * effectivePrice : 0;
 
   // For balance checks
-  const hasInsufficientBalance = side === "BUY"
-    ? inputNum > balance
-    : inputNum > activeShareBalance;
+  const hasInsufficientBalance =
+    side === 'BUY'
+      ? inputNum > balance
+      : inputNum > activeShareBalance;
+
+  // Calculate minimum order amount based on orderMinSize and current price
+  const minOrderAmount = Math.max(1, orderMinSize * effectivePrice);
 
   const handlePlaceOrder = async () => {
-    // For BUY orders, validate dollar amount (min $1 for market orders)
-    if (side === "BUY") {
-      if (inputNum < MIN_ORDER_AMOUNT) {
-        setLocalError(`Minimum order amount is $${MIN_ORDER_AMOUNT}`);
+    // For BUY orders, validate dollar amount based on market's orderMinSize
+    if (side === 'BUY') {
+      if (inputNum < minOrderAmount) {
+        setLocalError(
+          `Minimum order amount is $${minOrderAmount.toFixed(2)} (${orderMinSize} shares)`,
+        );
         return;
       }
     } else {
-      // For SELL orders, validate shares
-      if (!isValidSize(shares)) {
-        setLocalError(`Shares too small. Minimum: ${MIN_ORDER_SIZE}`);
+      // For SELL orders, validate shares against orderMinSize
+      if (inputNum < orderMinSize) {
+        setLocalError(`Minimum shares to sell: ${orderMinSize}`);
         return;
       }
     }
 
-    if (orderType === "limit") {
+    if (orderType === 'limit') {
       if (!limitPrice || limitPriceNum <= 0) {
-        setLocalError("Limit price is required");
+        setLocalError('Limit price is required');
         return;
       }
 
       if (limitPriceNum < tickSize || limitPriceNum > 1 - tickSize) {
         setLocalError(
-          `Price must be between ${(tickSize * 100).toFixed(0)}¢ and ${((1 - tickSize) * 100).toFixed(0)}¢`
+          `Price must be between ${(tickSize * 100).toFixed(0)}¢ and ${((1 - tickSize) * 100).toFixed(0)}¢`,
         );
         return;
       }
 
       if (!isValidTickPrice(limitPriceNum, tickSize)) {
-        setLocalError(`Price must be a multiple of tick size (${(tickSize * 100).toFixed(0)}¢)`);
+        setLocalError(
+          `Price must be a multiple of tick size (${(tickSize * 100).toFixed(0)}¢)`,
+        );
         return;
       }
     }
@@ -193,17 +213,19 @@ export default function OrderPlacementModal({
       await submitOrder({
         tokenId: activeTokenId,
         size: shares,
-        price: orderType === "limit" ? limitPriceNum : undefined,
+        price: orderType === 'limit' ? limitPriceNum : undefined,
         side,
         negRisk,
-        isMarketOrder: orderType === "market",
+        isMarketOrder: orderType === 'market',
       });
     } catch (err) {
-      console.error("Error placing order:", err);
+      console.error('Error placing order:', err);
     }
   };
 
-  const handleBackdropClick = (e: React.MouseEvent<HTMLDivElement>) => {
+  const handleBackdropClick = (
+    e: React.MouseEvent<HTMLDivElement>,
+  ) => {
     if (e.target === e.currentTarget) {
       onClose();
     }
@@ -256,8 +278,18 @@ export default function OrderPlacementModal({
                 onClick={onClose}
                 className="text-gray-400 hover:text-gray-800 transition-colors p-1"
               >
-                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                <svg
+                  className="w-5 h-5"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M6 18L18 6M6 6l12 12"
+                  />
                 </svg>
               </button>
             </div>
@@ -286,12 +318,12 @@ export default function OrderPlacementModal({
             {/* Buy/Sell Toggle with Order Type */}
             <BuySellToggle
               side={side}
-              onSideChange={(newSide: "BUY" | "SELL") => {
+              onSideChange={(newSide: 'BUY' | 'SELL') => {
                 setSide(newSide);
                 setLocalError(null);
               }}
               orderType={orderType}
-              onOrderTypeChange={(type: "market" | "limit") => {
+              onOrderTypeChange={(type: 'market' | 'limit') => {
                 setOrderType(type);
                 setLocalError(null);
               }}
@@ -300,9 +332,9 @@ export default function OrderPlacementModal({
             {/* Outcome Selector */}
             <OutcomeSelector
               selectedOutcome={selectedOutcome}
-              onOutcomeChange={(newOutcome: "yes" | "no") => {
+              onOutcomeChange={(newOutcome: 'yes' | 'no') => {
                 setSelectedOutcome(newOutcome);
-                setInputValue("");
+                setInputValue('');
                 setLocalError(null);
               }}
               yesPrice={yesPrice}
@@ -311,7 +343,7 @@ export default function OrderPlacementModal({
             />
 
             {/* Buy Mode: Amount Input */}
-            {side === "BUY" && (
+            {side === 'BUY' && (
               <AmountInput
                 amount={inputValue}
                 onAmountChange={(value: string) => {
@@ -330,11 +362,12 @@ export default function OrderPlacementModal({
                 }}
                 tickSize={tickSize}
                 isLoadingTickSize={isLoadingTickSize}
+                minOrderAmount={minOrderAmount}
               />
             )}
 
             {/* Sell Mode: Shares Input */}
-            {side === "SELL" && (
+            {side === 'SELL' && (
               <SharesInput
                 shares={inputValue}
                 onSharesChange={(value: string) => {
@@ -353,11 +386,12 @@ export default function OrderPlacementModal({
                 }}
                 tickSize={tickSize}
                 isLoadingTickSize={isLoadingTickSize}
+                minShares={orderMinSize}
               />
             )}
 
             {/* Buy Mode: To Win Display */}
-            {side === "BUY" && (
+            {side === 'BUY' && (
               <ToWinDisplay
                 potentialWin={potentialWin}
                 avgPrice={effectivePrice}
@@ -366,7 +400,7 @@ export default function OrderPlacementModal({
             )}
 
             {/* Sell Mode: You'll Receive Display */}
-            {side === "SELL" && (
+            {side === 'SELL' && (
               <YoullReceiveDisplay
                 amountToReceive={amountToReceive}
                 avgPrice={effectivePrice}
@@ -382,27 +416,41 @@ export default function OrderPlacementModal({
                 isSubmitting ||
                 inputNum <= 0 ||
                 !clobClient ||
-                hasInsufficientBalance ||
-                (side === "BUY" && inputNum < MIN_ORDER_AMOUNT)
+                hasInsufficientBalance
               }
               className={`w-full py-3.5 font-bold rounded-xl transition-all text-base ${
-                side === "BUY"
-                  ? "bg-green-500 hover:bg-green-600 disabled:bg-green-500/30"
-                  : "bg-blue-500 hover:bg-blue-600 disabled:bg-blue-500/30"
+                side === 'BUY'
+                  ? 'bg-green-500 hover:bg-green-600 disabled:bg-green-500/30'
+                  : 'bg-blue-500 hover:bg-blue-600 disabled:bg-blue-500/30'
               } disabled:cursor-not-allowed text-white`}
             >
               {isSubmitting ? (
                 <span className="flex items-center justify-center gap-2">
-                  <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                  <svg
+                    className="animate-spin h-5 w-5"
+                    viewBox="0 0 24 24"
+                  >
+                    <circle
+                      className="opacity-25"
+                      cx="12"
+                      cy="12"
+                      r="10"
+                      stroke="currentColor"
+                      strokeWidth="4"
+                      fill="none"
+                    />
+                    <path
+                      className="opacity-75"
+                      fill="currentColor"
+                      d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                    />
                   </svg>
                   Placing Order...
                 </span>
               ) : !clobClient ? (
-                "Connect Wallet"
+                'Connect Wallet'
               ) : (
-                `${side === "BUY" ? "Buy" : "Sell"} ${selectedOutcome === "yes" ? "Yes" : "No"}`
+                `${side === 'BUY' ? 'Buy' : 'Sell'} ${selectedOutcome === 'yes' ? 'Yes' : 'No'}`
               )}
             </button>
 

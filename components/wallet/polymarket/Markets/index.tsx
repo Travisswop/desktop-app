@@ -26,6 +26,7 @@ type SelectedMarket = {
   noTokenId: string;
   yesPrice: number;
   noPrice: number;
+  orderMinSize: number;
 };
 
 export default function HighVolumeMarkets() {
@@ -100,6 +101,7 @@ export default function HighVolumeMarkets() {
       noTokenId,
       yesPrice,
       noPrice,
+      orderMinSize: market.orderMinSize || 5,
     });
     setIsModalOpen(true);
   };
@@ -186,6 +188,7 @@ export default function HighVolumeMarkets() {
           noTokenId={selectedMarket.noTokenId}
           yesShares={yesShares}
           noShares={noShares}
+          orderMinSize={selectedMarket.orderMinSize}
         />
       )}
     </>

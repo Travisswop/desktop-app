@@ -14,6 +14,7 @@ interface AmountInputProps {
   onLimitPriceChange: (value: string) => void;
   tickSize: number;
   isLoadingTickSize: boolean;
+  minOrderAmount?: number;
 }
 
 export default function AmountInput({
@@ -28,6 +29,7 @@ export default function AmountInput({
   onLimitPriceChange,
   tickSize,
   isLoadingTickSize,
+  minOrderAmount = 1,
 }: AmountInputProps) {
   const handleAmountChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value;
@@ -81,7 +83,7 @@ export default function AmountInput({
         <div className="flex items-center justify-between mb-2">
           <div>
             <span className="text-sm text-gray-600">Amount</span>
-            <p className="text-xs text-gray-500">Balance ${balance.toFixed(2)} · Min $1</p>
+            <p className="text-xs text-gray-500">Balance ${balance.toFixed(2)} · Min ${minOrderAmount.toFixed(2)}</p>
           </div>
           <div className="relative">
             <span className="absolute left-0 top-1/2 -translate-y-1/2 text-3xl font-bold text-gray-900">$</span>

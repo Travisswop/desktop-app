@@ -30,6 +30,8 @@ export type PolymarketMarket = {
   eventId?: string;
   eventIcon?: string;
   negRisk?: boolean;
+  orderMinSize?: number;
+  orderPriceMinTickSize?: number;
   realtimePrices?: Record<
     string,
     {

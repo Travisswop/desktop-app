@@ -14,6 +14,7 @@ interface SharesInputProps {
   onLimitPriceChange: (value: string) => void;
   tickSize: number;
   isLoadingTickSize: boolean;
+  minShares?: number;
 }
 
 export default function SharesInput({
@@ -28,6 +29,7 @@ export default function SharesInput({
   onLimitPriceChange,
   tickSize,
   isLoadingTickSize,
+  minShares = 5,
 }: SharesInputProps) {
   const handleSharesChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value;
@@ -81,6 +83,7 @@ export default function SharesInput({
         <div className="flex items-center justify-between mb-2">
           <div>
             <span className="text-sm text-gray-600">Shares</span>
+            <p className="text-xs text-gray-500">Balance {shareBalance.toFixed(2)} · Min {minShares}</p>
           </div>
           <div className="relative">
             <input
