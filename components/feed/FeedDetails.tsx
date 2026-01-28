@@ -11,15 +11,16 @@ import Link from "next/link";
 import { FiPlusCircle } from "react-icons/fi";
 import Reaction from "./view/Reaction";
 import IndividualFeedContentForFeedDetails from "./IndividualFeedContentForFeedDetails";
-import { useRouter } from "next/navigation";
+// import { useRouter } from "next/navigation";
 import { formatEns } from "@/lib/formatEnsName";
 
 dayjs.extend(relativeTime);
 
-const FeedDetails = ({ feedData, feedDetails, accessToken }: any) => {
+const FeedDetails = ({ feedData, feedDetails }: any) => {
   // console.log("feedData", feedData);
 
-  const router = useRouter();
+  // const router = useRouter();
+
   const renderTransactionContent = (feed: any) => {
     const {
       transaction_type,
@@ -40,7 +41,7 @@ const FeedDetails = ({ feedData, feedDetails, accessToken }: any) => {
       : receiver_wallet_address &&
         `${receiver_wallet_address.slice(
           0,
-          5
+          5,
         )}...${receiver_wallet_address.slice(-5)}`;
 
     if (transaction_type === "nft") {
@@ -139,7 +140,7 @@ const FeedDetails = ({ feedData, feedDetails, accessToken }: any) => {
                 </div>
                 <p className="text-gray-500 font-normal">
                   {formatEns(
-                    feedData?.smartsiteId?.ens || feedData?.smartsiteEnsName
+                    feedData?.smartsiteId?.ens || feedData?.smartsiteEnsName,
                   )}
                 </p>
                 {/* Render Post Content */}
@@ -241,7 +242,7 @@ const FeedDetails = ({ feedData, feedDetails, accessToken }: any) => {
                 {feedData.postType === "swapTransaction" && (
                   <div className="w-full flex justify-start mt-1">
                     <button
-                      onClick={() => router.push(`/feed/${feedData._id}`)}
+                      // onClick={() => router.push(`/feed/${feedData._id}`)}
                       className="w-full max-w-xl"
                       style={{
                         background: "transparent",
@@ -256,7 +257,7 @@ const FeedDetails = ({ feedData, feedDetails, accessToken }: any) => {
                               <Image
                                 src={
                                   feedData.content.inputToken.tokenImg.startsWith(
-                                    "https"
+                                    "https",
                                   )
                                     ? feedData.content.inputToken.tokenImg
                                     : `/assets/crypto-icons/${feedData.content.inputToken.symbol}.png`
@@ -269,7 +270,7 @@ const FeedDetails = ({ feedData, feedDetails, accessToken }: any) => {
                               <Image
                                 src={
                                   feedData.content.outputToken.tokenImg.startsWith(
-                                    "https"
+                                    "https",
                                   )
                                     ? feedData.content.outputToken.tokenImg
                                     : `/assets/crypto-icons/${feedData.content.outputToken.symbol}.png`
@@ -287,7 +288,7 @@ const FeedDetails = ({ feedData, feedDetails, accessToken }: any) => {
                             </p>
                             <p className="text-xs text-gray-400">
                               {dayjs(feedData.createdAt).format(
-                                "MMM D, YYYY h:mm A"
+                                "MMM D, YYYY h:mm A",
                               )}
                             </p>
                           </div>
@@ -298,7 +299,7 @@ const FeedDetails = ({ feedData, feedDetails, accessToken }: any) => {
                             <p className="text-sm text-gray-600">You sent</p>
                             <p className="text-base font-semibold text-red-600">
                               {Number(
-                                feedData.content.inputToken.amount
+                                feedData.content.inputToken.amount,
                               ).toFixed(2)}{" "}
                               {feedData.content.inputToken.symbol}
                             </p>
@@ -322,7 +323,7 @@ const FeedDetails = ({ feedData, feedDetails, accessToken }: any) => {
                             </p>
                             <p className="text-base font-semibold text-green-600">
                               {Number(
-                                feedData.content.outputToken.amount
+                                feedData.content.outputToken.amount,
                               ).toFixed(2)}{" "}
                               {feedData.content.outputToken.symbol}
                             </p>
@@ -332,9 +333,9 @@ const FeedDetails = ({ feedData, feedDetails, accessToken }: any) => {
                           <button
                             onClick={(e) => {
                               e.stopPropagation();
-                              router.push(
-                                `/wallet?inputToken=${feedData.content.inputToken.symbol}&outputToken=${feedData.content.outputToken.symbol}&amount=${feedData.content.inputToken.amount}`
-                              );
+                              // router.push(
+                              //   `/wallet?inputToken=${feedData.content.inputToken.symbol}&outputToken=${feedData.content.outputToken.symbol}&amount=${feedData.content.inputToken.amount}`,
+                              // );
                             }}
                             className="text-xs border border-gray-300 rounded px-3 py-1 font-medium hover:bg-gray-200"
                           >

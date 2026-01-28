@@ -1,4 +1,4 @@
-'use client';
+"use client";
 
 import {
   createContext,
@@ -8,9 +8,9 @@ import {
   useCallback,
   useMemo,
   useRef,
-} from 'react';
-import { useRouter, usePathname } from 'next/navigation';
-import { usePrivy } from '@privy-io/react-auth';
+} from "react";
+import { useRouter, usePathname } from "next/navigation";
+import { usePrivy } from "@privy-io/react-auth";
 
 export interface UserData {
   _id: string;
@@ -40,20 +40,20 @@ export interface UserData {
 
   // Bot-related fields
   isBot?: boolean;
-  botType?: 'crypto' | 'ai' | 'trading' | 'defi' | 'nft' | 'custom';
+  botType?: "crypto" | "ai" | "trading" | "defi" | "nft" | "custom";
   botCapabilities?: Array<
-    | 'price_check'
-    | 'swap_tokens'
-    | 'send_crypto'
-    | 'check_balance'
-    | 'transaction_history'
-    | 'portfolio_analysis'
-    | 'defi_yields'
-    | 'nft_floor_prices'
-    | 'market_analysis'
-    | 'trading_signals'
-    | 'gas_tracker'
-    | 'bridge_tokens'
+    | "price_check"
+    | "swap_tokens"
+    | "send_crypto"
+    | "check_balance"
+    | "transaction_history"
+    | "portfolio_analysis"
+    | "defi_yields"
+    | "nft_floor_prices"
+    | "market_analysis"
+    | "trading_signals"
+    | "gas_tracker"
+    | "bridge_tokens"
   >;
   botMetadata?: {
     version?: string;
@@ -86,10 +86,10 @@ export interface UserData {
   // Social features
   reputation?: number;
   verificationStatus?:
-    | 'unverified'
-    | 'email_verified'
-    | 'wallet_verified'
-    | 'kyc_verified';
+    | "unverified"
+    | "email_verified"
+    | "wallet_verified"
+    | "kyc_verified";
 }
 
 export interface UserContextType {
@@ -107,21 +107,21 @@ const UserContext = createContext<UserContextType | null>(null);
 
 // Cookie management utilities
 const COOKIE_CONFIG = {
-  path: '/',
-  secure: process.env.NODE_ENV === 'production',
-  sameSite: 'strict' as const,
+  path: "/",
+  secure: process.env.NODE_ENV === "production",
+  sameSite: "strict" as const,
   maxAge: 86400, // 24 hours
 };
 
 const setCookie = (
   name: string,
   value: string,
-  maxAge = COOKIE_CONFIG.maxAge
+  maxAge = COOKIE_CONFIG.maxAge,
 ) => {
   const config = `${name}=${value}; path=${
     COOKIE_CONFIG.path
   }; max-age=${maxAge}; ${
-    COOKIE_CONFIG.secure ? 'secure; ' : ''
+    COOKIE_CONFIG.secure ? "secure; " : ""
   }samesite=${COOKIE_CONFIG.sameSite}`;
   document.cookie = config;
 };
@@ -130,43 +130,37 @@ const clearCookie = (name: string) => {
   document.cookie = `${name}=; path=${
     COOKIE_CONFIG.path
   }; expires=Thu, 01 Jan 1970 00:00:00 GMT; ${
-    COOKIE_CONFIG.secure ? 'secure; ' : ''
+    COOKIE_CONFIG.secure ? "secure; " : ""
   }samesite=${COOKIE_CONFIG.sameSite}`;
 };
 
 const clearAllAuthCookies = () => {
   const authCookies = [
-    'privy-token',
-    'privy-id-token',
-    'privy-refresh-token',
-    'access-token',
-    'user-id',
+    "privy-token",
+    "privy-id-token",
+    "privy-refresh-token",
+    "access-token",
+    "user-id",
   ];
   authCookies.forEach(clearCookie);
 };
 
 // Authentication states
 enum AuthState {
-  INITIALIZING = 'initializing',
-  CHECKING_BACKEND = 'checking_backend',
-  AUTHENTICATED = 'authenticated',
-  UNAUTHENTICATED = 'unauthenticated',
-  ERROR = 'error',
+  INITIALIZING = "initializing",
+  CHECKING_BACKEND = "checking_backend",
+  AUTHENTICATED = "authenticated",
+  UNAUTHENTICATED = "unauthenticated",
+  ERROR = "error",
 }
 
-export function UserProvider({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+export function UserProvider({ children }: { children: React.ReactNode }) {
   // State management
   const [user, setUser] = useState<UserData | null>(null);
   const [accessToken, setAccessToken] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
-  const [authState, setAuthState] = useState<AuthState>(
-    AuthState.INITIALIZING
-  );
+  const [authState, setAuthState] = useState<AuthState>(AuthState.INITIALIZING);
 
   // Hooks
   const router = useRouter();
@@ -187,15 +181,15 @@ export function UserProvider({
   // Constants
   const PUBLIC_ROUTES = useMemo(
     () => [
-      '/sp',
-      '/login',
-      '/signup',
-      '/onboard',
-      '/welcome',
-      '/debug-privy',
-      '/guest-order',
+      "/sp",
+      "/login",
+      "/signup",
+      "/onboard",
+      "/welcome",
+      "/debug-privy",
+      "/guest-order",
     ],
-    []
+    [],
   );
 
   const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL;
@@ -208,24 +202,34 @@ export function UserProvider({
       return (
         privyUser.google?.email ||
         privyUser.email?.address ||
+        privyUser.linkedAccounts?.find((acc: any) => acc.type === "email")
+          ?.address ||
         privyUser.linkedAccounts?.find(
-          (acc: any) => acc.type === 'email'
-        )?.address ||
-        privyUser.linkedAccounts?.find(
-          (acc: any) => acc.type === 'google_oauth'
+          (acc: any) => acc.type === "google_oauth",
         )?.email ||
         null
       );
     },
-    []
+    [],
   );
 
   const isPublicRoute = useCallback(
     (path: string | null): boolean => {
       if (!path) return false;
+
+      // Check if it's a feed post route (e.g., /feed/[id])
+      if (/^\/feed\/[a-f0-9]{24}$/i.test(path)) {
+        return true;
+      }
+
+      // Check if path starts with /feed/ (any feed detail page)
+      if (path.startsWith("/feed/") && path.length > 6) {
+        return true;
+      }
+
       return PUBLIC_ROUTES.some((route) => path.startsWith(route));
     },
-    [PUBLIC_ROUTES]
+    [PUBLIC_ROUTES],
   );
 
   // Clear user session
@@ -242,7 +246,7 @@ export function UserProvider({
   const fetchUserData = useCallback(
     async (email: string): Promise<boolean> => {
       if (!email || !API_BASE_URL) {
-        console.error('Missing email or API URL');
+        console.error("Missing email or API URL");
         return false;
       }
 
@@ -275,10 +279,10 @@ export function UserProvider({
           `${API_BASE_URL}/api/v2/desktop/user/${email}`,
           {
             headers: {
-              'Content-Type': 'application/json',
+              "Content-Type": "application/json",
             },
             signal: abortControllerRef.current.signal,
-          }
+          },
         );
 
         clearTimeout(timeoutId);
@@ -289,7 +293,7 @@ export function UserProvider({
 
             // Only redirect if not already on public route
             if (!isPublicRoute(pathname)) {
-              router.push('/onboard');
+              router.push("/onboard");
             }
             return false;
           }
@@ -299,21 +303,19 @@ export function UserProvider({
             await privyLogout();
 
             if (!isPublicRoute(pathname)) {
-              router.push('/login');
+              router.push("/login");
             }
             return false;
           }
 
-          throw new Error(
-            `HTTP ${response.status}: ${response.statusText}`
-          );
+          throw new Error(`HTTP ${response.status}: ${response.statusText}`);
         }
 
         const data = await response.json();
         const { user: userData, token } = data;
 
         if (!userData || !token) {
-          throw new Error('Invalid response structure');
+          throw new Error("Invalid response structure");
         }
 
         // Update state
@@ -324,21 +326,21 @@ export function UserProvider({
         lastFetchedEmailRef.current = email;
 
         // Set cookies
-        setCookie('access-token', token);
-        setCookie('user-id', userData._id);
+        setCookie("access-token", token);
+        setCookie("user-id", userData._id);
 
         return true;
       } catch (err) {
-        console.error('Error fetching user data:', err);
+        console.error("Error fetching user data:", err);
 
         // Handle specific errors
         if (err instanceof Error) {
-          if (err.name === 'AbortError') {
+          if (err.name === "AbortError") {
             return false;
           }
           setError(err);
         } else {
-          setError(new Error('Unknown error occurred'));
+          setError(new Error("Unknown error occurred"));
         }
 
         // Only clear session on actual errors, not on public routes
@@ -360,7 +362,7 @@ export function UserProvider({
       isPublicRoute,
       clearUserSession,
       privyLogout,
-    ]
+    ],
   );
 
   // Logout function
@@ -373,12 +375,12 @@ export function UserProvider({
 
       clearUserSession();
       await privyLogout();
-      router.push('/login');
+      router.push("/login");
     } catch (err) {
-      console.error('Error during logout:', err);
+      console.error("Error during logout:", err);
       // Force clear even if logout fails
       clearUserSession();
-      router.push('/login');
+      router.push("/login");
     }
   }, [clearUserSession, privyLogout, router]);
 
@@ -391,55 +393,6 @@ export function UserProvider({
     }
   }, [privyUser, extractEmailFromPrivyUser, fetchUserData]);
 
-  // Verify and refresh session tokens
-  // const verifyAndRefreshSession = useCallback(async () => {
-  //   if (!accessToken) return;
-
-  //   try {
-  //     const verifyRes = await fetch("/api/auth/verify-session", {
-  //       headers: {
-  //         Authorization: `Bearer ${accessToken}`,
-  //       },
-  //     });
-
-  //     if (!verifyRes.ok) {
-  //       throw new Error("Session invalid");
-  //     }
-
-  //     const verifyData = await verifyRes.json();
-
-  //     if (!verifyData.isValid) {
-  //       throw new Error("Session invalid");
-  //     }
-
-  //     // Refresh if token is about to expire (less than 5 minutes)
-  //     if (
-  //       typeof verifyData.expiresIn === "number" &&
-  //       verifyData.expiresIn < 300
-  //     ) {
-  //       const refreshRes = await fetch("/api/auth/refresh-token", {
-  //         method: "POST",
-  //         headers: {
-  //           Authorization: `Bearer ${accessToken}`,
-  //         },
-  //       });
-
-  //       if (!refreshRes.ok) {
-  //         throw new Error("Failed to refresh");
-  //       }
-
-  //       const refreshData = await refreshRes.json();
-
-  //       if (refreshData.token) {
-  //         setAccessToken(refreshData.token);
-  //       }
-  //     }
-  //   } catch (error) {
-  //     console.error("Session validation error:", error);
-  //     await handleLogout();
-  //   }
-  // }, [accessToken, handleLogout]);
-
   // Main authentication effect
   useEffect(() => {
     const handleAuthentication = async () => {
@@ -449,24 +402,26 @@ export function UserProvider({
         return;
       }
 
+      // CRITICAL FIX: Check if current route is public BEFORE checking authentication
+      if (isPublicRoute(pathname)) {
+        setLoading(false);
+        return; // Allow access to public routes without authentication
+      }
+
       // Check if user is authenticated with Privy
       if (!authenticated || !privyUser) {
         clearUserSession();
         setLoading(false);
-        if (!isPublicRoute(pathname)) {
-          router.push('/login');
-        }
+        router.push("/login");
         return;
       }
 
       // Extract email from Privy user
       const email = extractEmailFromPrivyUser(privyUser);
       if (!email) {
-        setError(new Error('No email found in account'));
+        setError(new Error("No email found in account"));
         setLoading(false);
-        if (!isPublicRoute(pathname)) {
-          router.push('/onboard');
-        }
+        router.push("/onboard");
         return;
       }
 
@@ -492,17 +447,20 @@ export function UserProvider({
     fetchUserData,
     clearUserSession,
     router,
+    isPublicRoute,
   ]);
 
   // Session validation effect
   useEffect(() => {
+    // Skip validation for public routes
+    if (isPublicRoute(pathname)) {
+      return;
+    }
+
     // Validate session consistency
     if (ready && user && !privyUser) {
       clearUserSession();
-
-      if (!isPublicRoute(pathname)) {
-        router.push('/login');
-      }
+      router.push("/login");
     }
   }, [
     ready,
@@ -513,26 +471,6 @@ export function UserProvider({
     isPublicRoute,
     router,
   ]);
-
-  // Periodically verify and refresh session
-  // useEffect(() => {
-  //   if (!accessToken) {
-  //     return;
-  //   }
-
-  //   verifyAndRefreshSession();
-  //   sessionCheckRef.current = setInterval(
-  //     verifyAndRefreshSession,
-  //     5 * 60 * 1000
-  //   );
-
-  //   return () => {
-  //     if (sessionCheckRef.current) {
-  //       clearInterval(sessionCheckRef.current);
-  //       sessionCheckRef.current = null;
-  //     }
-  //   };
-  // }, [accessToken, verifyAndRefreshSession]);
 
   // Cleanup effect
   useEffect(() => {
@@ -552,32 +490,21 @@ export function UserProvider({
       error,
       refreshUser,
       logout: handleLogout,
-      isAuthenticated:
-        authState === AuthState.AUTHENTICATED && !!user,
+      isAuthenticated: authState === AuthState.AUTHENTICATED && !!user,
       primaryMicrosite: user?.primaryMicrosite,
     }),
-    [
-      user,
-      accessToken,
-      loading,
-      error,
-      refreshUser,
-      handleLogout,
-      authState,
-    ]
+    [user, accessToken, loading, error, refreshUser, handleLogout, authState],
   );
 
   return (
-    <UserContext.Provider value={contextValue}>
-      {children}
-    </UserContext.Provider>
+    <UserContext.Provider value={contextValue}>{children}</UserContext.Provider>
   );
 }
 
 export const useUser = () => {
   const context = useContext(UserContext);
   if (!context) {
-    throw new Error('useUser must be used within a UserProvider');
+    throw new Error("useUser must be used within a UserProvider");
   }
   return context;
 };

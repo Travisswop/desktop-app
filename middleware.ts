@@ -38,7 +38,6 @@ const PUBLIC_ROUTES = new Set([
   "/favicon.ico",
   "/static",
   "/sp",
-  "/feed/:path*",
 ]);
 
 // CSP Configuration
@@ -137,9 +136,6 @@ function isAuthRoute(pathname: string): boolean {
 
 function isPublicRoute(pathname: string): boolean {
   if (pathname.startsWith("/sp/")) {
-    return true;
-  }
-  if (pathname.startsWith("/feed/")) {
     return true;
   }
   for (const route of PUBLIC_ROUTES) {
@@ -507,70 +503,6 @@ async function verifyAndCacheToken(
   }
 }
 
-// async function handleAuthenticatedUser(
-//   req: NextRequest,
-//   pathname: string,
-//   userId: string,
-// ): Promise<NextResponse | null> {
-//   if (!isAuthRoute(pathname)) {
-//     return null;
-//   }
-
-//   // If userId is empty (from failed verification), skip backend check
-//   if (!userId) {
-//     if (pathname === "/login") {
-//       return createRedirect(req, "/onboard", false);
-//     }
-//     return NextResponse.next();
-//   }
-
-//   // Handle /onboard route
-//   if (pathname === "/onboard") {
-//     try {
-//       const { exists, status } = await checkUserInBackend(userId);
-
-//       if (exists) {
-//         console.log(`User exists, redirecting to /`);
-//         return createRedirect(req, "/", false);
-//       } else if (status === 404) {
-//         return NextResponse.next();
-//       } else {
-//         console.warn(`API returned status ${status}, allowing onboard access`);
-//         return NextResponse.next();
-//       }
-//     } catch (error) {
-//       console.error(
-//         "Error checking user in backend (allowing onboard):",
-//         error,
-//       );
-//       return NextResponse.next();
-//     }
-//   }
-
-//   // Handle /login route
-//   if (pathname === "/login") {
-//     try {
-//       const { exists, status } = await checkUserInBackend(userId);
-
-//       if (exists) {
-//         console.log(`User exists, redirecting to /`);
-//         return createRedirect(req, "/", false);
-//       } else {
-//         console.log(`User doesn't exist, redirecting to /onboard`);
-//         return createRedirect(req, "/onboard", false);
-//       }
-//     } catch (error) {
-//       console.error(
-//         "Error checking user in backend (redirecting to onboard):",
-//         error,
-//       );
-//       return createRedirect(req, "/onboard", false);
-//     }
-//   }
-
-//   return null;
-// }
-
 async function handleAuthenticatedUser(
   req: NextRequest,
   pathname: string,
@@ -620,54 +552,118 @@ async function handleAuthenticatedUser(
         console.log(`User exists, redirecting to /`);
         return createRedirect(req, "/", false);
       } else {
-        // User doesn't exist - clear cookies and allow login page access
-        console.log(
-          `User doesn't exist, clearing cookies and staying on login`,
-        );
-        const response = NextResponse.next();
-
-        const cookiesToClear = [
-          "privy-token",
-          "privy-id-token",
-          "privy-refresh-token",
-          "privy-session",
-          "access-token",
-          "user-id",
-        ];
-
-        cookiesToClear.forEach((cookie) => {
-          response.cookies.delete(cookie);
-        });
-
-        return response;
+        console.log(`User doesn't exist, redirecting to /onboard`);
+        return createRedirect(req, "/onboard", false);
       }
     } catch (error) {
       console.error(
-        "Error checking user in backend (clearing cookies and staying on login):",
+        "Error checking user in backend (redirecting to onboard):",
         error,
       );
-
-      // On error, also clear cookies and allow login
-      const response = NextResponse.next();
-      const cookiesToClear = [
-        "privy-token",
-        "privy-id-token",
-        "privy-refresh-token",
-        "privy-session",
-        "access-token",
-        "user-id",
-      ];
-
-      cookiesToClear.forEach((cookie) => {
-        response.cookies.delete(cookie);
-      });
-
-      return response;
+      return createRedirect(req, "/onboard", false);
     }
   }
 
   return null;
 }
+
+// async function handleAuthenticatedUser(
+//   req: NextRequest,
+//   pathname: string,
+//   userId: string,
+// ): Promise<NextResponse | null> {
+//   if (!isAuthRoute(pathname)) {
+//     return null;
+//   }
+
+//   // If userId is empty (from failed verification), skip backend check
+//   if (!userId) {
+//     if (pathname === "/login") {
+//       return createRedirect(req, "/onboard", false);
+//     }
+//     return NextResponse.next();
+//   }
+
+//   // Handle /onboard route
+//   if (pathname === "/onboard") {
+//     try {
+//       const { exists, status } = await checkUserInBackend(userId);
+
+//       if (exists) {
+//         console.log(`User exists, redirecting to /`);
+//         return createRedirect(req, "/", false);
+//       } else if (status === 404) {
+//         return NextResponse.next();
+//       } else {
+//         console.warn(`API returned status ${status}, allowing onboard access`);
+//         return NextResponse.next();
+//       }
+//     } catch (error) {
+//       console.error(
+//         "Error checking user in backend (allowing onboard):",
+//         error,
+//       );
+//       return NextResponse.next();
+//     }
+//   }
+
+//   // Handle /login route
+//   if (pathname === "/login") {
+//     try {
+//       const { exists, status } = await checkUserInBackend(userId);
+
+//       if (exists) {
+//         console.log(`User exists, redirecting to /`);
+//         return createRedirect(req, "/", false);
+//       } else {
+//         // User doesn't exist - clear cookies and allow login page access
+//         console.log(
+//           `User doesn't exist, clearing cookies and staying on login`,
+//         );
+//         const response = NextResponse.next();
+
+//         const cookiesToClear = [
+//           "privy-token",
+//           "privy-id-token",
+//           "privy-refresh-token",
+//           "privy-session",
+//           "access-token",
+//           "user-id",
+//         ];
+
+//         cookiesToClear.forEach((cookie) => {
+//           response.cookies.delete(cookie);
+//         });
+
+//         return response;
+//       }
+//     } catch (error) {
+//       console.error(
+//         "Error checking user in backend (clearing cookies and staying on login):",
+//         error,
+//       );
+
+//       // On error, also clear cookies and allow login
+//       const response = NextResponse.next();
+//       const cookiesToClear = [
+//         "privy-token",
+//         "privy-id-token",
+//         "privy-refresh-token",
+//         "privy-session",
+//         "access-token",
+//         "user-id",
+//       ];
+
+//       cookiesToClear.forEach((cookie) => {
+//         response.cookies.delete(cookie);
+//       });
+
+//       return response;
+//     }
+//   }
+
+//   return null;
+// }
 
 // Main Middleware Function
 export async function middleware(req: NextRequest) {
