@@ -1,7 +1,7 @@
-import React, { useEffect, useRef, useState } from "react";
-import GifPicker from "gif-picker-react";
-import { HiOutlineGif } from "react-icons/hi2";
-import { useCommentContentStore } from "@/zustandStore/CommentImgContent";
+import React, { useEffect, useRef, useState } from 'react';
+import GifPicker from 'gif-picker-react';
+import { HiOutlineGif } from 'react-icons/hi2';
+import { useCommentContentStore } from '@/zustandStore/CommentImgContent';
 
 const CommentGifPickerContent = () => {
   const [showPicker, setShowPicker] = useState(false);
@@ -14,12 +14,10 @@ const CommentGifPickerContent = () => {
     setShowPicker(!showPicker);
   };
 
-  console.log("postContent", postContent);
-
   const handleGifClick = (gifData: any) => {
     setPostContent([
       {
-        type: "image",
+        type: 'image',
         src: gifData.url,
       },
     ]);
@@ -38,13 +36,13 @@ const CommentGifPickerContent = () => {
     };
 
     if (showPicker) {
-      document.addEventListener("mousedown", handleClickOutside);
+      document.addEventListener('mousedown', handleClickOutside);
     } else {
-      document.removeEventListener("mousedown", handleClickOutside);
+      document.removeEventListener('mousedown', handleClickOutside);
     }
 
     return () => {
-      document.removeEventListener("mousedown", handleClickOutside);
+      document.removeEventListener('mousedown', handleClickOutside);
     };
   }, [showPicker]);
 
@@ -54,12 +52,12 @@ const CommentGifPickerContent = () => {
         ref={buttonRef}
         type="button"
         onClick={postContent.length === 0 ? toggleGif : () => {}}
-        className={`${postContent.length > 0 && "cursor-not-allowed disabled"}`}
+        className={`${postContent.length > 0 && 'cursor-not-allowed disabled'}`}
       >
         <HiOutlineGif
           size={23}
           className={`${
-            postContent.length > 0 ? "text-gray-400" : "text-gray-700"
+            postContent.length > 0 ? 'text-gray-400' : 'text-gray-700'
           }`}
         />
       </button>
@@ -67,7 +65,7 @@ const CommentGifPickerContent = () => {
         <div ref={pickerRef} className="absolute top-full mt-2 z-50">
           <GifPicker
             onGifClick={handleGifClick}
-            tenorApiKey={"AIzaSyA-Xn0TwTUBNXY4EBbDCmnAs7o1XYIoZgU"}
+            tenorApiKey={'AIzaSyA-Xn0TwTUBNXY4EBbDCmnAs7o1XYIoZgU'}
           />
         </div>
       )}
