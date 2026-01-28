@@ -45,6 +45,8 @@ import Bio from "../publicProfile/bio";
 import Header from "../publicProfile/header";
 import getSmallIconColorFilter from "@/utils/smallIconColorFilter";
 import { MotionButton } from "../Motion";
+import SocialSmall from "../publicProfile/socialSmall";
+import SocialLarge from "../publicProfile/socialLarge";
 interface ColoredIconProps {
   src: string;
   color: string;
@@ -259,9 +261,10 @@ const SmartsiteIconLivePreview = ({
   return (
     <div
       style={{
-        backgroundImage: formData.backgroundImg
-          ? `url(/images/smartsite-background/${formData.backgroundImg}.png)`
-          : "none",
+        backgroundImage:
+          formData.backgroundImg && !formData.backgroundColor
+            ? `url(/images/smartsite-background/${formData.backgroundImg}.png)`
+            : "none",
         backgroundColor: formData.backgroundColor && formData.backgroundColor,
       }}
       className="max-w-screen h-[calc(100vh-96px)] overflow-x-hidden -m-6 bg-cover bg-no-repeat overflow-y-auto"
@@ -300,37 +303,19 @@ const SmartsiteIconLivePreview = ({
                       className="flex justify-center gap-x-6 gap-y-4 flex-wrap"
                     >
                       {row.map((item: any, index: number) => (
-                        <MotionButton
-                          whileHover={{ scale: 1.05 }}
-                          transition={{
-                            type: "spring",
-                            stiffness: 400,
-                            damping: 10,
-                          }}
-                          key={index}
+                        <SocialSmall
+                          key={item.name}
+                          number={index}
+                          data={item}
+                          socialType="socialTop"
+                          fontColor={formData.fontColor}
                           onClick={() =>
                             handleTriggerUpdate({
                               data: item,
                               categoryForTrigger: "socialTop",
                             })
                           }
-                        >
-                          <Image
-                            src={
-                              getSmallIconImage(item.name, item.group) as any
-                            }
-                            alt="icon"
-                            className="w-5 h-auto"
-                            width={1200}
-                            height={1200}
-                            quality={100}
-                            style={{
-                              filter: getSmallIconColorFilter(
-                                formData.fontColor,
-                              ),
-                            }}
-                          />
-                        </MotionButton>
+                        />
                       ))}
                     </div>
                   ))}
@@ -339,7 +324,7 @@ const SmartsiteIconLivePreview = ({
 
                 {/* marketPlace display here start */}
                 {data.info.marketPlace.length > 0 && (
-                  <div className="flex flex-col gap-y-5 px-3">
+                  <div className="flex flex-col gap-y-5 px-3 overflow-x-hidden">
                     {Object.entries(
                       groupMarketPlaceByType(data.info.marketPlace),
                     ).map(([nftType, items]) => (
@@ -350,9 +335,9 @@ const SmartsiteIconLivePreview = ({
                               ? formData.fontColor
                               : "black",
                           }}
-                          className="text-base font-bold"
+                          className="text-base font-medium capitalize mb-1"
                         >
-                          {capitalizeFirstLetter(nftType)}
+                          {nftType === "phygital" ? "Product" : nftType}
                         </h3>
 
                         {items.length > 2 ? (
@@ -362,13 +347,13 @@ const SmartsiteIconLivePreview = ({
                               loop: false,
                               slidesToScroll: 2,
                             }}
-                            className="w-full"
+                            className="w-full [&>div]:overflow-visible"
                           >
-                            <CarouselContent className="-ml-2 md:-ml-3">
-                              {items.map((item: any) => (
+                            <CarouselContent className="-ml-2 pb-4 px-1">
+                              {items.map((item: any, index: number) => (
                                 <CarouselItem
                                   key={item._id}
-                                  className="pl-2 md:pl-3 basis-[45%]"
+                                  className={`${index === 0 ? "pl-2" : "pl-3"} basis-[45%]`}
                                 >
                                   <div className="bg-white rounded-xl shadow-small hover:shadow-medium transition-all duration-200 relative overflow-hidden group">
                                     <button
@@ -421,7 +406,7 @@ const SmartsiteIconLivePreview = ({
                             </CarouselContent>
                           </Carousel>
                         ) : (
-                          <div className="grid grid-cols-2 gap-3">
+                          <div className="grid grid-cols-2 gap-3 mr-[11%] sm:mr-12 ml-1 pb-4">
                             {items.map((item: any) => (
                               <div
                                 key={item._id}
@@ -493,12 +478,7 @@ const SmartsiteIconLivePreview = ({
                             categoryForTrigger: "blog",
                           })
                         }
-                        style={{
-                          backgroundColor: formData.templateColor
-                            ? formData.templateColor
-                            : "white",
-                        }}
-                        className="shadow-small hover:shadow-medium p-2 2xl:p-3 rounded-lg cursor-pointer"
+                        className="shadow-small hover:shadow-medium p-2 2xl:p-3 rounded-lg cursor-pointer bg-white"
                       >
                         <div>
                           <div className="relative">
@@ -511,54 +491,30 @@ const SmartsiteIconLivePreview = ({
                               className="w-full h-36 2xl:h-48 object-cover rounded-lg"
                             />
                           </div>
-                          <div
-                            style={{
-                              color: formData.secondaryFontColor
-                                ? formData.secondaryFontColor
-                                : "black",
-                            }}
-                          >
+                          <div>
                             {item?.title && (
-                              <p className="text-sm font-medium mt-1">
+                              <p
+                                style={{ color: formData.fontColor }}
+                                className="font-medium mt-1 truncate"
+                              >
                                 {item.title}
                               </p>
                             )}
                             {item?.headline && (
-                              <p className="text-xs truncate">
+                              <p
+                                style={{ color: formData.secondaryFontColor }}
+                                className="text-sm truncate"
+                              >
                                 {item.headline}
                               </p>
                             )}
                           </div>
                         </div>
-                        <div className="flex flex-wrap justify-end items-center mt-3 gap-2">
-                          {/* <button
-                              type="button"
-                              onClick={() =>
-                                handleTriggerUpdate({
-                                  data: item,
-                                  categoryForTrigger: "blog",
-                                })
-                              }
-                              style={{
-                                backgroundColor:
-                                  formData.templateColor && formData.fontColor,
-
-                                color: formData.templateColor,
-                              }}
-                              className="rounded-lg bg-white flex items-center gap-1 px-5 py-1.5"
-                            >
-                              <FaEdit /> Edit
-                            </button> */}
-
+                        <div className="flex items-end justify-end">
                           <button
                             type="button"
                             onClick={(e) => showReadMoreForBlog(e, item)}
-                            style={{
-                              backgroundColor: formData.secondaryFontColor
-                                ? formData.secondaryFontColor
-                                : "black",
-                            }}
-                            className="rounded-full text-white flex items-center gap-1 px-3 py-0.5 text-[12px] font-medium"
+                            className="text-xs bg-slate-900 text-white rounded-full px-3 py-1"
                           >
                             Read More
                           </button>
@@ -571,53 +527,44 @@ const SmartsiteIconLivePreview = ({
 
                 {/* app icon display here start */}
                 {data.info.socialLarge.length > 0 && (
-                  <div className="flex flex-wrap gap-x-1 gap-y-3 justify-center items-start px-3">
-                    {data.info.socialLarge.map((data: any, index: number) => (
-                      <div
-                        className={`w-[32%] flex flex-col items-center justify-between gap-1`}
+                  // <div className="flex flex-wrap gap-x-1 gap-y-6 justify-center items-start px-3">
+                  //   {data.info.socialLarge.map((item: any, index: number) => (
+                  //     <div
+                  //       className="w-[32%] flex flex-col items-center justify-between gap-1"
+                  //       key={index}
+                  //     >
+                  //       <SocialLarge
+                  //         data={item}
+                  //         socialType="socialLarge"
+                  //         number={index}
+                  //         fontColor={formData.fontColor || "black"}
+                  //         onClick={() =>
+                  //           handleTriggerUpdate({
+                  //             data: item,
+                  //             categoryForTrigger: "socialLarge",
+                  //           })
+                  //         }
+                  //       />
+                  //     </div>
+                  //   ))}
+                  // </div>
+
+                  <div className="w-full flex flex-wrap items-center justify-center gap-y-6 my-4">
+                    {data.info.socialLarge.map((social: any, index: number) => (
+                      <SocialLarge
+                        number={index}
                         key={index}
-                      >
-                        <button
-                          onClick={() =>
-                            handleTriggerUpdate({
-                              data,
-                              categoryForTrigger: "socialLarge",
-                            })
-                          }
-                        >
-                          {isUrl(data.iconName) ? (
-                            <div className="relative w-[4.2rem] h-[4.2rem] rounded-lg">
-                              <Image
-                                src={data.iconName}
-                                alt="icon"
-                                className="rounded-lg object-cover"
-                                quality={100}
-                                fill
-                              />
-                            </div>
-                          ) : (
-                            <div className="relative w-[4.2rem] h-[4.2rem] rounded-lg">
-                              <Image
-                                src={getAllSmartsitesIcon(data.iconName) as any}
-                                alt="icon"
-                                // style={tintStyle}
-                                className="rounded-lg object-cover"
-                                quality={100}
-                              />
-                            </div>
-                          )}
-                        </button>
-                        <p
-                          style={{
-                            color: formData.fontColor
-                              ? formData.fontColor
-                              : "black",
-                          }}
-                          className="text-xs font-medium text-center"
-                        >
-                          {data.name}
-                        </p>
-                      </div>
+                        data={social}
+                        socialType="socialLarge"
+                        fontColor={formData.fontColor || "black"}
+                        accessToken={accessToken || ""}
+                        onClick={() =>
+                          handleTriggerUpdate({
+                            data: social,
+                            categoryForTrigger: "socialLarge",
+                          })
+                        }
+                      />
                     ))}
                   </div>
                 )}

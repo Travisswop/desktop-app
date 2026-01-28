@@ -18,8 +18,9 @@ interface Props {
     iconPath: string;
     group: string;
   };
+  onClick?: () => void;
   socialType: string;
-  parentId: string;
+  parentId?: string;
   number: number;
   accessToken: string;
   fontColor?: string;
@@ -55,6 +56,7 @@ const SocialLarge: FC<Props> = ({
   data,
   socialType,
   parentId,
+  onClick,
   number,
   accessToken,
   fontColor,
@@ -62,7 +64,16 @@ const SocialLarge: FC<Props> = ({
   const { _id, micrositeId, name, value, url, iconName, iconPath, group } =
     data;
 
-  console.log("data social large", data);
+  const handleClick = async () => {
+    // If custom onClick is provided, use it
+    if (onClick) {
+      onClick();
+      return;
+    }
+
+    // Otherwise, use the default openlink logic
+    openlink();
+  };
 
   const openlink = async () => {
     // if (!accessToken) {
@@ -213,7 +224,7 @@ const SocialLarge: FC<Props> = ({
         delay,
         type: "easeInOut",
       }}
-      onClick={openlink}
+      onClick={handleClick}
       className="flex flex-col gap-2 items-center justify-between cursor-pointer w-1/3"
     >
       <motion.div

@@ -38,6 +38,7 @@ const PUBLIC_ROUTES = new Set([
   "/favicon.ico",
   "/static",
   "/sp",
+  "/feed/:path*",
 ]);
 
 // CSP Configuration
