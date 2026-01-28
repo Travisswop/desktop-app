@@ -139,6 +139,9 @@ function isPublicRoute(pathname: string): boolean {
   if (pathname.startsWith("/sp/")) {
     return true;
   }
+  if (pathname.startsWith("/feed/")) {
+    return true;
+  }
   for (const route of PUBLIC_ROUTES) {
     if (pathname.startsWith(route)) {
       return true;
