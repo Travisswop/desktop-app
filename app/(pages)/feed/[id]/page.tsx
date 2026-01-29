@@ -11,132 +11,9 @@ type Props = {
   searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
 };
 
-// export async function generateMetadata(
-//   { params, searchParams }: Props,
-//   parent: ResolvingMetadata
-// ): Promise<Metadata> {
-//   const { id } = await params;
-
-//   const url = `${process.env.NEXT_PUBLIC_API_URL}/api/v1/feed/${id}`;
-
-//   try {
-//     const responseData = await getFeedDetails(url);
-//     let feed = responseData?.data;
-//     if (responseData?.data?.postType === "repost") {
-//       feed = responseData?.repostedPostDetails;
-//     }
-
-//     console.log("og response data", responseData);
-
-//     if (!feed) {
-//       return {
-//         title: "Feed not found",
-//         description: "No feed post available.",
-//       };
-//     }
-
-//     //console.log("feed meta data", feed);
-
-//     // Get the first post content item
-//     const firstContent = feed?.content?.post_content?.[0];
-//     const contentSrc = firstContent?.src;
-
-//     // Helper function to generate video thumbnail from Cloudinary
-//     const getCloudinaryThumbnail = (videoUrl: string): string => {
-//       // if (!videoUrl || !videoUrl.includes("cloudinary.com")) {
-//       //   return "/default-og-image.jpg";
-//       // }
-
-//       // Check if it's a video
-//       const isVideo =
-//         videoUrl.includes("/video/upload/") ||
-//         videoUrl.match(/\.(mp4|mov|avi|webm|mkv)$/i);
-
-//       if (!isVideo) {
-//         // Check if it's a HEIC image and convert to JPG
-//         if (videoUrl.match(/\.heic$/i)) {
-//           const parts = videoUrl.split("/upload/");
-//           if (parts.length === 2) {
-//             // Add format transformation to convert HEIC to JPG
-//             return `${
-//               parts[0]
-//             }/upload/f_jpg,w_1200,h_630,c_fill/${parts[1].replace(
-//               /\.heic$/i,
-//               ".jpg"
-//             )}`;
-//           }
-//         }
-//         return videoUrl; // Return image URL as-is for other formats
-//       }
-
-//       // Transform Cloudinary video URL to image thumbnail
-//       // This extracts a frame from the video at 1 second
-//       // Example: .../video/upload/v123/video.mov
-//       // Becomes: .../video/upload/so_1.0,w_1200,h_630,c_fill/v123/video.jpg
-
-//       const parts = videoUrl.split("/upload/");
-//       if (parts.length !== 2) return "/default-og-image.jpg";
-
-//       // Extract the public_id (remove file extension)
-//       const publicIdWithExt = parts[1];
-//       const publicId = publicIdWithExt.replace(
-//         /\.(mp4|mov|avi|webm|mkv)$/i,
-//         ""
-//       );
-
-//       // Build thumbnail URL with transformations
-//       // so_1.0 = start offset at 1 second
-//       // w_1200,h_630 = dimensions
-//       // c_fill = crop to fill
-//       // f_jpg = format as JPEG
-//       const thumbnailUrl = `${parts[0]}/upload/so_1.0,w_1200,h_630,c_fill,f_jpg/${publicId}.jpg`;
-
-//       return thumbnailUrl;
-//     };
-
-//     const displayImage = getCloudinaryThumbnail(contentSrc || "/og-image.png");
-
-//     return {
-//       title: feed?.content?.title || "Swop Feed",
-//       // description: "Check out this swop feed",
-//       openGraph: {
-//         title: feed?.content?.title || "Swop Feed",
-//         // description: "Check out this feed",
-//         images: [
-//           {
-//             url: displayImage || "/og-image.png",
-//             width: 1200,
-//             height: 630,
-//             alt: feed?.content?.title || "Feed image",
-//           },
-//         ],
-//         type: "article",
-//         url: `${process.env.NEXT_PUBLIC_APP_URL}/feed/${id}`,
-//       },
-//       twitter: {
-//         card: "summary_large_image",
-//         title: feed?.content?.title || "Swop Feed",
-//         description: "Check out this swop feed",
-//         images: [displayImage || "/og-image.png"],
-//       },
-//     };
-//   } catch (error) {
-//     // Fallback metadata if fetch fails
-//     return {
-//       title: "Feed Details",
-//       description: "Check out this feed",
-//       openGraph: {
-//         title: "Feed Details",
-//         description: "Check out this feed",
-//         images: ["/og-image.png"],
-//       },
-//     };
-//   }
-// }
-
 export async function generateMetadata(
   { params, searchParams }: Props,
-  parent: ResolvingMetadata
+  parent: ResolvingMetadata,
 ): Promise<Metadata> {
   const { id } = await params;
   const url = `${process.env.NEXT_PUBLIC_API_URL}/api/v1/feed/${id}`;
@@ -197,7 +74,7 @@ export async function generateMetadata(
               parts[0]
             }/upload/f_jpg,w_1200,h_630,c_fill,q_auto/${parts[1].replace(
               /\.heic$/i,
-              ".jpg"
+              ".jpg",
             )}`;
           }
         }
@@ -314,11 +191,7 @@ const FeedDetailsPage = async ({
       <div className="w-[90%] sm:w-[70%] xl:w-[30%] overflow-y-auto">
         <Suspense fallback={<FeedLoading />}>
           {feedData && (
-            <FeedDetails
-              feedData={feedData.data}
-              feedDetails={feedData}
-              accessToken={accessToken}
-            />
+            <FeedDetails feedData={feedData.data} feedDetails={feedData} />
           )}
         </Suspense>
       </div>

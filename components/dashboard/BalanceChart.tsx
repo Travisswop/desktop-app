@@ -29,7 +29,6 @@ import { TbArrowsExchange2 } from "react-icons/tb";
 import { MoreHorizontal } from "lucide-react";
 import { BiQrScan } from "react-icons/bi";
 import { FaRegListAlt } from "react-icons/fa";
-import WalletAddressPopup from "../wallet/wallet-address-popup";
 import CustomModal from "../modal/CustomModal";
 import WalletReceivePopup from "../wallet/WalletReceivePopup";
 import WalletFundandSettingsPopup from "../wallet/WalletFundandSettingsPopup";
@@ -147,7 +146,7 @@ const BalanceChart: React.FC<BalanceChartProps> = ({
     queryKey: balanceHistoryQueryKey(
       effectiveUserId || "",
       getServicePeriod(selectedPeriod),
-      getSnapshotType(selectedPeriod)
+      getSnapshotType(selectedPeriod),
     ),
     queryFn: () =>
       getBalanceHistory({
@@ -182,7 +181,7 @@ const BalanceChart: React.FC<BalanceChartProps> = ({
     // Sort all data by date (newest first)
     const sortedHistory = [...balanceHistory].sort(
       (a, b) =>
-        new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+        new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
     );
 
     if (selectedPeriod === "all") {
@@ -195,13 +194,13 @@ const BalanceChart: React.FC<BalanceChartProps> = ({
           }
           return acc;
         },
-        {}
+        {},
       );
 
       // Convert back to array and sort chronologically
       return (Object.values(dateMap) as BalanceHistoryEntry[]).sort(
         (a, b) =>
-          new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+          new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
       );
     }
 
@@ -235,7 +234,7 @@ const BalanceChart: React.FC<BalanceChartProps> = ({
     if (selectedPeriod === "1day") {
       return filtered.sort(
         (a, b) =>
-          new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+          new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
       );
     }
 
@@ -252,7 +251,7 @@ const BalanceChart: React.FC<BalanceChartProps> = ({
         }
         return acc;
       },
-      {}
+      {},
     );
 
     const result: BalanceHistoryEntry[] = [];

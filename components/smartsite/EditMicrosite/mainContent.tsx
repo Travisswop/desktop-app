@@ -185,7 +185,7 @@ const EditSmartSite = ({ data, token }: any) => {
 
   const handleSmartSiteUpdateInfo = async (
     e: any,
-    updatedData?: { backgroundColor: string; backgroundImg: string | number }
+    updatedData?: { backgroundColor: string; backgroundImg: string | number },
   ) => {
     setIsFormSubmitLoading(true);
     e.preventDefault();
@@ -311,7 +311,7 @@ const EditSmartSite = ({ data, token }: any) => {
         setDeleteLoading(true);
         const deleteSmartsite = await handleDeleteSmartSite(
           data.data._id,
-          token
+          token,
         );
 
         refetch();
@@ -345,7 +345,7 @@ const EditSmartSite = ({ data, token }: any) => {
   };
 
   const setSmartSiteData = useSmartSiteApiDataStore(
-    (state: any) => state.setSmartSiteData
+    (state: any) => state.setSmartSiteData,
   );
 
   useEffect(() => {

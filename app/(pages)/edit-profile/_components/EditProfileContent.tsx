@@ -1,24 +1,24 @@
-'use client';
-import React, { useEffect, useRef, useState } from 'react';
-import Image from 'next/image';
-import { FiUser } from 'react-icons/fi';
-import { FaRegUserCircle } from 'react-icons/fa';
-import { MdOutlineEmail } from 'react-icons/md';
-import { SlCalender } from 'react-icons/sl';
-import SelectAvatorModal from '@/components/modal/SelectAvatorModal';
-import { useDisclosure } from '@nextui-org/react';
-import { PhoneInput } from 'react-international-phone';
-import 'react-international-phone/style.css';
-import ProfileLoading from '@/components/loading/ProfileLoading';
-import GooglePlacesAutocomplete from 'react-google-places-autocomplete';
-import 'react-datepicker/dist/react-datepicker.css';
-import { updateUserProfile } from '@/actions/updateUserProfile';
-import { useRouter } from 'next/navigation';
-import { sendCloudinaryImage } from '@/lib/SendCloudinaryImage';
-import toast from 'react-hot-toast';
-import isUrl from '@/lib/isUrl';
-import UploadImageButton from '@/components/Button/UploadImageButton';
-import { Button } from '@/components/ui/button';
+"use client";
+import React, { useEffect, useRef, useState } from "react";
+import Image from "next/image";
+import { FiUser } from "react-icons/fi";
+import { FaRegUserCircle } from "react-icons/fa";
+import { MdOutlineEmail } from "react-icons/md";
+import { SlCalender } from "react-icons/sl";
+import SelectAvatorModal from "@/components/modal/SelectAvatorModal";
+import { useDisclosure } from "@nextui-org/react";
+import { PhoneInput } from "react-international-phone";
+import "react-international-phone/style.css";
+import ProfileLoading from "@/components/loading/ProfileLoading";
+import GooglePlacesAutocomplete from "react-google-places-autocomplete";
+import "react-datepicker/dist/react-datepicker.css";
+import { updateUserProfile } from "@/actions/updateUserProfile";
+import { useRouter } from "next/navigation";
+import { sendCloudinaryImage } from "@/lib/SendCloudinaryImage";
+import toast from "react-hot-toast";
+import isUrl from "@/lib/isUrl";
+import UploadImageButton from "@/components/Button/UploadImageButton";
+import { Button } from "@/components/ui/button";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -29,27 +29,26 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
   AlertDialogTrigger,
-} from '@/components/ui/alert-dialog';
-import { PrimaryButton } from '@/components/ui/Button/PrimaryButton';
-import { Loader, MapPin } from 'lucide-react';
-import { useWallets } from '@privy-io/react-auth';
+} from "@/components/ui/alert-dialog";
+import { PrimaryButton } from "@/components/ui/Button/PrimaryButton";
+import { Loader, MapPin } from "lucide-react";
+import { useWallets } from "@privy-io/react-auth";
 
-const SWOP_ID_GATEWAY =
-  'https://swop-id-ens-gateway.swop.workers.dev';
+const SWOP_ID_GATEWAY = "https://swop-id-ens-gateway.swop.workers.dev";
 
 const EditProfileContent = ({ data, token }: any) => {
-  console.log('data', data);
+  console.log("data", data);
   const [selectedImage, setSelectedImage] = useState(null);
   const [galleryImage, setGalleryImage] = useState(null);
-  const [uploadedImageUrl, setUploadedImageUrl] = useState('');
+  const [uploadedImageUrl, setUploadedImageUrl] = useState("");
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
 
   const [loading, setLoading] = useState(false);
   const [submitLoading, setSubmitLoading] = useState(false);
   const [value, setValue] = useState<any>(null);
-  const [phone, setPhone] = useState('');
-  const [selectedCountryCode, setSelectedCountryCode] = useState('');
+  const [phone, setPhone] = useState("");
+  const [selectedCountryCode, setSelectedCountryCode] = useState("");
   const [dobDate, setDobDate] = useState<any>(new Date().getTime());
 
   const { isOpen, onOpen, onOpenChange } = useDisclosure();
@@ -61,14 +60,11 @@ const EditProfileContent = ({ data, token }: any) => {
     try {
       const ethereumWallet = wallets.find(
         (wallet) =>
-          wallet.type === 'ethereum' &&
-          wallet.walletClientType === 'privy'
+          wallet.type === "ethereum" && wallet.walletClientType === "privy",
       );
 
       if (!ethereumWallet) {
-        console.warn(
-          'No Ethereum wallet found, skipping ENS deletion'
-        );
+        console.warn("No Ethereum wallet found, skipping ENS deletion");
         return; // Don't block account deletion
       }
 
@@ -78,14 +74,14 @@ const EditProfileContent = ({ data, token }: any) => {
 
       // Sign message
       const signature = await provider.request({
-        method: 'personal_sign',
+        method: "personal_sign",
         params: [message, address],
       });
 
       // Delete ENS from gateway
       const response = await fetch(`${SWOP_ID_GATEWAY}/delete`, {
-        method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' },
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           name: ensName,
           owner: address,
@@ -95,10 +91,10 @@ const EditProfileContent = ({ data, token }: any) => {
 
       if (!response.ok) {
         const errorData = await response.text();
-        console.warn('Failed to delete ENS name:', errorData);
+        console.warn("Failed to delete ENS name:", errorData);
       }
     } catch (error) {
-      console.error('Error deleting ENS name:', error);
+      console.error("Error deleting ENS name:", error);
       // Don't throw - allow account deletion to proceed
     }
   };
@@ -107,21 +103,21 @@ const EditProfileContent = ({ data, token }: any) => {
     const response = await fetch(
       `${process.env.NEXT_PUBLIC_API_URL}/api/v2/desktop/user/delete`,
       {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           email: data.data.email,
           id: data.data._id,
         }),
-      }
+      },
     );
 
     if (!response.ok) {
-      throw new Error('Failed to delete account');
+      throw new Error("Failed to delete account");
     }
 
-    toast.success('Successfully deleted account');
-    router.push('/login');
+    toast.success("Successfully deleted account");
+    router.push("/login");
   };
 
   const handleDeleteAccount = async () => {
@@ -129,65 +125,70 @@ const EditProfileContent = ({ data, token }: any) => {
 
     try {
       const primaryMicrosite = data.data?.microsites?.find(
-        (microsite: any) => microsite.primary
+        (microsite: any) => microsite.primary,
+      );
+
+      console.log(
+        "primaryMicrosite?.ens?.toLowerCase()",
+        primaryMicrosite?.ens?.toLowerCase(),
       );
 
       // Delete ENS name if exists
-      if (primaryMicrosite?.ens?.includes('.swop.id')) {
-        await deleteEnsName(primaryMicrosite.ens);
+      if (primaryMicrosite?.ens?.includes(".swop.id")) {
+        await deleteEnsName(primaryMicrosite?.ens?.toLowerCase());
       }
 
       // Delete user account
       await deleteUserAccount();
     } catch (error) {
-      console.error('Error requesting account deletion:', error);
-      toast.error('Something went wrong!');
+      console.error("Error requesting account deletion:", error);
+      toast.error("Something went wrong!");
     } finally {
       setIsDeleting(false);
     }
   };
 
   const images = [
-    '1',
-    '2',
-    '3',
-    '4',
-    '5',
-    '6',
-    '7',
-    '8',
-    '9',
-    '10',
-    '11',
-    '12',
-    '13',
-    '14',
-    '15',
-    '16',
-    '17',
-    '18',
-    '19',
-    '20',
-    '21',
-    '22',
-    '23',
-    '24',
-    '25',
-    '26',
-    '27',
-    '28',
-    '29',
-    '30',
-    '31',
-    '32',
-    '33',
-    '34',
-    '35',
-    '36',
-    '37',
-    '38',
-    '39',
-    '40',
+    "1",
+    "2",
+    "3",
+    "4",
+    "5",
+    "6",
+    "7",
+    "8",
+    "9",
+    "10",
+    "11",
+    "12",
+    "13",
+    "14",
+    "15",
+    "16",
+    "17",
+    "18",
+    "19",
+    "20",
+    "21",
+    "22",
+    "23",
+    "24",
+    "25",
+    "26",
+    "27",
+    "28",
+    "29",
+    "30",
+    "31",
+    "32",
+    "33",
+    "34",
+    "35",
+    "36",
+    "37",
+    "38",
+    "39",
+    "40",
   ];
 
   useEffect(() => {
@@ -198,7 +199,7 @@ const EditProfileContent = ({ data, token }: any) => {
           setSelectedImage(null);
         })
         .catch((err) => {
-          console.error('Error uploading image:', err);
+          console.error("Error uploading image:", err);
         });
     }
   }, [galleryImage]);
@@ -207,32 +208,30 @@ const EditProfileContent = ({ data, token }: any) => {
     setSubmitLoading(true);
     e.preventDefault();
     const formData = new FormData(e.currentTarget);
-    const mobileNumber: any = formData.get('mobileNo');
+    const mobileNumber: any = formData.get("mobileNo");
     const userInfo = {
       _id: data.data._id,
-      name: formData.get('name'),
-      mobileNo: phone || '',
-      address: value?.label || '',
-      bio: formData.get('bio'),
+      name: formData.get("name"),
+      mobileNo: phone || "",
+      address: value?.label || "",
+      bio: formData.get("bio"),
       dob: dobDate,
-      profilePic:
-        selectedImage || uploadedImageUrl || data.data.profilePic,
-      countryCode:
-        mobileNumber?.split(' ')[0] || data.data.countryCode || '+1',
-      countryFlag: selectedCountryCode || 'us',
-      apt: 'N/A',
+      profilePic: selectedImage || uploadedImageUrl || data.data.profilePic,
+      countryCode: mobileNumber?.split(" ")[0] || data.data.countryCode || "+1",
+      countryFlag: selectedCountryCode || "us",
+      apt: "N/A",
     };
 
     try {
       const data = await updateUserProfile(userInfo, token);
 
-      if (data.state === 'success') {
-        router.push('/');
-        toast.success('Profile updated');
+      if (data.state === "success") {
+        router.push("/");
+        toast.success("Profile updated");
       }
     } catch (error) {
-      toast.error('something went wrong!');
-      console.error('error from hola', error);
+      toast.error("something went wrong!");
+      console.error("error from hola", error);
       setSubmitLoading(false);
     } finally {
       setSubmitLoading(false);
@@ -277,11 +276,8 @@ const EditProfileContent = ({ data, token }: any) => {
         value: {
           description: data.data.address,
           structured_formatting: {
-            main_text: data.data.address.split(',')[0],
-            secondary_text: data.data.address
-              .split(',')
-              .slice(1)
-              .join(', '),
+            main_text: data.data.address.split(",")[0],
+            secondary_text: data.data.address.split(",").slice(1).join(", "),
           },
         },
       });
@@ -302,8 +298,8 @@ const EditProfileContent = ({ data, token }: any) => {
                   Edit Your Profile Information
                 </h1>
                 <p className="text-sm text-gray-600 text-center w-60 sm:w-72 mx-auto">
-                  This is your parent profile used for shopping and
-                  wallet features.
+                  This is your parent profile used for shopping and wallet
+                  features.
                 </p>
               </div>
               <div className="w-40 h-40 overflow-hidden rounded-full border-2 border-black border-opacity-20 relative">
@@ -368,9 +364,7 @@ const EditProfileContent = ({ data, token }: any) => {
                   <div className="">
                     <label htmlFor="fullName" className="mb-2 block">
                       Name
-                      <span className="text-red-500 font-bold">
-                        *
-                      </span>
+                      <span className="text-red-500 font-bold">*</span>
                     </label>
                     <div className="relative">
                       <FiUser
@@ -412,7 +406,7 @@ const EditProfileContent = ({ data, token }: any) => {
                       Phone Number
                     </label>
                     {loading ? (
-                      'loading...'
+                      "loading..."
                     ) : (
                       <PhoneInput
                         defaultCountry={data.data.countryFlag.toLowerCase()}
@@ -421,9 +415,7 @@ const EditProfileContent = ({ data, token }: any) => {
                         name="mobileNo"
                         onChange={(phone, country) => {
                           setPhone(phone);
-                          setSelectedCountryCode(
-                            country.country.iso2
-                          ); // Update the selected country code
+                          setSelectedCountryCode(country.country.iso2); // Update the selected country code
                         }}
                         className="w-full"
                       />
@@ -432,9 +424,7 @@ const EditProfileContent = ({ data, token }: any) => {
                   <div className="">
                     <label htmlFor="email" className="mb-2 block">
                       Email
-                      <span className="text-red-500 font-bold">
-                        *
-                      </span>
+                      <span className="text-red-500 font-bold">*</span>
                     </label>
                     <div className="relative">
                       <MdOutlineEmail
@@ -455,14 +445,9 @@ const EditProfileContent = ({ data, token }: any) => {
                   <div className="">
                     <label htmlFor="birthDate" className="mb-2 block">
                       Birth Date
-                      <span className="text-red-500 font-bold">
-                        *
-                      </span>
+                      <span className="text-red-500 font-bold">*</span>
                     </label>
-                    <div
-                      className="relative"
-                      onClick={handleDateIconClick}
-                    >
+                    <div className="relative" onClick={handleDateIconClick}>
                       <button type="button">
                         <SlCalender
                           className="absolute left-4 top-1/2 -translate-y-[50%] font-bold text-gray-600"
@@ -476,15 +461,11 @@ const EditProfileContent = ({ data, token }: any) => {
                         required
                         value={
                           dobDate
-                            ? new Date(dobDate)
-                                .toISOString()
-                                .split('T')[0]
-                            : ''
+                            ? new Date(dobDate).toISOString().split("T")[0]
+                            : ""
                         }
                         onChange={(e) =>
-                          setDobDate(
-                            new Date(e.target.value).getTime()
-                          )
+                          setDobDate(new Date(e.target.value).getTime())
                         }
                         placeholder="Enter birth date"
                         className="w-full border appearance-none pr-2 border-[#ede8e8] focus:border-[#e5e0e0] rounded-xl focus:outline-none pl-10 py-2 text-gray-700 bg-gray-100"
@@ -518,29 +499,28 @@ const EditProfileContent = ({ data, token }: any) => {
 
                       <GooglePlacesAutocomplete
                         apiKey={
-                          process.env
-                            .NEXT_PUBLIC_GOOGLE_PLACES_API_KEY || ''
+                          process.env.NEXT_PUBLIC_GOOGLE_PLACES_API_KEY || ""
                         }
                         selectProps={{
                           value,
                           onChange: setValue as any,
-                          placeholder: 'Enter address',
+                          placeholder: "Enter address",
                           styles: {
                             control: (base, state) => ({
                               ...base,
-                              paddingLeft: '1.35rem', // space for icon
+                              paddingLeft: "1.35rem", // space for icon
                               // minHeight: "42px",
-                              borderRadius: '0.5rem',
+                              borderRadius: "0.5rem",
                               border: state.isFocused
-                                ? '1px solid #edebeb' // focus (blue-600)
-                                : '1px solid #edebeb',
+                                ? "1px solid #edebeb" // focus (blue-600)
+                                : "1px solid #edebeb",
                               boxShadow: state.isFocused
-                                ? '1px solid #edebeb'
-                                : 'none',
-                              '&:hover': {
+                                ? "1px solid #edebeb"
+                                : "none",
+                              "&:hover": {
                                 border: state.isFocused
-                                  ? '1px solid #edebeb'
-                                  : '1px solid #edebeb', // hover (gray-300)
+                                  ? "1px solid #edebeb"
+                                  : "1px solid #edebeb", // hover (gray-300)
                               },
                             }),
                             input: (base) => ({
@@ -563,7 +543,7 @@ const EditProfileContent = ({ data, token }: any) => {
                     {submitLoading ? (
                       <Loader className="animate-spin" size={24} />
                     ) : (
-                      'Save'
+                      "Save"
                     )}
                   </PrimaryButton>
                 </div>
@@ -629,9 +609,9 @@ const EditProfileContent = ({ data, token }: any) => {
                     Danger Zone
                   </h3>
                   <p className="text-sm text-red-700 mb-4">
-                    Once you delete your account, there is no going
-                    back. This will permanently delete your profile,
-                    purchase history, and all associated data.
+                    Once you delete your account, there is no going back. This
+                    will permanently delete your profile, purchase history, and
+                    all associated data.
                   </p>
                   <AlertDialog>
                     <AlertDialogTrigger asChild>
@@ -642,14 +622,11 @@ const EditProfileContent = ({ data, token }: any) => {
                       >
                         {isDeleting ? (
                           <div className="flex items-center gap-2">
-                            <Loader
-                              className="animate-spin"
-                              size={16}
-                            />
+                            <Loader className="animate-spin" size={16} />
                             <span>Processing...</span>
                           </div>
                         ) : (
-                          'Delete Account'
+                          "Delete Account"
                         )}
                       </Button>
                     </AlertDialogTrigger>
@@ -659,9 +636,9 @@ const EditProfileContent = ({ data, token }: any) => {
                           Are you absolutely sure?
                         </AlertDialogTitle>
                         <AlertDialogDescription>
-                          This action cannot be undone. This will
-                          permanently delete your account and remove
-                          your data from our servers including:
+                          This action cannot be undone. This will permanently
+                          delete your account and remove your data from our
+                          servers including:
                           <ul className="list-disc list-inside mt-2 space-y-1">
                             <li>Your profile information</li>
                             <li>Purchase history and orders</li>

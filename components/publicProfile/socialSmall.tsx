@@ -2,7 +2,6 @@
 import { FC } from "react";
 import Image from "next/image";
 // import { ToastAction } from '@/components/ui/toast';
-import { useToast } from "@/components/ui/use-toast";
 import { motion } from "framer-motion";
 import getSmallIconColorFilter from "@/utils/smallIconColorFilter";
 // import { getDeviceInfo } from '@/components/collectiVistUserInfo';
@@ -22,10 +21,11 @@ interface Props {
     group: string;
   };
   socialType: string;
-  parentId: string;
+  parentId?: string;
   number: number;
-  accessToken: string;
+  accessToken?: string;
   fontColor: string;
+  onClick?: () => void;
 }
 
 interface SocialInputTypes {
@@ -58,6 +58,7 @@ const SocialSmall: FC<Props> = ({
   number,
   accessToken,
   fontColor,
+  onClick,
 }) => {
   const { _id, micrositeId, name, value, url, iconName, iconPath, group } =
     data;
@@ -119,6 +120,17 @@ const SocialSmall: FC<Props> = ({
 
   const trimIcon = iconName.toLowerCase().trim().replace(" ", "");
 
+  const handleClick = async () => {
+    // If custom onClick is provided, use it
+    if (onClick) {
+      onClick();
+      return;
+    }
+
+    // Otherwise, use the default openlink logic
+    openlink();
+  };
+
   return (
     <motion.div
       initial="hidden"
@@ -130,7 +142,7 @@ const SocialSmall: FC<Props> = ({
         delay,
         type: "easeInOut",
       }}
-      onClick={openlink}
+      onClick={handleClick}
     >
       <motion.div
         whileHover={{ scale: 1.05 }}

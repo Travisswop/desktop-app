@@ -1,42 +1,44 @@
-'use client';
-import { useUser } from '@/lib/UserContext';
-import { Skeleton } from '../ui/skeleton';
+"use client";
+import { useUser } from "@/lib/UserContext";
+import { Skeleton } from "../ui/skeleton";
 // import DashboardAnalytics from "./analytics";
-import { useQuery } from '@tanstack/react-query';
+import { useQuery } from "@tanstack/react-query";
+import { getFollowers, followersQueryKey } from "@/services/followers-service";
+import PortfolioChart, { PortfolioAsset } from "./PortfolioChart";
+import OrdersStats from "./OrderSummery";
+import Insights from "./Insights";
+import BalanceChart from "./BalanceChart";
+import NavigationHub from "./NavigationTab";
+import DashboardContentPreview from "./ContentPreview";
+import DashboardChatPreview from "./ChatPreview";
+import RewardsCardPreview from "./RewardPreview";
+import TransactionsListPreview from "./TransactionPreview";
+import QRCodePreview from "./QrcodePreview";
+import { usePrivy, useWallets } from "@privy-io/react-auth";
+import { useWallets as useSolanaWallets } from "@privy-io/react-auth/solana";
+import { useEffect, useMemo, useState } from "react";
+import { useMultiChainTokenData } from "@/lib/hooks/useToken";
+import { useRouter } from "next/navigation";
+import { fetchAnalyticsInfo } from "@/actions/fetchDesktopUserData";
+import { SUPPORTED_CHAINS } from "../wallet/constants";
 import {
-  getFollowers,
-  followersQueryKey,
-} from '@/services/followers-service';
-import PortfolioChart, { PortfolioAsset } from './PortfolioChart';
-import OrdersStats from './OrderSummery';
-import Insights from './Insights';
-import BalanceChart from './BalanceChart';
-import NavigationHub from './NavigationTab';
-import DashboardContentPreview from './ContentPreview';
-import DashboardChatPreview from './ChatPreview';
-import RewardsCardPreview from './RewardPreview';
-import TransactionsListPreview from './TransactionPreview';
-import QRCodePreview from './QrcodePreview';
-import { useWallets } from '@privy-io/react-auth';
-import { useWallets as useSolanaWallets } from '@privy-io/react-auth/solana';
-import { useEffect, useMemo, useState } from 'react';
-import { useMultiChainTokenData } from '@/lib/hooks/useToken';
-import { useRouter } from 'next/navigation';
-import { fetchAnalyticsInfo } from '@/actions/fetchDesktopUserData';
+  useWalletAddresses,
+  useWalletData,
+} from "../wallet/hooks/useWalletData";
 
 // Token colors mapping for consistent visual representation
 const TOKEN_COLORS: Record<string, string> = {
-  SOL: '#10b981',
-  SWOP: '#d1fae5',
-  ETH: '#047857',
-  BTC: '#f59e0b',
-  USDC: '#2563eb',
-  USDT: '#22c55e',
-  BNB: '#eab308',
-  XRP: '#06b6d4',
-  MATIC: '#8b5cf6',
-  POL: '#8b5cf6',
-  default: '#6b7280',
+  SOL: "#10b981",
+  SWOP: "#d1fae5",
+  ETH: "#047857",
+  BTC: "#f59e0b",
+  USDC: "#2563eb",
+  USDT: "#22c55e",
+  BNB: "#eab308",
+  XRP: "#06b6d4",
+  MATIC: "#8b5cf6",
+  POL: "#8b5cf6",
+  default: "#6b7280",
 };
 
 const getTokenColor = (symbol: string): string => {
@@ -51,28 +53,43 @@ export default function DashboardMainContent() {
   const [analyticsData, setAnalyticsData] = useState(null);
 
   // Get wallet addresses
-  const solWalletAddress = useMemo(() => {
-    return solanaWallets?.find(
-      (w) =>
-        w.walletClientType === 'privy' ||
-        w.connectorType === 'embedded'
-    )?.address;
-  }, [solanaWallets]);
+  // const solWalletAddress = useMemo(() => {
+  //   return solanaWallets?.find(
+  //     (w) => w.walletClientType === "privy" || w.connectorType === "embedded",
+  //   )?.address;
+  // }, [solanaWallets]);
 
-  const evmWalletAddress = useMemo(() => {
-    return ethWallets?.find(
-      (w) =>
-        w.walletClientType === 'privy' ||
-        w.connectorType === 'embedded'
-    )?.address;
-  }, [ethWallets]);
+  // const evmWalletAddress = useMemo(() => {
+  //   return ethWallets?.find(
+  //     (w) => w.walletClientType === "privy" || w.connectorType === "embedded",
+  //   )?.address;
+  // }, [ethWallets]);
+  const { authenticated, ready, user: PrivyUser, getAccessToken } = usePrivy();
+  const walletData = useWalletData(authenticated, ready, PrivyUser);
+  const { solWalletAddress, evmWalletAddress } = useWalletAddresses(walletData);
+
+  console.log("solWalletAddress", solWalletAddress);
+  console.log("evmWalletAddress", evmWalletAddress);
 
   // Fetch token data
-  const { tokens, loading: tokenLoading } = useMultiChainTokenData(
+  // const { tokens, loading: tokenLoading } = useMultiChainTokenData(
+  //   solWalletAddress,
+  //   evmWalletAddress,
+  //   ["SOLANA", "ETHEREUM", "POLYGON", "BASE"],
+  // );
+
+  const {
+    tokens,
+    loading: tokenLoading,
+    error: tokenError,
+    refetch: refetchTokens,
+  } = useMultiChainTokenData(
     solWalletAddress,
     evmWalletAddress,
-    ['SOLANA', 'ETHEREUM', 'POLYGON', 'BASE']
+    SUPPORTED_CHAINS,
   );
+
+  console.log("tokens hola", tokens);
 
   // Fetch followers with pagination (page 1, limit 20)
   const {
@@ -80,7 +97,7 @@ export default function DashboardMainContent() {
     isLoading: followersLoading,
     error: followersError,
   } = useQuery({
-    queryKey: followersQueryKey(user?._id || '', 1, 20),
+    queryKey: followersQueryKey(user?._id || "", 1, 20),
     queryFn: () =>
       getFollowers({
         userId: user!._id,
@@ -93,73 +110,97 @@ export default function DashboardMainContent() {
     retry: 2,
   });
 
+  // Create a stable hash of portfolio data to prevent unnecessary recalculations
+  const portfolioHash = useMemo(() => {
+    if (!tokens || tokens.length === 0) return "empty";
+
+    // Only hash the data that affects portfolio visualization
+    return tokens
+      .map((t) => `${t.symbol}:${t.balance}:${t.marketData?.price || "0"}`)
+      .sort()
+      .join("|");
+  }, [tokens]);
+
   // Transform tokens into portfolio assets
-  const portfolioData = useMemo(() => {
+  const portfolioSummary = useMemo(() => {
     if (!tokens || tokens.length === 0) {
       return {
         assets: [],
-        totalBalance: '0.00',
+        totalBalance: 0,
+        formattedBalance: "0.00",
       };
     }
 
-    // Calculate token values and filter out zero balances
-    const assetsWithValue = tokens
-      .map((token) => {
-        const balance = parseFloat(token.balance || '0');
-        const price = parseFloat(token.marketData?.price || '0');
-        const value = balance * price;
+    // Single pass to calculate everything
+    let total = 0;
+    const assetsWithValue: Array<{
+      name: string;
+      value: number;
+      color: string;
+      amount: string;
+    }> = [];
 
-        return {
-          name: token.symbol,
-          value: value,
-          color: getTokenColor(token.symbol),
-          amount: `${balance.toLocaleString(undefined, {
-            minimumFractionDigits: 2,
-            maximumFractionDigits: 4,
-          })} ${token.symbol}`,
-        };
-      })
-      .filter((asset) => asset.value > 0) // Only include tokens with positive value
-      .sort((a, b) => b.value - a.value); // Sort by value descending
+    for (const token of tokens) {
+      const balance = parseFloat(token.balance || "0");
+      const price = parseFloat(token.marketData?.price || "0");
+      const value = balance * price;
 
-    // Calculate total balance
-    const total = assetsWithValue.reduce(
-      (sum, asset) => sum + asset.value,
-      0
-    );
+      if (value <= 0) continue; // Skip zero-value tokens early
 
-    // Take top 5 tokens and group rest as "Others"
+      total += value;
+
+      assetsWithValue.push({
+        name: token.symbol,
+        value: value,
+        color: getTokenColor(token.symbol),
+        amount: `${balance.toLocaleString(undefined, {
+          minimumFractionDigits: 2,
+          maximumFractionDigits: 4,
+        })} ${token.symbol}`,
+      });
+    }
+
+    // Sort once after filtering
+    assetsWithValue.sort((a, b) => b.value - a.value);
+
+    // Take top 5 and group rest
     const topAssets = assetsWithValue.slice(0, 5);
     const otherAssets = assetsWithValue.slice(5);
-
     const assets: PortfolioAsset[] = [...topAssets];
 
     if (otherAssets.length > 0) {
       const othersValue = otherAssets.reduce(
         (sum, asset) => sum + asset.value,
-        0
+        0,
       );
       assets.push({
-        name: 'Others',
+        name: "Others",
         value: othersValue,
-        color: '#94a3b8',
+        color: "#94a3b8",
         amount: `${otherAssets.length} tokens`,
       });
     }
 
     return {
       assets,
-      totalBalance: total.toLocaleString(undefined, {
+      totalBalance: total,
+      formattedBalance: total.toLocaleString(undefined, {
         minimumFractionDigits: 2,
         maximumFractionDigits: 2,
       }),
     };
-  }, [tokens]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [portfolioHash]); // Intentionally use hash to prevent recalculation when tokens reference changes
+
+  console.log("portfolioSummary", portfolioSummary);
+
+  // For backward compatibility, extract totalBalance
+  const totalBalance = portfolioSummary.totalBalance;
 
   useEffect(() => {
     if (accessToken) {
       const getInsightsData = async () => {
-        const data = await fetchAnalyticsInfo(accessToken || '');
+        const data = await fetchAnalyticsInfo(accessToken || "");
         setAnalyticsData(data);
       };
       getInsightsData();
@@ -175,7 +216,7 @@ export default function DashboardMainContent() {
   }
 
   if (followersError) {
-    console.error('Error fetching followers:', followersError);
+    console.error("Error fetching followers:", followersError);
   }
 
   return (
@@ -189,13 +230,15 @@ export default function DashboardMainContent() {
             {/* <WalletBalanceChart /> */}
             <BalanceChart
               currency="$"
-              totalBalance={
-                portfolioData.assets.length > 0
-                  ? parseFloat(
-                      portfolioData.totalBalance.replace(/,/g, '')
-                    )
-                  : 0
-              }
+              totalBalance={totalBalance}
+              // totalBalance={totalBalance}
+              // onSelectAsset={handleAssetSelect}
+              // onQRClick={handleQRClick}
+              // walletData={walletData || []}
+              tokens={tokens}
+              // accessToken={accessToken}
+              // onTokenRefresh={refetchTokens}
+              isButtonVisible={true}
             />
           </div>
           <div className="bg-white p-5 rounded-xl">
@@ -204,21 +247,17 @@ export default function DashboardMainContent() {
                 value: analyticsData
                   ? analyticsData.last30DaysMicrositeTaps
                   : 0,
-                period: '30 days',
+                period: "30 days",
                 trend: 24,
               }}
               leads={{
-                value: analyticsData
-                  ? analyticsData.last30DaysLeads
-                  : 0,
-                period: '30 days',
+                value: analyticsData ? analyticsData.last30DaysLeads : 0,
+                period: "30 days",
                 trend: 24,
               }}
               connections={{
-                value: analyticsData
-                  ? analyticsData.last30DaysConnections
-                  : 0,
-                period: '30 days',
+                value: analyticsData ? analyticsData.last30DaysConnections : 0,
+                period: "30 days",
                 trend: 24,
               }}
             />
@@ -228,12 +267,12 @@ export default function DashboardMainContent() {
           <div className="bg-white flex-1 rounded-xl">
             {tokenLoading ? (
               <PortfolioChartSkeleton />
-            ) : portfolioData.assets.length > 0 ? (
+            ) : portfolioSummary.assets.length > 0 ? (
               <PortfolioChart
-                assets={portfolioData.assets}
-                balance={`$${portfolioData.totalBalance}`}
+                assets={portfolioSummary.assets}
+                balance={`$${portfolioSummary.formattedBalance}`}
                 title="Portfolio"
-                viewAction={() => router.push('/wallet')}
+                viewAction={() => router.push("/wallet")}
               />
             ) : (
               <PortfolioEmptyState />
@@ -267,9 +306,9 @@ export default function DashboardMainContent() {
       <div className="flex flex-col lg:flex-row gap-4">
         <div className="flex-1 bg-white p-5 rounded-xl">
           <TransactionsListPreview
-            solWalletAddress={solWalletAddress || ''}
-            evmWalletAddress={evmWalletAddress || ''}
-            chains={['SOLANA', 'ETHEREUM', 'POLYGON']}
+            solWalletAddress={solWalletAddress || ""}
+            evmWalletAddress={evmWalletAddress || ""}
+            chains={["SOLANA", "ETHEREUM", "POLYGON"]}
           />
         </div>
         <div className="flex-1 bg-white p-5 rounded-xl">
@@ -446,9 +485,7 @@ function PortfolioEmptyState() {
             />
           </svg>
         </div>
-        <p className="text-gray-600 font-medium mb-1">
-          No tokens found
-        </p>
+        <p className="text-gray-600 font-medium mb-1">No tokens found</p>
         <p className="text-sm text-gray-500">
           Connect your wallet to view your portfolio.
         </p>

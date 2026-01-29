@@ -367,7 +367,7 @@ export default function SwapTokenModal({
 }) {
   // State management
   const [payToken, setPayToken] = useState<any>(
-    token || tokens?.[0] || null
+    token || tokens?.[0] || null,
   );
   const [receiveToken, setReceiveToken] = useState<any>(null);
   const [payAmount, setPayAmount] = useState('');
@@ -401,7 +401,7 @@ export default function SwapTokenModal({
   const [isQuoteLoading, setIsQuoteLoading] = useState(false);
   const [quoteCountdown, setQuoteCountdown] = useState(10);
   const [lastQuoteTime, setLastQuoteTime] = useState<number | null>(
-    null
+    null,
   );
 
   const [accessToken, setAccessToken] = useState('');
@@ -424,10 +424,10 @@ export default function SwapTokenModal({
   const solWallet = solanaReady ? solWallets[0]?.address : undefined;
 
   const [fromWalletAddress, setFromWalletAddress] = useState(
-    solWallet || ''
+    solWallet || '',
   );
   const [toWalletAddress, setToWalletAddress] = useState(
-    solWallet || ''
+    solWallet || '',
   );
 
   const [isSwapping, setIsSwapping] = useState(false);
@@ -451,7 +451,7 @@ export default function SwapTokenModal({
         const foundPayToken = tokens.find(
           (token) =>
             token.symbol.toLowerCase() ===
-            inputTokenParam.toLowerCase()
+            inputTokenParam.toLowerCase(),
         );
         if (foundPayToken) {
           setPayToken(foundPayToken);
@@ -464,7 +464,7 @@ export default function SwapTokenModal({
         const foundReceiveToken = tokens.find(
           (token) =>
             token.symbol.toLowerCase() ===
-            outputTokenParam.toLowerCase()
+            outputTokenParam.toLowerCase(),
         );
         if (foundReceiveToken) {
           setReceiveToken(foundReceiveToken);
@@ -485,7 +485,7 @@ export default function SwapTokenModal({
   // Helper function to get correct wallet ID from user's linkedAccounts
   const getSolanaWalletId = (
     solanaWallet: any,
-    user: any
+    user: any,
   ): string => {
     if (user?.linkedAccounts) {
       // Find the Solana wallet in linkedAccounts
@@ -493,7 +493,7 @@ export default function SwapTokenModal({
         (account: any) =>
           account.type === 'wallet' &&
           account.chainType === 'solana' &&
-          account.address === solanaWallet.address
+          account.address === solanaWallet.address,
       );
       if (solanaWalletAccount?.id) {
         return solanaWalletAccount.id;
@@ -506,7 +506,7 @@ export default function SwapTokenModal({
   // Add this helper function to filter tokens by chain
   const filterTokensByChain = (
     tokens: any[],
-    chainFilter: string
+    chainFilter: string,
   ) => {
     if (chainFilter === 'all') {
       return tokens;
@@ -546,7 +546,7 @@ export default function SwapTokenModal({
       const results = baseTokens.filter(
         (token: any) =>
           token.symbol.toLowerCase().includes(query.toLowerCase()) ||
-          token.name.toLowerCase().includes(query.toLowerCase())
+          token.name.toLowerCase().includes(query.toLowerCase()),
       );
 
       setAvailableTokens(results); // Show all results without slicing
@@ -565,7 +565,7 @@ export default function SwapTokenModal({
       } else {
         const filteredTokens = filterTokensByChain(
           tokens,
-          selectedPayChain
+          selectedPayChain,
         );
         setAvailableTokens(filteredTokens); // Show all filtered tokens
       }
@@ -579,7 +579,9 @@ export default function SwapTokenModal({
     } else {
       setIsLoadingTokens(true);
       const symbols =
-        NATIVE_TOKENS_AND_USDC[receiverChainId as keyof typeof NATIVE_TOKENS_AND_USDC]; // e.g. [{symbol: "SOL"}, {symbol: "USDC"}]
+        NATIVE_TOKENS_AND_USDC[
+          receiverChainId as keyof typeof NATIVE_TOKENS_AND_USDC
+        ]; // e.g. [{symbol: "SOL"}, {symbol: "USDC"}]
 
       // console.log("symbols", symbols);
 
@@ -590,7 +592,7 @@ export default function SwapTokenModal({
 
       // Filter availableTokens where the symbol is in symbolSet
       const filtered = availableTokens.filter((avail) =>
-        symbolSet.has(avail.symbol)
+        symbolSet.has(avail.symbol),
       );
 
       // console.log("filtered", filtered);
@@ -649,7 +651,7 @@ export default function SwapTokenModal({
 
   const formatTokenAmount = (
     amount: string | number,
-    decimals: number | bigint
+    decimals: number | bigint,
   ): string => {
     // always convert decimals to number
     const dec =
@@ -675,7 +677,7 @@ export default function SwapTokenModal({
       return {
         isValid: false,
         error: `Insufficient balance. Available: ${balance.toFixed(
-          6
+          6,
         )} ${payToken.symbol}`,
       };
     }
@@ -720,7 +722,7 @@ export default function SwapTokenModal({
 
       const amountInSmallestUnit = formatTokenAmount(
         payAmount,
-        payToken.decimals || 6
+        payToken.decimals || 6,
       );
       const slippageBps = Math.floor(slippage * 100);
       const platformFeeBps = 50;
@@ -760,7 +762,7 @@ export default function SwapTokenModal({
 
       if (!jupiterQuote || !jupiterQuote.outAmount) {
         throw new Error(
-          'Unable to calculate swap price. Please try different amounts or tokens.'
+          'Unable to calculate swap price. Please try different amounts or tokens.',
         );
       }
 
@@ -788,7 +790,7 @@ export default function SwapTokenModal({
           headers: {
             'Content-Type': 'application/json',
           },
-        }
+        },
       );
 
       if (!feeAccountResponse.ok) {
@@ -811,7 +813,7 @@ export default function SwapTokenModal({
               dynamicComputeUnitLimit: true,
               prioritizationFeeLamports: 'auto',
             }),
-          }
+          },
         );
 
         if (!swapResponse.ok) {
@@ -819,7 +821,7 @@ export default function SwapTokenModal({
             .json()
             .catch(() => null);
           throw new Error(
-            errorData?.error || 'Failed to get swap transaction'
+            errorData?.error || 'Failed to get swap transaction',
           );
         }
 
@@ -832,7 +834,7 @@ export default function SwapTokenModal({
 
       if (!feeAccount) {
         console.warn(
-          'No fee account received, proceeding without platform fee'
+          'No fee account received, proceeding without platform fee',
         );
 
         // Proceed without platform fee
@@ -850,7 +852,7 @@ export default function SwapTokenModal({
               dynamicComputeUnitLimit: true,
               prioritizationFeeLamports: 'auto',
             }),
-          }
+          },
         );
 
         if (!swapResponse.ok) {
@@ -858,7 +860,7 @@ export default function SwapTokenModal({
             .json()
             .catch(() => null);
           throw new Error(
-            errorData?.error || 'Failed to get swap transaction'
+            errorData?.error || 'Failed to get swap transaction',
           );
         }
 
@@ -866,8 +868,7 @@ export default function SwapTokenModal({
       }
 
       // Verify the fee account is a valid token account on-chain
-      const rpcUrl =
-        process.env.NEXT_PUBLIC_SOLANA_RPC_URL
+      const rpcUrl = process.env.NEXT_PUBLIC_SOLANA_RPC_URL;
 
       if (!rpcUrl) {
         throw new Error('No Solana RPC URL configured');
@@ -888,12 +889,12 @@ export default function SwapTokenModal({
           connection,
           feeAccountPubkey,
           undefined,
-          programId
+          programId,
         );
 
         if (!accountInfo) {
           console.warn(
-            'Fee account not found on-chain, proceeding without platform fee'
+            'Fee account not found on-chain, proceeding without platform fee',
           );
 
           // Proceed without platform fee if account is invalid
@@ -911,7 +912,7 @@ export default function SwapTokenModal({
                 dynamicComputeUnitLimit: true,
                 prioritizationFeeLamports: 'auto',
               }),
-            }
+            },
           );
 
           if (!swapResponse.ok) {
@@ -919,7 +920,7 @@ export default function SwapTokenModal({
               .json()
               .catch(() => null);
             throw new Error(
-              errorData?.error || 'Failed to get swap transaction'
+              errorData?.error || 'Failed to get swap transaction',
             );
           }
 
@@ -942,7 +943,7 @@ export default function SwapTokenModal({
               prioritizationFeeLamports: 'auto',
               feeAccount: feeAccount,
             }),
-          }
+          },
         );
 
         if (!swapResponse.ok) {
@@ -950,7 +951,7 @@ export default function SwapTokenModal({
             .json()
             .catch(() => null);
           throw new Error(
-            errorData?.error || 'Failed to get swap transaction'
+            errorData?.error || 'Failed to get swap transaction',
           );
         }
 
@@ -977,14 +978,14 @@ export default function SwapTokenModal({
             platformFeeBps: 50,
             feeAccount: feeAccount,
           }),
-        }
+        },
       );
 
       if (!swapResponse.ok) {
         const errorData = await swapResponse.json().catch(() => null);
         console.error('Jupiter swap API error:', errorData);
         throw new Error(
-          errorData?.error || 'Failed to get swap transaction'
+          errorData?.error || 'Failed to get swap transaction',
         );
       }
 
@@ -1002,7 +1003,7 @@ export default function SwapTokenModal({
 
       const fromAmount = formatTokenAmount(
         payAmount,
-        payToken.decimals || 6
+        payToken.decimals || 6,
       );
 
       // console.log("fromAmount2", fromAmount);
@@ -1081,9 +1082,10 @@ export default function SwapTokenModal({
           headers: {
             Accept: 'application/json',
             'Content-Type': 'application/json',
-            'x-lifi-api-key': process.env.NEXT_PUBLIC_LIFI_API_KEY || '',
+            'x-lifi-api-key':
+              process.env.NEXT_PUBLIC_LIFI_API_KEY || '',
           },
-        }
+        },
       );
 
       if (!response.ok) {
@@ -1116,7 +1118,7 @@ export default function SwapTokenModal({
 
       if (!quote || !quote.estimate) {
         throw new Error(
-          'Unable to calculate cross-chain swap price. Please try again.'
+          'Unable to calculate cross-chain swap price. Please try again.',
         );
       }
 
@@ -1170,7 +1172,7 @@ export default function SwapTokenModal({
 
         // Apply user-friendly error formatting
         const userFriendlyError = formatUserFriendlyError(
-          error.message || error.toString() || 'Failed to get quote'
+          error.message || error.toString() || 'Failed to get quote',
         );
         setSwapError(userFriendlyError);
         setLastQuoteTime(null);
@@ -1189,7 +1191,7 @@ export default function SwapTokenModal({
       toWalletAddress,
       slippage,
       isSolanaToSolanaSwap,
-    ]
+    ],
   );
 
   // Auto-refresh quote every 10 seconds
@@ -1266,7 +1268,7 @@ export default function SwapTokenModal({
       } catch (error) {
         console.error(
           'Error calculating receive amount from quote:',
-          error
+          error,
         );
         setReceiveAmount('Error');
       }
@@ -1300,7 +1302,7 @@ export default function SwapTokenModal({
 
       // Apply user-friendly error formatting
       const userFriendlyError = formatUserFriendlyError(
-        error.message || error.toString() || 'Swap failed'
+        error.message || error.toString() || 'Swap failed',
       );
 
       setSwapError(userFriendlyError);
@@ -1350,12 +1352,11 @@ export default function SwapTokenModal({
       const doSponsorship = false;
 
       // Step 3: Set up RPC connection first
-      const rpcUrl =
-        process.env.NEXT_PUBLIC_SOLANA_RPC_URL
+      const rpcUrl = process.env.NEXT_PUBLIC_SOLANA_RPC_URL;
 
       if (!rpcUrl) {
         throw new Error(
-          'No Solana RPC URL configured in environment variables'
+          'No Solana RPC URL configured in environment variables',
         );
       }
 
@@ -1371,7 +1372,7 @@ export default function SwapTokenModal({
 
       // Detect which token program each mint uses
       const detectTokenProgram = async (
-        mintPubkey: typeof PublicKey.prototype
+        mintPubkey: typeof PublicKey.prototype,
       ) => {
         try {
           // Try Token-2022 first
@@ -1379,7 +1380,7 @@ export default function SwapTokenModal({
             connection,
             mintPubkey,
             undefined,
-            TOKEN_2022_PROGRAM_ID
+            TOKEN_2022_PROGRAM_ID,
           );
           return TOKEN_2022_PROGRAM_ID;
         } catch (e) {
@@ -1399,13 +1400,13 @@ export default function SwapTokenModal({
         inputMintPubkey,
         walletPubkey,
         false,
-        inputTokenProgram
+        inputTokenProgram,
       );
       const outputATA = await getAssociatedTokenAddress(
         outputMintPubkey,
         walletPubkey,
         false,
-        outputTokenProgram
+        outputTokenProgram,
       );
 
       // Check if ATAs exist
@@ -1413,7 +1414,7 @@ export default function SwapTokenModal({
         [
           connection.getAccountInfo(inputATA),
           connection.getAccountInfo(outputATA),
-        ]
+        ],
       );
 
       const needsInputATA = !inputAccountInfo;
@@ -1422,7 +1423,7 @@ export default function SwapTokenModal({
       // Create ATAs if needed
       if (needsInputATA || needsOutputATA) {
         console.log(
-          '⚠️ [SWAP] Missing ATAs detected, creating them...'
+          '⚠️ [SWAP] Missing ATAs detected, creating them...',
         );
         setSwapStatus('Creating token accounts...');
 
@@ -1433,7 +1434,7 @@ export default function SwapTokenModal({
             '➕ [SWAP] Adding input ATA creation instruction',
             {
               tokenProgram: inputTokenProgram.toBase58(),
-            }
+            },
           );
           transaction.add(
             createAssociatedTokenAccountInstruction(
@@ -1441,8 +1442,8 @@ export default function SwapTokenModal({
               inputATA,
               walletPubkey,
               inputMintPubkey,
-              inputTokenProgram // Pass correct token program
-            )
+              inputTokenProgram, // Pass correct token program
+            ),
           );
         }
 
@@ -1451,7 +1452,7 @@ export default function SwapTokenModal({
             '➕ [SWAP] Adding output ATA creation instruction',
             {
               tokenProgram: outputTokenProgram.toBase58(),
-            }
+            },
           );
           transaction.add(
             createAssociatedTokenAccountInstruction(
@@ -1459,8 +1460,8 @@ export default function SwapTokenModal({
               outputATA,
               walletPubkey,
               outputMintPubkey,
-              outputTokenProgram // Pass correct token program
-            )
+              outputTokenProgram, // Pass correct token program
+            ),
           );
         }
 
@@ -1480,13 +1481,12 @@ export default function SwapTokenModal({
             transaction: new Uint8Array(serializedTx),
             wallet: solanaWallet,
           });
-          const signature = await connection.sendRawTransaction(
-            signedTransaction
-          );
+          const signature =
+            await connection.sendRawTransaction(signedTransaction);
 
           console.log(
             '⏳ [SWAP] Confirming ATA creation:',
-            signature
+            signature,
           );
           await connection.confirmTransaction(signature, 'confirmed');
           console.log('✅ [SWAP] ATAs created successfully');
@@ -1495,11 +1495,9 @@ export default function SwapTokenModal({
           throw new Error(
             `Failed to create token accounts: ${
               ataError.message || ataError
-            }`
+            }`,
           );
         }
-      } else {
-        console.log('✅ [SWAP] All required ATAs exist');
       }
 
       // Step 5: Get swap transaction from Jupiter
@@ -1509,7 +1507,7 @@ export default function SwapTokenModal({
 
       if (!swapData?.swapTransaction) {
         throw new Error(
-          'No swap transaction received from Jupiter API'
+          'No swap transaction received from Jupiter API',
         );
       }
 
@@ -1518,10 +1516,10 @@ export default function SwapTokenModal({
 
       const swapTransactionBuffer = Buffer.from(
         swapData.swapTransaction,
-        'base64'
+        'base64',
       );
       const transaction = VersionedTransaction.deserialize(
-        swapTransactionBuffer
+        swapTransactionBuffer,
       );
 
       // Sign using Privy signTransaction hook
@@ -1543,7 +1541,7 @@ export default function SwapTokenModal({
         if (serializedTransaction.length > 1500) {
           console.warn(
             '⚠️ [SWAP] Transaction size may exceed Privy limits:',
-            serializedTransaction.length
+            serializedTransaction.length,
           );
         }
 
@@ -1572,9 +1570,8 @@ export default function SwapTokenModal({
             },
           };
 
-          const sigResult = await generateAuthorizationSignature(
-            input
-          );
+          const sigResult =
+            await generateAuthorizationSignature(input);
           authorizationSignature =
             typeof sigResult === 'string'
               ? sigResult
@@ -1590,12 +1587,12 @@ export default function SwapTokenModal({
         } catch (signError: any) {
           console.error(
             '❌ [SWAP] Failed to generate authorization signature:',
-            signError
+            signError,
           );
           throw new Error(
             `Authorization signature failed: ${
               signError.message || signError
-            }`
+            }`,
           );
         }
 
@@ -1614,7 +1611,7 @@ export default function SwapTokenModal({
               transaction: serializedTransaction,
               authorizationSignature,
             }),
-          }
+          },
         );
 
         const responseData = await sponsorResponse
@@ -1624,13 +1621,13 @@ export default function SwapTokenModal({
         if (!sponsorResponse.ok) {
           console.error(
             '❌ [SWAP] Sponsored transaction failed:',
-            responseData
+            responseData,
           );
           throw new Error(
             responseData.error ||
               `Sponsored transaction failed (${
                 sponsorResponse.status
-              }: ${responseData.privyStatus || 'Unknown error'})`
+              }: ${responseData.privyStatus || 'Unknown error'})`,
           );
         }
 
@@ -1639,16 +1636,16 @@ export default function SwapTokenModal({
         if (!txId) {
           console.error(
             '❌ [SWAP] No transaction ID in response:',
-            responseData
+            responseData,
           );
           throw new Error(
-            'No transaction ID received from sponsored transaction'
+            'No transaction ID received from sponsored transaction',
           );
         }
 
         console.log(
           '✅ [SWAP] Sponsored transaction submitted:',
-          txId
+          txId,
         );
       } else {
         setSwapStatus('Submitting transaction...');
@@ -1661,7 +1658,7 @@ export default function SwapTokenModal({
               skipPreflight: false,
               preflightCommitment: 'confirmed',
               maxRetries: 3,
-            }
+            },
           );
 
           txId = signature;
@@ -1671,7 +1668,7 @@ export default function SwapTokenModal({
           throw new Error(
             `Transaction simulation/send failed: ${
               sendError.message || 'Unknown error'
-            }`
+            }`,
           );
         }
       }
@@ -1679,7 +1676,7 @@ export default function SwapTokenModal({
       // Step 8: Transaction confirmation
       setTxHash(txId);
       setSwapStatus(
-        'Transaction submitted! Waiting for confirmation...'
+        'Transaction submitted! Waiting for confirmation...',
       );
 
       // Wait for transaction propagation
@@ -1687,30 +1684,30 @@ export default function SwapTokenModal({
 
       // Step 9: Confirm transaction
       const confirmationRpcUrl =
-        process.env.NEXT_PUBLIC_SOLANA_RPC_URL
+        process.env.NEXT_PUBLIC_SOLANA_RPC_URL;
 
       if (confirmationRpcUrl) {
         const confirmationConnection = new Connection(
           confirmationRpcUrl,
-          'confirmed'
+          'confirmed',
         );
 
         try {
           await confirmationConnection.confirmTransaction(
             txId,
-            'confirmed'
+            'confirmed',
           );
           setSwapStatus('Transaction confirmed');
         } catch (confirmError: any) {
           console.warn(
             '⚠️ [SWAP] Confirmation check failed (tx may still succeed):',
-            confirmError.message || confirmError
+            confirmError.message || confirmError,
           );
           setSwapStatus('Transaction submitted successfully');
         }
       } else {
         console.warn(
-          '⚠️ [SWAP] No RPC URL for confirmation, skipping'
+          '⚠️ [SWAP] No RPC URL for confirmation, skipping',
         );
         setSwapStatus('Transaction submitted successfully');
       }
@@ -1721,7 +1718,7 @@ export default function SwapTokenModal({
       } catch (dbError: any) {
         console.error(
           '❌ [SWAP] Failed to save to database:',
-          dbError
+          dbError,
         );
         // Don't fail the swap if database save fails
       }
@@ -1731,7 +1728,7 @@ export default function SwapTokenModal({
 
       // Apply user-friendly error formatting
       const userFriendlyError = formatUserFriendlyError(
-        error?.message || error?.toString() || 'Swap failed'
+        error?.message || error?.toString() || 'Swap failed',
       );
       setSwapError(userFriendlyError);
     } finally {
@@ -1757,7 +1754,7 @@ export default function SwapTokenModal({
           (account: any) =>
             account.chainType === 'ethereum' &&
             account.type === 'wallet' &&
-            account.address
+            account.address,
         );
 
         if (!ethereumAccount) {
@@ -1769,7 +1766,7 @@ export default function SwapTokenModal({
         const wallet = wallets.find(
           (w) =>
             w.address?.toLowerCase() ===
-            (ethereumAccount as any).address.toLowerCase()
+            (ethereumAccount as any).address.toLowerCase(),
         );
 
         if (!wallet) {
@@ -1794,7 +1791,7 @@ export default function SwapTokenModal({
 
         setTxHash(txHash);
         setSwapStatus(
-          'Transaction submitted! Waiting for confirmation...'
+          'Transaction submitted! Waiting for confirmation...',
         );
         setSwapStatus('Swap completed successfully!');
         // Save to database
@@ -1805,7 +1802,9 @@ export default function SwapTokenModal({
 
       // Apply user-friendly error formatting
       const userFriendlyError = formatUserFriendlyError(
-        error.message || error.toString() || 'Cross-chain swap failed'
+        error.message ||
+          error.toString() ||
+          'Cross-chain swap failed',
       );
       setSwapError(userFriendlyError);
 
@@ -1819,12 +1818,12 @@ export default function SwapTokenModal({
             fromChainId === 1151111081099710
               ? 'SOLANA'
               : fromChainId === 1
-              ? 'ETHEREUM'
-              : fromChainId === 137
-              ? 'POLYGON'
-              : fromChainId === 8453
-              ? 'BASE'
-              : 'Unknown';
+                ? 'ETHEREUM'
+                : fromChainId === 137
+                  ? 'POLYGON'
+                  : fromChainId === 8453
+                    ? 'BASE'
+                    : 'Unknown';
 
           notificationService.emitSwapFailed({
             inputTokenSymbol: payToken?.symbol || 'Unknown',
@@ -1836,12 +1835,12 @@ export default function SwapTokenModal({
         } catch (notifError) {
           console.error(
             'Failed to send swap failed notification:',
-            notifError
+            notifError,
           );
         }
       } else {
         console.warn(
-          '⚠️ Socket not connected, swap failed notification not sent'
+          '⚠️ Socket not connected, swap failed notification not sent',
         );
       }
 
@@ -1855,7 +1854,7 @@ export default function SwapTokenModal({
     try {
       if (!solanaReady) {
         setSwapError(
-          'Solana wallet is not ready. Please wait and try again.'
+          'Solana wallet is not ready. Please wait and try again.',
         );
         setIsSwapping(false);
         return;
@@ -1879,8 +1878,7 @@ export default function SwapTokenModal({
       setSwapStatus('Submitting transaction...');
 
       // Set up RPC connection
-      const solanaRpcUrl =
-        process.env.NEXT_PUBLIC_SOLANA_RPC_URL
+      const solanaRpcUrl = process.env.NEXT_PUBLIC_SOLANA_RPC_URL;
 
       if (!solanaRpcUrl) {
         throw new Error('No Solana RPC URL configured');
@@ -1891,7 +1889,7 @@ export default function SwapTokenModal({
       // Deserialize the LiFi transaction
       const swapTransactionBuffer = Buffer.from(rawTx, 'base64');
       const transaction = VersionedTransaction.deserialize(
-        swapTransactionBuffer
+        swapTransactionBuffer,
       );
 
       // Get latest blockhash and update the transaction
@@ -1916,12 +1914,12 @@ export default function SwapTokenModal({
           skipPreflight: false,
           preflightCommitment: 'confirmed',
           maxRetries: 3,
-        }
+        },
       );
 
       setTxHash(signature);
       setSwapStatus(
-        'Transaction submitted! Waiting for confirmation...'
+        'Transaction submitted! Waiting for confirmation...',
       );
 
       // Wait a bit for the transaction to propagate
@@ -1934,7 +1932,7 @@ export default function SwapTokenModal({
       } catch (confirmError) {
         console.warn(
           'Transaction confirmation check failed:',
-          confirmError
+          confirmError,
         );
         setSwapStatus('Transaction submitted successfully');
       }
@@ -1946,7 +1944,7 @@ export default function SwapTokenModal({
 
       // Apply user-friendly error formatting
       const userFriendlyError = formatUserFriendlyError(
-        error?.message || error?.toString() || 'Transaction failed'
+        error?.message || error?.toString() || 'Transaction failed',
       );
       setSwapError(userFriendlyError);
     } finally {
@@ -2036,7 +2034,7 @@ export default function SwapTokenModal({
         setIsLoadingTokens(false);
       }
     }, 400),
-    []
+    [],
   );
 
   const handleReceiverChainSelect = (chainId: string) => {
@@ -2070,11 +2068,11 @@ export default function SwapTokenModal({
     debounce((value: string) => {
       setPayAmount(value);
     }, 300),
-    []
+    [],
   );
 
   const handlePayAmountChange = (
-    e: React.ChangeEvent<HTMLInputElement>
+    e: React.ChangeEvent<HTMLInputElement>,
   ) => {
     const value = e.target.value;
     setPayAmount(value);
@@ -2134,7 +2132,7 @@ export default function SwapTokenModal({
   };
 
   const handleSearchChange = (
-    e: React.ChangeEvent<HTMLInputElement>
+    e: React.ChangeEvent<HTMLInputElement>,
   ) => {
     const query = e.target.value;
     setSearchQuery(query);
@@ -2180,7 +2178,7 @@ export default function SwapTokenModal({
     } catch (error) {
       console.error(
         'Error calculating exchange rate from quote:',
-        error
+        error,
       );
       return null;
     }
@@ -2261,7 +2259,7 @@ export default function SwapTokenModal({
   // Add this function to your component
   const saveSwapToDatabase = async (
     signature: string,
-    quote: any
+    quote: any,
   ) => {
     try {
       const swapDetails = {
@@ -2290,7 +2288,7 @@ export default function SwapTokenModal({
 
       const result = await saveSwapTransaction(
         swapDetails,
-        accessToken
+        accessToken,
       );
 
       // Send notification via Socket.IO
@@ -2310,22 +2308,22 @@ export default function SwapTokenModal({
             outputTokenLogo: swapDetails.outputToken.logo,
             inputUsdValue: formatUSDValue(
               swapDetails.inputToken.amount,
-              swapDetails.inputToken.price
+              swapDetails.inputToken.price,
             ),
             outputUsdValue: formatUSDValue(
               swapDetails.outputToken.amount,
-              swapDetails.outputToken.price
+              swapDetails.outputToken.price,
             ),
           });
         } catch (notifError) {
           console.error(
             'Failed to send swap notification:',
-            notifError
+            notifError,
           );
         }
       } else {
         console.warn(
-          '⚠️ Socket not connected, notification not sent'
+          '⚠️ Socket not connected, notification not sent',
         );
       }
     } catch (error) {
@@ -2589,7 +2587,7 @@ export default function SwapTokenModal({
                       <div className="absolute -bottom-1 -right-1 bg-white rounded-full p-0.5 flex items-center justify-center w-4 h-4 border border-gray-200">
                         <Image
                           src={sanitizeImageUrl(
-                            getChainIcon(payToken.chain || '') || ''
+                            getChainIcon(payToken.chain || '') || '',
                           )}
                           alt={payToken.chain}
                           width={12}
@@ -2672,8 +2670,8 @@ export default function SwapTokenModal({
                       receiveToken.symbol
                     }`
                   : receiveToken
-                  ? '0'
-                  : ''}
+                    ? '0'
+                    : ''}
               </span>
             </div>
             <div className="flex items-center justify-between gap-3">
@@ -2731,7 +2729,7 @@ export default function SwapTokenModal({
                           <div className="absolute -bottom-1 -right-1 bg-white rounded-full p-0.5 flex items-center justify-center w-4 h-4 border border-gray-200">
                             <Image
                               src={sanitizeImageUrl(
-                                getChainIcon(chainName) || ''
+                                getChainIcon(chainName) || '',
                               )}
                               alt={chainName}
                               width={120}
@@ -3156,7 +3154,7 @@ export default function SwapTokenModal({
                       .filter((token: any) =>
                         selecting === 'pay'
                           ? token.address !== receiveToken?.address
-                          : token.address !== payToken?.address
+                          : token.address !== payToken?.address,
                       )
                       .map((token: any) => (
                         <button
@@ -3181,7 +3179,7 @@ export default function SwapTokenModal({
                                 src={sanitizeImageUrl(
                                   token?.marketData?.iconUrl ||
                                     token?.logoURI ||
-                                    getTokenIcon(token)
+                                    getTokenIcon(token),
                                 )}
                                 alt={token.symbol}
                                 width={1020}
@@ -3194,7 +3192,8 @@ export default function SwapTokenModal({
                               <div className="absolute -bottom-1 -right-1 bg-white rounded-full p-0.5 flex items-center justify-center w-4 h-4 border border-gray-200">
                                 <Image
                                   src={sanitizeImageUrl(
-                                    getChainIcon(token.chain || '') || ''
+                                    getChainIcon(token.chain || '') ||
+                                      '',
                                   )}
                                   alt={token.chain}
                                   width={120}
@@ -3229,7 +3228,7 @@ export default function SwapTokenModal({
                       .filter((token: any) =>
                         selecting == 'pay'
                           ? token.address !== receiveToken?.address
-                          : token.address !== payToken?.address
+                          : token.address !== payToken?.address,
                       )
                       .map((token: any) => (
                         <button
@@ -3254,7 +3253,7 @@ export default function SwapTokenModal({
                                 src={sanitizeImageUrl(
                                   token?.marketData?.iconUrl ||
                                     token?.logoURI ||
-                                    getTokenIcon(token)
+                                    getTokenIcon(token),
                                 )}
                                 alt={token.symbol}
                                 width={1020}
@@ -3267,7 +3266,8 @@ export default function SwapTokenModal({
                               <div className="absolute -bottom-1 -right-1 bg-white rounded-full p-0.5 flex items-center justify-center w-4 h-4 border border-gray-200">
                                 <Image
                                   src={sanitizeImageUrl(
-                                    getChainIcon(token.chain || '') || ''
+                                    getChainIcon(token.chain || '') ||
+                                      '',
                                   )}
                                   alt={token.chain}
                                   width={120}

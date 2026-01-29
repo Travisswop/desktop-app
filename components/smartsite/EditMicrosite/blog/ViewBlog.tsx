@@ -1,86 +1,47 @@
 "use client";
-import React, { useRef, useEffect } from "react";
-import { FaTimes } from "react-icons/fa";
-import Image from "next/image";
+import React from "react";
+import Image from "next/image"; // Adjust the import path
+import CustomModal from "@/components/modal/CustomModal";
 
-const ViewBlog = ({ iconDataObj, isOn, setOff }: any) => {
-  const modalRef = useRef<HTMLDivElement>(null);
+interface ViewBlogProps {
+  iconDataObj: any;
+  isOn: boolean;
+  setOff: () => void;
+}
 
-  useEffect(() => {
-    if (isOn) {
-      document.body.classList.add("no-scroll");
-    } else {
-      document.body.classList.remove("no-scroll");
-    }
-
-    return () => {
-      document.body.classList.remove("no-scroll");
-    };
-  }, [isOn]);
-
-  const closeModal = () => {
-    setOff();
-  };
-
-  const handleBackdropClick = (e: any) => {
-    if (
-      e.target.classList.contains("backdrop") &&
-      !e.target.closest(".modal-content")
-    ) {
-      closeModal();
-    }
-  };
-
+const ViewBlog: React.FC<ViewBlogProps> = ({ iconDataObj, isOn, setOff }) => {
   return (
-    <>
-      {isOn && (
-        <div
-          className="fixed z-50 left-0 top-0 h-full w-full overflow-auto flex items-center justify-center bg-overlay/50 backdrop"
-          onMouseDown={handleBackdropClick}
-        >
-          <div
-            ref={modalRef}
-            className="modal-content h-[94vh] overflow-auto w-96 md:w-[46rem] bg-white relative rounded-xl hide-scrollbar"
-          >
-            <button
-              className="btn btn-sm btn-circle absolute right-4 top-[12px]"
-              onClick={closeModal}
-            >
-              <FaTimes color="gray" />
-            </button>
-            <div className="bg-white rounded-xl shadow-small p-7 flex flex-col gap-4">
-              <div className="relative h-96">
-                <Image
-                  src={iconDataObj.data.image}
-                  alt="blog image"
-                  fill
-                  className="w-full h-auto border border-[#F3E9FC] rounded-xl object-cover"
-                />
-              </div>
-              <div className="flex flex-col gap-2">
-                {iconDataObj.data.title && (
-                  <p className="text-xl font-bold text-center">
-                    {iconDataObj.data.title}
-                  </p>
-                )}
-                {iconDataObj.data.headline && (
-                  <p className="font-medium text-center text-gray-500 text-sm">
-                    {iconDataObj.data.headline}
-                  </p>
-                )}
-              </div>
-              {iconDataObj.data.description && (
-                <p
-                  dangerouslySetInnerHTML={{
-                    __html: iconDataObj.data.description,
-                  }}
-                ></p>
-              )}
-            </div>
-          </div>
+    <CustomModal isOpen={isOn} onClose={setOff} width="max-w-2xl">
+      <div className="bg-white rounded-xl p-7 flex flex-col gap-4">
+        <div className="relative h-96 w-full">
+          <Image
+            src={iconDataObj.data.image}
+            alt="blog image"
+            fill
+            className="w-full h-auto border border-[#F3E9FC] rounded-xl object-cover"
+          />
         </div>
-      )}
-    </>
+        <div className="flex flex-col gap-2">
+          {iconDataObj.data.title && (
+            <p className="text-xl font-bold text-center">
+              {iconDataObj.data.title}
+            </p>
+          )}
+          {iconDataObj.data.headline && (
+            <p className="font-medium text-center text-gray-500 text-sm">
+              {iconDataObj.data.headline}
+            </p>
+          )}
+        </div>
+        {iconDataObj.data.description && (
+          <p
+            dangerouslySetInnerHTML={{
+              __html: iconDataObj.data.description,
+            }}
+          ></p>
+        )}
+      </div>
+    </CustomModal>
   );
 };
 

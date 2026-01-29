@@ -17,8 +17,11 @@ export default function PrivyProvider({
 }: {
   children: React.ReactNode;
 }) {
-  const [solanaConnectors, setSolanaConnectors] = useState<any>(undefined);
-  const [solanaConfig, setSolanaConfig] = useState<SolanaConfig | undefined>(undefined);
+  const [solanaConnectors, setSolanaConnectors] =
+    useState<any>(undefined);
+  const [solanaConfig, setSolanaConfig] = useState<
+    SolanaConfig | undefined
+  >(undefined);
   const initRef = useRef(false);
 
   const isProduction = process.env.NODE_ENV === 'production';
@@ -40,7 +43,7 @@ export default function PrivyProvider({
 
       if (!rpcUrl || !socketUrl) {
         console.warn(
-          'Solana RPC URLs not configured, using default Privy config'
+          'Solana RPC URLs not configured, using default Privy config',
         );
         return;
       }
@@ -54,11 +57,11 @@ export default function PrivyProvider({
           rpcs: {
             'solana:mainnet': {
               rpc: createSolanaRpc(rpcUrl),
-              rpcSubscriptions: createSolanaRpcSubscriptions(socketUrl),
+              rpcSubscriptions:
+                createSolanaRpcSubscriptions(socketUrl),
             },
           },
         });
-        console.log('Solana RPC config initialized successfully');
       } catch (error) {
         console.error('Failed to initialize Solana config:', error);
       }

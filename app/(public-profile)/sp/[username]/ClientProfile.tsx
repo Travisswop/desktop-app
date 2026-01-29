@@ -22,8 +22,6 @@ import {
   Carousel,
   CarouselContent,
   CarouselItem,
-  CarouselNext,
-  CarouselPrevious,
 } from "@/components/ui/carousel";
 
 import { CartProvider } from "./cart/context/CartContext";
@@ -73,7 +71,7 @@ export default function ClientProfile({ userName }: ClientProfileProps) {
     ens,
   } = micrositeData;
 
-  console.log("info hola", info);
+  console.log("micrositeData", micrositeData);
 
   const groupMarketPlaceByType = (marketPlaceItems: any[]) => {
     const grouped: { [key: string]: any[] } = {};
@@ -183,7 +181,7 @@ export default function ClientProfile({ userName }: ClientProfileProps) {
                             {items.map((item, index) => (
                               <CarouselItem
                                 key={item._id}
-                                className="pl-3 basis-[45%]"
+                                className={`${index === 0 ? "pl-2" : "pl-3"} basis-[45%]`}
                               >
                                 <MarketPlace
                                   data={item}
