@@ -11,7 +11,7 @@ import {
 } from "react";
 import { useRouter } from "next/navigation";
 import { usePrivy } from "@privy-io/react-auth";
-
+import Cookies from "js-cookie";
 export interface UserData {
   _id: string;
   address?: string;
@@ -114,7 +114,12 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
   const [error, setError] = useState<Error | null>(null);
 
   const router = useRouter();
-  const { user: privyUser, ready, logout: privyLogout, authenticated } = usePrivy();
+  const {
+    user: privyUser,
+    ready,
+    logout: privyLogout,
+    authenticated,
+  } = usePrivy();
 
   const fetchInProgressRef = useRef(false);
   const abortControllerRef = useRef<AbortController | null>(null);
@@ -126,66 +131,71 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
     return (
       privyUser.google?.email ||
       privyUser.email?.address ||
-      privyUser.linkedAccounts?.find((acc: any) => acc.type === "email")?.address ||
-      privyUser.linkedAccounts?.find((acc: any) => acc.type === "google_oauth")?.email ||
+      privyUser.linkedAccounts?.find((acc: any) => acc.type === "email")
+        ?.address ||
+      privyUser.linkedAccounts?.find((acc: any) => acc.type === "google_oauth")
+        ?.email ||
       null
     );
   }, []);
 
   // Fetch user data from backend
-  const fetchUserData = useCallback(async (email: string): Promise<boolean> => {
-    if (!email || !API_BASE_URL) return false;
-    if (fetchInProgressRef.current) return false;
-    if (lastFetchedEmailRef.current === email && user) return true;
+  const fetchUserData = useCallback(
+    async (email: string): Promise<boolean> => {
+      if (!email || !API_BASE_URL) return false;
+      if (fetchInProgressRef.current) return false;
+      if (lastFetchedEmailRef.current === email && user) return true;
 
-    fetchInProgressRef.current = true;
+      fetchInProgressRef.current = true;
 
-    try {
-      abortControllerRef.current?.abort();
-      abortControllerRef.current = new AbortController();
+      try {
+        abortControllerRef.current?.abort();
+        abortControllerRef.current = new AbortController();
 
-      const response = await fetch(
-        `${API_BASE_URL}/api/v2/desktop/user/${email}`,
-        {
-          headers: { "Content-Type": "application/json" },
-          signal: abortControllerRef.current.signal,
-        },
-      );
+        const response = await fetch(
+          `${API_BASE_URL}/api/v2/desktop/user/${email}`,
+          {
+            headers: { "Content-Type": "application/json" },
+            signal: abortControllerRef.current.signal,
+          },
+        );
 
-      if (!response.ok) {
-        if (response.status === 404) {
-          setUser(null);
-          setAccessToken(null);
+        if (!response.ok) {
+          if (response.status === 404) {
+            setUser(null);
+            setAccessToken(null);
+            return false;
+          }
+          throw new Error(`HTTP ${response.status}`);
+        }
+
+        const data = await response.json();
+        const { user: userData, token } = data;
+
+        if (!userData || !token) {
+          throw new Error("Invalid response structure");
+        }
+
+        setUser(userData);
+        setAccessToken(token);
+        setError(null);
+        lastFetchedEmailRef.current = email;
+
+        return true;
+      } catch (err) {
+        if (err instanceof Error && err.name === "AbortError") {
           return false;
         }
-        throw new Error(`HTTP ${response.status}`);
-      }
-
-      const data = await response.json();
-      const { user: userData, token } = data;
-
-      if (!userData || !token) {
-        throw new Error("Invalid response structure");
-      }
-
-      setUser(userData);
-      setAccessToken(token);
-      setError(null);
-      lastFetchedEmailRef.current = email;
-
-      return true;
-    } catch (err) {
-      if (err instanceof Error && err.name === "AbortError") {
+        console.error("Error fetching user data:", err);
+        setError(err instanceof Error ? err : new Error("Unknown error"));
         return false;
+      } finally {
+        fetchInProgressRef.current = false;
+        abortControllerRef.current = null;
       }
-      console.error("Error fetching user data:", err);
-      setError(err instanceof Error ? err : new Error("Unknown error"));
-      return false;
-    } finally {
-      fetchInProgressRef.current = false;
-      abortControllerRef.current = null;
-    }
-  }, [user]);
+    },
+    [user],
+  );
 
   // Logout - just handle Privy logout, middleware handles redirects
   const handleLogout = useCallback(async () => {
@@ -197,8 +207,12 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
       lastFetchedEmailRef.current = null;
       await privyLogout();
       router.push("/login");
+      Cookies.remove("user-id");
+      Cookies.remove("access-token");
     } catch (err) {
       console.error("Error during logout:", err);
+      Cookies.remove("user-id");
+      Cookies.remove("access-token");
       router.push("/login");
     }
   }, [privyLogout, router]);
@@ -259,7 +273,15 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
       isAuthenticated: authenticated && !!user,
       primaryMicrosite: user?.primaryMicrosite,
     }),
-    [user, accessToken, loading, error, refreshUser, handleLogout, authenticated],
+    [
+      user,
+      accessToken,
+      loading,
+      error,
+      refreshUser,
+      handleLogout,
+      authenticated,
+    ],
   );
 
   return (
