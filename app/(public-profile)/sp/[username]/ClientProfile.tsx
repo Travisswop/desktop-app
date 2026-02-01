@@ -33,6 +33,7 @@ import distributeSmallIcons from "@/components/util/distributeSmallIcons";
 import { fontMap } from "@/lib/fonts";
 import Image from "next/image";
 import getMediaType from "@/utils/getMediaType";
+import MediaList from "@/components/publicProfile/MediaList";
 
 interface ClientProfileProps {
   userName: string;
@@ -400,55 +401,11 @@ export default function ClientProfile({ userName }: ClientProfileProps) {
 
             {/* Image / Video Section */}
             {info?.video && info.video.length > 0 && (
-              <div className="w-full space-y-4">
-                {info.video.map((item: any, index: number) => {
-                  const mediaType = getMediaType(item.link);
-
-                  return (
-                    <div
-                      key={item._id}
-                      className="w-full overflow-hidden rounded-xl border border-gray-200 dark:border-gray-700 bg-white/70 dark:bg-black/30 shadow-sm"
-                    >
-                      {/* Media */}
-                      <div className="relative w-full aspect-video bg-black">
-                        {mediaType === "video" && (
-                          <video
-                            className="absolute inset-0 h-full w-full object-cover"
-                            controls
-                            preload="metadata"
-                          >
-                            <source src={item.link} type="video/mp4" />
-                            Your browser does not support the video tag.
-                          </video>
-                        )}
-
-                        {mediaType === "image" && (
-                          <Image
-                            src={item.link}
-                            alt={item.title || "Media"}
-                            fill
-                            sizes="(max-width: 768px) 100vw, 480px"
-                            className="object-cover"
-                            priority={index === 0}
-                          />
-                        )}
-                      </div>
-
-                      {/* Metadata */}
-                      {item.title && (
-                        <div className="px-4 py-3">
-                          <p
-                            className="text-sm font-medium truncate"
-                            style={{ color: fontColor || "#000" }}
-                          >
-                            {item.title}
-                          </p>
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
+              <MediaList
+                items={info.video}
+                getMediaType={getMediaType}
+                fontColor={fontColor}
+              />
             )}
 
             {/* Embeded Link */}

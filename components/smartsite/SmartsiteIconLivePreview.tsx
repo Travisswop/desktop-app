@@ -55,6 +55,9 @@ import Message from "../publicProfile/message";
 import Redeem from "../publicProfile/redeem";
 import MP3 from "../publicProfile/mp3";
 import Referral from "../publicProfile/referral";
+import MediaList from "../publicProfile/MediaList";
+import getMediaType from "@/utils/getMediaType";
+import EmbedVideo from "../publicProfile/embedvideo";
 interface ColoredIconProps {
   src: string;
   color: string;
@@ -93,7 +96,7 @@ const SmartsiteIconLivePreview = ({
   const setSmartSiteData = useUpdateSmartIcon((state: any) => state.setState);
   const { toggle } = useSideBarToggleStore();
 
-  // console.log("data hhiss", data);
+  console.log("data hhiss", data);
 
   const { isOn, setOff, setOn }: any = useSmallIconToggleStore();
   const iconData: any = useUpdateSmartIcon();
@@ -603,75 +606,22 @@ const SmartsiteIconLivePreview = ({
                   {/* redeemable link display here start */}
                   {data.info.redeemLink.length > 0 && (
                     <div className="w-full">
-                      {data.info.redeemLink.map((data: any, index: number) => (
+                      {data.info.redeemLink.map((item: any, index: number) => (
                         <Redeem
                           number={index}
-                          key={data._id}
+                          key={item._id}
                           onClick={() =>
                             handleTriggerUpdate({
-                              data,
+                              data: item,
                               categoryForTrigger: "redeemLink",
                             })
                           }
-                          data={data}
+                          data={item}
                           socialType="redeemLink"
-                          // parentId={parentId}
                           accessToken={accessToken || ""}
                           fontColor={data.fontColor}
                           secondaryFontColor={data.secondaryFontColor}
                         />
-                        // <button
-                        //   key={data._id}
-                        //   onClick={() =>
-                        //     handleTriggerUpdate({
-                        //       data,
-                        //       categoryForTrigger: "redeemLink",
-                        //     })
-                        //   }
-                        //   style={{
-                        //     backgroundColor: formData.templateColor
-                        //       ? formData.templateColor
-                        //       : "white",
-                        //   }}
-                        //   className="flex items-center gap-2 py-2 px-3 rounded-lg shadow-medium"
-                        // >
-                        //   <Image
-                        //     src={data.imageUrl}
-                        //     alt="icon"
-                        //     width={200}
-                        //     height={200}
-                        //     quality={100}
-                        //     className="w-8 h-8 rounded-md"
-                        //     // style={
-                        //     //   formData.secondaryFontColor === "#ffffff"
-                        //     //     ? { filter: "brightness(0) invert(1)" }
-                        //     //     : formData.secondaryFontColor === "#D3D3D3" ||
-                        //     //       formData.secondaryFontColor === "#808080"
-                        //     //     ? {
-                        //     //         filter:
-                        //     //           "brightness(0) saturate(0%) opacity(0.5)",
-                        //     //       }
-                        //     //     : tintStyle
-                        //     // }
-                        //   />
-                        //   <div
-                        //     style={{
-                        //       color: formData.secondaryFontColor
-                        //         ? formData.secondaryFontColor
-                        //         : "black",
-                        //     }}
-                        //     className="flex flex-col items-start gap-0.5 text-start"
-                        //   >
-                        //     <p className="text-sm">{data.mintName}</p>
-                        //     <p
-                        //       className={`text-xs ${
-                        //         !formData.secondaryFontColor && "text-gray-400"
-                        //       }`}
-                        //     >
-                        //       {data.description}
-                        //     </p>
-                        //   </div>
-                        // </button>
                       ))}
                     </div>
                   )}
@@ -679,18 +629,18 @@ const SmartsiteIconLivePreview = ({
                   {/* contact card display here start */}
                   {data.info.contact.length > 0 && (
                     <div className="w-full">
-                      {data.info.contact.map((data: any, index: number) => (
+                      {data.info.contact.map((item: any, index: number) => (
                         <Contact
                           number={index}
-                          key={data._id}
-                          data={data}
+                          key={item._id}
+                          data={item}
                           socialType="contact"
                           accessToken={accessToken || ""}
                           fontColor={data.fontColor}
                           secondaryFontColor={data.secondaryFontColor}
                           onClick={() =>
                             handleTriggerUpdate({
-                              data,
+                              data: item,
                               categoryForTrigger: "contactCard",
                             })
                           }
@@ -727,11 +677,11 @@ const SmartsiteIconLivePreview = ({
                   {/* info bar display here start */}
                   {data.info.infoBar.length > 0 && (
                     <div className="w-full">
-                      {data.info.infoBar.map((data: any, index: number) => (
+                      {data.info.infoBar.map((item: any, index: number) => (
                         <InfoBar
                           number={index}
-                          key={data._id}
-                          data={data}
+                          key={item._id}
+                          data={item}
                           socialType="infoBar"
                           // parentId={parentId}
                           accessToken={accessToken || ""}
@@ -746,11 +696,11 @@ const SmartsiteIconLivePreview = ({
                   {/* swop pay display here start */}
                   {data.info.product.length > 0 && (
                     <div className="w-full">
-                      {data.info.product.map((data: any, index: number) => (
+                      {data.info.product.map((item: any, index: number) => (
                         <PaymentBar
                           number={index}
-                          key={data._id}
-                          data={data}
+                          key={item._id}
+                          data={item}
                           socialType="product"
                           // parentId={parentId}
                           accessToken={accessToken || ""}
@@ -758,7 +708,7 @@ const SmartsiteIconLivePreview = ({
                           secondaryFontColor={data.secondaryFontColor}
                           onClick={() =>
                             handleTriggerUpdate({
-                              data: data,
+                              data: item,
                               categoryForTrigger: "swopPay",
                             })
                           }
@@ -874,7 +824,7 @@ const SmartsiteIconLivePreview = ({
                   {/* audio||music display here end */}
                 </div>
                 {/* video display here start */}
-                {data.info.video.length > 0 && (
+                {/* {data.info.video.length > 0 && (
                   <div key={"video"} className="flex flex-col gap-y-3 px-3">
                     {data.info.video.map((videoData: any) => (
                       <div
@@ -915,20 +865,36 @@ const SmartsiteIconLivePreview = ({
                       </div>
                     ))}
                   </div>
+                )} */}
+
+                {/* Image / Video Section */}
+                {data.info.video.length > 0 && (
+                  <MediaList
+                    items={data.info.video}
+                    getMediaType={getMediaType}
+                    fontColor={data.fontColor}
+                    onClick={(item, index) => {
+                      console.log("Clicked media:", item, index);
+                      // custom logic here (modal, analytics, navigation, etc.)
+                    }}
+                  />
                 )}
 
-                {/* video display here end */}
-                {/* embed link display here start */}
-                {data.info.videoUrl && (
-                  <div
-                    key={"embed"}
-                    className="flex flex-col gap-y-3 px-3 w-full hide-scrollbar"
-                  >
-                    <EmbedPlayer
-                      items={data.info.videoUrl}
-                      toggle={toggle}
-                      handleTriggerUpdate={handleTriggerUpdate}
-                    />
+                {/* Embeded Link */}
+                {data.info?.videoUrl && data.info.videoUrl.length > 0 && (
+                  <div className="w-full space-y-3">
+                    {data.info.videoUrl.map((social: any, index: number) => (
+                      <EmbedVideo
+                        key={social._id}
+                        data={social}
+                        onClick={() =>
+                          handleTriggerUpdate({
+                            data: social,
+                            categoryForTrigger: "embed",
+                          })
+                        }
+                      />
+                    ))}
                   </div>
                 )}
                 {/* embed link display here end */}

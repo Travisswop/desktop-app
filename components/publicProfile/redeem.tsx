@@ -139,16 +139,15 @@ const Redeem: FC<Props> = ({
             priority
           />
         </div>
-        {
-          <InfoCardContent
-            title={mintName}
-            description={description}
-            fontColor={fontColor}
-            secondaryFontColor={secondaryFontColor}
-          >
-            <span className="text-xs font-bold">{available} Available</span>
-          </InfoCardContent>
-        }
+
+        <InfoCardContent
+          title={mintName}
+          description={description}
+          fontColor={fontColor}
+          secondaryFontColor={secondaryFontColor}
+        >
+          <span className="text-xs font-bold">{available} Available</span>
+        </InfoCardContent>
       </motion.div>
     </motion.div>
   );

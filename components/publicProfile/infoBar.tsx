@@ -76,7 +76,7 @@ const InfoBar: FC<Props> = ({
     group,
   } = data;
 
-  // console.log("data from info bar", data);
+  console.log("data from info bar secondaryFontColor", secondaryFontColor);
 
   const openlink = async () => {
     // if (!accessToken) {
