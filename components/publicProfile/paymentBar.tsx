@@ -18,11 +18,12 @@ interface Props {
     price: number;
   };
   socialType: string;
-  parentId: string;
+  parentId?: string;
   number: number;
   accessToken: string;
   fontColor?: string;
   secondaryFontColor?: string;
+  onClick?: () => void;
 }
 const variants = {
   hidden: { opacity: 0, x: 0, y: 25 },
@@ -37,6 +38,7 @@ const PaymentBar: FC<Props> = ({
   accessToken,
   fontColor,
   secondaryFontColor,
+  onClick,
 }) => {
   const { _id, micrositeId, title, paymentUrl, imageUrl, description, price } =
     data;
@@ -68,6 +70,17 @@ const PaymentBar: FC<Props> = ({
 
   const delay = number + 1 * 0.2;
 
+  const handleClick = async () => {
+    // If custom onClick is provided, use it
+    if (onClick) {
+      onClick();
+      return;
+    }
+
+    // Otherwise, use the default openlink logic
+    openlink();
+  };
+
   return (
     <motion.div
       initial="hidden"
@@ -86,7 +99,7 @@ const PaymentBar: FC<Props> = ({
           stiffness: 400,
           damping: 10,
         }}
-        onClick={() => openlink()}
+        onClick={() => handleClick()}
         className="max-w-full my-2 mx-1 flex justify-between items-center cursor-pointer bg-white shadow-small p-2 rounded-[12px]"
       >
         <div className="flex flex-row items-center">

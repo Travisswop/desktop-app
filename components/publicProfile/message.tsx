@@ -23,10 +23,11 @@ interface Props {
     domain: string;
   };
   socialType: string;
-  parentId: string;
+  parentId?: string;
   number: number;
   fontColor?: string;
   secondaryFontColor?: string;
+  onClick?: () => void;
 }
 
 const variants = {
@@ -42,6 +43,7 @@ const Message: FC<Props> = ({
   number,
   fontColor,
   secondaryFontColor,
+  onClick,
 }) => {
   const { _id, domain } = data;
 
@@ -50,6 +52,17 @@ const Message: FC<Props> = ({
   const redirectToSwop = () => {
     console.log("redirecting to swop");
     return window.open("https://swopme.co", "_blank");
+  };
+
+  const handleClick = async () => {
+    // If custom onClick is provided, use it
+    if (onClick) {
+      onClick();
+      return;
+    }
+
+    // Otherwise, use the default openlink logic
+    redirectToSwop();
   };
 
   return (
@@ -63,6 +76,7 @@ const Message: FC<Props> = ({
         delay,
         type: "easeInOut",
       }}
+      onClick={handleClick}
     >
       <motion.div
         transition={{
@@ -93,20 +107,22 @@ const Message: FC<Props> = ({
               }
             </div>
           </AlertDialogTrigger>
-          <AlertDialogContent>
-            <AlertDialogHeader>
-              <AlertDialogDescription>
-                You need to download the Swop app to message. Do you want to
-                download the app?
-              </AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter>
-              <AlertDialogCancel>Cancel</AlertDialogCancel>
-              <AlertDialogAction onClick={redirectToSwop}>
-                Download App
-              </AlertDialogAction>
-            </AlertDialogFooter>
-          </AlertDialogContent>
+          {!onClick && (
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogDescription>
+                  You need to download the Swop app to message. Do you want to
+                  download the app?
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogAction onClick={redirectToSwop}>
+                  Download App
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          )}
         </AlertDialog>
       </motion.div>
     </motion.div>

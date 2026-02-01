@@ -15,11 +15,12 @@ interface Props {
     domain: string;
   };
   socialType: string;
-  parentId: string;
+  parentId?: string;
   number: number;
   accessToken: string;
   fontColor?: string;
   secondaryFontColor?: string;
+  onClick?: () => void;
 }
 
 const variants = {
@@ -36,8 +37,11 @@ const Ens: FC<Props> = ({
   accessToken,
   fontColor,
   secondaryFontColor,
+  onClick,
 }) => {
   const { _id, domain } = data;
+  console.log("ens domain data", data);
+
   const openlink = async () => {
     // if (!accessToken) {
     //   window.location.href =
@@ -64,6 +68,17 @@ const Ens: FC<Props> = ({
     }
   };
 
+  const handleClick = async () => {
+    // If custom onClick is provided, use it
+    if (onClick) {
+      onClick();
+      return;
+    }
+
+    // Otherwise, use the default openlink logic
+    openlink();
+  };
+
   // const delay = number + 0.1;
 
   return (
@@ -84,7 +99,7 @@ const Ens: FC<Props> = ({
           stiffness: 400,
           damping: 10,
         }}
-        onClick={openlink}
+        onClick={handleClick}
         className="max-w-full my-2 mx-1 flex items-center cursor-pointer bg-white shadow-small p-2 rounded-[12px]"
       >
         <div>
@@ -98,14 +113,12 @@ const Ens: FC<Props> = ({
             priority
           />
         </div>
-        {
-          <InfoCardContent
-            title={domain}
-            description="Pay me using my swop.id"
-            fontColor={fontColor}
-            secondaryFontColor={secondaryFontColor}
-          />
-        }
+        <InfoCardContent
+          title={domain}
+          description="Pay me using my swop.id"
+          fontColor={fontColor}
+          secondaryFontColor={secondaryFontColor}
+        />
       </motion.div>
     </motion.div>
   );

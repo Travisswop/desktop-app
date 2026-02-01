@@ -21,6 +21,7 @@ interface Props {
   accessToken: string;
   fontColor?: string;
   secondaryFontColor?: string;
+  onClick?: () => void;
 }
 
 const variants = {
@@ -37,15 +38,11 @@ const Referral: FC<Props> = ({
   accessToken,
   fontColor,
   secondaryFontColor,
+  onClick,
 }) => {
   const { _id, micrositeId, buttonName, referralCode, description } = data;
   const { toast } = useToast();
   const action = async () => {
-    // if (!accessToken) {
-    //   window.location.href =
-    //     'https://apps.apple.com/us/app/swop-connecting-the-world/id1593201322';
-    //   return;
-    // }
     navigator.clipboard.writeText(referralCode);
     toast({
       title: "Copied to clipboard",
@@ -70,6 +67,17 @@ const Referral: FC<Props> = ({
 
   const delay = number + 0.1;
 
+  const handleClick = async () => {
+    // If custom onClick is provided, use it
+    if (onClick) {
+      onClick();
+      return;
+    }
+
+    // Otherwise, use the default openlink logic
+    action();
+  };
+
   return (
     <motion.div
       initial="hidden"
@@ -81,7 +89,7 @@ const Referral: FC<Props> = ({
         delay,
         type: "easeInOut",
       }}
-      onClick={action}
+      onClick={handleClick}
       className="w-full"
     >
       <motion.div

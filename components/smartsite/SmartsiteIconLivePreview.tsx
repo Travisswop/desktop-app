@@ -47,6 +47,14 @@ import getSmallIconColorFilter from "@/utils/smallIconColorFilter";
 import { MotionButton } from "../Motion";
 import SocialSmall from "../publicProfile/socialSmall";
 import SocialLarge from "../publicProfile/socialLarge";
+import InfoBar from "../publicProfile/infoBar";
+import Contact from "../publicProfile/contact";
+import Ens from "../publicProfile/ens";
+import PaymentBar from "../publicProfile/paymentBar";
+import Message from "../publicProfile/message";
+import Redeem from "../publicProfile/redeem";
+import MP3 from "../publicProfile/mp3";
+import Referral from "../publicProfile/referral";
 interface ColoredIconProps {
   src: string;
   color: string;
@@ -251,11 +259,6 @@ const SmartsiteIconLivePreview = ({
     });
 
     return grouped;
-  };
-
-  // Capitalize first letter for display
-  const capitalizeFirstLetter = (str: string) => {
-    return str.charAt(0).toUpperCase() + str.slice(1);
   };
 
   return (
@@ -527,28 +530,6 @@ const SmartsiteIconLivePreview = ({
 
                 {/* app icon display here start */}
                 {data.info.socialLarge.length > 0 && (
-                  // <div className="flex flex-wrap gap-x-1 gap-y-6 justify-center items-start px-3">
-                  //   {data.info.socialLarge.map((item: any, index: number) => (
-                  //     <div
-                  //       className="w-[32%] flex flex-col items-center justify-between gap-1"
-                  //       key={index}
-                  //     >
-                  //       <SocialLarge
-                  //         data={item}
-                  //         socialType="socialLarge"
-                  //         number={index}
-                  //         fontColor={formData.fontColor || "black"}
-                  //         onClick={() =>
-                  //           handleTriggerUpdate({
-                  //             data: item,
-                  //             categoryForTrigger: "socialLarge",
-                  //           })
-                  //         }
-                  //       />
-                  //     </div>
-                  //   ))}
-                  // </div>
-
                   <div className="w-full flex flex-wrap items-center justify-center gap-y-6 my-4">
                     {data.info.socialLarge.map((social: any, index: number) => (
                       <SocialLarge
@@ -572,70 +553,35 @@ const SmartsiteIconLivePreview = ({
 
                 {/* referral display here start */}
                 {data.info.referral.length > 0 && (
-                  <div className="flex flex-col gap-y-3 px-3">
-                    {data.info.referral.map((data: any) => (
-                      <button
-                        key={data._id}
+                  <div className="w-full">
+                    {data.info.referral.map((social: any, index: number) => (
+                      <Referral
+                        number={index}
+                        key={social._id}
                         onClick={() =>
                           handleTriggerUpdate({
                             data,
                             categoryForTrigger: "referral",
                           })
                         }
-                        style={{
-                          backgroundColor: formData.templateColor
-                            ? formData.templateColor
-                            : "white",
-                        }}
-                        className="flex items-center gap-2 py-2 px-3 rounded-lg shadow-medium"
-                      >
-                        <Image
-                          src={referral}
-                          alt="icon"
-                          quality={100}
-                          className="w-8 h-8 rounded-lg"
-                          style={
-                            formData.secondaryFontColor === "#ffffff"
-                              ? { filter: "brightness(0) invert(1)" }
-                              : formData.secondaryFontColor === "#D3D3D3" ||
-                                  formData.secondaryFontColor === "#808080"
-                                ? {
-                                    filter:
-                                      "brightness(0) saturate(0%) opacity(0.5)",
-                                  }
-                                : tintStyle
-                          }
-                        />
-                        <div
-                          style={{
-                            color: formData.secondaryFontColor
-                              ? formData.secondaryFontColor
-                              : "black",
-                          }}
-                          className="flex flex-col items-start gap-0.5 text-start"
-                        >
-                          <p className="text-sm">{data.buttonName}</p>
-                          <p
-                            className={`text-xs ${
-                              !formData.secondaryFontColor && "text-gray-400"
-                            }`}
-                          >
-                            {data.description}
-                          </p>
-                        </div>
-                      </button>
+                        data={social}
+                        socialType="referral"
+                        accessToken={accessToken || ""}
+                        fontColor={data.fontColor}
+                        secondaryFontColor={data.secondaryFontColor}
+                      />
                     ))}
                   </div>
                 )}
                 {/* referral display here end */}
 
                 {/* card here  */}
-                <div className="flex flex-col gap-y-3">
+                <div className="flex flex-col">
                   {/* message me display here start */}
                   {data.info.ensDomain.length > 0 && (
-                    <div className="flex flex-col gap-y-3 mx-3">
-                      <button
-                        // key={data._id}
+                    <div className="w-full">
+                      <Message
+                        number={0}
                         onClick={() =>
                           handleTriggerUpdate({
                             // data,
@@ -645,56 +591,21 @@ const SmartsiteIconLivePreview = ({
                             categoryForTrigger: "ens",
                           })
                         }
-                        style={{
-                          backgroundColor: formData.templateColor
-                            ? formData.templateColor
-                            : "white",
-                        }}
-                        className="flex items-center gap-2 py-2 px-3 rounded-lg shadow-medium"
-                      >
-                        <Image
-                          src={message}
-                          style={
-                            formData.secondaryFontColor === "#ffffff"
-                              ? { filter: "brightness(0) invert(1)" }
-                              : formData.secondaryFontColor === "#D3D3D3" ||
-                                  formData.secondaryFontColor === "#808080"
-                                ? {
-                                    filter:
-                                      "brightness(0) saturate(0%) opacity(0.5)",
-                                  }
-                                : tintStyle
-                          }
-                          alt="icon"
-                          quality={100}
-                          className="w-8 h-8"
-                        />
-                        <div
-                          style={{
-                            color: formData.secondaryFontColor
-                              ? formData.secondaryFontColor
-                              : "black",
-                          }}
-                          className="flex flex-col items-start gap-0.5 text-start"
-                        >
-                          <p className="text-sm">Message Me</p>
-                          <p
-                            className={`text-xs ${
-                              !formData.secondaryFontColor && "text-gray-400"
-                            }`}
-                          >
-                            Message me on Swop
-                          </p>
-                        </div>
-                      </button>
+                        key={data.info.ensDomain[0]._id}
+                        data={data.info.ensDomain[0]}
+                        socialType="ens"
+                        fontColor={data.fontColor}
+                        secondaryFontColor={data.secondaryFontColor}
+                      />
                     </div>
                   )}
 
                   {/* redeemable link display here start */}
                   {data.info.redeemLink.length > 0 && (
-                    <div className="flex flex-col gap-y-3 px-3">
-                      {data.info.redeemLink.map((data: any) => (
-                        <button
+                    <div className="w-full">
+                      {data.info.redeemLink.map((data: any, index: number) => (
+                        <Redeem
+                          number={index}
                           key={data._id}
                           onClick={() =>
                             handleTriggerUpdate({
@@ -702,110 +613,88 @@ const SmartsiteIconLivePreview = ({
                               categoryForTrigger: "redeemLink",
                             })
                           }
-                          style={{
-                            backgroundColor: formData.templateColor
-                              ? formData.templateColor
-                              : "white",
-                          }}
-                          className="flex items-center gap-2 py-2 px-3 rounded-lg shadow-medium"
-                        >
-                          <Image
-                            src={data.imageUrl}
-                            alt="icon"
-                            width={200}
-                            height={200}
-                            quality={100}
-                            className="w-8 h-8 rounded-md"
-                            // style={
-                            //   formData.secondaryFontColor === "#ffffff"
-                            //     ? { filter: "brightness(0) invert(1)" }
-                            //     : formData.secondaryFontColor === "#D3D3D3" ||
-                            //       formData.secondaryFontColor === "#808080"
-                            //     ? {
-                            //         filter:
-                            //           "brightness(0) saturate(0%) opacity(0.5)",
-                            //       }
-                            //     : tintStyle
-                            // }
-                          />
-                          <div
-                            style={{
-                              color: formData.secondaryFontColor
-                                ? formData.secondaryFontColor
-                                : "black",
-                            }}
-                            className="flex flex-col items-start gap-0.5 text-start"
-                          >
-                            <p className="text-sm">{data.mintName}</p>
-                            <p
-                              className={`text-xs ${
-                                !formData.secondaryFontColor && "text-gray-400"
-                              }`}
-                            >
-                              {data.description}
-                            </p>
-                          </div>
-                        </button>
+                          data={data}
+                          socialType="redeemLink"
+                          // parentId={parentId}
+                          accessToken={accessToken || ""}
+                          fontColor={data.fontColor}
+                          secondaryFontColor={data.secondaryFontColor}
+                        />
+                        // <button
+                        //   key={data._id}
+                        //   onClick={() =>
+                        //     handleTriggerUpdate({
+                        //       data,
+                        //       categoryForTrigger: "redeemLink",
+                        //     })
+                        //   }
+                        //   style={{
+                        //     backgroundColor: formData.templateColor
+                        //       ? formData.templateColor
+                        //       : "white",
+                        //   }}
+                        //   className="flex items-center gap-2 py-2 px-3 rounded-lg shadow-medium"
+                        // >
+                        //   <Image
+                        //     src={data.imageUrl}
+                        //     alt="icon"
+                        //     width={200}
+                        //     height={200}
+                        //     quality={100}
+                        //     className="w-8 h-8 rounded-md"
+                        //     // style={
+                        //     //   formData.secondaryFontColor === "#ffffff"
+                        //     //     ? { filter: "brightness(0) invert(1)" }
+                        //     //     : formData.secondaryFontColor === "#D3D3D3" ||
+                        //     //       formData.secondaryFontColor === "#808080"
+                        //     //     ? {
+                        //     //         filter:
+                        //     //           "brightness(0) saturate(0%) opacity(0.5)",
+                        //     //       }
+                        //     //     : tintStyle
+                        //     // }
+                        //   />
+                        //   <div
+                        //     style={{
+                        //       color: formData.secondaryFontColor
+                        //         ? formData.secondaryFontColor
+                        //         : "black",
+                        //     }}
+                        //     className="flex flex-col items-start gap-0.5 text-start"
+                        //   >
+                        //     <p className="text-sm">{data.mintName}</p>
+                        //     <p
+                        //       className={`text-xs ${
+                        //         !formData.secondaryFontColor && "text-gray-400"
+                        //       }`}
+                        //     >
+                        //       {data.description}
+                        //     </p>
+                        //   </div>
+                        // </button>
                       ))}
                     </div>
                   )}
                   {/* redeemable link display here start */}
                   {/* contact card display here start */}
                   {data.info.contact.length > 0 && (
-                    <div className="flex flex-col gap-y-3 px-3">
-                      {data.info.contact.map((data: any) => (
-                        <button
+                    <div className="w-full">
+                      {data.info.contact.map((data: any, index: number) => (
+                        <Contact
+                          number={index}
                           key={data._id}
+                          data={data}
+                          socialType="contact"
+                          accessToken={accessToken || ""}
+                          fontColor={data.fontColor}
+                          secondaryFontColor={data.secondaryFontColor}
                           onClick={() =>
                             handleTriggerUpdate({
                               data,
                               categoryForTrigger: "contactCard",
                             })
                           }
-                          style={{
-                            backgroundColor: formData.templateColor
-                              ? formData.templateColor
-                              : "white",
-                          }}
-                          className="flex items-center gap-2 py-2 px-3 rounded-lg shadow-medium"
-                        >
-                          <Image
-                            src={card}
-                            alt="icon"
-                            quality={100}
-                            className="w-8 h-8"
-                            style={
-                              formData.secondaryFontColor === "#ffffff"
-                                ? {
-                                    filter: "brightness(0) invert(1)",
-                                  }
-                                : formData.secondaryFontColor === "#D3D3D3" ||
-                                    formData.secondaryFontColor === "#808080"
-                                  ? {
-                                      filter:
-                                        "brightness(0) saturate(0%) opacity(0.5)",
-                                    }
-                                  : tintStyle
-                            }
-                          />
-                          <div
-                            style={{
-                              color: formData.secondaryFontColor
-                                ? formData.secondaryFontColor
-                                : "black",
-                            }}
-                            className="flex flex-col items-start gap-0.5 text-start"
-                          >
-                            <p className="text-sm">{data.name}</p>
-                            <p
-                              className={`text-xs ${
-                                !formData.secondaryFontColor && "text-gray-400"
-                              }`}
-                            >
-                              {data.mobileNo}
-                            </p>
-                          </div>
-                        </button>
+                        />
                       ))}
                     </div>
                   )}
@@ -813,160 +702,42 @@ const SmartsiteIconLivePreview = ({
 
                   {/* ENS display here start */}
                   {data.info.ensDomain.length > 0 && (
-                    <div className="flex flex-col gap-y-3 px-3">
-                      {/* {data.info.ensDomain.map((data: any) => (
-                    <button
-                      key={data._id}
-                      onClick={() =>
-                        handleTriggerUpdate({
-                          data,
-                          data.info.ensDomain[data.info.ensDomain.length -1],
-                          categoryForTrigger: "ens",
-                        })
-                      }
-                      className="flex items-center gap-3 bg-white py-2 px-3 rounded-lg shadow-medium"
-                    >
-                      <Image
-                        src={ethereum}
-                        style={tintStyle}
-                        alt="icon"
-                        width={40}
-                        height={40}
-                      />
-                      <div className="flex flex-col items-start gap-0.5 text-start">
-                        <p className="font-semibold text-gray-700">
-                          {data.domain}
-                        </p>
-                        <p className="text-xs text-gray-400">
-                          Pay me using my Swop.ID
-                        </p>
-                      </div>
-                    </button>
-                  ))} */}
-                      <button
-                        // key={data._id}
+                    <div className="w-full">
+                      <Ens
+                        number={0}
+                        key={data.info.ensDomain[0]._id}
+                        data={data.info.ensDomain[0]}
+                        socialType="ens"
+                        // parentId={parentId}
+                        accessToken={accessToken || ""}
+                        fontColor={data.fontColor}
+                        secondaryFontColor={data.secondaryFontColor}
                         onClick={() =>
                           handleTriggerUpdate({
-                            // data,
-                            data: data.info.ensDomain[
-                              data.info.ensDomain.length - 1
-                            ],
+                            data,
+                            // data.info.ensDomain[data.info.ensDomain.length -1],
                             categoryForTrigger: "ens",
                           })
                         }
-                        style={{
-                          backgroundColor: formData.templateColor
-                            ? formData.templateColor
-                            : "white",
-                        }}
-                        className="flex items-center gap-2 py-2 px-3 rounded-lg shadow-medium"
-                      >
-                        <Image
-                          src={ethereum}
-                          style={
-                            formData.secondaryFontColor === "#ffffff"
-                              ? { filter: "brightness(0) invert(1)" }
-                              : formData.secondaryFontColor === "#D3D3D3" ||
-                                  formData.secondaryFontColor === "#808080"
-                                ? {
-                                    filter:
-                                      "brightness(0) saturate(0%) opacity(0.5)",
-                                  }
-                                : tintStyle
-                          }
-                          alt="icon"
-                          quality={100}
-                          className="w-8 h-8"
-                        />
-                        <div
-                          style={{
-                            color: formData.secondaryFontColor
-                              ? formData.secondaryFontColor
-                              : "black",
-                          }}
-                          className="flex flex-col items-start gap-0.5 text-start"
-                        >
-                          <p className="text-sm">
-                            {
-                              data.info.ensDomain[
-                                data.info.ensDomain.length - 1
-                              ].domain
-                            }
-                          </p>
-                          <p
-                            className={`text-xs ${
-                              !formData.secondaryFontColor && "text-gray-400"
-                            }`}
-                          >
-                            Pay me using my Swop.ID
-                          </p>
-                        </div>
-                      </button>
+                      />
                     </div>
                   )}
                   {/* ENS display here end */}
 
                   {/* info bar display here start */}
                   {data.info.infoBar.length > 0 && (
-                    <div className="flex flex-col gap-y-3 px-3">
-                      {data.info.infoBar.map((data: any) => (
-                        <button
+                    <div className="w-full">
+                      {data.info.infoBar.map((data: any, index: number) => (
+                        <InfoBar
+                          number={index}
                           key={data._id}
-                          onClick={() =>
-                            handleTriggerUpdate({
-                              data,
-                              categoryForTrigger: "infoBar",
-                            })
-                          }
-                          // disabled={isUrl(data.iconName)}
-                          style={{
-                            backgroundColor: formData.templateColor
-                              ? formData.templateColor
-                              : "white",
-                          }}
-                          className={`flex items-center gap-2 py-2 px-3 rounded-lg shadow-medium`}
-                        >
-                          {isUrl(data.iconName) ? (
-                            <Image
-                              src={data.iconName}
-                              // src={getAppIconImage(data.iconName, data.group) as any}
-                              alt="icon"
-                              quality={100}
-                              className="w-8 h-8 rounded-lg"
-                              width={100}
-                              height={100}
-                            />
-                          ) : (
-                            <Image
-                              src={getAllSmartsitesIcon(data.iconName) as any}
-                              alt="icon"
-                              quality={100}
-                              className="w-8 h-8"
-                            />
-                          )}
-
-                          <div
-                            style={{
-                              color: formData.secondaryFontColor
-                                ? formData.secondaryFontColor
-                                : "black",
-                            }}
-                            className="flex flex-col items-start gap-0.5 text-start"
-                          >
-                            <p className="text-sm">
-                              {data.buttonName
-                                ? data.buttonName
-                                : data.iconName}
-                            </p>
-                            <p
-                              className={`text-xs ${
-                                !formData.secondaryFontColor && "text-gray-400"
-                              }`}
-                            >
-                              {data.description}
-                            </p>
-                          </div>
-                        </button>
+                          data={data}
+                          socialType="infoBar"
+                          // parentId={parentId}
+                          accessToken={accessToken || ""}
+                          fontColor={data.fontColor}
+                          secondaryFontColor={data.secondaryFontColor}
+                        />
                       ))}
                     </div>
                   )}
@@ -974,55 +745,24 @@ const SmartsiteIconLivePreview = ({
 
                   {/* swop pay display here start */}
                   {data.info.product.length > 0 && (
-                    <div className="flex flex-col gap-y-3 px-3">
-                      {data.info.product.map((data: any) => (
-                        <div
+                    <div className="w-full">
+                      {data.info.product.map((data: any, index: number) => (
+                        <PaymentBar
+                          number={index}
                           key={data._id}
-                          className="flex items-center gap-2 w-full"
-                        >
-                          <div
-                            style={{
-                              color: formData.secondaryFontColor
-                                ? formData.secondaryFontColor
-                                : "black",
-
-                              backgroundColor: formData.templateColor
-                                ? formData.templateColor
-                                : "white",
-                            }}
-                            className={`w-full h-full py-2 px-3 rounded-lg shadow-medium`}
-                          >
-                            <button
-                              onClick={() =>
-                                handleTriggerUpdate({
-                                  data: data,
-                                  categoryForTrigger: "swopPay",
-                                })
-                              }
-                              className="flex items-center justify-between gap-3 w-full"
-                            >
-                              <div className="flex items-center gap-2 w-full">
-                                <div className="relative">
-                                  <Image
-                                    src={data.imageUrl}
-                                    alt="cover photo"
-                                    width={160}
-                                    height={90}
-                                    quality={100}
-                                    className="w-8 h-8 rounded-md object-cover"
-                                  />
-                                </div>
-                                <div className="text-start">
-                                  <p className="text-sm mb-0.5">{data.title}</p>
-                                  <p className="text-xs">{data.description}</p>
-                                </div>
-                              </div>
-                              <div className="custom-audio text-sm">
-                                ${data.price}
-                              </div>
-                            </button>
-                          </div>
-                        </div>
+                          data={data}
+                          socialType="product"
+                          // parentId={parentId}
+                          accessToken={accessToken || ""}
+                          fontColor={data.fontColor}
+                          secondaryFontColor={data.secondaryFontColor}
+                          onClick={() =>
+                            handleTriggerUpdate({
+                              data: data,
+                              categoryForTrigger: "swopPay",
+                            })
+                          }
+                        />
                       ))}
                     </div>
                   )}
@@ -1030,89 +770,104 @@ const SmartsiteIconLivePreview = ({
 
                   {/* audio||music display here start */}
                   {data.info.audio.length > 0 && (
-                    <div className="flex flex-col gap-y-3 px-3">
-                      {data.info.audio.map((audioData: any) => (
-                        <div
+                    <div className="w-full">
+                      {data.info.audio.map((audioData: any, index: number) => (
+                        <MP3
+                          number={index}
                           key={audioData._id}
-                          className="flex items-center gap-2 w-full overflow-hidden"
-                        >
-                          <div
-                            style={{
-                              backgroundColor: formData.templateColor
-                                ? formData.templateColor
-                                : "white",
-                            }}
-                            className={`w-full h-full py-2 px-3 rounded-lg shadow-medium`}
-                          >
-                            <div className="flex items-center justify-between overflow-hidden">
-                              <button
-                                style={{
-                                  color: formData.secondaryFontColor
-                                    ? formData.secondaryFontColor
-                                    : "black",
-                                }}
-                                onClick={() =>
-                                  handleTriggerUpdate({
-                                    data: audioData,
-                                    categoryForTrigger: "audio",
-                                  })
-                                }
-                                className="flex items-center gap-2"
-                              >
-                                <div className="relative">
-                                  <Image
-                                    src={audioData.coverPhoto}
-                                    alt="cover photo"
-                                    width={120}
-                                    height={60}
-                                    className="w-14 h-10 rounded-md object-cover"
-                                  />
-                                </div>
-                                <div className="text-start text-sm">
-                                  <p className="font-medium">
-                                    {audioData.name}
-                                  </p>
-                                  <p className="text-xs">
-                                    Tap play button to listen the audio
-                                  </p>
-                                </div>
-                              </button>
-                              <div className="custom-audio">
-                                <AudioPlayer
-                                  style={{
-                                    backgroundColor: formData.templateColor,
-                                  }}
-                                  key={audioData.fileUrl}
-                                  autoPlay={false}
-                                  src={audioData.fileUrl}
-                                  showJumpControls={false}
-                                  customAdditionalControls={[]}
-                                  customVolumeControls={[]}
-                                  layout="stacked-reverse"
-                                  className={`!w-max !p-0 !shadow-none translate-y-1 rounded-full translate-x-4`}
-                                  customIcons={{
-                                    play: (
-                                      <FaPlay
-                                        // style={{
-                                        //   color: formData.secondaryFontColor,
-                                        // }}
-                                        className="text-xl"
-                                      />
-                                    ), // Your custom play icon
-                                    pause: (
-                                      <FaPause
-                                        // style={{
-                                        //   color: formData.secondaryFontColor,
-                                        // }}
-                                        className="text-xl"
-                                      />
-                                    ), // Your custom pause icon
-                                  }}
-                                />
-                              </div>
-                            </div>
-                          </div>
-                        </div>
+                          onClick={() =>
+                            handleTriggerUpdate({
+                              data: audioData,
+                              categoryForTrigger: "audio",
+                            })
+                          }
+                          data={audioData}
+                          socialType="audio"
+                          length={data.info.audio.length}
+                          fontColor={data.fontColor}
+                          secondaryFontColor={data.secondaryFontColor}
+                        />
+                        // <div
+                        //   key={audioData._id}
+                        //   className="flex items-center gap-2 w-full overflow-hidden"
+                        // >
+                        //   <div
+                        //     style={{
+                        //       backgroundColor: formData.templateColor
+                        //         ? formData.templateColor
+                        //         : "white",
+                        //     }}
+                        //     className={`w-full h-full py-2 px-3 rounded-lg shadow-medium`}
+                        //   >
+                        //     <div className="flex items-center justify-between overflow-hidden">
+                        //       <button
+                        //         style={{
+                        //           color: formData.secondaryFontColor
+                        //             ? formData.secondaryFontColor
+                        //             : "black",
+                        //         }}
+                        //         onClick={() =>
+                        //           handleTriggerUpdate({
+                        //             data: audioData,
+                        //             categoryForTrigger: "audio",
+                        //           })
+                        //         }
+                        //         className="flex items-center gap-2"
+                        //       >
+                        //         <div className="relative">
+                        //           <Image
+                        //             src={audioData.coverPhoto}
+                        //             alt="cover photo"
+                        //             width={120}
+                        //             height={60}
+                        //             className="w-14 h-10 rounded-md object-cover"
+                        //           />
+                        //         </div>
+                        //         <div className="text-start text-sm">
+                        //           <p className="font-medium">
+                        //             {audioData.name}
+                        //           </p>
+                        //           <p className="text-xs">
+                        //             Tap play button to listen the audio
+                        //           </p>
+                        //         </div>
+                        //       </button>
+                        //       <div className="custom-audio">
+                        //         <AudioPlayer
+                        //           style={{
+                        //             backgroundColor: formData.templateColor,
+                        //           }}
+                        //           key={audioData.fileUrl}
+                        //           autoPlay={false}
+                        //           src={audioData.fileUrl}
+                        //           showJumpControls={false}
+                        //           customAdditionalControls={[]}
+                        //           customVolumeControls={[]}
+                        //           layout="stacked-reverse"
+                        //           className={`!w-max !p-0 !shadow-none translate-y-1 rounded-full translate-x-4`}
+                        //           customIcons={{
+                        //             play: (
+                        //               <FaPlay
+                        //                 // style={{
+                        //                 //   color: formData.secondaryFontColor,
+                        //                 // }}
+                        //                 className="text-xl"
+                        //               />
+                        //             ), // Your custom play icon
+                        //             pause: (
+                        //               <FaPause
+                        //                 // style={{
+                        //                 //   color: formData.secondaryFontColor,
+                        //                 // }}
+                        //                 className="text-xl"
+                        //               />
+                        //             ), // Your custom pause icon
+                        //           }}
+                        //         />
+                        //       </div>
+                        //     </div>
+                        //   </div>
+                        // </div>
                       ))}
                     </div>
                   )}
