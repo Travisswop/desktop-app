@@ -5,7 +5,7 @@ import swop from "@/public/images/live-preview/swop.svg";
 import useSmartsiteFormStore from "@/zustandStore/EditSmartsiteInfo";
 import useUpdateSmartIcon from "@/zustandStore/UpdateSmartIcon";
 import useSmallIconToggleStore from "@/zustandStore/SmallIconModalToggle";
-import useSideBarToggleStore from "@/zustandStore/SideBarToggleStore";
+// import useSideBarToggleStore from "@/zustandStore/SideBarToggleStore";
 import {
   Modal,
   ModalBody,
@@ -57,7 +57,7 @@ const SmartsiteIconLivePreview = ({
   const { isOn, setOff, setOn }: any = useSmallIconToggleStore();
   const iconData: any = useUpdateSmartIcon();
 
-  console.log("state iconData", iconData);
+  // console.log("state iconData", iconData);
   // const [isPrimaryMicrosite, setIsPrimaryMicrosite] = useState<boolean>(false);
   // const [isLeadCapture, setIsLeadCapture] = useState<boolean>(false);
 
