@@ -727,15 +727,15 @@ const WalletContentInner = () => {
         <div className="flex flex-col gap-4">
           <div className="bg-white rounded-xl">
             <BalanceChart
-              // userId={user?._id}
+              userId={user?._id}
               currency="$"
               totalBalance={totalBalance}
-              // onSelectAsset={handleAssetSelect}
-              // onQRClick={handleQRClick}
-              // walletData={walletData || []}
-              // tokens={tokens}
-              // accessToken={accessToken}
-              // onTokenRefresh={refetchTokens}
+              onSelectAsset={handleAssetSelect}
+              onQRClick={handleQRClick}
+              walletData={walletData || []}
+              tokens={tokens}
+              accessToken={accessToken}
+              onTokenRefresh={refetchTokens}
               isButtonVisible={true}
             />
           </div>

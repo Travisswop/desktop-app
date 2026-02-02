@@ -241,7 +241,7 @@ const SocialLarge: FC<Props> = ({
           src={
             iconName.includes("http")
               ? iconName
-              : `/images/social_logo/${trimIcon}.svg`
+              : `/images/social_logos/${trimIcon}@3x.png`
           }
           alt={iconName}
           width={1200}

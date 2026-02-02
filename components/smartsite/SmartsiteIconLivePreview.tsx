@@ -5,18 +5,7 @@ import swop from "@/public/images/live-preview/swop.svg";
 import useSmartsiteFormStore from "@/zustandStore/EditSmartsiteInfo";
 import useUpdateSmartIcon from "@/zustandStore/UpdateSmartIcon";
 import useSmallIconToggleStore from "@/zustandStore/SmallIconModalToggle";
-import { FaEdit, FaPause, FaPlay } from "react-icons/fa";
 import useSideBarToggleStore from "@/zustandStore/SideBarToggleStore";
-import AudioPlayer from "react-h5-audio-player";
-import referral from "@/public/images/websites/referral.jpeg";
-import ethereum from "@/public/images/social-icon/ethereum.png";
-import card from "@/public/images/social-icon/card.png";
-import message from "@/public/images/social-icon/message.png";
-import isUrl from "@/lib/isUrl";
-import { tintStyle } from "../util/IconTintStyle";
-import getSmallIconImage from "./retriveIconImage/getSmallIconImage";
-import EmbedPlayer from "./embed/renderEmbedPlayer";
-import getAllSmartsitesIcon from "./retriveIconImage/getAllSmartsiteIcon";
 import {
   Modal,
   ModalBody,
@@ -56,34 +45,6 @@ import Referral from "../publicProfile/referral";
 import MediaList from "../publicProfile/MediaList";
 import getMediaType from "@/utils/getMediaType";
 import EmbedVideo from "../publicProfile/embedvideo";
-interface ColoredIconProps {
-  src: string;
-  color: string;
-  className?: string;
-}
-
-const ColoredIcon: FC<ColoredIconProps> = ({
-  src,
-  color,
-  className = "w-5 h-5",
-}) => {
-  return (
-    <div
-      className={className}
-      style={{
-        backgroundColor: color,
-        WebkitMaskImage: `url(${src})`,
-        maskImage: `url(${src})`,
-        WebkitMaskSize: "contain",
-        maskSize: "contain",
-        WebkitMaskRepeat: "no-repeat",
-        maskRepeat: "no-repeat",
-        WebkitMaskPosition: "center",
-        maskPosition: "center",
-      }}
-    />
-  );
-};
 
 const SmartsiteIconLivePreview = ({
   data,
@@ -92,7 +53,6 @@ const SmartsiteIconLivePreview = ({
   data?: any;
 }) => {
   const setSmartSiteData = useUpdateSmartIcon((state: any) => state.setState);
-  const { toggle } = useSideBarToggleStore();
 
   console.log("data hhiss", data);
 
@@ -821,49 +781,6 @@ const SmartsiteIconLivePreview = ({
                   )}
                   {/* audio||music display here end */}
                 </div>
-                {/* video display here start */}
-                {/* {data.info.video.length > 0 && (
-                  <div key={"video"} className="flex flex-col gap-y-3 px-3">
-                    {data.info.video.map((videoData: any) => (
-                      <div
-                        key={videoData._id}
-                        className="flex items-center w-full"
-                      >
-                        <div
-                          className={`w-[96%] h-full rounded-2xl overflow-hidden shadow-medium`}
-                        >
-                          <video
-                            key={videoData.link as string}
-                            className="w-full h-auto"
-                            controls
-                          >
-                            <source src={videoData.link} type="video/mp4" />
-                            <track
-                              src={videoData.link}
-                              kind="subtitles"
-                              srcLang="en"
-                              label="English"
-                            />
-                            Your browser does not support the video tag.
-                          </video>
-                        </div>
-                        <div className="w-[4%]">
-                          <button
-                            onClick={() =>
-                              handleTriggerUpdate({
-                                data: videoData,
-                                categoryForTrigger: "video",
-                              })
-                            }
-                            className="translate-x-1"
-                          >
-                            <FaEdit size={16} />
-                          </button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )} */}
 
                 {/* Image / Video Section */}
                 {data.info.video.length > 0 && (
@@ -871,10 +788,6 @@ const SmartsiteIconLivePreview = ({
                     items={data.info.video}
                     getMediaType={getMediaType}
                     fontColor={data.fontColor}
-                    // onClick={(item, index) => {
-                    //   console.log("Clicked media:", item, index);
-                    //   // custom logic here (modal, analytics, navigation, etc.)
-                    // }}
                     onClick={(item, index) =>
                       handleTriggerUpdate({
                         data: item,
