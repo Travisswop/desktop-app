@@ -54,11 +54,10 @@ const SmartsiteIconLivePreview = ({
 }) => {
   const setSmartSiteData = useUpdateSmartIcon((state: any) => state.setState);
 
-  console.log("data hhiss", data);
-
   const { isOn, setOff, setOn }: any = useSmallIconToggleStore();
   const iconData: any = useUpdateSmartIcon();
 
+  console.log("state iconData", iconData);
   // const [isPrimaryMicrosite, setIsPrimaryMicrosite] = useState<boolean>(false);
   // const [isLeadCapture, setIsLeadCapture] = useState<boolean>(false);
 
@@ -90,21 +89,6 @@ const SmartsiteIconLivePreview = ({
     setSmartSiteData(data);
     setOn(true);
   };
-
-  // useEffect(() => {
-  //   if (data.primary) {
-  //     setIsPrimaryMicrosite(true);
-  //   }
-  //   if (data.leadCapture) {
-  //     setIsLeadCapture(true);
-  //   }
-  // }, [data.leadCapture, data.primary]);
-
-  // console.log("audio", data.info.audio);
-
-  // console.log("formdata", formData);
-  // console.log("data from live preview", data);
-  // const router = useRouter();
 
   useEffect(() => {
     if (data) {

@@ -51,6 +51,8 @@ const UpdateAppIcon = ({ iconDataObj, isOn, setOff }: any) => {
   const [imageFile, setImageFile] = useState<any>(null);
   const [fileError, setFileError] = useState<string>("");
 
+  const [isHit, setIsHit] = useState<boolean>(true);
+
   const modalRef = useRef<HTMLDivElement>(null);
 
   // console.log("ishit", isHit);
@@ -76,7 +78,7 @@ const UpdateAppIcon = ({ iconDataObj, isOn, setOff }: any) => {
   useEffect(() => {
     if (selectedIconType) {
       const data = iconData.icons.find(
-        (item: any) => item.category === selectedIconType
+        (item: any) => item.category === selectedIconType,
       );
       setSelectedIconData(data);
     }
@@ -100,21 +102,21 @@ const UpdateAppIcon = ({ iconDataObj, isOn, setOff }: any) => {
     }
   };
 
-  // useEffect(() => {
-  //   if (isHit) {
-  //     if (selectedIconData && selectedIconData?.icons?.length > 0) {
-  //       // console.log("hit");
+  useEffect(() => {
+    if (isHit) {
+      if (selectedIconData && selectedIconData?.icons?.length > 0) {
+        // console.log("hit");
 
-  //       const data = selectedIconData.icons.find(
-  //         (data: any) => data.name === iconDataObj.data.iconName
-  //       );
-  //       setSelectedIcon(data);
-  //       if (data) {
-  //         setIsHit(false);
-  //       }
-  //     }
-  //   }
-  // }, [selectedIconData, isHit, iconDataObj.data.iconName]);
+        const data = selectedIconData.icons.find(
+          (data: any) => data.name === iconDataObj.data.iconName,
+        );
+        setSelectedIcon(data);
+        if (data) {
+          setIsHit(false);
+        }
+      }
+    }
+  }, [selectedIconData, isHit, iconDataObj.data.iconName]);
 
   //   const tintStyle = {
   //     filter: "brightness(0) invert(0)",
@@ -195,7 +197,7 @@ const UpdateAppIcon = ({ iconDataObj, isOn, setOff }: any) => {
     try {
       const data: any = await handleUpdateAppIcon(
         selectedIconType === "custom" ? customIconInfo : appIconInfo,
-        token
+        token,
       );
       // console.log("data,", data);
 
@@ -447,7 +449,7 @@ const UpdateAppIcon = ({ iconDataObj, isOn, setOff }: any) => {
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
-                  <h3 className="font-semibold text-gray-700 w-32">
+                  <h3 className="font-semibold text-gray-700 w-32 2xl:w-44">
                     Select Icon
                   </h3>
 
@@ -455,12 +457,12 @@ const UpdateAppIcon = ({ iconDataObj, isOn, setOff }: any) => {
                     <CustomFileInput handleFileChange={handleFileChange} />
                   ) : (
                     <Dropdown
-                      className="w-max rounded-lg"
+                      className="w-full rounded-lg"
                       placement="bottom-start"
                     >
                       <DropdownTrigger>
                         <div
-                          className={`flex items-center ${
+                          className={`w-full flex items-center ${
                             isEmptyObject(selectedIconData) && "relative group"
                           }`}
                         >
@@ -531,7 +533,7 @@ const UpdateAppIcon = ({ iconDataObj, isOn, setOff }: any) => {
                                     {data.name}
                                   </div>
                                 </DropdownItem>
-                              )
+                              ),
                             )}
                           </DropdownMenu>
                         )}
