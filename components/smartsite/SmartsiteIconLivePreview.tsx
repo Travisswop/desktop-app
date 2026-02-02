@@ -625,10 +625,15 @@ const SmartsiteIconLivePreview = ({
                           key={item._id}
                           data={item}
                           socialType="infoBar"
-                          // parentId={parentId}
                           accessToken={accessToken || ""}
                           fontColor={data.fontColor}
                           secondaryFontColor={data.secondaryFontColor}
+                          onClick={() =>
+                            handleTriggerUpdate({
+                              data: item,
+                              categoryForTrigger: "infoBar",
+                            })
+                          }
                         />
                       ))}
                     </div>
@@ -679,87 +684,6 @@ const SmartsiteIconLivePreview = ({
                           fontColor={data.fontColor}
                           secondaryFontColor={data.secondaryFontColor}
                         />
-                        // <div
-                        //   key={audioData._id}
-                        //   className="flex items-center gap-2 w-full overflow-hidden"
-                        // >
-                        //   <div
-                        //     style={{
-                        //       backgroundColor: formData.templateColor
-                        //         ? formData.templateColor
-                        //         : "white",
-                        //     }}
-                        //     className={`w-full h-full py-2 px-3 rounded-lg shadow-medium`}
-                        //   >
-                        //     <div className="flex items-center justify-between overflow-hidden">
-                        //       <button
-                        //         style={{
-                        //           color: formData.secondaryFontColor
-                        //             ? formData.secondaryFontColor
-                        //             : "black",
-                        //         }}
-                        //         onClick={() =>
-                        //           handleTriggerUpdate({
-                        //             data: audioData,
-                        //             categoryForTrigger: "audio",
-                        //           })
-                        //         }
-                        //         className="flex items-center gap-2"
-                        //       >
-                        //         <div className="relative">
-                        //           <Image
-                        //             src={audioData.coverPhoto}
-                        //             alt="cover photo"
-                        //             width={120}
-                        //             height={60}
-                        //             className="w-14 h-10 rounded-md object-cover"
-                        //           />
-                        //         </div>
-                        //         <div className="text-start text-sm">
-                        //           <p className="font-medium">
-                        //             {audioData.name}
-                        //           </p>
-                        //           <p className="text-xs">
-                        //             Tap play button to listen the audio
-                        //           </p>
-                        //         </div>
-                        //       </button>
-                        //       <div className="custom-audio">
-                        //         <AudioPlayer
-                        //           style={{
-                        //             backgroundColor: formData.templateColor,
-                        //           }}
-                        //           key={audioData.fileUrl}
-                        //           autoPlay={false}
-                        //           src={audioData.fileUrl}
-                        //           showJumpControls={false}
-                        //           customAdditionalControls={[]}
-                        //           customVolumeControls={[]}
-                        //           layout="stacked-reverse"
-                        //           className={`!w-max !p-0 !shadow-none translate-y-1 rounded-full translate-x-4`}
-                        //           customIcons={{
-                        //             play: (
-                        //               <FaPlay
-                        //                 // style={{
-                        //                 //   color: formData.secondaryFontColor,
-                        //                 // }}
-                        //                 className="text-xl"
-                        //               />
-                        //             ), // Your custom play icon
-                        //             pause: (
-                        //               <FaPause
-                        //                 // style={{
-                        //                 //   color: formData.secondaryFontColor,
-                        //                 // }}
-                        //                 className="text-xl"
-                        //               />
-                        //             ), // Your custom pause icon
-                        //           }}
-                        //         />
-                        //       </div>
-                        //     </div>
-                        //   </div>
-                        // </div>
                       ))}
                     </div>
                   )}

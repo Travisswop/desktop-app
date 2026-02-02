@@ -76,7 +76,7 @@ const InfoBar: FC<Props> = ({
     group,
   } = data;
 
-  console.log("data from info bar secondaryFontColor", secondaryFontColor);
+  // console.log("data from info bar secondaryFontColor", secondaryFontColor);
 
   const openlink = async () => {
     // if (!accessToken) {
@@ -240,14 +240,12 @@ const InfoBar: FC<Props> = ({
           />
         </div>
 
-        {
-          <InfoCardContent
-            title={buttonName}
-            description={description}
-            fontColor={fontColor}
-            secondaryFontColor={secondaryFontColor}
-          />
-        }
+        <InfoCardContent
+          title={buttonName}
+          description={description}
+          fontColor={fontColor}
+          secondaryFontColor={secondaryFontColor}
+        />
       </motion.div>
     </motion.div>
   );

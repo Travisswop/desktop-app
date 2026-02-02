@@ -88,9 +88,9 @@ const UpdateModalComponents: React.FC<UpdateModalComponentsProps> = ({
       {/* show audio details end   */}
 
       {/* update swop pay modal start */}
-      {isOn && iconData?.categoryForTrigger === "swopPay" && (
+      {/* {isOn && iconData?.categoryForTrigger === "swopPay" && (
         <UpdateSwopPay iconDataObj={iconData} isOn={isOn} setOff={setOff} />
-      )}
+      )} */}
       {/* update swop pay modal end   */}
 
       {/* update referral modal start */}
@@ -100,9 +100,9 @@ const UpdateModalComponents: React.FC<UpdateModalComponentsProps> = ({
       {/* update referral modal end   */}
 
       {/* update message/ens modal start */}
-      {isOn && iconData?.categoryForTrigger === "ens" && (
+      {/* {isOn && iconData?.categoryForTrigger === "ens" && (
         <UpdateENS iconDataObj={iconData} isOn={isOn} setOff={setOff} />
-      )}
+      )} */}
       {/* update message/ens modal end   */}
 
       {/* update redeemLink modal start */}

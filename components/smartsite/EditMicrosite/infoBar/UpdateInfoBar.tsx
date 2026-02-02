@@ -55,9 +55,10 @@ const UpdateInfoBar = ({ iconDataObj, isOn, setOff }: any) => {
   const iconData: any = newIcons[1];
   console.log("selectedIconData", selectedIconData);
 
-  console.log("iconDataObj", iconDataObj);
+  console.log("iconDataObjsss", iconDataObj);
   console.log("selectedIconType", selectedIconType);
   console.log("iconData", iconData);
+  console.log("selectedIcon", selectedIcon);
 
   const [token, setToken] = useState("");
 
@@ -109,46 +110,55 @@ const UpdateInfoBar = ({ iconDataObj, isOn, setOff }: any) => {
   }, [iconDataObj]);
 
   useEffect(() => {
+    if (!iconDataObj?.data) return;
+
     const data = iconData.icons.find(
-      (item: any) =>
-        item.category === (selectedIconType || iconDataObj.data.group),
+      (item: any) => item.category === iconDataObj.data.group,
     );
-    if (data) {
-      const iconDatas = data.icons.find(
-        (item: any) =>
-          item.name === selectedIcon.icon || iconDataObj.data.iconName,
-      );
+
+    if (!data) return;
+
+    const iconDatas = data.icons.find(
+      (item: any) => item.name === iconDataObj.data.iconName,
+    );
+
+    if (iconDatas) {
       setSelectedIcon(iconDatas);
       setSelectedIconData(data);
     }
-  }, [
-    iconData,
-    iconDataObj.data.group,
-    iconDataObj.data.iconName,
-    selectedIcon.icon,
-    selectedIconType,
-  ]);
+  }, [iconDataObj]); // 👈 ONLY depends on initial edit data
 
   const handleSelectIconType = (category: string) => {
     setSelectedIconType(category);
-    if (category === "Link") {
-      setSelectedIcon({
-        name: "Amazon Music",
-        icon: icon.appIconAmazonMusic,
-        placeHolder: "https://www.music.amazon.com/abc",
-        inputText: "Amazon Music Link",
-        url: "https://music.amazon.com",
-      });
-    } else if (category === "Call To Action") {
-      setSelectedIcon({
-        name: "Email",
-        icon: icon.appIconEmail,
-        placeHolder: "Type Your Email Address",
-        inputText: "Email Address",
-        url: "www.email.com",
-      });
+
+    const data = iconData.icons.find((item: any) => item.category === category);
+
+    if (data && data.icons.length > 0) {
+      setSelectedIcon(data.icons[0]);
+      setSelectedIconData(data);
+      setButtonName(data.icons[0].name);
     }
   };
+  // const handleSelectIconType = (category: string) => {
+  //   setSelectedIconType(category);
+  //   if (category === "Link") {
+  //     setSelectedIcon({
+  //       name: "Amazon Music",
+  //       icon: icon.appIconAmazonMusic,
+  //       placeHolder: "https://www.music.amazon.com/abc",
+  //       inputText: "Amazon Music Link",
+  //       url: "https://music.amazon.com",
+  //     });
+  //   } else if (category === "Call To Action") {
+  //     setSelectedIcon({
+  //       name: "Email",
+  //       icon: icon.appIconEmail,
+  //       placeHolder: "Type Your Email Address",
+  //       inputText: "Email Address",
+  //       url: "www.email.com",
+  //     });
+  //   }
+  // };
 
   const handleInfoBarFormSubmit = async (e: any) => {
     setIsLoading(true);
@@ -449,13 +459,13 @@ const UpdateInfoBar = ({ iconDataObj, isOn, setOff }: any) => {
                           >
                             <span className="flex items-center gap-2">
                               <Image
-                                src={selectedIcon.icon}
-                                alt={selectedIcon.inputText}
+                                src={selectedIcon?.icon}
+                                alt={selectedIcon?.inputText}
                                 className="w-4 h-auto"
                                 quality={100}
                                 // style={tintStyle}
                               />
-                              {selectedIcon.name}
+                              {selectedIcon?.name}
                             </span>{" "}
                             <FaAngleDown />
                           </button>
@@ -527,7 +537,7 @@ const UpdateInfoBar = ({ iconDataObj, isOn, setOff }: any) => {
                       <p className="font-semibold text-gray-700 mb-1">
                         {selectedIconType === "custom"
                           ? "Link"
-                          : selectedIcon.inputText}
+                          : selectedIcon?.inputText}
                       </p>
                       <div className="relative">
                         <IoLinkOutline
