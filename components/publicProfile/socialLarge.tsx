@@ -76,11 +76,6 @@ const SocialLarge: FC<Props> = ({
   };
 
   const openlink = async () => {
-    // if (!accessToken) {
-    //   window.location.href =
-    //     'https://apps.apple.com/us/app/swop-connecting-the-world/id1593201322';
-    //   return;
-    // }
     try {
       fetch(`${API_URL}/api/v1/web/updateCount`, {
         method: "POST",
