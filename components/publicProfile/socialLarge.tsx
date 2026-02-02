@@ -208,6 +208,8 @@ const SocialLarge: FC<Props> = ({
 
   const trimIcon = iconName.toLowerCase().trim().replace(" ", "");
 
+  console.log("trimIcon", trimIcon);
+
   return (
     <motion.div
       initial="hidden"
