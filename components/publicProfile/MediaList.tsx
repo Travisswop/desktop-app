@@ -1,6 +1,7 @@
 "use client";
 
 import Image from "next/image";
+import { FaEdit } from "react-icons/fa";
 
 type MediaItem = {
   _id: string;
@@ -28,24 +29,29 @@ const MediaList = ({
       {items.map((item, index) => {
         const mediaType = getMediaType(item.link);
 
-        const handleClick = () => {
-          onClick?.(item, index);
-        };
-
         return (
           <div
             key={item._id}
-            onClick={handleClick}
             className={`w-full overflow-hidden rounded-xl border border-gray-200 dark:border-gray-700
-              bg-white/70 dark:bg-black/30 shadow-sm
-              ${onClick ? "cursor-pointer" : ""}`}
+              bg-white/70 dark:bg-black/30 shadow-sm relative group`}
           >
+            {onClick && (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation(); // important
+                  onClick(item, index);
+                }}
+                className="absolute top-2 right-2 z-10 rounded-md bg-black px-2 py-1.5 text-xs text-white opacity-0 transition-opacity group-hover:opacity-100"
+              >
+                <FaEdit size={16} />
+              </button>
+            )}
             {/* Media */}
             <div className="relative w-full aspect-video bg-black">
-              {mediaType === "video" && (
+              {mediaType == "video" && (
                 <video
                   className="absolute inset-0 h-full w-full object-cover"
-                  controls={!onClick}
+                  controls
                   preload="metadata"
                 >
                   <source src={item.link} type="video/mp4" />

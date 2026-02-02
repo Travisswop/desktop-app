@@ -180,9 +180,7 @@ const EmbedVideo: FC<Props> = ({ data, onClick }) => {
               e.stopPropagation(); // prevent embed click conflicts
               onClick();
             }}
-            className="hidden group-hover:block absolute top-2 right-2 z-20 rounded-md bg-white/90 p-2
-               shadow hover:bg-gray-100 transition
-               dark:bg-black/80 dark:hover:bg-black"
+            className="absolute top-2 right-2 z-10 rounded-md bg-black px-2 py-1.5 text-xs text-white opacity-0 transition-opacity group-hover:opacity-100"
             aria-label="Update embed"
           >
             <FaEdit size={16} />

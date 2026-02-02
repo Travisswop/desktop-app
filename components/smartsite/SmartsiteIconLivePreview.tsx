@@ -43,8 +43,6 @@ import { useUser } from "@/lib/UserContext";
 import distributeSmallIcons from "../util/distributeSmallIcons";
 import Bio from "../publicProfile/bio";
 import Header from "../publicProfile/header";
-import getSmallIconColorFilter from "@/utils/smallIconColorFilter";
-import { MotionButton } from "../Motion";
 import SocialSmall from "../publicProfile/socialSmall";
 import SocialLarge from "../publicProfile/socialLarge";
 import InfoBar from "../publicProfile/infoBar";
@@ -873,10 +871,16 @@ const SmartsiteIconLivePreview = ({
                     items={data.info.video}
                     getMediaType={getMediaType}
                     fontColor={data.fontColor}
-                    onClick={(item, index) => {
-                      console.log("Clicked media:", item, index);
-                      // custom logic here (modal, analytics, navigation, etc.)
-                    }}
+                    // onClick={(item, index) => {
+                    //   console.log("Clicked media:", item, index);
+                    //   // custom logic here (modal, analytics, navigation, etc.)
+                    // }}
+                    onClick={(item, index) =>
+                      handleTriggerUpdate({
+                        data: item,
+                        categoryForTrigger: "video",
+                      })
+                    }
                   />
                 )}
 

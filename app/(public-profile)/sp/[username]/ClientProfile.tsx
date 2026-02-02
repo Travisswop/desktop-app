@@ -31,7 +31,6 @@ import { useMicrositeData } from "./context/MicrositeContext";
 import TokenGateVerification from "@/components/publicProfile/TokenGateVerification";
 import distributeSmallIcons from "@/components/util/distributeSmallIcons";
 import { fontMap } from "@/lib/fonts";
-import Image from "next/image";
 import getMediaType from "@/utils/getMediaType";
 import MediaList from "@/components/publicProfile/MediaList";
 
