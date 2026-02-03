@@ -7,7 +7,7 @@ import React, { useState, useEffect, useRef, useCallback } from "react";
 import { GoDotFill } from "react-icons/go";
 import dayjs from "dayjs";
 // import PostTypeMedia from "./view/PostTypeMedia";
-import { HiDotsHorizontal, HiDotsVertical } from "react-icons/hi";
+import { HiDotsHorizontal } from "react-icons/hi";
 import { Popover, PopoverContent, PopoverTrigger } from "@nextui-org/react";
 import relativeTime from "dayjs/plugin/relativeTime";
 // import Reaction from "./view/Reaction";
@@ -73,6 +73,8 @@ const LivePreviewTimeline = ({
 
   const { user } = useUser();
 
+  // console.log("feedData feedData", feedData);
+
   useEffect(() => {
     if (user) {
       setSmartsiteId(user.primaryMicrosite || "");
@@ -102,7 +104,7 @@ const LivePreviewTimeline = ({
       : receiver_wallet_address &&
         `${receiver_wallet_address.slice(
           0,
-          5
+          5,
         )}...${receiver_wallet_address.slice(-5)}`;
 
     if (transaction_type === "nft") {
@@ -138,7 +140,11 @@ const LivePreviewTimeline = ({
           </span>{" "}
           {tokenPrice && <span>(${Number(tokenPrice).toFixed(2)})</span>} tokens
           to{" "}
-          <a href={`https://${recipientDisplay}`} target="_blank">
+          <a
+            href={`https://${recipientDisplay}`}
+            target="_blank"
+            className="font-medium"
+          >
             {formatEns(recipientDisplay)}
           </a>{" "}
           on the {chain}.
@@ -193,7 +199,7 @@ const LivePreviewTimeline = ({
       }
       isFetching.current = false;
     },
-    [accessToken, smartsiteId, setIsPostLoading]
+    [accessToken, smartsiteId, setIsPostLoading],
   );
 
   // Initial fetch once smartsiteId is available.
@@ -240,10 +246,10 @@ const LivePreviewTimeline = ({
 
   return (
     <div
-      className={`flex flex-col gap-2 mx-2 bg-white py-3 text-sm overflow-y-auto hide-scrollbar ${
+      className={`flex flex-col gap-2 mx-2 bg-white text-sm overflow-y-auto hide-scrollbar ${
         isFromPublicProfile
-          ? "w-full px-3 shadow-medium rounded-xl mt-1 h-[30rem]"
-          : "px-2 rounded-lg mt-2 h-[32rem]"
+          ? "w-full px-3 rounded-lg h-[30rem]"
+          : "px-2 rounded-lg h-[32rem] py-3"
       }`}
     >
       {feedData.map((feed, index) => (
@@ -301,7 +307,9 @@ const LivePreviewTimeline = ({
                   </button>
                 </div>
                 <p className="text-gray-500 font-normal mb-1">
-                  {feed?.smartsiteId?.ens || feed?.smartsiteEnsName || "n/a"}
+                  {formatEns(
+                    feed?.smartsiteId?.ens || feed?.smartsiteEnsName || "n/a",
+                  )}
                 </p>
                 {/* Redeem Content */}
                 {feed.postType === "redeem" && (
@@ -359,7 +367,7 @@ const LivePreviewTimeline = ({
                               <Image
                                 src={
                                   feed.content.inputToken.tokenImg.startsWith(
-                                    "https"
+                                    "https",
                                   )
                                     ? feed.content.inputToken.tokenImg
                                     : `/assets/crypto-icons/${feed.content.inputToken.symbol}.png`
@@ -372,7 +380,7 @@ const LivePreviewTimeline = ({
                               <Image
                                 src={
                                   feed.content.outputToken.tokenImg.startsWith(
-                                    "https"
+                                    "https",
                                   )
                                     ? feed.content.outputToken.tokenImg
                                     : `/assets/crypto-icons/${feed.content.outputToken.symbol}.png`
@@ -390,7 +398,7 @@ const LivePreviewTimeline = ({
                             </p>
                             <p className="text-xs text-gray-400">
                               {dayjs(feed.createdAt).format(
-                                "MMM D, YYYY h:mm A"
+                                "MMM D, YYYY h:mm A",
                               )}
                             </p>
                           </div>
@@ -401,7 +409,7 @@ const LivePreviewTimeline = ({
                             <p className="text-sm text-gray-600">You sent</p>
                             <p className="text-base font-semibold text-red-600">
                               {Number(feed.content.inputToken.amount).toFixed(
-                                2
+                                2,
                               )}{" "}
                               {feed.content.inputToken.symbol}
                             </p>
@@ -425,7 +433,7 @@ const LivePreviewTimeline = ({
                             </p>
                             <p className="text-base font-semibold text-green-600">
                               {Number(feed.content.outputToken.amount).toFixed(
-                                2
+                                2,
                               )}{" "}
                               {feed.content.outputToken.symbol}
                             </p>
@@ -570,7 +578,7 @@ const LivePreviewTimeline = ({
                           token={accessToken}
                           onDeleteSuccess={() => {
                             setFeedData((prev) =>
-                              prev.filter((item) => item._id !== feed._id)
+                              prev.filter((item) => item._id !== feed._id),
                             );
                             setOpenPopoverId(null); // Close popover after delete
                           }}

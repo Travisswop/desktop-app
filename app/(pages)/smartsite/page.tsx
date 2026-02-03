@@ -23,7 +23,7 @@ const SmartsitePage = () => {
     accessToken || "",
   );
 
-  console.log("useUser user", user);
+  // console.log("useUser user", user);
   console.log("data user", data);
 
   if (loading || isLoading) {
@@ -77,7 +77,11 @@ const SmartsitePage = () => {
                   />
                 </div>
                 <SmartsiteSocialShare
-                  profileUrl={microsite.ens || microsite?.ensData?.name}
+                  profileUrl={
+                    microsite.ens ||
+                    microsite?.ensData?.name ||
+                    microsite.profileUrl
+                  }
                   isAbsolute={false}
                   className="bg-white hover:bg-white shadow-medium"
                 >
