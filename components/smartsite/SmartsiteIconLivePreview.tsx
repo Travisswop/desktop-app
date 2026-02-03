@@ -726,14 +726,16 @@ const SmartsiteIconLivePreview = ({
               </div>
 
               {data?.showFeed && accessToken && user && (
-                <LivePreviewTimeline
-                  accessToken={accessToken}
-                  userId={user?._id}
-                  isPostLoading={false}
-                  isPosting={false}
-                  setIsPostLoading={() => {}}
-                  setIsPosting={() => {}}
-                />
+                <div className="">
+                  <LivePreviewTimeline
+                    accessToken={accessToken}
+                    userId={user?._id}
+                    isPostLoading={false}
+                    isPosting={false}
+                    setIsPostLoading={() => {}}
+                    setIsPosting={() => {}}
+                  />
+                </div>
               )}
             </div>
 

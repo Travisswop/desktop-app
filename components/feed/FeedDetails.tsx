@@ -77,7 +77,11 @@ const FeedDetails = ({ feedData, feedDetails }: any) => {
           </span>{" "}
           {tokenPrice && <span>(${Number(tokenPrice).toFixed(2)})</span>} tokens
           to{" "}
-          <a href={`https://${recipientDisplay}`} target="_blank">
+          <a
+            href={`https://${recipientDisplay}`}
+            target="_blank"
+            className="font-medium"
+          >
             {formatEns(recipientDisplay)}
           </a>{" "}
           on the {chain}.
