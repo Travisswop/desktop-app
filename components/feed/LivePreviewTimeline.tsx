@@ -73,6 +73,8 @@ const LivePreviewTimeline = ({
 
   const { user } = useUser();
 
+  // console.log("feedData feedData", feedData);
+
   useEffect(() => {
     if (user) {
       setSmartsiteId(user.primaryMicrosite || "");
@@ -244,10 +246,10 @@ const LivePreviewTimeline = ({
 
   return (
     <div
-      className={`flex flex-col gap-2 mx-2 bg-white py-3 text-sm overflow-y-auto hide-scrollbar ${
+      className={`flex flex-col gap-2 mx-2 bg-white text-sm overflow-y-auto hide-scrollbar ${
         isFromPublicProfile
-          ? "w-full px-3 shadow-medium rounded-xl mt-1 h-[30rem]"
-          : "px-2 rounded-lg mt-2 h-[32rem]"
+          ? "w-full px-3 rounded-lg h-[30rem]"
+          : "px-2 rounded-lg h-[32rem] py-3"
       }`}
     >
       {feedData.map((feed, index) => (
