@@ -76,11 +76,6 @@ const SocialLarge: FC<Props> = ({
   };
 
   const openlink = async () => {
-    // if (!accessToken) {
-    //   window.location.href =
-    //     'https://apps.apple.com/us/app/swop-connecting-the-world/id1593201322';
-    //   return;
-    // }
     try {
       fetch(`${API_URL}/api/v1/web/updateCount`, {
         method: "POST",
@@ -213,6 +208,8 @@ const SocialLarge: FC<Props> = ({
 
   const trimIcon = iconName.toLowerCase().trim().replace(" ", "");
 
+  console.log("trimIcon", trimIcon);
+
   return (
     <motion.div
       initial="hidden"
@@ -241,7 +238,7 @@ const SocialLarge: FC<Props> = ({
           src={
             iconName.includes("http")
               ? iconName
-              : `/images/social_logo/${trimIcon}.svg`
+              : `/images/social_logos/${trimIcon}@3x.png`
           }
           alt={iconName}
           width={1200}

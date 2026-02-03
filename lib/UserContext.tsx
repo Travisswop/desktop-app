@@ -1,4 +1,4 @@
-"use client";
+'use client';
 
 import {
   createContext,
@@ -8,10 +8,10 @@ import {
   useCallback,
   useMemo,
   useRef,
-} from "react";
-import { useRouter } from "next/navigation";
-import { usePrivy } from "@privy-io/react-auth";
-
+} from 'react';
+import { useRouter } from 'next/navigation';
+import { usePrivy } from '@privy-io/react-auth';
+import Cookies from 'js-cookie';
 export interface UserData {
   _id: string;
   address?: string;
@@ -40,20 +40,20 @@ export interface UserData {
 
   // Bot-related fields
   isBot?: boolean;
-  botType?: "crypto" | "ai" | "trading" | "defi" | "nft" | "custom";
+  botType?: 'crypto' | 'ai' | 'trading' | 'defi' | 'nft' | 'custom';
   botCapabilities?: Array<
-    | "price_check"
-    | "swap_tokens"
-    | "send_crypto"
-    | "check_balance"
-    | "transaction_history"
-    | "portfolio_analysis"
-    | "defi_yields"
-    | "nft_floor_prices"
-    | "market_analysis"
-    | "trading_signals"
-    | "gas_tracker"
-    | "bridge_tokens"
+    | 'price_check'
+    | 'swap_tokens'
+    | 'send_crypto'
+    | 'check_balance'
+    | 'transaction_history'
+    | 'portfolio_analysis'
+    | 'defi_yields'
+    | 'nft_floor_prices'
+    | 'market_analysis'
+    | 'trading_signals'
+    | 'gas_tracker'
+    | 'bridge_tokens'
   >;
   botMetadata?: {
     version?: string;
@@ -86,10 +86,10 @@ export interface UserData {
   // Social features
   reputation?: number;
   verificationStatus?:
-    | "unverified"
-    | "email_verified"
-    | "wallet_verified"
-    | "kyc_verified";
+    | 'unverified'
+    | 'email_verified'
+    | 'wallet_verified'
+    | 'kyc_verified';
 }
 
 export interface UserContextType {
@@ -107,85 +107,106 @@ const UserContext = createContext<UserContextType | null>(null);
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL;
 
-export function UserProvider({ children }: { children: React.ReactNode }) {
+export function UserProvider({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
   const [user, setUser] = useState<UserData | null>(null);
   const [accessToken, setAccessToken] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
 
   const router = useRouter();
-  const { user: privyUser, ready, logout: privyLogout, authenticated } = usePrivy();
+  const {
+    user: privyUser,
+    ready,
+    logout: privyLogout,
+    authenticated,
+  } = usePrivy();
 
   const fetchInProgressRef = useRef(false);
   const abortControllerRef = useRef<AbortController | null>(null);
   const lastFetchedEmailRef = useRef<string | null>(null);
 
   // Extract email from Privy user
-  const extractEmail = useCallback((privyUser: any): string | null => {
-    if (!privyUser) return null;
-    return (
-      privyUser.google?.email ||
-      privyUser.email?.address ||
-      privyUser.linkedAccounts?.find((acc: any) => acc.type === "email")?.address ||
-      privyUser.linkedAccounts?.find((acc: any) => acc.type === "google_oauth")?.email ||
-      null
-    );
-  }, []);
+  const extractEmail = useCallback(
+    (privyUser: any): string | null => {
+      if (!privyUser) return null;
+      return (
+        privyUser.google?.email ||
+        privyUser.email?.address ||
+        privyUser.linkedAccounts?.find(
+          (acc: any) => acc.type === 'email',
+        )?.address ||
+        privyUser.linkedAccounts?.find(
+          (acc: any) => acc.type === 'google_oauth',
+        )?.email ||
+        null
+      );
+    },
+    [],
+  );
 
   // Fetch user data from backend
-  const fetchUserData = useCallback(async (email: string): Promise<boolean> => {
-    if (!email || !API_BASE_URL) return false;
-    if (fetchInProgressRef.current) return false;
-    if (lastFetchedEmailRef.current === email && user) return true;
+  const fetchUserData = useCallback(
+    async (email: string): Promise<boolean> => {
+      if (!email || !API_BASE_URL) return false;
+      if (fetchInProgressRef.current) return false;
+      if (lastFetchedEmailRef.current === email && user) return true;
 
-    fetchInProgressRef.current = true;
+      fetchInProgressRef.current = true;
 
-    try {
-      abortControllerRef.current?.abort();
-      abortControllerRef.current = new AbortController();
+      try {
+        abortControllerRef.current?.abort();
+        abortControllerRef.current = new AbortController();
 
-      const response = await fetch(
-        `${API_BASE_URL}/api/v2/desktop/user/${email}`,
-        {
-          headers: { "Content-Type": "application/json" },
-          signal: abortControllerRef.current.signal,
-        },
-      );
+        const response = await fetch(
+          `${API_BASE_URL}/api/v2/desktop/user/${email}`,
+          {
+            headers: { 'Content-Type': 'application/json' },
+            signal: abortControllerRef.current.signal,
+          },
+        );
 
-      if (!response.ok) {
-        if (response.status === 404) {
-          setUser(null);
-          setAccessToken(null);
+        if (!response.ok) {
+          if (response.status === 404) {
+            setUser(null);
+            setAccessToken(null);
+            return false;
+          }
+          throw new Error(`HTTP ${response.status}`);
+        }
+
+        const data = await response.json();
+        const { user: userData, token } = data;
+
+        if (!userData || !token) {
+          throw new Error('Invalid response structure');
+        }
+
+        setUser(userData);
+        setAccessToken(token);
+        setError(null);
+        lastFetchedEmailRef.current = email;
+
+        return true;
+      } catch (err) {
+        if (err instanceof Error && err.name === 'AbortError') {
           return false;
         }
-        throw new Error(`HTTP ${response.status}`);
-      }
-
-      const data = await response.json();
-      const { user: userData, token } = data;
-
-      if (!userData || !token) {
-        throw new Error("Invalid response structure");
-      }
-
-      setUser(userData);
-      setAccessToken(token);
-      setError(null);
-      lastFetchedEmailRef.current = email;
-
-      return true;
-    } catch (err) {
-      if (err instanceof Error && err.name === "AbortError") {
+        console.error('Error fetching user data:', err);
+        setError(
+          err instanceof Error ? err : new Error('Unknown error'),
+        );
         return false;
+      } finally {
+        fetchInProgressRef.current = false;
+        abortControllerRef.current = null;
       }
-      console.error("Error fetching user data:", err);
-      setError(err instanceof Error ? err : new Error("Unknown error"));
-      return false;
-    } finally {
-      fetchInProgressRef.current = false;
-      abortControllerRef.current = null;
-    }
-  }, [user]);
+    },
+    [user],
+  );
 
   // Logout - just handle Privy logout, middleware handles redirects
   const handleLogout = useCallback(async () => {
@@ -196,10 +217,14 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
       setError(null);
       lastFetchedEmailRef.current = null;
       await privyLogout();
-      router.push("/login");
+      router.push('/login');
+      Cookies.remove('user-id');
+      Cookies.remove('access-token');
     } catch (err) {
-      console.error("Error during logout:", err);
-      router.push("/login");
+      console.error('Error during logout:', err);
+      Cookies.remove('user-id');
+      Cookies.remove('access-token');
+      router.push('/login');
     }
   }, [privyLogout, router]);
 
@@ -239,7 +264,14 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
     } else {
       setLoading(false);
     }
-  }, [ready, authenticated, privyUser, extractEmail, fetchUserData, user]);
+  }, [
+    ready,
+    authenticated,
+    privyUser,
+    extractEmail,
+    fetchUserData,
+    user,
+  ]);
 
   // Cleanup on unmount
   useEffect(() => {
@@ -259,18 +291,28 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
       isAuthenticated: authenticated && !!user,
       primaryMicrosite: user?.primaryMicrosite,
     }),
-    [user, accessToken, loading, error, refreshUser, handleLogout, authenticated],
+    [
+      user,
+      accessToken,
+      loading,
+      error,
+      refreshUser,
+      handleLogout,
+      authenticated,
+    ],
   );
 
   return (
-    <UserContext.Provider value={contextValue}>{children}</UserContext.Provider>
+    <UserContext.Provider value={contextValue}>
+      {children}
+    </UserContext.Provider>
   );
 }
 
 export const useUser = () => {
   const context = useContext(UserContext);
   if (!context) {
-    throw new Error("useUser must be used within a UserProvider");
+    throw new Error('useUser must be used within a UserProvider');
   }
   return context;
 };

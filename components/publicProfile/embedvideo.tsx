@@ -4,6 +4,7 @@ import { FC, useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { TikTokEmbed, XEmbed, YouTubeEmbed } from "react-social-media-embed";
 import VideoContainer from "./videoContainer";
+import { FaEdit } from "react-icons/fa";
 
 interface Props {
   data: {
@@ -12,6 +13,7 @@ interface Props {
     type: string;
     videoUrl: string;
   };
+  onClick?: () => void;
 }
 
 const variants = {
@@ -39,7 +41,7 @@ const AspectWrapper: FC<{ children: React.ReactNode }> = ({ children }) => (
   </div>
 );
 
-const EmbedVideo: FC<Props> = ({ data }) => {
+const EmbedVideo: FC<Props> = ({ data, onClick }) => {
   const { type, videoUrl } = data;
   console.log("embed data", data);
 
@@ -169,8 +171,21 @@ const EmbedVideo: FC<Props> = ({ data }) => {
       exit="exit"
       variants={variants}
       transition={{ duration: 0.35, ease: "easeOut" }}
+      className="relative group"
     >
       <MediaCard>
+        {onClick && (
+          <button
+            onClick={(e) => {
+              e.stopPropagation(); // prevent embed click conflicts
+              onClick();
+            }}
+            className="absolute top-2 right-2 z-10 rounded-md bg-black px-2 py-1.5 text-xs text-white opacity-0 transition-opacity group-hover:opacity-100"
+            aria-label="Update embed"
+          >
+            <FaEdit size={16} />
+          </button>
+        )}
         {/* YouTube */}
         {type === "youtube" && (
           <div className={`w-full flex justify-center`}>

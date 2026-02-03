@@ -20,11 +20,12 @@ interface Props {
     buttonName: string;
   };
   socialType: string;
-  parentId: string;
+  parentId?: string;
   number: number;
   accessToken: string;
   fontColor?: string;
   secondaryFontColor?: string;
+  onClick?: () => void;
 }
 
 const variants = {
@@ -61,6 +62,7 @@ const InfoBar: FC<Props> = ({
   accessToken,
   fontColor,
   secondaryFontColor,
+  onClick,
 }) => {
   const {
     _id,
@@ -74,7 +76,7 @@ const InfoBar: FC<Props> = ({
     group,
   } = data;
 
-  // console.log("data from info bar", data);
+  console.log("data from info bar secondaryFontColor", secondaryFontColor);
 
   const openlink = async () => {
     // if (!accessToken) {
@@ -190,6 +192,17 @@ const InfoBar: FC<Props> = ({
 
   const trimIcon = iconName.toLowerCase().trim().replace(" ", "");
 
+  const handleClick = async () => {
+    // If custom onClick is provided, use it
+    if (onClick) {
+      onClick();
+      return;
+    }
+
+    // Otherwise, use the default openlink logic
+    openlink();
+  };
+
   return (
     <motion.div
       initial="hidden"
@@ -209,7 +222,7 @@ const InfoBar: FC<Props> = ({
           stiffness: 400,
           damping: 10,
         }}
-        onClick={openlink}
+        onClick={handleClick}
         className="my-2 mx-1 flex flex-row items-center cursor-pointer bg-white shadow-small p-2 rounded-[12px] max-w-full"
       >
         <div>

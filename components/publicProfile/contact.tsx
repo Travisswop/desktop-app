@@ -16,11 +16,12 @@ interface Props {
     websiteUrl: string;
   };
   socialType: string;
-  parentId: string;
+  parentId?: string;
   number: number;
   accessToken: string;
   fontColor?: string;
   secondaryFontColor?: string;
+  onClick?: () => void;
 }
 
 const variants = {
@@ -73,6 +74,7 @@ const Contact: FC<Props> = ({
   accessToken,
   fontColor,
   secondaryFontColor,
+  onClick,
 }) => {
   const { _id, micrositeId, name, mobileNo, email, address, websiteUrl } = data;
   const delay = number + 1 * 0.2;
@@ -95,7 +97,9 @@ const Contact: FC<Props> = ({
           stiffness: 400,
           damping: 10,
         }}
-        onClick={() => download(data, parentId, accessToken)}
+        onClick={() =>
+          onClick ? onClick() : download(data, parentId, accessToken)
+        }
         className="my-2 mx-1 flex flex-row items-center cursor-pointer bg-white shadow-small p-2 rounded-[12px] max-w-full"
       >
         <div>

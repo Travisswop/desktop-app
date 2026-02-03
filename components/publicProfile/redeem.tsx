@@ -29,6 +29,7 @@ interface Props {
   accessToken: string;
   fontColor?: string;
   secondaryFontColor?: string;
+  onClick?: () => void;
 }
 
 const variants = {
@@ -45,6 +46,7 @@ const Redeem: FC<Props> = ({
   accessToken,
   fontColor,
   secondaryFontColor,
+  onClick,
 }) => {
   const {
     _id,
@@ -60,6 +62,7 @@ const Redeem: FC<Props> = ({
   const [available, setAvailable] = useState(0);
 
   const updateCount = useCallback(async () => {
+    if (onClick) return;
     try {
       fetch(`${API_URL}/api/v1/web/updateCount`, {
         method: "POST",
@@ -71,18 +74,24 @@ const Redeem: FC<Props> = ({
     } catch (err) {
       console.error("Error updating count:", err);
     }
-  }, [socialType, _id, parentId]);
+  }, [onClick, socialType, _id, parentId]);
 
-  const openLink = useCallback(() => {
+  const handleClick = useCallback(() => {
+    if (onClick) {
+      onClick?.();
+      return;
+    }
+
     if (available > 0) {
       updateCount();
-      return window.open(`https://redeem.swopme.app/${poolId}`, "_blank");
+      window.open(`https://redeem.swopme.app/${poolId}`, "_blank");
     } else {
       toast.error("0 available amount to claim");
     }
-  }, [updateCount, poolId, available]);
+  }, [onClick, available, updateCount, poolId]);
 
   useEffect(() => {
+    if (onClick) return;
     const fetchValidLinks = async () => {
       const response = await fetch(
         `${API_URL}/api/v2/desktop/wallet/getRedeemTokenFromPool/${poolId}`,
@@ -94,7 +103,7 @@ const Redeem: FC<Props> = ({
       return data;
     };
     fetchValidLinks();
-  }, [poolId]);
+  }, [onClick, poolId]);
 
   const delay = number + 0.1;
 
@@ -117,7 +126,7 @@ const Redeem: FC<Props> = ({
           stiffness: 400,
           damping: 10,
         }}
-        onClick={openLink}
+        onClick={handleClick}
         className="max-w-full my-2 mx-1 flex flex-row items-center cursor-pointer bg-white shadow-small p-3 rounded-[12px] relative"
       >
         <div>
@@ -130,19 +139,15 @@ const Redeem: FC<Props> = ({
             priority
           />
         </div>
-        {
-          <InfoCardContent
-            title={mintName}
-            description={description}
-            fontColor={fontColor}
-            secondaryFontColor={secondaryFontColor}
-          >
-            <span className="text-xs font-bold">{available} Available</span>
-          </InfoCardContent>
-        }
-        {/* <div className="absolute right-2 bottom-2">
-          <Image src={tokenUrl} alt="redeem" width={18} height={18} />
-        </div> */}
+
+        <InfoCardContent
+          title={mintName}
+          description={description}
+          fontColor={fontColor}
+          secondaryFontColor={secondaryFontColor}
+        >
+          <span className="text-xs font-bold">{available} Available</span>
+        </InfoCardContent>
       </motion.div>
     </motion.div>
   );

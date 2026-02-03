@@ -172,30 +172,6 @@ const nextConfig: NextConfig = {
       },
     ],
   },
-  async headers() {
-    return [
-      {
-        source: "/:path*",
-        headers: [
-          {
-            key: "Content-Security-Policy",
-            value: [
-              "default-src 'self'",
-              "script-src 'self' 'unsafe-eval' 'unsafe-inline'",
-              "style-src 'self' 'unsafe-inline'",
-              "img-src 'self' data: https: blob: https://res.cloudinary.com",
-              "media-src 'self' https://res.cloudinary.com", // Add this line!
-              "font-src 'self' data:",
-              "connect-src 'self' https://res.cloudinary.com",
-              "frame-src 'self'",
-            ]
-              .filter(Boolean)
-              .join("; "),
-          },
-        ],
-      },
-    ];
-  },
   serverExternalPackages: [],
 };
 

@@ -21,6 +21,7 @@ interface Props {
   length: number;
   fontColor?: string;
   secondaryFontColor?: string;
+  onClick?: () => void;
 }
 
 const variants = {
@@ -37,6 +38,7 @@ const MP3: FC<Props> = ({
   length,
   fontColor,
   secondaryFontColor,
+  onClick,
 }) => {
   const { name, coverPhoto, fileUrl } = data;
 
@@ -53,6 +55,7 @@ const MP3: FC<Props> = ({
         delay,
         type: "easeInOut",
       }}
+      onClick={onClick ? onClick : () => {}}
     >
       <motion.div
         transition={{
