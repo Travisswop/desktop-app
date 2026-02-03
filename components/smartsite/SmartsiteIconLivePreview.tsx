@@ -74,7 +74,7 @@ const SmartsiteIconLivePreview = ({
 
   const { user, accessToken } = useUser();
 
-  console.log("formDatagg", formData);
+  console.log("formDatagg data", data);
 
   useEffect(() => {
     if (data) {

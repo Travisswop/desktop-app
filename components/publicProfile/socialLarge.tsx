@@ -4,6 +4,7 @@ import Image from "next/image";
 import { motion } from "framer-motion";
 import toast from "react-hot-toast";
 import normalizeUrl from "@/utils/normalizeUrl";
+import isUrl from "@/lib/isUrl";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL;
 
@@ -236,9 +237,7 @@ const SocialLarge: FC<Props> = ({
         <Image
           className="w-full h-auto rounded-lg"
           src={
-            iconName.includes("http")
-              ? iconName
-              : `/images/social_logos/${trimIcon}@3x.png`
+            isUrl(iconName) ? iconName : `/images/social_logo/${trimIcon}.svg`
           }
           alt={iconName}
           width={1200}
