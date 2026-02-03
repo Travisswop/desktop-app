@@ -48,6 +48,7 @@ import {
 } from '@/lib/utils/walletNotifications';
 import { useSearchParams } from 'next/navigation';
 import bs58 from 'bs58';
+import { notifySwapFee } from '@/actions/notifySwapFee';
 
 const getChainIcon = (chainName: string) => {
   const chainIcons: Record<string, string> = {
@@ -1142,10 +1143,6 @@ export default function SwapTokenModal({
             return TOKEN_2022_PROGRAM_ID;
           }
 
-          console.log(
-            '✅ [SWAP] Detected standard SPL Token program for mint:',
-            mintPubkey.toBase58()
-          );
           return TOKEN_PROGRAM_ID;
         } catch (e) {
           console.error(
@@ -1183,9 +1180,6 @@ export default function SwapTokenModal({
           connection.getAccountInfo(outputATA),
         ]
       );
-
-      console.log('inputAccountInfo', inputAccountInfo);
-      console.log('outputAccountInfo', outputAccountInfo);
 
       const needsInputATA = !inputAccountInfo;
       const needsOutputATA = !outputAccountInfo;
@@ -1299,9 +1293,6 @@ export default function SwapTokenModal({
       // Step 7: Sign and submit transaction using Privy hook
       let txId: string;
       try {
-        console.log(
-          '🔐 [SWAP] Signing and sending sponsored transaction'
-        );
         const result = await signAndSendTransaction({
           transaction: new Uint8Array(transaction.serialize()),
           wallet: selectedSolanaWallet,
@@ -1317,10 +1308,6 @@ export default function SwapTokenModal({
           txId
         );
       } catch (sponsorError: any) {
-        console.error(
-          '❌ [SWAP] Sponsored transaction failed:',
-          sponsorError
-        );
         throw new Error(
           `Sponsored transaction failed: ${
             sponsorError.message || 'Unknown error'
@@ -1338,6 +1325,7 @@ export default function SwapTokenModal({
       await new Promise((resolve) => setTimeout(resolve, 2000));
 
       // Step 9: Confirm transaction
+      let isConfirmed = false;
       const confirmationRpcUrl =
         process.env.NEXT_PUBLIC_SOLANA_RPC_URL;
 
@@ -1350,42 +1338,77 @@ export default function SwapTokenModal({
         try {
           await confirmationConnection.confirmTransaction(
             txId,
-            'confirmed'
+            'finalized'
           );
+          isConfirmed = true;
           setSwapStatus('Transaction confirmed');
         } catch (confirmError: any) {
-          console.warn(
-            '⚠️ [SWAP] Confirmation check failed (tx may still succeed):',
-            confirmError.message || confirmError
-          );
           setSwapStatus('Transaction submitted successfully');
         }
       } else {
-        console.warn(
-          '⚠️ [SWAP] No RPC URL for confirmation, skipping'
-        );
         setSwapStatus('Transaction submitted successfully');
       }
 
-      // Step 10: Save to database
-      try {
-        await saveSwapToDatabase(txId, jupiterQuote);
-      } catch (dbError: any) {
-        console.error(
-          '❌ [SWAP] Failed to save to database:',
-          dbError
-        );
-        // Don't fail the swap if database save fails
-      }
-    } catch (error: any) {
-      console.error('❌ [SWAP] Swap execution failed:', error);
-      console.error('❌ [SWAP] Error stack:', error.stack);
+      // Step 9.5: Notify backend after confirmation only
+      if (isConfirmed) {
+        if (!accessToken) {
+          throw new Error(
+            'Missing access token for backend notification'
+          );
+        }
 
+        const inputPrice = Number(
+          payToken?.price || payToken?.usdPrice || 0
+        );
+        const outputPrice = Number(
+          receiveToken?.price || receiveToken?.usdPrice || 0
+        );
+        const inputUsdValue =
+          inputPrice > 0
+            ? (Number(payAmount || 0) * inputPrice).toFixed(6)
+            : undefined;
+        const outputUsdValue =
+          outputPrice > 0
+            ? (Number(receiveAmount || 0) * outputPrice).toFixed(6)
+            : undefined;
+        const priceImpactPct = jupiterQuote?.priceImpactPct
+          ? (Number(jupiterQuote.priceImpactPct) * 100).toFixed(2)
+          : undefined;
+        const routeLabels = jupiterQuote?.routePlan
+          ? Array.from(
+              new Set(
+                jupiterQuote.routePlan
+                  .map((step: any) => step?.swapInfo?.label)
+                  .filter(Boolean)
+              )
+            )
+          : [];
+
+        notifySwapFee(
+          {
+            txHash: txId,
+            walletAddress: selectedSolanaWallet?.address,
+            inputTokenSymbol: payToken?.symbol,
+            inputAmount: payAmount,
+            inputUsdValue,
+            outputTokenSymbol: receiveToken?.symbol,
+            outputAmount: receiveAmount,
+            outputUsdValue,
+          },
+          accessToken
+        );
+      }
+
+      // Step 10: Save to database
+      saveSwapToDatabase(txId, jupiterQuote);
+      setSwapStatus('Transaction confirmed');
+    } catch (error: any) {
       // Apply user-friendly error formatting
       const userFriendlyError = formatUserFriendlyError(
         error?.message || error?.toString() || 'Swap failed'
       );
       setSwapError(userFriendlyError);
+      setSwapStatus(null);
     } finally {
       setIsSwapping(false);
     }
@@ -1842,7 +1865,9 @@ export default function SwapTokenModal({
       fromAmountUSD = null;
       toAmountUSD = null;
       fees = jupiterQuote.platformFee || null;
-      priceImpact = jupiterQuote.priceImpactPct || null;
+      priceImpact = (
+        Number(jupiterQuote.priceImpactPct) * 100
+      ).toFixed(2);
     } else {
       fromAmountUSD =
         quote.estimate?.fromAmountUSD || quote.fromAmountUSD;
