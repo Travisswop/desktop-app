@@ -1237,9 +1237,6 @@ export default function SwapTokenModal({
           transaction.feePayer = walletPubkey;
 
           // Sign and send using Privy signAndSendTransaction hook with gas sponsorship
-          console.log(
-            '🔐 [SWAP] Signing and sending ATA creation transaction'
-          );
           const serializedTx = transaction.serialize({
             requireAllSignatures: false,
             verifySignatures: false,
@@ -1248,20 +1245,15 @@ export default function SwapTokenModal({
           const result = await signAndSendTransaction({
             transaction: new Uint8Array(serializedTx),
             wallet: selectedSolanaWallet,
-            options: {
-              sponsor: true,
-            },
+            // options: {
+            //   sponsor: true,
+            // },
           });
 
           const signature = bs58.encode(result.signature);
-          console.log(
-            '⏳ [SWAP] Confirming ATA creation:',
-            signature
-          );
+
           await connection.confirmTransaction(signature, 'confirmed');
-          console.log('✅ [SWAP] ATAs created successfully');
         } catch (ataError: any) {
-          console.error('❌ [SWAP] Failed to create ATAs:', ataError);
           throw new Error(
             `Failed to create token accounts: ${
               ataError.message || ataError
@@ -1296,17 +1288,13 @@ export default function SwapTokenModal({
         const result = await signAndSendTransaction({
           transaction: new Uint8Array(transaction.serialize()),
           wallet: selectedSolanaWallet,
-          options: {
-            sponsor: true,
-          },
+          // options: {
+          //   sponsor: true,
+          // },
         });
 
         // Convert signature bytes to base58 string
         txId = bs58.encode(result.signature);
-        console.log(
-          '✅ [SWAP] Sponsored transaction submitted:',
-          txId
-        );
       } catch (sponsorError: any) {
         throw new Error(
           `Sponsored transaction failed: ${
@@ -1476,8 +1464,6 @@ export default function SwapTokenModal({
         await saveSwapToDatabase(txHash, quote);
       }
     } catch (error: any) {
-      console.error('Li.Fi swap error:', error);
-
       // Apply user-friendly error formatting
       const userFriendlyError = formatUserFriendlyError(
         error.message || error.toString() || 'Cross-chain swap failed'
@@ -1508,12 +1494,7 @@ export default function SwapTokenModal({
             network: networkName,
             reason: userFriendlyError,
           });
-        } catch (notifError) {
-          console.error(
-            'Failed to send swap failed notification:',
-            notifError
-          );
-        }
+        } catch (notifError) {}
       } else {
         console.warn(
           '⚠️ Socket not connected, swap failed notification not sent'
@@ -1577,9 +1558,9 @@ export default function SwapTokenModal({
       const result = await signAndSendTransaction({
         transaction: new Uint8Array(transaction.serialize()),
         wallet: selectedSolanaWallet,
-        options: {
-          sponsor: true,
-        },
+        // options: {
+        //   sponsor: true,
+        // },
       });
 
       const signature = bs58.encode(result.signature);
@@ -1606,8 +1587,6 @@ export default function SwapTokenModal({
       // Save to database after confirmation
       await saveSwapToDatabase(signature, quote);
     } catch (error: any) {
-      console.error('Solana swap failed:', error);
-
       // Apply user-friendly error formatting
       const userFriendlyError = formatUserFriendlyError(
         error?.message || error?.toString() || 'Transaction failed'
