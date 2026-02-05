@@ -7,14 +7,12 @@ import feed from "@/public/images/nav/feed.png";
 import smartsite from "@/public/images/nav/smartsite.png";
 import wallet from "@/public/images/nav/wallet.png";
 import Link from "next/link";
-import { BiQrScan, BiSolidEdit } from "react-icons/bi";
+import { BiSolidEdit } from "react-icons/bi";
 import { VscChip } from "react-icons/vsc";
 import { useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { useModalStore } from "@/zustandStore/modalstore";
 import { IoAdd, IoClose } from "react-icons/io5";
-import { HiOutlineUsers } from "react-icons/hi";
-import { FaEdit, FaRegEdit } from "react-icons/fa";
 import { TbLockDollar } from "react-icons/tb";
 import { MdPhoneIphone, MdQrCodeScanner } from "react-icons/md";
 import {
@@ -154,6 +152,7 @@ const BottomNavContent = () => {
   // Define routes where BottomNav should be hidden
   const hideOnRoutes = [
     "/smartsite/edit/",
+    "/smartsite/create-smartsite",
     "/smartsite/token-gated/",
     "/dashboard/chat",
     "/edit-profile",
