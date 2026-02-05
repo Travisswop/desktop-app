@@ -1245,9 +1245,9 @@ export default function SwapTokenModal({
           const result = await signAndSendTransaction({
             transaction: new Uint8Array(serializedTx),
             wallet: selectedSolanaWallet,
-            // options: {
-            //   sponsor: true,
-            // },
+            options: {
+              sponsor: true,
+            },
           });
 
           const signature = bs58.encode(result.signature);
@@ -1288,9 +1288,9 @@ export default function SwapTokenModal({
         const result = await signAndSendTransaction({
           transaction: new Uint8Array(transaction.serialize()),
           wallet: selectedSolanaWallet,
-          // options: {
-          //   sponsor: true,
-          // },
+          options: {
+            sponsor: true,
+          },
         });
 
         // Convert signature bytes to base58 string
@@ -1558,9 +1558,9 @@ export default function SwapTokenModal({
       const result = await signAndSendTransaction({
         transaction: new Uint8Array(transaction.serialize()),
         wallet: selectedSolanaWallet,
-        // options: {
-        //   sponsor: true,
-        // },
+        options: {
+          sponsor: true,
+        },
       });
 
       const signature = bs58.encode(result.signature);
