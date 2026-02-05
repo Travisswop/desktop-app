@@ -89,7 +89,7 @@ const SmartsiteLivePreviewRepostContent = ({ feed }: any) => {
           <a
             href={`https://${recipientDisplay}`}
             target="_blank"
-            className="font-medium"
+            className="font-semibold"
           >
             {formatEns(recipientDisplay)}
           </a>{" "}
