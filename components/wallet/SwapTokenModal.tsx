@@ -450,7 +450,7 @@ export default function SwapTokenModal({
   const [isSwapping, setIsSwapping] = useState(false);
   const [swapStatus, setSwapStatus] = useState<string | null>(null);
 
-  const { user: PrivyUser } = usePrivy();
+  const { user: PrivyUser, getAccessToken } = usePrivy();
 
   const searchParams = useSearchParams();
 
@@ -764,7 +764,10 @@ export default function SwapTokenModal({
           const rpcUrl = process.env.NEXT_PUBLIC_SOLANA_RPC_URL;
 
           if (rpcUrl) {
-            const connection = new Connection(rpcUrl, 'confirmed');
+            const connection = new Connection(rpcUrl, {
+              commitment: 'confirmed',
+              confirmTransactionInitialTimeout: 60000,
+            });
             const programId =
               tokenProgramId === TOKEN_2022_PROGRAM_ID.toString()
                 ? TOKEN_2022_PROGRAM_ID
@@ -1105,7 +1108,10 @@ export default function SwapTokenModal({
         );
       }
 
-      const connection = new Connection(rpcUrl, 'confirmed');
+      const connection = new Connection(rpcUrl, {
+        commitment: 'confirmed',
+        confirmTransactionInitialTimeout: 60000,
+      });
 
       // Step 4: Ensure user has required token accounts (ATAs)
       setSwapStatus('Checking token accounts...');
@@ -1136,10 +1142,6 @@ export default function SwapTokenModal({
 
           // Check which program owns the mint account
           if (mintInfo.owner.equals(TOKEN_2022_PROGRAM_ID)) {
-            console.log(
-              '✅ [SWAP] Detected Token-2022 program for mint:',
-              mintPubkey.toBase58()
-            );
             return TOKEN_2022_PROGRAM_ID;
           }
 
@@ -1237,20 +1239,46 @@ export default function SwapTokenModal({
           transaction.feePayer = walletPubkey;
 
           // Sign and send using Privy signAndSendTransaction hook with gas sponsorship
-          const serializedTx = transaction.serialize({
-            requireAllSignatures: false,
-            verifySignatures: false,
-          });
+          const serializedTx = new Uint8Array(
+            transaction.serialize({
+              requireAllSignatures: false,
+              verifySignatures: false,
+            })
+          );
 
-          const result = await signAndSendTransaction({
-            transaction: new Uint8Array(serializedTx),
-            wallet: selectedSolanaWallet,
-            options: {
-              sponsor: true,
-            },
-          });
+          // Refresh Privy session before signing to prevent timeout
+          await getAccessToken();
 
-          const signature = bs58.encode(result.signature);
+          let signature: string;
+          try {
+            const result = await signAndSendTransaction({
+              transaction: serializedTx,
+              wallet: selectedSolanaWallet,
+              options: {
+                sponsor: true,
+              },
+            });
+            signature = bs58.encode(result.signature);
+          } catch (sponsorError: any) {
+            // Check if it's an AbortError - fallback to non-sponsored transaction
+            const errorMessage = sponsorError?.message || sponsorError?.toString() || '';
+            const isAbortError =
+              sponsorError?.name === 'AbortError' ||
+              errorMessage.includes('aborted') ||
+              errorMessage.includes('AbortError');
+
+            if (isAbortError) {
+              console.warn('Sponsored ATA creation aborted, retrying without sponsorship...');
+              await getAccessToken();
+              const result = await signAndSendTransaction({
+                transaction: serializedTx,
+                wallet: selectedSolanaWallet,
+              });
+              signature = bs58.encode(result.signature);
+            } else {
+              throw sponsorError;
+            }
+          }
 
           await connection.confirmTransaction(signature, 'confirmed');
         } catch (ataError: any) {
@@ -1284,9 +1312,15 @@ export default function SwapTokenModal({
 
       // Step 7: Sign and submit transaction using Privy hook
       let txId: string;
+      const serializedTransaction = new Uint8Array(transaction.serialize());
+
       try {
+        // Refresh Privy session before signing to prevent timeout
+        await getAccessToken();
+
+        // Try sponsored transaction first
         const result = await signAndSendTransaction({
-          transaction: new Uint8Array(transaction.serialize()),
+          transaction: serializedTransaction,
           wallet: selectedSolanaWallet,
           options: {
             sponsor: true,
@@ -1296,11 +1330,39 @@ export default function SwapTokenModal({
         // Convert signature bytes to base58 string
         txId = bs58.encode(result.signature);
       } catch (sponsorError: any) {
-        throw new Error(
-          `Sponsored transaction failed: ${
-            sponsorError.message || 'Unknown error'
-          }`
-        );
+        // Check if it's an AbortError - fallback to non-sponsored transaction
+        const errorMessage = sponsorError?.message || sponsorError?.toString() || '';
+        const isAbortError =
+          sponsorError?.name === 'AbortError' ||
+          errorMessage.includes('aborted') ||
+          errorMessage.includes('AbortError');
+
+        if (isAbortError) {
+          console.warn('Sponsored transaction aborted, retrying without sponsorship...');
+          setSwapStatus('Retrying transaction...');
+
+          try {
+            // Refresh session again before retry
+            await getAccessToken();
+
+            const result = await signAndSendTransaction({
+              transaction: serializedTransaction,
+              wallet: selectedSolanaWallet,
+            });
+
+            txId = bs58.encode(result.signature);
+          } catch (retryError: any) {
+            throw new Error(
+              `Transaction failed: ${retryError.message || 'Unknown error'}`
+            );
+          }
+        } else {
+          throw new Error(
+            `Sponsored transaction failed: ${
+              sponsorError.message || 'Unknown error'
+            }`
+          );
+        }
       }
 
       // Step 8: Transaction confirmation
@@ -1318,10 +1380,10 @@ export default function SwapTokenModal({
         process.env.NEXT_PUBLIC_SOLANA_RPC_URL;
 
       if (confirmationRpcUrl) {
-        const confirmationConnection = new Connection(
-          confirmationRpcUrl,
-          'confirmed'
-        );
+        const confirmationConnection = new Connection(confirmationRpcUrl, {
+          commitment: 'confirmed',
+          confirmTransactionInitialTimeout: 60000,
+        });
 
         try {
           await confirmationConnection.confirmTransaction(
@@ -1539,7 +1601,10 @@ export default function SwapTokenModal({
         throw new Error('No Solana RPC URL configured');
       }
 
-      const connection = new Connection(solanaRpcUrl, 'confirmed');
+      const connection = new Connection(solanaRpcUrl, {
+        commitment: 'confirmed',
+        confirmTransactionInitialTimeout: 60000,
+      });
 
       // Deserialize the LiFi transaction
       const swapTransactionBuffer = Buffer.from(rawTx, 'base64');
@@ -1555,15 +1620,44 @@ export default function SwapTokenModal({
 
       // Sign and send the versioned transaction using Privy signAndSendTransaction hook with gas sponsorship
       setSwapStatus('Signing and sending sponsored transaction...');
-      const result = await signAndSendTransaction({
-        transaction: new Uint8Array(transaction.serialize()),
-        wallet: selectedSolanaWallet,
-        options: {
-          sponsor: true,
-        },
-      });
 
-      const signature = bs58.encode(result.signature);
+      // Refresh Privy session before signing to prevent timeout
+      await getAccessToken();
+
+      const serializedTransaction = new Uint8Array(transaction.serialize());
+      let signature: string;
+
+      try {
+        const result = await signAndSendTransaction({
+          transaction: serializedTransaction,
+          wallet: selectedSolanaWallet,
+          options: {
+            sponsor: true,
+          },
+        });
+        signature = bs58.encode(result.signature);
+      } catch (sponsorError: any) {
+        // Check if it's an AbortError - fallback to non-sponsored transaction
+        const errorMessage = sponsorError?.message || sponsorError?.toString() || '';
+        const isAbortError =
+          sponsorError?.name === 'AbortError' ||
+          errorMessage.includes('aborted') ||
+          errorMessage.includes('AbortError');
+
+        if (isAbortError) {
+          console.warn('Sponsored transaction aborted, retrying without sponsorship...');
+          setSwapStatus('Retrying transaction...');
+          await getAccessToken();
+          const result = await signAndSendTransaction({
+            transaction: serializedTransaction,
+            wallet: selectedSolanaWallet,
+          });
+          signature = bs58.encode(result.signature);
+        } else {
+          throw sponsorError;
+        }
+      }
+
       setTxHash(signature);
       setSwapStatus(
         'Transaction submitted! Waiting for confirmation...'

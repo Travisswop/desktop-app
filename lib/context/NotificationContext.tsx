@@ -39,7 +39,9 @@ export const NotificationProvider: React.FC<{
   children: React.ReactNode;
 }> = ({ children }) => {
   const { accessToken, user } = useUser();
-  const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [notifications, setNotifications] = useState<Notification[]>(
+    []
+  );
   const [unreadCount, setUnreadCount] = useState(0);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -86,12 +88,16 @@ export const NotificationProvider: React.FC<{
     });
 
     socket.on('reconnect', (attemptNumber) => {
-      console.log(`🔄 Socket reconnected after ${attemptNumber} attempts`);
+      console.log(
+        `🔄 Socket reconnected after ${attemptNumber} attempts`
+      );
       isConnectedRef.current = true;
     });
 
     socket.on('reconnect_attempt', (attemptNumber) => {
-      console.log(`🔄 Socket reconnection attempt ${attemptNumber}...`);
+      console.log(
+        `🔄 Socket reconnection attempt ${attemptNumber}...`
+      );
     });
 
     socket.on('reconnect_error', (error) => {
@@ -99,13 +105,14 @@ export const NotificationProvider: React.FC<{
     });
 
     socket.on('reconnect_failed', () => {
-      console.error('❌ Socket reconnection failed after all attempts');
+      console.error(
+        '❌ Socket reconnection failed after all attempts'
+      );
       isConnectedRef.current = false;
     });
 
     // Listen for new notifications
     socket.on('notification:new', (data: SocketNotificationEvent) => {
-      console.log('New notification received:', data);
       setNotifications((prev) => [data.notification, ...prev]);
       setUnreadCount((prev) => prev + 1);
 
@@ -126,16 +133,21 @@ export const NotificationProvider: React.FC<{
     });
 
     // Listen for badge count updates
-    socket.on('notification:badge_count', (data: SocketBadgeCountEvent) => {
-      console.log('Badge count updated:', data.count);
-      setUnreadCount(data.count);
-    });
+    socket.on(
+      'notification:badge_count',
+      (data: SocketBadgeCountEvent) => {
+        console.log('Badge count updated:', data.count);
+        setUnreadCount(data.count);
+      }
+    );
 
     // Listen for notification read events from other sessions
     socket.on('notification:read', ({ notificationId }) => {
       setNotifications((prev) =>
         prev.map((notif) =>
-          notif._id === notificationId ? { ...notif, isRead: true } : notif
+          notif._id === notificationId
+            ? { ...notif, isRead: true }
+            : notif
         )
       );
     });
@@ -159,7 +171,9 @@ export const NotificationProvider: React.FC<{
     socket.on('notification:category_read', ({ category }) => {
       setNotifications((prev) =>
         prev.map((notif) =>
-          notif.category === category ? { ...notif, isRead: true } : notif
+          notif.category === category
+            ? { ...notif, isRead: true }
+            : notif
         )
       );
     });
@@ -198,10 +212,15 @@ export const NotificationProvider: React.FC<{
           if (page === 1) {
             setNotifications(result.notifications);
           } else {
-            setNotifications((prev) => [...prev, ...result.notifications]);
+            setNotifications((prev) => [
+              ...prev,
+              ...result.notifications,
+            ]);
           }
           setCurrentPage(page);
-          setHasMore(result.pagination.page < result.pagination.pages);
+          setHasMore(
+            result.pagination.page < result.pagination.pages
+          );
         } else {
           setError('Failed to fetch notifications');
         }
@@ -304,7 +323,9 @@ export const NotificationProvider: React.FC<{
                 : notif
             )
           );
-          toast.success(`All ${category} notifications marked as read`);
+          toast.success(
+            `All ${category} notifications marked as read`
+          );
         }
       } catch (err) {
         console.error('Error marking category as read:', err);
