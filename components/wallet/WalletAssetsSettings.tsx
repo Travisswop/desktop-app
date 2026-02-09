@@ -9,13 +9,13 @@ import { MdKeyboardBackspace } from "react-icons/md";
 import Cookies from "js-cookie";
 import { useWalletHideBalanceStore } from "@/zustandStore/useWalletHideBalanceToggle";
 import { useRouter } from "next/navigation";
+import { useBalanceVisibilityStore } from "@/zustandStore/useBalanceVisibilityStore";
 
 const WalletAssetsSettings = ({ tokens }: any) => {
   const [isManageTokenOpen, setIsManageTokenOpen] = useState(false);
   const [isBalanceHidden, setIsBalanceHidden] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
-  const { setValue } = useWalletHideBalanceStore();
-  const router = useRouter();
+  const { showBalance, toggleBalance } = useBalanceVisibilityStore();
 
   const [selectedTokens, setSelectedTokens] = useState<string[]>(() => {
     // Initialize state from cookie
@@ -64,16 +64,6 @@ const WalletAssetsSettings = ({ tokens }: any) => {
     setIsBalanceHidden(savedPreference === "true");
   }, []);
 
-  const toggleBalance = () => {
-    const newValue = !isBalanceHidden;
-    setIsBalanceHidden(newValue);
-
-    // Set cookie that expires in 1 year
-    Cookies.set("hideBalance", String(newValue), { expires: 365 });
-    setValue(newValue);
-    router.refresh();
-  };
-
   return (
     <div>
       {!isManageTokenOpen && (
@@ -97,10 +87,10 @@ const WalletAssetsSettings = ({ tokens }: any) => {
             className="w-full flex items-center justify-between"
           >
             <span className="text-lg font-semibold text-gray-800">
-              {isBalanceHidden ? "Show Balance" : "Hide Balance"}
+              {showBalance ? "Hide Balance" : "Show Balance"}
             </span>
 
-            {isBalanceHidden ? (
+            {showBalance ? (
               <EyeOff className="w-8 h-8 text-gray-800" strokeWidth={2} />
             ) : (
               <Eye className="w-8 h-8 text-gray-800" strokeWidth={2} />

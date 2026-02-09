@@ -1,10 +1,10 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React from "react";
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from "recharts";
 import { PrimaryButton } from "../ui/Button/PrimaryButton";
-import Cookies from "js-cookie";
 import { BsThreeDots } from "react-icons/bs";
+import { useBalanceVisibilityStore } from "@/zustandStore/useBalanceVisibilityStore";
 
 export interface PortfolioAsset {
   name: string;
@@ -61,18 +61,7 @@ const PortfolioChart = ({
     }
   };
 
-  const [showBalance, setShowBalance] = useState(true);
-
-  useEffect(() => {
-    const cookieValue = Cookies.get("hideBalance");
-    console.log("cookieValue", cookieValue);
-
-    if (cookieValue === "true") {
-      setShowBalance(false);
-    } else {
-      setShowBalance(true);
-    }
-  }, []);
+  const showBalance = useBalanceVisibilityStore((state) => state.showBalance);
 
   return (
     <div className={`w-full p-5 ${className}`}>

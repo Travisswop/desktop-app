@@ -1,22 +1,18 @@
-'use client';
-import React, { useEffect, useState } from 'react';
-import Cookies from 'js-cookie';
-import { TokenData } from '@/types/token';
-import TokenImage from './token-image';
-import { BsThreeDots } from 'react-icons/bs';
-import { useWalletHideBalanceStore } from '@/zustandStore/useWalletHideBalanceToggle';
+"use client";
+import React from "react";
+import { TokenData } from "@/types/token";
+import TokenImage from "./token-image";
+import { BsThreeDots } from "react-icons/bs";
+import { useBalanceVisibilityStore } from "@/zustandStore/useBalanceVisibilityStore";
 
 interface TokenCardProps {
   token: TokenData;
   onClick: () => void;
 }
 
-export default function TokenListView({
-  token,
-  onClick,
-}: TokenCardProps) {
-  const [isBalanceHidden, setIsBalanceHidden] = useState(false);
-  const { value } = useWalletHideBalanceStore();
+export default function TokenListView({ token, onClick }: TokenCardProps) {
+  const { showBalance } = useBalanceVisibilityStore();
+
   // const data = token.sparklineData;
 
   // const TokenSparkline = () => {
@@ -60,11 +56,6 @@ export default function TokenListView({
   //   );
   // };
 
-  useEffect(() => {
-    const savedPreference = Cookies.get('hideBalance');
-    setIsBalanceHidden(savedPreference === 'true');
-  }, [value]);
-
   return (
     <div
       className="flex items-center justify-between bg-white cursor-pointer"
@@ -77,7 +68,7 @@ export default function TokenListView({
         <div>
           <h3 className="text-sm font-semibold">{token.name}</h3>
           <p className="text-xs text-gray-600">
-            {isBalanceHidden ? (
+            {!showBalance ? (
               <div className="flex items-center gap-0">
                 <BsThreeDots size={24} color="gray" />
                 <BsThreeDots
@@ -87,9 +78,7 @@ export default function TokenListView({
                 />
               </div>
             ) : (
-              `${parseFloat(token.balance).toFixed(4)} ${
-                token.symbol
-              }`
+              `${parseFloat(token.balance).toFixed(4)} ${token.symbol}`
             )}
           </p>
         </div>
@@ -100,7 +89,7 @@ export default function TokenListView({
       <div className="flex items-center gap-4 text-sm">
         <div className="text-right">
           <p className="font-bold">
-            {isBalanceHidden ? (
+            {!showBalance ? (
               <div className="flex items-center gap-0">
                 <BsThreeDots size={24} color="gray" />
                 <BsThreeDots
@@ -114,14 +103,12 @@ export default function TokenListView({
                 {token.marketData?.price !== undefined &&
                 token.marketData?.price !== null ? (
                   `$${
-                    typeof token.marketData?.price === 'number'
+                    typeof token.marketData?.price === "number"
                       ? token.marketData?.price
-                      : '0.0000'
+                      : "0.0000"
                   }`
                 ) : (
-                  <span className="text-gray-500">
-                    Price unavailable
-                  </span>
+                  <span className="text-gray-500">Price unavailable</span>
                 )}
               </>
             )}
@@ -129,24 +116,19 @@ export default function TokenListView({
           <div
             className={`text-xs ${
               token.marketData?.priceChangePercentage24h &&
-              parseFloat(
-                token.marketData?.priceChangePercentage24h
-              ) >= 0
-                ? ' text-green-700'
-                : ' text-red-700'
+              parseFloat(token.marketData?.priceChangePercentage24h) >= 0
+                ? " text-green-700"
+                : " text-red-700"
             }`}
           >
             {token.marketData?.priceChangePercentage24h ? (
               <>
                 {parseFloat(
-                  token.marketData?.priceChangePercentage24h || '0'
+                  token.marketData?.priceChangePercentage24h || "0",
                 ) >= 0
-                  ? '+'
-                  : ''}
-                {parseFloat(
-                  token.marketData?.priceChangePercentage24h || '0'
-                )}
-                %
+                  ? "+"
+                  : ""}
+                {parseFloat(token.marketData?.priceChangePercentage24h || "0")}%
               </>
             ) : (
               <div className="text-gray-500">No data available</div>
