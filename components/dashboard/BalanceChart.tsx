@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
@@ -22,7 +22,7 @@ import {
   type TimePeriod as ServiceTimePeriod,
 } from "@/services/balance-service";
 import { PrimaryButton } from "../ui/Button/PrimaryButton";
-import { BsBank2, BsSendFill } from "react-icons/bs";
+import { BsBank2, BsSendFill, BsThreeDots } from "react-icons/bs";
 import { LuWallet } from "react-icons/lu";
 import SwapButton from "../wallet/SwapButton";
 import { TbArrowsExchange2 } from "react-icons/tb";
@@ -32,6 +32,7 @@ import { FaRegListAlt } from "react-icons/fa";
 import CustomModal from "../modal/CustomModal";
 import WalletReceivePopup from "../wallet/WalletReceivePopup";
 import WalletFundandSettingsPopup from "../wallet/WalletFundandSettingsPopup";
+import Cookies from "js-cookie";
 
 interface BalanceChartProps {
   userId?: string;
@@ -107,6 +108,18 @@ const BalanceChart: React.FC<BalanceChartProps> = ({
   // const [showBalance, setShowBalance] = useState(false);
   const [showPopup, setShowPopup] = useState(false);
   const [fundandSettings, setFundandSettings] = useState(false);
+  const [showBalance, setShowBalance] = useState(true);
+
+  useEffect(() => {
+    const cookieValue = Cookies.get("hideBalance");
+    console.log("cookieValue", cookieValue);
+
+    if (cookieValue === "true") {
+      setShowBalance(false);
+    } else {
+      setShowBalance(true);
+    }
+  }, []);
 
   // Get the user ID (from prop or context)
   const effectiveUserId = userId || user?._id;
@@ -415,9 +428,20 @@ const BalanceChart: React.FC<BalanceChartProps> = ({
                 </div>
               </div>
             </button> */}
-            <p className="text-lg font-semibold">
-              ${formatBalance(totalBalance)}
-            </p>
+            {showBalance ? (
+              <p className="text-lg font-semibold">
+                ${formatBalance(totalBalance)}
+              </p>
+            ) : (
+              <div className="flex items-center gap-0">
+                <BsThreeDots size={24} color="gray" />
+                <BsThreeDots
+                  size={24}
+                  color="gray"
+                  className="-translate-x-0.5"
+                />
+              </div>
+            )}
           </div>
 
           {isButtonVisible && (

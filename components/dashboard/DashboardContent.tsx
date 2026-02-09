@@ -4,19 +4,10 @@ import { Skeleton } from "../ui/skeleton";
 import ProfileHeader from "./profile-header";
 import DashboardAnalytics from "./analytics";
 import WalletBalanceChart from "./walletBalanceChart";
-import PortfolioChart, {
-  PortfolioAsset,
-} from "./PortfolioChart";
+import PortfolioChart, { PortfolioAsset } from "./PortfolioChart";
 import { useQuery } from "@tanstack/react-query";
-import {
-  getFollowers,
-  followersQueryKey,
-} from "@/services/followers-service";
-import {
-  usePrivy,
-  useWallets,
-  useSolanaWallets,
-} from "@privy-io/react-auth";
+import { getFollowers, followersQueryKey } from "@/services/followers-service";
+import { usePrivy, useWallets, useSolanaWallets } from "@privy-io/react-auth";
 import { useMemo } from "react";
 import { useMultiChainTokenData } from "@/lib/hooks/useToken";
 import { useRouter } from "next/navigation";
@@ -50,15 +41,13 @@ export default function DashboardContent() {
   // Get wallet addresses
   const solWalletAddress = useMemo(() => {
     return solanaWallets?.find(
-      (w) =>
-        w.walletClientType === "privy" || w.connectorType === "embedded"
+      (w) => w.walletClientType === "privy" || w.connectorType === "embedded",
     )?.address;
   }, [solanaWallets]);
 
   const evmWalletAddress = useMemo(() => {
     return ethWallets?.find(
-      (w) =>
-        w.walletClientType === "privy" || w.connectorType === "embedded"
+      (w) => w.walletClientType === "privy" || w.connectorType === "embedded",
     )?.address;
   }, [ethWallets]);
 
@@ -104,10 +93,7 @@ export default function DashboardContent() {
       .sort((a, b) => b.value - a.value); // Sort by value descending
 
     // Calculate total balance
-    const total = assetsWithValue.reduce(
-      (sum, asset) => sum + asset.value,
-      0
-    );
+    const total = assetsWithValue.reduce((sum, asset) => sum + asset.value, 0);
 
     // Take top 5 tokens and group rest as "Others"
     const topAssets = assetsWithValue.slice(0, 5);
@@ -118,7 +104,7 @@ export default function DashboardContent() {
     if (otherAssets.length > 0) {
       const othersValue = otherAssets.reduce(
         (sum, asset) => sum + asset.value,
-        0
+        0,
       );
       assets.push({
         name: "Others",

@@ -8,12 +8,14 @@ import { chainIcons } from "@/utils/staticData/tokenChainIcon";
 import { MdKeyboardBackspace } from "react-icons/md";
 import Cookies from "js-cookie";
 import { useWalletHideBalanceStore } from "@/zustandStore/useWalletHideBalanceToggle";
+import { useRouter } from "next/navigation";
 
 const WalletAssetsSettings = ({ tokens }: any) => {
   const [isManageTokenOpen, setIsManageTokenOpen] = useState(false);
   const [isBalanceHidden, setIsBalanceHidden] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const { setValue } = useWalletHideBalanceStore();
+  const router = useRouter();
 
   const [selectedTokens, setSelectedTokens] = useState<string[]>(() => {
     // Initialize state from cookie
@@ -52,7 +54,7 @@ const WalletAssetsSettings = ({ tokens }: any) => {
     if (!searchTerm.trim()) return tokens;
 
     return tokens.filter((token: any) =>
-      token.symbol.toLowerCase().includes(searchTerm.toLowerCase())
+      token.symbol.toLowerCase().includes(searchTerm.toLowerCase()),
     );
   }, [tokens, searchTerm]);
 
@@ -69,6 +71,7 @@ const WalletAssetsSettings = ({ tokens }: any) => {
     // Set cookie that expires in 1 year
     Cookies.set("hideBalance", String(newValue), { expires: 365 });
     setValue(newValue);
+    router.refresh();
   };
 
   return (

@@ -1,8 +1,10 @@
 "use client";
 
-import React from "react";
+import React, { useEffect, useState } from "react";
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from "recharts";
 import { PrimaryButton } from "../ui/Button/PrimaryButton";
+import Cookies from "js-cookie";
+import { BsThreeDots } from "react-icons/bs";
 
 export interface PortfolioAsset {
   name: string;
@@ -59,6 +61,19 @@ const PortfolioChart = ({
     }
   };
 
+  const [showBalance, setShowBalance] = useState(true);
+
+  useEffect(() => {
+    const cookieValue = Cookies.get("hideBalance");
+    console.log("cookieValue", cookieValue);
+
+    if (cookieValue === "true") {
+      setShowBalance(false);
+    } else {
+      setShowBalance(true);
+    }
+  }, []);
+
   return (
     <div className={`w-full p-5 ${className}`}>
       <div className="flex flex-row items-center justify-between pb-2">
@@ -103,7 +118,19 @@ const PortfolioChart = ({
             </ResponsiveContainer>
             {/* Center Text */}
             <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-              <div className="text-xl font-semibold">{balance}</div>
+              {showBalance ? (
+                <div className="text-xl font-semibold">{balance}</div>
+              ) : (
+                <div className="flex items-center gap-0">
+                  <BsThreeDots size={24} color="gray" />
+                  <BsThreeDots
+                    size={24}
+                    color="gray"
+                    className="-translate-x-0.5"
+                  />
+                </div>
+              )}
+              {/* <div className="text-xl font-semibold">{balance}</div> */}
               <div className="text-sm text-muted-foreground">Balance</div>
             </div>
           </div>
