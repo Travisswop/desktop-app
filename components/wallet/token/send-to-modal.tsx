@@ -274,6 +274,16 @@ export default function SendToModal({
     }
   };
 
+  // Add this after your existing useEffects
+  useEffect(() => {
+    if (!open) {
+      setSearchQuery("");
+      setAddressError(false);
+      setSearchResults([]);
+      setIsLoading(false);
+    }
+  }, [open]);
+
   useEffect(() => {
     const getdata = async () => {
       setIsLoading(true);
