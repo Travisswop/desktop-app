@@ -452,6 +452,20 @@ export default function SwapTokenModal({
 
   const { user: PrivyUser, getAccessToken } = usePrivy();
 
+  // Safe session refresh - doesn't block if Privy server is slow/unavailable
+  const safeRefreshSession = useCallback(async () => {
+    try {
+      // Add a 5 second timeout to prevent blocking indefinitely
+      const timeoutPromise = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('Session refresh timeout')), 5000)
+      );
+      await Promise.race([getAccessToken(), timeoutPromise]);
+    } catch (error) {
+      // Log but don't throw - the existing session might still be valid
+      console.warn('Session refresh failed, proceeding with existing session:', error);
+    }
+  }, [getAccessToken]);
+
   const searchParams = useSearchParams();
 
   // Handle URL search params for pre-filled swap
@@ -1247,7 +1261,7 @@ export default function SwapTokenModal({
           );
 
           // Refresh Privy session before signing to prevent timeout
-          await getAccessToken();
+          await safeRefreshSession();
 
           let signature: string;
           try {
@@ -1269,7 +1283,7 @@ export default function SwapTokenModal({
 
             if (isAbortError) {
               console.warn('Sponsored ATA creation aborted, retrying without sponsorship...');
-              await getAccessToken();
+              await safeRefreshSession();
               const result = await signAndSendTransaction({
                 transaction: serializedTx,
                 wallet: selectedSolanaWallet,
@@ -1316,7 +1330,7 @@ export default function SwapTokenModal({
 
       try {
         // Refresh Privy session before signing to prevent timeout
-        await getAccessToken();
+        await safeRefreshSession();
 
         // Try sponsored transaction first
         const result = await signAndSendTransaction({
@@ -1343,7 +1357,7 @@ export default function SwapTokenModal({
 
           try {
             // Refresh session again before retry
-            await getAccessToken();
+            await safeRefreshSession();
 
             const result = await signAndSendTransaction({
               transaction: serializedTransaction,
@@ -1622,7 +1636,7 @@ export default function SwapTokenModal({
       setSwapStatus('Signing and sending sponsored transaction...');
 
       // Refresh Privy session before signing to prevent timeout
-      await getAccessToken();
+      await safeRefreshSession();
 
       const serializedTransaction = new Uint8Array(transaction.serialize());
       let signature: string;
@@ -1647,7 +1661,7 @@ export default function SwapTokenModal({
         if (isAbortError) {
           console.warn('Sponsored transaction aborted, retrying without sponsorship...');
           setSwapStatus('Retrying transaction...');
-          await getAccessToken();
+          await safeRefreshSession();
           const result = await signAndSendTransaction({
             transaction: serializedTransaction,
             wallet: selectedSolanaWallet,
