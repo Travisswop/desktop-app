@@ -82,6 +82,8 @@ export default function SendToModal({
   // Remove the local network assignment, always use the prop
   // const network = selectedToken?.chain || 'ETHEREUM';
 
+  console.log("selectedToken gg", selectedToken);
+
   const isValidAddress =
     searchQuery &&
     ((["ETHEREUM", "POLYGON", "BASE", "ethereum", "polygon", "base"].includes(
@@ -375,29 +377,31 @@ export default function SendToModal({
                 </div>
               )}
 
-              <div
-                className="w-full p-4 rounded-2xl cursor-pointer shadow-md bg-white mb-1"
-                onClick={() => setIsRedeemModalOpen(true)}
-              >
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-4">
-                    <div className="w-10 h-10 rounded-lg bg-gray-200 flex items-center justify-center flex-shrink-0">
-                      <BsSendFill />
+              {selectedToken.chain.toLowerCase() === "solana" && (
+                <div
+                  className="w-full p-4 rounded-2xl cursor-pointer shadow-md bg-white mb-1"
+                  onClick={() => setIsRedeemModalOpen(true)}
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-4">
+                      <div className="w-10 h-10 rounded-lg bg-gray-200 flex items-center justify-center flex-shrink-0">
+                        <BsSendFill />
+                      </div>
+                      <div>
+                        <h3 className="font-medium text-black">
+                          Send to anyone using a link
+                        </h3>
+                        <p className="text-sm text-gray-500">
+                          Share via Whatsapp, Email, Twitter...
+                        </p>
+                      </div>
                     </div>
-                    <div>
-                      <h3 className="font-medium text-black">
-                        Send to anyone using a link
-                      </h3>
-                      <p className="text-sm text-gray-500">
-                        Share via Whatsapp, Email, Twitter...
-                      </p>
+                    <div className="w-8 h-8 rounded-lg bg-gray-100 flex items-center justify-center flex-shrink-0">
+                      <ChevronRight className="h-5 w-5 text-black" />
                     </div>
-                  </div>
-                  <div className="w-8 h-8 rounded-lg bg-gray-100 flex items-center justify-center flex-shrink-0">
-                    <ChevronRight className="h-5 w-5 text-black" />
                   </div>
                 </div>
-              </div>
+              )}
 
               {/* Show wallet address preview */}
               {isValidAddress && !addressError && (
