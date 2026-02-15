@@ -37,7 +37,7 @@ const BalanceChart = ({ balanceHistory, totalTokensValue }: any) => {
     // First, sort all data by date (newest first)
     const sortedHistory = [...balanceHistory].sort(
       (a: any, b: any) =>
-        new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+        new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
     );
 
     if (timeRange === "all") {
@@ -53,7 +53,7 @@ const BalanceChart = ({ balanceHistory, totalTokensValue }: any) => {
       // Convert back to array and sort chronologically
       return Object.values(dateMap).sort(
         (a: any, b: any) =>
-          new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+          new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
       );
     }
 
@@ -87,7 +87,7 @@ const BalanceChart = ({ balanceHistory, totalTokensValue }: any) => {
     if (timeRange === "1day") {
       return filtered.sort(
         (a: any, b: any) =>
-          new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+          new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
       );
     }
 
@@ -309,7 +309,7 @@ const WalletBalanceChart = ({ isFromWallet = false }) => {
     const fetchData = async () => {
       try {
         const response = await fetch(
-          `${process.env.NEXT_PUBLIC_API_URL}/api/v5/wallet/getBalance/${user._id}`
+          `${process.env.NEXT_PUBLIC_API_URL}/api/v5/wallet/getBalance/${user._id}`,
         );
         if (!response.ok) {
           throw new Error("Network response was not ok");

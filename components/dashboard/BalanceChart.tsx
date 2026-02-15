@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import {
@@ -22,7 +22,7 @@ import {
   type TimePeriod as ServiceTimePeriod,
 } from '@/services/balance-service';
 import { PrimaryButton } from '../ui/Button/PrimaryButton';
-import { BsBank2, BsSendFill } from 'react-icons/bs';
+import { BsBank2, BsSendFill, BsThreeDots } from 'react-icons/bs';
 import { LuWallet } from 'react-icons/lu';
 import SwapButton from '../wallet/SwapButton';
 import { TbArrowsExchange2 } from 'react-icons/tb';
@@ -32,6 +32,7 @@ import { FaRegListAlt } from 'react-icons/fa';
 import CustomModal from '../modal/CustomModal';
 import WalletReceivePopup from '../wallet/WalletReceivePopup';
 import WalletFundandSettingsPopup from '../wallet/WalletFundandSettingsPopup';
+import { useBalanceVisibilityStore } from '@/zustandStore/useBalanceVisibilityStore';
 
 interface BalanceChartProps {
   userId?: string;
@@ -114,13 +115,16 @@ const BalanceChart: React.FC<BalanceChartProps> = ({
   // const [showBalance, setShowBalance] = useState(false);
   const [showPopup, setShowPopup] = useState(false);
   const [fundandSettings, setFundandSettings] = useState(false);
+  const showBalance = useBalanceVisibilityStore(
+    (state) => state.showBalance,
+  );
 
   // Get the user ID (from prop or context)
   const effectiveUserId = userId || user?._id;
 
   // Helper function to convert component TimePeriod to service TimePeriod
   const getServicePeriod = (
-    period: TimePeriod
+    period: TimePeriod,
   ): ServiceTimePeriod => {
     const periodMap: Record<TimePeriod, ServiceTimePeriod> = {
       '1day': '1d',
@@ -135,7 +139,7 @@ const BalanceChart: React.FC<BalanceChartProps> = ({
 
   // Get snapshot type based on period (hourly for 1day, all for all, daily for others)
   const getSnapshotType = (
-    period: TimePeriod
+    period: TimePeriod,
   ): 'hourly' | 'daily' | 'all' => {
     const snapshotTypeMap: Record<
       TimePeriod,
@@ -160,7 +164,7 @@ const BalanceChart: React.FC<BalanceChartProps> = ({
     queryKey: balanceHistoryQueryKey(
       effectiveUserId || '',
       getServicePeriod(selectedPeriod),
-      getSnapshotType(selectedPeriod)
+      getSnapshotType(selectedPeriod),
     ),
     queryFn: () =>
       getBalanceHistory({
@@ -200,7 +204,7 @@ const BalanceChart: React.FC<BalanceChartProps> = ({
     const sortedHistory = [...balanceHistory].sort(
       (a, b) =>
         new Date(b.createdAt).getTime() -
-        new Date(a.createdAt).getTime()
+        new Date(a.createdAt).getTime(),
     );
 
     if (selectedPeriod === 'all') {
@@ -215,14 +219,14 @@ const BalanceChart: React.FC<BalanceChartProps> = ({
           }
           return acc;
         },
-        {}
+        {},
       );
 
       // Convert back to array and sort chronologically
       return (Object.values(dateMap) as BalanceHistoryEntry[]).sort(
         (a, b) =>
           new Date(a.createdAt).getTime() -
-          new Date(b.createdAt).getTime()
+          new Date(b.createdAt).getTime(),
       );
     }
 
@@ -257,7 +261,7 @@ const BalanceChart: React.FC<BalanceChartProps> = ({
       return filtered.sort(
         (a, b) =>
           new Date(a.createdAt).getTime() -
-          new Date(b.createdAt).getTime()
+          new Date(b.createdAt).getTime(),
       );
     }
 
@@ -276,7 +280,7 @@ const BalanceChart: React.FC<BalanceChartProps> = ({
         }
         return acc;
       },
-      {}
+      {},
     );
 
     const result: BalanceHistoryEntry[] = [];
@@ -349,10 +353,10 @@ const BalanceChart: React.FC<BalanceChartProps> = ({
           <p className="text-xs text-muted-foreground mt-0.5">
             {selectedPeriod === '1day'
               ? new Date(
-                  payload[0].payload.createdAt
+                  payload[0].payload.createdAt,
                 ).toLocaleString()
               : new Date(
-                  payload[0].payload.createdAt
+                  payload[0].payload.createdAt,
                 ).toLocaleDateString()}
           </p>
         </div>
@@ -385,70 +389,20 @@ const BalanceChart: React.FC<BalanceChartProps> = ({
             </p>
 
             {/* Balance Display with Show/Hide Toggle */}
-            {/* <button
-              onClick={() => setShowBalance((prev) => !prev)}
-              className="group relative flex items-center gap-2 px-3 py-1.5 rounded-xl bg-gradient-to-r from-slate-50 to-gray-50 dark:from-slate-800 dark:to-gray-800 border border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600 hover:shadow-md transition-all duration-300 focus:outline-none"
-              aria-label={showBalance ? "Hide balance" : "Show balance"}
-            >
-              <span className="text-xl font-bold text-gray-600 dark:text-gray-400">
-                {currency}
-              </span>
-
-
-              <div className="relative min-w-[100px]">
-                <div
-                  className={`text-2xl font-bold text-gray-900 dark:text-white transition-all duration-700 ease-out ${
-                    showBalance
-                      ? "opacity-100 transform translate-y-0"
-                      : "opacity-0 transform translate-y-1"
-                  }`}
-                >
-                  {formatBalance(totalBalance)}
-                </div>
-
-
-                <div
-                  className={`absolute inset-0 flex items-center transition-all duration-700 ease-out ${
-                    !showBalance
-                      ? "opacity-100 transform translate-y-0"
-                      : "opacity-0 transform -translate-y-1 pointer-events-none"
-                  }`}
-                >
-                  <div className="flex gap-1">
-                    {[...Array(4)].map((_, i) => (
-                      <div
-                        key={i}
-                        className="w-2 h-2 bg-gray-400 dark:bg-gray-500 rounded-full animate-pulse"
-                        style={{ animationDelay: `${i * 0.1}s` }}
-                      />
-                    ))}
-                  </div>
-                </div>
+            {showBalance ? (
+              <p className="text-lg font-semibold">
+                ${formatBalance(totalBalance)}
+              </p>
+            ) : (
+              <div className="flex items-center gap-0">
+                <BsThreeDots size={24} color="gray" />
+                <BsThreeDots
+                  size={24}
+                  color="gray"
+                  className="-translate-x-0.5"
+                />
               </div>
-
-
-              <div className="flex items-center justify-center w-7 h-7 rounded-full bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 group-hover:border-gray-300 dark:group-hover:border-gray-500 group-hover:shadow-sm transition-all duration-300">
-                <div className="relative w-4 h-4">
-                  <Eye
-                    className={`absolute inset-0 w-4 h-4 text-gray-600 dark:text-gray-300 transition-all duration-500 ${
-                      showBalance
-                        ? "opacity-100 rotate-0 scale-100"
-                        : "opacity-0 rotate-180 scale-75"
-                    }`}
-                  />
-                  <EyeOff
-                    className={`absolute inset-0 w-4 h-4 text-gray-600 dark:text-gray-300 transition-all duration-500 ${
-                      !showBalance
-                        ? "opacity-100 rotate-0 scale-100"
-                        : "opacity-0 rotate-180 scale-75"
-                    }`}
-                  />
-                </div>
-              </div>
-            </button> */}
-            <p className="text-lg font-semibold">
-              ${formatBalance(totalBalance)}
-            </p>
+            )}
           </div>
 
           {isButtonVisible && (

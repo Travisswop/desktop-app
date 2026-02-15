@@ -1,11 +1,12 @@
-'use client';
+"use client";
 
-import { useState } from 'react';
-import { Button } from '@/components/ui/button';
-import { TokenData } from '@/types/token';
-import { ArrowUpDown } from 'lucide-react';
-import TokenImage from './token-image';
-import CustomModal from '@/components/modal/CustomModal';
+import { useState } from "react";
+import { Button } from "@/components/ui/button";
+import { TokenData } from "@/types/token";
+import { ArrowUpDown } from "lucide-react";
+import TokenImage from "./token-image";
+import CustomModal from "@/components/modal/CustomModal";
+import { PrimaryButton } from "@/components/ui/Button/PrimaryButton";
 
 interface SendTokenModalProps {
   open: boolean;
@@ -21,31 +22,27 @@ export default function SendTokenModal({
   onNext,
 }: SendTokenModalProps) {
   // When price is 0, force token input mode
-  const hasPrice = parseFloat(token?.marketData?.price || '0') > 0;
+  const hasPrice = parseFloat(token?.marketData?.price || "0") > 0;
   const [isUSD, setIsUSD] = useState(hasPrice);
-  const [amount, setAmount] = useState('1.00');
+  const [amount, setAmount] = useState("1.00");
 
   const maxUSDAmount =
     !token || !hasPrice
-      ? '0.00'
+      ? "0.00"
       : (
           parseFloat(token.balance) *
-          (token.marketData?.price
-            ? parseFloat(token.marketData.price)
-            : 0)
+          (token.marketData?.price ? parseFloat(token.marketData.price) : 0)
         ).toFixed(2);
 
   const convertUSDToToken = (usdAmount: number) => {
-    if (!token?.marketData?.price || !hasPrice) return '0';
+    if (!token?.marketData?.price || !hasPrice) return "0";
     const price = parseFloat(token.marketData.price);
     return (usdAmount / price).toFixed(4);
   };
 
   const convertTokenToUSD = (tokenAmount: number) => {
-    if (!token?.marketData?.price || !hasPrice) return '0';
-    return (tokenAmount * parseFloat(token.marketData.price)).toFixed(
-      2
-    );
+    if (!token?.marketData?.price || !hasPrice) return "0";
+    return (tokenAmount * parseFloat(token.marketData.price)).toFixed(2);
   };
 
   const handleInput = (value: string) => {
@@ -54,17 +51,17 @@ export default function SendTokenModal({
     // Remove non-numeric/decimal characters and multiple decimals
     const sanitizedValue = value
       .toString()
-      .replace(/[^0-9.]/g, '')
-      .replace(/(\..*)\./g, '$1');
+      .replace(/[^0-9.]/g, "")
+      .replace(/(\..*)\./g, "$1");
 
     // Handle empty or just decimal input
-    if (sanitizedValue === '' || sanitizedValue === '.') {
-      setAmount('0');
+    if (sanitizedValue === "" || sanitizedValue === ".") {
+      setAmount("0");
       return;
     }
 
     // Remove leading zeros unless it's a decimal (e.g. 0.123)
-    const normalizedValue = sanitizedValue.replace(/^0+(?=\d)/, '');
+    const normalizedValue = sanitizedValue.replace(/^0+(?=\d)/, "");
 
     const numericValue = parseFloat(normalizedValue);
     if (isNaN(numericValue)) return;
@@ -105,10 +102,10 @@ export default function SendTokenModal({
   };
 
   const getOppositeAmount = () => {
-    if (!token || !hasPrice) return '0';
+    if (!token || !hasPrice) return "0";
 
     const numericAmount = parseFloat(amount);
-    if (isNaN(numericAmount)) return '0';
+    if (isNaN(numericAmount)) return "0";
 
     if (isUSD) {
       return convertUSDToToken(numericAmount);
@@ -132,7 +129,7 @@ export default function SendTokenModal({
 
         <div className="flex justify-center mb-2">
           <p className="text-3xl font-medium">
-            {isUSD && hasPrice ? 'USD' : token.symbol}
+            {isUSD && hasPrice ? "USD" : token.symbol}
           </p>
         </div>
 
@@ -143,7 +140,7 @@ export default function SendTokenModal({
                 const maxAmount =
                   isUSD && hasPrice ? maxUSDAmount : token.balance;
 
-                console.log('max amount', maxAmount);
+                console.log("max amount", maxAmount);
 
                 handleInput(maxAmount);
               }}
@@ -195,16 +192,14 @@ export default function SendTokenModal({
         )}
 
         {/* Token Selection */}
-        <div className="flex items-center justify-between p-4 bg-gray-50 rounded-xl mb-6 shadow-xl">
+        <div className="flex items-center justify-between p-4 bg-gray-50 rounded-xl mb-6 shadow-small">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-full">
               <TokenImage token={token} />
             </div>
             <div>
               <div className="font-medium">{token.name}</div>
-              <div className="text-sm text-gray-500">
-                Your balance
-              </div>
+              <div className="text-sm text-gray-500">Your balance</div>
             </div>
           </div>
           <div className="text-right">
@@ -212,8 +207,7 @@ export default function SendTokenModal({
               <>
                 <div className="font-medium">${maxUSDAmount}</div>
                 <div className="text-sm text-gray-500">
-                  {parseFloat(token.balance).toFixed(4)}{' '}
-                  {token.symbol}
+                  {parseFloat(token.balance).toFixed(4)} {token.symbol}
                 </div>
               </>
             ) : (
@@ -226,19 +220,19 @@ export default function SendTokenModal({
 
         {/* Action Buttons */}
         <div className="flex gap-3">
-          <Button
+          {/* <Button
             variant="outline"
             className="flex-1 rounded-xl py-6"
             onClick={() => onOpenChange(false)}
           >
             Back
-          </Button>
-          <Button
-            className="flex-1 rounded-xl py-6 bg-black text-white hover:bg-gray-800"
+          </Button> */}
+          <PrimaryButton
+            className="w-[94%] mx-auto border border-gray-600 py-2"
             onClick={() => onNext(amount, isUSD)}
           >
             Next
-          </Button>
+          </PrimaryButton>
         </div>
       </div>
     </CustomModal>

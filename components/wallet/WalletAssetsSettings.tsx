@@ -8,12 +8,14 @@ import { chainIcons } from "@/utils/staticData/tokenChainIcon";
 import { MdKeyboardBackspace } from "react-icons/md";
 import Cookies from "js-cookie";
 import { useWalletHideBalanceStore } from "@/zustandStore/useWalletHideBalanceToggle";
+import { useRouter } from "next/navigation";
+import { useBalanceVisibilityStore } from "@/zustandStore/useBalanceVisibilityStore";
 
 const WalletAssetsSettings = ({ tokens }: any) => {
   const [isManageTokenOpen, setIsManageTokenOpen] = useState(false);
   const [isBalanceHidden, setIsBalanceHidden] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
-  const { setValue } = useWalletHideBalanceStore();
+  const { showBalance, toggleBalance } = useBalanceVisibilityStore();
 
   const [selectedTokens, setSelectedTokens] = useState<string[]>(() => {
     // Initialize state from cookie
@@ -52,7 +54,7 @@ const WalletAssetsSettings = ({ tokens }: any) => {
     if (!searchTerm.trim()) return tokens;
 
     return tokens.filter((token: any) =>
-      token.symbol.toLowerCase().includes(searchTerm.toLowerCase())
+      token.symbol.toLowerCase().includes(searchTerm.toLowerCase()),
     );
   }, [tokens, searchTerm]);
 
@@ -61,15 +63,6 @@ const WalletAssetsSettings = ({ tokens }: any) => {
     const savedPreference = Cookies.get("hideBalance");
     setIsBalanceHidden(savedPreference === "true");
   }, []);
-
-  const toggleBalance = () => {
-    const newValue = !isBalanceHidden;
-    setIsBalanceHidden(newValue);
-
-    // Set cookie that expires in 1 year
-    Cookies.set("hideBalance", String(newValue), { expires: 365 });
-    setValue(newValue);
-  };
 
   return (
     <div>
@@ -94,10 +87,10 @@ const WalletAssetsSettings = ({ tokens }: any) => {
             className="w-full flex items-center justify-between"
           >
             <span className="text-lg font-semibold text-gray-800">
-              {isBalanceHidden ? "Show Balance" : "Hide Balance"}
+              {showBalance ? "Hide Balance" : "Show Balance"}
             </span>
 
-            {isBalanceHidden ? (
+            {showBalance ? (
               <EyeOff className="w-8 h-8 text-gray-800" strokeWidth={2} />
             ) : (
               <Eye className="w-8 h-8 text-gray-800" strokeWidth={2} />
