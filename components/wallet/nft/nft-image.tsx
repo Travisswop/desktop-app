@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import Image from 'next/image';
+import React, { useState } from "react";
+import Image from "next/image";
 
 interface NFTImageProps {
   src: string;
@@ -16,11 +16,9 @@ interface NFTImageProps {
 const NFTImage = ({
   src,
   alt,
-  fill = true,
   width,
   height,
-  className = 'object-cover',
-  sizes = '(max-width: 768px) 100vw, 300px',
+  className = "rounded-lg",
   priority = false,
 }: NFTImageProps) => {
   const [imageError, setImageError] = useState(false);
@@ -32,17 +30,13 @@ const NFTImage = ({
   // If image failed to load, show placeholder
   if (imageError) {
     return (
-      <div
-        className={`bg-gray-100 flex items-center justify-center ${className}`}
-      >
-        <Image
-          src="/images/placeholder-nft.png"
-          alt="NFT placeholder"
-          fill
-          className="object-contain p-4"
-          sizes="(max-width: 768px) 100vw, 300px"
-        />
-      </div>
+      <Image
+        src="/images/placeholder-nft.png"
+        alt="NFT placeholder"
+        className="p-4"
+        width={320}
+        height={320}
+      />
     );
   }
 
@@ -51,11 +45,10 @@ const NFTImage = ({
     <Image
       src={src}
       alt={alt}
-      fill={fill}
       width={width}
       height={height}
       className={className}
-      sizes={sizes}
+      // sizes={sizes}
       priority={priority}
       onError={handleImageError}
     />
