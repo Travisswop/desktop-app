@@ -5,6 +5,7 @@ import dayjs from "dayjs";
 import { useRouter } from "next/navigation";
 import TokenValueChangeFetcher from "../wallet/TokenValueChangeFetched";
 import { useUser } from "@/lib/UserContext";
+import Link from "next/link";
 
 interface SwapTransactionCardProps {
   feed: any;
@@ -18,7 +19,7 @@ const SwapTransactionCard: React.FC<SwapTransactionCardProps> = ({ feed }) => {
   const handleCopyTradeClick = (e: React.MouseEvent) => {
     e.stopPropagation();
     router.push(
-      `/wallet?inputToken=${feed.content.inputToken.symbol}&outputToken=${feed.content.outputToken.symbol}&amount=${feed.content.inputToken.amount}`
+      `/wallet?inputToken=${feed.content.inputToken.symbol}&outputToken=${feed.content.outputToken.symbol}&amount=${feed.content.inputToken.amount}`,
     );
   };
 
@@ -100,12 +101,13 @@ const SwapTransactionCard: React.FC<SwapTransactionCardProps> = ({ feed }) => {
           </div>
 
           <div className="flex items-center justify-between mt-2">
-            <button
-              onClick={handleCopyTradeClick}
+            <Link
+              href={`/wallet?inputToken=${feed.content.inputToken.symbol}&outputToken=${feed.content.outputToken.symbol}&amount=${feed.content.inputToken.amount}`}
+              // onClick={handleCopyTradeClick}
               className="text-xs border border-gray-300 rounded px-3 py-1 font-medium hover:bg-gray-200"
             >
               Copy Trade
-            </button>
+            </Link>
             {/* {feed.content.signature && (
               <div className="flex justify-end">
                 <a
