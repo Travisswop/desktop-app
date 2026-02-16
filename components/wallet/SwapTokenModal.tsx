@@ -394,6 +394,8 @@ export default function SwapTokenModal({
 
   const [accessToken, setAccessToken] = useState("");
 
+  console.log("tokens khela hobe", payToken, receiveToken, payAmount);
+
   // Refs for intervals
   const quoteRefreshInterval = useRef<NodeJS.Timeout | null>(null);
   const countdownInterval = useRef<NodeJS.Timeout | null>(null);
@@ -450,152 +452,52 @@ export default function SwapTokenModal({
   const searchParams = useSearchParams();
 
   // Handle URL search params for pre-filled swap
-  // useEffect(() => {
-  //   const inputTokenParam = searchParams?.get("inputToken");
-  //   const outputTokenParam = searchParams?.get("outputToken");
-  //   const amountParam = searchParams?.get("amount");
-
-  //   console.log(
-  //     "token info hola",
-  //     inputTokenParam,
-  //     outputTokenParam,
-  //     amountParam,
-  //   );
-
-  //   if (tokens.length > 0) {
-  //     // Find and set input token (pay token)
-  //     if (inputTokenParam) {
-  //       const foundPayToken = tokens.find(
-  //         (token) =>
-  //           token.symbol.toLowerCase() === inputTokenParam.toLowerCase(),
-  //       );
-  //       if (foundPayToken) {
-  //         setPayToken(foundPayToken);
-  //         setChainId(getChainId(foundPayToken.chain));
-  //       }
-  //     }
-
-  //     // Find and set output token (receive token)
-  //     if (outputTokenParam) {
-  //       const foundReceiveToken = tokens.find(
-  //         (token) =>
-  //           token.symbol.toLowerCase() === outputTokenParam.toLowerCase(),
-  //       );
-  //       if (foundReceiveToken) {
-  //         setReceiveToken(foundReceiveToken);
-  //         // Set receiver chain based on the output token
-  //         const receiveChainId = getChainId(foundReceiveToken.chain);
-  //         setReceiverChainId(receiveChainId);
-  //         setSelectedReceiverChain(receiveChainId);
-  //       }
-  //     }
-
-  //     // Set amount if provided
-  //     if (amountParam && !isNaN(parseFloat(amountParam))) {
-  //       setPayAmount(amountParam);
-  //     }
-  //   }
-  // }, [searchParams, tokens]);
-
-  // Handle URL search params for pre-filled swap
   useEffect(() => {
-    // Early exit if no tokens or no search params
-    if (!searchParams || tokens.length === 0) {
-      console.log("Waiting for tokens to load...", {
-        tokensCount: tokens.length,
-      });
-      return;
-    }
+    const inputTokenParam = searchParams?.get("inputToken");
+    const outputTokenParam = searchParams?.get("outputToken");
+    const amountParam = searchParams?.get("amount");
 
-    const inputTokenParam = searchParams.get("inputToken");
-    const outputTokenParam = searchParams.get("outputToken");
-    const amountParam = searchParams.get("amount");
-
-    console.log("Search params detected:", {
+    console.log(
+      "token info hola",
       inputTokenParam,
       outputTokenParam,
       amountParam,
-      tokensCount: tokens.length,
-    });
+    );
 
-    // Only proceed if we have params
-    if (!inputTokenParam && !outputTokenParam && !amountParam) {
-      return;
-    }
-
-    // Use a ref or state to track if we've already processed these params
-    // to prevent re-processing on every render
-    const paramsKey = `${inputTokenParam}-${outputTokenParam}-${amountParam}`;
-
-    // Find and set input token (pay token)
-    if (inputTokenParam) {
-      const foundPayToken = tokens.find(
-        (token) => token.symbol.toLowerCase() === inputTokenParam.toLowerCase(),
-      );
-
-      console.log(
-        "Looking for pay token:",
-        inputTokenParam,
-        "Found:",
-        foundPayToken?.symbol,
-      );
-
-      if (foundPayToken) {
-        setPayToken(foundPayToken);
-        setChainId(getChainId(foundPayToken.chain));
-        setSelectedPayChain(getChainId(foundPayToken.chain)); // Also set the selected chain
-      } else {
-        console.warn("Pay token not found:", inputTokenParam);
-        // Try case-sensitive match as fallback
-        const exactMatch = tokens.find((t) => t.symbol === inputTokenParam);
-        if (exactMatch) {
-          console.log("Found exact match:", exactMatch.symbol);
-          setPayToken(exactMatch);
-          setChainId(getChainId(exactMatch.chain));
-          setSelectedPayChain(getChainId(exactMatch.chain));
+    if (tokens.length > 0) {
+      // Find and set input token (pay token)
+      if (inputTokenParam) {
+        const foundPayToken = tokens.find(
+          (token) =>
+            token.symbol.toLowerCase() === inputTokenParam.toLowerCase(),
+        );
+        if (foundPayToken) {
+          setPayToken(foundPayToken);
+          setChainId(getChainId(foundPayToken.chain));
         }
       }
-    }
 
-    // Find and set output token (receive token)
-    if (outputTokenParam) {
-      const foundReceiveToken = tokens.find(
-        (token) =>
-          token.symbol.toLowerCase() === outputTokenParam.toLowerCase(),
-      );
-
-      console.log(
-        "Looking for receive token:",
-        outputTokenParam,
-        "Found:",
-        foundReceiveToken?.symbol,
-      );
-
-      if (foundReceiveToken) {
-        setReceiveToken(foundReceiveToken);
-        const receiveChainId = getChainId(foundReceiveToken.chain);
-        setReceiverChainId(receiveChainId);
-        setSelectedReceiverChain(receiveChainId);
-      } else {
-        console.warn("Receive token not found:", outputTokenParam);
-        // Try case-sensitive match as fallback
-        const exactMatch = tokens.find((t) => t.symbol === outputTokenParam);
-        if (exactMatch) {
-          console.log("Found exact match:", exactMatch.symbol);
-          setReceiveToken(exactMatch);
-          const receiveChainId = getChainId(exactMatch.chain);
+      // Find and set output token (receive token)
+      if (outputTokenParam) {
+        const foundReceiveToken = tokens.find(
+          (token) =>
+            token.symbol.toLowerCase() === outputTokenParam.toLowerCase(),
+        );
+        if (foundReceiveToken) {
+          setReceiveToken(foundReceiveToken);
+          // Set receiver chain based on the output token
+          const receiveChainId = getChainId(foundReceiveToken.chain);
           setReceiverChainId(receiveChainId);
           setSelectedReceiverChain(receiveChainId);
         }
       }
-    }
 
-    // Set amount if provided
-    if (amountParam && !isNaN(parseFloat(amountParam))) {
-      console.log("Setting amount:", amountParam);
-      setPayAmount(amountParam);
+      // Set amount if provided
+      if (amountParam && !isNaN(parseFloat(amountParam))) {
+        setPayAmount(amountParam);
+      }
     }
-  }, [searchParams, tokens]); // Keep minimal dependencies
+  }, [searchParams, tokens]);
 
   // Add this helper function to filter tokens by chain
   const filterTokensByChain = (tokens: any[], chainFilter: string) => {
