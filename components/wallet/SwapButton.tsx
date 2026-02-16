@@ -7,6 +7,7 @@ import { useWallets as useSolanaWallets } from "@privy-io/react-auth/solana";
 import { SolanaProvider } from "../SolanaProvider";
 import { PrimaryButton } from "../ui/Button/PrimaryButton";
 import { TbArrowsExchange2 } from "react-icons/tb";
+import CustomModal from "../modal/CustomModal";
 
 interface SwapButtonProps {
   tokens: any[];
@@ -46,28 +47,28 @@ export default function SwapButton({
     }
   }, [inputTokenParam, outputTokenParam, amountParam]);
 
-  // useEffect(() => {
-  //   // Only remove params AFTER modal is closed
-  //   if (
-  //     !openSwapModal &&
-  //     (inputTokenParam || outputTokenParam || amountParam)
-  //   ) {
-  //     const newParams = new URLSearchParams(searchParams as any);
-  //     newParams.delete('inputToken');
-  //     newParams.delete('outputToken');
-  //     newParams.delete('amount');
+  useEffect(() => {
+    // Only remove params AFTER modal is closed
+    if (
+      !openSwapModal &&
+      (inputTokenParam || outputTokenParam || amountParam)
+    ) {
+      const newParams = new URLSearchParams(searchParams as any);
+      newParams.delete("inputToken");
+      newParams.delete("outputToken");
+      newParams.delete("amount");
 
-  //     router.replace(`${pathname}?${newParams.toString()}`);
-  //   }
-  // }, [
-  //   openSwapModal,
-  //   inputTokenParam,
-  //   outputTokenParam,
-  //   amountParam,
-  //   pathname,
-  //   router,
-  //   searchParams,
-  // ]);
+      router.replace(`${pathname}?${newParams.toString()}`);
+    }
+  }, [
+    openSwapModal,
+    inputTokenParam,
+    outputTokenParam,
+    amountParam,
+    pathname,
+    router,
+    searchParams,
+  ]);
 
   const config = useMemo(
     () => ({
@@ -134,35 +135,20 @@ export default function SwapButton({
 
       {/* Custom Modal */}
       {openSwapModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center">
-          {/* Overlay */}
-          <div
-            className="absolute inset-0 bg-black bg-opacity-50"
-            onClick={() => setOpenSwapModal(false)}
-          ></div>
-
-          {/* Modal content */}
-          <div className="relative z-10 w-full max-w-lg rounded-2xl bg-white shadow-lg">
-            {/* Close Button */}
-            <button
-              onClick={() => setOpenSwapModal(false)}
-              className="absolute top-3 right-3 rounded-md p-1 text-gray-600 hover:bg-gray-100 focus:outline-none"
-            >
-              ✕
-            </button>
-
-            {/* Modal Body */}
-            <div className="p-4">
-              <SolanaProvider>
-                <LiFiPrivyWrapper
-                  config={config}
-                  onSwapComplete={handleSwapComplete}
-                  tokens={tokens}
-                />
-              </SolanaProvider>
-            </div>
+        <CustomModal
+          isOpen={openSwapModal}
+          onClose={() => setOpenSwapModal(false)}
+        >
+          <div className="p-4">
+            <SolanaProvider>
+              <LiFiPrivyWrapper
+                config={config}
+                onSwapComplete={handleSwapComplete}
+                tokens={tokens}
+              />
+            </SolanaProvider>
           </div>
-        </div>
+        </CustomModal>
       )}
     </>
   );
