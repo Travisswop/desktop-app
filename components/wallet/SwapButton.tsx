@@ -39,24 +39,31 @@ export default function SwapButton({
   const inputTokenParam = searchParams?.get("inputToken");
   const outputTokenParam = searchParams?.get("outputToken");
   const amountParam = searchParams?.get("amount");
+  const outputChainParam = searchParams?.get("outputChain");
 
   // Auto-open modal if params exist
   useEffect(() => {
-    if (inputTokenParam || outputTokenParam || amountParam) {
+    if (
+      inputTokenParam ||
+      outputTokenParam ||
+      amountParam ||
+      outputChainParam
+    ) {
       setOpenSwapModal(true);
     }
-  }, [inputTokenParam, outputTokenParam, amountParam]);
+  }, [inputTokenParam, outputTokenParam, amountParam, outputChainParam]);
 
   useEffect(() => {
     // Only remove params AFTER modal is closed
     if (
       !openSwapModal &&
-      (inputTokenParam || outputTokenParam || amountParam)
+      (inputTokenParam || outputTokenParam || amountParam || outputChainParam)
     ) {
       const newParams = new URLSearchParams(searchParams as any);
       newParams.delete("inputToken");
       newParams.delete("outputToken");
       newParams.delete("amount");
+      newParams.delete("outputChain");
 
       router.replace(`${pathname}?${newParams.toString()}`);
     }
@@ -65,6 +72,7 @@ export default function SwapButton({
     inputTokenParam,
     outputTokenParam,
     amountParam,
+    outputChainParam,
     pathname,
     router,
     searchParams,
