@@ -716,54 +716,57 @@ export default function SwapTokenModal({
     return categoryTokens;
   }, [filteredList, targetList, activeReceiveTab, selectedReceiveChain]);
 
-  // ── URL search params (pre-fill tokens) ─────────────────────────────────────
+  // ── Effect 1: Handle inputToken + amount from URL (runs when tokens load) ─────
   useEffect(() => {
     const inputTokenParam = searchParams?.get("inputToken");
-    const outputTokenParam = searchParams?.get("outputToken");
-    const outputChainParam = searchParams?.get("outputChain"); // chainId e.g. "1151111081099710"
     const amountParam = searchParams?.get("amount");
 
-    if (tokens.length > 0) {
-      if (inputTokenParam) {
-        const found = tokens.find(
-          (t) => t.symbol.toLowerCase() === inputTokenParam.toLowerCase(),
-        );
-        if (found) {
-          setPayToken(found);
-          setChainId(getChainId(found.chain));
-        }
-      }
+    if (tokens.length === 0) return;
 
-      if (amountParam && !isNaN(parseFloat(amountParam)))
-        setPayAmount(amountParam);
-    }
-
-    // Search tempTokens (full cross-chain list) for the receive token
-    if (outputTokenParam && tempTokens.length > 0) {
-      const found = tempTokens.find((t) => {
-        const symbolMatch =
-          t.symbol?.toLowerCase() === outputTokenParam.toLowerCase();
-        if (!symbolMatch) return false;
-
-        // Match chainId if provided
-        if (outputChainParam) {
-          const tokenChainId =
-            t.chainId?.toString() ?? getChainId(t.chain ?? t.network ?? "");
-          return tokenChainId === outputChainParam;
-        }
-
-        return true; // no chain filter → first symbol match wins
-      });
-
+    if (inputTokenParam) {
+      const found = tokens.find(
+        (t) => t.symbol.toLowerCase() === inputTokenParam.toLowerCase(),
+      );
       if (found) {
-        const rcvChainId =
-          found.chainId?.toString() ??
-          getChainId(found.chain ?? found.network ?? "");
-        setReceiveToken(found);
-        setReceiverChainId(rcvChainId);
+        setPayToken(found);
+        setChainId(getChainId(found.chain));
       }
     }
-  }, [searchParams, tokens, tempTokens]); // 👈 tempTokens added
+
+    if (amountParam && !isNaN(parseFloat(amountParam))) {
+      setPayAmount(amountParam);
+    }
+  }, [searchParams, tokens]);
+
+  // ── Effect 2: Handle outputToken from URL (runs when tempTokens load) ─────────
+  useEffect(() => {
+    const outputTokenParam = searchParams?.get("outputToken");
+    const outputChainParam = searchParams?.get("outputChain");
+
+    if (!outputTokenParam || tempTokens.length === 0) return;
+
+    const found = tempTokens.find((t) => {
+      const symbolMatch =
+        t.symbol?.toLowerCase() === outputTokenParam.toLowerCase();
+      if (!symbolMatch) return false;
+
+      if (outputChainParam) {
+        const tokenChainId =
+          t.chainId?.toString() ?? getChainId(t.chain ?? t.network ?? "");
+        return tokenChainId === outputChainParam;
+      }
+
+      return true;
+    });
+
+    if (found) {
+      const rcvChainId =
+        found.chainId?.toString() ??
+        getChainId(found.chain ?? found.network ?? "");
+      setReceiveToken(found);
+      setReceiverChainId(rcvChainId);
+    }
+  }, [searchParams, tempTokens]); // 👈 only tempTokens, not tokens
 
   // ── Pay-token drawer helpers ──────────────────────────────────────────────────
   const filterTokensByPayChain = (toks: any[], cId: string) =>
