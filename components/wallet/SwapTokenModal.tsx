@@ -720,6 +720,7 @@ export default function SwapTokenModal({
   useEffect(() => {
     const inputTokenParam = searchParams?.get("inputToken");
     const outputTokenParam = searchParams?.get("outputToken");
+    const outputChainParam = searchParams?.get("outputChain"); // chainId e.g. "1151111081099710"
     const amountParam = searchParams?.get("amount");
 
     if (tokens.length > 0) {
@@ -732,20 +733,37 @@ export default function SwapTokenModal({
           setChainId(getChainId(found.chain));
         }
       }
-      if (outputTokenParam) {
-        const found = tokens.find(
-          (t) => t.symbol.toLowerCase() === outputTokenParam.toLowerCase(),
-        );
-        if (found) {
-          setReceiveToken(found);
-          const rcvChainId = getChainId(found.chain);
-          setReceiverChainId(rcvChainId);
-        }
-      }
+
       if (amountParam && !isNaN(parseFloat(amountParam)))
         setPayAmount(amountParam);
     }
-  }, [searchParams, tokens]);
+
+    // Search tempTokens (full cross-chain list) for the receive token
+    if (outputTokenParam && tempTokens.length > 0) {
+      const found = tempTokens.find((t) => {
+        const symbolMatch =
+          t.symbol?.toLowerCase() === outputTokenParam.toLowerCase();
+        if (!symbolMatch) return false;
+
+        // Match chainId if provided
+        if (outputChainParam) {
+          const tokenChainId =
+            t.chainId?.toString() ?? getChainId(t.chain ?? t.network ?? "");
+          return tokenChainId === outputChainParam;
+        }
+
+        return true; // no chain filter → first symbol match wins
+      });
+
+      if (found) {
+        const rcvChainId =
+          found.chainId?.toString() ??
+          getChainId(found.chain ?? found.network ?? "");
+        setReceiveToken(found);
+        setReceiverChainId(rcvChainId);
+      }
+    }
+  }, [searchParams, tokens, tempTokens]); // 👈 tempTokens added
 
   // ── Pay-token drawer helpers ──────────────────────────────────────────────────
   const filterTokensByPayChain = (toks: any[], cId: string) =>
