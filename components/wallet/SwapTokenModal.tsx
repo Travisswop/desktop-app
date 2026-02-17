@@ -52,7 +52,7 @@ import bs58 from "bs58";
 import { notifySwapFee } from "@/actions/notifySwapFee";
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Constants & helpers (unchanged from original)
+// Chain / explorer helpers
 // ─────────────────────────────────────────────────────────────────────────────
 
 const getChainIcon = (chainName: string) => {
@@ -109,7 +109,84 @@ const sanitizeImageUrl = (url: string | undefined): string => {
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
-// NEW: Category / token-set definitions (mirrors Chain.ts from RN app)
+// Error formatting
+// ─────────────────────────────────────────────────────────────────────────────
+
+const formatUserFriendlyError = (error: string): string => {
+  const lowerError = error.toLowerCase();
+  if (
+    lowerError.includes("network error") ||
+    lowerError.includes("fetch failed") ||
+    lowerError.includes("network request failed")
+  )
+    return "Network connection issue. Please check your internet connection and try again.";
+  if (lowerError.includes("timeout") || lowerError.includes("request timeout"))
+    return "Request timed out. Please try again in a moment.";
+  if (
+    lowerError.includes("user rejected") ||
+    lowerError.includes("rejected by user") ||
+    lowerError.includes("user denied")
+  )
+    return "Transaction was cancelled. Please try again when ready.";
+  if (
+    lowerError.includes("insufficient funds") ||
+    lowerError.includes("insufficient balance")
+  )
+    return "Insufficient balance to complete this transaction.";
+  if (
+    lowerError.includes("wallet not connected") ||
+    lowerError.includes("no wallet")
+  )
+    return "Please connect your wallet to continue.";
+  if (
+    lowerError.includes("route not found") ||
+    lowerError.includes("no route found")
+  )
+    return "No swap route available for this token pair. Try selecting different tokens.";
+  if (
+    lowerError.includes("invalid token") ||
+    lowerError.includes("token not found")
+  )
+    return "Selected token is not supported. Please choose a different token.";
+  if (
+    lowerError.includes("amount too small") ||
+    lowerError.includes("minimum amount")
+  )
+    return "Amount is too small. Please enter a larger amount.";
+  if (lowerError.includes("slippage") || lowerError.includes("price impact"))
+    return "Price impact is too high. Try adjusting slippage settings or reducing the amount.";
+  if (
+    lowerError.includes("rate limit") ||
+    lowerError.includes("too many requests")
+  )
+    return "Too many requests. Please wait a moment and try again.";
+  if (
+    lowerError.includes("transaction failed") ||
+    lowerError.includes("tx failed")
+  )
+    return "Transaction failed. Please try again with adjusted settings.";
+  if (
+    lowerError.includes("blockhash not found") ||
+    lowerError.includes("recent blockhash")
+  )
+    return "Network is busy. Please wait a moment and try again.";
+  if (
+    lowerError.includes("account not found") ||
+    lowerError.includes("invalid account")
+  )
+    return "Account error. Please reconnect your wallet and try again.";
+  if (
+    lowerError.includes("failed to fetch") ||
+    lowerError.includes("fetch error")
+  )
+    return "Unable to connect to swap service. Please check your connection and try again.";
+  if (error.length > 100)
+    return "Transaction failed. Please try again or contact support if the issue persists.";
+  return error.charAt(0).toUpperCase() + error.slice(1).replace(/[._]/g, " ");
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Category / token-set definitions  (mirrors Chain.ts from the RN app)
 // ─────────────────────────────────────────────────────────────────────────────
 
 const TOKEN_CATEGORIES = ["stock", "crypto", "metal", "stable"] as const;
@@ -194,7 +271,7 @@ const tokenCategoryAddresses: Record<TokenCategory, Set<string>> = {
   ]),
 };
 
-/** Bucket a flat token array into the 4 categories (same logic as RN filterTokensByCategory) */
+/** Bucket a flat token array into the 4 categories – mirrors RN filterTokensByCategory */
 function filterTokensByCategory(
   tokenArray: any[],
 ): Record<TokenCategory, any[]> {
@@ -209,20 +286,13 @@ function filterTokensByCategory(
     const identifier = token.address || token.id;
     if (!identifier) return;
 
-    // Derive network from chainId (same logic as RN)
     let network: string;
-    if (token.chainId === 1 || token.chainId === "1") network = "ethereum";
-    else if (token.chainId === 137 || token.chainId === "137")
-      network = "polygon";
-    else if (token.chainId === 8453 || token.chainId === "8453")
-      network = "base";
-    else if (
-      !token.chainId ||
-      token.chainId === 1151111081099710 ||
-      token.chainId === "1151111081099710"
-    )
-      network = "solana";
-    else return; // skip unknown chains
+    const cid = token.chainId?.toString();
+    if (cid === "1") network = "ethereum";
+    else if (cid === "137") network = "polygon";
+    else if (cid === "8453") network = "base";
+    else if (!cid || cid === "1151111081099710") network = "solana";
+    else return;
 
     for (const cat of TOKEN_CATEGORIES) {
       if (tokenCategoryAddresses[cat].has(identifier)) {
@@ -235,7 +305,7 @@ function filterTokensByCategory(
   return result;
 }
 
-/** Search tokens by id/address/name/symbol, optionally filtered to a chainId */
+/** Search tokens by id / address / name / symbol, optionally filtered to a chainId */
 function searchTokens(
   tokens: any[],
   searchText: string,
@@ -260,7 +330,7 @@ function searchTokens(
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Chain selector config for the receive drawer
+// Chain selector configs
 // ─────────────────────────────────────────────────────────────────────────────
 
 const ALL_CHAINS = [
@@ -268,14 +338,14 @@ const ALL_CHAINS = [
   {
     id: "1151111081099710",
     name: "SOL",
-    icon: "/images/IconShop/solana@2x.png",
+    icon: "/assets/icons/Sol.png",
   },
   { id: "1", name: "ETH", icon: "/images/IconShop/eTH@3x.png" },
   { id: "137", name: "POL", icon: "/images/IconShop/polygon.png" },
   {
     id: "8453",
     name: "BASE",
-    icon: "https://www.base.org/document/safari-pinned-tab.svg",
+    icon: "/assets/icons/base.png",
   },
 ];
 
@@ -299,93 +369,49 @@ const PAY_CHAINS = [
   },
 ];
 
-const NATIVE_TOKENS_AND_USDC: Record<string, { symbol: string }[]> = {
-  "1": [{ symbol: "ETH" }, { symbol: "USDC" }],
-  "1151111081099710": [{ symbol: "SOL" }, { symbol: "USDC" }],
-  "137": [{ symbol: "POL" }, { symbol: "USDC" }],
-  "8453": [{ symbol: "ETH" }, { symbol: "USDC" }],
+const CATEGORY_LABELS: Record<TokenCategory, string> = {
+  stock: "Stocks",
+  crypto: "Crypto",
+  metal: "Metals",
+  stable: "Stables",
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Error formatting (unchanged)
-// ─────────────────────────────────────────────────────────────────────────────
-
-const formatUserFriendlyError = (error: string): string => {
-  const lowerError = error.toLowerCase();
-  if (
-    lowerError.includes("network error") ||
-    lowerError.includes("fetch failed")
-  )
-    return "Network connection issue. Please check your internet connection and try again.";
-  if (lowerError.includes("timeout"))
-    return "Request timed out. Please try again in a moment.";
-  if (
-    lowerError.includes("user rejected") ||
-    lowerError.includes("user denied")
-  )
-    return "Transaction was cancelled. Please try again when ready.";
-  if (
-    lowerError.includes("insufficient funds") ||
-    lowerError.includes("insufficient balance")
-  )
-    return "Insufficient balance to complete this transaction.";
-  if (
-    lowerError.includes("route not found") ||
-    lowerError.includes("no route found")
-  )
-    return "No swap route available for this token pair. Try selecting different tokens.";
-  if (lowerError.includes("slippage") || lowerError.includes("price impact"))
-    return "Price impact is too high. Try adjusting slippage settings or reducing the amount.";
-  if (
-    lowerError.includes("rate limit") ||
-    lowerError.includes("too many requests")
-  )
-    return "Too many requests. Please wait a moment and try again.";
-  if (
-    lowerError.includes("transaction failed") ||
-    lowerError.includes("tx failed")
-  )
-    return "Transaction failed. Please try again with adjusted settings.";
-  if (error.length > 100)
-    return "Transaction failed. Please try again or contact support if the issue persists.";
-  return error.charAt(0).toUpperCase() + error.slice(1).replace(/[._]/g, " ");
-};
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Sub-components
+// TokenRow sub-component
 // ─────────────────────────────────────────────────────────────────────────────
 
 function TokenRow({ token, onClick }: { token: any; onClick: () => void }) {
-  const getTokenIcon = (t: any) => {
-    if (t?.logoURI) return t.logoURI.trim();
+  const getInitialSVG = (t: any) => {
     const initials = (t.symbol || "??").slice(0, 2).toUpperCase();
     const colors = ["#FF6B6B", "#4ECDC4", "#45B7D1", "#F9A826", "#6C5CE7"];
     const colorIndex = (t.symbol?.length ?? 0) % colors.length;
-    const svg = `<svg width="24" height="24" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><rect width="24" height="24" fill="${colors[colorIndex]}" rx="12"/><text x="12" y="16" text-anchor="middle" fill="white" font-size="10" font-weight="bold">${initials}</text></svg>`;
-    return `data:image/svg+xml;base64,${btoa(svg)}`;
+    const svg = `<svg width="36" height="36" viewBox="0 0 36 36" xmlns="http://www.w3.org/2000/svg"><rect width="36" height="36" fill="${colors[colorIndex]}" rx="18"/><text x="18" y="24" text-anchor="middle" fill="white" font-size="14" font-weight="bold">${initials}</text></svg>`;
+    return `data:image/svg+xml;base64,${typeof btoa !== "undefined" ? btoa(svg) : Buffer.from(svg).toString("base64")}`;
   };
 
-  const chainIconSrc = token.chain
-    ? getChainIcon(token.chain)
-    : getChainIcon(getNetworkByChainId(token.chainId?.toString() ?? ""));
+  const imgSrc =
+    sanitizeImageUrl(token?.logoURI || token?.icon) || getInitialSVG(token);
+  const networkName =
+    token.chain ?? getNetworkByChainId(token.chainId?.toString() ?? "");
+  const chainIconSrc = getChainIcon(networkName);
+  const priceStr = token.priceUSD || token.usdPrice;
+  const hasBalance = token.balance != null && Number(token.balance) > 0;
 
   return (
     <button
       onClick={onClick}
-      className="flex items-center gap-3 w-full px-4 py-3 rounded-xl hover:bg-gray-50 transition-colors group"
+      className="flex items-center gap-3 w-full px-4 py-3 rounded-xl hover:bg-gray-50 active:bg-gray-100 transition-colors text-left"
     >
       {/* Token icon + chain badge */}
       <div className="relative flex-shrink-0 w-9 h-9">
         <Image
-          src={sanitizeImageUrl(
-            token?.logoURI || token?.icon || getTokenIcon(token),
-          )}
-          alt={token.symbol}
+          src={imgSrc}
+          alt={token.symbol || "token"}
           width={36}
           height={36}
           className="w-9 h-9 rounded-full object-cover"
           onError={(e) => {
-            (e.target as HTMLImageElement).src = getTokenIcon(token);
+            (e.target as HTMLImageElement).src = getInitialSVG(token);
           }}
         />
         {chainIconSrc && (
@@ -402,7 +428,7 @@ function TokenRow({ token, onClick }: { token: any; onClick: () => void }) {
       </div>
 
       {/* Name + symbol */}
-      <div className="flex-1 text-left min-w-0">
+      <div className="flex-1 min-w-0">
         <div className="flex items-center gap-1.5">
           <span className="font-semibold text-gray-900 text-sm truncate">
             {token.symbol}
@@ -414,19 +440,27 @@ function TokenRow({ token, onClick }: { token: any; onClick: () => void }) {
         <p className="text-xs text-gray-400 truncate">{token.name}</p>
       </div>
 
-      {/* Price */}
-      {(token.priceUSD || token.usdPrice) && (
-        <span className="text-sm text-gray-500 flex-shrink-0">
-          ${parseFloat(token.priceUSD || token.usdPrice).toFixed(2)}
-        </span>
-      )}
-
-      {/* Balance (for user-owned tokens) */}
-      {token.balance != null && Number(token.balance) > 0 && (
-        <span className="text-sm font-medium text-gray-700 flex-shrink-0 ml-2">
-          {parseFloat(token.balance).toFixed(4)}
-        </span>
-      )}
+      {/* Right side: price + balance */}
+      <div className="flex flex-col items-end flex-shrink-0 gap-0.5">
+        {priceStr && (
+          <span className="text-sm text-gray-500">
+            ${parseFloat(priceStr).toFixed(2)}
+          </span>
+        )}
+        {hasBalance && (
+          <span className="text-xs font-medium text-gray-700">
+            {parseFloat(token.balance).toFixed(4)}
+          </span>
+        )}
+        {token.stats24h?.priceChange != null && (
+          <span
+            className={`text-xs ${token.stats24h.priceChange >= 0 ? "text-green-500" : "text-red-500"}`}
+          >
+            {token.stats24h.priceChange >= 0 ? "+" : ""}
+            {token.stats24h.priceChange.toFixed(2)}%
+          </span>
+        )}
+      </div>
     </button>
   );
 }
@@ -442,16 +476,20 @@ export default function SwapTokenModal({
   tokens: any[];
   token?: any;
 }) {
-  // ── existing state ──────────────────────────────────────────────────────────
+  // ── Core swap state ──────────────────────────────────────────────────────────
   const [payToken, setPayToken] = useState<any>(token || tokens?.[0] || null);
   const [receiveToken, setReceiveToken] = useState<any>(null);
   const [payAmount, setPayAmount] = useState("");
   const [receiveAmount, setReceiveAmount] = useState("");
   const [openDrawer, setOpenDrawer] = useState(false);
   const [selecting, setSelecting] = useState<"pay" | "receive" | null>(null);
+
+  // Pay-token drawer
   const [availableTokens, setAvailableTokens] = useState<any[]>([]);
-  const [searchQuery, setSearchQuery] = useState("");
+  const [selectedPayChain, setSelectedPayChain] = useState("all");
   const [isLoadingTokens, setIsLoadingTokens] = useState(false);
+
+  // Quote & swap
   const [isCalculating, setIsCalculating] = useState(false);
   const [chainId, setChainId] = useState("1151111081099710");
   const [receiverChainId, setReceiverChainId] = useState("137");
@@ -459,42 +497,45 @@ export default function SwapTokenModal({
   const [jupiterQuote, setJupiterQuote] = useState<any>(null);
   const [swapError, setSwapError] = useState<string | null>(null);
   const [txHash, setTxHash] = useState<string | null>(null);
-  const [slippage, setSlippage] = useState(0.5);
-  const [customSlippage, setCustomSlippage] = useState("");
-  const [showSlippageModal, setShowSlippageModal] = useState(false);
-  const [selectedPayChain, setSelectedPayChain] = useState("all");
-  const [isQuoteLoading, setIsQuoteLoading] = useState(false);
-  const [quoteCountdown, setQuoteCountdown] = useState(10);
-  const [lastQuoteTime, setLastQuoteTime] = useState<number | null>(null);
-  const [accessToken, setAccessToken] = useState("");
   const [isSwapping, setIsSwapping] = useState(false);
   const [swapStatus, setSwapStatus] = useState<string | null>(null);
 
-  // ── NEW: receive token selection state ─────────────────────────────────────
-  /** All tokens merged (Solana + cross-chain) – used for searching */
+  // Slippage
+  const [slippage, setSlippage] = useState(0.5);
+  const [customSlippage, setCustomSlippage] = useState("");
+  const [showSlippageModal, setShowSlippageModal] = useState(false);
+
+  // Quote refresh
+  const [isQuoteLoading, setIsQuoteLoading] = useState(false);
+  const [quoteCountdown, setQuoteCountdown] = useState(10);
+  const [lastQuoteTime, setLastQuoteTime] = useState<number | null>(null);
+
+  // Auth
+  const [accessToken, setAccessToken] = useState("");
+
+  // Shared search query
+  const [searchQuery, setSearchQuery] = useState("");
+
+  // ── NEW: Receive-token drawer state (mirrors RN app) ─────────────────────────
   const [tempTokens, setTempTokens] = useState<any[]>([]);
-  /** Tokens bucketed by category */
   const [targetList, setTargetList] = useState<Record<TokenCategory, any[]>>({
     stock: [],
     crypto: [],
     metal: [],
     stable: [],
   });
-  /** Currently highlighted category tab index */
   const [activeReceiveTab, setActiveReceiveTab] = useState<number>(0);
-  /** Selected chain for the receive drawer ("all" | chainId string) */
   const [selectedReceiveChain, setSelectedReceiveChain] =
     useState<string>("all");
-  /** Search results (overrides category+chain filter when non-empty) */
   const [filteredList, setFilteredList] = useState<any[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const [receiveDrawerLoading, setReceiveDrawerLoading] = useState(false);
 
-  // ── refs ────────────────────────────────────────────────────────────────────
+  // ── Refs ─────────────────────────────────────────────────────────────────────
   const quoteRefreshInterval = useRef<NodeJS.Timeout | null>(null);
   const countdownInterval = useRef<NodeJS.Timeout | null>(null);
 
-  // ── wallet hooks ────────────────────────────────────────────────────────────
+  // ── Wallet hooks ─────────────────────────────────────────────────────────────
   const { wallets } = useWallets();
   const { ready: solanaReady, wallets: directSolanaWallets } =
     useSolanaWallets();
@@ -502,10 +543,11 @@ export default function SwapTokenModal({
   const { socket: chatSocket } = useNewSocketChat();
   const socket = chatSocket;
   const ethWallet = wallets[0]?.address;
+
   const selectedSolanaWallet = useMemo(() => {
     if (!solanaReady || !directSolanaWallets.length) return undefined;
     return (
-      directSolanaWallets.find((w) => w.address?.length > 0) ??
+      directSolanaWallets.find((w) => w.address && w.address.length > 0) ??
       directSolanaWallets[0]
     );
   }, [solanaReady, directSolanaWallets]);
@@ -516,19 +558,23 @@ export default function SwapTokenModal({
   const [toWalletAddress, setToWalletAddress] = useState(
     selectedSolanaWallet?.address || "",
   );
+
   const { user: PrivyUser, getAccessToken } = usePrivy();
   const searchParams = useSearchParams();
 
-  // ── helpers ─────────────────────────────────────────────────────────────────
+  // ── Helpers ──────────────────────────────────────────────────────────────────
 
   const safeRefreshSession = useCallback(async () => {
     try {
       const timeout = new Promise((_, r) =>
-        setTimeout(() => r(new Error("timeout")), 5000),
+        setTimeout(() => r(new Error("Session refresh timeout")), 5000),
       );
       await Promise.race([getAccessToken(), timeout]);
     } catch (e) {
-      console.warn("Session refresh failed, proceeding:", e);
+      console.warn(
+        "Session refresh failed, proceeding with existing session:",
+        e,
+      );
     }
   }, [getAccessToken]);
 
@@ -538,8 +584,7 @@ export default function SwapTokenModal({
   ): string => {
     const dec = typeof decimals === "bigint" ? Number(decimals) : decimals;
     const [whole, fractionRaw = ""] = amount.toString().split(".");
-    const fraction = fractionRaw.toString();
-    const fractionPadded = (fraction + "0".repeat(dec)).slice(0, dec);
+    const fractionPadded = (fractionRaw + "0".repeat(dec)).slice(0, dec);
     return BigInt(whole + fractionPadded).toString();
   };
 
@@ -565,12 +610,11 @@ export default function SwapTokenModal({
     [payToken, receiveToken, receiverChainId],
   );
 
-  // ── NEW: fetch & bucket all receive tokens on mount ─────────────────────────
+  // ── NEW: Load & bucket all receive tokens on mount ────────────────────────────
   useEffect(() => {
     const loadReceiveTokens = async () => {
       setReceiveDrawerLoading(true);
       try {
-        // Fetch LiFi tokens for all supported EVM chains + Solana
         const [ethTokens, polygonTokens, baseTokens, solanaTokens] =
           await Promise.all([
             fetchTokensFromLiFi("1", "").catch(() => []),
@@ -579,7 +623,7 @@ export default function SwapTokenModal({
             fetchTokensFromLiFi("1151111081099710", "").catch(() => []),
           ]);
 
-        // Merge with user's own token list (which has balance data)
+        // Merge user tokens (which have balance) + fetched tokens; deduplicate by address
         const merged = [
           ...tokens,
           ...ethTokens,
@@ -587,8 +631,6 @@ export default function SwapTokenModal({
           ...baseTokens,
           ...solanaTokens,
         ];
-
-        // Deduplicate by address (keep first occurrence which may have balance info)
         const seen = new Set<string>();
         const deduped = merged.filter((t) => {
           const key = (t.address || t.id || "").toLowerCase();
@@ -601,7 +643,6 @@ export default function SwapTokenModal({
         setTargetList(filterTokensByCategory(deduped));
       } catch (err) {
         console.error("Failed to load receive tokens:", err);
-        // Fallback: bucket only the tokens we already have
         setTempTokens(tokens);
         setTargetList(filterTokensByCategory(tokens));
       } finally {
@@ -609,18 +650,16 @@ export default function SwapTokenModal({
       }
     };
 
-    if (tokens.length > 0) {
-      loadReceiveTokens();
-    }
+    if (tokens.length > 0) loadReceiveTokens();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tokens.length]);
 
-  // ── NEW: debounced search across tempTokens ─────────────────────────────────
+  // ── NEW: Debounced search across tempTokens ───────────────────────────────────
   const handleReceiveSearch = useMemo(
     () =>
       debounce((query: string, chainFilter: string) => {
-        const chainId = chainFilter !== "all" ? chainFilter : undefined;
-        const results = searchTokens(tempTokens, query, chainId);
+        const cid = chainFilter !== "all" ? chainFilter : undefined;
+        const results = searchTokens(tempTokens, query, cid);
         setFilteredList(results);
         setIsSearching(false);
       }, 400),
@@ -639,28 +678,24 @@ export default function SwapTokenModal({
     }
   };
 
-  // ── NEW: compute visible tokens for receive drawer ──────────────────────────
+  // ── NEW: Compute visible receive tokens (same priority as RN app) ─────────────
+  // Priority 1: search results  →  Priority 2: chain filter on category  →  Priority 3: full category
   const visibleReceiveTokens = useMemo(() => {
-    // Priority 1 – search results
     if (filteredList.length > 0) return filteredList;
-
     const categoryTokens = targetList[TOKEN_CATEGORIES[activeReceiveTab]] ?? [];
-
-    // Priority 2 – chain filter applied to category
     if (selectedReceiveChain !== "all") {
       const network = getNetworkByChainId(selectedReceiveChain);
       return categoryTokens.filter((t) => t.network === network);
     }
-
-    // Priority 3 – full category list
     return categoryTokens;
   }, [filteredList, targetList, activeReceiveTab, selectedReceiveChain]);
 
-  // ── URL params ──────────────────────────────────────────────────────────────
+  // ── URL search params (pre-fill tokens) ─────────────────────────────────────
   useEffect(() => {
     const inputTokenParam = searchParams?.get("inputToken");
     const outputTokenParam = searchParams?.get("outputToken");
     const amountParam = searchParams?.get("amount");
+
     if (tokens.length > 0) {
       if (inputTokenParam) {
         const found = tokens.find(
@@ -686,7 +721,7 @@ export default function SwapTokenModal({
     }
   }, [searchParams, tokens]);
 
-  // ── pay chain / token helpers ───────────────────────────────────────────────
+  // ── Pay-token drawer helpers ──────────────────────────────────────────────────
   const filterTokensByPayChain = (toks: any[], cId: string) =>
     cId === "all" ? toks : toks.filter((t) => getChainId(t.chain) === cId);
 
@@ -722,7 +757,7 @@ export default function SwapTokenModal({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [openDrawer, selecting, tokens, selectedPayChain]);
 
-  // ── quote fetching (unchanged logic) ───────────────────────────────────────
+  // ── Quote fetching helpers ───────────────────────────────────────────────────
 
   const getJupiterQuote = async () => {
     if (!payToken || !receiveToken || !payAmount)
@@ -769,6 +804,7 @@ export default function SwapTokenModal({
           if (rpcUrl) {
             const connection = new Connection(rpcUrl, {
               commitment: "confirmed",
+              confirmTransactionInitialTimeout: 60000,
             });
             const programId =
               tokenProgramId === TOKEN_2022_PROGRAM_ID.toString()
@@ -785,7 +821,10 @@ export default function SwapTokenModal({
         }
       }
     } catch (e) {
-      console.warn("Fee account check failed:", e);
+      console.warn(
+        "Fee account verification failed, proceeding without platform fee:",
+        e,
+      );
     }
     const result = await fetchJupiterSwapTransaction({
       quoteResponse,
@@ -800,35 +839,39 @@ export default function SwapTokenModal({
   const getLifiQuote = async () => {
     const fromAmount = formatTokenAmount(payAmount, payToken.decimals || 6);
     if (fromAmount === "0" || !fromAmount) throw new Error("Invalid amount");
+
     let fromTokenAddress: string;
     if (chainId === "1151111081099710") {
-      fromTokenAddress =
-        payToken.symbol === "SOL"
-          ? "So11111111111111111111111111111111111111112"
-          : payToken.address;
+      if (payToken?.symbol === "SOL")
+        fromTokenAddress = "So11111111111111111111111111111111111111112";
+      else if (payToken?.address) fromTokenAddress = payToken.address;
+      else throw new Error("Invalid Solana token");
     } else {
-      fromTokenAddress =
-        payToken.symbol === "ETH" || payToken.symbol === "POL"
-          ? "0x0000000000000000000000000000000000000000"
-          : payToken.address;
+      if (payToken?.symbol === "ETH" || payToken?.symbol === "POL")
+        fromTokenAddress = "0x0000000000000000000000000000000000000000";
+      else if (payToken?.address) fromTokenAddress = payToken.address;
+      else throw new Error("Invalid EVM token");
     }
+
     let toTokenAddress: string;
     if (receiverChainId === "1151111081099710") {
-      toTokenAddress =
-        receiveToken.symbol === "SOL"
-          ? "So11111111111111111111111111111111111111112"
-          : receiveToken.address;
+      if (receiveToken?.symbol === "SOL")
+        toTokenAddress = "So11111111111111111111111111111111111111112";
+      else if (receiveToken?.address) toTokenAddress = receiveToken.address;
+      else throw new Error("Invalid Solana receive token");
     } else {
-      toTokenAddress =
-        receiveToken.symbol === "ETH" || receiveToken.symbol === "POL"
-          ? "0x0000000000000000000000000000000000000000"
-          : receiveToken.address;
+      if (receiveToken?.symbol === "ETH" || receiveToken?.symbol === "POL")
+        toTokenAddress = "0x0000000000000000000000000000000000000000";
+      else if (receiveToken?.address) toTokenAddress = receiveToken.address;
+      else throw new Error("Invalid EVM receive token");
     }
+
     if (!fromWalletAddress || !toWalletAddress)
       throw new Error("Wallet addresses not available");
+
     const result = await fetchLifiQuote({
-      fromChain: chainId,
-      toChain: receiverChainId,
+      fromChain: chainId.toString(),
+      toChain: receiverChainId.toString(),
       fromToken: fromTokenAddress,
       toToken: toTokenAddress,
       fromAddress: fromWalletAddress,
@@ -841,6 +884,7 @@ export default function SwapTokenModal({
     return result.data;
   };
 
+  // ── Main fetchQuote ──────────────────────────────────────────────────────────
   const fetchQuote = useCallback(
     async (isAutoRefresh = false) => {
       if (
@@ -868,16 +912,21 @@ export default function SwapTokenModal({
         }
         setLastQuoteTime(Date.now());
       } catch (err: any) {
+        console.error("Quote fetch error:", err);
         setQuote(null);
         setJupiterQuote(null);
-        setSwapError(formatUserFriendlyError(err.message || err.toString()));
+        setSwapError(
+          formatUserFriendlyError(
+            err.message || err.toString() || "Failed to get quote",
+          ),
+        );
         setLastQuoteTime(null);
       } finally {
         setIsQuoteLoading(false);
         setIsCalculating(false);
       }
-      // eslint-disable-next-line react-hooks/exhaustive-deps
     },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [
       chainId,
       fromWalletAddress,
@@ -890,7 +939,7 @@ export default function SwapTokenModal({
     ],
   );
 
-  // Auto-refresh every 10s
+  // Auto-refresh quote every 10 s
   useEffect(() => {
     if (quoteRefreshInterval.current)
       clearInterval(quoteRefreshInterval.current);
@@ -903,6 +952,7 @@ export default function SwapTokenModal({
     }
   }, [lastQuoteTime, payAmount, payToken, receiveToken, fetchQuote]);
 
+  // Countdown timer
   useEffect(() => {
     if (lastQuoteTime && payAmount && payToken && receiveToken) {
       if (countdownInterval.current) clearInterval(countdownInterval.current);
@@ -920,11 +970,13 @@ export default function SwapTokenModal({
     }
   }, [lastQuoteTime, payAmount, payToken, receiveToken]);
 
+  // Debounced quote on param change
   useEffect(() => {
     if (quoteRefreshInterval.current)
       clearInterval(quoteRefreshInterval.current);
     const id = setTimeout(() => fetchQuote(false), 500);
     return () => clearTimeout(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     chainId,
     fromWalletAddress,
@@ -936,6 +988,7 @@ export default function SwapTokenModal({
     slippage,
   ]);
 
+  // Derive receive amount from quote
   useEffect(() => {
     if ((quote || jupiterQuote) && receiveToken) {
       const toAmount = jupiterQuote
@@ -944,41 +997,49 @@ export default function SwapTokenModal({
       if (toAmount && receiveToken.decimals) {
         const readable = Number(toAmount) / Math.pow(10, receiveToken.decimals);
         setReceiveAmount(readable.toFixed(8).replace(/\.?0+$/, ""));
-      } else setReceiveAmount("0");
-    } else setReceiveAmount("");
+      } else {
+        setReceiveAmount("0");
+      }
+    } else {
+      setReceiveAmount("");
+    }
   }, [quote, jupiterQuote, receiveToken]);
 
   useEffect(() => {
     setSwapError(null);
     setSwapStatus(null);
   }, [payAmount, payToken, receiveToken]);
+
   useEffect(() => {
     if (payToken?.chain) setChainId(getChainId(payToken.chain));
   }, [payToken]);
+
   useEffect(() => {
     setFromWalletAddress(
       payToken?.chain?.toUpperCase() === "SOLANA"
         ? selectedSolanaWallet?.address || ""
         : ethWallet || "",
     );
-    if (!receiveToken) setToWalletAddress("");
-    else if (
+    if (!receiveToken) {
+      setToWalletAddress("");
+    } else if (
       receiveToken?.chain?.toUpperCase() === "SOLANA" ||
       receiveToken?.chainId == 1151111081099710
-    )
+    ) {
       setToWalletAddress(selectedSolanaWallet?.address || "");
-    else setToWalletAddress(ethWallet || "");
+    } else {
+      setToWalletAddress(ethWallet || "");
+    }
   }, [ethWallet, payToken, receiveToken, selectedSolanaWallet?.address]);
 
   useEffect(() => {
-    const load = async () => {
+    if (typeof window !== "undefined") {
       const t = Cookies.get("access-token");
       if (t) setAccessToken(t);
-    };
-    if (typeof window !== "undefined") load();
+    }
   }, []);
 
-  // ── cleanup ─────────────────────────────────────────────────────────────────
+  // Cleanup
   useEffect(
     () => () => {
       if (quoteRefreshInterval.current)
@@ -988,7 +1049,7 @@ export default function SwapTokenModal({
     [],
   );
 
-  // ── swap execution (unchanged, abbreviated) ─────────────────────────────────
+  // ── Save swap + socket notification ─────────────────────────────────────────
   const saveSwapToDatabase = async (signature: string, q: any) => {
     try {
       const swapDetails = {
@@ -999,16 +1060,16 @@ export default function SwapTokenModal({
           amount: parseFloat(payAmount),
           decimals: payToken?.decimals || 6,
           mint: payToken?.address || q.inputMint,
-          price: payToken?.price || "0",
-          logo: payToken?.logoURI || "",
+          price: payToken?.price || payToken?.usdPrice || "0",
+          logo: payToken?.logoURI || payToken?.symbol || "",
         },
         outputToken: {
           symbol: receiveToken?.symbol || q.outputMint,
           amount: parseFloat(receiveAmount),
           decimals: receiveToken?.decimals || 6,
           mint: receiveToken?.address || q.outputMint,
-          price: receiveToken?.price || "0",
-          logo: receiveToken?.logoURI || "",
+          price: receiveToken?.price || receiveToken?.usdPrice || "0",
+          logo: receiveToken?.logoURI || receiveToken?.symbol || "",
         },
         slippageBps: Math.floor(slippage * 100),
         platformFeeBps: 50,
@@ -1016,45 +1077,454 @@ export default function SwapTokenModal({
       };
       await saveSwapTransaction(swapDetails, accessToken);
       if (socket?.connected) {
-        getWalletNotificationService(socket).emitSwapCompleted({
-          inputTokenSymbol: swapDetails.inputToken.symbol,
-          inputAmount: swapDetails.inputToken.amount.toFixed(6),
-          outputTokenSymbol: swapDetails.outputToken.symbol,
-          outputAmount: swapDetails.outputToken.amount.toFixed(6),
-          txSignature: signature,
-          network: payToken?.chain || "SOLANA",
-          inputTokenLogo: swapDetails.inputToken.logo,
-          outputTokenLogo: swapDetails.outputToken.logo,
-          inputUsdValue: formatUSDValue(
-            swapDetails.inputToken.amount,
-            swapDetails.inputToken.price,
-          ),
-          outputUsdValue: formatUSDValue(
-            swapDetails.outputToken.amount,
-            swapDetails.outputToken.price,
-          ),
-        });
+        try {
+          getWalletNotificationService(socket).emitSwapCompleted({
+            inputTokenSymbol: swapDetails.inputToken.symbol,
+            inputAmount: swapDetails.inputToken.amount.toFixed(6),
+            outputTokenSymbol: swapDetails.outputToken.symbol,
+            outputAmount: swapDetails.outputToken.amount.toFixed(6),
+            txSignature: signature,
+            network: payToken?.chain || "SOLANA",
+            inputTokenLogo: swapDetails.inputToken.logo,
+            outputTokenLogo: swapDetails.outputToken.logo,
+            inputUsdValue: formatUSDValue(
+              swapDetails.inputToken.amount,
+              swapDetails.inputToken.price,
+            ),
+            outputUsdValue: formatUSDValue(
+              swapDetails.outputToken.amount,
+              swapDetails.outputToken.price,
+            ),
+          });
+        } catch (notifError) {
+          console.error("Failed to send swap notification:", notifError);
+        }
       }
     } catch (e) {
-      console.error("Failed to save swap:", e);
+      console.error("Failed to save swap transaction:", e);
     }
   };
 
+  // ── Jupiter swap ─────────────────────────────────────────────────────────────
   const executeJupiterSwap = async () => {
-    // ... (unchanged - full implementation from original)
-    // Keep your existing executeJupiterSwap logic here
+    try {
+      if (!jupiterQuote) {
+        setSwapError("No Jupiter quote available");
+        setIsSwapping(false);
+        return;
+      }
+      if (!solanaReady) {
+        setSwapError("Solana wallet is not ready. Please wait and try again.");
+        setIsSwapping(false);
+        return;
+      }
+      if (!selectedSolanaWallet?.address) {
+        setSwapError("No Solana wallet connected");
+        setIsSwapping(false);
+        return;
+      }
+
+      const inputMint = jupiterQuote.inputMint;
+      const outputMint = jupiterQuote.outputMint;
+      const rpcUrl = process.env.NEXT_PUBLIC_SOLANA_RPC_URL;
+      if (!rpcUrl)
+        throw new Error(
+          "No Solana RPC URL configured in environment variables",
+        );
+
+      const connection = new Connection(rpcUrl, {
+        commitment: "confirmed",
+        confirmTransactionInitialTimeout: 60000,
+      });
+      setSwapStatus("Checking token accounts...");
+
+      const walletPubkey = new PublicKey(selectedSolanaWallet.address);
+      const inputMintPubkey = new PublicKey(inputMint);
+      const outputMintPubkey = new PublicKey(outputMint);
+
+      const detectTokenProgram = async (
+        mintPubkey: typeof PublicKey.prototype,
+      ) => {
+        try {
+          const mintInfo = await connection.getAccountInfo(mintPubkey);
+          if (!mintInfo) return TOKEN_PROGRAM_ID;
+          if (mintInfo.owner.equals(TOKEN_2022_PROGRAM_ID))
+            return TOKEN_2022_PROGRAM_ID;
+          return TOKEN_PROGRAM_ID;
+        } catch {
+          return TOKEN_PROGRAM_ID;
+        }
+      };
+
+      const [inputTokenProgram, outputTokenProgram] = await Promise.all([
+        detectTokenProgram(inputMintPubkey),
+        detectTokenProgram(outputMintPubkey),
+      ]);
+
+      const inputATA = await getAssociatedTokenAddress(
+        inputMintPubkey,
+        walletPubkey,
+        false,
+        inputTokenProgram,
+      );
+      const outputATA = await getAssociatedTokenAddress(
+        outputMintPubkey,
+        walletPubkey,
+        false,
+        outputTokenProgram,
+      );
+      const [inputAccountInfo, outputAccountInfo] = await Promise.all([
+        connection.getAccountInfo(inputATA),
+        connection.getAccountInfo(outputATA),
+      ]);
+
+      if (!inputAccountInfo || !outputAccountInfo) {
+        setSwapStatus("Creating token accounts...");
+        const transaction = new Transaction();
+        if (!inputAccountInfo)
+          transaction.add(
+            createAssociatedTokenAccountInstruction(
+              walletPubkey,
+              inputATA,
+              walletPubkey,
+              inputMintPubkey,
+              inputTokenProgram,
+            ),
+          );
+        if (!outputAccountInfo)
+          transaction.add(
+            createAssociatedTokenAccountInstruction(
+              walletPubkey,
+              outputATA,
+              walletPubkey,
+              outputMintPubkey,
+              outputTokenProgram,
+            ),
+          );
+
+        try {
+          const { blockhash } = await connection.getLatestBlockhash();
+          transaction.recentBlockhash = blockhash;
+          transaction.feePayer = walletPubkey;
+          const serializedTx = new Uint8Array(
+            transaction.serialize({
+              requireAllSignatures: false,
+              verifySignatures: false,
+            }),
+          );
+          await safeRefreshSession();
+
+          let ataSignature: string;
+          try {
+            const result = await signAndSendTransaction({
+              transaction: serializedTx,
+              wallet: selectedSolanaWallet,
+              options: { sponsor: true },
+            });
+            ataSignature = bs58.encode(result.signature);
+          } catch (sponsorError: any) {
+            const msg = sponsorError?.message || sponsorError?.toString() || "";
+            const isAbort =
+              sponsorError?.name === "AbortError" ||
+              msg.includes("aborted") ||
+              msg.includes("AbortError");
+            if (isAbort) {
+              await safeRefreshSession();
+              const result = await signAndSendTransaction({
+                transaction: serializedTx,
+                wallet: selectedSolanaWallet,
+              });
+              ataSignature = bs58.encode(result.signature);
+            } else throw sponsorError;
+          }
+          await connection.confirmTransaction(ataSignature, "confirmed");
+        } catch (ataError: any) {
+          throw new Error(
+            `Failed to create token accounts: ${ataError.message || ataError}`,
+          );
+        }
+      }
+
+      setSwapStatus("Preparing swap transaction...");
+      const swapData = await getJupiterSwapTransaction(jupiterQuote);
+      if (!swapData?.swapTransaction)
+        throw new Error("No swap transaction received from Jupiter API");
+
+      const swapTransactionBuffer = Buffer.from(
+        swapData.swapTransaction,
+        "base64",
+      );
+      const transaction = VersionedTransaction.deserialize(
+        swapTransactionBuffer,
+      );
+      const serializedTransaction = new Uint8Array(transaction.serialize());
+
+      let txId: string;
+      try {
+        await safeRefreshSession();
+        const result = await signAndSendTransaction({
+          transaction: serializedTransaction,
+          wallet: selectedSolanaWallet,
+          options: { sponsor: true },
+        });
+        txId = bs58.encode(result.signature);
+      } catch (sponsorError: any) {
+        const msg = sponsorError?.message || sponsorError?.toString() || "";
+        const isAbort =
+          sponsorError?.name === "AbortError" ||
+          msg.includes("aborted") ||
+          msg.includes("AbortError");
+        if (isAbort) {
+          setSwapStatus("Retrying transaction...");
+          try {
+            await safeRefreshSession();
+            const result = await signAndSendTransaction({
+              transaction: serializedTransaction,
+              wallet: selectedSolanaWallet,
+            });
+            txId = bs58.encode(result.signature);
+          } catch (retryError: any) {
+            throw new Error(
+              `Transaction failed: ${retryError.message || "Unknown error"}`,
+            );
+          }
+        } else {
+          throw new Error(
+            `Sponsored transaction failed: ${sponsorError.message || "Unknown error"}`,
+          );
+        }
+      }
+
+      setTxHash(txId);
+      setSwapStatus("Transaction submitted! Waiting for confirmation...");
+      await new Promise((resolve) => setTimeout(resolve, 2000));
+
+      let isConfirmed = false;
+      const confirmRpcUrl = process.env.NEXT_PUBLIC_SOLANA_RPC_URL;
+      if (confirmRpcUrl) {
+        const confirmConnection = new Connection(confirmRpcUrl, {
+          commitment: "confirmed",
+          confirmTransactionInitialTimeout: 60000,
+        });
+        try {
+          await confirmConnection.confirmTransaction(txId, "finalized");
+          isConfirmed = true;
+          setSwapStatus("Transaction confirmed");
+        } catch {
+          setSwapStatus("Transaction submitted successfully");
+        }
+      } else {
+        setSwapStatus("Transaction submitted successfully");
+      }
+
+      if (isConfirmed && accessToken) {
+        const inputPrice = Number(payToken?.price || payToken?.usdPrice || 0);
+        const outputPrice = Number(
+          receiveToken?.price || receiveToken?.usdPrice || 0,
+        );
+        notifySwapFee(
+          {
+            txHash: txId,
+            walletAddress: selectedSolanaWallet?.address,
+            inputTokenSymbol: payToken?.symbol,
+            inputAmount: payAmount,
+            inputUsdValue:
+              inputPrice > 0
+                ? (Number(payAmount || 0) * inputPrice).toFixed(6)
+                : undefined,
+            outputTokenSymbol: receiveToken?.symbol,
+            outputAmount: receiveAmount,
+            outputUsdValue:
+              outputPrice > 0
+                ? (Number(receiveAmount || 0) * outputPrice).toFixed(6)
+                : undefined,
+          },
+          accessToken,
+        );
+      }
+
+      await saveSwapToDatabase(txId, jupiterQuote);
+      setSwapStatus("Transaction confirmed");
+    } catch (error: any) {
+      setSwapError(
+        formatUserFriendlyError(
+          error?.message || error?.toString() || "Swap failed",
+        ),
+      );
+      setSwapStatus(null);
+    } finally {
+      setIsSwapping(false);
+    }
   };
 
-  const executeLiFiSwap = async () => {
-    // ... (unchanged - full implementation from original)
-    // Keep your existing executeLiFiSwap logic here
-  };
-
+  // ── Solana LiFi swap ─────────────────────────────────────────────────────────
   const executeSolanaSwap = async () => {
-    // ... (unchanged - full implementation from original)
-    // Keep your existing executeSolanaSwap logic here
+    try {
+      if (!solanaReady) {
+        setSwapError("Solana wallet is not ready.");
+        setIsSwapping(false);
+        return;
+      }
+      if (!selectedSolanaWallet?.address) {
+        setSwapError("No Solana wallet connected");
+        setIsSwapping(false);
+        return;
+      }
+
+      const { transactionRequest } = quote;
+      const rawTx = transactionRequest?.transaction || transactionRequest?.data;
+      if (!rawTx) throw new Error("No transactionRequest found in LiFi quote");
+
+      setSwapStatus("Submitting transaction...");
+      const solanaRpcUrl = process.env.NEXT_PUBLIC_SOLANA_RPC_URL;
+      if (!solanaRpcUrl) throw new Error("No Solana RPC URL configured");
+
+      const connection = new Connection(solanaRpcUrl, {
+        commitment: "confirmed",
+        confirmTransactionInitialTimeout: 60000,
+      });
+      const swapTransactionBuffer = Buffer.from(rawTx, "base64");
+      const transaction = VersionedTransaction.deserialize(
+        swapTransactionBuffer,
+      );
+      const { blockhash } = await connection.getLatestBlockhash();
+      transaction.message.recentBlockhash = blockhash;
+
+      setSwapStatus("Signing and sending sponsored transaction...");
+      await safeRefreshSession();
+      const serializedTransaction = new Uint8Array(transaction.serialize());
+      let signature: string;
+
+      try {
+        const result = await signAndSendTransaction({
+          transaction: serializedTransaction,
+          wallet: selectedSolanaWallet,
+          options: { sponsor: true },
+        });
+        signature = bs58.encode(result.signature);
+      } catch (sponsorError: any) {
+        const msg = sponsorError?.message || sponsorError?.toString() || "";
+        const isAbort =
+          sponsorError?.name === "AbortError" || msg.includes("aborted");
+        if (isAbort) {
+          setSwapStatus("Retrying transaction...");
+          await safeRefreshSession();
+          const result = await signAndSendTransaction({
+            transaction: serializedTransaction,
+            wallet: selectedSolanaWallet,
+          });
+          signature = bs58.encode(result.signature);
+        } else throw sponsorError;
+      }
+
+      setTxHash(signature);
+      setSwapStatus("Transaction submitted! Waiting for confirmation...");
+      await new Promise((resolve) => setTimeout(resolve, 2000));
+
+      try {
+        await connection.confirmTransaction(signature, "confirmed");
+        setSwapStatus("Transaction confirmed");
+      } catch {
+        setSwapStatus("Transaction submitted successfully");
+      }
+
+      await saveSwapToDatabase(signature, quote);
+    } catch (error: any) {
+      setSwapError(
+        formatUserFriendlyError(
+          error?.message || error?.toString() || "Transaction failed",
+        ),
+      );
+    } finally {
+      setIsSwapping(false);
+    }
   };
 
+  // ── EVM LiFi swap ────────────────────────────────────────────────────────────
+  const executeLiFiSwap = async () => {
+    try {
+      if (!quote) {
+        setSwapError("No Li.Fi quote available");
+        setIsSwapping(false);
+        return;
+      }
+
+      const fromChainId = parseInt(chainId);
+      if (fromChainId === 1151111081099710) {
+        await executeSolanaSwap();
+      } else {
+        const allAccounts = PrivyUser?.linkedAccounts || [];
+        const ethereumAccount = allAccounts.find(
+          (account: any) =>
+            account.chainType === "ethereum" &&
+            account.type === "wallet" &&
+            account.address,
+        );
+        if (!ethereumAccount) {
+          setSwapError("No Ethereum wallet connected");
+          setIsSwapping(false);
+          return;
+        }
+        const wallet = wallets.find(
+          (w) =>
+            w.address?.toLowerCase() ===
+            (ethereumAccount as any).address.toLowerCase(),
+        );
+        if (!wallet) {
+          setSwapError("Wallet not found");
+          setIsSwapping(false);
+          return;
+        }
+        const provider = await wallet.getEthereumProvider();
+        if (!provider) {
+          setSwapError("Failed to get wallet provider");
+          setIsSwapping(false);
+          return;
+        }
+
+        setSwapStatus("Waiting for confirmation...");
+        const txHashResult = await provider.request({
+          method: "eth_sendTransaction",
+          params: [quote.transactionRequest],
+        });
+        setTxHash(txHashResult);
+        setSwapStatus("Swap completed successfully!");
+        await saveSwapToDatabase(txHashResult, quote);
+      }
+    } catch (error: any) {
+      const friendlyError = formatUserFriendlyError(
+        error.message || error.toString() || "Cross-chain swap failed",
+      );
+      setSwapError(friendlyError);
+      if (socket?.connected) {
+        try {
+          const fromChainId = parseInt(chainId);
+          const networkName =
+            fromChainId === 1151111081099710
+              ? "SOLANA"
+              : fromChainId === 1
+                ? "ETHEREUM"
+                : fromChainId === 137
+                  ? "POLYGON"
+                  : fromChainId === 8453
+                    ? "BASE"
+                    : "Unknown";
+          getWalletNotificationService(socket).emitSwapFailed({
+            inputTokenSymbol: payToken?.symbol || "Unknown",
+            inputAmount: payAmount || "0",
+            outputTokenSymbol: receiveToken?.symbol || "Unknown",
+            network: networkName,
+            reason: friendlyError,
+          });
+        } catch {}
+      }
+      throw new Error(friendlyError);
+    } finally {
+      setIsSwapping(false);
+    }
+  };
+
+  // ── Top-level swap entry point ───────────────────────────────────────────────
   const executeCrossChainSwap = async () => {
     try {
       setIsSwapping(true);
@@ -1069,26 +1539,25 @@ export default function SwapTokenModal({
       }
       if (isSolanaToSolanaSwap()) await executeJupiterSwap();
       else await executeLiFiSwap();
-    } catch (err: any) {
+    } catch (error: any) {
       setSwapError(
-        formatUserFriendlyError(err.message || err.toString() || "Swap failed"),
+        formatUserFriendlyError(
+          error.message || error.toString() || "Swap failed",
+        ),
       );
       setSwapStatus(null);
       setIsSwapping(false);
     }
   };
 
-  // ── token selection handlers ────────────────────────────────────────────────
-
-  const handleTokenSelect = (token: any, type: "pay" | "receive") => {
+  // ── Token selection ──────────────────────────────────────────────────────────
+  const handleTokenSelect = (t: any, type: "pay" | "receive") => {
     if (type === "pay") {
-      setPayToken(token);
+      setPayToken(t);
     } else {
-      // Derive chainId from the token and update receiver chain
       const tokenChainId =
-        token.chainId?.toString() ??
-        getChainId(token.chain ?? token.network ?? "");
-      setReceiveToken(token);
+        t.chainId?.toString() ?? getChainId(t.chain ?? t.network ?? "");
+      setReceiveToken(t);
       setReceiverChainId(tokenChainId);
     }
     setOpenDrawer(false);
@@ -1131,8 +1600,7 @@ export default function SwapTokenModal({
     if (selecting === "pay") handlePayTokenSearch(q);
   };
 
-  // ── quote info ──────────────────────────────────────────────────────────────
-
+  // ── Quote info ───────────────────────────────────────────────────────────────
   const calculateExchangeRate = () => {
     const q = jupiterQuote || quote;
     if (!q || !payToken || !receiveToken) return null;
@@ -1158,7 +1626,7 @@ export default function SwapTokenModal({
       ? (quote.estimate?.toAmountUSD ?? quote.toAmountUSD)
       : null;
     const priceImpact = jupiterQuote
-      ? (Number(jupiterQuote.priceImpactPct) * 100).toFixed(2)
+      ? Number(jupiterQuote.priceImpactPct) * 100
       : fromAmountUSD && toAmountUSD
         ? ((parseFloat(toAmountUSD) - parseFloat(fromAmountUSD)) /
             parseFloat(fromAmountUSD)) *
@@ -1185,23 +1653,10 @@ export default function SwapTokenModal({
     );
 
   const balanceValidation = validateBalance();
+  const isSwapDone =
+    swapStatus?.includes("confirmed") || swapStatus?.includes("completed");
 
-  const getTokenIconSVG = (token: any) => {
-    const initials = (token?.symbol || "??").slice(0, 2).toUpperCase();
-    const colors = ["#FF6B6B", "#4ECDC4", "#45B7D1", "#F9A826", "#6C5CE7"];
-    const colorIndex = (token?.symbol?.length ?? 0) % colors.length;
-    const svg = `<svg width="24" height="24" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><rect width="24" height="24" fill="${colors[colorIndex]}" rx="12"/><text x="12" y="16" text-anchor="middle" fill="white" font-size="10" font-weight="bold">${initials}</text></svg>`;
-    return `data:image/svg+xml;base64,${typeof btoa !== "undefined" ? btoa(svg) : Buffer.from(svg).toString("base64")}`;
-  };
-
-  // ── render ──────────────────────────────────────────────────────────────────
-
-  const categoryLabels: Record<TokenCategory, string> = {
-    stock: "Stocks",
-    crypto: "Crypto",
-    metal: "Metals",
-    stable: "Stables",
-  };
+  // ── Render ───────────────────────────────────────────────────────────────────
 
   return (
     <div className="flex justify-center mt-10 pb-4 relative">
@@ -1230,7 +1685,7 @@ export default function SwapTokenModal({
             </div>
           )}
 
-        {/* Swap route badge */}
+        {/* Route badge */}
         {payToken && receiveToken && (
           <div className="text-center mb-4">
             <span className="text-xs px-2 py-1 rounded-full bg-gray-100 text-gray-600">
@@ -1499,7 +1954,7 @@ export default function SwapTokenModal({
                       <span>Price Impact</span>
                       <Info className="w-4 h-4" />
                     </div>
-                    <span className="text-gray-900">
+                    <span>
                       {info && typeof info.priceImpact === "number" ? (
                         <span
                           className={
@@ -1512,7 +1967,7 @@ export default function SwapTokenModal({
                           {info.priceImpact.toFixed(2)}%
                         </span>
                       ) : (
-                        (info?.priceImpact ?? "-")
+                        "-"
                       )}
                     </span>
                   </div>
@@ -1534,7 +1989,9 @@ export default function SwapTokenModal({
 
           {/* Error / status */}
           {(swapError || swapStatus || !balanceValidation.isValid) && (
-            <div className="p-3 rounded-lg bg-red-50 border border-red-200">
+            <div
+              className={`p-3 rounded-lg border ${isSwapDone ? "bg-green-50 border-green-200" : "bg-red-50 border-red-200"}`}
+            >
               {!balanceValidation.isValid && (
                 <div className="text-red-600 text-sm mb-2 text-center">
                   {balanceValidation.error}
@@ -1560,10 +2017,9 @@ export default function SwapTokenModal({
               )}
               {swapStatus && (
                 <div
-                  className={`text-sm text-center flex items-center justify-center gap-2 ${swapStatus.includes("confirmed") || swapStatus.includes("completed") ? "text-green-600" : "text-blue-600"}`}
+                  className={`text-sm text-center flex items-center justify-center gap-2 ${isSwapDone ? "text-green-600" : "text-blue-600"}`}
                 >
-                  {swapStatus.includes("confirmed") ||
-                  swapStatus.includes("completed") ? (
+                  {isSwapDone ? (
                     <svg
                       className="w-4 h-4"
                       fill="none"
@@ -1589,7 +2045,7 @@ export default function SwapTokenModal({
                     href={getExplorerUrl(chainId, txHash)}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="underline hover:text-green-700"
+                    className="underline hover:text-green-700 transition-colors"
                   >
                     View on explorer
                   </a>
@@ -1606,8 +2062,7 @@ export default function SwapTokenModal({
           {/* Swap button */}
           <Button
             onClick={
-              swapStatus?.includes("confirmed") ||
-              swapStatus?.includes("completed")
+              isSwapDone
                 ? () => {
                     setSwapStatus(null);
                     setSwapError(null);
@@ -1618,21 +2073,16 @@ export default function SwapTokenModal({
                   }
                 : executeCrossChainSwap
             }
-            className={`w-full py-4 font-semibold rounded-xl ${swapStatus?.includes("confirmed") || swapStatus?.includes("completed") ? "bg-green-600 hover:bg-green-700" : "bg-black hover:bg-gray-800"} disabled:opacity-50 transition-colors`}
+            className={`w-full py-4 font-semibold rounded-xl ${isSwapDone ? "bg-green-600 hover:bg-green-700" : "bg-black hover:bg-gray-800"} disabled:opacity-50 transition-colors`}
             disabled={
               isSwapping ||
-              (!balanceValidation.isValid &&
-                !(
-                  swapStatus?.includes("confirmed") ||
-                  swapStatus?.includes("completed")
-                )) ||
-              (isSwapButtonLoading() && !swapStatus?.includes("confirmed")) ||
+              (!balanceValidation.isValid && !isSwapDone) ||
+              (isSwapButtonLoading() && !isSwapDone) ||
               !payToken ||
               !receiveToken
             }
           >
-            {swapStatus?.includes("confirmed") ||
-            swapStatus?.includes("completed") ? (
+            {isSwapDone ? (
               "New Swap"
             ) : isSwapping ? (
               "Swapping..."
@@ -1655,7 +2105,7 @@ export default function SwapTokenModal({
       </Card>
 
       {/* ═══════════════════════════════════════════════════════════════════════
-          Token Select Drawer (shared for pay + receive)
+          Token Select Drawer
       ═══════════════════════════════════════════════════════════════════════ */}
       {openDrawer && (
         <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center">
@@ -1672,8 +2122,8 @@ export default function SwapTokenModal({
           {/* Panel */}
           <div className="relative w-full max-w-[30rem] bg-white rounded-t-2xl sm:rounded-2xl shadow-2xl flex flex-col max-h-[90vh] sm:max-h-[80vh] mx-0 sm:mx-4 z-50">
             {/* Panel header */}
-            <div className="flex items-center justify-between px-5 pt-5 pb-3 flex-shrink-0">
-              <h3 className="font-semibold text-lg text-gray-900">
+            <div className="flex items-center justify-between px-5 pt-5 pb-3 flex-shrink-0 border-b border-gray-100">
+              <h3 className="font-semibold text-base text-gray-900">
                 {selecting === "pay"
                   ? "Select Token to Pay"
                   : "Select Token to Receive"}
@@ -1690,11 +2140,11 @@ export default function SwapTokenModal({
               </button>
             </div>
 
-            {/* ── PAY drawer content ── */}
+            {/* ══ PAY drawer ══ */}
             {selecting === "pay" && (
               <>
                 {/* Chain filter */}
-                <div className="px-5 pb-3 flex-shrink-0">
+                <div className="px-4 pt-3 pb-2 flex-shrink-0">
                   <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
                     {PAY_CHAINS.map((c) => (
                       <button
@@ -1717,7 +2167,7 @@ export default function SwapTokenModal({
                         ) : (
                           <div className="w-4 h-4 rounded-full bg-gradient-to-r from-blue-400 to-purple-500 flex items-center justify-center">
                             <span className="text-white text-xs font-bold">
-                              *
+                              ✦
                             </span>
                           </div>
                         )}
@@ -1728,7 +2178,7 @@ export default function SwapTokenModal({
                 </div>
 
                 {/* Search */}
-                <div className="px-5 pb-3 flex-shrink-0">
+                <div className="px-4 pb-3 flex-shrink-0">
                   <div className="relative">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                     <input
@@ -1741,7 +2191,7 @@ export default function SwapTokenModal({
                 </div>
 
                 {/* Token list */}
-                <div className="flex-1 overflow-y-auto px-2 pb-5">
+                <div className="flex-1 overflow-y-auto px-2 pb-6">
                   {isLoadingTokens ? (
                     <div className="flex justify-center py-8">
                       <div className="animate-spin rounded-full h-7 w-7 border-b-2 border-black" />
@@ -1752,10 +2202,14 @@ export default function SwapTokenModal({
                     </div>
                   ) : (
                     availableTokens
-                      .filter((t) => t.address !== receiveToken?.address)
+                      .filter(
+                        (t) =>
+                          (t.address || t.id) !==
+                          (receiveToken?.address || receiveToken?.id),
+                      )
                       .map((t, i) => (
                         <TokenRow
-                          key={t.address || i}
+                          key={(t.address || t.id || "") + i}
                           token={t}
                           onClick={() => handleTokenSelect(t, "pay")}
                         />
@@ -1765,11 +2219,11 @@ export default function SwapTokenModal({
               </>
             )}
 
-            {/* ── RECEIVE drawer content (NEW) ── */}
+            {/* ══ RECEIVE drawer (NEW – mirrors RN app) ══ */}
             {selecting === "receive" && (
               <>
                 {/* Search bar */}
-                <div className="px-5 pb-3 flex-shrink-0">
+                <div className="px-4 pt-3 pb-2 flex-shrink-0">
                   <div className="relative">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                     <input
@@ -1797,9 +2251,9 @@ export default function SwapTokenModal({
                   </div>
                 </div>
 
-                {/* Chain filter (only when not searching) */}
+                {/* Chain icons – hidden while searching */}
                 {!searchQuery && (
-                  <div className="px-5 pb-2 flex-shrink-0">
+                  <div className="px-4 pb-2 flex-shrink-0">
                     <p className="text-xs font-medium text-gray-400 mb-2 uppercase tracking-wide">
                       Select Chain
                     </p>
@@ -1844,9 +2298,9 @@ export default function SwapTokenModal({
                   </div>
                 )}
 
-                {/* Category tabs (only when not searching) */}
+                {/* Category tabs – hidden while searching */}
                 {!searchQuery && (
-                  <div className="px-5 pb-2 flex-shrink-0">
+                  <div className="px-4 pb-2 flex-shrink-0">
                     <div className="flex gap-1 bg-gray-100 p-1 rounded-xl">
                       {TOKEN_CATEGORIES.map((cat, idx) => (
                         <button
@@ -1858,16 +2312,16 @@ export default function SwapTokenModal({
                               : "text-gray-500 hover:text-gray-700"
                           }`}
                         >
-                          {categoryLabels[cat]}
+                          {CATEGORY_LABELS[cat]}
                         </button>
                       ))}
                     </div>
                   </div>
                 )}
 
-                {/* Search hint when searching */}
+                {/* Search result count hint */}
                 {searchQuery && filteredList.length > 0 && (
-                  <div className="px-5 pb-1 flex-shrink-0">
+                  <div className="px-4 pb-1 flex-shrink-0">
                     <p className="text-xs text-gray-400">
                       {filteredList.length} result
                       {filteredList.length !== 1 ? "s" : ""} across all chains
@@ -1876,7 +2330,7 @@ export default function SwapTokenModal({
                 )}
 
                 {/* Token list */}
-                <div className="flex-1 overflow-y-auto px-2 pb-5">
+                <div className="flex-1 overflow-y-auto px-2 pb-6">
                   {receiveDrawerLoading ? (
                     <div className="flex flex-col items-center justify-center py-12 gap-3">
                       <div className="animate-spin rounded-full h-7 w-7 border-b-2 border-black" />
@@ -1889,16 +2343,11 @@ export default function SwapTokenModal({
                   ) : visibleReceiveTokens.length === 0 ? (
                     <div className="text-center py-10">
                       <p className="text-gray-400 text-sm">No tokens found</p>
-                      {searchQuery && (
-                        <p className="text-gray-300 text-xs mt-1">
-                          Try a different name, symbol or address
-                        </p>
-                      )}
-                      {!searchQuery && (
-                        <p className="text-gray-300 text-xs mt-1">
-                          Try selecting a different chain or category
-                        </p>
-                      )}
+                      <p className="text-gray-300 text-xs mt-1">
+                        {searchQuery
+                          ? "Try a different name, symbol or address"
+                          : "Try selecting a different chain or category"}
+                      </p>
                     </div>
                   ) : (
                     visibleReceiveTokens
@@ -1926,7 +2375,7 @@ export default function SwapTokenModal({
         </div>
       )}
 
-      {/* Slippage modal */}
+      {/* ── Slippage modal ── */}
       {showSlippageModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center">
           <div
@@ -1947,7 +2396,11 @@ export default function SwapTokenModal({
                       setSlippage(v);
                       setCustomSlippage("");
                     }}
-                    className={`py-2 text-sm rounded-lg transition-all ${slippage === v && !customSlippage ? "bg-black text-white" : "bg-gray-100 hover:bg-gray-200"}`}
+                    className={`py-2 text-sm rounded-lg transition-all ${
+                      slippage === v && !customSlippage
+                        ? "bg-black text-white"
+                        : "bg-gray-100 hover:bg-gray-200"
+                    }`}
                   >
                     {v === 0.5 ? "0.5% (Auto)" : `${v}%`}
                   </button>
@@ -1973,9 +2426,10 @@ export default function SwapTokenModal({
                 </span>
               </div>
             </div>
-            <div className="text-sm text-gray-600 mb-4 flex items-center gap-1">
-              <Info className="w-4 h-4" />
-              Transaction reverts if price changes more than this.
+            <div className="text-sm text-gray-600 mb-4 flex items-start gap-1.5">
+              <Info className="w-4 h-4 mt-0.5 flex-shrink-0" />
+              Your transaction will revert if the price changes unfavorably by
+              more than this percentage.
             </div>
             <div className="flex gap-3">
               <Button
@@ -1996,10 +2450,10 @@ export default function SwapTokenModal({
         </div>
       )}
 
-      {/* Swap in-progress overlay */}
+      {/* ── Swap in-progress overlay ── */}
       {isSwapping && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-xl p-6 max-w-sm mx-4 text-center">
+          <div className="bg-white rounded-xl p-6 max-w-sm mx-4 text-center shadow-xl">
             <div className="flex justify-center mb-4">
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-black" />
             </div>
