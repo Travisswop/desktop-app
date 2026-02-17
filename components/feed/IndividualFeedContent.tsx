@@ -55,7 +55,7 @@ const IndividualFeedContent = ({ feed, userId, token, onVoteSuccess }: any) => {
       : receiver_wallet_address &&
         `${receiver_wallet_address.slice(
           0,
-          5
+          5,
         )}...${receiver_wallet_address.slice(-5)}`;
 
     if (transaction_type === "nft") {
@@ -91,7 +91,11 @@ const IndividualFeedContent = ({ feed, userId, token, onVoteSuccess }: any) => {
           </span>{" "}
           {tokenPrice && <span>(${Number(tokenPrice).toFixed(2)})</span>} tokens
           to{" "}
-          <a href={`https://${recipientDisplay}`} target="_blank">
+          <a
+            href={`https://${recipientDisplay}`}
+            target="_blank"
+            className="font-semibold"
+          >
             {formatEns(recipientDisplay)}
           </a>{" "}
           on the {chain}.
@@ -153,7 +157,7 @@ const IndividualFeedContent = ({ feed, userId, token, onVoteSuccess }: any) => {
               {formatEns(
                 feed.repostedPostDetails?.smartsiteId?.ens ||
                   feed.repostedPostDetails?.smartsiteEnsName ||
-                  "n/a"
+                  "n/a",
               )}
             </p>
             {/* Render Post Content */}

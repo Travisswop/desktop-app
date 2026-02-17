@@ -37,6 +37,78 @@ interface LifiQuoteParams {
   slippage: number;
 }
 
+interface LifiDepositQuoteParams {
+  fromChain: string;
+  toChain: string;
+  fromToken: string;
+  toToken: string;
+  fromAddress: string;
+  toAddress: string;
+  fromAmount: string;
+  slippage: string;
+}
+
+export const getLifiDepositQuote = async (params: LifiDepositQuoteParams) => {
+  try {
+    const queryParams = new URLSearchParams({
+      fromChain: params.fromChain,
+      toChain: params.toChain,
+      fromToken: params.fromToken,
+      toToken: params.toToken,
+      fromAddress: params.fromAddress,
+      toAddress: params.toAddress,
+      fromAmount: params.fromAmount,
+      slippage: params.slippage,
+      integrator: 'SWOP',
+    });
+
+    const response = await fetch(`${LIFI_API_URL}/quote?${queryParams}`, {
+      method: 'GET',
+      headers: {
+        Accept: 'application/json',
+        'Content-Type': 'application/json',
+        'x-lifi-api-key': LIFI_API_KEY,
+      },
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => null);
+      console.error('LiFi API Error:', errorData);
+
+      let errorMessage;
+      if (response.status === 404) {
+        errorMessage = 'No route found. Try a different token or amount.';
+      } else if (response.status === 400) {
+        errorMessage =
+          errorData?.message || 'Invalid parameters. Please check your selection.';
+      } else if (response.status === 429) {
+        errorMessage = 'Rate limit reached. Please wait and try again.';
+      } else {
+        errorMessage = 'Unable to get quote. Please try again.';
+      }
+
+      return { success: false, error: errorMessage };
+    }
+
+    const quote = await response.json();
+
+    if (!quote || !quote.estimate) {
+      return {
+        success: false,
+        error: 'Unable to calculate bridge/swap price.',
+      };
+    }
+
+    return { success: true, data: quote };
+  } catch (error: any) {
+    console.error('Error getting LiFi deposit quote:', error);
+    return {
+      success: false,
+      error: error.message || 'Failed to get quote',
+    };
+  }
+};
+
 export const getLifiQuote = async (params: LifiQuoteParams) => {
   try {
     const queryParams = new URLSearchParams();

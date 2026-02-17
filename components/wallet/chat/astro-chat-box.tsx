@@ -69,7 +69,7 @@ export default function AstroChatBox() {
 
   const [inputValue, setInputValue] = useState('');
   const [localMessages, setLocalMessages] = useState<AstroMessage[]>(
-    []
+    [],
   );
   const [pendingAction, setPendingAction] = useState<{
     action: string;
@@ -116,7 +116,7 @@ export default function AstroChatBox() {
     // Wait for token with retry logic
     const waitForToken = async (
       maxRetries = 10,
-      delay = 500
+      delay = 500,
     ): Promise<string | null> => {
       for (let i = 0; i < maxRetries; i++) {
         const token = getTokenFromCookies();
@@ -126,7 +126,7 @@ export default function AstroChatBox() {
         console.log(
           `[AstroChat] Waiting for access-token... (attempt ${
             i + 1
-          }/${maxRetries})`
+          }/${maxRetries})`,
         );
         await new Promise((resolve) => setTimeout(resolve, delay));
       }
@@ -228,7 +228,7 @@ export default function AstroChatBox() {
       // Pass Solana wallet address along with the message
       const response = await sendMessage(
         message,
-        solanaWalletAddress || undefined
+        solanaWalletAddress || undefined,
       );
 
       console.log('response', response);
@@ -241,7 +241,8 @@ export default function AstroChatBox() {
         setPendingAction({
           action: response.action,
           params: response.params,
-          messageId: response.agentMessage?._id || response.message._id,
+          messageId:
+            response.agentMessage?._id || response.message._id,
           transactionData: response.transactionData,
         });
       }
@@ -257,7 +258,7 @@ export default function AstroChatBox() {
       console.log('🔍 Pending action:', pendingAction.action);
       console.log(
         '📦 Has transaction data:',
-        !!pendingAction.transactionData
+        !!pendingAction.transactionData,
       );
 
       // Check if this action requires transaction signing (transfer_sol, transfer_token, or swap_tokens)
@@ -268,10 +269,10 @@ export default function AstroChatBox() {
       ) {
         if (!pendingAction.transactionData) {
           console.error(
-            '❌ No transaction data available for transfer/swap action'
+            '❌ No transaction data available for transfer/swap action',
           );
           throw new Error(
-            'Transaction data not available. Please try again.'
+            'Transaction data not available. Please try again.',
           );
         }
 
@@ -280,7 +281,7 @@ export default function AstroChatBox() {
         console.log('🖊️ Signing transaction with Privy...');
         console.log(
           '📋 Transaction data:',
-          pendingAction.transactionData
+          pendingAction.transactionData,
         );
 
         // Get the active wallet for signing
@@ -295,19 +296,19 @@ export default function AstroChatBox() {
           // Get the raw transaction bytes
           const transactionBytes = Buffer.from(
             pendingAction.transactionData.serializedTransaction,
-            'base64'
+            'base64',
           );
 
           if (pendingAction.action === 'swap_tokens') {
             console.log(
-              '🔄 Signing VersionedTransaction for swap...'
+              '🔄 Signing VersionedTransaction for swap...',
             );
           } else {
             console.log('📝 Signing regular Transaction...');
           }
 
           console.log(
-            '✅ Transaction prepared, requesting signature...'
+            '✅ Transaction prepared, requesting signature...',
           );
 
           // Sign with Privy 3.0 - pass Uint8Array and wallet
@@ -319,25 +320,22 @@ export default function AstroChatBox() {
           console.log('✅ Transaction signed by user');
           console.log(
             '📦 Signed transaction length:',
-            signedTransaction.length
+            signedTransaction.length,
           );
 
           // Convert signed transaction to base64
           signedTransactionBase64 =
             Buffer.from(signedTransaction).toString('base64');
         } catch (signError) {
-          console.error(
-            '❌ Error signing transaction:',
-            signError
-          );
+          console.error('❌ Error signing transaction:', signError);
           throw new Error(
-            'Failed to sign transaction. Please try again.'
+            'Failed to sign transaction. Please try again.',
           );
         }
 
         console.log(
           '📦 Base64 transaction length:',
-          signedTransactionBase64.length
+          signedTransactionBase64.length,
         );
 
         // Submit signed transaction to backend
@@ -345,25 +343,17 @@ export default function AstroChatBox() {
         await aiAgentService.submitSignedTransaction(
           signedTransactionBase64,
           pendingAction.action,
-          pendingAction.messageId
+          pendingAction.messageId,
         );
 
         console.log('✅ Transaction submitted successfully');
         setIsSigning(false);
         setPendingAction(null);
       } else {
-        // For other actions (check_balance, etc.), use the old flow
-        console.log(
-          '⚠️ Using old execution flow for action:',
-          pendingAction.action
-        );
-        console.log(
-          '⚠️ This requires Privy embedded wallet on backend'
-        );
         await executeTransaction(
           pendingAction.action,
           pendingAction.params,
-          pendingAction.messageId
+          pendingAction.messageId,
         );
         setPendingAction(null);
       }
@@ -380,19 +370,23 @@ export default function AstroChatBox() {
   };
 
   // Handler for placing a bet from prediction market cards
-  const handlePlaceBet = (marketId: string, betType: 'YES' | 'NO') => {
+  const handlePlaceBet = (
+    marketId: string,
+    betType: 'YES' | 'NO',
+  ) => {
     // Find the market question from the messages
     const predictionMessage = localMessages.find((msg) => {
       const result = msg.executionResult as any;
       return result?.cards?.some((card: any) =>
-        card.markets?.some((m: any) => m.id === marketId)
+        card.markets?.some((m: any) => m.id === marketId),
       );
     });
 
     const marketQuestion =
       predictionMessage?.executionResult?.cards
         ?.flatMap((card: any) => card.markets || [])
-        .find((m: any) => m.id === marketId)?.question || 'Market bet';
+        .find((m: any) => m.id === marketId)?.question ||
+      'Market bet';
 
     // Show the bet amount modal
     setBetModal({
@@ -403,7 +397,10 @@ export default function AstroChatBox() {
   };
 
   // Handler for confirming the bet amount
-  const handleConfirmBetAmount = (amount: number, currency: Currency) => {
+  const handleConfirmBetAmount = (
+    amount: number,
+    currency: Currency,
+  ) => {
     if (!betModal) return;
 
     // Send a natural language command to place a bet
@@ -436,10 +433,12 @@ export default function AstroChatBox() {
 
     // Check if this message contains prediction market cards
     const executionResult = message.executionResult as any;
-    const hasPredictionCards = executionResult?.displayType === 'cards' &&
-                               isPredictionMarketsResponse(executionResult);
-    const hasBetCard = executionResult?.displayType === 'bet_card' &&
-                       isBetConfirmationResponse(executionResult);
+    const hasPredictionCards =
+      executionResult?.displayType === 'cards' &&
+      isPredictionMarketsResponse(executionResult);
+    const hasBetCard =
+      executionResult?.displayType === 'bet_card' &&
+      isBetConfirmationResponse(executionResult);
 
     return (
       <div
@@ -503,7 +502,7 @@ export default function AstroChatBox() {
                     'text-xs px-2 py-0.5 rounded inline-block',
                     message.isError
                       ? 'bg-red-100 text-red-700'
-                      : 'bg-blue-100 text-blue-700'
+                      : 'bg-blue-100 text-blue-700',
                   )}
                 >
                   {message.action.replace(/_/g, ' ')}
@@ -698,7 +697,7 @@ export default function AstroChatBox() {
                               ? (
                                   Number(
                                     pendingAction.transactionData
-                                      .quote.inputAmount
+                                      .quote.inputAmount,
                                   ) / Math.pow(10, 9)
                                 ).toFixed(4)
                               : '...'}{' '}
@@ -736,7 +735,7 @@ export default function AstroChatBox() {
                               ? (
                                   Number(
                                     pendingAction.transactionData
-                                      .quote.outputAmount
+                                      .quote.outputAmount,
                                   ) / Math.pow(10, 9)
                                 ).toFixed(4)
                               : '...'}{' '}
@@ -761,7 +760,7 @@ export default function AstroChatBox() {
                         {pendingAction.transactionData.toEnsName ||
                           pendingAction.transactionData.to?.slice(
                             0,
-                            8
+                            8,
                           ) + '...'}
                       </p>
                     </>

@@ -29,7 +29,6 @@ export default function MarketCard({
   disabled = false,
   onOutcomeClick,
 }: MarketCardProps) {
-  console.log('market', market);
   const volumeUSD = parseFloat(
     String(market.volume24hr || market.volume || '0'),
   );

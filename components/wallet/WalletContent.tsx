@@ -29,7 +29,11 @@ import {
   isPrivyEmbeddedWallet,
 } from '@/types/privy';
 
-import { TransactionService } from '@/services/transaction-service';
+import {
+  TransactionService,
+  USDC_ADDRESS,
+  SWOP_ADDRESS,
+} from '@/services/transaction-service';
 import { useSendFlow } from '@/lib/hooks/useSendFlow';
 import { useMultiChainTokenData } from '@/lib/hooks/useToken';
 import { useNFT } from '@/lib/hooks/useNFT';
@@ -48,8 +52,13 @@ import { TokenTicker } from './token-ticker';
 import { SUPPORTED_CHAINS, ERROR_MESSAGES } from './constants';
 
 // UI Components
+import TokenList from './token/token-list';
+import NFTSlider from './nft/nft-list';
+import TokenDetails from './token/token-details-view';
+import NFTDetailView from './nft/nft-details-view';
 import WalletModals from './WalletModals';
 import { Toaster } from '../ui/toaster';
+import RedeemTokenList from './redeem/token-list';
 import BalanceChart from '../dashboard/BalanceChart';
 import PortfolioChart, {
   PortfolioAsset,
@@ -60,14 +69,17 @@ import {
 } from './PortfolioStates';
 
 // Tab Components
-import WalletTabs, { WalletTabId } from './WalletTabs';
 import { AssetsTab } from './tabs';
-import { PolymarketProviders } from '@/providers/polymarket';
-import { PolymarketTab } from './polymarket';
 
 // Utilities
 import Cookies from 'js-cookie';
 import { calculateTransactionAmount } from '@/lib/utils/transactionUtils';
+import { Loader } from 'lucide-react';
+import TransactionList from './transaction/transaction-list';
+import { ScrollArea } from '../ui/scroll-area';
+import CustomModal from '../modal/CustomModal';
+import { BsThreeDots } from 'react-icons/bs';
+import WalletAssetsSettings from './WalletAssetsSettings';
 
 // Token colors mapping for consistent visual representation
 const TOKEN_COLORS: Record<string, string> = {
@@ -109,6 +121,7 @@ class WalletErrorBoundary extends Component<
 
   componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
     console.error('Wallet component error:', error, errorInfo);
+    // TODO: Send to error tracking service (Sentry, etc.)
   }
 
   render() {
@@ -147,10 +160,11 @@ export default function WalletContent() {
 }
 
 const WalletContentInner = () => {
-  // Tab state
-  const [activeTab, setActiveTab] = useState<WalletTabId>('assets');
-
   // UI state
+  const [selectedToken, setSelectedToken] =
+    useState<TokenData | null>(null);
+  const [selectedNFT, setSelectedNFT] = useState<NFT | null>(null);
+  const [isNFTModalOpen, setIsNFTModalOpen] = useState(false);
   const [accessToken, setAccessToken] = useState('');
 
   // QR code modals state
@@ -161,6 +175,8 @@ const WalletContentInner = () => {
   const [qrcodeShareUrl, setQrcodeShareUrl] = useState('');
   const [QRCodeShareModalOpen, setQRCodeShareModalOpen] =
     useState(false);
+
+  const [walletSetting, setWalletSetting] = useState(false);
 
   // Ref to track wallet creation attempts
   const walletCreationAttempted = useRef(false);
@@ -217,6 +233,7 @@ const WalletContentInner = () => {
 
   // Initialize access token and create Solana wallet
   useEffect(() => {
+    // Get access token from cookies
     const token = Cookies.get('access-token');
     if (token && token !== accessToken) {
       setAccessToken(token);
@@ -233,7 +250,7 @@ const WalletContentInner = () => {
       const hasExistingSolanaWallet = linkedAccounts.some(
         (account) =>
           isSolanaWalletAccount(account) &&
-          isPrivyEmbeddedWallet(account)
+          isPrivyEmbeddedWallet(account),
       );
 
       if (!hasExistingSolanaWallet) {
@@ -245,7 +262,7 @@ const WalletContentInner = () => {
           })
           .catch((error) => {
             console.error('Failed to create Solana wallet:', error);
-            walletCreationAttempted.current = false;
+            walletCreationAttempted.current = false; // Allow retry on next auth
             toast({
               variant: 'destructive',
               title: 'Wallet Creation Failed',
@@ -277,7 +294,7 @@ const WalletContentInner = () => {
   } = useMultiChainTokenData(
     solWalletAddress,
     evmWalletAddress,
-    SUPPORTED_CHAINS
+    SUPPORTED_CHAINS,
   );
 
   const {
@@ -290,10 +307,12 @@ const WalletContentInner = () => {
   // Create a stable hash of portfolio data
   const portfolioHash = useMemo(() => {
     if (!tokens || tokens.length === 0) return 'empty';
+
+    // Only hash the data that affects portfolio visualization
     return tokens
       .map(
         (t) =>
-          `${t.symbol}:${t.balance}:${t.marketData?.price || '0'}`
+          `${t.symbol}:${t.balance}:${t.marketData?.price || '0'}`,
       )
       .sort()
       .join('|');
@@ -346,7 +365,7 @@ const WalletContentInner = () => {
     if (otherAssets.length > 0) {
       const othersValue = otherAssets.reduce(
         (sum, asset) => sum + asset.value,
-        0
+        0,
       );
       assets.push({
         name: 'Others',
@@ -373,20 +392,20 @@ const WalletContentInner = () => {
     () =>
       tokens.find((token) => token.isNative)?.marketData?.price ||
       '0',
-    [tokens]
+    [tokens],
   );
 
   const solBalance = useMemo(() => {
     const solToken = tokens.find(
       (token) =>
-        token.isNative && token.chain?.toUpperCase() === 'SOLANA'
+        token.isNative && token.chain?.toUpperCase() === 'SOLANA',
     );
     return solToken ? parseFloat(solToken.balance) || 0 : 0;
   }, [tokens]);
 
   const currentWalletAddress = useMemo(
     () => evmWalletAddress || solWalletAddress,
-    [evmWalletAddress, solWalletAddress]
+    [evmWalletAddress, solWalletAddress],
   );
 
   // Transaction execution
@@ -395,7 +414,7 @@ const WalletContentInner = () => {
       const rpcUrl = process.env.NEXT_PUBLIC_SOLANA_RPC_URL;
       if (!rpcUrl) {
         throw new Error(
-          'Solana RPC URL not configured. Please check environment settings.'
+          'Solana RPC URL not configured. Please check environment settings.',
         );
       }
 
@@ -406,9 +425,10 @@ const WalletContentInner = () => {
         sendFlow.network.toUpperCase() === 'SOLANA';
 
       if (isSolanaTransaction) {
+        // Verify authentication before signing
         if (!authenticated) {
           throw new Error(
-            'Please log in to send transactions. Your session may have expired.'
+            'Please log in to send transactions. Your session may have expired.',
           );
         }
 
@@ -416,14 +436,18 @@ const WalletContentInner = () => {
         try {
           privyAccessToken = await getAccessToken();
         } catch (tokenError) {
+          console.error(
+            'Failed to get Privy access token:',
+            tokenError,
+          );
           throw new Error(
-            'Authentication session expired. Please refresh the page and log in again.'
+            'Authentication session expired. Please refresh the page and log in again.',
           );
         }
 
         if (!privyAccessToken) {
           throw new Error(
-            'Authentication token not available. Please refresh the page and log in again.'
+            'Authentication token not available. Please refresh the page and log in again.',
           );
         }
 
@@ -431,39 +455,43 @@ const WalletContentInner = () => {
           const linkedAccounts = (PrivyUser?.linkedAccounts ||
             []) as PrivyLinkedAccount[];
           const hasSolanaAccount = linkedAccounts.some(
-            isSolanaWalletAccount
+            isSolanaWalletAccount,
           );
 
           if (hasSolanaAccount) {
             throw new Error(
-              'Solana wallet found in account but not accessible. Please refresh the page and try again.'
+              'Solana wallet found in account but not accessible. Please refresh the page and try again.',
             );
           } else {
             throw new Error(
-              'No Solana wallet found. Please connect a Solana wallet.'
+              'No Solana wallet found. Please connect a Solana wallet.',
             );
           }
         }
 
         if (!selectedSolanaWallet.address) {
           throw new Error(
-            'Solana wallet address is not available. Please refresh the page and try again.'
+            'Solana wallet address is not available. Please refresh the page and try again.',
           );
         }
 
         try {
           await connection.getLatestBlockhash();
         } catch (rpcError) {
+          console.error('RPC connection failed:', rpcError);
           throw new Error(
-            'Unable to connect to Solana network. Please check your connection and try again.'
+            'Unable to connect to Solana network. Please check your connection and try again.',
           );
         }
+      } else if (!selectedSolanaWallet) {
+        // Non-Solana transaction but still log for debugging
+        console.log('=== Non-Solana Transaction ===');
       }
 
       const allAccounts = (PrivyUser?.linkedAccounts ||
         []) as PrivyLinkedAccount[];
       const ethereumAccount = allAccounts.find(
-        isEthereumWalletAccount
+        isEthereumWalletAccount,
       );
 
       let evmWallet;
@@ -472,38 +500,47 @@ const WalletContentInner = () => {
         evmWallet = ethWallets.find(
           (w) =>
             w.address?.toLowerCase() ===
-            ethereumAccount.address.toLowerCase()
+            ethereumAccount.address.toLowerCase(),
         );
       }
 
       let hash = '';
 
       if (sendFlow.nft) {
+        // Handle NFT transfer
         if (sendFlow.network.toUpperCase() === 'SOLANA') {
           hash = await TransactionService.handleSolanaNFTTransfer(
             selectedSolanaWallet,
             sendFlow,
-            connection
+            connection,
           );
         } else {
           await evmWallet?.switchChain(
-            CHAIN_ID[sendFlow.network as keyof typeof CHAIN_ID]
+            CHAIN_ID[
+              sendFlow.network as keyof typeof CHAIN_ID as keyof typeof CHAIN_ID as keyof typeof CHAIN_ID
+            ],
           );
           hash = await TransactionService.handleNFTTransfer(
             evmWallet,
-            sendFlow
+            sendFlow,
           );
         }
         refetchNFTs();
       } else if (sendFlow.token) {
+        // Handle token transfer
         if (sendFlow.token.chain.toUpperCase() === 'SOLANA') {
+          // Use Privy's native gas sponsorship
+
+          // Build the transaction without sending
           const transaction =
             await TransactionService.buildSolanaTokenTransfer(
               selectedSolanaWallet,
               sendFlow,
-              connection
+              connection,
             );
 
+          // Use Privy's sendTransaction with sponsor: true
+          // Transaction must be passed as Uint8Array per Privy docs
           const serializedTransaction = transaction.serialize({
             requireAllSignatures: false,
             verifySignatures: false,
@@ -522,24 +559,26 @@ const WalletContentInner = () => {
           } catch (privyError) {
             console.warn(
               'Privy signAndSendTransaction failed, falling back to backend relay:',
-              privyError
+              privyError,
             );
 
             hash =
               await TransactionService.submitPrivyNativeSponsoredTransaction(
                 transaction,
                 selectedSolanaWallet,
-                connection
+                connection,
               );
           }
         } else {
           await evmWallet?.switchChain(
-            CHAIN_ID[sendFlow.network as keyof typeof CHAIN_ID]
+            CHAIN_ID[
+              sendFlow.network as keyof typeof CHAIN_ID as keyof typeof CHAIN_ID as keyof typeof CHAIN_ID
+            ],
           );
           const result = await TransactionService.handleEVMSend(
             evmWallet,
             sendFlow,
-            sendFlow.network
+            sendFlow.network,
           );
           hash = result.hash;
         }
@@ -591,7 +630,7 @@ const WalletContentInner = () => {
 
       if (!result.success) {
         throw new Error(
-          result.error || ERROR_MESSAGES.TRANSACTION_FAILED
+          result.error || ERROR_MESSAGES.TRANSACTION_FAILED,
         );
       }
 
@@ -604,7 +643,7 @@ const WalletContentInner = () => {
               Number(calculateTransactionAmount(sendFlow)),
               currentWalletAddress,
               payload,
-              accessToken
+              accessToken,
             )
           : Promise.resolve(),
       ]);
@@ -613,7 +652,7 @@ const WalletContentInner = () => {
         handleSocketNotification(
           result.hash,
           sendFlow,
-          calculateTransactionAmount
+          calculateTransactionAmount,
         );
       }
 
@@ -624,6 +663,17 @@ const WalletContentInner = () => {
       }));
     } catch (error) {
       console.error('Error sending token/NFT:', error);
+
+      // Log structured error for debugging
+      const errorContext = {
+        error: error instanceof Error ? error.message : String(error),
+        assetType: sendFlow.nft ? 'NFT' : 'Token',
+        assetIdentifier:
+          sendFlow.nft?.tokenId || sendFlow.token?.symbol,
+        network: sendFlow.network,
+        timestamp: new Date().toISOString(),
+      };
+      console.error('Transaction failure context:', errorContext);
 
       toast({
         variant: 'destructive',
@@ -652,134 +702,93 @@ const WalletContentInner = () => {
     setSendFlow,
   ]);
 
-  // Event handlers
+  // Memoized event handlers
+  const handleTokenSelect = useCallback(
+    (token: TokenData) => setSelectedToken(token),
+    [],
+  );
+
+  const handleSelectNFT = useCallback((nft: NFT) => {
+    setSelectedNFT(nft);
+    setIsNFTModalOpen(true);
+  }, []);
+
+  const handleCloseNFTModal = useCallback(() => {
+    setIsNFTModalOpen(false);
+    setSelectedNFT(null);
+  }, []);
+
+  const handleBack = useCallback(() => setSelectedToken(null), []);
+
+  const handleQRClick = useCallback(
+    () => setWalletQRModalOpen(true),
+    [],
+  );
+
   const handleAssetSelect = useCallback(
     () =>
       setSendFlow((prev) => ({
         ...prev,
         step: 'select-method',
       })),
-    [setSendFlow]
+    [setSendFlow],
   );
-
-  const handleQRClick = useCallback(
-    () => setWalletQRModalOpen(true),
-    []
-  );
-
-  // Render the active tab content
-  const renderTabContent = () => {
-    switch (activeTab) {
-      case 'assets':
-        return (
-          <>
-            <TokenTicker />
-            {/* Balance Header + Portfolio - Side by Side */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-4">
-              {/* Left: Balance Chart */}
-              <div className="bg-white rounded-xl">
-                <BalanceChart
-                  userId={user?._id}
-                  currency="$"
-                  totalBalance={totalBalance}
-                  onSelectAsset={handleAssetSelect}
-                  onQRClick={handleQRClick}
-                  walletData={walletData || []}
-                  tokens={tokens}
-                  accessToken={accessToken}
-                  onTokenRefresh={refetchTokens}
-                  isButtonVisible={true}
-                />
-              </div>
-
-              {/* Right: Portfolio Breakdown */}
-              <div className="bg-white rounded-xl">
-                {tokenLoading ? (
-                  <PortfolioChartSkeleton />
-                ) : portfolioSummary.assets.length > 0 ? (
-                  <PortfolioChart
-                    assets={portfolioSummary.assets}
-                    balance={`$${portfolioSummary.formattedBalance}`}
-                    title="Portfolio"
-                    showViewButton={false}
-                  />
-                ) : (
-                  <PortfolioEmptyState />
-                )}
-              </div>
-            </div>
-            <AssetsTab
-              tokens={tokens as unknown as TokenData[]}
-              tokenLoading={tokenLoading}
-              tokenError={tokenError}
-              nfts={nfts as unknown as NFT[]}
-              nftLoading={nftLoading}
-              nftError={nftError}
-              walletAddress={currentWalletAddress}
-              solWalletAddress={solWalletAddress}
-              evmWalletAddress={evmWalletAddress}
-              chains={SUPPORTED_CHAINS as ChainType[]}
-              onSendClick={handleSendClick}
-              onNFTNext={handleNFTNext}
-              refetchNFTs={refetchNFTs}
-            />
-          </>
-        );
-      case 'markets':
-        return (
-          <PolymarketProviders>
-            <PolymarketTab />
-          </PolymarketProviders>
-        );
-      case 'perps':
-        return (
-          <div className="flex flex-col items-center justify-center min-h-[400px] bg-white rounded-xl mt-4">
-            <div className="text-center p-8">
-              <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-gray-100 flex items-center justify-center">
-                <svg
-                  className="w-8 h-8 text-gray-400"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                  strokeWidth={1.5}
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 013 19.875v-6.75zM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V8.625zM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V4.125z"
-                  />
-                </svg>
-              </div>
-              <h3 className="text-xl font-semibold text-gray-900 mb-2">
-                Perpetuals Trading
-              </h3>
-              <p className="text-gray-500 mb-4 max-w-sm">
-                Trade perpetual futures with leverage on your favorite
-                crypto assets.
-              </p>
-              <span className="inline-flex items-center px-4 py-2 rounded-full bg-gray-100 text-gray-600 text-sm font-medium">
-                Coming Soon
-              </span>
-            </div>
-          </div>
-        );
-      default:
-        return null;
-    }
-  };
 
   return (
     <div className="p-0">
-      {/* Tab Navigation - Sticky with Glass Effect */}
-      <div className="sticky top-0 z-50 -mx-4 px-4  backdrop-blur-sm bg-transparent">
-        <WalletTabs
-          activeTab={activeTab}
-          onTabChange={setActiveTab}
+      {/* Assets Content */}
+      <div className="min-h-[400px]">
+        <TokenTicker />
+        {/* Balance Header + Portfolio - Side by Side */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-4">
+          {/* Left: Balance Chart */}
+          <div className="bg-white rounded-xl">
+            <BalanceChart
+              userId={user?._id}
+              currency="$"
+              totalBalance={totalBalance}
+              onSelectAsset={handleAssetSelect}
+              onQRClick={handleQRClick}
+              walletData={walletData || []}
+              tokens={tokens}
+              accessToken={accessToken}
+              onTokenRefresh={refetchTokens}
+              isButtonVisible={true}
+            />
+          </div>
+
+          {/* Right: Portfolio Breakdown */}
+          <div className="bg-white rounded-xl">
+            {tokenLoading ? (
+              <PortfolioChartSkeleton />
+            ) : portfolioSummary.assets.length > 0 ? (
+              <PortfolioChart
+                assets={portfolioSummary.assets}
+                balance={`$${portfolioSummary.formattedBalance}`}
+                title="Portfolio"
+                showViewButton={false}
+              />
+            ) : (
+              <PortfolioEmptyState />
+            )}
+          </div>
+        </div>
+        <AssetsTab
+          tokens={tokens as unknown as TokenData[]}
+          tokenLoading={tokenLoading}
+          tokenError={tokenError}
+          nfts={nfts as unknown as NFT[]}
+          nftLoading={nftLoading}
+          nftError={nftError}
+          walletAddress={currentWalletAddress}
+          solWalletAddress={solWalletAddress}
+          evmWalletAddress={evmWalletAddress}
+          chains={SUPPORTED_CHAINS as ChainType[]}
+          onSendClick={handleSendClick}
+          onNFTNext={handleNFTNext}
+          refetchNFTs={refetchNFTs}
         />
       </div>
-
-      {/* Tab Content */}
-      <div className="min-h-[400px]">{renderTabContent()}</div>
 
       {/* All Modals */}
       <WalletModals

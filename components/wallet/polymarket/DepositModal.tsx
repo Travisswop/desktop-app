@@ -1,6 +1,12 @@
 'use client';
 
-import { useState, useEffect, useCallback, useRef } from 'react';
+import {
+  useState,
+  useEffect,
+  useCallback,
+  useRef,
+  useMemo,
+} from 'react';
 import {
   usePrivy,
   useWallets,
@@ -30,19 +36,32 @@ import {
   usePolymarketWallet,
 } from '@/providers/polymarket';
 import { useMultiChainTokenData } from '@/lib/hooks/useToken';
+import { getLifiDepositQuote } from '@/actions/lifiForTokenSwap';
 import Image from 'next/image';
 import {
   erc20Abi,
   parseUnits,
   formatUnits,
   encodeFunctionData,
+  createPublicClient,
+  http,
 } from 'viem';
-import { polygon } from 'viem/chains';
+import { polygon, mainnet, base } from 'viem/chains';
 import {
   USDC_E_CONTRACT_ADDRESS,
   USDC_E_DECIMALS,
 } from '@/constants/polymarket';
-import { Connection, VersionedTransaction } from '@solana/web3.js';
+import {
+  Connection,
+  VersionedTransaction,
+  PublicKey,
+  Transaction,
+} from '@solana/web3.js';
+import {
+  getAssociatedTokenAddress,
+  createAssociatedTokenAccountInstruction,
+  TOKEN_PROGRAM_ID,
+} from '@solana/spl-token';
 import bs58 from 'bs58';
 
 interface DepositModalProps {
@@ -138,6 +157,23 @@ const CHAIN_CONFIG: Record<
 // Polygon chain ID for LiFi
 const POLYGON_CHAIN_ID = '137';
 
+// Chain-specific viem chain configs for creating public clients
+const VIEM_CHAINS: Record<string, (typeof mainnet) | (typeof polygon) | (typeof base)> = {
+  '1': mainnet,
+  '137': polygon,
+  '8453': base,
+};
+
+// Create a public client for a specific chain (needed for allowance checks on non-Polygon chains)
+const getPublicClientForChain = (chainId: string) => {
+  const chain = VIEM_CHAINS[chainId];
+  if (!chain) return null;
+  return createPublicClient({
+    chain,
+    transport: http(),
+  });
+};
+
 // Helper to format token amount to smallest units
 const formatTokenAmount = (
   amount: string | number,
@@ -148,7 +184,8 @@ const formatTokenAmount = (
     const safeDecimals = decimals || 18;
 
     // Convert to string if it's a number
-    const amountStr = typeof amount === 'number' ? amount.toString() : amount;
+    const amountStr =
+      typeof amount === 'number' ? amount.toString() : amount;
 
     // Handle empty or invalid input
     if (!amountStr || amountStr.trim() === '') {
@@ -182,7 +219,6 @@ const formatTokenAmount = (
     const parsed = parseUnits(cleanAmount, safeDecimals);
     return parsed.toString();
   } catch (err) {
-    console.error('formatTokenAmount error:', err, { amount, decimals });
     return '0';
   }
 };
@@ -211,18 +247,46 @@ export default function DepositModal({
   open,
   onOpenChange,
 }: DepositModalProps) {
-  const { user } = usePrivy();
+  const { user, getAccessToken } = usePrivy();
   const { safeAddress } = useTrading();
   const { publicClient, eoaAddress, switchToPolygon } =
     usePolymarketWallet();
   const { wallets } = useWallets();
-  const { wallets: solWallets } = useSolanaWallets();
+  const { ready: solanaReady, wallets: directSolanaWallets } =
+    useSolanaWallets();
   const { sendTransaction } = useSendTransaction();
   const { signAndSendTransaction } = useSignAndSendTransaction();
 
+  const selectedSolanaWallet = useMemo(() => {
+    if (!solanaReady || !directSolanaWallets.length) return undefined;
+    // Find the first wallet with a valid address
+    const walletWithAddress = directSolanaWallets.find(
+      (w) => w.address && w.address.length > 0,
+    );
+    return walletWithAddress || directSolanaWallets[0];
+  }, [solanaReady, directSolanaWallets]);
+
+  // Safe session refresh - doesn't block if Privy server is slow/unavailable
+  const safeRefreshSession = useCallback(async () => {
+    try {
+      const timeoutPromise = new Promise((_, reject) =>
+        setTimeout(
+          () => reject(new Error('Session refresh timeout')),
+          5000,
+        ),
+      );
+      await Promise.race([getAccessToken(), timeoutPromise]);
+    } catch (error) {
+      console.warn(
+        'Session refresh failed, proceeding with existing session:',
+        error,
+      );
+    }
+  }, [getAccessToken]);
+
   // Get wallet addresses
   const evmAddress = user?.wallet?.address;
-  const solanaAddress = solWallets?.[0]?.address;
+  const solanaAddress = selectedSolanaWallet?.address;
 
   // Fetch user's tokens from multiple chains
   const {
@@ -374,82 +438,45 @@ export default function DepositModal({
         throw new Error('Unsupported chain');
       }
 
-      console.log('fetchLifiQuote - amount:', amount, 'decimals:', selectedToken.decimals, 'balance:', selectedToken.balance);
-
       const fromAmount = formatTokenAmount(
         amount,
         selectedToken.decimals || 6,
       );
 
-      console.log('fetchLifiQuote - fromAmount:', fromAmount);
-
       if (fromAmount === '0') {
-        throw new Error(`Invalid amount: "${amount}" could not be parsed with ${selectedToken.decimals} decimals`);
+        throw new Error(
+          `Invalid amount: "${amount}" could not be parsed with ${selectedToken.decimals} decimals`,
+        );
       }
 
       const fromTokenAddress = getTokenAddressForLifi(selectedToken);
 
       // Determine the wallet address based on chain
       const fromWalletAddress =
-        selectedToken.chain.toUpperCase() === 'SOLANA' ? solanaAddress : evmAddress;
+        selectedToken.chain.toUpperCase() === 'SOLANA'
+          ? solanaAddress
+          : evmAddress;
 
       if (!fromWalletAddress) {
         throw new Error('Wallet address not available');
       }
 
-      const queryParams = new URLSearchParams({
+      const result = await getLifiDepositQuote({
         fromChain: fromChainId,
         toChain: POLYGON_CHAIN_ID,
         fromToken: fromTokenAddress,
         toToken: USDC_E_ADDRESS,
         fromAddress: fromWalletAddress,
-        toAddress: safeAddress, // Deposit directly to trading wallet
+        toAddress: safeAddress,
         fromAmount: fromAmount,
-        slippage: '0.01', // 1% slippage
-        integrator: 'SWOP',
+        slippage: '0.01',
       });
 
-      const response = await fetch(
-        `${process.env.NEXT_PUBLIC_LIFI_API_URL}/quote?${queryParams}`,
-        {
-          method: 'GET',
-          headers: {
-            Accept: 'application/json',
-            'Content-Type': 'application/json',
-            'x-lifi-api-key':
-              process.env.NEXT_PUBLIC_LIFI_API_KEY || '',
-          },
-        },
-      );
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => null);
-        console.error('LiFi API Error:', errorData);
-
-        let errorMessage;
-        if (response.status === 404) {
-          errorMessage =
-            'No route found. Try a different token or amount.';
-        } else if (response.status === 400) {
-          errorMessage =
-            errorData?.message ||
-            'Invalid parameters. Please check your selection.';
-        } else if (response.status === 429) {
-          errorMessage =
-            'Rate limit reached. Please wait and try again.';
-        } else {
-          errorMessage = 'Unable to get quote. Please try again.';
-        }
-        throw new Error(errorMessage);
+      if (!result.success) {
+        throw new Error(result.error);
       }
 
-      const quote = await response.json();
-
-      if (!quote || !quote.estimate) {
-        throw new Error('Unable to calculate bridge/swap price.');
-      }
-
-      setLifiQuote(quote);
+      setLifiQuote(result.data);
     } catch (err: any) {
       console.error('Error getting LiFi quote:', err);
       setQuoteError(err.message || 'Failed to get quote');
@@ -482,24 +509,51 @@ export default function DepositModal({
       args: [safeAddress as `0x${string}`, amountInWei],
     });
 
-    // Use Privy's sendTransaction with gas sponsorship
-    const { hash } = await sendTransaction(
-      {
+    // Use Privy's sendTransaction with gas sponsorship and fallback
+    let hash: string;
+    try {
+      const result = await sendTransaction(
+        {
+          to: USDC_E_ADDRESS as `0x${string}`,
+          data,
+          chainId: polygon.id,
+        },
+        {
+          sponsor: true,
+        },
+      );
+      hash = result.hash;
+    } catch (sponsorError: any) {
+      const errorMessage =
+        sponsorError?.message || sponsorError?.toString() || '';
+      const isUserRejection =
+        errorMessage.includes('rejected') ||
+        errorMessage.includes('denied') ||
+        errorMessage.includes('cancelled') ||
+        errorMessage.includes('user rejected');
+
+      if (isUserRejection) {
+        throw sponsorError;
+      }
+
+      console.warn(
+        'Sponsored transfer failed, retrying without sponsorship:',
+        errorMessage,
+      );
+      setDepositStatus('Retrying transfer...');
+      const result = await sendTransaction({
         to: USDC_E_ADDRESS as `0x${string}`,
         data,
         chainId: polygon.id,
-      },
-      {
-        sponsor: true, // Enable gas sponsorship
-      },
-    );
+      });
+      hash = result.hash;
+    }
 
     return hash;
   };
 
   // Execute LiFi swap/bridge for EVM chains with gas sponsorship
   const executeLifiEvmSwap = async () => {
-    console.log('Executing lifi evm swap');
     if (!lifiQuote) {
       throw new Error('No quote available');
     }
@@ -513,21 +567,33 @@ export default function DepositModal({
     }
 
     // Switch to the source chain
-    const sourceChainId = parseInt(
-      CHAIN_CONFIG[selectedToken!.chain.toUpperCase()].id,
-    );
+    const sourceChainIdStr =
+      CHAIN_CONFIG[selectedToken!.chain.toUpperCase()].id;
+    const sourceChainId = parseInt(sourceChainIdStr);
     const currentChainId = wallet.chainId;
     if (currentChainId !== `eip155:${sourceChainId}`) {
       await wallet.switchChain(sourceChainId);
     }
 
+    // Create a public client for the SOURCE chain (not Polygon) for allowance/receipt reads
+    const sourcePublicClient =
+      sourceChainId === polygon.id
+        ? publicClient
+        : getPublicClientForChain(sourceChainIdStr);
+
+    if (!sourcePublicClient) {
+      throw new Error(
+        `Unsupported source chain: ${selectedToken!.chain}`,
+      );
+    }
+
     const { transactionRequest, estimate } = lifiQuote;
-    console.log('transactionrequest', transactionRequest);
 
     // Check if token approval is needed (for non-native tokens)
     const fromTokenAddress = getTokenAddressForLifi(selectedToken!);
     const isNativeToken =
-      fromTokenAddress === '0x0000000000000000000000000000000000000000';
+      fromTokenAddress ===
+      '0x0000000000000000000000000000000000000000';
 
     if (!isNativeToken && estimate.approvalAddress) {
       setDepositStatus('Checking token approval...');
@@ -537,8 +603,9 @@ export default function DepositModal({
         selectedToken!.decimals || 6,
       );
 
-      // Check current allowance
-      const allowanceData = encodeFunctionData({
+      // Read current allowance using the SOURCE chain's public client
+      const currentAllowance = await sourcePublicClient.readContract({
+        address: fromTokenAddress as `0x${string}`,
         abi: erc20Abi,
         functionName: 'allowance',
         args: [
@@ -547,19 +614,7 @@ export default function DepositModal({
         ],
       });
 
-      // Read current allowance using publicClient
-      const allowanceResult = await publicClient.call({
-        to: fromTokenAddress as `0x${string}`,
-        data: allowanceData,
-      });
-
-      const currentAllowance = allowanceResult.data
-        ? BigInt(allowanceResult.data)
-        : BigInt(0);
       const requiredAmount = BigInt(fromAmount);
-
-      console.log('Current allowance:', currentAllowance.toString());
-      console.log('Required amount:', requiredAmount.toString());
 
       // If allowance is insufficient, request approval
       if (currentAllowance < requiredAmount) {
@@ -577,23 +632,39 @@ export default function DepositModal({
           ],
         });
 
-        // Send approval transaction
-        const { hash: approvalHash } = await sendTransaction(
-          {
+        // Send approval transaction with sponsorship fallback
+        let approvalHash: string;
+        try {
+          const result = await sendTransaction(
+            {
+              to: fromTokenAddress as `0x${string}`,
+              data: approveData,
+              chainId: sourceChainId,
+            },
+            {
+              sponsor: true,
+            },
+          );
+          approvalHash = result.hash;
+        } catch (sponsorError: any) {
+          console.warn(
+            'Sponsored approval failed, retrying without sponsorship:',
+            sponsorError?.message,
+          );
+          setDepositStatus('Retrying approval...');
+          const result = await sendTransaction({
             to: fromTokenAddress as `0x${string}`,
             data: approveData,
             chainId: sourceChainId,
-          },
-          {
-            sponsor: true,
-          },
-        );
+          });
+          approvalHash = result.hash;
+        }
 
         console.log('Approval tx hash:', approvalHash);
         setDepositStatus('Waiting for approval confirmation...');
 
-        // Wait for approval to be confirmed
-        await publicClient.waitForTransactionReceipt({
+        // Wait for approval on the SOURCE chain
+        await sourcePublicClient.waitForTransactionReceipt({
           hash: approvalHash as `0x${string}`,
         });
 
@@ -603,20 +674,71 @@ export default function DepositModal({
 
     setDepositStatus('Waiting for transaction approval...');
 
-    // Use Privy's sendTransaction with gas sponsorship
-    const { hash } = await sendTransaction(
-      {
+    // Parse transaction value safely (handles both decimal and hex strings)
+    let txValue = BigInt(0);
+    if (transactionRequest.value) {
+      try {
+        txValue = BigInt(transactionRequest.value);
+      } catch {
+        txValue = BigInt(0);
+      }
+    }
+
+    // Use Privy's sendTransaction with gas sponsorship and fallback
+    let hash: string;
+    try {
+      const result = await sendTransaction(
+        {
+          to: transactionRequest.to as `0x${string}`,
+          data: transactionRequest.data as `0x${string}`,
+          value: txValue,
+          chainId: sourceChainId,
+        },
+        {
+          sponsor: true,
+        },
+      );
+      hash = result.hash;
+    } catch (sponsorError: any) {
+      const errorMessage =
+        sponsorError?.message || sponsorError?.toString() || '';
+      const isUserRejection =
+        errorMessage.includes('rejected') ||
+        errorMessage.includes('denied') ||
+        errorMessage.includes('cancelled') ||
+        errorMessage.includes('user rejected');
+
+      // Don't retry if user rejected the transaction
+      if (isUserRejection) {
+        throw sponsorError;
+      }
+
+      console.warn(
+        'Sponsored transaction failed, retrying without sponsorship:',
+        errorMessage,
+      );
+      setDepositStatus('Retrying transaction...');
+      const result = await sendTransaction({
         to: transactionRequest.to as `0x${string}`,
         data: transactionRequest.data as `0x${string}`,
-        value: transactionRequest.value
-          ? BigInt(transactionRequest.value)
-          : BigInt(0),
+        value: txValue,
         chainId: sourceChainId,
-      },
-      {
-        sponsor: true, // Enable gas sponsorship
-      },
-    );
+      });
+      hash = result.hash;
+    }
+
+    // Wait for the source chain transaction to be confirmed
+    setDepositStatus('Waiting for confirmation...');
+    try {
+      await sourcePublicClient.waitForTransactionReceipt({
+        hash: hash as `0x${string}`,
+      });
+    } catch (receiptError) {
+      console.warn(
+        'Transaction receipt check failed (may still succeed):',
+        receiptError,
+      );
+    }
 
     return hash;
   };
@@ -627,8 +749,7 @@ export default function DepositModal({
       throw new Error('No quote available or wallet not ready');
     }
 
-    const solanaWallet = solWallets?.[0];
-    if (!solanaWallet) {
+    if (!selectedSolanaWallet) {
       throw new Error('Solana wallet not connected');
     }
 
@@ -646,7 +767,76 @@ export default function DepositModal({
       throw new Error('No Solana RPC URL configured');
     }
 
-    const connection = new Connection(solanaRpcUrl, 'confirmed');
+    const connection = new Connection(solanaRpcUrl, {
+      commitment: 'confirmed',
+      confirmTransactionInitialTimeout: 60000,
+    });
+
+    // Ensure required token accounts (ATAs) exist before executing LiFi transaction.
+    // LiFi assumes ATAs already exist; for SOL swaps, the WSOL ATA is often missing.
+    const walletPubkey = new PublicKey(selectedSolanaWallet.address);
+    const tokenAddress = getTokenAddressForLifi(selectedToken!);
+    const tokenMint = new PublicKey(tokenAddress);
+
+    setDepositStatus('Checking token accounts...');
+
+    // const ata = await getAssociatedTokenAddress(
+    //   tokenMint,
+    //   walletPubkey,
+    //   false,
+    //   TOKEN_PROGRAM_ID,
+    // );
+
+    // const ataInfo = await connection.getAccountInfo(ata);
+
+    // if (!ataInfo) {
+    //   setDepositStatus('Creating token account...');
+
+    //   const createAtaTx = new Transaction().add(
+    //     createAssociatedTokenAccountInstruction(
+    //       walletPubkey,
+    //       ata,
+    //       walletPubkey,
+    //       tokenMint,
+    //       TOKEN_PROGRAM_ID,
+    //     ),
+    //   );
+
+    //   const { blockhash: ataBlockhash } =
+    //     await connection.getLatestBlockhash('confirmed');
+    //   createAtaTx.recentBlockhash = ataBlockhash;
+    //   createAtaTx.feePayer = walletPubkey;
+
+    //   const serializedAtaTx = new Uint8Array(
+    //     createAtaTx.serialize({
+    //       requireAllSignatures: false,
+    //       verifySignatures: false,
+    //     }),
+    //   );
+
+    //   await safeRefreshSession();
+
+    //   let ataSig: string;
+    //   try {
+    //     const ataResult = await signAndSendTransaction({
+    //       transaction: serializedAtaTx,
+    //       wallet: selectedSolanaWallet,
+    //       options: { sponsor: true },
+    //     });
+    //     ataSig = bs58.encode(ataResult.signature);
+    //   } catch (ataError: any) {
+    //     console.log('fallback to non-sponsored', ataError);
+    //     // Fallback to non-sponsored if sponsorship fails
+    //     const ataResult = await signAndSendTransaction({
+    //       transaction: serializedAtaTx,
+    //       wallet: selectedSolanaWallet,
+    //     });
+    //     ataSig = bs58.encode(ataResult.signature);
+    //   }
+
+    //   await connection.confirmTransaction(ataSig, 'confirmed');
+    //   console.log('ATA created:', ata.toBase58());
+    // }
 
     // Decode the transaction
     const txBuffer = Buffer.from(rawTx, 'base64');
@@ -659,24 +849,86 @@ export default function DepositModal({
 
     setDepositStatus('Waiting for signature...');
 
-    // Use Privy's signAndSendTransaction with gas sponsorship
-    const result = await signAndSendTransaction({
-      transaction: new Uint8Array(transaction.serialize()),
-      wallet: solanaWallet,
-      options: {
-        sponsor: true, // Enable gas sponsorship
-      },
-    });
+    // Refresh Privy session before signing to prevent timeout
+    await safeRefreshSession();
 
-    // Convert signature from Uint8Array to base58 string
-    const signatureString = bs58.encode(result.signature);
+    const serializedTransaction = new Uint8Array(
+      transaction.serialize(),
+    );
+    let signatureString: string;
+
+    // LiFi bridge transactions on Solana are often too large for sponsorship
+    // (sponsorship wraps the tx with extra data, exceeding the 1232-byte limit).
+    // Try sponsored first; fall back to non-sponsored on size or abort errors.
+    try {
+      const result = await signAndSendTransaction({
+        transaction: serializedTransaction,
+        wallet: selectedSolanaWallet,
+        options: {
+          sponsor: true,
+        },
+      });
+      signatureString = bs58.encode(result.signature);
+    } catch (sponsorError: any) {
+      console.warn('Sponsored Solana tx failed:', sponsorError);
+      const errorMessage =
+        sponsorError?.message || sponsorError?.toString() || '';
+
+      // Don't retry if user rejected
+      const isUserRejection =
+        errorMessage.includes('rejected') ||
+        errorMessage.includes('denied') ||
+        errorMessage.includes('cancelled') ||
+        errorMessage.includes('user rejected');
+      if (isUserRejection) {
+        throw sponsorError;
+      }
+
+      const isAbortError =
+        sponsorError?.name === 'AbortError' ||
+        errorMessage.includes('aborted') ||
+        errorMessage.includes('AbortError');
+      const isTooLarge =
+        errorMessage.includes('too large') ||
+        errorMessage.includes('Transaction too large');
+
+      if (isAbortError || isTooLarge) {
+        console.warn(
+          `Sponsored transaction failed (${isTooLarge ? 'too large' : 'aborted'}), retrying without sponsorship...`,
+        );
+        setDepositStatus('Retrying transaction...');
+        await safeRefreshSession();
+        const result = await signAndSendTransaction({
+          transaction: serializedTransaction,
+          wallet: selectedSolanaWallet,
+        });
+        signatureString = bs58.encode(result.signature);
+      } else {
+        // For any other sponsorship error, also try without sponsorship
+        console.warn(
+          'Sponsored transaction failed with unexpected error, retrying without sponsorship...',
+        );
+        setDepositStatus('Retrying transaction...');
+        await safeRefreshSession();
+        try {
+          const result = await signAndSendTransaction({
+            transaction: serializedTransaction,
+            wallet: selectedSolanaWallet,
+          });
+          signatureString = bs58.encode(result.signature);
+        } catch (fallbackError) {
+          // If fallback also fails, throw the original error for clarity
+          throw sponsorError;
+        }
+      }
+    }
 
     setDepositStatus('Waiting for confirmation...');
 
     // Wait a bit for the transaction to propagate
     await new Promise((resolve) => setTimeout(resolve, 2000));
 
-    // Check transaction status using the new API with TransactionConfirmationStrategy
+    // Check transaction status
     try {
       await connection.confirmTransaction(
         {
@@ -733,8 +985,12 @@ export default function DepositModal({
       setTxHash(hash);
       setDepositStatus('Waiting for confirmation...');
 
-      // For EVM chains, wait for receipt
-      if (selectedToken.chain.toUpperCase() !== 'SOLANA' && isDirectUsdcE) {
+      // For direct USDC.e transfer on Polygon, wait for receipt on Polygon
+      // (LiFi EVM swaps already wait for source chain receipt in executeLifiEvmSwap)
+      if (
+        selectedToken.chain.toUpperCase() !== 'SOLANA' &&
+        isDirectUsdcE
+      ) {
         await publicClient.waitForTransactionReceipt({
           hash: hash as `0x${string}`,
         });
@@ -747,7 +1003,25 @@ export default function DepositModal({
       console.error('Deposit error:', err);
       // Transaction failed - clear the in-progress flag and show error
       isTransactionInProgress.current = false;
-      setError(err.message || 'Failed to complete deposit');
+
+      // Parse user-friendly error messages
+      const rawMessage = err.message || 'Failed to complete deposit';
+      let userMessage = rawMessage;
+      if (
+        rawMessage.includes('rejected') ||
+        rawMessage.includes('denied') ||
+        rawMessage.includes('user rejected')
+      ) {
+        userMessage = 'Transaction was rejected. Please try again.';
+      } else if (rawMessage.includes('insufficient funds')) {
+        userMessage =
+          'Insufficient funds for gas fees. Please add funds to your wallet.';
+      } else if (rawMessage.includes('timeout')) {
+        userMessage =
+          'Transaction timed out. Please check your wallet and try again.';
+      }
+
+      setError(userMessage);
       setStep('error');
     }
   };
@@ -956,7 +1230,8 @@ export default function DepositModal({
       parseFloat(amount) > 0 &&
       parseFloat(amount) <= parseFloat(selectedToken?.balance || '0');
     const hasValidQuote = needsBridge && lifiQuote;
-    const isLoadingQuote = needsBridge && canDeposit && isQuoteLoading;
+    const isLoadingQuote =
+      needsBridge && canDeposit && isQuoteLoading;
 
     return (
       <div className="space-y-4">

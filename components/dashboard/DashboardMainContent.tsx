@@ -89,8 +89,6 @@ export default function DashboardMainContent() {
     SUPPORTED_CHAINS,
   );
 
-  console.log("tokens hola", tokens);
-
   // Fetch followers with pagination (page 1, limit 20)
   const {
     data: followersData,

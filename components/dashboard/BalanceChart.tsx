@@ -1,8 +1,8 @@
-"use client";
+'use client';
 
-import React, { useMemo, useState } from "react";
-import { Button } from "@/components/ui/button";
-import { Skeleton } from "@/components/ui/skeleton";
+import React, { useEffect, useMemo, useState } from 'react';
+import { Button } from '@/components/ui/button';
+import { Skeleton } from '@/components/ui/skeleton';
 import {
   AreaChart,
   Area,
@@ -11,27 +11,28 @@ import {
   CartesianGrid,
   Tooltip,
   ResponsiveContainer,
-} from "recharts";
-import { useUser } from "@/lib/UserContext";
-import { WalletItem } from "@/types/wallet";
-import { useQuery } from "@tanstack/react-query";
+} from 'recharts';
+import { useUser } from '@/lib/UserContext';
+import { WalletItem } from '@/types/wallet';
+import { useQuery } from '@tanstack/react-query';
 import {
   getBalanceHistory,
   balanceHistoryQueryKey,
   type BalanceHistoryEntry,
   type TimePeriod as ServiceTimePeriod,
-} from "@/services/balance-service";
-import { PrimaryButton } from "../ui/Button/PrimaryButton";
-import { BsBank2, BsSendFill } from "react-icons/bs";
-import { LuWallet } from "react-icons/lu";
-import SwapButton from "../wallet/SwapButton";
-import { TbArrowsExchange2 } from "react-icons/tb";
-import { MoreHorizontal } from "lucide-react";
-import { BiQrScan } from "react-icons/bi";
-import { FaRegListAlt } from "react-icons/fa";
-import CustomModal from "../modal/CustomModal";
-import WalletReceivePopup from "../wallet/WalletReceivePopup";
-import WalletFundandSettingsPopup from "../wallet/WalletFundandSettingsPopup";
+} from '@/services/balance-service';
+import { PrimaryButton } from '../ui/Button/PrimaryButton';
+import { BsBank2, BsSendFill, BsThreeDots } from 'react-icons/bs';
+import { LuWallet } from 'react-icons/lu';
+import SwapButton from '../wallet/SwapButton';
+import { TbArrowsExchange2 } from 'react-icons/tb';
+import { MoreHorizontal } from 'lucide-react';
+import { BiQrScan } from 'react-icons/bi';
+import { FaRegListAlt } from 'react-icons/fa';
+import CustomModal from '../modal/CustomModal';
+import WalletReceivePopup from '../wallet/WalletReceivePopup';
+import WalletFundandSettingsPopup from '../wallet/WalletFundandSettingsPopup';
+import { useBalanceVisibilityStore } from '@/zustandStore/useBalanceVisibilityStore';
 
 interface BalanceChartProps {
   userId?: string;
@@ -47,7 +48,13 @@ interface BalanceChartProps {
   isButtonVisible?: boolean;
 }
 
-type TimePeriod = "1day" | "7days" | "1month" | "6months" | "1year" | "all";
+type TimePeriod =
+  | '1day'
+  | '7days'
+  | '1month'
+  | '6months'
+  | '1year'
+  | 'all';
 
 const SkeletonBalanceChart = () => (
   <div className="w-full">
@@ -91,48 +98,59 @@ const SkeletonBalanceChart = () => (
 
 const BalanceChart: React.FC<BalanceChartProps> = ({
   userId,
-  className = "",
-  currency = "$",
+  className = '',
+  currency = '$',
   totalBalance: propTotalBalance, // Rename prop to avoid conflict
   isButtonVisible = false,
   onSelectAsset,
   onQRClick,
   walletData = [],
   tokens = [],
-  accessToken = "",
+  accessToken = '',
   onTokenRefresh,
 }) => {
   const { user } = useUser();
-  const [selectedPeriod, setSelectedPeriod] = useState<TimePeriod>("1day");
+  const [selectedPeriod, setSelectedPeriod] =
+    useState<TimePeriod>('1day');
   // const [showBalance, setShowBalance] = useState(false);
   const [showPopup, setShowPopup] = useState(false);
   const [fundandSettings, setFundandSettings] = useState(false);
+  const showBalance = useBalanceVisibilityStore(
+    (state) => state.showBalance,
+  );
 
   // Get the user ID (from prop or context)
   const effectiveUserId = userId || user?._id;
 
   // Helper function to convert component TimePeriod to service TimePeriod
-  const getServicePeriod = (period: TimePeriod): ServiceTimePeriod => {
+  const getServicePeriod = (
+    period: TimePeriod,
+  ): ServiceTimePeriod => {
     const periodMap: Record<TimePeriod, ServiceTimePeriod> = {
-      "1day": "1d",
-      "7days": "7d",
-      "1month": "30d",
-      "6months": "6m",
-      "1year": "1y",
-      all: "all",
+      '1day': '1d',
+      '7days': '7d',
+      '1month': '30d',
+      '6months': '6m',
+      '1year': '1y',
+      all: 'all',
     };
     return periodMap[period];
   };
 
   // Get snapshot type based on period (hourly for 1day, all for all, daily for others)
-  const getSnapshotType = (period: TimePeriod): "hourly" | "daily" | "all" => {
-    const snapshotTypeMap: Record<TimePeriod, "hourly" | "daily" | "all"> = {
-      "1day": "hourly",
-      "7days": "daily",
-      "1month": "daily",
-      "6months": "daily",
-      "1year": "daily",
-      all: "all",
+  const getSnapshotType = (
+    period: TimePeriod,
+  ): 'hourly' | 'daily' | 'all' => {
+    const snapshotTypeMap: Record<
+      TimePeriod,
+      'hourly' | 'daily' | 'all'
+    > = {
+      '1day': 'hourly',
+      '7days': 'daily',
+      '1month': 'daily',
+      '6months': 'daily',
+      '1year': 'daily',
+      all: 'all',
     };
     return snapshotTypeMap[period];
   };
@@ -144,7 +162,7 @@ const BalanceChart: React.FC<BalanceChartProps> = ({
     error,
   } = useQuery({
     queryKey: balanceHistoryQueryKey(
-      effectiveUserId || "",
+      effectiveUserId || '',
       getServicePeriod(selectedPeriod),
       getSnapshotType(selectedPeriod),
     ),
@@ -165,13 +183,17 @@ const BalanceChart: React.FC<BalanceChartProps> = ({
   const balanceHistory = balanceHistoryData?.balanceHistory || [];
   const fetchedBalance = balanceHistoryData?.currentBalance || 0;
 
+  console.log('balanceHistoryData', balanceHistoryData);
+
   // Use prop balance if provided, otherwise use fetched balance
   const totalBalance =
-    propTotalBalance !== undefined ? propTotalBalance : fetchedBalance;
+    propTotalBalance !== undefined
+      ? propTotalBalance
+      : fetchedBalance;
 
   // Log any errors
   if (error) {
-    console.error("Error fetching balance data:", error);
+    console.error('Error fetching balance data:', error);
   }
 
   // Filter data based on selected time period
@@ -181,14 +203,17 @@ const BalanceChart: React.FC<BalanceChartProps> = ({
     // Sort all data by date (newest first)
     const sortedHistory = [...balanceHistory].sort(
       (a, b) =>
-        new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+        new Date(b.createdAt).getTime() -
+        new Date(a.createdAt).getTime(),
     );
 
-    if (selectedPeriod === "all") {
+    if (selectedPeriod === 'all') {
       // Get the latest entry for each day
       const dateMap = sortedHistory.reduce(
         (acc: Record<string, BalanceHistoryEntry>, entry) => {
-          const dateStr = new Date(entry.createdAt).toISOString().split("T")[0];
+          const dateStr = new Date(entry.createdAt)
+            .toISOString()
+            .split('T')[0];
           if (!acc[dateStr]) {
             acc[dateStr] = entry;
           }
@@ -200,7 +225,8 @@ const BalanceChart: React.FC<BalanceChartProps> = ({
       // Convert back to array and sort chronologically
       return (Object.values(dateMap) as BalanceHistoryEntry[]).sort(
         (a, b) =>
-          new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
+          new Date(a.createdAt).getTime() -
+          new Date(b.createdAt).getTime(),
       );
     }
 
@@ -208,19 +234,19 @@ const BalanceChart: React.FC<BalanceChartProps> = ({
     let startDate = new Date(now.getTime());
 
     switch (selectedPeriod) {
-      case "1day":
+      case '1day':
         startDate.setTime(now.getTime() - 24 * 60 * 60 * 1000);
         break;
-      case "7days":
+      case '7days':
         startDate.setTime(now.getTime() - 7 * 24 * 60 * 60 * 1000);
         break;
-      case "1month":
+      case '1month':
         startDate.setMonth(startDate.getMonth() - 1);
         break;
-      case "6months":
+      case '6months':
         startDate.setMonth(startDate.getMonth() - 6);
         break;
-      case "1year":
+      case '1year':
         startDate.setFullYear(startDate.getFullYear() - 1);
         break;
       default:
@@ -231,17 +257,20 @@ const BalanceChart: React.FC<BalanceChartProps> = ({
       return new Date(entry.createdAt) >= startDate;
     });
 
-    if (selectedPeriod === "1day") {
+    if (selectedPeriod === '1day') {
       return filtered.sort(
         (a, b) =>
-          new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
+          new Date(a.createdAt).getTime() -
+          new Date(b.createdAt).getTime(),
       );
     }
 
     // For other time ranges: reduce to latest entry per date
     const dateAmountMap = filtered.reduce(
       (acc: Record<string, BalanceHistoryEntry>, entry) => {
-        const dateStr = new Date(entry.createdAt).toISOString().split("T")[0];
+        const dateStr = new Date(entry.createdAt)
+          .toISOString()
+          .split('T')[0];
         const existing = acc[dateStr];
         if (
           !existing ||
@@ -262,7 +291,7 @@ const BalanceChart: React.FC<BalanceChartProps> = ({
 
     let lastKnownAmount = 0;
     while (currentDate <= endDate) {
-      const dateStr = currentDate.toISOString().split("T")[0];
+      const dateStr = currentDate.toISOString().split('T')[0];
       if (dateAmountMap[dateStr]) {
         lastKnownAmount = dateAmountMap[dateStr].amount;
       }
@@ -322,9 +351,13 @@ const BalanceChart: React.FC<BalanceChartProps> = ({
             {payload[0].value.toLocaleString()}
           </p>
           <p className="text-xs text-muted-foreground mt-0.5">
-            {selectedPeriod === "1day"
-              ? new Date(payload[0].payload.createdAt).toLocaleString()
-              : new Date(payload[0].payload.createdAt).toLocaleDateString()}
+            {selectedPeriod === '1day'
+              ? new Date(
+                  payload[0].payload.createdAt,
+                ).toLocaleString()
+              : new Date(
+                  payload[0].payload.createdAt,
+                ).toLocaleDateString()}
           </p>
         </div>
       );
@@ -333,12 +366,12 @@ const BalanceChart: React.FC<BalanceChartProps> = ({
   };
 
   const timePeriods: { value: TimePeriod; label: string }[] = [
-    { value: "1day", label: "1D" },
-    { value: "7days", label: "1W" },
-    { value: "1month", label: "1M" },
-    { value: "6months", label: "6M" },
-    { value: "1year", label: "1Y" },
-    { value: "all", label: "All" },
+    { value: '1day', label: '1D' },
+    { value: '7days', label: '1W' },
+    { value: '1month', label: '1M' },
+    { value: '6months', label: '6M' },
+    { value: '1year', label: '1Y' },
+    { value: 'all', label: 'All' },
   ];
 
   if (loading) {
@@ -351,78 +384,33 @@ const BalanceChart: React.FC<BalanceChartProps> = ({
         {/* Header */}
         <div className="flex items-start justify-between mb-6">
           <div>
-            <p className="text-sm text-muted-foreground mb-1">Balance</p>
+            <p className="text-sm text-muted-foreground mb-1">
+              Balance
+            </p>
 
             {/* Balance Display with Show/Hide Toggle */}
-            {/* <button
-              onClick={() => setShowBalance((prev) => !prev)}
-              className="group relative flex items-center gap-2 px-3 py-1.5 rounded-xl bg-gradient-to-r from-slate-50 to-gray-50 dark:from-slate-800 dark:to-gray-800 border border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600 hover:shadow-md transition-all duration-300 focus:outline-none"
-              aria-label={showBalance ? "Hide balance" : "Show balance"}
-            >
-              <span className="text-xl font-bold text-gray-600 dark:text-gray-400">
-                {currency}
-              </span>
-
-
-              <div className="relative min-w-[100px]">
-                <div
-                  className={`text-2xl font-bold text-gray-900 dark:text-white transition-all duration-700 ease-out ${
-                    showBalance
-                      ? "opacity-100 transform translate-y-0"
-                      : "opacity-0 transform translate-y-1"
-                  }`}
-                >
-                  {formatBalance(totalBalance)}
-                </div>
-
-
-                <div
-                  className={`absolute inset-0 flex items-center transition-all duration-700 ease-out ${
-                    !showBalance
-                      ? "opacity-100 transform translate-y-0"
-                      : "opacity-0 transform -translate-y-1 pointer-events-none"
-                  }`}
-                >
-                  <div className="flex gap-1">
-                    {[...Array(4)].map((_, i) => (
-                      <div
-                        key={i}
-                        className="w-2 h-2 bg-gray-400 dark:bg-gray-500 rounded-full animate-pulse"
-                        style={{ animationDelay: `${i * 0.1}s` }}
-                      />
-                    ))}
-                  </div>
-                </div>
+            {showBalance ? (
+              <p className="text-lg font-semibold">
+                ${formatBalance(totalBalance)}
+              </p>
+            ) : (
+              <div className="flex items-center gap-0">
+                <BsThreeDots size={24} color="gray" />
+                <BsThreeDots
+                  size={24}
+                  color="gray"
+                  className="-translate-x-0.5"
+                />
               </div>
-
-
-              <div className="flex items-center justify-center w-7 h-7 rounded-full bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 group-hover:border-gray-300 dark:group-hover:border-gray-500 group-hover:shadow-sm transition-all duration-300">
-                <div className="relative w-4 h-4">
-                  <Eye
-                    className={`absolute inset-0 w-4 h-4 text-gray-600 dark:text-gray-300 transition-all duration-500 ${
-                      showBalance
-                        ? "opacity-100 rotate-0 scale-100"
-                        : "opacity-0 rotate-180 scale-75"
-                    }`}
-                  />
-                  <EyeOff
-                    className={`absolute inset-0 w-4 h-4 text-gray-600 dark:text-gray-300 transition-all duration-500 ${
-                      !showBalance
-                        ? "opacity-100 rotate-0 scale-100"
-                        : "opacity-0 rotate-180 scale-75"
-                    }`}
-                  />
-                </div>
-              </div>
-            </button> */}
-            <p className="text-lg font-semibold">
-              ${formatBalance(totalBalance)}
-            </p>
+            )}
           </div>
 
           {isButtonVisible && (
             <div className="flex items-center gap-2">
-              <PrimaryButton className="px-2 rounded" onClick={onSelectAsset}>
+              <PrimaryButton
+                className="px-2 rounded"
+                onClick={onSelectAsset}
+              >
                 <BsSendFill size={15} color="black" />
               </PrimaryButton>
               <PrimaryButton
@@ -463,11 +451,31 @@ const BalanceChart: React.FC<BalanceChartProps> = ({
               margin={{ top: 10, right: 0, left: 0, bottom: 0 }}
             >
               <defs>
-                <linearGradient id="colorValue" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="#CFFAD6" stopOpacity={1} />
-                  <stop offset="100%" stopColor="#EFFDF1" stopOpacity={1} />
+                <linearGradient
+                  id="colorValue"
+                  x1="0"
+                  y1="0"
+                  x2="0"
+                  y2="1"
+                >
+                  <stop
+                    offset="0%"
+                    stopColor="#CFFAD6"
+                    stopOpacity={1}
+                  />
+                  <stop
+                    offset="100%"
+                    stopColor="#EFFDF1"
+                    stopOpacity={1}
+                  />
                 </linearGradient>
-                <linearGradient id="strokeGradient" x1="0" y1="0" x2="1" y2="0">
+                <linearGradient
+                  id="strokeGradient"
+                  x1="0"
+                  y1="0"
+                  x2="1"
+                  y2="0"
+                >
                   <stop offset="0%" stopColor="#A2EFB9" />
                   <stop offset="100%" stopColor="#A1C7E9" />
                 </linearGradient>
@@ -510,8 +518,8 @@ const BalanceChart: React.FC<BalanceChartProps> = ({
               />
               <Tooltip
                 content={<CustomTooltip />}
-                cursor={{ stroke: "#A2EFB9", strokeWidth: 1 }}
-                wrapperStyle={{ outline: "none", zIndex: 9999 }}
+                cursor={{ stroke: '#A2EFB9', strokeWidth: 1 }}
+                wrapperStyle={{ outline: 'none', zIndex: 9999 }}
               />
               <Area
                 type="monotone"
@@ -529,7 +537,11 @@ const BalanceChart: React.FC<BalanceChartProps> = ({
           {timePeriods.map((period) => (
             <Button
               key={period.value}
-              variant={selectedPeriod === period.value ? "secondary" : "ghost"}
+              variant={
+                selectedPeriod === period.value
+                  ? 'secondary'
+                  : 'ghost'
+              }
               size="sm"
               onClick={() => setSelectedPeriod(period.value)}
               className="h-8 text-xs"
@@ -545,17 +557,21 @@ const BalanceChart: React.FC<BalanceChartProps> = ({
             <span
               className={`text-sm font-semibold px-3 py-1.5 rounded-lg ${
                 isPositive
-                  ? "text-[#00E725] bg-[#7AE38B33]"
-                  : "text-red-500 bg-red-100 dark:bg-red-950"
+                  ? 'text-[#00E725] bg-[#7AE38B33]'
+                  : 'text-red-500 bg-red-100 dark:bg-red-950'
               }`}
             >
-              {growthPercentage > 0 ? "+" : ""}
+              {growthPercentage > 0 ? '+' : ''}
               {growthPercentage}%
             </span>
-            <span className="text-sm text-muted-foreground">in the last</span>
+            <span className="text-sm text-muted-foreground">
+              in the last
+            </span>
             <select
               value={selectedPeriod}
-              onChange={(e) => setSelectedPeriod(e.target.value as TimePeriod)}
+              onChange={(e) =>
+                setSelectedPeriod(e.target.value as TimePeriod)
+              }
               className="text-sm font-medium text-[#8A2BE2] bg-transparent border-none focus:outline-none cursor-pointer"
             >
               <option value="1day">1 Day</option>

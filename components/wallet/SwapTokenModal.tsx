@@ -48,6 +48,7 @@ import {
 } from '@/lib/utils/walletNotifications';
 import { useSearchParams } from 'next/navigation';
 import bs58 from 'bs58';
+import { notifySwapFee } from '@/actions/notifySwapFee';
 
 const getChainIcon = (chainName: string) => {
   const chainIcons: Record<string, string> = {
@@ -449,7 +450,21 @@ export default function SwapTokenModal({
   const [isSwapping, setIsSwapping] = useState(false);
   const [swapStatus, setSwapStatus] = useState<string | null>(null);
 
-  const { user: PrivyUser } = usePrivy();
+  const { user: PrivyUser, getAccessToken } = usePrivy();
+
+  // Safe session refresh - doesn't block if Privy server is slow/unavailable
+  const safeRefreshSession = useCallback(async () => {
+    try {
+      // Add a 5 second timeout to prevent blocking indefinitely
+      const timeoutPromise = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('Session refresh timeout')), 5000)
+      );
+      await Promise.race([getAccessToken(), timeoutPromise]);
+    } catch (error) {
+      // Log but don't throw - the existing session might still be valid
+      console.warn('Session refresh failed, proceeding with existing session:', error);
+    }
+  }, [getAccessToken]);
 
   const searchParams = useSearchParams();
 
@@ -763,7 +778,10 @@ export default function SwapTokenModal({
           const rpcUrl = process.env.NEXT_PUBLIC_SOLANA_RPC_URL;
 
           if (rpcUrl) {
-            const connection = new Connection(rpcUrl, 'confirmed');
+            const connection = new Connection(rpcUrl, {
+              commitment: 'confirmed',
+              confirmTransactionInitialTimeout: 60000,
+            });
             const programId =
               tokenProgramId === TOKEN_2022_PROGRAM_ID.toString()
                 ? TOKEN_2022_PROGRAM_ID
@@ -1104,7 +1122,10 @@ export default function SwapTokenModal({
         );
       }
 
-      const connection = new Connection(rpcUrl, 'confirmed');
+      const connection = new Connection(rpcUrl, {
+        commitment: 'confirmed',
+        confirmTransactionInitialTimeout: 60000,
+      });
 
       // Step 4: Ensure user has required token accounts (ATAs)
       setSwapStatus('Checking token accounts...');
@@ -1135,17 +1156,9 @@ export default function SwapTokenModal({
 
           // Check which program owns the mint account
           if (mintInfo.owner.equals(TOKEN_2022_PROGRAM_ID)) {
-            console.log(
-              '✅ [SWAP] Detected Token-2022 program for mint:',
-              mintPubkey.toBase58()
-            );
             return TOKEN_2022_PROGRAM_ID;
           }
 
-          console.log(
-            '✅ [SWAP] Detected standard SPL Token program for mint:',
-            mintPubkey.toBase58()
-          );
           return TOKEN_PROGRAM_ID;
         } catch (e) {
           console.error(
@@ -1183,9 +1196,6 @@ export default function SwapTokenModal({
           connection.getAccountInfo(outputATA),
         ]
       );
-
-      console.log('inputAccountInfo', inputAccountInfo);
-      console.log('outputAccountInfo', outputAccountInfo);
 
       const needsInputATA = !inputAccountInfo;
       const needsOutputATA = !outputAccountInfo;
@@ -1243,31 +1253,49 @@ export default function SwapTokenModal({
           transaction.feePayer = walletPubkey;
 
           // Sign and send using Privy signAndSendTransaction hook with gas sponsorship
-          console.log(
-            '🔐 [SWAP] Signing and sending ATA creation transaction'
+          const serializedTx = new Uint8Array(
+            transaction.serialize({
+              requireAllSignatures: false,
+              verifySignatures: false,
+            })
           );
-          const serializedTx = transaction.serialize({
-            requireAllSignatures: false,
-            verifySignatures: false,
-          });
 
-          const result = await signAndSendTransaction({
-            transaction: new Uint8Array(serializedTx),
-            wallet: selectedSolanaWallet,
-            options: {
-              sponsor: true,
-            },
-          });
+          // Refresh Privy session before signing to prevent timeout
+          await safeRefreshSession();
 
-          const signature = bs58.encode(result.signature);
-          console.log(
-            '⏳ [SWAP] Confirming ATA creation:',
-            signature
-          );
+          let signature: string;
+          try {
+            const result = await signAndSendTransaction({
+              transaction: serializedTx,
+              wallet: selectedSolanaWallet,
+              options: {
+                sponsor: true,
+              },
+            });
+            signature = bs58.encode(result.signature);
+          } catch (sponsorError: any) {
+            // Check if it's an AbortError - fallback to non-sponsored transaction
+            const errorMessage = sponsorError?.message || sponsorError?.toString() || '';
+            const isAbortError =
+              sponsorError?.name === 'AbortError' ||
+              errorMessage.includes('aborted') ||
+              errorMessage.includes('AbortError');
+
+            if (isAbortError) {
+              console.warn('Sponsored ATA creation aborted, retrying without sponsorship...');
+              await safeRefreshSession();
+              const result = await signAndSendTransaction({
+                transaction: serializedTx,
+                wallet: selectedSolanaWallet,
+              });
+              signature = bs58.encode(result.signature);
+            } else {
+              throw sponsorError;
+            }
+          }
+
           await connection.confirmTransaction(signature, 'confirmed');
-          console.log('✅ [SWAP] ATAs created successfully');
         } catch (ataError: any) {
-          console.error('❌ [SWAP] Failed to create ATAs:', ataError);
           throw new Error(
             `Failed to create token accounts: ${
               ataError.message || ataError
@@ -1298,12 +1326,15 @@ export default function SwapTokenModal({
 
       // Step 7: Sign and submit transaction using Privy hook
       let txId: string;
+      const serializedTransaction = new Uint8Array(transaction.serialize());
+
       try {
-        console.log(
-          '🔐 [SWAP] Signing and sending sponsored transaction'
-        );
+        // Refresh Privy session before signing to prevent timeout
+        await safeRefreshSession();
+
+        // Try sponsored transaction first
         const result = await signAndSendTransaction({
-          transaction: new Uint8Array(transaction.serialize()),
+          transaction: serializedTransaction,
           wallet: selectedSolanaWallet,
           options: {
             sponsor: true,
@@ -1312,20 +1343,40 @@ export default function SwapTokenModal({
 
         // Convert signature bytes to base58 string
         txId = bs58.encode(result.signature);
-        console.log(
-          '✅ [SWAP] Sponsored transaction submitted:',
-          txId
-        );
       } catch (sponsorError: any) {
-        console.error(
-          '❌ [SWAP] Sponsored transaction failed:',
-          sponsorError
-        );
-        throw new Error(
-          `Sponsored transaction failed: ${
-            sponsorError.message || 'Unknown error'
-          }`
-        );
+        // Check if it's an AbortError - fallback to non-sponsored transaction
+        const errorMessage = sponsorError?.message || sponsorError?.toString() || '';
+        const isAbortError =
+          sponsorError?.name === 'AbortError' ||
+          errorMessage.includes('aborted') ||
+          errorMessage.includes('AbortError');
+
+        if (isAbortError) {
+          console.warn('Sponsored transaction aborted, retrying without sponsorship...');
+          setSwapStatus('Retrying transaction...');
+
+          try {
+            // Refresh session again before retry
+            await safeRefreshSession();
+
+            const result = await signAndSendTransaction({
+              transaction: serializedTransaction,
+              wallet: selectedSolanaWallet,
+            });
+
+            txId = bs58.encode(result.signature);
+          } catch (retryError: any) {
+            throw new Error(
+              `Transaction failed: ${retryError.message || 'Unknown error'}`
+            );
+          }
+        } else {
+          throw new Error(
+            `Sponsored transaction failed: ${
+              sponsorError.message || 'Unknown error'
+            }`
+          );
+        }
       }
 
       // Step 8: Transaction confirmation
@@ -1338,54 +1389,90 @@ export default function SwapTokenModal({
       await new Promise((resolve) => setTimeout(resolve, 2000));
 
       // Step 9: Confirm transaction
+      let isConfirmed = false;
       const confirmationRpcUrl =
         process.env.NEXT_PUBLIC_SOLANA_RPC_URL;
 
       if (confirmationRpcUrl) {
-        const confirmationConnection = new Connection(
-          confirmationRpcUrl,
-          'confirmed'
-        );
+        const confirmationConnection = new Connection(confirmationRpcUrl, {
+          commitment: 'confirmed',
+          confirmTransactionInitialTimeout: 60000,
+        });
 
         try {
           await confirmationConnection.confirmTransaction(
             txId,
-            'confirmed'
+            'finalized'
           );
+          isConfirmed = true;
           setSwapStatus('Transaction confirmed');
         } catch (confirmError: any) {
-          console.warn(
-            '⚠️ [SWAP] Confirmation check failed (tx may still succeed):',
-            confirmError.message || confirmError
-          );
           setSwapStatus('Transaction submitted successfully');
         }
       } else {
-        console.warn(
-          '⚠️ [SWAP] No RPC URL for confirmation, skipping'
-        );
         setSwapStatus('Transaction submitted successfully');
       }
 
-      // Step 10: Save to database
-      try {
-        await saveSwapToDatabase(txId, jupiterQuote);
-      } catch (dbError: any) {
-        console.error(
-          '❌ [SWAP] Failed to save to database:',
-          dbError
-        );
-        // Don't fail the swap if database save fails
-      }
-    } catch (error: any) {
-      console.error('❌ [SWAP] Swap execution failed:', error);
-      console.error('❌ [SWAP] Error stack:', error.stack);
+      // Step 9.5: Notify backend after confirmation only
+      if (isConfirmed) {
+        if (!accessToken) {
+          throw new Error(
+            'Missing access token for backend notification'
+          );
+        }
 
+        const inputPrice = Number(
+          payToken?.price || payToken?.usdPrice || 0
+        );
+        const outputPrice = Number(
+          receiveToken?.price || receiveToken?.usdPrice || 0
+        );
+        const inputUsdValue =
+          inputPrice > 0
+            ? (Number(payAmount || 0) * inputPrice).toFixed(6)
+            : undefined;
+        const outputUsdValue =
+          outputPrice > 0
+            ? (Number(receiveAmount || 0) * outputPrice).toFixed(6)
+            : undefined;
+        const priceImpactPct = jupiterQuote?.priceImpactPct
+          ? (Number(jupiterQuote.priceImpactPct) * 100).toFixed(2)
+          : undefined;
+        const routeLabels = jupiterQuote?.routePlan
+          ? Array.from(
+              new Set(
+                jupiterQuote.routePlan
+                  .map((step: any) => step?.swapInfo?.label)
+                  .filter(Boolean)
+              )
+            )
+          : [];
+
+        notifySwapFee(
+          {
+            txHash: txId,
+            walletAddress: selectedSolanaWallet?.address,
+            inputTokenSymbol: payToken?.symbol,
+            inputAmount: payAmount,
+            inputUsdValue,
+            outputTokenSymbol: receiveToken?.symbol,
+            outputAmount: receiveAmount,
+            outputUsdValue,
+          },
+          accessToken
+        );
+      }
+
+      // Step 10: Save to database
+      saveSwapToDatabase(txId, jupiterQuote);
+      setSwapStatus('Transaction confirmed');
+    } catch (error: any) {
       // Apply user-friendly error formatting
       const userFriendlyError = formatUserFriendlyError(
         error?.message || error?.toString() || 'Swap failed'
       );
       setSwapError(userFriendlyError);
+      setSwapStatus(null);
     } finally {
       setIsSwapping(false);
     }
@@ -1453,8 +1540,6 @@ export default function SwapTokenModal({
         await saveSwapToDatabase(txHash, quote);
       }
     } catch (error: any) {
-      console.error('Li.Fi swap error:', error);
-
       // Apply user-friendly error formatting
       const userFriendlyError = formatUserFriendlyError(
         error.message || error.toString() || 'Cross-chain swap failed'
@@ -1485,12 +1570,7 @@ export default function SwapTokenModal({
             network: networkName,
             reason: userFriendlyError,
           });
-        } catch (notifError) {
-          console.error(
-            'Failed to send swap failed notification:',
-            notifError
-          );
-        }
+        } catch (notifError) {}
       } else {
         console.warn(
           '⚠️ Socket not connected, swap failed notification not sent'
@@ -1535,7 +1615,10 @@ export default function SwapTokenModal({
         throw new Error('No Solana RPC URL configured');
       }
 
-      const connection = new Connection(solanaRpcUrl, 'confirmed');
+      const connection = new Connection(solanaRpcUrl, {
+        commitment: 'confirmed',
+        confirmTransactionInitialTimeout: 60000,
+      });
 
       // Deserialize the LiFi transaction
       const swapTransactionBuffer = Buffer.from(rawTx, 'base64');
@@ -1551,15 +1634,48 @@ export default function SwapTokenModal({
 
       // Sign and send the versioned transaction using Privy signAndSendTransaction hook with gas sponsorship
       setSwapStatus('Signing and sending sponsored transaction...');
-      const result = await signAndSendTransaction({
-        transaction: new Uint8Array(transaction.serialize()),
-        wallet: selectedSolanaWallet,
-        options: {
-          sponsor: true,
-        },
-      });
 
-      const signature = bs58.encode(result.signature);
+      // Refresh Privy session before signing to prevent timeout
+      await safeRefreshSession();
+
+      const serializedTransaction = new Uint8Array(transaction.serialize());
+      let signature: string;
+
+      try {
+        const result = await signAndSendTransaction({
+          transaction: serializedTransaction,
+          wallet: selectedSolanaWallet,
+          options: {
+            sponsor: true,
+          },
+        });
+        signature = bs58.encode(result.signature);
+      } catch (sponsorError: any) {
+        const errorMessage = sponsorError?.message || sponsorError?.toString() || '';
+        const isAbortError =
+          sponsorError?.name === 'AbortError' ||
+          errorMessage.includes('aborted') ||
+          errorMessage.includes('AbortError');
+        const isTooLarge =
+          errorMessage.includes('too large') ||
+          errorMessage.includes('Transaction too large');
+
+        if (isAbortError || isTooLarge) {
+          console.warn(
+            `Sponsored transaction failed (${isTooLarge ? 'too large' : 'aborted'}), retrying without sponsorship...`
+          );
+          setSwapStatus('Retrying transaction...');
+          await safeRefreshSession();
+          const result = await signAndSendTransaction({
+            transaction: serializedTransaction,
+            wallet: selectedSolanaWallet,
+          });
+          signature = bs58.encode(result.signature);
+        } else {
+          throw sponsorError;
+        }
+      }
+
       setTxHash(signature);
       setSwapStatus(
         'Transaction submitted! Waiting for confirmation...'
@@ -1583,8 +1699,6 @@ export default function SwapTokenModal({
       // Save to database after confirmation
       await saveSwapToDatabase(signature, quote);
     } catch (error: any) {
-      console.error('Solana swap failed:', error);
-
       // Apply user-friendly error formatting
       const userFriendlyError = formatUserFriendlyError(
         error?.message || error?.toString() || 'Transaction failed'
@@ -1842,7 +1956,9 @@ export default function SwapTokenModal({
       fromAmountUSD = null;
       toAmountUSD = null;
       fees = jupiterQuote.platformFee || null;
-      priceImpact = jupiterQuote.priceImpactPct || null;
+      priceImpact = (
+        Number(jupiterQuote.priceImpactPct) * 100
+      ).toFixed(2);
     } else {
       fromAmountUSD =
         quote.estimate?.fromAmountUSD || quote.fromAmountUSD;

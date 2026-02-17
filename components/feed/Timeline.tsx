@@ -78,7 +78,7 @@ const Timeline = ({
       : receiver_wallet_address &&
         `${receiver_wallet_address.slice(
           0,
-          5
+          5,
         )}...${receiver_wallet_address.slice(-5)}`;
 
     if (transaction_type === "nft") {
@@ -114,7 +114,11 @@ const Timeline = ({
           </span>{" "}
           {tokenPrice && <span>(${Number(tokenPrice).toFixed(2)})</span>} tokens
           to{" "}
-          <a href={`https://${recipientDisplay}`} target="_blank">
+          <a
+            href={`https://${recipientDisplay}`}
+            target="_blank"
+            className="font-semibold"
+          >
             {formatEns(recipientDisplay)}
           </a>{" "}
           on the {chain}.
@@ -169,7 +173,7 @@ const Timeline = ({
       setInitialLoading(false);
       isFetching.current = false;
     },
-    [accessToken, smartsiteId, setIsPostLoading]
+    [accessToken, smartsiteId, setIsPostLoading],
   );
 
   // Initial fetch once smartsiteId is available.

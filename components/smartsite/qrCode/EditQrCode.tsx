@@ -133,7 +133,11 @@ const EditQRCode = ({ qrCodeData, token }: any) => {
         currentUrl: qrCodeData.qrCodeUrl,
       };
 
+      console.log("payload", payload);
+
       const data = await postCustomQrCode(payload, token);
+
+      console.log("data response", data);
 
       if (data?.state === "success") {
         router.back();

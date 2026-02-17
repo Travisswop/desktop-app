@@ -90,7 +90,7 @@ const MemoizedFeedItem = memo(
       prevProps.userId === nextProps.userId &&
       prevProps.accessToken === nextProps.accessToken
     );
-  }
+  },
 );
 
 MemoizedFeedItem.displayName = "MemoizedFeedItem";
@@ -120,7 +120,7 @@ const Ledger = memo(
         setIsModalOpen(true);
         setRedeemFeedData(data);
       },
-      [onOpen]
+      [onOpen],
     );
 
     // Separate callback for repost success that doesn't trigger full refresh
@@ -138,11 +138,11 @@ const Ledger = memo(
       (postId: string, updates: Partial<FeedItemType>) => {
         setFeedData((currentFeedData) =>
           currentFeedData.map((item) =>
-            item._id === postId ? { ...item, ...updates } : item
-          )
+            item._id === postId ? { ...item, ...updates } : item,
+          ),
         );
       },
-      []
+      [],
     );
 
     const router = useRouter();
@@ -168,7 +168,7 @@ const Ledger = memo(
         : receiver_wallet_address &&
           `${receiver_wallet_address.slice(
             0,
-            5
+            5,
           )}...${receiver_wallet_address.slice(-5)}`;
 
       if (transaction_type === "nft") {
@@ -204,7 +204,11 @@ const Ledger = memo(
             </span>{" "}
             {tokenPrice && <span>(${Number(tokenPrice).toFixed(2)})</span>}{" "}
             tokens to{" "}
-            <a href={`https://${recipientDisplay}`} target="_blank">
+            <a
+              href={`https://${recipientDisplay}`}
+              target="_blank"
+              className="font-semibold"
+            >
               {formatEns(recipientDisplay)}
             </a>{" "}
             on the {chain}.
@@ -264,7 +268,7 @@ const Ledger = memo(
           isFetching.current = false;
         }
       },
-      [accessToken, userId]
+      [accessToken, userId],
     );
 
     // Initial fetch on mount.
@@ -351,7 +355,7 @@ const Ledger = memo(
         )}
       </div>
     );
-  }
+  },
 );
 
 Ledger.displayName = "Ledger";

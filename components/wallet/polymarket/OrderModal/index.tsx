@@ -168,22 +168,15 @@ export default function OrderPlacementModal({
       ? inputNum > balance
       : inputNum > activeShareBalance;
 
-  // Calculate minimum order amount based on orderMinSize and current price
-  const minOrderAmount = Math.max(1, orderMinSize * effectivePrice);
-
   const handlePlaceOrder = async () => {
-    // For BUY orders, validate dollar amount based on market's orderMinSize
     if (side === 'BUY') {
-      if (inputNum < minOrderAmount) {
-        setLocalError(
-          `Minimum order amount is $${minOrderAmount.toFixed(2)} (${orderMinSize} shares)`,
-        );
+      if (inputNum < 1) {
+        setLocalError('Minimum order amount is $1.00');
         return;
       }
     } else {
-      // For SELL orders, validate shares against orderMinSize
-      if (inputNum < orderMinSize) {
-        setLocalError(`Minimum shares to sell: ${orderMinSize}`);
+      if (inputNum < 1) {
+        setLocalError('Minimum shares to sell: 1');
         return;
       }
     }
@@ -210,9 +203,16 @@ export default function OrderPlacementModal({
     }
 
     try {
+      // For market orders:
+      //   BUY: pass dollar amount directly (CLOB client expects USDC amount)
+      //   SELL: pass share amount
+      // For limit orders: always pass shares
+      const orderSize =
+        orderType === 'market' && side === 'BUY' ? inputNum : shares;
+
       await submitOrder({
         tokenId: activeTokenId,
-        size: shares,
+        size: orderSize,
         price: orderType === 'limit' ? limitPriceNum : undefined,
         side,
         negRisk,
@@ -362,7 +362,7 @@ export default function OrderPlacementModal({
                 }}
                 tickSize={tickSize}
                 isLoadingTickSize={isLoadingTickSize}
-                minOrderAmount={minOrderAmount}
+                minOrderAmount={1}
               />
             )}
 

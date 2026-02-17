@@ -7,14 +7,13 @@ import feed from "@/public/images/nav/feed.png";
 import smartsite from "@/public/images/nav/smartsite.png";
 import wallet from "@/public/images/nav/wallet.png";
 import Link from "next/link";
-import { BiQrScan, BiSolidEdit } from "react-icons/bi";
+import { BiSolidEdit } from "react-icons/bi";
+import { TrendingUp } from "lucide-react";
 import { VscChip } from "react-icons/vsc";
 import { useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { useModalStore } from "@/zustandStore/modalstore";
 import { IoAdd, IoClose } from "react-icons/io5";
-import { HiOutlineUsers } from "react-icons/hi";
-import { FaEdit, FaRegEdit } from "react-icons/fa";
 import { TbLockDollar } from "react-icons/tb";
 import { MdPhoneIphone, MdQrCodeScanner } from "react-icons/md";
 import {
@@ -154,6 +153,7 @@ const BottomNavContent = () => {
   // Define routes where BottomNav should be hidden
   const hideOnRoutes = [
     "/smartsite/edit/",
+    "/smartsite/create-smartsite",
     "/smartsite/token-gated/",
     "/dashboard/chat",
     "/edit-profile",
@@ -465,7 +465,7 @@ const BottomNavContent = () => {
     <>
       <div
         className={`${
-          isSmartsite ? "w-[22rem]" : "w-[19rem]"
+          isSmartsite ? "w-[26rem]" : "w-[23rem]"
         } fixed bottom-2 left-1/2 transform -translate-x-1/2 `}
       >
         {(pathname === "/" || pathname?.startsWith("/feed")) && (
@@ -558,6 +558,18 @@ const BottomNavContent = () => {
               <Image src={wallet} alt="wallet" className="h-5 w-auto" />
             </div>
             <p className="text-sm">Wallet</p>
+          </Link>
+          <Link href={"/market"} className="flex flex-col gap-1 items-center">
+            <div
+              className={`border ${
+                pathname?.startsWith("/market")
+                  ? "border-gray-300"
+                  : "border-gray-50"
+              } bg-gray-100 rounded-lg p-3`}
+            >
+              <TrendingUp className="h-5 w-auto" strokeWidth={1.5} />
+            </div>
+            <p className="text-sm">Market</p>
           </Link>
           <Link
             href={"/smartsite"}
