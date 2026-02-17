@@ -12,11 +12,6 @@ export const SUPPORTED_CHAINS: ChainType[] = [
 //   'POLYGON',
 // ] as const;
 
-// API endpoints
-export const API_ENDPOINTS = {
-  SPONSOR_TRANSACTION: '/api/v5/wallet/sponsor-transaction',
-} as const;
-
 // Error messages
 export const ERROR_MESSAGES = {
   MISSING_TRANSACTION_INFO: 'Missing transaction information',
