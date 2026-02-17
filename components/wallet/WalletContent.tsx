@@ -249,7 +249,7 @@ const WalletContentInner = () => {
       const hasExistingSolanaWallet = linkedAccounts.some(
         (account) =>
           isSolanaWalletAccount(account) &&
-          isPrivyEmbeddedWallet(account)
+          isPrivyEmbeddedWallet(account),
       );
 
       if (!hasExistingSolanaWallet) {
@@ -287,7 +287,7 @@ const WalletContentInner = () => {
   } = useMultiChainTokenData(
     solWalletAddress,
     evmWalletAddress,
-    SUPPORTED_CHAINS
+    SUPPORTED_CHAINS,
   );
 
   const {
@@ -305,7 +305,7 @@ const WalletContentInner = () => {
     return tokens
       .map(
         (t) =>
-          `${t.symbol}:${t.balance}:${t.marketData?.price || '0'}`
+          `${t.symbol}:${t.balance}:${t.marketData?.price || '0'}`,
       )
       .sort()
       .join('|');
@@ -361,7 +361,7 @@ const WalletContentInner = () => {
     if (otherAssets.length > 0) {
       const othersValue = otherAssets.reduce(
         (sum, asset) => sum + asset.value,
-        0
+        0,
       );
       assets.push({
         name: 'Others',
@@ -389,21 +389,21 @@ const WalletContentInner = () => {
     () =>
       tokens.find((token) => token.isNative)?.marketData?.price ||
       '0',
-    [tokens]
+    [tokens],
   );
 
   // Get the native SOL balance for rent calculations
   const solBalance = useMemo(() => {
     const solToken = tokens.find(
       (token) =>
-        token.isNative && token.chain?.toUpperCase() === 'SOLANA'
+        token.isNative && token.chain?.toUpperCase() === 'SOLANA',
     );
     return solToken ? parseFloat(solToken.balance) || 0 : 0;
   }, [tokens]);
 
   const currentWalletAddress = useMemo(
     () => evmWalletAddress || solWalletAddress,
-    [evmWalletAddress, solWalletAddress]
+    [evmWalletAddress, solWalletAddress],
   );
 
   // Optimized transaction execution
@@ -413,7 +413,7 @@ const WalletContentInner = () => {
       const rpcUrl = process.env.NEXT_PUBLIC_SOLANA_RPC_URL;
       if (!rpcUrl) {
         throw new Error(
-          'Solana RPC URL not configured. Please check environment settings.'
+          'Solana RPC URL not configured. Please check environment settings.',
         );
       }
 
@@ -428,7 +428,7 @@ const WalletContentInner = () => {
         // Verify authentication before signing
         if (!authenticated) {
           throw new Error(
-            'Please log in to send transactions. Your session may have expired.'
+            'Please log in to send transactions. Your session may have expired.',
           );
         }
 
@@ -439,16 +439,16 @@ const WalletContentInner = () => {
         } catch (tokenError) {
           console.error(
             'Failed to get Privy access token:',
-            tokenError
+            tokenError,
           );
           throw new Error(
-            'Authentication session expired. Please refresh the page and log in again.'
+            'Authentication session expired. Please refresh the page and log in again.',
           );
         }
 
         if (!privyAccessToken) {
           throw new Error(
-            'Authentication token not available. Please refresh the page and log in again.'
+            'Authentication token not available. Please refresh the page and log in again.',
           );
         }
 
@@ -457,16 +457,16 @@ const WalletContentInner = () => {
           const linkedAccounts = (PrivyUser?.linkedAccounts ||
             []) as PrivyLinkedAccount[];
           const hasSolanaAccount = linkedAccounts.some(
-            isSolanaWalletAccount
+            isSolanaWalletAccount,
           );
 
           if (hasSolanaAccount) {
             throw new Error(
-              'Solana wallet found in account but not accessible. Please refresh the page and try again.'
+              'Solana wallet found in account but not accessible. Please refresh the page and try again.',
             );
           } else {
             throw new Error(
-              'No Solana wallet found. Please connect a Solana wallet.'
+              'No Solana wallet found. Please connect a Solana wallet.',
             );
           }
         }
@@ -474,7 +474,7 @@ const WalletContentInner = () => {
         // Verify wallet has a valid address
         if (!selectedSolanaWallet.address) {
           throw new Error(
-            'Solana wallet address is not available. Please refresh the page and try again.'
+            'Solana wallet address is not available. Please refresh the page and try again.',
           );
         }
 
@@ -484,7 +484,7 @@ const WalletContentInner = () => {
         } catch (rpcError) {
           console.error('RPC connection failed:', rpcError);
           throw new Error(
-            'Unable to connect to Solana network. Please check your connection and try again.'
+            'Unable to connect to Solana network. Please check your connection and try again.',
           );
         }
       } else if (!selectedSolanaWallet) {
@@ -496,7 +496,7 @@ const WalletContentInner = () => {
       const allAccounts = (PrivyUser?.linkedAccounts ||
         []) as PrivyLinkedAccount[];
       const ethereumAccount = allAccounts.find(
-        isEthereumWalletAccount
+        isEthereumWalletAccount,
       );
 
       let evmWallet;
@@ -505,7 +505,7 @@ const WalletContentInner = () => {
         evmWallet = ethWallets.find(
           (w) =>
             w.address?.toLowerCase() ===
-            ethereumAccount.address.toLowerCase()
+            ethereumAccount.address.toLowerCase(),
         );
       }
 
@@ -517,17 +517,17 @@ const WalletContentInner = () => {
           hash = await TransactionService.handleSolanaNFTTransfer(
             selectedSolanaWallet,
             sendFlow,
-            connection
+            connection,
           );
         } else {
           await evmWallet?.switchChain(
             CHAIN_ID[
               sendFlow.network as keyof typeof CHAIN_ID as keyof typeof CHAIN_ID as keyof typeof CHAIN_ID
-            ]
+            ],
           );
           hash = await TransactionService.handleNFTTransfer(
             evmWallet,
-            sendFlow
+            sendFlow,
           );
         }
         refetchNFTs();
@@ -541,7 +541,7 @@ const WalletContentInner = () => {
             await TransactionService.buildSolanaTokenTransfer(
               selectedSolanaWallet,
               sendFlow,
-              connection
+              connection,
             );
 
           // Use Privy's sendTransaction with sponsor: true
@@ -562,30 +562,25 @@ const WalletContentInner = () => {
 
             hash = bs58.encode(result.signature);
           } catch (privyError) {
-            // Fallback: Use backend relay for sponsored transactions
-            console.warn(
-              'Privy signAndSendTransaction failed, falling back to backend relay:',
-              privyError
-            );
-
-            hash =
-              await TransactionService.submitPrivyNativeSponsoredTransaction(
-                transaction,
-                selectedSolanaWallet,
-                connection
-              );
+            return {
+              success: false,
+              error:
+                privyError instanceof Error
+                  ? privyError.message
+                  : ERROR_MESSAGES.TRANSACTION_FAILED,
+            };
           }
         } else {
           // EVM token transfer
           await evmWallet?.switchChain(
             CHAIN_ID[
               sendFlow.network as keyof typeof CHAIN_ID as keyof typeof CHAIN_ID as keyof typeof CHAIN_ID
-            ]
+            ],
           );
           const result = await TransactionService.handleEVMSend(
             evmWallet,
             sendFlow,
-            sendFlow.network
+            sendFlow.network,
           );
           hash = result.hash;
         }
@@ -639,7 +634,7 @@ const WalletContentInner = () => {
 
       if (!result.success) {
         throw new Error(
-          result.error || ERROR_MESSAGES.TRANSACTION_FAILED
+          result.error || ERROR_MESSAGES.TRANSACTION_FAILED,
         );
       }
 
@@ -653,7 +648,7 @@ const WalletContentInner = () => {
               Number(calculateTransactionAmount(sendFlow)),
               currentWalletAddress,
               payload,
-              accessToken
+              accessToken,
             )
           : Promise.resolve(),
       ]);
@@ -663,12 +658,12 @@ const WalletContentInner = () => {
         const notificationSent = handleSocketNotification(
           result.hash,
           sendFlow,
-          calculateTransactionAmount
+          calculateTransactionAmount,
         );
 
         if (!notificationSent) {
           console.warn(
-            'Transaction notification not sent, socket unavailable'
+            'Transaction notification not sent, socket unavailable',
           );
         }
       }
@@ -723,7 +718,7 @@ const WalletContentInner = () => {
   // Memoized event handlers
   const handleTokenSelect = useCallback(
     (token: TokenData) => setSelectedToken(token),
-    []
+    [],
   );
 
   const handleSelectNFT = useCallback((nft: NFT) => {
@@ -740,7 +735,7 @@ const WalletContentInner = () => {
 
   const handleQRClick = useCallback(
     () => setWalletQRModalOpen(true),
-    []
+    [],
   );
 
   const handleAssetSelect = useCallback(
@@ -749,7 +744,7 @@ const WalletContentInner = () => {
         ...prev,
         step: 'select-method',
       })),
-    [setSendFlow]
+    [setSendFlow],
   );
 
   return (
