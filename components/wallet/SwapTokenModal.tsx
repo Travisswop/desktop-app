@@ -477,7 +477,7 @@ export default function SwapTokenModal({
   token?: any;
 }) {
   // ── Core swap state ──────────────────────────────────────────────────────────
-  const [payToken, setPayToken] = useState<any>(token || tokens?.[0] || null);
+  const [payToken, setPayToken] = useState<any>(token || null);
   const [receiveToken, setReceiveToken] = useState<any>(null);
   const [payAmount, setPayAmount] = useState("");
   const [receiveAmount, setReceiveAmount] = useState("");
@@ -561,6 +561,32 @@ export default function SwapTokenModal({
 
   const { user: PrivyUser, getAccessToken } = usePrivy();
   const searchParams = useSearchParams();
+
+  // ── Default token selection: USDC → SWOP ─────────────────────────────────────
+  useEffect(() => {
+    if (!tokens || tokens.length === 0) return;
+
+    // Only set defaults if not already pre-filled by props or URL params
+    if (!payToken) {
+      const defaultPay = tokens.find((t) => t.symbol?.toUpperCase() === "USDC");
+      if (defaultPay) {
+        setPayToken(defaultPay);
+        setChainId(getChainId(defaultPay.chain));
+      }
+    }
+
+    if (!receiveToken) {
+      const defaultReceive = tokens.find(
+        (t) => t.symbol?.toUpperCase() === "SWOP",
+      );
+      if (defaultReceive) {
+        const rcvChainId = getChainId(defaultReceive.chain);
+        setReceiveToken(defaultReceive);
+        setReceiverChainId(rcvChainId);
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tokens]);
 
   // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -1659,8 +1685,8 @@ export default function SwapTokenModal({
   // ── Render ───────────────────────────────────────────────────────────────────
 
   return (
-    <div className="flex justify-center mt-10 pb-4 relative">
-      <Card className="w-full max-w-md p-4 rounded-2xl shadow-lg bg-white text-black">
+    <div className="flex justify-center pb-4 relative">
+      <div className="w-full text-black px-4">
         {/* Header */}
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-lg font-semibold text-center flex-1">Swaps</h2>
@@ -2102,7 +2128,7 @@ export default function SwapTokenModal({
             )}
           </Button>
         </div>
-      </Card>
+      </div>
 
       {/* ═══════════════════════════════════════════════════════════════════════
           Token Select Drawer
