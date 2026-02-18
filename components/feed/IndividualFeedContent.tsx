@@ -266,7 +266,7 @@ const IndividualFeedContent = ({ feed, userId, token, onVoteSuccess }: any) => {
               <div className="shadow-medium bg-white rounded-lg mt-2 p-2 relative">
                 <Link
                   onClick={(e) => e.stopPropagation()}
-                  href={feed.repostedPostDetails.content.link}
+                  href={feed?.repostedPostDetails?.content?.link || "#"}
                   className="w-max"
                 >
                   <Image

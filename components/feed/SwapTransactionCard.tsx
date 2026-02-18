@@ -103,12 +103,15 @@ const SwapTransactionCard: React.FC<SwapTransactionCardProps> = ({ feed }) => {
           </div>
 
           <div className="flex items-center justify-between mt-2">
-            <Link
-              href={`/wallet?inputToken=${feed.content.inputToken.symbol}&outputToken=${feed.content.outputToken.symbol}&amount=${feed.content.inputToken.amount}&outputChain=${feed.content.outputToken.chainId}`}
-              className="text-xs border border-gray-300 rounded px-3 py-1 font-medium hover:bg-gray-200"
-            >
-              Copy Trade
-            </Link>
+            {feed?.content && (
+              <Link
+                href={`/wallet?inputToken=${feed?.content?.inputToken?.symbol}&outputToken=${feed?.content?.outputToken?.symbol}&amount=${feed?.content?.inputToken?.amount}&outputChain=${feed?.content?.outputToken?.chainId}`}
+                className="text-xs border border-gray-300 rounded px-3 py-1 font-medium hover:bg-gray-200"
+              >
+                Copy Trade
+              </Link>
+            )}
+
             {/* {feed.content.signature && (
               <div className="flex justify-end">
                 <a
