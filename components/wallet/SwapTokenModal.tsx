@@ -56,7 +56,7 @@ import { notifySwapFee } from "@/actions/notifySwapFee";
 
 const getChainIcon = (chainName: string) => {
   const chainIcons: Record<string, string> = {
-    SOLANA: "/assets/icons/sol.png",
+    SOLANA: "/assets/icons/solana.png",
     ETHEREUM: "/images/IconShop/eTH@3x.png",
     BSC: "/images/IconShop/binance-smart-chain.png",
     POLYGON: "/images/IconShop/polygon@3x.png",
@@ -337,7 +337,7 @@ const ALL_CHAINS = [
   {
     id: "1151111081099710",
     name: "SOL",
-    icon: "/assets/icons/sol.png",
+    icon: "/assets/icons/solana.png",
   },
   { id: "1", name: "ETH", icon: "/images/IconShop/eTH@3x.png" },
   { id: "137", name: "POL", icon: "/images/IconShop/polygon@3x.png" },
