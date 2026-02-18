@@ -56,12 +56,12 @@ import { notifySwapFee } from "@/actions/notifySwapFee";
 
 const getChainIcon = (chainName: string) => {
   const chainIcons: Record<string, string> = {
-    SOLANA: "/images/IconShop/solana@2x.png",
+    SOLANA: "/assets/icons/sol.png",
     ETHEREUM: "/images/IconShop/eTH@3x.png",
     BSC: "/images/IconShop/binance-smart-chain.png",
     POLYGON: "/images/IconShop/polygon.png",
     ARBITRUM: "/images/IconShop/arbitrum.png",
-    BASE: "https://www.base.org/document/safari-pinned-tab.svg",
+    BASE: "/assets/icons/base.png",
   };
   return chainIcons[chainName.toUpperCase()] || null;
 };
@@ -337,7 +337,7 @@ const ALL_CHAINS = [
   {
     id: "1151111081099710",
     name: "SOL",
-    icon: "/assets/icons/Sol.png",
+    icon: "/assets/icons/sol.png",
   },
   { id: "1", name: "ETH", icon: "/images/IconShop/eTH@3x.png" },
   { id: "137", name: "POL", icon: "/images/IconShop/polygon.png" },
@@ -380,6 +380,8 @@ const CATEGORY_LABELS: Record<TokenCategory, string> = {
 // ─────────────────────────────────────────────────────────────────────────────
 
 function TokenRow({ token, onClick }: { token: any; onClick: () => void }) {
+  console.log("hola row of token", token);
+
   const getInitialSVG = (t: any) => {
     const initials = (t.symbol || "??").slice(0, 2).toUpperCase();
     const colors = ["#FF6B6B", "#4ECDC4", "#45B7D1", "#F9A826", "#6C5CE7"];
@@ -414,7 +416,7 @@ function TokenRow({ token, onClick }: { token: any; onClick: () => void }) {
           }}
         />
         {chainIconSrc && (
-          <div className="absolute -bottom-1 -right-1 bg-white rounded-full p-0.5 border border-gray-200 w-4 h-4 flex items-center justify-center">
+          <div className="absolute -bottom-0.5 -right-0.5 rounded-full w-4 h-4 flex items-center justify-center">
             <Image
               src={sanitizeImageUrl(chainIconSrc)}
               alt="chain"
@@ -451,14 +453,12 @@ function TokenRow({ token, onClick }: { token: any; onClick: () => void }) {
             {parseFloat(token.balance).toFixed(4)}
           </span>
         )}
-        {token.stats24h?.priceChange != null && (
-          <span
-            className={`text-xs ${token.stats24h.priceChange >= 0 ? "text-green-500" : "text-red-500"}`}
-          >
-            {token.stats24h.priceChange >= 0 ? "+" : ""}
-            {token.stats24h.priceChange.toFixed(2)}%
-          </span>
-        )}
+        {/* <span
+          className={`text-xs ${token?.stats24h?.priceChange >= 0 ? "text-green-500" : "text-red-500"}`}
+        >
+          {token?.stats24h?.priceChange >= 0 ? "+" : ""}
+          {token?.stats24h?.priceChange?.toFixed(2)}%
+        </span> */}
       </div>
     </button>
   );
@@ -731,6 +731,8 @@ export default function SwapTokenModal({
     }
     return categoryTokens;
   }, [filteredList, targetList, activeReceiveTab, selectedReceiveChain]);
+
+  console.log("visibleReceiveTokens", visibleReceiveTokens);
 
   // ── Effect 1: Handle inputToken + amount from URL (runs when tokens load) ─────
   useEffect(() => {
@@ -1797,7 +1799,7 @@ export default function SwapTokenModal({
                     />
                   )}
                   {payToken?.chain && (
-                    <div className="absolute -bottom-1 -right-1 bg-white rounded-full p-0.5 flex items-center justify-center w-4 h-4 border border-gray-200">
+                    <div className="absolute -bottom-1 -right-1 rounded-full flex items-center justify-center w-4 h-4">
                       <Image
                         src={sanitizeImageUrl(
                           getChainIcon(payToken.chain) || "",
@@ -1918,7 +1920,7 @@ export default function SwapTokenModal({
                                   ? "BASE"
                                   : receiveToken.chain || "SOLANA";
                         return (
-                          <div className="absolute -bottom-1 -right-1 bg-white rounded-full p-0.5 flex items-center justify-center w-4 h-4 border border-gray-200">
+                          <div className="absolute -bottom-1 -right-1 rounded-full flex items-center justify-center w-4 h-4">
                             <Image
                               src={sanitizeImageUrl(
                                 getChainIcon(chainName) || "",
@@ -2317,8 +2319,8 @@ export default function SwapTokenModal({
                 {/* Chain icons – hidden while searching */}
                 {!searchQuery && (
                   <div className="px-4 pb-2 flex-shrink-0">
-                    <p className="text-xs font-medium text-gray-400 mb-2 uppercase tracking-wide">
-                      Select Chain
+                    <p className="text-xs font-medium text-black mb-1 tracking-wide">
+                      SELECT CHAIN
                     </p>
                     <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
                       {ALL_CHAINS.map((c) => (
@@ -2329,32 +2331,33 @@ export default function SwapTokenModal({
                             setSearchQuery("");
                             setFilteredList([]);
                           }}
-                          className={`flex flex-col items-center gap-1 p-2 rounded-xl border transition-all flex-shrink-0 flex-1 ${
+                          className={`border-2 rounded-full ${
                             selectedReceiveChain === c.id
-                              ? "bg-black border-black"
-                              : "bg-white border-gray-200 hover:bg-gray-50"
+                              ? "border-black"
+                              : "border-transparent"
                           }`}
                         >
                           {c.icon ? (
                             <Image
                               src={sanitizeImageUrl(c.icon)}
                               alt={c.name}
-                              width={28}
-                              height={28}
-                              className={`w-7 h-7 rounded-full ${selectedReceiveChain === c.id ? "ring-2 ring-white" : ""}`}
+                              width={280}
+                              height={280}
+                              quality={100}
+                              className={`w-7 h-7 rounded-full`}
                             />
                           ) : (
                             <div className="w-7 h-7 rounded-full bg-gradient-to-br from-blue-400 to-purple-500 flex items-center justify-center">
-                              <span className="text-white text-xs font-bold">
+                              <span className="text-white text-sm font-bold">
                                 ✦
                               </span>
                             </div>
                           )}
-                          <span
+                          {/* <span
                             className={`text-xs font-medium ${selectedReceiveChain === c.id ? "text-white" : "text-gray-600"}`}
                           >
                             {c.name}
-                          </span>
+                          </span> */}
                         </button>
                       ))}
                     </div>
