@@ -561,7 +561,6 @@ export default function SwapTokenModal({
   const { user: PrivyUser, getAccessToken } = usePrivy();
   const searchParams = useSearchParams();
 
-  // ── Default token selection: USDC → SWOP ─────────────────────────────────────
   // ── Default token selection: SWOP (pay) → USDC (receive), both Solana ──────────
   useEffect(() => {
     if (!tokens || tokens.length === 0) return;
@@ -587,16 +586,20 @@ export default function SwapTokenModal({
     }
 
     if (!receiveToken) {
-      const defaultReceive = tokens.find(
-        (t) =>
-          t.symbol?.toUpperCase() === "USDC" &&
-          t.chain?.toUpperCase() === "SOLANA",
-      );
-      if (defaultReceive) {
-        const rcvChainId = getChainId(defaultReceive.chain);
-        setReceiveToken(defaultReceive);
-        setReceiverChainId(rcvChainId);
-      }
+      // USDC on Solana — fixed mint, no need to search tokens array
+      const solanaUSDC = {
+        symbol: "USDC",
+        name: "USD Coin",
+        address: "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+        chain: "SOLANA",
+        chainId: "1151111081099710",
+        decimals: 6,
+        logoURI:
+          "https://raw.githubusercontent.com/solana-labs/token-list/main/assets/mainnet/EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v/logo.png",
+        balance: null,
+      };
+      setReceiveToken(solanaUSDC);
+      setReceiverChainId("1151111081099710");
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tokens]);
