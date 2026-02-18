@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState, useCallback, useRef, useMemo } from "react";
-import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -563,12 +562,24 @@ export default function SwapTokenModal({
   const searchParams = useSearchParams();
 
   // ── Default token selection: USDC → SWOP ─────────────────────────────────────
+  // ── Default token selection: SWOP (pay) → USDC (receive), both Solana ──────────
   useEffect(() => {
     if (!tokens || tokens.length === 0) return;
 
-    // Only set defaults if not already pre-filled by props or URL params
+    // Skip defaults entirely if URL search params are present
+    const hasSearchParams =
+      searchParams?.get("inputToken") ||
+      searchParams?.get("outputToken") ||
+      searchParams?.get("amount");
+    if (hasSearchParams) return;
+
+    // Only set defaults if not already pre-filled by props
     if (!payToken) {
-      const defaultPay = tokens.find((t) => t.symbol?.toUpperCase() === "USDC");
+      const defaultPay = tokens.find(
+        (t) =>
+          t.symbol?.toUpperCase() === "SWOP" &&
+          t.chain?.toUpperCase() === "SOLANA",
+      );
       if (defaultPay) {
         setPayToken(defaultPay);
         setChainId(getChainId(defaultPay.chain));
@@ -577,7 +588,9 @@ export default function SwapTokenModal({
 
     if (!receiveToken) {
       const defaultReceive = tokens.find(
-        (t) => t.symbol?.toUpperCase() === "SWOP",
+        (t) =>
+          t.symbol?.toUpperCase() === "USDC" &&
+          t.chain?.toUpperCase() === "SOLANA",
       );
       if (defaultReceive) {
         const rcvChainId = getChainId(defaultReceive.chain);
