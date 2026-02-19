@@ -12,8 +12,6 @@ import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { GoDotFill } from "react-icons/go";
-import { HiDotsHorizontal } from "react-icons/hi";
-import DeleteFeedModal from "./DeleteFeedModal";
 import PostTypeMedia from "./view/PostTypeMedia";
 import Link from "next/link";
 import { FiPlusCircle } from "react-icons/fi";

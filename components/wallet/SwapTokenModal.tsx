@@ -333,7 +333,7 @@ function searchTokens(
 // ─────────────────────────────────────────────────────────────────────────────
 
 const ALL_CHAINS = [
-  { id: "all", name: "All", icon: null },
+  { id: "all", name: "All", icon: "/assets/icons/all3x.webp" },
   {
     id: "1151111081099710",
     name: "SOL",
@@ -353,7 +353,7 @@ const PAY_CHAINS = [
   {
     id: "1151111081099710",
     name: "SOL",
-    icon: "/images/IconShop/solana@2x.png",
+    icon: "/assets/icons/solana.png",
   },
   {
     id: "1",
