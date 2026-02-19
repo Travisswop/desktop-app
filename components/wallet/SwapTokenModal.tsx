@@ -282,6 +282,7 @@ function filterTokensByCategory(
   };
 
   tokenArray.forEach((token) => {
+    // FIX: Use address OR id – Solana tokens from Jupiter use `id`, EVM use `address`
     const identifier = token.address || token.id;
     if (!identifier) return;
 
@@ -290,8 +291,9 @@ function filterTokensByCategory(
     if (cid === "1") network = "ethereum";
     else if (cid === "137") network = "polygon";
     else if (cid === "8453") network = "base";
+    // FIX: Solana tokens from Jupiter have no chainId OR chainId = 1151111081099710
     else if (!cid || cid === "1151111081099710") network = "solana";
-    else return;
+    else return; // skip unknown chains
 
     for (const cat of TOKEN_CATEGORIES) {
       if (tokenCategoryAddresses[cat].has(identifier)) {
@@ -375,13 +377,25 @@ const CATEGORY_LABELS: Record<TokenCategory, string> = {
   stable: "Stables",
 };
 
+// Network display order for grouped rendering (matches RN implicit order)
+const NETWORK_DISPLAY_ORDER = ["solana", "ethereum", "polygon", "base", "bsc"];
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Grouped token result type
+// ─────────────────────────────────────────────────────────────────────────────
+
+type FlatResult = { grouped: false; tokens: any[] };
+type GroupedResult = {
+  grouped: true;
+  groups: { network: string; tokens: any[] }[];
+};
+type TokenListResult = FlatResult | GroupedResult;
+
 // ─────────────────────────────────────────────────────────────────────────────
 // TokenRow sub-component
 // ─────────────────────────────────────────────────────────────────────────────
 
 function TokenRow({ token, onClick }: { token: any; onClick: () => void }) {
-  console.log("hola row of token", token);
-
   const getInitialSVG = (t: any) => {
     const initials = (t.symbol || "??").slice(0, 2).toUpperCase();
     const colors = ["#FF6B6B", "#4ECDC4", "#45B7D1", "#F9A826", "#6C5CE7"];
@@ -392,8 +406,13 @@ function TokenRow({ token, onClick }: { token: any; onClick: () => void }) {
 
   const imgSrc =
     sanitizeImageUrl(token?.logoURI || token?.icon) || getInitialSVG(token);
-  const networkName =
-    token.chain ?? getNetworkByChainId(token.chainId?.toString() ?? "");
+  // FIX: resolve network from token.network (set by filterTokensByCategory) first,
+  // then fallback to chain field, then chainId
+  const networkName = token.network
+    ? token.network.toUpperCase()
+    : token.chain
+      ? token.chain
+      : getNetworkByChainId(token.chainId?.toString() ?? "").toUpperCase();
   const chainIconSrc = getChainIcon(networkName);
   const priceStr = token.priceUSD || token.usdPrice;
   const hasBalance = token.balance != null && Number(token.balance) > 0;
@@ -453,14 +472,34 @@ function TokenRow({ token, onClick }: { token: any; onClick: () => void }) {
             {parseFloat(token.balance).toFixed(4)}
           </span>
         )}
-        {/* <span
-          className={`text-xs ${token?.stats24h?.priceChange >= 0 ? "text-green-500" : "text-red-500"}`}
-        >
-          {token?.stats24h?.priceChange >= 0 ? "+" : ""}
-          {token?.stats24h?.priceChange?.toFixed(2)}%
-        </span> */}
       </div>
     </button>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// NetworkHeader sub-component (matches RN network section header)
+// ─────────────────────────────────────────────────────────────────────────────
+
+function NetworkHeader({ network }: { network: string }) {
+  const iconSrc = getChainIcon(network.toUpperCase());
+  const displayName = network.charAt(0).toUpperCase() + network.slice(1);
+
+  return (
+    <div className="flex items-center gap-2 px-4 pt-4 pb-2">
+      {iconSrc && (
+        <Image
+          src={sanitizeImageUrl(iconSrc)}
+          alt={network}
+          width={16}
+          height={16}
+          className="w-4 h-4 rounded-full"
+        />
+      )}
+      <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
+        {displayName}
+      </span>
+    </div>
   );
 }
 
@@ -515,7 +554,7 @@ export default function SwapTokenModal({
   // Shared search query
   const [searchQuery, setSearchQuery] = useState("");
 
-  // ── NEW: Receive-token drawer state (mirrors RN app) ─────────────────────────
+  // ── Receive-token drawer state (mirrors RN app) ──────────────────────────────
   const [tempTokens, setTempTokens] = useState<any[]>([]);
   const [targetList, setTargetList] = useState<Record<TokenCategory, any[]>>({
     stock: [],
@@ -561,18 +600,15 @@ export default function SwapTokenModal({
   const { user: PrivyUser, getAccessToken } = usePrivy();
   const searchParams = useSearchParams();
 
-  // ── Default token selection: SWOP (pay) → USDC (receive), both Solana ──────────
+  // ── Default token selection: SWOP (pay) → USDC (receive), both Solana ───────
   useEffect(() => {
     if (!tokens || tokens.length === 0) return;
-
-    // Skip defaults entirely if URL search params are present
     const hasSearchParams =
       searchParams?.get("inputToken") ||
       searchParams?.get("outputToken") ||
       searchParams?.get("amount");
     if (hasSearchParams) return;
 
-    // Only set defaults if not already pre-filled by props
     if (!payToken) {
       const defaultPay = tokens.find(
         (t) =>
@@ -586,7 +622,6 @@ export default function SwapTokenModal({
     }
 
     if (!receiveToken) {
-      // USDC on Solana — fixed mint, no need to search tokens array
       const solanaUSDC = {
         symbol: "USDC",
         name: "USD Coin",
@@ -652,7 +687,7 @@ export default function SwapTokenModal({
     [payToken, receiveToken, receiverChainId],
   );
 
-  // ── NEW: Load & bucket all receive tokens on mount ────────────────────────────
+  // ── Load & bucket all receive tokens on mount ─────────────────────────────────
   useEffect(() => {
     const loadReceiveTokens = async () => {
       setReceiveDrawerLoading(true);
@@ -665,7 +700,8 @@ export default function SwapTokenModal({
             fetchTokensFromLiFi("1151111081099710", "").catch(() => []),
           ]);
 
-        // Merge user tokens (which have balance) + fetched tokens; deduplicate by address
+        // FIX: Merge user tokens (which have balance) + fetched tokens.
+        // Deduplicate using `address || id` to preserve Solana tokens that use `id`.
         const merged = [
           ...tokens,
           ...ethTokens,
@@ -675,6 +711,7 @@ export default function SwapTokenModal({
         ];
         const seen = new Set<string>();
         const deduped = merged.filter((t) => {
+          // FIX: check both address and id — Solana tokens from Jupiter use `id`
           const key = (t.address || t.id || "").toLowerCase();
           if (!key || seen.has(key)) return false;
           seen.add(key);
@@ -696,7 +733,7 @@ export default function SwapTokenModal({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tokens.length]);
 
-  // ── NEW: Debounced search across tempTokens ───────────────────────────────────
+  // ── Debounced search across tempTokens ────────────────────────────────────────
   const handleReceiveSearch = useMemo(
     () =>
       debounce((query: string, chainFilter: string) => {
@@ -720,27 +757,63 @@ export default function SwapTokenModal({
     }
   };
 
-  // ── NEW: Compute visible receive tokens (same priority as RN app) ─────────────
-  // Priority 1: search results  →  Priority 2: chain filter on category  →  Priority 3: full category
-  const visibleReceiveTokens = useMemo(() => {
-    if (filteredList.length > 0) return filteredList;
-    const categoryTokens = targetList[TOKEN_CATEGORIES[activeReceiveTab]] ?? [];
+  // ── FIX: getGroupedReceiveTokens – mirrors RN rendering logic exactly ─────────
+  //
+  // RN rules (from SwapInterface.tsx render):
+  //   Priority 1: filteredList (search results) → always flat, no grouping
+  //   Priority 2: chain selected (not "all") → filter category by network, flat
+  //   Priority 3: chain = "all" → group by network (applies to ALL categories,
+  //               but RN only explicitly groups for "stable"; for others it just
+  //               renders all tokens which naturally appear in network order from
+  //               filterTokensByCategory. We group all to make chains clear.)
+  //
+  // The stable category is ALWAYS grouped by network regardless of chain filter.
+  const getGroupedReceiveTokens = useMemo((): TokenListResult => {
+    const currentCategory = TOKEN_CATEGORIES[activeReceiveTab];
+
+    // Search results → always flat (shown across all chains)
+    if (filteredList.length > 0) {
+      return { grouped: false, tokens: filteredList };
+    }
+
+    const categoryTokens = targetList[currentCategory] ?? [];
+
+    // Specific chain selected → filter and show flat
     if (selectedReceiveChain !== "all") {
       const network = getNetworkByChainId(selectedReceiveChain);
-      return categoryTokens.filter((t) => t.network === network);
+      const filtered = categoryTokens.filter((t) => t.network === network);
+      return { grouped: false, tokens: filtered };
     }
-    return categoryTokens;
+
+    // "All" chains selected → group by network (matches RN stable grouping,
+    // extended to all categories so users can see which chain each token is on)
+    const groupMap: Record<string, any[]> = {};
+    categoryTokens.forEach((token) => {
+      const net = token.network ?? "unknown";
+      if (!groupMap[net]) groupMap[net] = [];
+      groupMap[net].push(token);
+    });
+
+    // Sort networks in the defined display order
+    const groups = NETWORK_DISPLAY_ORDER.filter(
+      (net) => groupMap[net]?.length > 0,
+    ).map((net) => ({ network: net, tokens: groupMap[net] }));
+
+    // Append any networks not in the display order at the end
+    Object.keys(groupMap).forEach((net) => {
+      if (!NETWORK_DISPLAY_ORDER.includes(net) && groupMap[net]?.length > 0) {
+        groups.push({ network: net, tokens: groupMap[net] });
+      }
+    });
+
+    return { grouped: true, groups };
   }, [filteredList, targetList, activeReceiveTab, selectedReceiveChain]);
 
-  console.log("visibleReceiveTokens", visibleReceiveTokens);
-
-  // ── Effect 1: Handle inputToken + amount from URL (runs when tokens load) ─────
+  // ── Effect 1: Handle inputToken + amount from URL ─────────────────────────────
   useEffect(() => {
     const inputTokenParam = searchParams?.get("inputToken");
     const amountParam = searchParams?.get("amount");
-
     if (tokens.length === 0) return;
-
     if (inputTokenParam) {
       const found = tokens.find(
         (t) => t.symbol.toLowerCase() === inputTokenParam.toLowerCase(),
@@ -750,33 +823,27 @@ export default function SwapTokenModal({
         setChainId(getChainId(found.chain));
       }
     }
-
     if (amountParam && !isNaN(parseFloat(amountParam))) {
       setPayAmount(amountParam);
     }
   }, [searchParams, tokens]);
 
-  // ── Effect 2: Handle outputToken from URL (runs when tempTokens load) ─────────
+  // ── Effect 2: Handle outputToken from URL ─────────────────────────────────────
   useEffect(() => {
     const outputTokenParam = searchParams?.get("outputToken");
     const outputChainParam = searchParams?.get("outputChain");
-
     if (!outputTokenParam || tempTokens.length === 0) return;
-
     const found = tempTokens.find((t) => {
       const symbolMatch =
         t.symbol?.toLowerCase() === outputTokenParam.toLowerCase();
       if (!symbolMatch) return false;
-
       if (outputChainParam) {
         const tokenChainId =
           t.chainId?.toString() ?? getChainId(t.chain ?? t.network ?? "");
         return tokenChainId === outputChainParam;
       }
-
       return true;
     });
-
     if (found) {
       const rcvChainId =
         found.chainId?.toString() ??
@@ -784,7 +851,7 @@ export default function SwapTokenModal({
       setReceiveToken(found);
       setReceiverChainId(rcvChainId);
     }
-  }, [searchParams, tempTokens]); // 👈 only tempTokens, not tokens
+  }, [searchParams, tempTokens]);
 
   // ── Pay-token drawer helpers ──────────────────────────────────────────────────
   const filterTokensByPayChain = (toks: any[], cId: string) =>
@@ -822,7 +889,7 @@ export default function SwapTokenModal({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [openDrawer, selecting, tokens, selectedPayChain]);
 
-  // ── Quote fetching helpers ───────────────────────────────────────────────────
+  // ── Quote fetching helpers ────────────────────────────────────────────────────
 
   const getJupiterQuote = async () => {
     if (!payToken || !receiveToken || !payAmount)
@@ -1114,7 +1181,7 @@ export default function SwapTokenModal({
     [],
   );
 
-  // ── Save swap + socket notification ─────────────────────────────────────────
+  // ── Save swap + socket notification ──────────────────────────────────────────
   const saveSwapToDatabase = async (signature: string, q: any) => {
     try {
       const swapDetails = {
@@ -1170,7 +1237,7 @@ export default function SwapTokenModal({
     }
   };
 
-  // ── Jupiter swap ─────────────────────────────────────────────────────────────
+  // ── Jupiter swap ──────────────────────────────────────────────────────────────
   const executeJupiterSwap = async () => {
     try {
       if (!jupiterQuote) {
@@ -1422,7 +1489,7 @@ export default function SwapTokenModal({
     }
   };
 
-  // ── Solana LiFi swap ─────────────────────────────────────────────────────────
+  // ── Solana LiFi swap ──────────────────────────────────────────────────────────
   const executeSolanaSwap = async () => {
     try {
       if (!solanaReady) {
@@ -1505,7 +1572,7 @@ export default function SwapTokenModal({
     }
   };
 
-  // ── EVM LiFi swap ────────────────────────────────────────────────────────────
+  // ── EVM LiFi swap ─────────────────────────────────────────────────────────────
   const executeLiFiSwap = async () => {
     try {
       if (!quote) {
@@ -1589,7 +1656,7 @@ export default function SwapTokenModal({
     }
   };
 
-  // ── Top-level swap entry point ───────────────────────────────────────────────
+  // ── Top-level swap entry point ────────────────────────────────────────────────
   const executeCrossChainSwap = async () => {
     try {
       setIsSwapping(true);
@@ -1615,7 +1682,7 @@ export default function SwapTokenModal({
     }
   };
 
-  // ── Token selection ──────────────────────────────────────────────────────────
+  // ── Token selection ───────────────────────────────────────────────────────────
   const handleTokenSelect = (t: any, type: "pay" | "receive") => {
     if (type === "pay") {
       setPayToken(t);
@@ -1665,7 +1732,7 @@ export default function SwapTokenModal({
     if (selecting === "pay") handlePayTokenSearch(q);
   };
 
-  // ── Quote info ───────────────────────────────────────────────────────────────
+  // ── Quote info ────────────────────────────────────────────────────────────────
   const calculateExchangeRate = () => {
     const q = jupiterQuote || quote;
     if (!q || !payToken || !receiveToken) return null;
@@ -1721,7 +1788,48 @@ export default function SwapTokenModal({
   const isSwapDone =
     swapStatus?.includes("confirmed") || swapStatus?.includes("completed");
 
-  // ── Render ───────────────────────────────────────────────────────────────────
+  // ── Render ────────────────────────────────────────────────────────────────────
+
+  // Helper to render the token list for the receive drawer
+  const renderReceiveTokenList = (payAddr: string) => {
+    const result = getGroupedReceiveTokens;
+
+    if (!result.grouped) {
+      // Flat list (search results or specific chain selected)
+      return result.tokens
+        .filter((t) => (t.address || t.id || "").toLowerCase() !== payAddr)
+        .map((t, i) => (
+          <TokenRow
+            key={(t.address || t.id || "") + i}
+            token={t}
+            onClick={() => handleTokenSelect(t, "receive")}
+          />
+        ));
+    }
+
+    // Grouped list (all chains) – render network headers + tokens
+    return result.groups.map(({ network, tokens: groupTokens }) => (
+      <div key={network}>
+        <NetworkHeader network={network} />
+        {groupTokens
+          .filter((t) => (t.address || t.id || "").toLowerCase() !== payAddr)
+          .map((t, i) => (
+            <TokenRow
+              key={(t.address || t.id || "") + i}
+              token={t}
+              onClick={() => handleTokenSelect(t, "receive")}
+            />
+          ))}
+      </div>
+    ));
+  };
+
+  // Count visible tokens (for "no results" check)
+  const visibleReceiveCount = useMemo(() => {
+    const r = getGroupedReceiveTokens;
+    if (!r.grouped) return r.tokens.length;
+    return r.groups.reduce((sum, g) => sum + g.tokens.length, 0);
+  }, [getGroupedReceiveTokens]);
 
   return (
     <div className="flex justify-center pb-4 relative">
@@ -2284,7 +2392,7 @@ export default function SwapTokenModal({
               </>
             )}
 
-            {/* ══ RECEIVE drawer (NEW – mirrors RN app) ══ */}
+            {/* ══ RECEIVE drawer ══ */}
             {selecting === "receive" && (
               <>
                 {/* Search bar */}
@@ -2331,7 +2439,7 @@ export default function SwapTokenModal({
                             setSearchQuery("");
                             setFilteredList([]);
                           }}
-                          className={`border-2 rounded-full ${
+                          className={`border-2 rounded-full transition-all ${
                             selectedReceiveChain === c.id
                               ? "border-black"
                               : "border-transparent"
@@ -2341,10 +2449,10 @@ export default function SwapTokenModal({
                             <Image
                               src={sanitizeImageUrl(c.icon)}
                               alt={c.name}
-                              width={280}
-                              height={280}
+                              width={28}
+                              height={28}
                               quality={100}
-                              className={`w-7 h-7 rounded-full`}
+                              className="w-7 h-7 rounded-full"
                             />
                           ) : (
                             <div className="w-7 h-7 rounded-full bg-gradient-to-br from-blue-400 to-purple-500 flex items-center justify-center">
@@ -2353,11 +2461,6 @@ export default function SwapTokenModal({
                               </span>
                             </div>
                           )}
-                          {/* <span
-                            className={`text-xs font-medium ${selectedReceiveChain === c.id ? "text-white" : "text-gray-600"}`}
-                          >
-                            {c.name}
-                          </span> */}
                         </button>
                       ))}
                     </div>
@@ -2386,7 +2489,7 @@ export default function SwapTokenModal({
                 )}
 
                 {/* Search result count hint */}
-                {searchQuery && filteredList.length > 0 && (
+                {searchQuery && !isSearching && filteredList.length > 0 && (
                   <div className="px-4 pb-1 flex-shrink-0">
                     <p className="text-xs text-gray-400">
                       {filteredList.length} result
@@ -2406,7 +2509,7 @@ export default function SwapTokenModal({
                     <div className="flex justify-center py-8">
                       <div className="animate-spin rounded-full h-7 w-7 border-b-2 border-gray-400" />
                     </div>
-                  ) : visibleReceiveTokens.length === 0 ? (
+                  ) : visibleReceiveCount === 0 ? (
                     <div className="text-center py-10">
                       <p className="text-gray-400 text-sm">No tokens found</p>
                       <p className="text-gray-300 text-xs mt-1">
@@ -2416,23 +2519,9 @@ export default function SwapTokenModal({
                       </p>
                     </div>
                   ) : (
-                    visibleReceiveTokens
-                      .filter((t) => {
-                        const tAddr = (t.address || t.id || "").toLowerCase();
-                        const payAddr = (
-                          payToken?.address ||
-                          payToken?.id ||
-                          ""
-                        ).toLowerCase();
-                        return tAddr !== payAddr;
-                      })
-                      .map((t, i) => (
-                        <TokenRow
-                          key={(t.address || t.id || "") + i}
-                          token={t}
-                          onClick={() => handleTokenSelect(t, "receive")}
-                        />
-                      ))
+                    renderReceiveTokenList(
+                      (payToken?.address || payToken?.id || "").toLowerCase(),
+                    )
                   )}
                 </div>
               </>
