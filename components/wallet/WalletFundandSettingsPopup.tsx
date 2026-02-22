@@ -1,15 +1,16 @@
-'use client';
-import { Wallet } from 'lucide-react';
-import { useState } from 'react';
-import { BsBank } from 'react-icons/bs';
-import CustomModal from '../modal/CustomModal';
+"use client";
+import { Wallet } from "lucide-react";
+import { useState } from "react";
+import { BsBank } from "react-icons/bs";
+import CustomModal from "../modal/CustomModal";
 import {
   useWallets as useSolanaWallets,
   useFundWallet,
-} from '@privy-io/react-auth/solana';
-import Image from 'next/image';
-import coinbaseImg from '@/public/images/coinbase.png';
-import bridgeImg from '@/public/images/bridge.png';
+} from "@privy-io/react-auth/solana";
+import Image from "next/image";
+import coinbaseImg from "@/public/images/coinbase.png";
+import bridgeImg from "@/public/images/bridge.png";
+import Link from "next/link";
 
 export default function WalletFundandSettingsPopup() {
   const [isFundWalletOpen, setIsFundWalletOpen] = useState(false);
@@ -21,7 +22,7 @@ export default function WalletFundandSettingsPopup() {
 
   const handleCoinbaseClick = async () => {
     if (!solanaWalletAddress) {
-      console.error('No wallet address available');
+      console.error("No wallet address available");
       return;
     }
 
@@ -30,12 +31,12 @@ export default function WalletFundandSettingsPopup() {
       await fundWallet({
         address: solanaWalletAddress,
         options: {
-          asset: 'USDC',
-          amount: '20',
+          asset: "USDC",
+          amount: "20",
         },
       });
     } catch (error) {
-      console.error('Failed to open Coinbase funding:', error);
+      console.error("Failed to open Coinbase funding:", error);
     } finally {
       setIsLoading(false);
     }
@@ -56,23 +57,18 @@ export default function WalletFundandSettingsPopup() {
         </div>
       </button>
 
-      <a
-        href="https://www.swopme.co/support"
-        target="_blank"
+      <Link
+        href="/wallet-settings"
         className="flex items-center gap-4 p-3 rounded-xl shadow-medium hover:bg-gray-50 cursor-pointer transition border"
       >
         <div className="w-10 h-10 flex items-center justify-center bg-gray-100 rounded-lg">
           <BsBank className="w-5 h-5 text-gray-700" />
         </div>
         <div>
-          <p className="text-base font-medium text-gray-900">
-            Settings
-          </p>
-          <p className="text-sm text-gray-500">
-            Open Wallet Settings
-          </p>
+          <p className="text-base font-medium text-gray-900">Settings</p>
+          <p className="text-sm text-gray-500">Open Wallet Settings</p>
         </div>
-      </a>
+      </Link>
 
       {isFundWalletOpen && (
         <CustomModal
@@ -129,9 +125,7 @@ export default function WalletFundandSettingsPopup() {
               <div className="text-center pt-4">
                 <p className="text-xs text-gray-500 flex items-center justify-center gap-1">
                   Protected by
-                  <span className="font-semibold text-gray-700">
-                    privy
-                  </span>
+                  <span className="font-semibold text-gray-700">privy</span>
                 </p>
               </div>
             </div>

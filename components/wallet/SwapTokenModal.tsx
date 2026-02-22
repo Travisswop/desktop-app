@@ -556,6 +556,8 @@ export default function SwapTokenModal({
 
   // ── Receive-token drawer state (mirrors RN app) ──────────────────────────────
   const [tempTokens, setTempTokens] = useState<any[]>([]);
+  // console.log("tempTokens", tempTokens);
+
   const [targetList, setTargetList] = useState<Record<TokenCategory, any[]>>({
     stock: [],
     crypto: [],
@@ -610,19 +612,16 @@ export default function SwapTokenModal({
     if (hasSearchParams) return;
 
     if (!payToken) {
-      const defaultPay = tokens.find(
+      // Prefer the user's USDC token (has balance); fall back to a static definition
+      const userUSDC = tokens.find(
         (t) =>
-          t.symbol?.toUpperCase() === "SWOP" &&
+          t.symbol?.toUpperCase() === "USDC" &&
           t.chain?.toUpperCase() === "SOLANA",
       );
-      if (defaultPay) {
-        setPayToken(defaultPay);
-        setChainId(getChainId(defaultPay.chain));
-      }
-    }
 
-    if (!receiveToken) {
-      const solanaUSDC = {
+      console.log("userUsdc", userUSDC);
+
+      const defaultPay = userUSDC || {
         symbol: "USDC",
         name: "USD Coin",
         address: "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
@@ -633,7 +632,28 @@ export default function SwapTokenModal({
           "https://raw.githubusercontent.com/solana-labs/token-list/main/assets/mainnet/EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v/logo.png",
         balance: null,
       };
-      setReceiveToken(solanaUSDC);
+      setPayToken(defaultPay);
+      setChainId(getChainId(defaultPay.chain));
+    }
+
+    if (!receiveToken) {
+      const defaultReceive = tokens.find(
+        (t) =>
+          t.symbol?.toUpperCase() === "SWOP" &&
+          t.chain?.toUpperCase() === "SOLANA",
+      ) || {
+        symbol: "SWOP",
+        name: "SWOP",
+        address: "XsDoVfqeBukxuZHWhdvWHBhgEHjGNst4MLodqsJHzoB",
+        chain: "SOLANA",
+        chainId: "1151111081099710",
+        decimals: 6,
+        logoURI:
+          "https://coin-images.coingecko.com/coins/images/66773/large/Group_1000007182_copy.png?1750487480",
+        balance: null,
+      };
+      console.log("defaultReceive", defaultReceive);
+      setReceiveToken(defaultReceive);
       setReceiverChainId("1151111081099710");
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -809,49 +829,117 @@ export default function SwapTokenModal({
     return { grouped: true, groups };
   }, [filteredList, targetList, activeReceiveTab, selectedReceiveChain]);
 
-  // ── Effect 1: Handle inputToken + amount from URL ─────────────────────────────
+  // Helper to resolve chainId safely — treats missing/undefined string as Solana
+  const resolveChainId = (param: string | null) => {
+    if (!param || param === "undefined" || param === "null")
+      return "1151111081099710";
+    return param;
+  };
+
+  //set feed trade details from URL params on mount (if present)
   useEffect(() => {
     const inputTokenParam = searchParams?.get("inputToken");
-    const amountParam = searchParams?.get("amount");
-    if (tokens.length === 0) return;
-    if (inputTokenParam) {
-      const found = tokens.find(
-        (t) => t.symbol.toLowerCase() === inputTokenParam.toLowerCase(),
-      );
-      if (found) {
-        setPayToken(found);
-        setChainId(getChainId(found.chain));
-      }
-    }
-    if (amountParam && !isNaN(parseFloat(amountParam))) {
-      setPayAmount(amountParam);
-    }
-  }, [searchParams, tokens]);
+    const inputMintParam = searchParams?.get("inputMint");
+    const inputChainParam = searchParams?.get("inputChain");
+    const inputImgParam = searchParams?.get("inputImg");
+    const inputDecimalsParam = searchParams?.get("inputDecimals");
 
-  // ── Effect 2: Handle outputToken from URL ─────────────────────────────────────
-  useEffect(() => {
     const outputTokenParam = searchParams?.get("outputToken");
+    const outputMintParam = searchParams?.get("outputMint");
     const outputChainParam = searchParams?.get("outputChain");
-    if (!outputTokenParam || tempTokens.length === 0) return;
-    const found = tempTokens.find((t) => {
-      const symbolMatch =
-        t.symbol?.toLowerCase() === outputTokenParam.toLowerCase();
-      if (!symbolMatch) return false;
-      if (outputChainParam) {
-        const tokenChainId =
-          t.chainId?.toString() ?? getChainId(t.chain ?? t.network ?? "");
-        return tokenChainId === outputChainParam;
-      }
-      return true;
-    });
-    if (found) {
-      const rcvChainId =
-        found.chainId?.toString() ??
-        getChainId(found.chain ?? found.network ?? "");
-      setReceiveToken(found);
+    const outputImgParam = searchParams?.get("outputImg");
+    const outputDecimalsParam = searchParams?.get("outputDecimals");
+
+    // const amountParam = searchParams?.get("amount");
+
+    if (!inputTokenParam && !outputTokenParam) return;
+
+    // ── Input token ──
+    if (inputTokenParam) {
+      const inputChainId = resolveChainId(inputChainParam); // ← changed
+      const inputNetwork = getNetworkByChainId(inputChainId).toUpperCase();
+
+      const found = [...tempTokens, ...tokens].find((t) => {
+        const symbolMatch =
+          t.symbol?.toLowerCase() === inputTokenParam.toLowerCase();
+        if (!symbolMatch) return false;
+        if (inputChainParam && inputChainParam !== "undefined") {
+          // ← guard
+          const tokenChainId =
+            t.chainId?.toString() ?? getChainId(t.chain ?? t.network ?? "");
+          return tokenChainId === inputChainId;
+        }
+        return true;
+      });
+
+      const userToken = tokens.find(
+        (t) =>
+          t.symbol?.toLowerCase() === inputTokenParam.toLowerCase() &&
+          (getChainId(t.chain) === inputChainId ||
+            t.chainId?.toString() === inputChainId),
+      );
+
+      const payTokenData = found
+        ? { ...found, balance: userToken?.balance ?? found.balance ?? null }
+        : {
+            symbol: inputTokenParam.toUpperCase(),
+            name: inputTokenParam,
+            address: inputMintParam || "",
+            chain: inputNetwork,
+            chainId: inputChainId,
+            decimals: inputDecimalsParam ? parseInt(inputDecimalsParam) : 6,
+            logoURI: inputImgParam ? decodeURIComponent(inputImgParam) : "",
+            balance: userToken?.balance ?? null,
+          };
+
+      setPayToken(payTokenData);
+      setChainId(inputChainId);
+    }
+
+    // ── Output token ──
+    if (outputTokenParam) {
+      const outputChainId = resolveChainId(outputChainParam); // ← changed
+      const outputNetwork = getNetworkByChainId(outputChainId).toUpperCase();
+
+      const found = [...tempTokens, ...tokens].find((t) => {
+        const symbolMatch =
+          t.symbol?.toLowerCase() === outputTokenParam.toLowerCase();
+        if (!symbolMatch) return false;
+        if (outputChainParam && outputChainParam !== "undefined") {
+          // ← guard
+          const tokenChainId =
+            t.chainId?.toString() ?? getChainId(t.chain ?? t.network ?? "");
+          return tokenChainId === outputChainId;
+        }
+        return true;
+      });
+
+      const userToken = tokens.find(
+        (t) =>
+          t.symbol?.toLowerCase() === outputTokenParam.toLowerCase() &&
+          (getChainId(t.chain) === outputChainId ||
+            t.chainId?.toString() === outputChainId),
+      );
+
+      const rcvChainId = found?.chainId?.toString() ?? outputChainId;
+
+      const receiveTokenData = found
+        ? { ...found, balance: userToken?.balance ?? found.balance ?? null }
+        : {
+            symbol: outputTokenParam.toUpperCase(),
+            name: outputTokenParam,
+            address: outputMintParam || "",
+            chain: outputNetwork,
+            chainId: outputChainId,
+            decimals: outputDecimalsParam ? parseInt(outputDecimalsParam) : 6,
+            logoURI: outputImgParam ? decodeURIComponent(outputImgParam) : "",
+            balance: userToken?.balance ?? null,
+          };
+
+      setReceiveToken(receiveTokenData);
       setReceiverChainId(rcvChainId);
     }
-  }, [searchParams, tempTokens]);
+  }, [searchParams, tempTokens, tokens]);
 
   // ── Pay-token drawer helpers ──────────────────────────────────────────────────
   const filterTokensByPayChain = (toks: any[], cId: string) =>
