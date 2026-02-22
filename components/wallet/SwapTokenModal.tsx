@@ -648,7 +648,7 @@ export default function SwapTokenModal({
         chainId: "1151111081099710",
         decimals: 6,
         logoURI:
-          "https://raw.githubusercontent.com/switchboard-xyz/swop/main/assets/swop.png",
+          "https://coin-images.coingecko.com/coins/images/66773/large/Group_1000007182_copy.png?1750487480",
         balance: null,
       };
       console.log("defaultReceive", defaultReceive);
