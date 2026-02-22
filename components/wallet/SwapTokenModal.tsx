@@ -601,6 +601,7 @@ export default function SwapTokenModal({
   const searchParams = useSearchParams();
 
   // ── Default token selection: SWOP (pay) → USDC (receive), both Solana ───────
+  // ── Default token selection: USDC (pay) → SWOP (receive), both Solana ───────
   useEffect(() => {
     if (!tokens || tokens.length === 0) return;
     const hasSearchParams =
@@ -610,19 +611,16 @@ export default function SwapTokenModal({
     if (hasSearchParams) return;
 
     if (!payToken) {
-      const defaultPay = tokens.find(
+      // Prefer the user's USDC token (has balance); fall back to a static definition
+      const userUSDC = tokens.find(
         (t) =>
-          t.symbol?.toUpperCase() === "SWOP" &&
+          t.symbol?.toUpperCase() === "USDC" &&
           t.chain?.toUpperCase() === "SOLANA",
       );
-      if (defaultPay) {
-        setPayToken(defaultPay);
-        setChainId(getChainId(defaultPay.chain));
-      }
-    }
 
-    if (!receiveToken) {
-      const solanaUSDC = {
+      console.log("userUsdc", userUSDC);
+
+      const defaultPay = userUSDC || {
         symbol: "USDC",
         name: "USD Coin",
         address: "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
@@ -633,7 +631,27 @@ export default function SwapTokenModal({
           "https://raw.githubusercontent.com/solana-labs/token-list/main/assets/mainnet/EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v/logo.png",
         balance: null,
       };
-      setReceiveToken(solanaUSDC);
+      setPayToken(defaultPay);
+      setChainId(getChainId(defaultPay.chain));
+    }
+
+    if (!receiveToken) {
+      const defaultReceive = tokens.find(
+        (t) =>
+          t.symbol?.toUpperCase() === "SWOP" &&
+          t.chain?.toUpperCase() === "SOLANA",
+      ) || {
+        symbol: "SWOP",
+        name: "SWOP",
+        address: "XsDoVfqeBukxuZHWhdvWHBhgEHjGNst4MLodqsJHzoB",
+        chain: "SOLANA",
+        chainId: "1151111081099710",
+        decimals: 6,
+        logoURI:
+          "https://raw.githubusercontent.com/switchboard-xyz/swop/main/assets/swop.png",
+        balance: null,
+      };
+      setReceiveToken(defaultReceive);
       setReceiverChainId("1151111081099710");
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
