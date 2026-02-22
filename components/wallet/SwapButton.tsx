@@ -54,17 +54,24 @@ export default function SwapButton({
   }, [inputTokenParam, outputTokenParam, amountParam, outputChainParam]);
 
   useEffect(() => {
-    // Only remove params AFTER modal is closed
     if (
       !openSwapModal &&
       (inputTokenParam || outputTokenParam || amountParam || outputChainParam)
     ) {
       const newParams = new URLSearchParams(searchParams as any);
+      // existing params
       newParams.delete("inputToken");
       newParams.delete("inputChain");
       newParams.delete("outputToken");
-      newParams.delete("amount");
       newParams.delete("outputChain");
+      newParams.delete("amount");
+      // new feed params
+      newParams.delete("inputMint");
+      newParams.delete("inputImg");
+      newParams.delete("inputDecimals");
+      newParams.delete("outputMint");
+      newParams.delete("outputImg");
+      newParams.delete("outputDecimals");
 
       router.replace(`${pathname}?${newParams.toString()}`);
     }

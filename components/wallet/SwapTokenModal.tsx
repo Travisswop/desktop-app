@@ -829,94 +829,115 @@ export default function SwapTokenModal({
     return { grouped: true, groups };
   }, [filteredList, targetList, activeReceiveTab, selectedReceiveChain]);
 
-  // ── Effect 1: Handle inputToken + amount from URL ─────────────────────────────
+  //set feed trade details from URL params on mount (if present)
   useEffect(() => {
     const inputTokenParam = searchParams?.get("inputToken");
+    const inputMintParam = searchParams?.get("inputMint");
     const inputChainParam = searchParams?.get("inputChain");
-    const amountParam = searchParams?.get("amount");
-    if (!inputTokenParam) return;
+    const inputImgParam = searchParams?.get("inputImg");
+    const inputDecimalsParam = searchParams?.get("inputDecimals");
 
-    // Wait for tempTokens to be loaded
-    const sourceList = tempTokens.length > 0 ? tempTokens : tokens;
-    if (sourceList.length === 0) return;
-
-    const found = sourceList.find((t) => {
-      const symbolMatch =
-        t.symbol?.toLowerCase() === inputTokenParam.toLowerCase();
-      if (!symbolMatch) return false;
-      if (inputChainParam) {
-        const tokenChainId =
-          t.chainId?.toString() ?? getChainId(t.chain ?? t.network ?? "");
-        return tokenChainId === inputChainParam;
-      }
-      return true;
-    });
-
-    if (found) {
-      const resolvedChainId =
-        found.chainId?.toString() ??
-        getChainId(found.chain ?? found.network ?? "");
-      setPayToken(found);
-      setChainId(resolvedChainId);
-    } else if (inputTokenParam) {
-      const resolvedChainId = inputChainParam || "1151111081099710";
-      setPayToken({
-        symbol: inputTokenParam.toUpperCase(),
-        name: inputTokenParam,
-        address: "",
-        chain: getNetworkByChainId(resolvedChainId).toUpperCase(),
-        chainId: resolvedChainId,
-        decimals: 6,
-        logoURI: "",
-        balance: null,
-      });
-      setChainId(resolvedChainId);
-    }
-
-    // if (amountParam && !isNaN(parseFloat(amountParam))) {
-    //   setPayAmount(amountParam);
-    // }
-  }, [searchParams, tempTokens, tokens]);
-
-  // ── Effect 2: Handle outputToken from URL ─────────────────────────────────────
-  useEffect(() => {
     const outputTokenParam = searchParams?.get("outputToken");
+    const outputMintParam = searchParams?.get("outputMint");
     const outputChainParam = searchParams?.get("outputChain");
-    if (!outputTokenParam || tempTokens.length === 0) return;
+    const outputImgParam = searchParams?.get("outputImg");
+    const outputDecimalsParam = searchParams?.get("outputDecimals");
 
-    const found = tempTokens.find((t) => {
-      const symbolMatch =
-        t.symbol?.toLowerCase() === outputTokenParam.toLowerCase();
-      if (!symbolMatch) return false;
-      if (outputChainParam) {
-        const tokenChainId =
-          t.chainId?.toString() ?? getChainId(t.chain ?? t.network ?? "");
-        return tokenChainId === outputChainParam;
-      }
-      return true;
-    });
+    const amountParam = searchParams?.get("amount");
 
-    if (found) {
-      const rcvChainId =
-        found.chainId?.toString() ??
-        getChainId(found.chain ?? found.network ?? "");
-      setReceiveToken(found);
-      setReceiverChainId(rcvChainId);
-    } else {
-      const resolvedChainId = outputChainParam || "1151111081099710";
-      setReceiveToken({
-        symbol: outputTokenParam.toUpperCase(),
-        name: outputTokenParam,
-        address: "",
-        chain: getNetworkByChainId(resolvedChainId).toUpperCase(),
-        chainId: resolvedChainId,
-        decimals: 6,
-        logoURI: "",
-        balance: null,
+    if (!inputTokenParam && !outputTokenParam) return;
+
+    // ── Input token ──
+    if (inputTokenParam) {
+      const inputChainId = inputChainParam || "1151111081099710";
+      const inputNetwork = getNetworkByChainId(inputChainId).toUpperCase();
+
+      // Try tempTokens/tokens for full details first
+      const found = [...tempTokens, ...tokens].find((t) => {
+        const symbolMatch =
+          t.symbol?.toLowerCase() === inputTokenParam.toLowerCase();
+        if (!symbolMatch) return false;
+        if (inputChainParam) {
+          const tokenChainId =
+            t.chainId?.toString() ?? getChainId(t.chain ?? t.network ?? "");
+          return tokenChainId === inputChainParam;
+        }
+        return true;
       });
-      setReceiverChainId(resolvedChainId);
+
+      // Get balance from user's wallet tokens
+      const userToken = tokens.find(
+        (t) =>
+          t.symbol?.toLowerCase() === inputTokenParam.toLowerCase() &&
+          (getChainId(t.chain) === inputChainId ||
+            t.chainId?.toString() === inputChainId),
+      );
+
+      // Build token — feed URL params fill in what tempTokens might not have yet
+      const payTokenData = found
+        ? { ...found, balance: userToken?.balance ?? found.balance ?? null }
+        : {
+            symbol: inputTokenParam.toUpperCase(),
+            name: inputTokenParam,
+            address: inputMintParam || "", // mint from feed
+            chain: inputNetwork,
+            chainId: inputChainId,
+            decimals: inputDecimalsParam ? parseInt(inputDecimalsParam) : 6,
+            logoURI: inputImgParam ? decodeURIComponent(inputImgParam) : "", // tokenImg from feed
+            balance: userToken?.balance ?? null,
+          };
+
+      setPayToken(payTokenData);
+      setChainId(inputChainId);
+
+      // if (amountParam && !isNaN(parseFloat(amountParam))) {
+      //   setPayAmount(amountParam);
+      // }
     }
-  }, [searchParams, tempTokens]);
+
+    // ── Output token ──
+    if (outputTokenParam) {
+      const outputChainId = outputChainParam || "1151111081099710";
+      const outputNetwork = getNetworkByChainId(outputChainId).toUpperCase();
+
+      const found = [...tempTokens, ...tokens].find((t) => {
+        const symbolMatch =
+          t.symbol?.toLowerCase() === outputTokenParam.toLowerCase();
+        if (!symbolMatch) return false;
+        if (outputChainParam) {
+          const tokenChainId =
+            t.chainId?.toString() ?? getChainId(t.chain ?? t.network ?? "");
+          return tokenChainId === outputChainParam;
+        }
+        return true;
+      });
+
+      const userToken = tokens.find(
+        (t) =>
+          t.symbol?.toLowerCase() === outputTokenParam.toLowerCase() &&
+          (getChainId(t.chain) === outputChainId ||
+            t.chainId?.toString() === outputChainId),
+      );
+
+      const rcvChainId = found?.chainId?.toString() ?? outputChainId;
+
+      const receiveTokenData = found
+        ? { ...found, balance: userToken?.balance ?? found.balance ?? null }
+        : {
+            symbol: outputTokenParam.toUpperCase(),
+            name: outputTokenParam,
+            address: outputMintParam || "", // mint from feed
+            chain: outputNetwork,
+            chainId: outputChainId,
+            decimals: outputDecimalsParam ? parseInt(outputDecimalsParam) : 6,
+            logoURI: outputImgParam ? decodeURIComponent(outputImgParam) : "", // tokenImg from feed
+            balance: userToken?.balance ?? null,
+          };
+
+      setReceiveToken(receiveTokenData);
+      setReceiverChainId(rcvChainId);
+    }
+  }, [searchParams, tempTokens, tokens]);
 
   // ── Pay-token drawer helpers ──────────────────────────────────────────────────
   const filterTokensByPayChain = (toks: any[], cId: string) =>
