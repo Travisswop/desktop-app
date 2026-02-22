@@ -45,7 +45,26 @@ export default function AssetSelector({
         nft?.name?.toLowerCase().includes(search.toLowerCase()),
     ) || [];
 
+  const getChainIcon = (chainName: string) => {
+    const chainIcons: Record<string, string> = {
+      SOLANA: "/assets/icons/solana.png",
+      ETHEREUM: "/images/IconShop/eTH@3x.png",
+      BSC: "/images/IconShop/binance-smart-chain.png",
+      POLYGON: "/images/IconShop/polygon@3x.png",
+      ARBITRUM: "/images/IconShop/arbitrum.png",
+      BASE: "/assets/icons/base.png",
+    };
+    return chainIcons[chainName.toUpperCase()] || null;
+  };
+
+  const sanitizeImageUrl = (url: string | undefined): string => {
+    if (!url) return "";
+    return url.trim();
+  };
+
   const renderAssetItem = (asset: TokenData) => {
+    console.log("assets render", asset);
+
     if (!asset) return null;
     return (
       <button
@@ -55,21 +74,64 @@ export default function AssetSelector({
       >
         <div className="flex items-center gap-3">
           {asset.symbol === "SWOP" ? (
-            <Image
-              src={`https://app.apiswop.co/public/crypto-icons/SWOP.png`}
-              alt={asset.symbol || ""}
-              width={320}
-              height={320}
-              className="rounded-full w-7 h-7"
-            />
+            // <Image
+            //   src={`https://app.apiswop.co/public/crypto-icons/SWOP.png`}
+            //   alt={asset.symbol || ""}
+            //   width={320}
+            //   height={320}
+            //   className="rounded-full w-7 h-7"
+            // />
+            <div className="relative min-w-max">
+              <Image
+                src={`https://app.apiswop.co/public/crypto-icons/SWOP.png`}
+                alt={"swop"}
+                width={240}
+                height={240}
+                className="w-7 h-7 rounded-full"
+              />
+
+              <div className="absolute -bottom-1 -right-1 rounded-full flex items-center justify-center w-4 h-4">
+                <Image
+                  src={sanitizeImageUrl(getChainIcon(asset.chain) || "")}
+                  alt={asset.chain}
+                  width={120}
+                  height={120}
+                  className="w-3 h-3 rounded-full"
+                />
+              </div>
+            </div>
           ) : (
-            <Image
-              src={asset?.marketData?.image || asset?.logoURI}
-              alt={asset.symbol || ""}
-              width={320}
-              height={320}
-              className="rounded-full w-7 h-7"
-            />
+            // <Image
+            //   src={asset?.marketData?.image || asset?.logoURI}
+            //   alt={asset.symbol || ""}
+            //   width={320}
+            //   height={320}
+            //   className="rounded-full w-7 h-7"
+            // />
+            <div className="relative min-w-max">
+              {(asset?.marketData?.image || asset?.logoURI) && (
+                <Image
+                  src={sanitizeImageUrl(
+                    asset?.marketData?.image || asset?.logoURI,
+                  )}
+                  alt={asset.symbol}
+                  width={24}
+                  height={24}
+                  className="w-7 h-7 rounded-full"
+                />
+              )}
+              {asset?.chain && (
+                <div className="absolute -bottom-1 -right-1 rounded-full flex items-center justify-center w-4 h-4">
+                  <Image
+                    src={sanitizeImageUrl(getChainIcon(asset.chain) || "")}
+                    alt={asset.chain}
+                    width={12}
+                    height={12}
+                    className="w-3 h-3 rounded-full"
+                  />
+                </div>
+              )}
+            </div>
           )}
 
           <span className="font-medium text-start">{asset.name}</span>
