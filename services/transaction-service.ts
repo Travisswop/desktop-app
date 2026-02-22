@@ -1,4 +1,5 @@
 import { ethers } from 'ethers';
+import bs58 from 'bs58';
 import {
   PublicKey,
   Transaction as SolanaTransaction,
@@ -377,6 +378,92 @@ export class TransactionService {
   }
 
   /**
+   * Builds a Solana NFT transfer transaction without sending it.
+   * Used for Privy's native gas sponsorship where Privy handles signing and sending.
+   */
+  static async buildSolanaNFTTransfer(
+    solanaWallet: any,
+    sendFlow: SendFlowState,
+    connection: Connection,
+  ): Promise<SolanaTransaction> {
+    if (!solanaWallet) throw new Error('No Solana wallet found');
+
+    const toWallet = new PublicKey(sendFlow.recipient?.address || '');
+    const mint = new PublicKey(sendFlow.nft?.contract || '');
+
+    const programId = await getSolanaTokenProgramId(
+      connection,
+      mint.toString(),
+    );
+    const associatedTokenProgramId =
+      getAssociatedTokenProgramId(programId);
+
+    const sourceAccount = await getAssociatedTokenAddress(
+      mint,
+      new PublicKey(solanaWallet.address),
+      false,
+      programId,
+      associatedTokenProgramId,
+    );
+
+    const destinationAccount = await getAssociatedTokenAddress(
+      mint,
+      toWallet,
+      false,
+      programId,
+      associatedTokenProgramId,
+    );
+
+    const tx = new SolanaTransaction();
+
+    if (!(await connection.getAccountInfo(destinationAccount))) {
+      tx.add(
+        createAssociatedTokenAccountInstruction(
+          new PublicKey(solanaWallet.address),
+          destinationAccount,
+          toWallet,
+          mint,
+          programId,
+          associatedTokenProgramId,
+        ),
+      );
+    }
+
+    const isToken2022 = programId.equals(TOKEN_2022_PROGRAM_ID);
+    if (isToken2022) {
+      tx.add(
+        createTransferCheckedInstruction(
+          sourceAccount,
+          mint,
+          destinationAccount,
+          new PublicKey(solanaWallet.address),
+          1,
+          0,
+          [],
+          programId,
+        ),
+      );
+    } else {
+      tx.add(
+        createTransferInstruction(
+          sourceAccount,
+          destinationAccount,
+          new PublicKey(solanaWallet.address),
+          1,
+          [],
+          programId,
+        ),
+      );
+    }
+
+    const { blockhash } = await connection.getLatestBlockhash();
+    tx.recentBlockhash = blockhash;
+    tx.feePayer = new PublicKey(solanaWallet.address);
+
+    return tx;
+  }
+
+  /**
    * Handles NFT transfer on EVM networks
    */
   static async handleNFTTransfer(
@@ -602,6 +689,11 @@ export class TransactionService {
       transaction: Uint8Array;
       wallet: any;
     }) => Promise<{ signedTransaction: Uint8Array }>,
+    signAndSendTransactionFn?: (input: {
+      transaction: Uint8Array;
+      wallet: any;
+      options?: { sponsor?: boolean };
+    }) => Promise<{ signature: Uint8Array }>,
   ) {
     if (!solanaWallet) throw new Error('No Solana wallet found');
 
@@ -620,14 +712,21 @@ export class TransactionService {
       tx.recentBlockhash = blockhash;
       tx.feePayer = new PublicKey(solanaWallet.address);
 
-      // Use Privy v3 signTransaction if provided, otherwise fall back to legacy
-      if (signTransactionFn) {
-        const serializedTx = new Uint8Array(
-          tx.serialize({
-            requireAllSignatures: false,
-            verifySignatures: false,
-          }),
-        );
+      // Use Privy's signAndSendTransaction if provided (preferred), then signTransactionFn, then legacy
+      const serializedTx = new Uint8Array(
+        tx.serialize({
+          requireAllSignatures: false,
+          verifySignatures: false,
+        }),
+      );
+      if (signAndSendTransactionFn) {
+        const result = await signAndSendTransactionFn({
+          transaction: serializedTx,
+          wallet: solanaWallet,
+          options: { sponsor: true },
+        });
+        return bs58.encode(result.signature);
+      } else if (signTransactionFn) {
         const { signedTransaction } = await signTransactionFn({
           transaction: serializedTx,
           wallet: solanaWallet,
@@ -740,14 +839,21 @@ export class TransactionService {
       tx.recentBlockhash = blockhash;
       tx.feePayer = new PublicKey(solanaWallet.address);
 
-      // Use Privy v3 signTransaction if provided, otherwise fall back to legacy
-      if (signTransactionFn) {
-        const serializedTx = new Uint8Array(
-          tx.serialize({
-            requireAllSignatures: false,
-            verifySignatures: false,
-          }),
-        );
+      // Use Privy's signAndSendTransaction if provided (preferred), then signTransactionFn, then legacy
+      const serializedTx = new Uint8Array(
+        tx.serialize({
+          requireAllSignatures: false,
+          verifySignatures: false,
+        }),
+      );
+      if (signAndSendTransactionFn) {
+        const result = await signAndSendTransactionFn({
+          transaction: serializedTx,
+          wallet: solanaWallet,
+          options: { sponsor: true },
+        });
+        return bs58.encode(result.signature);
+      } else if (signTransactionFn) {
         const { signedTransaction } = await signTransactionFn({
           transaction: serializedTx,
           wallet: solanaWallet,

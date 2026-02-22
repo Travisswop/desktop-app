@@ -6,7 +6,7 @@ import logger from '../utils/logger';
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
 
 export async function createPaymentIntent(
-  amount: number
+  amount: number,
 ): Promise<{ clientSecret: string }> {
   try {
     const paymentIntent = await stripe.paymentIntents.create({
@@ -17,11 +17,9 @@ export async function createPaymentIntent(
       },
     });
 
-    logger.log('paymentIntent', paymentIntent);
-
     if (!paymentIntent.client_secret) {
       throw new Error(
-        'Failed to create payment intent: No client secret returned'
+        'Failed to create payment intent: No client secret returned',
       );
     }
 
@@ -37,23 +35,22 @@ export async function createPaymentIntent(
 // Verify a webhook signature using the webhook secret
 export async function verifyStripeWebhook(
   payload: string,
-  signature: string
+  signature: string,
 ) {
   try {
     // Use Stripe's webhook signature verification
     const event = stripe.webhooks.constructEvent(
       payload,
       signature,
-      process.env.STRIPE_WEBHOOK_SECRET!
+      process.env.STRIPE_WEBHOOK_SECRET!,
     );
 
     return event;
   } catch (error) {
-    logger.error('Error verifying webhook:', error);
     throw new Error(
       `Webhook signature verification failed: ${
         error instanceof Error ? error.message : 'Unknown error'
-      }`
+      }`,
     );
   }
 }
@@ -61,9 +58,8 @@ export async function verifyStripeWebhook(
 // Add a function to retrieve payment details
 export async function getPaymentDetails(paymentIntentId: string) {
   try {
-    const paymentIntent = await stripe.paymentIntents.retrieve(
-      paymentIntentId
-    );
+    const paymentIntent =
+      await stripe.paymentIntents.retrieve(paymentIntentId);
     return paymentIntent;
   } catch (error) {
     logger.error('Error retrieving payment details:', error);
@@ -73,13 +69,12 @@ export async function getPaymentDetails(paymentIntentId: string) {
 
 // Function to handle successful payments
 export async function handleSuccessfulPayment(
-  paymentIntentId: string
+  paymentIntentId: string,
 ) {
   try {
     // Get the payment details
-    const paymentIntent = await stripe.paymentIntents.retrieve(
-      paymentIntentId
-    );
+    const paymentIntent =
+      await stripe.paymentIntents.retrieve(paymentIntentId);
 
     return {
       success: true,

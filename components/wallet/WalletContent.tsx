@@ -9,13 +9,14 @@ import {
   Component,
   ReactNode,
 } from 'react';
-import { usePrivy, useWallets } from '@privy-io/react-auth';
+import { usePrivy, useSendTransaction } from '@privy-io/react-auth';
 import {
   useWallets as useSolanaWallets,
   useSignAndSendTransaction,
   useCreateWallet,
 } from '@privy-io/react-auth/solana';
 import { Connection } from '@solana/web3.js';
+import { ethers } from 'ethers';
 import bs58 from 'bs58';
 import { useToast } from '@/hooks/use-toast';
 
@@ -25,7 +26,6 @@ import { CHAIN_ID } from '@/types/wallet-types';
 import {
   PrivyLinkedAccount,
   isSolanaWalletAccount,
-  isEthereumWalletAccount,
   isPrivyEmbeddedWallet,
 } from '@/types/privy';
 
@@ -186,8 +186,6 @@ const WalletContentInner = () => {
     getAccessToken,
   } = usePrivy();
 
-  const { wallets: ethWallets } = useWallets();
-
   const { ready: solanaReady, wallets: directSolanaWallets } =
     useSolanaWallets();
 
@@ -200,8 +198,9 @@ const WalletContentInner = () => {
 
   const { createWallet } = useCreateWallet();
 
-  // Privy's native sponsored transaction hook
+  // Privy's native sponsored transaction hooks
   const { signAndSendTransaction } = useSignAndSendTransaction();
+  const { sendTransaction: sendEVMTransaction } = useSendTransaction();
 
   const { toast } = useToast();
   const { user } = useUser();
@@ -492,43 +491,95 @@ const WalletContentInner = () => {
         console.log('=== Non-Solana Transaction ===');
       }
 
-      // Find Ethereum wallet
-      const allAccounts = (PrivyUser?.linkedAccounts ||
-        []) as PrivyLinkedAccount[];
-      const ethereumAccount = allAccounts.find(
-        isEthereumWalletAccount,
-      );
-
-      let evmWallet;
-
-      if (ethereumAccount?.address) {
-        evmWallet = ethWallets.find(
-          (w) =>
-            w.address?.toLowerCase() ===
-            ethereumAccount.address.toLowerCase(),
-        );
-      }
-
       let hash = '';
 
       if (sendFlow.nft) {
         // Handle NFT transfer
         if (sendFlow.network.toUpperCase() === 'SOLANA') {
-          hash = await TransactionService.handleSolanaNFTTransfer(
-            selectedSolanaWallet,
-            sendFlow,
-            connection,
-          );
+          // Build Solana NFT transaction and send via Privy with gas sponsorship
+          const nftTransaction =
+            await TransactionService.buildSolanaNFTTransfer(
+              selectedSolanaWallet,
+              sendFlow,
+              connection,
+            );
+
+          const serializedNFTTransaction = nftTransaction.serialize({
+            requireAllSignatures: false,
+            verifySignatures: false,
+          });
+
+          try {
+            const result = await signAndSendTransaction({
+              transaction: new Uint8Array(serializedNFTTransaction),
+              wallet: selectedSolanaWallet!,
+              options: { sponsor: true },
+            });
+            hash = bs58.encode(result.signature);
+          } catch (privyError) {
+            return {
+              success: false,
+              error:
+                privyError instanceof Error
+                  ? privyError.message
+                  : ERROR_MESSAGES.TRANSACTION_FAILED,
+            };
+          }
         } else {
-          await evmWallet?.switchChain(
-            CHAIN_ID[
-              sendFlow.network as keyof typeof CHAIN_ID as keyof typeof CHAIN_ID as keyof typeof CHAIN_ID
-            ],
-          );
-          hash = await TransactionService.handleNFTTransfer(
-            evmWallet,
-            sendFlow,
-          );
+          // EVM NFT transfer via Privy with gas sponsorship
+          const chainId =
+            CHAIN_ID[sendFlow.network as keyof typeof CHAIN_ID];
+
+          let nftData: string;
+          if (sendFlow.nft?.tokenType === 'ERC721') {
+            const erc721Interface = new ethers.Interface([
+              'function transferFrom(address from, address to, uint256 tokenId)',
+            ]);
+            nftData = erc721Interface.encodeFunctionData(
+              'transferFrom',
+              [
+                evmWalletAddress,
+                sendFlow.recipient?.address,
+                sendFlow.nft.tokenId,
+              ],
+            );
+          } else if (sendFlow.nft?.tokenType === 'ERC1155') {
+            const erc1155Interface = new ethers.Interface([
+              'function safeTransferFrom(address from, address to, uint256 id, uint256 amount, bytes data)',
+            ]);
+            nftData = erc1155Interface.encodeFunctionData(
+              'safeTransferFrom',
+              [
+                evmWalletAddress,
+                sendFlow.recipient?.address,
+                sendFlow.nft.tokenId,
+                1,
+                '0x',
+              ],
+            );
+          } else {
+            throw new Error('Unsupported NFT type');
+          }
+
+          try {
+            const result = await sendEVMTransaction(
+              {
+                to: sendFlow.nft.contract as `0x${string}`,
+                data: nftData as `0x${string}`,
+                chainId,
+              },
+              { sponsor: true },
+            );
+            hash = result.hash;
+          } catch (evmError) {
+            return {
+              success: false,
+              error:
+                evmError instanceof Error
+                  ? evmError.message
+                  : ERROR_MESSAGES.TRANSACTION_FAILED,
+            };
+          }
         }
         refetchNFTs();
       } else if (sendFlow.token) {
@@ -571,18 +622,54 @@ const WalletContentInner = () => {
             };
           }
         } else {
-          // EVM token transfer
-          await evmWallet?.switchChain(
-            CHAIN_ID[
-              sendFlow.network as keyof typeof CHAIN_ID as keyof typeof CHAIN_ID as keyof typeof CHAIN_ID
-            ],
-          );
-          const result = await TransactionService.handleEVMSend(
-            evmWallet,
-            sendFlow,
-            sendFlow.network,
-          );
-          hash = result.hash;
+          // EVM token transfer via Privy with gas sponsorship
+          const chainId =
+            CHAIN_ID[sendFlow.network as keyof typeof CHAIN_ID];
+
+          try {
+            if (!sendFlow.token?.address) {
+              // Native token transfer (ETH/MATIC/etc.)
+              const result = await sendEVMTransaction(
+                {
+                  to: sendFlow.recipient?.address as `0x${string}`,
+                  value: ethers.parseEther(sendFlow.amount),
+                  chainId,
+                },
+                { sponsor: true },
+              );
+              hash = result.hash;
+            } else {
+              // ERC20 token transfer
+              const erc20Interface = new ethers.Interface([
+                'function transfer(address to, uint256 amount) returns (bool)',
+              ]);
+              const amountInWei = ethers.parseUnits(
+                sendFlow.amount,
+                sendFlow.token.decimals,
+              );
+              const tokenData = erc20Interface.encodeFunctionData(
+                'transfer',
+                [sendFlow.recipient?.address, amountInWei],
+              );
+              const result = await sendEVMTransaction(
+                {
+                  to: sendFlow.token.address as `0x${string}`,
+                  data: tokenData as `0x${string}`,
+                  chainId,
+                },
+                { sponsor: true },
+              );
+              hash = result.hash;
+            }
+          } catch (evmError) {
+            return {
+              success: false,
+              error:
+                evmError instanceof Error
+                  ? evmError.message
+                  : ERROR_MESSAGES.TRANSACTION_FAILED,
+            };
+          }
         }
       }
 
@@ -602,9 +689,10 @@ const WalletContentInner = () => {
     directSolanaWallets,
     sendFlow,
     PrivyUser,
-    ethWallets,
+    evmWalletAddress,
     refetchNFTs,
     signAndSendTransaction,
+    sendEVMTransaction,
     selectedSolanaWallet,
     authenticated,
     getAccessToken,
