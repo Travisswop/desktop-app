@@ -829,6 +829,13 @@ export default function SwapTokenModal({
     return { grouped: true, groups };
   }, [filteredList, targetList, activeReceiveTab, selectedReceiveChain]);
 
+  // Helper to resolve chainId safely — treats missing/undefined string as Solana
+  const resolveChainId = (param: string | null) => {
+    if (!param || param === "undefined" || param === "null")
+      return "1151111081099710";
+    return param;
+  };
+
   //set feed trade details from URL params on mount (if present)
   useEffect(() => {
     const inputTokenParam = searchParams?.get("inputToken");
@@ -843,29 +850,28 @@ export default function SwapTokenModal({
     const outputImgParam = searchParams?.get("outputImg");
     const outputDecimalsParam = searchParams?.get("outputDecimals");
 
-    const amountParam = searchParams?.get("amount");
+    // const amountParam = searchParams?.get("amount");
 
     if (!inputTokenParam && !outputTokenParam) return;
 
     // ── Input token ──
     if (inputTokenParam) {
-      const inputChainId = inputChainParam || "1151111081099710";
+      const inputChainId = resolveChainId(inputChainParam); // ← changed
       const inputNetwork = getNetworkByChainId(inputChainId).toUpperCase();
 
-      // Try tempTokens/tokens for full details first
       const found = [...tempTokens, ...tokens].find((t) => {
         const symbolMatch =
           t.symbol?.toLowerCase() === inputTokenParam.toLowerCase();
         if (!symbolMatch) return false;
-        if (inputChainParam) {
+        if (inputChainParam && inputChainParam !== "undefined") {
+          // ← guard
           const tokenChainId =
             t.chainId?.toString() ?? getChainId(t.chain ?? t.network ?? "");
-          return tokenChainId === inputChainParam;
+          return tokenChainId === inputChainId;
         }
         return true;
       });
 
-      // Get balance from user's wallet tokens
       const userToken = tokens.find(
         (t) =>
           t.symbol?.toLowerCase() === inputTokenParam.toLowerCase() &&
@@ -873,41 +879,37 @@ export default function SwapTokenModal({
             t.chainId?.toString() === inputChainId),
       );
 
-      // Build token — feed URL params fill in what tempTokens might not have yet
       const payTokenData = found
         ? { ...found, balance: userToken?.balance ?? found.balance ?? null }
         : {
             symbol: inputTokenParam.toUpperCase(),
             name: inputTokenParam,
-            address: inputMintParam || "", // mint from feed
+            address: inputMintParam || "",
             chain: inputNetwork,
             chainId: inputChainId,
             decimals: inputDecimalsParam ? parseInt(inputDecimalsParam) : 6,
-            logoURI: inputImgParam ? decodeURIComponent(inputImgParam) : "", // tokenImg from feed
+            logoURI: inputImgParam ? decodeURIComponent(inputImgParam) : "",
             balance: userToken?.balance ?? null,
           };
 
       setPayToken(payTokenData);
       setChainId(inputChainId);
-
-      // if (amountParam && !isNaN(parseFloat(amountParam))) {
-      //   setPayAmount(amountParam);
-      // }
     }
 
     // ── Output token ──
     if (outputTokenParam) {
-      const outputChainId = outputChainParam || "1151111081099710";
+      const outputChainId = resolveChainId(outputChainParam); // ← changed
       const outputNetwork = getNetworkByChainId(outputChainId).toUpperCase();
 
       const found = [...tempTokens, ...tokens].find((t) => {
         const symbolMatch =
           t.symbol?.toLowerCase() === outputTokenParam.toLowerCase();
         if (!symbolMatch) return false;
-        if (outputChainParam) {
+        if (outputChainParam && outputChainParam !== "undefined") {
+          // ← guard
           const tokenChainId =
             t.chainId?.toString() ?? getChainId(t.chain ?? t.network ?? "");
-          return tokenChainId === outputChainParam;
+          return tokenChainId === outputChainId;
         }
         return true;
       });
@@ -926,11 +928,11 @@ export default function SwapTokenModal({
         : {
             symbol: outputTokenParam.toUpperCase(),
             name: outputTokenParam,
-            address: outputMintParam || "", // mint from feed
+            address: outputMintParam || "",
             chain: outputNetwork,
             chainId: outputChainId,
             decimals: outputDecimalsParam ? parseInt(outputDecimalsParam) : 6,
-            logoURI: outputImgParam ? decodeURIComponent(outputImgParam) : "", // tokenImg from feed
+            logoURI: outputImgParam ? decodeURIComponent(outputImgParam) : "",
             balance: userToken?.balance ?? null,
           };
 
