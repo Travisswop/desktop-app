@@ -556,7 +556,7 @@ export default function SwapTokenModal({
 
   // ── Receive-token drawer state (mirrors RN app) ──────────────────────────────
   const [tempTokens, setTempTokens] = useState<any[]>([]);
-  console.log("tempTokens", tempTokens);
+  // console.log("tempTokens", tempTokens);
 
   const [targetList, setTargetList] = useState<Record<TokenCategory, any[]>>({
     stock: [],

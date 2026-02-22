@@ -12,7 +12,7 @@ interface SwapTransactionCardProps {
 }
 
 const SwapTransactionCard: React.FC<SwapTransactionCardProps> = ({ feed }) => {
-  console.log("feed data hola", feed);
+  // console.log("feed data hola", feed);
 
   // const router = useRouter();
 
