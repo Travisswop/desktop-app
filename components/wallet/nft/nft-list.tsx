@@ -446,6 +446,8 @@ export default function NFTSlider({
 
   const visibleNfts = nfts.filter((nft) => !hiddenNfts.has(getNftId(nft)));
 
+  console.log("visibleNfts", visibleNfts);
+
   const getErrorMessage = (error: Error) => {
     const errorMessage = error.message.toLowerCase();
 
@@ -482,8 +484,8 @@ export default function NFTSlider({
 
   return (
     <>
-      <Card className="w-full border-none rounded-xl">
-        <CardHeader>
+      <div className="w-full border-none rounded-xl bg-white pt-3 px-5">
+        <div>
           <div className="flex items-center justify-between">
             <h2 className="text-lg font-semibold">My NFTs</h2>
             <div className="flex items-center gap-1">
@@ -519,8 +521,8 @@ export default function NFTSlider({
               </DropdownMenu>
             </div>
           </div>
-        </CardHeader>
-        <CardContent>
+        </div>
+        <div>
           {loading && <LoadingSkeleton />}
 
           {error && errorInfo && (
@@ -535,7 +537,7 @@ export default function NFTSlider({
             <EmptyState hasAddress={!!address} />
           )}
 
-          {!loading &&
+          {/* {!loading &&
             !error &&
             visibleNfts.length > 0 &&
             visibleNfts.length < 2 && (
@@ -549,9 +551,9 @@ export default function NFTSlider({
                       <NFTImage
                         src={visibleNfts[0].image}
                         alt={visibleNfts[0].name}
-                        fill
-                        className="object-cover"
-                        sizes="(max-width: 768px) 100vw, 300px"
+                        className="p-4"
+                        width={320}
+                        height={320}
                       />
                     </div>
                     <div>
@@ -567,65 +569,66 @@ export default function NFTSlider({
                   </CardContent>
                 </Card>
               </div>
-            )}
+            )} */}
 
           {!loading && !error && visibleNfts.length >= 2 && (
             <Carousel
               opts={{
                 align: "start",
-                loop: true,
+                // loop: true,
               }}
-              className="w-full"
+              className="w-full h-full"
             >
-              <CarouselContent className="-ml-2 md:-ml-4">
+              <CarouselContent className="p-4 h-full">
                 {visibleNfts.map((nft, index) => (
                   <CarouselItem
                     key={`${nft.contract}-${nft.tokenId}-${index}`}
-                    className="pl-2 md:pl-4 md:basis-1/3 lg:basis-1/3"
+                    // className="sm:basis-1/2 md:basis-1/3 lg:basis-1/3 min-h-full"
+                    className={`${index === 0 ? "pl-1" : "pl-3"} sm:basis-1/2 md:basis-1/3 lg:basis-1/3 min-h-full`}
                   >
-                    <Card
-                      className="border-0 shadow-sm cursor-pointer hover:shadow-lg transition-shadow"
+                    <div
+                      className="bg-white rounded-xl shadow-small hover:shadow-medium transition-shadow duration-200 cursor-pointer h-full border-0"
                       onClick={() => onSelectNft(nft)}
                     >
-                      <CardContent className="p-0">
-                        <div className="relative aspect-square overflow-hidden rounded-t-lg">
-                          <NFTImage
-                            src={nft.image}
-                            alt={nft.name}
-                            fill
-                            className="object-cover"
-                            sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
-                          />
+                      <div className="relative aspect-square">
+                        <NFTImage
+                          src={nft.image}
+                          alt={nft.name}
+                          className="p-4 rounded-lg object-cover"
+                          width={320}
+                          height={320}
+                        />
+                      </div>
+                      <div className="p-4 h-full">
+                        <div className="flex items-center space-x-2">
+                          <h3 className="font-medium truncate flex-grow text-gray-900">
+                            {nft.name}
+                          </h3>
                         </div>
-                        <div className="p-4">
-                          <div className="flex items-center space-x-2">
-                            <h3 className="font-medium truncate flex-grow">
-                              {nft.name}
-                            </h3>
-                          </div>
-                          {nft.collection?.collectionName && (
+                        {nft.collection?.collectionName &&
+                          nft.collection.collectionName !==
+                            "Unknown Collection" && (
                             <p className="text-xs text-gray-500 mt-1 truncate">
                               {nft.collection.collectionName}
                             </p>
                           )}
-                          {nft.description && (
-                            <p className="text-sm text-muted-foreground mt-1 line-clamp-2">
-                              {nft.description}
-                            </p>
-                          )}
-                        </div>
-                      </CardContent>
-                    </Card>
+                        {nft.description && (
+                          <p className="text-sm text-gray-600 mt-1 truncate">
+                            {nft.description}
+                          </p>
+                        )}
+                      </div>
+                    </div>
                   </CarouselItem>
                 ))}
               </CarouselContent>
-              <CarouselNext className="hidden md:flex -right-12 bg-white shadow-lg border-0">
+              {/* <CarouselNext className="hidden md:flex -right-12 bg-white shadow-lg border-0">
                 <ChevronRight className="h-4 w-4" />
-              </CarouselNext>
+              </CarouselNext> */}
             </Carousel>
           )}
-        </CardContent>
-      </Card>
+        </div>
+      </div>
 
       {/* Manage NFTs Modal */}
       <CustomModal
@@ -648,22 +651,24 @@ export default function NFTSlider({
                   key={nftId}
                   className="flex items-center gap-4 p-3 rounded-lg border hover:bg-gray-50 transition-colors"
                 >
-                  <div className="relative w-16 h-16 flex-shrink-0 rounded-lg overflow-hidden">
+                  <div className="relative w-16 h-16 flex-shrink-0 rounded-lg">
                     <NFTImage
                       src={nft.image}
                       alt={nft.name}
-                      fill
-                      className="object-cover"
-                      sizes="64px"
+                      className="p-4"
+                      width={320}
+                      height={320}
                     />
                   </div>
                   <div className="flex-grow min-w-0">
                     <h4 className="font-medium truncate">{nft.name}</h4>
-                    {nft.collection?.collectionName && (
-                      <p className="text-xs text-gray-500 truncate">
-                        {nft.collection.collectionName}
-                      </p>
-                    )}
+                    {nft.collection?.collectionName &&
+                      nft.collection.collectionName !==
+                        "Unknown Collection" && (
+                        <p className="text-xs text-gray-500 truncate">
+                          {nft.collection.collectionName}
+                        </p>
+                      )}
                   </div>
                   <Switch
                     checked={isVisible}

@@ -6,19 +6,19 @@ import {
   QrCodeIcon,
   Share2,
   Wallet,
-} from 'lucide-react';
-import { useMemo, useRef, useState } from 'react';
-import { BsBank } from 'react-icons/bs';
-import ensImg from '@/public/images/ens.png';
-import Image from 'next/image';
-import { PrimaryButton } from '../ui/Button/PrimaryButton';
-import { FaArrowLeftLong } from 'react-icons/fa6';
-import { MdOutlineQrCodeScanner } from 'react-icons/md';
-import { IoCopyOutline } from 'react-icons/io5';
-import { QRCodeSVG } from 'qrcode.react';
-import { useUser } from '@/lib/UserContext';
-import { usePrivy, useWallets } from '@privy-io/react-auth';
-import { useWallets as useSolanaWallets } from '@privy-io/react-auth/solana';
+} from "lucide-react";
+import { useMemo, useRef, useState } from "react";
+import { BsBank } from "react-icons/bs";
+import ensImg from "@/public/images/ens.png";
+import Image from "next/image";
+import { PrimaryButton } from "../ui/Button/PrimaryButton";
+import { FaArrowLeftLong } from "react-icons/fa6";
+import { MdOutlineQrCodeScanner } from "react-icons/md";
+import { IoCopyOutline } from "react-icons/io5";
+import { QRCodeSVG } from "qrcode.react";
+import { useUser } from "@/lib/UserContext";
+import { usePrivy, useWallets } from "@privy-io/react-auth";
+import { useWallets as useSolanaWallets } from "@privy-io/react-auth/solana";
 
 export default function ReceiveOptions() {
   const [navigateCryptoFiat, setNavigateCryptoFiat] = useState({
@@ -36,16 +36,13 @@ export default function ReceiveOptions() {
   const { user: privyUser } = usePrivy();
   const { user } = useUser();
 
-  const { ready: solanaReady, wallets: solWallets } =
-    useSolanaWallets();
-  const solWalletAddress = solanaReady
-    ? solWallets[0]?.address
-    : undefined;
+  const { ready: solanaReady, wallets: solWallets } = useSolanaWallets();
+  const solWalletAddress = solanaReady ? solWallets[0]?.address : undefined;
   const { wallets: ethWallets } = useWallets();
 
   const evmWalletAddress = useMemo(() => {
     return ethWallets?.find(
-      (w) => w.walletClientType === "privy" || w.connectorType === "embedded"
+      (w) => w.walletClientType === "privy" || w.connectorType === "embedded",
     )?.address;
   }, [ethWallets]);
 
@@ -81,7 +78,7 @@ export default function ReceiveOptions() {
   const chainAddresses = [
     {
       name: "Solana",
-      icon: "/assets/icons/SOL.png",
+      icon: "/assets/icons/sol.png",
       address: solWalletAddress,
     },
     {
@@ -147,7 +144,7 @@ export default function ReceiveOptions() {
             qrOpenStatus === "pol" ||
             qrOpenStatus === "base"
             ? evmWalletAddress
-            : solWalletAddress
+            : solWalletAddress,
         );
         alert("Address copied to clipboard!");
       }
@@ -223,10 +220,10 @@ export default function ReceiveOptions() {
                         qrOpenStatus === "sol"
                           ? chainAddresses[0].icon
                           : qrOpenStatus === "eth"
-                          ? chainAddresses[1].icon
-                          : qrOpenStatus === "base"
-                          ? chainAddresses[3].icon
-                          : chainAddresses[2].icon,
+                            ? chainAddresses[1].icon
+                            : qrOpenStatus === "base"
+                              ? chainAddresses[3].icon
+                              : chainAddresses[2].icon,
                       height: 40,
                       width: 40,
                       excavate: true, // ensures clear background behind logo
@@ -247,10 +244,10 @@ export default function ReceiveOptions() {
                 qrOpenStatus === "sol"
                   ? "Solana"
                   : qrOpenStatus === "eth"
-                  ? "Etherium"
-                  : qrOpenStatus === "pol"
-                  ? "Polygon"
-                  : "Base"
+                    ? "Etherium"
+                    : qrOpenStatus === "pol"
+                      ? "Polygon"
+                      : "Base"
               } Blockchain`}
             </p>
 
@@ -346,7 +343,7 @@ export default function ReceiveOptions() {
                     <p className="text-xs text-gray-600 font-mono">
                       {chain.address
                         ? `${chain.address.slice(0, 4)}...${chain.address.slice(
-                            -4
+                            -4,
                           )}`
                         : ""}
                     </p>

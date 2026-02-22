@@ -1,14 +1,11 @@
-'use client';
+"use client";
 
-import { X } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import {
-  Dialog,
-  DialogContent,
-  DialogTitle,
-} from '@/components/ui/dialog';
-import { NFT } from '@/types/nft';
-import NFTImage from './nft-image';
+import { X } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
+import { NFT } from "@/types/nft";
+import NFTImage from "./nft-image";
+import { PrimaryButton } from "@/components/ui/Button/PrimaryButton";
 
 interface NFTDetailProps {
   isOpen: boolean;
@@ -35,44 +32,35 @@ export default function NFTDetailView({
           <span className="sr-only">Close</span>
         </button>
 
-        <div className="relative aspect-square w-full">
+        <div className="w-full flex justify-center pt-5">
           <NFTImage
             src={nft.image}
             alt={nft.name}
-            fill
-            className="object-cover"
-            sizes="(max-width: 768px) 50vw, (max-width: 1200px) 50vw, 33vw"
+            className="rounded-2xl"
+            width={320}
+            height={320}
           />
         </div>
 
-        <div className="p-6 space-y-6">
-          <div className="flex items-start space-x-3">
-            <div className="w-2 h-2 rounded-full bg-blue-600 mt-2"></div>
-            <div>
-              <h2 className="text-xl font-semibold line-clamp-2">
-                {nft.name}
-              </h2>
-              <p className="text-sm text-muted-foreground">
-                #{nft.contract}
+        <div className="p-6 pt-0 space-y-6">
+          <div>
+            <h2 className="text-xl font-semibold line-clamp-2">{nft.name}</h2>
+            <p className="text-sm text-muted-foreground">#{nft.contract}</p>
+          </div>
+
+          {nft.description && (
+            <div className="">
+              <h3 className="font-semibold">Description</h3>
+              <p className="text-sm text-muted-foreground leading-relaxed line-clamp-4">
+                {nft.description}
               </p>
             </div>
-          </div>
-
-          <div className="space-y-2">
-            <h3 className="font-semibold">Description</h3>
-            <p className="text-sm text-muted-foreground leading-relaxed line-clamp-4">
-              {nft.description}
-            </p>
-          </div>
+          )}
 
           <div className="flex justify-center">
-            <Button
-              variant="black"
-              className="px-10 font-bold"
-              onClick={onNext}
-            >
+            <PrimaryButton className="px-10 font-bold" onClick={onNext}>
               Send
-            </Button>
+            </PrimaryButton>
           </div>
         </div>
       </DialogContent>

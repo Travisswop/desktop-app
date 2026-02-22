@@ -4,11 +4,11 @@
 import { useBalanceVisibilityStore } from "@/zustandStore/useBalanceVisibilityStore";
 import { ReactNode, useEffect } from "react";
 
-interface RootLayoutProps {
+interface WalletLayoutProps {
   children: ReactNode;
 }
 
-export default function WalletLayout({ children }: RootLayoutProps) {
+export default function WalletLayout({ children }: WalletLayoutProps) {
   const initializeFromCookie = useBalanceVisibilityStore(
     (state) => state.initializeFromCookie,
   );
@@ -17,9 +17,5 @@ export default function WalletLayout({ children }: RootLayoutProps) {
     initializeFromCookie();
   }, [initializeFromCookie]);
 
-  return (
-    <html>
-      <body>{children}</body>
-    </html>
-  );
+  return <div>{children}</div>;
 }

@@ -2,25 +2,28 @@
 import React from "react";
 import Image from "next/image";
 import dayjs from "dayjs";
-import { useRouter } from "next/navigation";
+// import { useRouter } from "next/navigation";
 import TokenValueChangeFetcher from "../wallet/TokenValueChangeFetched";
 import { useUser } from "@/lib/UserContext";
+import Link from "next/link";
 
 interface SwapTransactionCardProps {
   feed: any;
 }
 
 const SwapTransactionCard: React.FC<SwapTransactionCardProps> = ({ feed }) => {
-  const router = useRouter();
+  // console.log("feed data hola", feed);
+
+  // const router = useRouter();
 
   const { accessToken } = useUser();
 
-  const handleCopyTradeClick = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    router.push(
-      `/wallet?inputToken=${feed.content.inputToken.symbol}&outputToken=${feed.content.outputToken.symbol}&amount=${feed.content.inputToken.amount}`
-    );
-  };
+  // const handleCopyTradeClick = (e: React.MouseEvent) => {
+  //   e.stopPropagation();
+  //   router.push(
+  //     `/wallet?inputToken=${feed.content.inputToken.symbol}&outputToken=${feed.content.outputToken.symbol}&amount=${feed.content.inputToken.amount}`,
+  //   );
+  // };
 
   return (
     <div className="w-full flex justify-start mt-1">
@@ -100,12 +103,15 @@ const SwapTransactionCard: React.FC<SwapTransactionCardProps> = ({ feed }) => {
           </div>
 
           <div className="flex items-center justify-between mt-2">
-            <button
-              onClick={handleCopyTradeClick}
-              className="text-xs border border-gray-300 rounded px-3 py-1 font-medium hover:bg-gray-200"
-            >
-              Copy Trade
-            </button>
+            {feed?.content && (
+              <Link
+                href={`/wallet?inputToken=${feed?.content?.inputToken?.symbol}&inputMint=${feed?.content?.inputToken?.mint}&inputChain=${feed?.content?.inputToken?.chainId}&inputImg=${encodeURIComponent(feed?.content?.inputToken?.tokenImg)}&inputDecimals=${feed?.content?.inputToken?.decimals}&outputToken=${feed?.content?.outputToken?.symbol}&outputMint=${feed?.content?.outputToken?.mint}&outputChain=${feed?.content?.outputToken?.chainId}&outputImg=${encodeURIComponent(feed?.content?.outputToken?.tokenImg)}&outputDecimals=${feed?.content?.outputToken?.decimals}&amount=${feed?.content?.inputToken?.amount}`}
+                className="text-xs border border-gray-300 rounded px-3 py-1 font-medium hover:bg-gray-200"
+              >
+                Copy Trade
+              </Link>
+            )}
+
             {/* {feed.content.signature && (
               <div className="flex justify-end">
                 <a

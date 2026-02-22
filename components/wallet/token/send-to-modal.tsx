@@ -1,32 +1,33 @@
-"use client";
+'use client';
 
-import { useEffect, useState } from "react";
+import { useEffect, useState } from 'react';
 
-import { ChevronRight, Loader2, Search, Wallet } from "lucide-react";
-import Image from "next/image";
-import { useDebounce } from "use-debounce";
-import { Transaction } from "@solana/web3.js";
-import { Connection } from "@solana/web3.js";
-import { ReceiverData } from "@/types/wallet";
-import { truncateAddress } from "@/lib/utils";
-import RedeemModal, { RedeemConfig } from "./redeem-modal";
-import { TokenData } from "@/types/token";
+import { ChevronRight, Loader2, Search, Wallet } from 'lucide-react';
+import Image from 'next/image';
+import { useDebounce } from 'use-debounce';
+import { Transaction } from '@solana/web3.js';
+import { Connection } from '@solana/web3.js';
+import { ReceiverData } from '@/types/wallet';
+import { truncateAddress } from '@/lib/utils';
+import RedeemModal, { RedeemConfig } from './redeem-modal';
+import { TokenData } from '@/types/token';
 
-import { TransactionService } from "@/services/transaction-service";
-import { usePrivy } from "@privy-io/react-auth";
+import { TransactionService } from '@/services/transaction-service';
+import { usePrivy } from '@privy-io/react-auth';
 import {
   useWallets as useSolanaWallets,
-  useSignTransaction,
-} from "@privy-io/react-auth/solana";
-import { BsSendFill } from "react-icons/bs";
-import isUrl from "@/lib/isUrl";
-import { useUser } from "@/lib/UserContext";
-import CustomModal from "@/components/modal/CustomModal";
-import { getConnectionsUserData } from "@/actions/getEnsData";
-import { ScrollArea } from "@/components/ui/scroll-area";
+  useSignAndSendTransaction,
+} from '@privy-io/react-auth/solana';
+import bs58 from 'bs58';
+import { BsSendFill } from 'react-icons/bs';
+import isUrl from '@/lib/isUrl';
+import { useUser } from '@/lib/UserContext';
+import CustomModal from '@/components/modal/CustomModal';
+import { getConnectionsUserData } from '@/actions/getEnsData';
+import { ScrollArea } from '@/components/ui/scroll-area';
 
 type ProcessingStep = {
-  status: "pending" | "processing" | "completed" | "error";
+  status: 'pending' | 'processing' | 'completed' | 'error';
   message: string;
 };
 
@@ -62,8 +63,8 @@ export default function SendToModal({
   solBalance = 0,
 }: SendToModalProps) {
   const { user } = usePrivy();
-  const { signTransaction } = useSignTransaction();
-  const [searchQuery, setSearchQuery] = useState("");
+  const { signAndSendTransaction } = useSignAndSendTransaction();
+  const [searchQuery, setSearchQuery] = useState('');
   const [debouncedQuery] = useDebounce(searchQuery, 500);
   const [addressError, setAddressError] = useState(false);
   const [isRedeemModalOpen, setIsRedeemModalOpen] = useState(false);
@@ -82,16 +83,25 @@ export default function SendToModal({
   // Remove the local network assignment, always use the prop
   // const network = selectedToken?.chain || 'ETHEREUM';
 
+  console.log('selectedToken gg', selectedToken);
+
   const isValidAddress =
     searchQuery &&
-    ((["ETHEREUM", "POLYGON", "BASE", "ethereum", "polygon", "base"].includes(
-      network,
-    ) &&
+    (([
+      'ETHEREUM',
+      'POLYGON',
+      'BASE',
+      'ethereum',
+      'polygon',
+      'base',
+    ].includes(network) &&
       validateEthereumAddress(searchQuery)) ||
-      ((network === "SOLANA" || network === "solana") &&
+      ((network === 'SOLANA' || network === 'solana') &&
         validateSolanaAddress(searchQuery)));
 
-  const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleSearchChange = (
+    e: React.ChangeEvent<HTMLInputElement>,
+  ) => {
     setSearchQuery(e.target.value);
     setAddressError(false);
   };
@@ -100,9 +110,9 @@ export default function SendToModal({
     const response = await fetch(
       `${process.env.NEXT_PUBLIC_API_URL}/api/v2/desktop/wallet/deleteRedeemLink`,
       {
-        method: "DELETE",
+        method: 'DELETE',
         headers: {
-          "Content-Type": "application/json",
+          'Content-Type': 'application/json',
         },
         body: JSON.stringify({
           privyUserId: userId,
@@ -112,7 +122,7 @@ export default function SendToModal({
     );
 
     if (!response.ok) {
-      throw new Error("Failed to delete redeem link");
+      throw new Error('Failed to delete redeem link');
     }
   };
 
@@ -120,7 +130,7 @@ export default function SendToModal({
     config: RedeemConfig,
     updateStep: (
       index: number,
-      status: ProcessingStep["status"],
+      status: ProcessingStep['status'],
       message?: string,
     ) => void,
     setRedeemLink: (link: string) => void,
@@ -128,13 +138,16 @@ export default function SendToModal({
     const solanaWallet = solanaWallets[0];
 
     if (!solanaWallet?.address) {
-      throw new Error("Please connect your wallet to create a redeem link.");
+      throw new Error(
+        'Please connect your wallet to create a redeem link.',
+      );
     }
 
     // const connection = new Connection(clusterApiUrl('devnet'));
 
     const connection = new Connection(
-      process.env.NEXT_PUBLIC_SOLANA_RPC_URL || "https://api.devnet.solana.com",
+      process.env.NEXT_PUBLIC_SOLANA_RPC_URL ||
+        'https://api.devnet.solana.com',
     );
 
     // Convert amount to proper decimal format
@@ -144,9 +157,9 @@ export default function SendToModal({
     const response = await fetch(
       `${process.env.NEXT_PUBLIC_API_URL}/api/v2/desktop/wallet/createRedeemptionPool`,
       {
-        method: "POST",
+        method: 'POST',
         headers: {
-          "Content-Type": "application/json",
+          'Content-Type': 'application/json',
         },
         body: JSON.stringify({
           privyUserId: user?.id,
@@ -165,18 +178,18 @@ export default function SendToModal({
     );
 
     if (!response.ok) {
-      throw new Error("Failed to generate redeem link");
+      throw new Error('Failed to generate redeem link');
     }
 
     // Update step 1 to completed and step 2 to processing
-    updateStep(0, "completed");
-    updateStep(1, "processing");
+    updateStep(0, 'completed');
+    updateStep(1, 'processing');
 
     const { data } = await response.json();
 
     try {
       const setupTx = Transaction.from(
-        Buffer.from(data.serializedTransaction, "base64"),
+        Buffer.from(data.serializedTransaction, 'base64'),
       );
       // Serialize transaction to Uint8Array for Privy v3
       const serializedSetupTx = new Uint8Array(
@@ -185,89 +198,99 @@ export default function SendToModal({
           verifySignatures: false,
         }),
       );
-      // Use Privy v3 signTransaction hook
-      const { signedTransaction: signedSetupTx } = await signTransaction({
+      // Use Privy's signAndSendTransaction with gas sponsorship
+      const setupResult = await signAndSendTransaction({
         transaction: serializedSetupTx,
         wallet: solanaWallet,
       });
-      const setupSignature = await connection.sendRawTransaction(signedSetupTx);
-      await connection.confirmTransaction(setupSignature);
+      await connection.confirmTransaction(
+        bs58.encode(setupResult.signature),
+      );
       await new Promise((resolve) => setTimeout(resolve, 2000));
     } catch (error: any) {
-      await deleteRedeemLink(user?.id || "", data.poolId);
-      console.error("Setup transaction error:", error);
+      await deleteRedeemLink(user?.id || '', data.poolId);
+      console.error('Setup transaction error:', error);
 
       // Extract meaningful error message from SendTransactionError
-      let errorMessage = "Failed to set up temporary account";
+      let errorMessage = 'Failed to set up temporary account';
       if (error?.logs) {
         const logs = Array.isArray(error.logs) ? error.logs : [];
-        if (logs.some((log: string) => log.includes("insufficient lamports"))) {
+        if (
+          logs.some((log: string) =>
+            log.includes('insufficient lamports'),
+          )
+        ) {
           errorMessage =
-            "Insufficient SOL balance to cover rent fees. Please add more SOL to your wallet.";
+            'Insufficient SOL balance to cover rent fees. Please add more SOL to your wallet.';
         }
-      } else if (error?.message?.includes("insufficient lamports")) {
+      } else if (error?.message?.includes('insufficient lamports')) {
         errorMessage =
-          "Insufficient SOL balance to cover rent fees. Please add more SOL to your wallet.";
+          'Insufficient SOL balance to cover rent fees. Please add more SOL to your wallet.';
       }
 
       throw new Error(errorMessage);
     }
 
     // Update step 2 to completed and step 3 to processing
-    updateStep(1, "completed");
-    updateStep(2, "processing");
+    updateStep(1, 'completed');
+    updateStep(2, 'processing');
 
     // Handle token transfer
     try {
-      const txSignature = await TransactionService.handleRedeemTransaction(
-        solanaWallet,
-        connection,
-        {
-          totalAmount: totalAmount * Math.pow(10, selectedToken.decimals),
-          tokenAddress: selectedToken.address,
-          tokenDecimals: selectedToken.decimals,
-          tempAddress: data.tempAddress,
-        },
-        signTransaction, // Pass Privy v3 signTransaction function
-      );
+      const txSignature =
+        await TransactionService.handleRedeemTransaction(
+          solanaWallet,
+          connection,
+          {
+            totalAmount:
+              totalAmount * Math.pow(10, selectedToken.decimals),
+            tokenAddress: selectedToken.address,
+            tokenDecimals: selectedToken.decimals,
+            tempAddress: data.tempAddress,
+          },
+          undefined, // signTransactionFn (unused)
+          signAndSendTransaction, // signAndSendTransactionFn with sponsor support
+        );
 
       await connection.confirmTransaction(txSignature);
 
       // Update final step to completed
-      updateStep(2, "completed");
+      updateStep(2, 'completed');
       const redeemLink = `https://redeem.swopme.app/${data.poolId}`;
       // Set the redeem link
       setRedeemLink(redeemLink);
     } catch (error: any) {
-      console.error("error", error);
-      await deleteRedeemLink(user?.id || "", data.poolId); // Call to delete redeem link
+      console.error('error', error);
+      await deleteRedeemLink(user?.id || '', data.poolId); // Call to delete redeem link
 
-      let errorMessage = "Failed to transfer tokens";
+      let errorMessage = 'Failed to transfer tokens';
 
-      if (error.name === "SendTransactionError") {
+      if (error.name === 'SendTransactionError') {
         const { message, logs } =
           TransactionService.parseSendTransactionError(error);
-        console.error("Transaction error logs:", logs);
+        console.error('Transaction error logs:', logs);
 
         if (
           logs.some((log) =>
             log.includes(
-              "Please upgrade to SPL Token 2022 for immutable owner support",
+              'Please upgrade to SPL Token 2022 for immutable owner support',
             ),
           )
         ) {
           errorMessage =
-            "This token requires SPL Token 2022 support. Please try again with sufficient SOL balance for rent.";
+            'This token requires SPL Token 2022 support. Please try again with sufficient SOL balance for rent.';
         } else if (
-          logs.some((log) => log.includes("insufficient funds for rent"))
+          logs.some((log) =>
+            log.includes('insufficient funds for rent'),
+          )
         ) {
           errorMessage =
-            "Insufficient SOL balance to cover rent for token account. Please add more SOL to your wallet.";
+            'Insufficient SOL balance to cover rent for token account. Please add more SOL to your wallet.';
         } else {
-          errorMessage = message || "Failed to transfer tokens";
+          errorMessage = message || 'Failed to transfer tokens';
         }
       } else {
-        errorMessage = error.message || "Failed to transfer tokens";
+        errorMessage = error.message || 'Failed to transfer tokens';
       }
 
       throw new Error(errorMessage);
@@ -277,7 +300,7 @@ export default function SendToModal({
   // Add this after your existing useEffects
   useEffect(() => {
     if (!open) {
-      setSearchQuery("");
+      setSearchQuery('');
       setAddressError(false);
       setSearchResults([]);
       setIsLoading(false);
@@ -288,13 +311,16 @@ export default function SendToModal({
     const getdata = async () => {
       setIsLoading(true);
       const queryParams = new URLSearchParams({
-        page: "1",
-        limit: "20",
+        page: '1',
+        limit: '20',
       });
 
       const url = `${process.env.NEXT_PUBLIC_API_URL}/api/v1/user/following/${userHookData?._id}?${queryParams}`;
-      const data = await getConnectionsUserData(url, accessToken || "");
-      if (data.state === "success") {
+      const data = await getConnectionsUserData(
+        url,
+        accessToken || '',
+      );
+      if (data.state === 'success') {
         setConnectionList(data.data.following);
       }
       setIsLoading(false);
@@ -312,14 +338,17 @@ export default function SendToModal({
       }
 
       const queryParams = new URLSearchParams({
-        page: "1",
-        limit: "20",
+        page: '1',
+        limit: '20',
       });
 
       const url = `${process.env.NEXT_PUBLIC_API_URL}/api/v1/user/search?q=${debouncedQuery}&userId=${userHookData?._id}&filter=all&${queryParams}`;
-      const data = await getConnectionsUserData(url, accessToken || "");
+      const data = await getConnectionsUserData(
+        url,
+        accessToken || '',
+      );
 
-      if (data.state === "success") {
+      if (data.state === 'success') {
         const results = data.data.results || [];
 
         // Create a Set of connection ENS names for quick lookup
@@ -346,7 +375,12 @@ export default function SendToModal({
     };
 
     getSearchResults();
-  }, [debouncedQuery, accessToken, userHookData?._id, connectionList]);
+  }, [
+    debouncedQuery,
+    accessToken,
+    userHookData?._id,
+    connectionList,
+  ]);
 
   if (!selectedToken) return null;
 
@@ -375,29 +409,31 @@ export default function SendToModal({
                 </div>
               )}
 
-              <div
-                className="w-full p-4 rounded-2xl cursor-pointer shadow-md bg-white mb-1"
-                onClick={() => setIsRedeemModalOpen(true)}
-              >
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-4">
-                    <div className="w-10 h-10 rounded-lg bg-gray-200 flex items-center justify-center flex-shrink-0">
-                      <BsSendFill />
+              {selectedToken.chain.toLowerCase() === 'solana' && (
+                <div
+                  className="w-full p-4 rounded-2xl cursor-pointer shadow-md bg-white mb-1"
+                  onClick={() => setIsRedeemModalOpen(true)}
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-4">
+                      <div className="w-10 h-10 rounded-lg bg-gray-200 flex items-center justify-center flex-shrink-0">
+                        <BsSendFill />
+                      </div>
+                      <div>
+                        <h3 className="font-medium text-black">
+                          Send to anyone using a link
+                        </h3>
+                        <p className="text-sm text-gray-500">
+                          Share via Whatsapp, Email, Twitter...
+                        </p>
+                      </div>
                     </div>
-                    <div>
-                      <h3 className="font-medium text-black">
-                        Send to anyone using a link
-                      </h3>
-                      <p className="text-sm text-gray-500">
-                        Share via Whatsapp, Email, Twitter...
-                      </p>
+                    <div className="w-8 h-8 rounded-lg bg-gray-100 flex items-center justify-center flex-shrink-0">
+                      <ChevronRight className="h-5 w-5 text-black" />
                     </div>
-                  </div>
-                  <div className="w-8 h-8 rounded-lg bg-gray-100 flex items-center justify-center flex-shrink-0">
-                    <ChevronRight className="h-5 w-5 text-black" />
                   </div>
                 </div>
-              </div>
+              )}
 
               {/* Show wallet address preview */}
               {isValidAddress && !addressError && (
@@ -438,50 +474,55 @@ export default function SendToModal({
                   <p className="text-sm">No results found</p>
                 </div>
               ) : (
-                (searchResults.length > 0 ? searchResults : connectionList).map(
-                  (data: any) => (
-                    <div
-                      key={data._id}
-                      className="w-full p-4 border-b cursor-pointer bg-white hover:bg-gray-50 transition-colors"
-                      onClick={() =>
-                        onSelectReceiver({
-                          address:
-                            network?.toUpperCase() === "SOLANA"
-                              ? data.ensData.solanaAddress
-                              : data.ensData.evmAddress,
-                          ensName: data.ens,
-                          isEns: true,
-                          avatar: data.profilePic,
-                        })
-                      }
-                    >
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-3">
-                          {data.profilePic && (
-                            <Image
-                              src={
-                                isUrl(data.profilePic)
-                                  ? data.profilePic
-                                  : `/images/user_avator/${data.profilePic}@3x.png`
-                              }
-                              alt={data.ens || ""}
-                              width={120}
-                              height={120}
-                              className="rounded-full w-10 h-10"
-                            />
-                          )}
-                          <div>
-                            <span className="font-medium">{data.name}</span>
-                            <p className="text-sm text-gray-500">{data.ens}</p>
-                          </div>
-                        </div>
-                        <div className="w-8 h-8 rounded-lg bg-gray-100 flex items-center justify-center flex-shrink-0">
-                          <ChevronRight className="h-5 w-5 text-black" />
+                (searchResults.length > 0
+                  ? searchResults
+                  : connectionList
+                ).map((data: any) => (
+                  <div
+                    key={data._id}
+                    className="w-full p-4 border-b cursor-pointer bg-white hover:bg-gray-50 transition-colors"
+                    onClick={() =>
+                      onSelectReceiver({
+                        address:
+                          network?.toUpperCase() === 'SOLANA'
+                            ? data.ensData.solanaAddress
+                            : data.ensData.evmAddress,
+                        ensName: data.ens,
+                        isEns: true,
+                        avatar: data.profilePic,
+                      })
+                    }
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        {data.profilePic && (
+                          <Image
+                            src={
+                              isUrl(data.profilePic)
+                                ? data.profilePic
+                                : `/images/user_avator/${data.profilePic}@3x.png`
+                            }
+                            alt={data.ens || ''}
+                            width={120}
+                            height={120}
+                            className="rounded-full w-10 h-10"
+                          />
+                        )}
+                        <div>
+                          <span className="font-medium">
+                            {data.name}
+                          </span>
+                          <p className="text-sm text-gray-500">
+                            {data.ens}
+                          </p>
                         </div>
                       </div>
+                      <div className="w-8 h-8 rounded-lg bg-gray-100 flex items-center justify-center flex-shrink-0">
+                        <ChevronRight className="h-5 w-5 text-black" />
+                      </div>
                     </div>
-                  ),
-                )
+                  </div>
+                ))
               )}
             </div>
           </ScrollArea>
@@ -498,7 +539,7 @@ export default function SendToModal({
           tokenLogo={selectedToken.logoURI}
           tokenSymbol={selectedToken.symbol}
           tokenDecimals={selectedToken.decimals}
-          tokenPrice={selectedToken.marketData?.price || "0"}
+          tokenPrice={selectedToken.marketData?.price || '0'}
           solBalance={solBalance}
           isUSD={isUSD}
         />

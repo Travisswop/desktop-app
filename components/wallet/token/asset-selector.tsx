@@ -1,12 +1,12 @@
-'use client';
+"use client";
 
-import { useState } from 'react';
-import { Input } from '@/components/ui/input';
-import { Search } from 'lucide-react';
-import Image from 'next/image';
-import { TokenData } from '@/types/token';
-import { NFT } from '@/types/nft';
-import CustomModal from '@/components/modal/CustomModal';
+import { useState } from "react";
+import { Input } from "@/components/ui/input";
+import { Search } from "lucide-react";
+import Image from "next/image";
+import { TokenData } from "@/types/token";
+import { NFT } from "@/types/nft";
+import CustomModal from "@/components/modal/CustomModal";
 
 interface AssetSelectorProps {
   open: boolean;
@@ -25,15 +25,15 @@ export default function AssetSelector({
   onNext,
   onNFTNext,
 }: AssetSelectorProps) {
-  const [search, setSearch] = useState('');
-  const [tab, setTab] = useState('crypto');
+  const [search, setSearch] = useState("");
+  const [tab, setTab] = useState("crypto");
 
   // Memoize filtered results to avoid unnecessary re-renders
   const filteredAssets =
     assets?.filter(
       (asset) =>
         asset?.name?.toLowerCase().includes(search.toLowerCase()) ||
-        asset?.symbol?.toLowerCase().includes(search.toLowerCase())
+        asset?.symbol?.toLowerCase().includes(search.toLowerCase()),
     ) || [];
 
   const filteredNfts =
@@ -42,7 +42,7 @@ export default function AssetSelector({
         // First filter for unique names
         index === self.findIndex((n) => n.name === nft.name) &&
         // Then filter by search term
-        nft?.name?.toLowerCase().includes(search.toLowerCase())
+        nft?.name?.toLowerCase().includes(search.toLowerCase()),
     ) || [];
 
   const renderAssetItem = (asset: TokenData) => {
@@ -54,10 +54,10 @@ export default function AssetSelector({
         className="w-full flex items-center justify-between p-3 rounded-xl hover:bg-gray-50 transition-colors shadow-md  mb-2"
       >
         <div className="flex items-center gap-3">
-          {asset.symbol === 'SWOP' ? (
+          {asset.symbol === "SWOP" ? (
             <Image
               src={`https://app.apiswop.co/public/crypto-icons/SWOP.png`}
-              alt={asset.symbol || ''}
+              alt={asset.symbol || ""}
               width={320}
               height={320}
               className="rounded-full w-7 h-7"
@@ -65,7 +65,7 @@ export default function AssetSelector({
           ) : (
             <Image
               src={asset?.marketData?.image || asset?.logoURI}
-              alt={asset.symbol || ''}
+              alt={asset.symbol || ""}
               width={320}
               height={320}
               className="rounded-full w-7 h-7"
@@ -106,7 +106,7 @@ export default function AssetSelector({
           {nft.image && (
             <Image
               src={nft.image}
-              alt={nft.name || ''}
+              alt={nft.name || ""}
               width={40}
               height={40}
               className="rounded-lg"
@@ -145,21 +145,19 @@ export default function AssetSelector({
           </div>
         </div>
 
-        <div className="max-h-[400px] pr-4 overflow-y-auto">
-          {tab === 'crypto' && filteredAssets.length > 0 ? (
+        <div className="max-h-[400px] pr-4 overflow-y-auto mt-3">
+          {tab === "crypto" && filteredAssets.length > 0 ? (
             filteredAssets.map(renderAssetItem)
-          ) : tab === 'crypto' ? (
+          ) : tab === "crypto" ? (
             <div className="text-center text-gray-500 py-4">
               No crypto assets found
             </div>
           ) : null}
 
-          {tab === 'nft' && filteredNfts.length > 0 ? (
+          {tab === "nft" && filteredNfts.length > 0 ? (
             filteredNfts.map(renderNFTItem)
-          ) : tab === 'nft' ? (
-            <div className="text-center text-gray-500 py-4">
-              No NFTs found
-            </div>
+          ) : tab === "nft" ? (
+            <div className="text-center text-gray-500 py-4">No NFTs found</div>
           ) : null}
         </div>
       </div>
