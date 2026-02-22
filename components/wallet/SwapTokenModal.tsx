@@ -651,6 +651,7 @@ export default function SwapTokenModal({
           "https://raw.githubusercontent.com/switchboard-xyz/swop/main/assets/swop.png",
         balance: null,
       };
+      console.log("defaultReceive", defaultReceive);
       setReceiveToken(defaultReceive);
       setReceiverChainId("1151111081099710");
     }
