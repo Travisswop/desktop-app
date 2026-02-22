@@ -556,6 +556,8 @@ export default function SwapTokenModal({
 
   // ── Receive-token drawer state (mirrors RN app) ──────────────────────────────
   const [tempTokens, setTempTokens] = useState<any[]>([]);
+  console.log("tempTokens", tempTokens);
+
   const [targetList, setTargetList] = useState<Record<TokenCategory, any[]>>({
     stock: [],
     crypto: [],
@@ -601,7 +603,6 @@ export default function SwapTokenModal({
   const searchParams = useSearchParams();
 
   // ── Default token selection: SWOP (pay) → USDC (receive), both Solana ───────
-  // ── Default token selection: USDC (pay) → SWOP (receive), both Solana ───────
   useEffect(() => {
     if (!tokens || tokens.length === 0) return;
     const hasSearchParams =
@@ -831,27 +832,58 @@ export default function SwapTokenModal({
   // ── Effect 1: Handle inputToken + amount from URL ─────────────────────────────
   useEffect(() => {
     const inputTokenParam = searchParams?.get("inputToken");
+    const inputChainParam = searchParams?.get("inputChain");
     const amountParam = searchParams?.get("amount");
-    if (tokens.length === 0) return;
-    if (inputTokenParam) {
-      const found = tokens.find(
-        (t) => t.symbol.toLowerCase() === inputTokenParam.toLowerCase(),
-      );
-      if (found) {
-        setPayToken(found);
-        setChainId(getChainId(found.chain));
+    if (!inputTokenParam) return;
+
+    // Wait for tempTokens to be loaded
+    const sourceList = tempTokens.length > 0 ? tempTokens : tokens;
+    if (sourceList.length === 0) return;
+
+    const found = sourceList.find((t) => {
+      const symbolMatch =
+        t.symbol?.toLowerCase() === inputTokenParam.toLowerCase();
+      if (!symbolMatch) return false;
+      if (inputChainParam) {
+        const tokenChainId =
+          t.chainId?.toString() ?? getChainId(t.chain ?? t.network ?? "");
+        return tokenChainId === inputChainParam;
       }
+      return true;
+    });
+
+    if (found) {
+      const resolvedChainId =
+        found.chainId?.toString() ??
+        getChainId(found.chain ?? found.network ?? "");
+      setPayToken(found);
+      setChainId(resolvedChainId);
+    } else if (inputTokenParam) {
+      const resolvedChainId = inputChainParam || "1151111081099710";
+      setPayToken({
+        symbol: inputTokenParam.toUpperCase(),
+        name: inputTokenParam,
+        address: "",
+        chain: getNetworkByChainId(resolvedChainId).toUpperCase(),
+        chainId: resolvedChainId,
+        decimals: 6,
+        logoURI: "",
+        balance: null,
+      });
+      setChainId(resolvedChainId);
     }
-    if (amountParam && !isNaN(parseFloat(amountParam))) {
-      setPayAmount(amountParam);
-    }
-  }, [searchParams, tokens]);
+
+    // if (amountParam && !isNaN(parseFloat(amountParam))) {
+    //   setPayAmount(amountParam);
+    // }
+  }, [searchParams, tempTokens, tokens]);
 
   // ── Effect 2: Handle outputToken from URL ─────────────────────────────────────
   useEffect(() => {
     const outputTokenParam = searchParams?.get("outputToken");
     const outputChainParam = searchParams?.get("outputChain");
     if (!outputTokenParam || tempTokens.length === 0) return;
+
     const found = tempTokens.find((t) => {
       const symbolMatch =
         t.symbol?.toLowerCase() === outputTokenParam.toLowerCase();
@@ -863,12 +895,26 @@ export default function SwapTokenModal({
       }
       return true;
     });
+
     if (found) {
       const rcvChainId =
         found.chainId?.toString() ??
         getChainId(found.chain ?? found.network ?? "");
       setReceiveToken(found);
       setReceiverChainId(rcvChainId);
+    } else {
+      const resolvedChainId = outputChainParam || "1151111081099710";
+      setReceiveToken({
+        symbol: outputTokenParam.toUpperCase(),
+        name: outputTokenParam,
+        address: "",
+        chain: getNetworkByChainId(resolvedChainId).toUpperCase(),
+        chainId: resolvedChainId,
+        decimals: 6,
+        logoURI: "",
+        balance: null,
+      });
+      setReceiverChainId(resolvedChainId);
     }
   }, [searchParams, tempTokens]);
 

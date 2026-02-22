@@ -61,6 +61,7 @@ export default function SwapButton({
     ) {
       const newParams = new URLSearchParams(searchParams as any);
       newParams.delete("inputToken");
+      newParams.delete("inputChain");
       newParams.delete("outputToken");
       newParams.delete("amount");
       newParams.delete("outputChain");
