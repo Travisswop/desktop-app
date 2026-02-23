@@ -102,12 +102,83 @@ export default function ReceiveOptions() {
     if (!qrRef.current) return;
 
     try {
-      const html2canvas = (await import("html2canvas")).default;
-      const canvas = await html2canvas(qrRef.current, {
-        backgroundColor: "#ffffff",
-        scale: 2,
+      const svgElement = qrRef.current.querySelector("svg");
+      if (!svgElement) return;
+
+      const svgWidth = svgElement.width?.baseVal?.value || 200;
+      const svgHeight = svgElement.height?.baseVal?.value || 200;
+      const padding = 32;
+
+      const canvas = document.createElement("canvas");
+      canvas.width = svgWidth + padding * 2;
+      canvas.height = svgHeight + padding * 2;
+      const ctx = canvas.getContext("2d")!;
+
+      // White background
+      ctx.fillStyle = "#ffffff";
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      // 1. Draw QR SVG without the embedded image (strip <image> tags)
+      const svgClone = svgElement.cloneNode(true) as SVGElement;
+      svgClone.querySelectorAll("image").forEach((el) => el.remove());
+
+      const svgData = new XMLSerializer().serializeToString(svgClone);
+      const svgBlob = new Blob([svgData], {
+        type: "image/svg+xml;charset=utf-8",
+      });
+      const svgUrl = URL.createObjectURL(svgBlob);
+
+      await new Promise<void>((resolve, reject) => {
+        const qrImg = new window.Image();
+        qrImg.onload = () => {
+          ctx.drawImage(qrImg, padding, padding);
+          URL.revokeObjectURL(svgUrl);
+          resolve();
+        };
+        qrImg.onerror = () => {
+          URL.revokeObjectURL(svgUrl);
+          reject(new Error("Failed to render QR SVG"));
+        };
+        qrImg.src = svgUrl;
       });
 
+      // 2. Draw the chain icon on top, centered
+      const iconSrc =
+        qrOpenStatus === "sol"
+          ? chainAddresses[0].icon
+          : qrOpenStatus === "eth"
+            ? chainAddresses[1].icon
+            : qrOpenStatus === "base"
+              ? chainAddresses[3].icon
+              : chainAddresses[2].icon;
+
+      await new Promise<void>((resolve) => {
+        const iconImg = new window.Image();
+        iconImg.onload = () => {
+          const iconSize = 40;
+          const iconX = padding + (svgWidth - iconSize) / 2;
+          const iconY = padding + (svgHeight - iconSize) / 2;
+
+          // White circle background behind icon (matches QR excavate)
+          ctx.fillStyle = "#ffffff";
+          ctx.beginPath();
+          ctx.arc(
+            iconX + iconSize / 2,
+            iconY + iconSize / 2,
+            iconSize / 2 + 4,
+            0,
+            Math.PI * 2,
+          );
+          ctx.fill();
+
+          ctx.drawImage(iconImg, iconX, iconY, iconSize, iconSize);
+          resolve();
+        };
+        iconImg.onerror = () => resolve(); // continue even if icon fails
+        iconImg.src = iconSrc;
+      });
+
+      // 3. Download
       const link = document.createElement("a");
       link.download = `swop-qr-${
         privyUser?.email?.address?.split("@")[0] || "user"
