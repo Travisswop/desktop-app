@@ -75,6 +75,10 @@ export function useTradingSession() {
     setSessionError(null);
 
     try {
+      // Read latest session directly from localStorage — React state may be stale
+      // because this function is called before the session-loading effect completes
+      const storedSession = loadSession(eoaAddress);
+
       // Step 1: Initializes relayClient with the ethers signer and
       // Builder's credentials (via remote signing server) for authentication
       const initializedRelayClient = await initializeRelayClient();
@@ -84,43 +88,45 @@ export function useTradingSession() {
         throw new Error("Failed to derive Safe address");
       }
 
-      // Step 3: Check if Safe is deployed
-      let isDeployed = await isSafeDeployed(
-        initializedRelayClient,
-        derivedSafeAddressFromEoa
-      );
+      // Steps 3-4: Check and deploy Safe — skip entirely if already recorded in storage
+      if (!storedSession?.isSafeDeployed) {
+        let isDeployed = await isSafeDeployed(
+          initializedRelayClient,
+          derivedSafeAddressFromEoa
+        );
 
-      // Step 4: Deploy Safe if not already deployed
-      if (!isDeployed) {
-        setCurrentStep("deploying");
-        await deploySafe(initializedRelayClient);
+        if (!isDeployed) {
+          setCurrentStep("deploying");
+          await deploySafe(initializedRelayClient);
+        }
       }
 
-      // Step 5: Get User API Credentials (derive or create)
-      // and store them in the trading session object
-      let apiCreds = tradingSession?.apiCredentials;
+      // Step 5: Get User API Credentials — skip if already stored
+      let apiCreds = storedSession?.apiCredentials;
       if (
-        !tradingSession?.hasApiCredentials ||
-        !apiCreds ||
-        !apiCreds.key ||
-        !apiCreds.secret ||
-        !apiCreds.passphrase
+        !storedSession?.hasApiCredentials ||
+        !apiCreds?.key ||
+        !apiCreds?.secret ||
+        !apiCreds?.passphrase
       ) {
         setCurrentStep("credentials");
         apiCreds = await createOrDeriveUserApiCredentials();
       }
 
       // Step 6: Set all required token approvals for trading
+      // Always verify on-chain, but skip relay call if already approved in storage
       setCurrentStep("approvals");
-      const approvalStatus = await checkAllTokenApprovals(
-        derivedSafeAddressFromEoa
-      );
+      let hasApprovals = storedSession?.hasApprovals ?? false;
+      if (!storedSession?.hasApprovals) {
+        const approvalStatus = await checkAllTokenApprovals(
+          derivedSafeAddressFromEoa
+        );
 
-      let hasApprovals = false;
-      if (approvalStatus.allApproved) {
-        hasApprovals = true;
-      } else {
-        hasApprovals = await setAllTokenApprovals(initializedRelayClient);
+        if (approvalStatus.allApproved) {
+          hasApprovals = true;
+        } else {
+          hasApprovals = await setAllTokenApprovals(initializedRelayClient);
+        }
       }
 
       // Step 7: Create custom session object
@@ -153,8 +159,6 @@ export function useTradingSession() {
     checkAllTokenApprovals,
     setAllTokenApprovals,
     initializeRelayClient,
-    tradingSession?.apiCredentials,
-    tradingSession?.hasApiCredentials,
   ]);
 
   // This function clears the trading session and resets the state
