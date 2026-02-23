@@ -16,12 +16,7 @@ import {
   useWallets as useSolanaWallets,
   useSignAndSendTransaction,
 } from '@privy-io/react-auth/solana';
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
+import CustomModal from '@/components/modal/CustomModal';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
@@ -1614,34 +1609,32 @@ export default function DepositModal({
     </div>
   );
 
-  // Prevent modal from closing during processing
-  const handleOpenChange = (newOpen: boolean) => {
-    // Don't allow closing during transaction processing
-    if (!newOpen && step === 'processing') {
-      return;
-    }
-    onOpenChange(newOpen);
-  };
+  const modalTitle =
+    step === 'select'
+      ? 'Deposit to Trading Wallet'
+      : step === 'amount'
+        ? 'Enter Amount'
+        : step === 'processing'
+          ? 'Processing'
+          : step === 'success'
+            ? 'Success'
+            : 'Error';
 
   return (
-    <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent className="max-w-md p-6 rounded-2xl">
-        <DialogHeader>
-          <DialogTitle className="text-center text-lg font-semibold">
-            {step === 'select' && 'Deposit to Trading Wallet'}
-            {step === 'amount' && 'Enter Amount'}
-            {step === 'processing' && 'Processing'}
-            {step === 'success' && 'Success'}
-            {step === 'error' && 'Error'}
-          </DialogTitle>
-        </DialogHeader>
-
+    <CustomModal
+      isOpen={open}
+      onClose={step !== 'processing' ? () => onOpenChange(false) : undefined}
+      title={modalTitle}
+      width="max-w-md"
+      removeCloseButton={step === 'processing'}
+    >
+      <div className="px-6 pb-6">
         {step === 'select' && renderTokenSelector()}
         {step === 'amount' && renderAmountInput()}
         {step === 'processing' && renderProcessing()}
         {step === 'success' && renderSuccess()}
         {step === 'error' && renderError()}
-      </DialogContent>
-    </Dialog>
+      </div>
+    </CustomModal>
   );
 }
