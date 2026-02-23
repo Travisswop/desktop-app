@@ -88,7 +88,7 @@ export default function ReceiveOptions() {
     },
     {
       name: "Polygon",
-      icon: "/assets/icons/POL.png",
+      icon: "/assets/icons/pol.png",
       address: evmWalletAddress,
     },
     {

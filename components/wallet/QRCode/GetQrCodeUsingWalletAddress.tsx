@@ -46,7 +46,7 @@ const GetQrCodeUsingWalletAddress = ({
   const chainAddresses = [
     {
       name: "Solana",
-      icon: "/assets/icons/SOL.png",
+      icon: "/assets/icons/solana.png",
       address: solWalletAddress,
     },
     {
@@ -56,7 +56,7 @@ const GetQrCodeUsingWalletAddress = ({
     },
     {
       name: "Polygon",
-      icon: "/assets/icons/POL.png",
+      icon: "/assets/icons/pol.png",
       address: evmWalletAddress,
     },
     {
