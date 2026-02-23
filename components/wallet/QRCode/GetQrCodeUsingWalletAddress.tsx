@@ -1,26 +1,26 @@
-'use client';
-import Image from 'next/image';
-import ensImg from '@/public/images/ens.png';
-import { useUser } from '@/lib/UserContext';
-import { useEffect, useMemo, useRef, useState } from 'react';
-import { QRCodeSVG } from 'qrcode.react';
-import { usePrivy, useWallets } from '@privy-io/react-auth';
-import { useWallets as useSolanaWallets } from '@privy-io/react-auth/solana';
-import { Download, Share2 } from 'lucide-react';
+"use client";
+import Image from "next/image";
+import ensImg from "@/public/images/ens.png";
+import { useUser } from "@/lib/UserContext";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { QRCodeSVG } from "qrcode.react";
+import { usePrivy, useWallets } from "@privy-io/react-auth";
+import { useWallets as useSolanaWallets } from "@privy-io/react-auth/solana";
+import { Download, Share2 } from "lucide-react";
 
 const GetQrCodeUsingWalletAddress = ({
   walletName,
 }: {
-  walletName: 'sol' | 'eth' | 'pol' | 'base';
+  walletName: "sol" | "eth" | "pol" | "base";
 }) => {
   const { user } = useUser();
   const { user: privyUser } = usePrivy();
   const qrRef = useRef<HTMLDivElement>(null);
   const [qrOpenStatus, setQrOpenStatus] = useState<
-    boolean | 'sol' | 'eth' | 'pol' | 'base'
+    boolean | "sol" | "eth" | "pol" | "base"
   >(false);
 
-  console.log('qrOpenStatus', qrOpenStatus);
+  console.log("qrOpenStatus", qrOpenStatus);
 
   useEffect(() => {
     if (walletName) {
@@ -33,38 +33,35 @@ const GetQrCodeUsingWalletAddress = ({
 
   const solWalletAddress = useMemo(() => {
     return solWallets?.find(
-      (w) =>
-        w.walletClientType === 'privy' && w.chainType === 'solana'
+      (w) => w.walletClientType === "privy" && w.chainType === "solana",
     )?.address;
   }, [solWallets]);
 
   const evmWalletAddress = useMemo(() => {
     return ethWallets?.find(
-      (w) =>
-        w.walletClientType === 'privy' ||
-        w.connectorType === 'embedded'
+      (w) => w.walletClientType === "privy" || w.connectorType === "embedded",
     )?.address;
   }, [ethWallets]);
 
   const chainAddresses = [
     {
-      name: 'Solana',
-      icon: '/assets/icons/SOL.png',
+      name: "Solana",
+      icon: "/assets/icons/solana.png",
       address: solWalletAddress,
     },
     {
-      name: 'Ethereum',
-      icon: '/assets/icons/ETH.png',
+      name: "Ethereum",
+      icon: "/assets/icons/ETH.png",
       address: evmWalletAddress,
     },
     {
-      name: 'Polygon',
-      icon: '/assets/icons/POL.png',
+      name: "Polygon",
+      icon: "/assets/icons/POL.png",
       address: evmWalletAddress,
     },
     {
-      name: 'Base',
-      icon: '/assets/icons/base.png',
+      name: "Base",
+      icon: "/assets/icons/base.png",
       address: evmWalletAddress,
     },
   ];
@@ -73,20 +70,20 @@ const GetQrCodeUsingWalletAddress = ({
     if (!qrRef.current) return;
 
     try {
-      const html2canvas = (await import('html2canvas')).default;
+      const html2canvas = (await import("html2canvas")).default;
       const canvas = await html2canvas(qrRef.current, {
-        backgroundColor: '#ffffff',
+        backgroundColor: "#ffffff",
         scale: 2,
       });
 
-      const link = document.createElement('a');
+      const link = document.createElement("a");
       link.download = `swop-qr-${
-        privyUser?.email?.address?.split('@')[0] || 'user'
+        privyUser?.email?.address?.split("@")[0] || "user"
       }.png`;
-      link.href = canvas.toDataURL('image/png');
+      link.href = canvas.toDataURL("image/png");
       link.click();
     } catch (error) {
-      console.error('Error saving QR code:', error);
+      console.error("Error saving QR code:", error);
     }
   };
 
@@ -98,9 +95,9 @@ const GetQrCodeUsingWalletAddress = ({
     const shareData = {
       title: `My Wallet Address`,
       text: `My Wallet Address: ${
-        qrOpenStatus === 'eth' ||
-        qrOpenStatus === 'pol' ||
-        qrOpenStatus === 'base'
+        qrOpenStatus === "eth" ||
+        qrOpenStatus === "pol" ||
+        qrOpenStatus === "base"
           ? evmWalletAddress
           : solWalletAddress
       }`,
@@ -111,16 +108,16 @@ const GetQrCodeUsingWalletAddress = ({
         await navigator.share(shareData);
       } else {
         await navigator.clipboard.writeText(
-          qrOpenStatus === 'eth' ||
-            qrOpenStatus === 'pol' ||
-            qrOpenStatus === 'base'
+          qrOpenStatus === "eth" ||
+            qrOpenStatus === "pol" ||
+            qrOpenStatus === "base"
             ? evmWalletAddress
-            : solWalletAddress
+            : solWalletAddress,
         );
-        alert('Address copied to clipboard!');
+        alert("Address copied to clipboard!");
       }
     } catch (error) {
-      console.error('Error sharing:', error);
+      console.error("Error sharing:", error);
     }
   };
 
@@ -144,11 +141,11 @@ const GetQrCodeUsingWalletAddress = ({
             <div className="bg-white p-4">
               <QRCodeSVG
                 value={
-                  qrOpenStatus === 'eth' ||
-                  qrOpenStatus === 'pol' ||
-                  qrOpenStatus === 'base'
-                    ? evmWalletAddress || ''
-                    : solWalletAddress || ''
+                  qrOpenStatus === "eth" ||
+                  qrOpenStatus === "pol" ||
+                  qrOpenStatus === "base"
+                    ? evmWalletAddress || ""
+                    : solWalletAddress || ""
                 }
                 size={200}
                 level="H"
@@ -156,13 +153,13 @@ const GetQrCodeUsingWalletAddress = ({
                 //need to use local image
                 imageSettings={{
                   src:
-                    qrOpenStatus === 'sol'
+                    qrOpenStatus === "sol"
                       ? chainAddresses[0].icon
-                      : qrOpenStatus === 'eth'
-                      ? chainAddresses[1].icon
-                      : qrOpenStatus === 'base'
-                      ? chainAddresses[3].icon
-                      : chainAddresses[2].icon,
+                      : qrOpenStatus === "eth"
+                        ? chainAddresses[1].icon
+                        : qrOpenStatus === "base"
+                          ? chainAddresses[3].icon
+                          : chainAddresses[2].icon,
                   height: 40,
                   width: 40,
                   excavate: true, // ensures clear background behind logo
@@ -179,14 +176,14 @@ const GetQrCodeUsingWalletAddress = ({
         </div>
 
         <p className="text-center text-gray-500 text-sm max-w-md mx-auto mb-6 leading-relaxed">
-          {`Use This Only To Receive Tokens or NFTs on the ${
-            qrOpenStatus === 'sol'
-              ? 'Solana'
-              : qrOpenStatus === 'eth'
-              ? 'Etherium'
-              : qrOpenStatus === 'pol'
-              ? 'Polygon'
-              : 'Base'
+          {`Use This Only To Receive Tokens hh or NFTs on the ${
+            qrOpenStatus === "sol"
+              ? "Solana"
+              : qrOpenStatus === "eth"
+                ? "Etherium"
+                : qrOpenStatus === "pol"
+                  ? "Polygon"
+                  : "Base"
           } Blockchain`}
         </p>
 
