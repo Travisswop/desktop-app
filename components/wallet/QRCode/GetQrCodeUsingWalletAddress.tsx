@@ -56,7 +56,7 @@ const GetQrCodeUsingWalletAddress = ({
     },
     {
       name: "Polygon",
-      icon: "/assets/icons/pol.png",
+      icon: "/assets/icons/POL.png",
       address: evmWalletAddress,
     },
     {
