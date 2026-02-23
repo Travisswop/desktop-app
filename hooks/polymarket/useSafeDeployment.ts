@@ -31,8 +31,8 @@ export function useSafeDeployment(eoaAddress?: string) {
   const isSafeDeployed = useCallback(
     async (relayClient: RelayClient, safeAddr: string): Promise<boolean> => {
       try {
-        // Try relayClient first
-        const deployed = await (relayClient as any).getDeployed(safeAddr);
+        // Try relayClient first (getDeployed is a public method)
+        const deployed = await relayClient.getDeployed(safeAddr);
         return deployed;
       } catch (err) {
         console.warn("API check failed, falling back to RPC", err);
@@ -54,15 +54,16 @@ export function useSafeDeployment(eoaAddress?: string) {
         // Prompts signer for a signature
         const response = await relayClient.deploy();
 
-        // const result = await response.wait(); polls for a minute before timing out
+        // pollUntilState(txId, successStates, failState?, maxPolls?, pollFrequencyMs?)
+        // 20 polls × 3000ms = 60 seconds max wait
         const result = await relayClient.pollUntilState(
           response.transactionID,
           [
             RelayerTransactionState.STATE_MINED,
             RelayerTransactionState.STATE_CONFIRMED,
-            RelayerTransactionState.STATE_FAILED,
           ],
-          "60",
+          RelayerTransactionState.STATE_FAILED,
+          20,
           3000
         );
 

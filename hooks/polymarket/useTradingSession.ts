@@ -97,7 +97,16 @@ export function useTradingSession() {
 
         if (!isDeployed) {
           setCurrentStep("deploying");
-          await deploySafe(initializedRelayClient);
+          try {
+            await deploySafe(initializedRelayClient);
+          } catch (err) {
+            // Safe may have been deployed in a previous attempt that failed to save session
+            if (err instanceof Error && err.message === "safe already deployed!") {
+              console.log("Safe already deployed on-chain, continuing...");
+            } else {
+              throw err;
+            }
+          }
         }
       }
 
