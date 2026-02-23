@@ -15,16 +15,17 @@ export default function PolymarketTab() {
   const { authenticated, isReady } = usePolymarketWallet();
   const {
     tradingSession,
+    currentStep,
     isTradingSessionComplete,
     initializeTradingSession,
   } = useTrading();
 
   // Auto-initialize trading session when authenticated
   useEffect(() => {
-    if (authenticated && isReady && !tradingSession && !isTradingSessionComplete) {
+    if (authenticated && isReady && !tradingSession && !isTradingSessionComplete && currentStep === 'idle') {
       initializeTradingSession();
     }
-  }, [authenticated, isReady, tradingSession, isTradingSessionComplete, initializeTradingSession]);
+  }, [authenticated, isReady, tradingSession, isTradingSessionComplete, initializeTradingSession, currentStep]);
 
   // Show loading state while checking authentication
   if (!isReady && authenticated) {

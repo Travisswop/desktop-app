@@ -146,7 +146,6 @@ export function useTradingSession() {
     }
   }, [
     eoaAddress,
-    relayClient,
     derivedSafeAddressFromEoa,
     isSafeDeployed,
     deploySafe,
