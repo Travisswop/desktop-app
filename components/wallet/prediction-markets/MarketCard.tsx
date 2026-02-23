@@ -8,7 +8,13 @@
  */
 
 import React from 'react';
-import { Card, CardBody, CardFooter, Chip, Progress } from '@nextui-org/react';
+import {
+  Card,
+  CardBody,
+  CardFooter,
+  Chip,
+  Progress,
+} from '@nextui-org/react';
 import { TrendingUp, Users, Clock } from 'lucide-react';
 import { Market, MarketStatus } from '@/types/prediction-markets';
 import { usePredictionMarketsStore } from '@/zustandStore/predictionMarketsStore';
@@ -18,8 +24,14 @@ interface MarketCardProps {
   onClick?: (market: Market) => void;
 }
 
-export const MarketCard: React.FC<MarketCardProps> = ({ market, onClick }) => {
-  const openTradeModal = usePredictionMarketsStore((state) => state.openTradeModal);
+export const MarketCard: React.FC<MarketCardProps> = ({
+  market,
+  onClick,
+}) => {
+  console.log('market', market);
+  const openTradeModal = usePredictionMarketsStore(
+    (state) => state.openTradeModal,
+  );
 
   const handleClick = () => {
     if (onClick) {
@@ -28,7 +40,8 @@ export const MarketCard: React.FC<MarketCardProps> = ({ market, onClick }) => {
   };
 
   const getStatusColor = (status: MarketStatus | string) => {
-    const statusLower = typeof status === 'string' ? status.toLowerCase() : status;
+    const statusLower =
+      typeof status === 'string' ? status.toLowerCase() : status;
     switch (statusLower) {
       case MarketStatus.ACTIVE:
       case 'active':
@@ -65,7 +78,9 @@ export const MarketCard: React.FC<MarketCardProps> = ({ market, onClick }) => {
     const now = new Date();
     const diff = date.getTime() - now.getTime();
     const days = Math.floor(diff / (1000 * 60 * 60 * 24));
-    const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+    const hours = Math.floor(
+      (diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60),
+    );
 
     if (days > 0) {
       return `${days}d ${hours}h`;
@@ -77,7 +92,10 @@ export const MarketCard: React.FC<MarketCardProps> = ({ market, onClick }) => {
   };
 
   // Get top 2 outcomes for binary markets or top 3 for categorical
-  const displayOutcomes = market.outcomes.slice(0, market.marketType === 'binary' ? 2 : 3);
+  const displayOutcomes = market.outcomes.slice(
+    0,
+    market.marketType === 'binary' ? 2 : 3,
+  );
 
   return (
     <Card
@@ -93,10 +111,16 @@ export const MarketCard: React.FC<MarketCardProps> = ({ market, onClick }) => {
               {market.title}
             </h3>
             {market.category && (
-              <p className="text-xs text-gray-500 mt-1">{market.category}</p>
+              <p className="text-xs text-gray-500 mt-1">
+                {market.category}
+              </p>
             )}
           </div>
-          <Chip size="sm" color={getStatusColor(market.status)} variant="flat">
+          <Chip
+            size="sm"
+            color={getStatusColor(market.status)}
+            variant="flat"
+          >
             {market.status}
           </Chip>
         </div>
@@ -116,7 +140,8 @@ export const MarketCard: React.FC<MarketCardProps> = ({ market, onClick }) => {
         <div className="space-y-2 mb-3">
           {displayOutcomes.map((outcome) => {
             // Use price as probability if probability is not available
-            const probability = outcome.probability ?? outcome.price ?? 0;
+            const probability =
+              outcome.probability ?? outcome.price ?? 0;
             const isYes = outcome.name?.toLowerCase() === 'yes';
             return (
               <div key={outcome.id} className="space-y-1">
@@ -124,7 +149,9 @@ export const MarketCard: React.FC<MarketCardProps> = ({ market, onClick }) => {
                   <span className="font-medium text-gray-700 truncate flex-1">
                     {outcome.name}
                   </span>
-                  <span className={`font-bold ml-2 ${isYes ? 'text-green-600' : 'text-red-500'}`}>
+                  <span
+                    className={`font-bold ml-2 ${isYes ? 'text-green-600' : 'text-red-500'}`}
+                  >
                     {(probability * 100).toFixed(1)}%
                   </span>
                 </div>
@@ -147,7 +174,9 @@ export const MarketCard: React.FC<MarketCardProps> = ({ market, onClick }) => {
           </div>
           <div className="flex items-center gap-1">
             <Users className="w-3 h-3" />
-            <span>{formatVolume(market.openInterest ?? market.liquidity)}</span>
+            <span>
+              {formatVolume(market.openInterest ?? market.liquidity)}
+            </span>
           </div>
           {market.endDate && (
             <div className="flex items-center gap-1">
@@ -158,7 +187,9 @@ export const MarketCard: React.FC<MarketCardProps> = ({ market, onClick }) => {
         </div>
       </CardBody>
 
-      {(market.status === MarketStatus.ACTIVE || market.status === 'active' || market.status === 'open') && (
+      {(market.status === MarketStatus.ACTIVE ||
+        market.status === 'active' ||
+        market.status === 'open') && (
         <CardFooter className="pt-0 pb-3 px-4">
           <button
             onClick={(e) => {

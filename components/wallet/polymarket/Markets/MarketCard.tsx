@@ -28,7 +28,8 @@ function getSportsWarning(
     const mins = Math.round(diffMin);
     return {
       label: `Game starts in ~${mins} min`,
-      detail: 'Limit orders cancel at game start · Market orders have a 3 s delay',
+      detail:
+        'Limit orders cancel at game start · Market orders have a 3 s delay',
     };
   }
 
@@ -36,14 +37,16 @@ function getSportsWarning(
     // Game is live or just started
     return {
       label: 'Game in progress',
-      detail: 'Limit orders may already be cancelled · Market orders have a 3 s delay',
+      detail:
+        'Limit orders may already be cancelled · Market orders have a 3 s delay',
     };
   }
 
   // Game is more than an hour away — still useful to show the date
   return {
     label: `Game: ${new Date(startMs).toLocaleString(undefined, { dateStyle: 'short', timeStyle: 'short' })}`,
-    detail: 'Limit orders cancel at game start · Market orders have a 3 s delay',
+    detail:
+      'Limit orders cancel at game start · Market orders have a 3 s delay',
   };
 }
 
@@ -76,8 +79,11 @@ export default function MarketCard({
     ? JSON.parse(market.clobTokenIds)
     : [];
   const negRisk = market.negRisk || false;
-  const outcomePrices = tokenIds.map((tokenId: string) => {
-    return market.realtimePrices?.[tokenId]?.bidPrice || 0;
+  const staticPrices: number[] = market.outcomePrices
+    ? JSON.parse(market.outcomePrices).map(Number)
+    : [];
+  const outcomePrices = tokenIds.map((tokenId: string, index: number) => {
+    return market.realtimePrices?.[tokenId]?.bidPrice || staticPrices[index] || 0;
   });
 
   return (
@@ -122,8 +128,12 @@ export default function MarketCard({
           {/* Sports timing warning */}
           {sportsWarning && (
             <div className="mb-3 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
-              <p className="text-amber-700 text-xs font-medium">{sportsWarning.label}</p>
-              <p className="text-amber-600 text-xs">{sportsWarning.detail}</p>
+              <p className="text-amber-700 text-xs font-medium">
+                {sportsWarning.label}
+              </p>
+              <p className="text-amber-600 text-xs">
+                {sportsWarning.detail}
+              </p>
             </div>
           )}
 
