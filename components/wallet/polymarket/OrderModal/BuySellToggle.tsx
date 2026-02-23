@@ -2,11 +2,24 @@
 
 import { useState, useRef, useEffect } from "react";
 
+export type OrderVariant = "market" | "fak" | "limit" | "gtd";
+
+const ORDER_OPTIONS: { value: OrderVariant; label: string; description: string }[] = [
+  { value: "market", label: "Market", description: "All-or-nothing fill" },
+  { value: "fak", label: "Market (FAK)", description: "Fill what's available" },
+  { value: "limit", label: "Limit", description: "Rest on book" },
+  { value: "gtd", label: "Limit (GTD)", description: "Expires automatically" },
+];
+
+function orderVariantLabel(v: OrderVariant): string {
+  return ORDER_OPTIONS.find((o) => o.value === v)?.label ?? "Market";
+}
+
 interface BuySellToggleProps {
   side: "BUY" | "SELL";
   onSideChange: (side: "BUY" | "SELL") => void;
-  orderType: "market" | "limit";
-  onOrderTypeChange: (type: "market" | "limit") => void;
+  orderType: OrderVariant;
+  onOrderTypeChange: (type: OrderVariant) => void;
 }
 
 export default function BuySellToggle({
@@ -60,7 +73,7 @@ export default function BuySellToggle({
           onClick={() => setIsDropdownOpen(!isDropdownOpen)}
           className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-gray-500 hover:text-gray-800 transition-colors"
         >
-          {orderType === "market" ? "Market" : "Limit"}
+          {orderVariantLabel(orderType)}
           <svg
             className={`w-4 h-4 transition-transform ${isDropdownOpen ? "rotate-180" : ""}`}
             fill="none"
@@ -72,33 +85,26 @@ export default function BuySellToggle({
         </button>
 
         {isDropdownOpen && (
-          <div className="absolute right-0 top-full mt-1 bg-white border border-gray-200 rounded-lg shadow-xl overflow-hidden z-10 min-w-[100px]">
-            <button
-              onClick={() => {
-                onOrderTypeChange("market");
-                setIsDropdownOpen(false);
-              }}
-              className={`w-full px-4 py-2 text-sm text-left transition-colors ${
-                orderType === "market"
-                  ? "text-gray-900 bg-gray-100"
-                  : "text-gray-500 hover:text-gray-900 hover:bg-gray-50"
-              }`}
-            >
-              Market
-            </button>
-            <button
-              onClick={() => {
-                onOrderTypeChange("limit");
-                setIsDropdownOpen(false);
-              }}
-              className={`w-full px-4 py-2 text-sm text-left transition-colors ${
-                orderType === "limit"
-                  ? "text-gray-900 bg-gray-100"
-                  : "text-gray-500 hover:text-gray-900 hover:bg-gray-50"
-              }`}
-            >
-              Limit
-            </button>
+          <div className="absolute right-0 top-full mt-1 bg-white border border-gray-200 rounded-lg shadow-xl overflow-hidden z-10 min-w-[160px]">
+            {ORDER_OPTIONS.map((opt) => (
+              <button
+                key={opt.value}
+                onClick={() => {
+                  onOrderTypeChange(opt.value);
+                  setIsDropdownOpen(false);
+                }}
+                className={`w-full px-4 py-2.5 text-left transition-colors ${
+                  orderType === opt.value
+                    ? "bg-gray-100"
+                    : "hover:bg-gray-50"
+                }`}
+              >
+                <p className={`text-sm font-medium ${orderType === opt.value ? "text-gray-900" : "text-gray-600"}`}>
+                  {opt.label}
+                </p>
+                <p className="text-xs text-gray-400">{opt.description}</p>
+              </button>
+            ))}
           </div>
         )}
       </div>

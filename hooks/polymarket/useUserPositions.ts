@@ -1,4 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
+import { QUERY_STALE_TIMES, QUERY_REFETCH_INTERVALS } from "@/constants/polymarket";
 
 export type PolymarketPosition = {
   proxyWallet: string;
@@ -35,8 +36,9 @@ export function useUserPositions(walletAddress: string | undefined) {
     queryFn: async (): Promise<PolymarketPosition[]> => {
       if (!walletAddress) return [];
 
+      const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
       const response = await fetch(
-        `/api/polymarket/positions?user=${walletAddress}`
+        `${apiBase}/api/v5/prediction-markets/positions?user=${walletAddress}`
       );
 
       if (!response.ok) {
@@ -46,8 +48,8 @@ export function useUserPositions(walletAddress: string | undefined) {
       return response.json();
     },
     enabled: !!walletAddress,
-    staleTime: 2_000,
-    refetchInterval: 3_000,
+    staleTime: QUERY_STALE_TIMES.POSITIONS,
+    refetchInterval: QUERY_REFETCH_INTERVALS.POSITIONS,
     refetchIntervalInBackground: true,
     refetchOnWindowFocus: true,
   });

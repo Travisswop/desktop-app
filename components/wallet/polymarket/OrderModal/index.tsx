@@ -5,7 +5,7 @@ import { useState, useEffect, useRef } from 'react';
 import { usePolymarketWallet } from '@/providers/polymarket';
 
 import Portal from '../shared/Portal';
-import BuySellToggle from './BuySellToggle';
+import BuySellToggle, { type OrderVariant } from './BuySellToggle';
 import OutcomeSelector from './OutcomeSelector';
 import AmountInput from './AmountInput';
 import SharesInput from './SharesInput';
@@ -59,9 +59,9 @@ export default function OrderPlacementModal({
   orderMinSize = 5,
 }: OrderPlacementModalProps) {
   const [inputValue, setInputValue] = useState<string>('');
-  const [orderType, setOrderType] = useState<'market' | 'limit'>(
-    'market',
-  );
+  const [orderType, setOrderType] = useState<OrderVariant>('market');
+  // GTD expiration in hours from now (converted to UTC seconds on submit)
+  const [gtdHours, setGtdHours] = useState<number>(24);
   const [side, setSide] = useState<'BUY' | 'SELL'>('BUY');
   const [selectedOutcome, setSelectedOutcome] = useState<
     'yes' | 'no'
@@ -146,8 +146,11 @@ export default function OrderPlacementModal({
 
   const inputNum = parseFloat(inputValue) || 0;
   const limitPriceNum = parseFloat(limitPrice) || 0;
-  const effectivePrice =
-    orderType === 'limit' ? limitPriceNum : activePrice;
+  // Whether the current variant is a market-type or limit-type order
+  const isMarketVariant = orderType === 'market' || orderType === 'fak';
+  const isLimitVariant = orderType === 'limit' || orderType === 'gtd';
+
+  const effectivePrice = isLimitVariant ? limitPriceNum : activePrice;
 
   // For BUY: input is dollar amount, calculate shares
   // For SELL: input is shares, calculate dollar amount to receive
@@ -181,7 +184,7 @@ export default function OrderPlacementModal({
       }
     }
 
-    if (orderType === 'limit') {
+    if (isLimitVariant) {
       if (!limitPrice || limitPriceNum <= 0) {
         setLocalError('Limit price is required');
         return;
@@ -208,15 +211,23 @@ export default function OrderPlacementModal({
       //   SELL: pass share amount
       // For limit orders: always pass shares
       const orderSize =
-        orderType === 'market' && side === 'BUY' ? inputNum : shares;
+        isMarketVariant && side === 'BUY' ? inputNum : shares;
+
+      // GTD expiration: current time + 60s security buffer + chosen hours
+      const gtdExpiration =
+        orderType === 'gtd'
+          ? Math.floor(Date.now() / 1000) + 60 + gtdHours * 3600
+          : undefined;
 
       await submitOrder({
         tokenId: activeTokenId,
         size: orderSize,
-        price: orderType === 'limit' ? limitPriceNum : undefined,
+        price: isLimitVariant ? limitPriceNum : undefined,
         side,
         negRisk,
-        isMarketOrder: orderType === 'market',
+        isMarketOrder: isMarketVariant,
+        fillType: orderType === 'fak' ? 'FAK' : 'FOK',
+        expiration: gtdExpiration,
       });
     } catch (err) {
       console.error('Error placing order:', err);
@@ -323,11 +334,29 @@ export default function OrderPlacementModal({
                 setLocalError(null);
               }}
               orderType={orderType}
-              onOrderTypeChange={(type: 'market' | 'limit') => {
+              onOrderTypeChange={(type: OrderVariant) => {
                 setOrderType(type);
                 setLocalError(null);
               }}
             />
+
+            {/* GTD expiration selector */}
+            {orderType === 'gtd' && (
+              <div className="mb-3 flex items-center gap-2 text-sm">
+                <span className="text-gray-500 flex-shrink-0">Expires in</span>
+                <select
+                  value={gtdHours}
+                  onChange={(e) => setGtdHours(Number(e.target.value))}
+                  className="flex-1 border border-gray-200 rounded-lg px-2 py-1.5 text-sm text-gray-800 bg-white focus:outline-none focus:ring-1 focus:ring-gray-400"
+                >
+                  <option value={1}>1 hour</option>
+                  <option value={6}>6 hours</option>
+                  <option value={24}>24 hours</option>
+                  <option value={72}>3 days</option>
+                  <option value={168}>7 days</option>
+                </select>
+              </div>
+            )}
 
             {/* Outcome Selector */}
             <OutcomeSelector
@@ -354,7 +383,7 @@ export default function OrderPlacementModal({
                 onQuickAmount={handleQuickAmount}
                 onMaxAmount={handleMaxAmount}
                 isSubmitting={isSubmitting}
-                orderType={orderType}
+                orderType={isLimitVariant ? 'limit' : 'market'}
                 limitPrice={limitPrice}
                 onLimitPriceChange={(value: string) => {
                   setLimitPrice(value);
@@ -378,7 +407,7 @@ export default function OrderPlacementModal({
                 onQuickPercentage={handleQuickPercentage}
                 onMaxShares={handleMaxShares}
                 isSubmitting={isSubmitting}
-                orderType={orderType}
+                orderType={isLimitVariant ? 'limit' : 'market'}
                 limitPrice={limitPrice}
                 onLimitPriceChange={(value: string) => {
                   setLimitPrice(value);

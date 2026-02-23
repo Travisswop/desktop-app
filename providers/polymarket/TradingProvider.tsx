@@ -8,6 +8,8 @@ import { useClobClient } from "@/hooks/polymarket/useClobClient";
 import { useTradingSession } from "@/hooks/polymarket/useTradingSession";
 import { useSafeDeployment } from "@/hooks/polymarket/useSafeDeployment";
 import { useGeoblock, GeoblockStatus } from "@/hooks/polymarket/useGeoblock";
+import { useClobHeartbeat } from "@/hooks/polymarket/useClobHeartbeat";
+import { useUserOrdersChannel } from "@/hooks/polymarket/useUserOrdersChannel";
 import { TradingSession, SessionStep } from "@/lib/polymarket/session";
 
 interface TradingContextType {
@@ -58,6 +60,12 @@ export function TradingProvider({ children }: { children: ReactNode }) {
     tradingSession,
     isTradingSessionComplete
   );
+
+  // Keep open limit orders alive — Polymarket cancels them after 10s without a heartbeat
+  useClobHeartbeat(clobClient);
+
+  // Real-time order/trade updates via user WebSocket channel
+  useUserOrdersChannel(tradingSession?.apiCredentials);
 
   const initializeTradingSession = useCallback(async () => {
     if (isGeoblocked) {

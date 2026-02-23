@@ -13,6 +13,8 @@ export { useActiveOrders, type PolymarketOrder } from "./useActiveOrders";
 export { useUserPositions, type PolymarketPosition } from "./useUserPositions";
 
 // Utility hooks
+export { useClobHeartbeat } from "./useClobHeartbeat";
+export { useUserOrdersChannel } from "./useUserOrdersChannel";
 export { usePolygonBalances } from "./usePolygonBalances";
 export { useGeoblock, type GeoblockStatus } from "./useGeoblock";
 export { useTickSize } from "./useTickSize";

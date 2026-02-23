@@ -39,8 +39,13 @@ export function useActiveOrders(
           return orderMaker === userAddr;
         });
 
+        // Include all non-terminal insert statuses:
+        // LIVE = resting on the book
+        // MATCHED = just placed and matched against a resting order (briefly pre-LIVE)
+        // DELAYED = marketable but subject to a matching delay (sports markets)
+        const OPEN_STATUSES = new Set(["LIVE", "MATCHED", "DELAYED"]);
         const activeOrders = userOrders.filter((order: any) => {
-          return order.status === "LIVE";
+          return OPEN_STATUSES.has(order.status);
         });
 
         return activeOrders as PolymarketOrder[];

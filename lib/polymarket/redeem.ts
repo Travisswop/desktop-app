@@ -77,12 +77,14 @@ export const createRedeemTx = (params: RedeemParams): SafeTransaction => {
 
   const parentCollectionId = "0x" + "0".repeat(64);
 
-  const indexSet = BigInt(1 << outcomeIndex);
+  // Pass both indexSets [1, 2] — the CTF contract applies the payout vector
+  // automatically so the losing outcome yields $0. This avoids needing to
+  // know which side won and ensures all tokens in the condition are redeemed.
+  const indexSets = [1n, 2n];
 
   console.log("Creating regular CTF redeem tx:", {
     conditionId,
-    outcomeIndex,
-    indexSet: indexSet.toString(),
+    indexSets: indexSets.map((s) => s.toString()),
   });
 
   const data = encodeFunctionData({
@@ -92,7 +94,7 @@ export const createRedeemTx = (params: RedeemParams): SafeTransaction => {
       USDC_E_CONTRACT_ADDRESS as `0x${string}`,
       parentCollectionId as `0x${string}`,
       conditionId as `0x${string}`,
-      [indexSet],
+      indexSets,
     ],
   });
 
