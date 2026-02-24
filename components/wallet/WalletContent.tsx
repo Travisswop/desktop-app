@@ -9,6 +9,7 @@ import {
   Component,
   ReactNode,
 } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { usePrivy, useSendTransaction } from '@privy-io/react-auth';
 import {
   useWallets as useSolanaWallets,
@@ -206,6 +207,7 @@ const WalletContentInner = () => {
     useSendTransaction();
 
   const { toast } = useToast();
+  const queryClient = useQueryClient();
   const { user } = useUser();
 
   // Custom hooks
@@ -748,6 +750,14 @@ const WalletContentInner = () => {
         hash: result.hash || '',
         step: 'success',
       }));
+
+      // Invalidate the transaction cache so the new outgoing tx appears
+      // immediately without requiring a page reload.
+      // Solana confirms in ~1s; EVM chains take longer so we refetch twice.
+      queryClient.invalidateQueries({ queryKey: ['transactions'] });
+      setTimeout(() => {
+        queryClient.invalidateQueries({ queryKey: ['transactions'] });
+      }, 5000);
     } catch (error) {
       console.error('Error sending token/NFT:', error);
 

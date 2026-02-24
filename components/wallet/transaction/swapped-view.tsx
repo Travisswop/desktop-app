@@ -74,6 +74,14 @@ const SwappedView = ({
     return (numericValue * price).toFixed(2);
   };
 
+  // Show enough precision so small token amounts don't display as 0.00
+  const formatTokenAmount = (value: string): string => {
+    const num = parseFloat(value);
+    if (num === 0) return '0';
+    if (Math.abs(num) >= 0.01) return num.toFixed(4);
+    return num.toPrecision(4);
+  };
+
   const calculateNetworkFeeInUSD = (
     networkFee: string,
     nativeTokenPrice: number
@@ -148,18 +156,18 @@ const SwappedView = ({
                       />
                     </div>
                     <div>
-                      <div className="font-semibold">Swap</div>
+                      <div className="font-semibold">{transaction.swapped?.from.symbol}</div>
                       <div className="text-gray-400">
-                        {transaction.swapped?.to.symbol}
+                        → {transaction.swapped?.to.symbol}
                       </div>
                     </div>
                   </div>
                   <div className="text-right">
                     <div className="text-red-500">
                       -
-                      {parseFloat(
+                      {formatTokenAmount(
                         transaction.swapped?.from.value || "0"
-                      ).toFixed(2)}{" "}
+                      )}{" "}
                       {transaction.swapped?.from.symbol}
                     </div>
                     <div className="text-gray-400">
@@ -195,18 +203,16 @@ const SwappedView = ({
                       />
                     </div>
                     <div>
-                      <div className="font-semibold">Swap</div>
+                      <div className="font-semibold">{transaction.swapped?.to.symbol}</div>
                       <div className="text-gray-400">
-                        {transaction.swapped?.to.symbol}
+                        ← {transaction.swapped?.from.symbol}
                       </div>
                     </div>
                   </div>
                   <div className="text-right">
                     <div className="text-green-500">
                       +
-                      {parseFloat(transaction.swapped?.to.value || "0").toFixed(
-                        2
-                      )}{" "}
+                      {formatTokenAmount(transaction.swapped?.to.value || "0")}{" "}
                       {transaction.swapped?.to.symbol}
                     </div>
                     <div className="text-gray-400">
