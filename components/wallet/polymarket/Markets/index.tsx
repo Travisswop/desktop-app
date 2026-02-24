@@ -157,7 +157,7 @@ export default function HighVolumeMarkets() {
 
         {/* Market Cards */}
         {!isLoading && !error && markets && markets.length > 0 && (
-          <div className="space-y-3">
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
             {markets.map((market) => (
               <MarketCard
                 key={market.id}
