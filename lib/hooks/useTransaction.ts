@@ -288,7 +288,8 @@ class TransactionAPI {
 // Transaction Formatting
 const formatEvmTransaction = (
   tx: Transaction,
-  chain: keyof typeof CHAINS
+  chain: keyof typeof CHAINS,
+  walletAddress: string
 ): Transaction => {
   try {
     // Format EVM transactions
@@ -305,6 +306,12 @@ const formatEvmTransaction = (
       CHAINS[chain].nativeToken.decimals
     );
 
+    // Determine flow direction based on whether the wallet sent or received
+    const flow =
+      tx.from.toLowerCase() === walletAddress.toLowerCase()
+        ? 'out'
+        : 'in';
+
     return {
       ...tx,
       value: formattedValue,
@@ -316,6 +323,7 @@ const formatEvmTransaction = (
       network: chain,
       currentPrice: 0,
       nativeTokenPrice: 0,
+      flow,
     };
   } catch (error) {
     console.error('Error formatting transaction:', error);
@@ -376,7 +384,7 @@ export const useMultiChainTransactionData = (
           .sort(
             (a, b) => parseInt(b.timeStamp) - parseInt(a.timeStamp)
           )
-          .map((tx) => formatEvmTransaction(tx, chain));
+          .map((tx) => formatEvmTransaction(tx, chain, evmWalletAddress));
       },
       enabled: !!evmWalletAddress,
     })),
@@ -385,34 +393,65 @@ export const useMultiChainTransactionData = (
   const processTransactions = (
     transactions: Transaction[]
   ): Transaction[] => {
-    const processed = new Map<string, Transaction>();
+    // Group all transfers by tx hash to detect swaps
+    const hashGroups = new Map<string, Transaction[]>();
 
     transactions.forEach((tx) => {
       if (parseFloat(tx.value) <= 0) return;
+      const group = hashGroups.get(tx.hash) || [];
+      group.push(tx);
+      hashGroups.set(tx.hash, group);
+    });
 
-      const existing = processed.get(tx.hash);
-      if (existing) {
-        existing.isSwapped = true;
-        existing.swapped = {
-          from: {
-            symbol: tx.tokenSymbol!,
-            decimal: tx.tokenDecimal!,
-            value: tx.value,
-            price: 0,
+    const processed: Transaction[] = [];
+
+    hashGroups.forEach((txGroup) => {
+      if (txGroup.length === 1) {
+        processed.push(txGroup[0]);
+        return;
+      }
+
+      // Multiple transfers for same hash → likely a swap.
+      // Separate into outgoing (sent) and incoming (received) legs.
+      const outTxs = txGroup.filter((tx) => tx.flow === 'out');
+      const inTxs = txGroup.filter((tx) => tx.flow === 'in');
+
+      if (outTxs.length > 0 && inTxs.length > 0) {
+        // Pick the largest-value leg from each side as the primary swap pair
+        const primaryOut = outTxs.reduce((best, tx) =>
+          parseFloat(tx.value) > parseFloat(best.value) ? tx : best,
+          outTxs[0]
+        );
+        const primaryIn = inTxs.reduce((best, tx) =>
+          parseFloat(tx.value) > parseFloat(best.value) ? tx : best,
+          inTxs[0]
+        );
+
+        processed.push({
+          ...primaryIn,
+          isSwapped: true,
+          swapped: {
+            from: {
+              symbol: primaryOut.tokenSymbol!,
+              decimal: primaryOut.tokenDecimal!,
+              value: primaryOut.value,
+              price: 0,
+            },
+            to: {
+              symbol: primaryIn.tokenSymbol!,
+              decimal: primaryIn.tokenDecimal!,
+              value: primaryIn.value,
+              price: 0,
+            },
           },
-          to: {
-            symbol: existing.tokenSymbol!,
-            decimal: existing.tokenDecimal!,
-            value: existing.value,
-            price: 0,
-          },
-        };
+        });
       } else {
-        processed.set(tx.hash, tx);
+        // All same direction (edge case) – show the first one
+        processed.push(txGroup[0]);
       }
     });
 
-    return Array.from(processed.values()).sort(
+    return processed.sort(
       (a, b) => parseInt(b.timeStamp) - parseInt(a.timeStamp)
     );
   };

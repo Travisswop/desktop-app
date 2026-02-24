@@ -67,6 +67,7 @@ export default function MarketCard({
   disabled = false,
   onOutcomeClick,
 }: MarketCardProps) {
+  console.log('market', market);
   const volumeUSD = parseFloat(
     String(market.volume24hr || market.volume || '0'),
   );
@@ -82,9 +83,15 @@ export default function MarketCard({
   const staticPrices: number[] = market.outcomePrices
     ? JSON.parse(market.outcomePrices).map(Number)
     : [];
-  const outcomePrices = tokenIds.map((tokenId: string, index: number) => {
-    return market.realtimePrices?.[tokenId]?.bidPrice || staticPrices[index] || 0;
-  });
+  const outcomePrices = tokenIds.map(
+    (tokenId: string, index: number) => {
+      return (
+        market.realtimePrices?.[tokenId]?.bidPrice ||
+        staticPrices[index] ||
+        0
+      );
+    },
+  );
 
   return (
     <Card hover className="p-4">
