@@ -124,6 +124,16 @@ export default function TransactionList({
   const processedTransactions = useMemo(() => {
     if (!tokens.length) return [];
 
+    // Build a symbol → price lookup map (case-insensitive) from the tokens list
+    const priceBySymbol = new Map<string, number>();
+    tokens.forEach((t: TokenData) => {
+      const price = t.marketData?.price ? parseFloat(t.marketData.price) : 0;
+      priceBySymbol.set(t.symbol.toUpperCase(), price);
+    });
+
+    const getPrice = (symbol?: string): number =>
+      symbol ? (priceBySymbol.get(symbol.toUpperCase()) ?? 0) : 0;
+
     const allTransactions = [...transactions, ...newTransactions];
 
     return allTransactions.filter((tx) => {
@@ -160,6 +170,15 @@ export default function TransactionList({
           return true;
         }
         return false;
+      }
+
+      // Set price for ERC20 / SPL token transactions
+      tx.currentPrice = getPrice(tx.tokenSymbol);
+
+      // Set prices on swap legs so the dollar display is correct
+      if (tx.isSwapped && tx.swapped) {
+        tx.swapped.from.price = getPrice(tx.swapped.from.symbol);
+        tx.swapped.to.price = getPrice(tx.swapped.to.symbol);
       }
 
       return true;
