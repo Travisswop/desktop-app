@@ -23,6 +23,12 @@ interface ReceiverData {
   isEns?: boolean;
 }
 
+const capitalizeEnsName = (name: string) =>
+  name
+    .split('.')
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join('.');
+
 export function usePostTransactionEffects() {
   const { user } = useUser();
   const { socket } = useNewSocketChat();
@@ -101,8 +107,9 @@ export function usePostTransactionEffects() {
             nftName: flowState.nft.name || 'NFT',
             nftImage: convertToAbsoluteUrl(flowState.nft.image),
             recipientAddress: flowState.recipient!.address,
-            recipientEnsName:
-              flowState.recipient!.ensName || flowState.recipient!.address,
+            recipientEnsName: flowState.recipient!.ensName
+              ? capitalizeEnsName(flowState.recipient!.ensName)
+              : flowState.recipient!.address,
             txSignature: hash,
             network: networkName,
             tokenId: flowState.nft.tokenId,
@@ -122,8 +129,9 @@ export function usePostTransactionEffects() {
             tokenName: flowState.token.name,
             amount: amount,
             recipientAddress: flowState.recipient!.address,
-            recipientEnsName:
-              flowState.recipient!.ensName || flowState.recipient!.address,
+            recipientEnsName: flowState.recipient!.ensName
+              ? capitalizeEnsName(flowState.recipient!.ensName)
+              : flowState.recipient!.address,
             txSignature: hash,
             network: networkName,
             tokenLogo: convertToAbsoluteUrl(flowState.token.logoURI),

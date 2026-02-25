@@ -393,7 +393,7 @@ export const useMultiChainTransactionData = (
   const processTransactions = (
     transactions: Transaction[]
   ): Transaction[] => {
-    // Group all transfers by tx hash to detect swaps
+    // Group all transfers by tx hash
     const hashGroups = new Map<string, Transaction[]>();
 
     transactions.forEach((tx) => {
@@ -411,42 +411,85 @@ export const useMultiChainTransactionData = (
         return;
       }
 
-      // Multiple transfers for same hash → likely a swap.
-      // Separate into outgoing (sent) and incoming (received) legs.
-      const outTxs = txGroup.filter((tx) => tx.flow === 'out');
-      const inTxs = txGroup.filter((tx) => tx.flow === 'in');
+      // Multi-hop swaps (e.g. Jupiter routes SWOP→USDC→JLP→TSLAx) produce
+      // many transfers under the same hash. Intermediate tokens appear as
+      // both in AND out for the wallet, so they cancel to a net of zero.
+      // Computing net flow per token leaves only the true sold token (net < 0)
+      // and the true received token (net > 0).
+      interface TokenFlow {
+        net: number;
+        outTx: Transaction | null;
+        inTx: Transaction | null;
+      }
+      const tokenFlows = new Map<string, TokenFlow>();
 
-      if (outTxs.length > 0 && inTxs.length > 0) {
-        // Pick the largest-value leg from each side as the primary swap pair
-        const primaryOut = outTxs.reduce((best, tx) =>
-          parseFloat(tx.value) > parseFloat(best.value) ? tx : best,
-          outTxs[0]
-        );
-        const primaryIn = inTxs.reduce((best, tx) =>
-          parseFloat(tx.value) > parseFloat(best.value) ? tx : best,
-          inTxs[0]
-        );
+      txGroup.forEach((tx) => {
+        const symbol = tx.tokenSymbol!;
+        const amount = parseFloat(tx.value);
+        const existing = tokenFlows.get(symbol);
+        if (existing) {
+          existing.net += tx.flow === 'out' ? -amount : amount;
+          if (!existing.outTx && tx.flow === 'out') existing.outTx = tx;
+          if (!existing.inTx && tx.flow === 'in') existing.inTx = tx;
+        } else {
+          tokenFlows.set(symbol, {
+            net: tx.flow === 'out' ? -amount : amount,
+            outTx: tx.flow === 'out' ? tx : null,
+            inTx: tx.flow === 'in' ? tx : null,
+          });
+        }
+      });
 
+      // Tokens whose net rounds to zero are intermediate routing hops — ignore them.
+      const EPSILON = 1e-9;
+      let primaryOut: (TokenFlow & { symbol: string }) | null = null;
+      let primaryIn: (TokenFlow & { symbol: string }) | null = null;
+
+      tokenFlows.forEach((flow, symbol) => {
+        if (flow.net < -EPSILON) {
+          // More negative net = more was sold — pick as the "from" token
+          if (!primaryOut || flow.net < primaryOut.net) {
+            primaryOut = { ...flow, symbol };
+          }
+        } else if (flow.net > EPSILON) {
+          // More positive net = more was received — pick as the "to" token
+          if (!primaryIn || flow.net > primaryIn.net) {
+            primaryIn = { ...flow, symbol };
+          }
+        }
+      });
+
+      if (primaryOut && primaryIn) {
+        const baseTx = primaryIn.inTx ?? primaryIn.outTx ?? txGroup[0];
         processed.push({
-          ...primaryIn,
+          ...baseTx,
+          value: String(primaryIn.net),
+          flow: 'in',
           isSwapped: true,
           swapped: {
             from: {
-              symbol: primaryOut.tokenSymbol!,
-              decimal: primaryOut.tokenDecimal!,
-              value: primaryOut.value,
+              symbol: primaryOut.symbol,
+              decimal: (primaryOut.outTx ?? txGroup[0]).tokenDecimal!,
+              value: String(Math.abs(primaryOut.net)),
               price: 0,
             },
             to: {
-              symbol: primaryIn.tokenSymbol!,
-              decimal: primaryIn.tokenDecimal!,
-              value: primaryIn.value,
+              symbol: primaryIn.symbol,
+              decimal: (primaryIn.inTx ?? txGroup[0]).tokenDecimal!,
+              value: String(primaryIn.net),
               price: 0,
             },
           },
         });
+      } else if (primaryOut) {
+        // Only outgoing (e.g. burn) — show as a send
+        const baseTx = primaryOut.outTx ?? txGroup[0];
+        processed.push({ ...baseTx, value: String(Math.abs(primaryOut.net)), flow: 'out' });
+      } else if (primaryIn) {
+        // Only incoming — show as a receive
+        const baseTx = primaryIn.inTx ?? txGroup[0];
+        processed.push({ ...baseTx, value: String(primaryIn.net), flow: 'in' });
       } else {
-        // All same direction (edge case) – show the first one
         processed.push(txGroup[0]);
       }
     });
