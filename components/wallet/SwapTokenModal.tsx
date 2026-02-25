@@ -1878,9 +1878,25 @@ export default function SwapTokenModal({
         }
 
         setSwapStatus('Waiting for confirmation...');
+        // LiFi can return an inflated gas limit that exceeds the chain's block
+        // gas cap (Polygon cap: ~30M). Clamp it to a safe ceiling.
+        const EVM_MAX_GAS = 20_000_000;
+        const rawTxReq = { ...quote.transactionRequest };
+        const gasField = rawTxReq.gasLimit ?? rawTxReq.gas;
+        if (gasField !== undefined) {
+          const gasNum =
+            typeof gasField === 'string'
+              ? parseInt(gasField, gasField.startsWith('0x') ? 16 : 10)
+              : Number(gasField);
+          if (gasNum > EVM_MAX_GAS) {
+            const capped = '0x' + EVM_MAX_GAS.toString(16);
+            if (rawTxReq.gasLimit !== undefined) rawTxReq.gasLimit = capped;
+            if (rawTxReq.gas !== undefined) rawTxReq.gas = capped;
+          }
+        }
         const txHashResult = await provider.request({
           method: 'eth_sendTransaction',
-          params: [quote.transactionRequest],
+          params: [rawTxReq],
         });
         setTxHash(txHashResult);
         setSwapStatus('Swap completed successfully!');
