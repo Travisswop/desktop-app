@@ -176,7 +176,16 @@ class TransactionAPI {
         return [];
       }
 
-      return response.data.map((item) => {
+      // Filter out Solana account lifecycle events — these are internal rent/
+      // account-management operations, not meaningful token transfers.
+      const LIFECYCLE_ACTIVITIES = new Set([
+        'ACTIVITY_SPL_CLOSE_ACCOUNT',
+        'ACTIVITY_SPL_CREATE_ACCOUNT',
+      ]);
+
+      return response.data
+        .filter((item) => !LIFECYCLE_ACTIVITIES.has(item.activity_type))
+        .map((item) => {
         const tokenInfo =
           response.metadata?.tokens?.[item.token_address];
 
@@ -418,6 +427,7 @@ export const useMultiChainTransactionData = (
       // and the true received token (net > 0).
       interface TokenFlow {
         net: number;
+        maxIn: number; // largest single inflow amount seen for this token
         outTx: Transaction | null;
         inTx: Transaction | null;
       }
@@ -429,11 +439,13 @@ export const useMultiChainTransactionData = (
         const existing = tokenFlows.get(symbol);
         if (existing) {
           existing.net += tx.flow === 'out' ? -amount : amount;
+          if (tx.flow === 'in' && amount > existing.maxIn) existing.maxIn = amount;
           if (!existing.outTx && tx.flow === 'out') existing.outTx = tx;
           if (!existing.inTx && tx.flow === 'in') existing.inTx = tx;
         } else {
           tokenFlows.set(symbol, {
             net: tx.flow === 'out' ? -amount : amount,
+            maxIn: tx.flow === 'in' ? amount : 0,
             outTx: tx.flow === 'out' ? tx : null,
             inTx: tx.flow === 'in' ? tx : null,
           });
@@ -458,6 +470,28 @@ export const useMultiChainTransactionData = (
           }
         }
       });
+
+      // DFlow / aggregator routing quirk: the final received SPL token can
+      // appear as both "in" and "out" under the same hash (e.g. USDC flows
+      // into a temporary token account, then out to the wallet's own USDC
+      // account), causing it to cancel to net≈0. Native SOL from rent-reclaim
+      // mechanics may then be the only net-positive token, which is wrong.
+      // When primaryIn is absent or is native SOL, promote the cancelled SPL
+      // token with the largest gross inflow as the true received token instead.
+      if (primaryOut && (!primaryIn || primaryIn.symbol === 'SOL')) {
+        let bestCancelled: (TokenFlow & { symbol: string }) | null = null;
+        tokenFlows.forEach((flow, symbol) => {
+          if (symbol === 'SOL') return;
+          if (Math.abs(flow.net) < EPSILON && flow.maxIn > 0) {
+            if (!bestCancelled || flow.maxIn > bestCancelled.maxIn) {
+              bestCancelled = { ...flow, symbol };
+            }
+          }
+        });
+        if (bestCancelled) {
+          primaryIn = { ...bestCancelled, net: bestCancelled.maxIn };
+        }
+      }
 
       if (primaryOut && primaryIn) {
         const baseTx = primaryIn.inTx ?? primaryIn.outTx ?? txGroup[0];

@@ -703,7 +703,6 @@ export default function SwapTokenModal({
           'https://coin-images.coingecko.com/coins/images/66773/large/Group_1000007182_copy.png?1750487480',
         balance: null,
       };
-      console.log('defaultReceive', defaultReceive);
       setReceiveToken(defaultReceive);
       setReceiverChainId('1151111081099710');
     }

@@ -287,18 +287,18 @@
 //   );
 // }
 
-"use client";
+'use client';
 
-import * as React from "react";
-import { Card, CardContent, CardHeader } from "@/components/ui/card";
-import { Switch } from "@/components/ui/switch";
-import NFTImage from "./nft-image";
+import * as React from 'react';
+import { Card, CardContent, CardHeader } from '@/components/ui/card';
+import { Switch } from '@/components/ui/switch';
+import NFTImage from './nft-image';
 import {
   Carousel,
   CarouselContent,
   CarouselItem,
   CarouselNext,
-} from "@/components/ui/carousel";
+} from '@/components/ui/carousel';
 import {
   AlertCircle,
   ChevronRight,
@@ -306,16 +306,16 @@ import {
   Wifi,
   WifiOff,
   MoreVertical,
-} from "lucide-react";
-import { NFT } from "@/types/nft";
-import { Button } from "@/components/ui/button";
+} from 'lucide-react';
+import { NFT } from '@/types/nft';
+import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import CustomModal from "@/components/modal/CustomModal";
+} from '@/components/ui/dropdown-menu';
+import CustomModal from '@/components/modal/CustomModal';
 
 interface NftListProps {
   onSelectNft: (nft: NFT) => void;
@@ -383,15 +383,19 @@ const EmptyState = ({ hasAddress }: { hasAddress: boolean }) => (
     </div>
     {hasAddress ? (
       <>
-        <p className="text-gray-600 font-medium mb-1">No NFTs found</p>
+        <p className="text-gray-600 font-medium mb-1">
+          No NFTs found
+        </p>
         <p className="text-sm text-gray-500">
-          This wallet doesn&apos;t contain any NFTs or they haven&apos;t loaded
-          yet.
+          This wallet doesn&apos;t contain any NFTs or they
+          haven&apos;t loaded yet.
         </p>
       </>
     ) : (
       <>
-        <p className="text-gray-600 font-medium mb-1">Connect your wallet</p>
+        <p className="text-gray-600 font-medium mb-1">
+          Connect your wallet
+        </p>
         <p className="text-sm text-gray-500">
           Connect a wallet to view your NFT collection.
         </p>
@@ -408,26 +412,32 @@ export default function NFTSlider({
   error,
   refetch,
 }: NftListProps) {
-  const [isManageModalOpen, setIsManageModalOpen] = React.useState(false);
-  const [hiddenNfts, setHiddenNfts] = React.useState<Set<string>>(new Set());
+  const [isManageModalOpen, setIsManageModalOpen] =
+    React.useState(false);
+  const [hiddenNfts, setHiddenNfts] = React.useState<Set<string>>(
+    new Set(),
+  );
 
   // console.log("nfts lists", nfts);
 
   // Load hidden NFTs from localStorage on mount
   React.useEffect(() => {
-    const stored = localStorage.getItem("hiddenNfts");
+    const stored = localStorage.getItem('hiddenNfts');
     if (stored) {
       try {
         setHiddenNfts(new Set(JSON.parse(stored)));
       } catch (e) {
-        console.error("Failed to load hidden NFTs:", e);
+        console.error('Failed to load hidden NFTs:', e);
       }
     }
   }, []);
 
   // Save hidden NFTs to localStorage whenever it changes
   React.useEffect(() => {
-    localStorage.setItem("hiddenNfts", JSON.stringify([...hiddenNfts]));
+    localStorage.setItem(
+      'hiddenNfts',
+      JSON.stringify([...hiddenNfts]),
+    );
   }, [hiddenNfts]);
 
   const toggleNftVisibility = (nftId: string) => {
@@ -444,38 +454,49 @@ export default function NFTSlider({
 
   const getNftId = (nft: NFT) => `${nft.contract}-${nft.tokenId}`;
 
-  const visibleNfts = nfts.filter((nft) => !hiddenNfts.has(getNftId(nft)));
-
-  console.log("visibleNfts", visibleNfts);
+  const visibleNfts = nfts.filter(
+    (nft) => !hiddenNfts.has(getNftId(nft)),
+  );
 
   const getErrorMessage = (error: Error) => {
     const errorMessage = error.message.toLowerCase();
 
-    if (errorMessage.includes("network") || errorMessage.includes("fetch")) {
+    if (
+      errorMessage.includes('network') ||
+      errorMessage.includes('fetch')
+    ) {
       return {
         message:
-          "Network connection issue. Please check your internet connection and try again.",
+          'Network connection issue. Please check your internet connection and try again.',
         isNetworkError: true,
       };
     }
 
-    if (errorMessage.includes("rate limit") || errorMessage.includes("429")) {
+    if (
+      errorMessage.includes('rate limit') ||
+      errorMessage.includes('429')
+    ) {
       return {
-        message: "API rate limit reached. Please wait a moment and try again.",
+        message:
+          'API rate limit reached. Please wait a moment and try again.',
         isNetworkError: false,
       };
     }
 
-    if (errorMessage.includes("unauthorized") || errorMessage.includes("401")) {
+    if (
+      errorMessage.includes('unauthorized') ||
+      errorMessage.includes('401')
+    ) {
       return {
-        message: "API authentication failed. Please check your configuration.",
+        message:
+          'API authentication failed. Please check your configuration.',
         isNetworkError: false,
       };
     }
 
     return {
       message:
-        "Unable to load NFTs. Our team has been notified and is working on a fix.",
+        'Unable to load NFTs. Our team has been notified and is working on a fix.',
       isNetworkError: false,
     };
   };
@@ -500,13 +521,17 @@ export default function NFTSlider({
                   disabled={loading}
                 >
                   <RefreshCw
-                    className={`w-4 h-4 ${loading ? "animate-spin" : ""}`}
+                    className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`}
                   />
                 </Button>
               )}
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" size="sm" className="p-0 h-8 w-8">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="p-0 h-8 w-8"
+                  >
                     <MoreVertical className="w-4 h-4" />
                   </Button>
                 </DropdownMenuTrigger>
@@ -574,7 +599,7 @@ export default function NFTSlider({
           {!loading && !error && visibleNfts.length >= 2 && (
             <Carousel
               opts={{
-                align: "start",
+                align: 'start',
                 // loop: true,
               }}
               className="w-full h-full"
@@ -584,7 +609,7 @@ export default function NFTSlider({
                   <CarouselItem
                     key={`${nft.contract}-${nft.tokenId}-${index}`}
                     // className="sm:basis-1/2 md:basis-1/3 lg:basis-1/3 min-h-full"
-                    className={`${index === 0 ? "pl-1" : "pl-3"} sm:basis-1/2 md:basis-1/3 lg:basis-1/3 min-h-full`}
+                    className={`${index === 0 ? 'pl-1' : 'pl-3'} sm:basis-1/2 md:basis-1/3 lg:basis-1/3 min-h-full`}
                   >
                     <div
                       className="bg-white rounded-xl shadow-small hover:shadow-medium transition-shadow duration-200 cursor-pointer h-full border-0"
@@ -607,7 +632,7 @@ export default function NFTSlider({
                         </div>
                         {nft.collection?.collectionName &&
                           nft.collection.collectionName !==
-                            "Unknown Collection" && (
+                            'Unknown Collection' && (
                             <p className="text-xs text-gray-500 mt-1 truncate">
                               {nft.collection.collectionName}
                             </p>
@@ -661,10 +686,12 @@ export default function NFTSlider({
                     />
                   </div>
                   <div className="flex-grow min-w-0">
-                    <h4 className="font-medium truncate">{nft.name}</h4>
+                    <h4 className="font-medium truncate">
+                      {nft.name}
+                    </h4>
                     {nft.collection?.collectionName &&
                       nft.collection.collectionName !==
-                        "Unknown Collection" && (
+                        'Unknown Collection' && (
                         <p className="text-xs text-gray-500 truncate">
                           {nft.collection.collectionName}
                         </p>

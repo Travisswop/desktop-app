@@ -438,10 +438,6 @@ const WalletContentInner = () => {
         try {
           privyAccessToken = await getAccessToken();
         } catch (tokenError) {
-          console.error(
-            'Failed to get Privy access token:',
-            tokenError,
-          );
           throw new Error(
             'Authentication session expired. Please refresh the page and log in again.',
           );
@@ -480,7 +476,6 @@ const WalletContentInner = () => {
         try {
           await connection.getLatestBlockhash();
         } catch (rpcError) {
-          console.error('RPC connection failed:', rpcError);
           throw new Error(
             'Unable to connect to Solana network. Please check your connection and try again.',
           );
@@ -674,7 +669,6 @@ const WalletContentInner = () => {
 
       return { success: true, hash };
     } catch (error) {
-      console.error('Transaction execution error:', error);
       return {
         success: false,
         error:
@@ -759,19 +753,6 @@ const WalletContentInner = () => {
         queryClient.invalidateQueries({ queryKey: ['transactions'] });
       }, 5000);
     } catch (error) {
-      console.error('Error sending token/NFT:', error);
-
-      // Log structured error for debugging
-      const errorContext = {
-        error: error instanceof Error ? error.message : String(error),
-        assetType: sendFlow.nft ? 'NFT' : 'Token',
-        assetIdentifier:
-          sendFlow.nft?.tokenId || sendFlow.token?.symbol,
-        network: sendFlow.network,
-        timestamp: new Date().toISOString(),
-      };
-      console.error('Transaction failure context:', errorContext);
-
       toast({
         variant: 'destructive',
         title: 'Error',

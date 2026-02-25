@@ -183,8 +183,6 @@ const BalanceChart: React.FC<BalanceChartProps> = ({
   const balanceHistory = balanceHistoryData?.balanceHistory || [];
   const fetchedBalance = balanceHistoryData?.currentBalance || 0;
 
-  console.log('balanceHistoryData', balanceHistoryData);
-
   // Use prop balance if provided, otherwise use fetched balance
   const totalBalance =
     propTotalBalance !== undefined

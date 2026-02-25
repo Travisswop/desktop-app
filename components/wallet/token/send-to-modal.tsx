@@ -83,8 +83,6 @@ export default function SendToModal({
   // Remove the local network assignment, always use the prop
   // const network = selectedToken?.chain || 'ETHEREUM';
 
-  console.log('selectedToken gg', selectedToken);
-
   const isValidAddress =
     searchQuery &&
     (([

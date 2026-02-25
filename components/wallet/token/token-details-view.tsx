@@ -574,10 +574,10 @@
 //   );
 // }
 
-"use client";
+'use client';
 
-import { useState, useEffect } from "react";
-import { useTokenChartData } from "@/lib/hooks/useTokenChartData";
+import { useState, useEffect } from 'react';
+import { useTokenChartData } from '@/lib/hooks/useTokenChartData';
 import {
   Area,
   AreaChart,
@@ -585,31 +585,34 @@ import {
   XAxis,
   YAxis,
   Tooltip,
-} from "recharts";
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Send, Wallet } from "lucide-react";
-import { TokenData } from "@/types/token";
-import TokenImage from "./token-image";
-import { TooltipProvider } from "@/components/ui/tooltip";
+} from 'recharts';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Send, Wallet } from 'lucide-react';
+import { TokenData } from '@/types/token';
+import TokenImage from './token-image';
+import { TooltipProvider } from '@/components/ui/tooltip';
 import {
   TooltipContent,
   TooltipTrigger,
   Tooltip as TooltipUI,
-} from "@/components/ui/tooltip";
-import { useUser } from "@/lib/UserContext";
-import { PrimaryButton } from "@/components/ui/Button/PrimaryButton";
-import { BsSendFill } from "react-icons/bs";
-import { AiOutlineSwap } from "react-icons/ai";
-import CustomModal from "@/components/modal/CustomModal";
-import GetQrCodeUsingWalletAddress from "../QRCode/GetQrCodeUsingWalletAddress";
-import { useMultiChainTokenData } from "@/lib/hooks/useToken";
-import { usePrivy } from "@privy-io/react-auth";
-import { useWallets as useSolanaWallets } from "@privy-io/react-auth/solana";
-import { useFundWallet } from "@privy-io/react-auth/solana";
-import { useWalletAddresses, useWalletData } from "../hooks/useWalletData";
-import { SUPPORTED_CHAINS } from "../constants";
-import SwapTokenModal from "../SwapTokenModal";
-import { FaDollarSign } from "react-icons/fa6";
+} from '@/components/ui/tooltip';
+import { useUser } from '@/lib/UserContext';
+import { PrimaryButton } from '@/components/ui/Button/PrimaryButton';
+import { BsSendFill } from 'react-icons/bs';
+import { AiOutlineSwap } from 'react-icons/ai';
+import CustomModal from '@/components/modal/CustomModal';
+import GetQrCodeUsingWalletAddress from '../QRCode/GetQrCodeUsingWalletAddress';
+import { useMultiChainTokenData } from '@/lib/hooks/useToken';
+import { usePrivy } from '@privy-io/react-auth';
+import { useWallets as useSolanaWallets } from '@privy-io/react-auth/solana';
+import { useFundWallet } from '@privy-io/react-auth/solana';
+import {
+  useWalletAddresses,
+  useWalletData,
+} from '../hooks/useWalletData';
+import { SUPPORTED_CHAINS } from '../constants';
+import SwapTokenModal from '../SwapTokenModal';
+import { FaDollarSign } from 'react-icons/fa6';
 
 const CustomTooltip = ({
   active,
@@ -625,15 +628,17 @@ any) => {
     return (
       <div className="bg-white p-2 border rounded shadow-sm">
         <p className="text-sm text-gray-600">
-          {new Date(timestamp).toLocaleString("en-US", {
-            month: "short",
-            day: "numeric",
-            hour: "numeric",
-            minute: "2-digit",
+          {new Date(timestamp).toLocaleString('en-US', {
+            month: 'short',
+            day: 'numeric',
+            hour: 'numeric',
+            minute: '2-digit',
             hour12: true,
           })}
         </p>
-        <p className="text-sm font-bold">${payload[0].value.toFixed(4)}</p>
+        <p className="text-sm font-bold">
+          ${payload[0].value.toFixed(4)}
+        </p>
       </div>
     );
   }
@@ -656,109 +661,120 @@ export default function TokenDetails({
   const { wallets: solanaWallets } = useSolanaWallets();
 
   if (!accessToken) {
-    throw new Error("No access token found");
+    throw new Error('No access token found');
   }
-  const [selectedPeriod, setSelectedPeriod] = useState("1D");
-  const [chartData, setChartData] = useState(token.timeSeriesData["1D"] || []);
+  const [selectedPeriod, setSelectedPeriod] = useState('1D');
+  const [chartData, setChartData] = useState(
+    token.timeSeriesData['1D'] || [],
+  );
   const [changePercentage, setChangePercentage] = useState(
     token.marketData.priceChangePercentage24h,
   );
   const [openWalletQrOpen, setOpenWalletQrOpen] = useState(false);
-  const [qrState, setQrState] = useState<"sol" | "eth" | "pol" | "base">("sol");
+  const [qrState, setQrState] = useState<
+    'sol' | 'eth' | 'pol' | 'base'
+  >('sol');
   const [openWalletSwapOpen, setOpenWalletSwapOpen] = useState(false);
-  const [openWalletOptionsOpen, setOpenWalletOptionsOpen] = useState(false);
-  const [showFullDescription, setShowFullDescription] = useState(false);
+  const [openWalletOptionsOpen, setOpenWalletOptionsOpen] =
+    useState(false);
+  const [showFullDescription, setShowFullDescription] =
+    useState(false);
 
   const [isLoading, setIsLoading] = useState(false);
-
-  console.log("token details", token);
-
   // Lazy load chart data - only fetch when user selects a period
   // Works for both native tokens (SOL, ETH, MATIC) and contract tokens
   // Native tokens have null address and are mapped directly to CoinGecko IDs
   const day = useTokenChartData(
     token.address, // Can be null for native tokens
     token.chain,
-    "1D",
-    selectedPeriod === "1D",
+    '1D',
+    selectedPeriod === '1D',
     accessToken,
   );
 
   const week = useTokenChartData(
     token.address,
     token.chain,
-    "1W",
-    selectedPeriod === "1W",
+    '1W',
+    selectedPeriod === '1W',
     accessToken,
   );
   const month = useTokenChartData(
     token.address,
     token.chain,
-    "1M",
-    selectedPeriod === "1M",
+    '1M',
+    selectedPeriod === '1M',
     accessToken,
   );
   const year = useTokenChartData(
     token.address,
     token.chain,
-    "1Y",
-    selectedPeriod === "1Y",
+    '1Y',
+    selectedPeriod === '1Y',
     accessToken,
   );
   const max = useTokenChartData(
     token.address,
     token.chain,
-    "Max",
-    selectedPeriod === "Max",
+    'Max',
+    selectedPeriod === 'Max',
     accessToken,
   );
 
   // Determine chart color - use token color or default based on price change
   const strokeColor =
     token.marketData.color ||
-    (parseFloat(changePercentage || "0") >= 0 ? "#22c55e" : "#ef4444");
+    (parseFloat(changePercentage || '0') >= 0
+      ? '#22c55e'
+      : '#ef4444');
 
   // Update chart data when period changes or data is fetched
   useEffect(() => {
     const timeSeriesMap = {
-      "1D": day.data?.sparklineData || [],
-      "1W": week.data?.sparklineData || [],
-      "1M": month.data?.sparklineData || [],
-      "1Y": year.data?.sparklineData || [],
+      '1D': day.data?.sparklineData || [],
+      '1W': week.data?.sparklineData || [],
+      '1M': month.data?.sparklineData || [],
+      '1Y': year.data?.sparklineData || [],
       Max: max.data?.sparklineData || [],
     };
 
     const changePercentageMap = {
-      "1D": (day.data?.change as string) || "0",
-      "1W": (week.data?.change as string) || "0",
-      "1M": (month.data?.change as string) || "0",
-      "1Y": (year.data?.change as string) || "0",
-      Max: (max.data?.change as string) || "0",
+      '1D': (day.data?.change as string) || '0',
+      '1W': (week.data?.change as string) || '0',
+      '1M': (month.data?.change as string) || '0',
+      '1Y': (year.data?.change as string) || '0',
+      Max: (max.data?.change as string) || '0',
     };
 
     // Determine loading state
     const loadingStates = {
-      "1D": day.isLoading,
-      "1W": week.isLoading,
-      "1M": month.isLoading,
-      "1Y": year.isLoading,
+      '1D': day.isLoading,
+      '1W': week.isLoading,
+      '1M': month.isLoading,
+      '1Y': year.isLoading,
       Max: max.isLoading,
     };
 
     setIsLoading(
-      loadingStates[selectedPeriod as keyof typeof loadingStates] || false,
+      loadingStates[selectedPeriod as keyof typeof loadingStates] ||
+        false,
     );
 
     // Only update if we have data for the selected period
-    const newData = timeSeriesMap[selectedPeriod as keyof typeof timeSeriesMap];
+    const newData =
+      timeSeriesMap[selectedPeriod as keyof typeof timeSeriesMap];
     const newChange =
-      changePercentageMap[selectedPeriod as keyof typeof changePercentageMap];
+      changePercentageMap[
+        selectedPeriod as keyof typeof changePercentageMap
+      ];
 
     if (newData && newData.length > 0) {
       setChartData(newData);
       setChangePercentage(newChange);
     } else {
-      console.warn(`[TokenDetails] No data available for ${selectedPeriod}`);
+      console.warn(
+        `[TokenDetails] No data available for ${selectedPeriod}`,
+      );
     }
   }, [
     selectedPeriod,
@@ -776,21 +792,22 @@ export default function TokenDetails({
   ]);
 
   const handleWalletQrOpen = () => {
-    if (token.chain.toLowerCase() === "solana") {
-      setQrState("sol");
-    } else if (token.chain.toLowerCase() === "polygon") {
-      setQrState("pol");
-    } else if (token.chain.toLowerCase() === "base") {
-      setQrState("base");
+    if (token.chain.toLowerCase() === 'solana') {
+      setQrState('sol');
+    } else if (token.chain.toLowerCase() === 'polygon') {
+      setQrState('pol');
+    } else if (token.chain.toLowerCase() === 'base') {
+      setQrState('base');
     } else {
-      setQrState("eth");
+      setQrState('eth');
     }
     setOpenWalletQrOpen(true);
   };
 
   const { authenticated, ready, user: PrivyUser } = usePrivy();
   const walletData = useWalletData(authenticated, ready, PrivyUser);
-  const { solWalletAddress, evmWalletAddress } = useWalletAddresses(walletData);
+  const { solWalletAddress, evmWalletAddress } =
+    useWalletAddresses(walletData);
 
   const {
     tokens,
@@ -811,7 +828,7 @@ export default function TokenDetails({
 
   const handleWalletOptionsOpen = async () => {
     if (!solanaWalletAddress) {
-      console.error("No wallet address available");
+      console.error('No wallet address available');
       return;
     }
 
@@ -820,12 +837,12 @@ export default function TokenDetails({
       await fundWallet({
         address: solanaWalletAddress,
         options: {
-          asset: "USDC",
-          amount: "20",
+          asset: 'USDC',
+          amount: '20',
         },
       });
     } catch (error) {
-      console.error("Failed to open Coinbase funding:", error);
+      console.error('Failed to open Coinbase funding:', error);
     } finally {
       setIsLoading(false);
     }
@@ -833,16 +850,18 @@ export default function TokenDetails({
 
   // Helper function to format large numbers
   const formatNumber = (num: number | null | undefined): string => {
-    if (num === null || num === undefined) return "N/A";
-    return new Intl.NumberFormat("en-US", {
+    if (num === null || num === undefined) return 'N/A';
+    return new Intl.NumberFormat('en-US', {
       maximumFractionDigits: 2,
     }).format(num);
   };
 
   // Helper function to format percentage
-  const formatPercentage = (num: number | null | undefined): string => {
-    if (num === null || num === undefined) return "N/A";
-    const sign = num >= 0 ? "+" : "";
+  const formatPercentage = (
+    num: number | null | undefined,
+  ): string => {
+    if (num === null || num === undefined) return 'N/A';
+    const sign = num >= 0 ? '+' : '';
     return `${sign}${num.toFixed(5)}%`;
   };
 
@@ -851,9 +870,9 @@ export default function TokenDetails({
     text: string,
     maxLength: number = 100,
   ): string => {
-    if (!text) return "";
+    if (!text) return '';
     if (text.length <= maxLength) return text;
-    return text.substring(0, maxLength) + "...";
+    return text.substring(0, maxLength) + '...';
   };
 
   return (
@@ -873,23 +892,25 @@ export default function TokenDetails({
             <div className="flex-1">
               <h1 className="text-2xl font-bold">
                 {token.marketData?.price
-                  ? `$${parseFloat(token.marketData.price.toString()).toFixed(
-                      4,
-                    )}`
-                  : "Price unavailable"}
+                  ? `$${parseFloat(
+                      token.marketData.price.toString(),
+                    ).toFixed(4)}`
+                  : 'Price unavailable'}
               </h1>
-              <p className="text-sm text-muted-foreground">{token.name}</p>
+              <p className="text-sm text-muted-foreground">
+                {token.name}
+              </p>
             </div>
             {changePercentage && (
               <div
                 className={`text-sm ${
                   parseFloat(changePercentage) > 0
-                    ? "text-green-500"
-                    : "text-red-500"
+                    ? 'text-green-500'
+                    : 'text-red-500'
                 }`}
               >
                 <span className="font-medium">
-                  {parseFloat(changePercentage) > 0 ? "+" : ""}
+                  {parseFloat(changePercentage) > 0 ? '+' : ''}
                   {parseFloat(changePercentage).toFixed(2)}%
                 </span>
                 <div className="text-xs">{selectedPeriod}</div>
@@ -946,20 +967,23 @@ export default function TokenDetails({
                       dataKey="timestamp"
                       hide={true}
                       tickFormatter={(timestamp) =>
-                        new Date(timestamp).toLocaleTimeString("en-US", {
-                          hour: "numeric",
-                          minute: "2-digit",
-                          hour12: true,
-                        })
+                        new Date(timestamp).toLocaleTimeString(
+                          'en-US',
+                          {
+                            hour: 'numeric',
+                            minute: '2-digit',
+                            hour12: true,
+                          },
+                        )
                       }
                       type="number"
                       scale="time"
-                      domain={["auto", "auto"]}
+                      domain={['auto', 'auto']}
                       tickLine={false}
                       axisLine={false}
                       minTickGap={30}
                     />
-                    <YAxis domain={["auto", "auto"]} hide />
+                    <YAxis domain={['auto', 'auto']} hide />
                     <Tooltip
                       content={<CustomTooltip />}
                       cursor={{
@@ -986,25 +1010,25 @@ export default function TokenDetails({
                 <TabsList className="grid w-full grid-cols-5">
                   <TabsTrigger
                     value="1D"
-                    onClick={() => setSelectedPeriod("1D")}
+                    onClick={() => setSelectedPeriod('1D')}
                   >
                     1D
                   </TabsTrigger>
                   <TabsTrigger
                     value="1W"
-                    onClick={() => setSelectedPeriod("1W")}
+                    onClick={() => setSelectedPeriod('1W')}
                   >
                     1W
                   </TabsTrigger>
                   <TabsTrigger
                     value="1M"
-                    onClick={() => setSelectedPeriod("1M")}
+                    onClick={() => setSelectedPeriod('1M')}
                   >
                     1M
                   </TabsTrigger>
                   <TabsTrigger
                     value="1Y"
-                    onClick={() => setSelectedPeriod("1Y")}
+                    onClick={() => setSelectedPeriod('1Y')}
                   >
                     1Y
                   </TabsTrigger>
@@ -1045,7 +1069,7 @@ export default function TokenDetails({
                     parseFloat(token.balance) *
                     parseFloat(token.marketData.price)
                   ).toFixed(4)}`
-                : "Value unavailable"}
+                : 'Value unavailable'}
             </span>
           </div>
 
@@ -1106,10 +1130,12 @@ export default function TokenDetails({
               </p>
               {token.marketData.description.length > 100 && (
                 <button
-                  onClick={() => setShowFullDescription(!showFullDescription)}
+                  onClick={() =>
+                    setShowFullDescription(!showFullDescription)
+                  }
                   className="text-sm text-blue-600 hover:underline mt-1"
                 >
-                  {showFullDescription ? "See less" : "See more"}
+                  {showFullDescription ? 'See less' : 'See more'}
                 </button>
               )}
             </div>
@@ -1117,7 +1143,9 @@ export default function TokenDetails({
 
           {/* 24 hour Performance */}
           <div className="mb-6">
-            <h2 className="text-lg font-semibold mb-3">24 hour Performance</h2>
+            <h2 className="text-lg font-semibold mb-3">
+              24 hour Performance
+            </h2>
             <div className="bg-gray-50 rounded-lg p-4 space-y-3">
               <div className="flex justify-between items-center">
                 <span className="text-sm text-gray-500">Volume</span>
@@ -1129,12 +1157,15 @@ export default function TokenDetails({
                 <span className="text-sm text-gray-500">Change</span>
                 <span
                   className={`text-sm font-medium ${
-                    (token.marketData?.priceChangePercentage24h || 0) >= 0
-                      ? "text-green-600"
-                      : "text-red-600"
+                    (token.marketData?.priceChangePercentage24h ||
+                      0) >= 0
+                      ? 'text-green-600'
+                      : 'text-red-600'
                   }`}
                 >
-                  {formatPercentage(token.marketData?.priceChangePercentage24h)}
+                  {formatPercentage(
+                    token.marketData?.priceChangePercentage24h,
+                  )}
                 </span>
               </div>
             </div>
@@ -1145,39 +1176,53 @@ export default function TokenDetails({
             <h2 className="text-lg font-semibold mb-3">Others</h2>
             <div className="bg-gray-50 rounded-lg p-4 space-y-3">
               <div className="flex justify-between items-center">
-                <span className="text-sm text-gray-500">Total Supply</span>
+                <span className="text-sm text-gray-500">
+                  Total Supply
+                </span>
                 <span className="text-sm font-medium">
                   {formatNumber(token.marketData?.totalSupply)}
                 </span>
               </div>
               <div className="flex justify-between items-center">
-                <span className="text-sm text-gray-500">MarketCap</span>
+                <span className="text-sm text-gray-500">
+                  MarketCap
+                </span>
                 <span className="text-sm font-medium">
                   {formatNumber(token.marketData?.marketCap)}
                 </span>
               </div>
               <div className="flex justify-between items-center">
-                <span className="text-sm text-gray-500">Change(7d)</span>
+                <span className="text-sm text-gray-500">
+                  Change(7d)
+                </span>
                 <span
                   className={`text-sm font-medium ${
-                    (token.marketData?.priceChangePercentage7d || 0) >= 0
-                      ? "text-green-600"
-                      : "text-red-600"
+                    (token.marketData?.priceChangePercentage7d ||
+                      0) >= 0
+                      ? 'text-green-600'
+                      : 'text-red-600'
                   }`}
                 >
-                  {formatPercentage(token.marketData?.priceChangePercentage7d)}
+                  {formatPercentage(
+                    token.marketData?.priceChangePercentage7d,
+                  )}
                 </span>
               </div>
               <div className="flex justify-between items-center">
-                <span className="text-sm text-gray-500">Change(30d)</span>
+                <span className="text-sm text-gray-500">
+                  Change(30d)
+                </span>
                 <span
                   className={`text-sm font-medium ${
-                    (token.marketData?.priceChangePercentage30d || 0) >= 0
-                      ? "text-green-600"
-                      : "text-red-600"
+                    (token.marketData?.priceChangePercentage30d ||
+                      0) >= 0
+                      ? 'text-green-600'
+                      : 'text-red-600'
                   }`}
                 >
-                  {formatPercentage(token.marketData?.priceChangePercentage30d)}
+                  {formatPercentage(
+                    token.marketData?.priceChangePercentage30d,
+                  )}
                 </span>
               </div>
             </div>
