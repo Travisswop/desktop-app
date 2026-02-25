@@ -20,8 +20,8 @@ export async function generateMetadata({
     const { data } = await getUserData(userName);
 
     const microsite = data?.microsite;
-    const profileImage = microsite?.profilePic || microsite?.image || "";
-    const bio = microsite?.bio || microsite?.description || "";
+    const profileImage = microsite?.profilePic || "";
+    const bio = microsite?.bio || "";
     const displayName = microsite?.name || userName;
     const pageUrl = `https://www.swopme.app/sp/${userName}`; // 🔁 replace with your domain
 
@@ -32,10 +32,10 @@ export async function generateMetadata({
       : null;
 
     return {
-      title: `${displayName} | Swop`,
+      title: `${displayName}`,
       description: bio,
       openGraph: {
-        title: `${displayName} | Swop`,
+        title: `${displayName}`,
         description: bio,
         url: pageUrl,
         siteName: "Swop",
@@ -53,14 +53,14 @@ export async function generateMetadata({
       },
       twitter: {
         card: "summary",
-        title: `${displayName} | Swop`,
+        title: `${displayName}`,
         description: bio,
         images: profileImageUrl ? [profileImageUrl] : [], // ✅ now uses resolved URL too
       },
     };
   } catch {
     return {
-      title: "Profile | Swop",
+      title: "Profile",
       description: "View this SmartSite profile on Swop.",
     };
   }
