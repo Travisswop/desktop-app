@@ -1,15 +1,11 @@
 'use client';
-import { createOrder } from '@/actions/orderActions';
+import { prepareTransaction, submitTransaction } from '@/actions/orderActions';
 import AnimateButton from '@/components/ui/Button/AnimateButton';
 import { truncateWalletAddress } from '@/lib/tranacateWalletAddress';
 import { useUser } from '@/lib/UserContext';
-import { TransactionService } from '@/services/transaction-service';
 import {
   useWallets as useSolanaWallets,
-  useSignAndSendTransaction,
 } from '@privy-io/react-auth/solana';
-import { Connection } from '@solana/web3.js';
-import bs58 from 'bs58';
 import {
   AlertCircle,
   ArrowRight,
@@ -19,16 +15,14 @@ import {
 import Image from 'next/image';
 import { useParams, useRouter } from 'next/navigation';
 import React, { useEffect, useMemo, useState } from 'react';
-import { CartItem, PaymentMethod, Status } from './components/types';
-import { Network } from '@/types/wallet-types';
 import { useCart } from './context/CartContext';
 
 const TRANSACTION_STAGES = {
   IDLE: 'idle',
   INITIATING: 'initiating',
   PROCESSING: 'processing',
+  SIGNING: 'signing',
   CONFIRMING: 'confirming',
-  CREATING_ORDER: 'creating_order',
   COMPLETED: 'completed',
   FAILED: 'failed',
 };
@@ -55,9 +49,6 @@ const PaymentShipping: React.FC<{
   setSelectedToken,
   subtotal,
   amontOfToken,
-  walletData,
-  customerInfo,
-  cartItems,
   orderId: existingOrderId,
 }) => {
   const { accessToken } = useUser();
@@ -65,13 +56,12 @@ const PaymentShipping: React.FC<{
   const [transactionStage, setTransactionStage] = useState(
     TRANSACTION_STAGES.IDLE
   );
-  const [orderId, setOrderId] = useState('');
+  const [orderId] = useState(existingOrderId ?? '');
   const [error, setError] = useState<string | null>(null);
   const [transactionHash, setTransactionHash] = useState('');
 
   // Privy v3 Solana wallet hooks
   const { ready: solanaReady, wallets: directSolanaWallets } = useSolanaWallets();
-  const { signAndSendTransaction } = useSignAndSendTransaction();
 
   // Find the first Solana wallet with a valid address
   const selectedSolanaWallet = useMemo(() => {
@@ -103,12 +93,6 @@ const PaymentShipping: React.FC<{
 
   // Auto-redirect after successful transaction
   useEffect(() => {
-    if (existingOrderId) {
-      setOrderId(existingOrderId);
-    }
-  }, [existingOrderId]);
-
-  useEffect(() => {
     let redirectTimer: string | number | NodeJS.Timeout | undefined;
     if (transactionStage === TRANSACTION_STAGES.COMPLETED) {
       // Clear the cart when transaction is completed
@@ -136,11 +120,11 @@ const PaymentShipping: React.FC<{
       case TRANSACTION_STAGES.INITIATING:
         return 'Preparing transaction...';
       case TRANSACTION_STAGES.PROCESSING:
-        return 'Processing transaction...';
+        return 'Building transaction...';
+      case TRANSACTION_STAGES.SIGNING:
+        return 'Waiting for wallet signature...';
       case TRANSACTION_STAGES.CONFIRMING:
         return 'Confirming transaction on blockchain...';
-      case TRANSACTION_STAGES.CREATING_ORDER:
-        return 'Creating your order...';
       case TRANSACTION_STAGES.COMPLETED:
         return 'Transaction completed successfully!';
       case TRANSACTION_STAGES.FAILED:
@@ -151,13 +135,12 @@ const PaymentShipping: React.FC<{
   };
 
   const handleSendConfirm = async () => {
-    // Reset states
     setError(null);
     setTransactionHash('');
     setTransactionStage(TRANSACTION_STAGES.INITIATING);
 
     try {
-      // Check wallet availability
+      // INITIATING: validate prerequisites
       if (!selectedSolanaWallet) {
         throw new Error('Solana wallet not found. Please connect your wallet.');
       }
@@ -166,117 +149,54 @@ const PaymentShipping: React.FC<{
         throw new Error('Solana wallet address is not available. Please refresh and try again.');
       }
 
-      const sendFlow = {
-        token: selectedToken,
-        amount: amontOfToken,
-        recipient: {
-          address: 'CNx8QThNAbkiCcUxz6owNuG4G8oNJPTqmg976ic6dy6a',
-        },
-        isUSD: false,
-        nft: null,
-        network: 'SOLANA' as Network,
-        step: null,
-        isOrder: true,
-      };
+      if (!orderId) {
+        throw new Error('Order not created. Please go back and try again.');
+      }
 
-      // Connection setup
+      if (!accessToken) {
+        throw new Error('Authentication required. Please log in and try again.');
+      }
+
+      // PROCESSING: backend builds the transaction
       setTransactionStage(TRANSACTION_STAGES.PROCESSING);
-      const connection = new Connection(
-        process.env.NEXT_PUBLIC_SOLANA_RPC_URL!,
-        'confirmed'
+      const { serializedTransaction } = await prepareTransaction(
+        orderId,
+        {
+          fromAddress: selectedSolanaWallet.address,
+          tokenMint: selectedToken?.address || null,
+          tokenDecimals: selectedToken?.decimals ?? 9,
+          tokenAmount: amontOfToken,
+        },
+        accessToken
       );
 
-      // Build the transaction
-      const transaction = await TransactionService.buildSolanaTokenTransfer(
-        selectedSolanaWallet,
-        sendFlow,
-        connection
-      );
-
-      // Serialize and send using Privy's signAndSendTransaction
-      const serializedTransaction = transaction.serialize({
-        requireAllSignatures: false,
-        verifySignatures: false,
+      // SIGNING: frontend signs only (no broadcast)
+      setTransactionStage(TRANSACTION_STAGES.SIGNING);
+      const signResult = await selectedSolanaWallet.signTransaction({
+        transaction: new Uint8Array(Buffer.from(serializedTransaction, 'base64')),
       });
 
-      let hash: string;
-      try {
-        const result = await signAndSendTransaction({
-          transaction: new Uint8Array(serializedTransaction),
-          wallet: selectedSolanaWallet,
-        });
-        hash = bs58.encode(result.signature);
-      } catch (privyError) {
-        // Fallback: Use direct wallet signing if Privy hook fails
-        console.warn(
-          'Privy signAndSendTransaction failed, falling back to direct signing:',
-          privyError
-        );
-
-        const serializedForSigning = transaction.serialize({
-          requireAllSignatures: false,
-          verifySignatures: false,
-        });
-
-        const signResult = await selectedSolanaWallet.signTransaction({
-          transaction: new Uint8Array(serializedForSigning),
-        });
-
-        hash = await connection.sendRawTransaction(
-          Buffer.from(signResult.signedTransaction)
-        );
-      }
-
-      setTransactionHash(hash);
+      // CONFIRMING: backend broadcasts, confirms, validates, and completes order
       setTransactionStage(TRANSACTION_STAGES.CONFIRMING);
+      const result = await submitTransaction(
+        orderId,
+        {
+          signedTransaction: Buffer.from(signResult.signedTransaction).toString('base64'),
+        },
+        accessToken
+      );
 
-      // Wait for confirmation
-      await connection.confirmTransaction(hash);
-
-      setTransactionStage(TRANSACTION_STAGES.CREATING_ORDER);
-
-      if (orderId && hash && accessToken) {
-        try {
-          const { updateOrderPayment } = await import(
-            '@/actions/orderActions'
-          );
-
-          await updateOrderPayment(
-            orderId,
-            {
-              transactionHash: hash,
-              status: 'completed',
-            },
-            accessToken
-          );
-
-          setTransactionStage(TRANSACTION_STAGES.COMPLETED);
-        } catch (updateError) {
-          console.error('Error updating order payment:', updateError);
-          throw new Error(
-            'Failed to update order with payment details'
-          );
-        }
-      } else if (hash && accessToken) {
-        // Create a new order if we don't have an existing one (fallback)
-        const orderInfo = {
-          customerInfo,
-          transactionHash: hash,
-          paymentMethod: 'wallet' as PaymentMethod,
-          status: 'completed' as Status,
-        };
-
-        const { orderId } = await createOrder(orderInfo, accessToken);
-        setOrderId(orderId);
-        setTransactionStage(TRANSACTION_STAGES.COMPLETED);
+      if (!result.success) {
+        throw new Error(result.error || 'Transaction submission failed');
       }
-    } catch (error) {
-      console.error('Error processing transaction:', error);
+
+      setTransactionHash(result.transactionHash || '');
+      setTransactionStage(TRANSACTION_STAGES.COMPLETED);
+    } catch (err) {
+      console.error('Error processing transaction:', err);
       setTransactionStage(TRANSACTION_STAGES.FAILED);
       setError(
-        error instanceof Error
-          ? error.message
-          : 'Failed to process transaction'
+        err instanceof Error ? err.message : 'Failed to process transaction'
       );
     }
   };
@@ -377,8 +297,8 @@ const PaymentShipping: React.FC<{
       <div className="flex items-center gap-2 justify-between">
         <p className="font-medium">Wallet Used</p>
         <p className="text-gray-500 font-medium">
-          {walletData?.[1]?.address
-            ? truncateWalletAddress(walletData[1].address)
+          {selectedSolanaWallet?.address
+            ? truncateWalletAddress(selectedSolanaWallet.address)
             : 'Not selected'}
         </p>
       </div>

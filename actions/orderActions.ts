@@ -118,6 +118,91 @@ export async function updateOrderPayment(
 }
 
 /**
+ * Asks the backend to build an unsigned Solana transaction for the given order.
+ * The frontend must then sign it with the user's wallet (no broadcast).
+ */
+export async function prepareTransaction(
+  orderId: string,
+  params: {
+    fromAddress: string;
+    tokenMint: string | null;
+    tokenDecimals: number;
+    tokenAmount: string;
+  },
+  accessToken: string
+): Promise<{ serializedTransaction: string }> {
+  const response = await fetch(
+    `${API_URL}/api/v5/orders/${orderId}/prepare-transaction`,
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${accessToken}`,
+      },
+      body: JSON.stringify(params),
+    }
+  );
+
+  if (!response.ok) {
+    const errorData = await response.json();
+    throw new Error(errorData.message || 'Failed to prepare transaction');
+  }
+
+  const data = await response.json();
+  return { serializedTransaction: data.serializedTransaction };
+}
+
+/**
+ * Submits a signed transaction to the backend for broadcasting, confirmation,
+ * validation, and order completion.
+ */
+export async function submitTransaction(
+  orderId: string,
+  params: { signedTransaction: string },
+  accessToken: string
+): Promise<{
+  success: boolean;
+  transactionHash?: string;
+  redirectUrl?: string;
+  error?: string;
+}> {
+  try {
+    const response = await fetch(
+      `${API_URL}/api/v5/orders/${orderId}/submit-transaction`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify(params),
+      }
+    );
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      return {
+        success: false,
+        error: errorData.message || 'Failed to submit transaction',
+      };
+    }
+
+    const data = await response.json();
+    return {
+      success: true,
+      transactionHash: data.transactionHash,
+      redirectUrl: data.redirectUrl,
+    };
+  } catch (error) {
+    return {
+      success: false,
+      error:
+        error instanceof Error ? error.message : 'Failed to submit transaction',
+    };
+  }
+}
+
+/**
  * Gets order details by ID
  */
 export async function getOrderById(
