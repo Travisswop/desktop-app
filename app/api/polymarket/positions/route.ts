@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { POLYMARKET_API_BASE } from '@/constants/polymarket';
+
+const POLYMARKET_API_BASE = 'https://polymarket.apiswop.co';
 
 export async function GET(request: NextRequest) {
   try {
