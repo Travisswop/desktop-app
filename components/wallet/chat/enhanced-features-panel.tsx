@@ -155,7 +155,7 @@ export const EnhancedFeaturesPanel: React.FC = () => {
             <div className="mt-4 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
               <h4 className="font-medium text-sm text-blue-900 dark:text-blue-100 flex items-center gap-2">
                 <Sparkles className="w-4 h-4" />
-                What&apos;s New
+                What's New
               </h4>
               <p className="text-xs text-blue-700 dark:text-blue-300 mt-1">
                 This chat system now rivals modern apps like WhatsApp, Telegram, and Discord with enterprise-grade features while maintaining full Web3 compatibility.

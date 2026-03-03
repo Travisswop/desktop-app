@@ -1,34 +1,74 @@
 'use client';
 
-import { usePolymarketWallet } from '@/providers/polymarket';
-import { useActiveOrders } from '@/hooks/polymarket';
+import { useState } from 'react';
+import { useTrading } from '@/providers/polymarket';
+import { useActiveOrders, useClobOrder } from '@/hooks/polymarket';
+
+import ErrorState from '../shared/ErrorState';
 import EmptyState from '../shared/EmptyState';
 import LoadingState from '../shared/LoadingState';
+import OrderCard from './OrderCard';
 
 export default function ActiveOrders() {
-  const { eoaAddress } = usePolymarketWallet();
+  const { clobClient, safeAddress } = useTrading();
+  const [cancellingOrderId, setCancellingOrderId] = useState<string | null>(
+    null,
+  );
 
-  const { data: orders, isLoading } = useActiveOrders(null, eoaAddress);
+  const {
+    data: orders,
+    isLoading,
+    error,
+  } = useActiveOrders(clobClient, safeAddress);
 
-  if (isLoading) return <LoadingState message="Loading orders..." />;
+  const { cancelOrder } = useClobOrder(clobClient, safeAddress);
 
-  // AMM trades settle instantly on-chain — no resting open orders in Phase 1.
+  const handleCancelOrder = async (orderId: string) => {
+    setCancellingOrderId(orderId);
+    try {
+      await cancelOrder(orderId);
+    } catch (err) {
+      console.error('Failed to cancel order:', err);
+    } finally {
+      setCancellingOrderId(null);
+    }
+  };
+
+  if (isLoading) {
+    return <LoadingState message="Loading orders..." />;
+  }
+
+  if (error) {
+    return <ErrorState error={error} title="Error loading orders" />;
+  }
+
   if (!orders || orders.length === 0) {
     return (
       <EmptyState
         title="No Open Orders"
-        message="AMM trades execute instantly. Open limit orders will appear here in a future update."
+        message="You don't have any open limit orders."
       />
     );
   }
 
   return (
-    <div className="space-y-3">
-      {orders.map((order) => (
-        <div key={order.id} className="p-3 border border-gray-200 rounded-xl text-sm">
-          {order.side} {order.outcome} @ {order.price}
-        </div>
-      ))}
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <h3 className="text-lg font-bold text-gray-900">
+          Open Orders ({orders.length})
+        </h3>
+      </div>
+
+      <div className="space-y-3">
+        {orders.map((order) => (
+          <OrderCard
+            key={order.id}
+            order={order}
+            onCancel={handleCancelOrder}
+            isCancelling={cancellingOrderId === order.id}
+          />
+        ))}
+      </div>
     </div>
   );
 }

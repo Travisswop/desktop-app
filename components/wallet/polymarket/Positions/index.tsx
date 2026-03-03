@@ -1,8 +1,13 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { useUserPositions, type PolymarketPosition } from '@/hooks/polymarket';
+import {
+  useClobOrder,
+  useRedeemPosition,
+  useUserPositions,
+  PolymarketPosition,
+} from '@/hooks/polymarket';
 import { usePolymarketWallet } from '@/providers/polymarket';
 import { useTrading } from '@/providers/polymarket';
 
@@ -12,31 +17,87 @@ import LoadingState from '../shared/LoadingState';
 import PositionCard from './PositionCard';
 import PositionFilters from './PositionFilters';
 
-import { DUST_THRESHOLD } from '@/constants/polymarket';
+import { createPollingInterval } from '@/lib/polymarket/polling';
+import {
+  DUST_THRESHOLD,
+  POLLING_DURATION,
+  POLLING_INTERVAL,
+} from '@/constants/polymarket';
 
 export default function UserPositions() {
+  const { clobClient, relayClient, safeAddress } = useTrading();
   const { eoaAddress } = usePolymarketWallet();
-  const { submitOrder, isSubmitting } = useTrading();
-  const queryClient = useQueryClient();
 
-  const { data: positions, isLoading, error } = useUserPositions(eoaAddress);
+  const {
+    data: positions,
+    isLoading,
+    error,
+  } = useUserPositions(safeAddress as string | undefined);
 
   const [hideDust, setHideDust] = useState(true);
-  const [sellingAsset, setSellingAsset] = useState<string | null>(null);
   const [redeemingAsset, setRedeemingAsset] = useState<string | null>(null);
 
+  const { redeemPosition, isRedeeming } = useRedeemPosition();
+  const { submitOrder, isSubmitting } = useClobOrder(clobClient, eoaAddress);
+  const [sellingAsset, setSellingAsset] = useState<string | null>(null);
+
+  const [pendingVerification, setPendingVerification] = useState<
+    Map<string, number>
+  >(new Map());
+  const queryClient = useQueryClient();
+
+  useEffect(() => {
+    if (!positions || pendingVerification.size === 0) return;
+
+    const stillPending = new Map<string, number>();
+
+    pendingVerification.forEach((originalSize, asset) => {
+      const currentPosition = positions.find((p) => p.asset === asset);
+      const currentSize = currentPosition?.size || 0;
+      const sizeChanged = currentSize < originalSize;
+
+      if (!sizeChanged) {
+        stillPending.set(asset, originalSize);
+      }
+    });
+
+    if (stillPending.size !== pendingVerification.size) {
+      setPendingVerification(stillPending);
+    }
+  }, [positions, pendingVerification]);
+
   const handleMarketSell = async (position: PolymarketPosition) => {
-    if (!position.ammMarketId || !position.ammPoolAddress) return;
     setSellingAsset(position.asset);
     try {
       await submitOrder({
-        marketId: position.ammMarketId as `0x${string}`,
-        isYes: position.outcome.toLowerCase() === 'yes',
-        isBuy: false,
-        amount: position.size,
-        minOut: position.size * position.curPrice * 0.95,
+        tokenId: position.asset,
+        size: position.size,
+        side: 'SELL',
+        negRisk: position.negativeRisk,
+        isMarketOrder: true,
       });
+
+      setPendingVerification((prev) =>
+        new Map(prev).set(position.asset, position.size),
+      );
+
       queryClient.invalidateQueries({ queryKey: ['polymarket-positions'] });
+
+      createPollingInterval(
+        () => {
+          queryClient.invalidateQueries({ queryKey: ['polymarket-positions'] });
+        },
+        POLLING_INTERVAL,
+        POLLING_DURATION,
+      );
+
+      setTimeout(() => {
+        setPendingVerification((prev) => {
+          const next = new Map(prev);
+          next.delete(position.asset);
+          return next;
+        });
+      }, POLLING_DURATION);
     } catch (err) {
       console.error('Failed to sell position:', err);
     } finally {
@@ -45,14 +106,30 @@ export default function UserPositions() {
   };
 
   const handleRedeem = async (position: PolymarketPosition) => {
-    if (!position.ammPoolAddress) return;
+    if (!relayClient) {
+      return;
+    }
+
     setRedeemingAsset(position.asset);
     try {
-      // Dynamic import to avoid loading resolution hook globally
-      const { useMarketResolution } = await import('@/hooks/polymarket/useMarketResolution');
-      console.log('Redeem triggered for pool', position.ammPoolAddress, useMarketResolution);
+      await redeemPosition(relayClient, {
+        conditionId: position.conditionId,
+        outcomeIndex: position.outcomeIndex,
+        negativeRisk: position.negativeRisk,
+        size: position.size,
+      });
+
       queryClient.invalidateQueries({ queryKey: ['polymarket-positions'] });
       queryClient.invalidateQueries({ queryKey: ['usdcBalance'] });
+
+      createPollingInterval(
+        () => {
+          queryClient.invalidateQueries({ queryKey: ['polymarket-positions'] });
+          queryClient.invalidateQueries({ queryKey: ['usdcBalance'] });
+        },
+        POLLING_INTERVAL,
+        POLLING_DURATION,
+      );
     } catch (err) {
       console.error('Failed to redeem position:', err);
     } finally {
@@ -62,26 +139,44 @@ export default function UserPositions() {
 
   const activePositions = useMemo(() => {
     if (!positions) return [];
+
     let filtered = positions.filter((p) => p.size >= DUST_THRESHOLD);
-    if (hideDust) filtered = filtered.filter((p) => p.currentValue >= DUST_THRESHOLD);
+
+    if (hideDust) {
+      filtered = filtered.filter((p) => p.currentValue >= DUST_THRESHOLD);
+    }
+
     return filtered;
   }, [positions, hideDust]);
 
-  if (isLoading) return <LoadingState message="Loading positions..." />;
-  if (error) return <ErrorState error={error} title="Error loading positions" />;
+  if (isLoading) {
+    return <LoadingState message="Loading positions..." />;
+  }
+
+  if (error) {
+    return <ErrorState error={error} title="Error loading positions" />;
+  }
+
   if (!positions || activePositions.length === 0) {
-    return <EmptyState title="No Open Positions" message="You don't have any open positions." />;
+    return (
+      <EmptyState
+        title="No Open Positions"
+        message="You don't have any open positions."
+      />
+    );
   }
 
   return (
     <div className="space-y-4">
+      {/* Header with Position Count and Dust Toggle */}
       <PositionFilters
         positionCount={activePositions.length}
         hideDust={hideDust}
         onToggleHideDust={() => setHideDust(!hideDust)}
       />
 
-      {hideDust && positions.length > activePositions.length && (
+      {/* Dust Warning Banner */}
+      {hideDust && positions && positions.length > activePositions.length && (
         <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">
           <p className="text-amber-700 text-sm">
             Hiding {positions.length - activePositions.length} dust position(s)
@@ -90,6 +185,7 @@ export default function UserPositions() {
         </div>
       )}
 
+      {/* Positions List */}
       <div className="space-y-3">
         {activePositions.map((position) => (
           <PositionCard
@@ -99,10 +195,10 @@ export default function UserPositions() {
             onSell={handleMarketSell}
             isSelling={sellingAsset === position.asset}
             isRedeeming={redeemingAsset === position.asset}
-            isPendingVerification={false}
+            isPendingVerification={pendingVerification.has(position.asset)}
             isSubmitting={isSubmitting}
-            canSell={!!eoaAddress && !!position.ammMarketId}
-            canRedeem={!!position.ammPoolAddress && position.redeemable}
+            canSell={!!clobClient}
+            canRedeem={!!relayClient}
           />
         ))}
       </div>

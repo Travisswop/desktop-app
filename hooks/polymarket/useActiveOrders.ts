@@ -1,32 +1,63 @@
 import { useQuery } from "@tanstack/react-query";
+import type { ClobClient } from "@polymarket/clob-client";
 
 export type PolymarketOrder = {
   id: string;
   status: string;
   owner: string;
+  maker_address: string;
   market: string;
   asset_id: string;
   side: "BUY" | "SELL";
   original_size: string;
   size_matched: string;
   price: string;
+  associate_trades: string[];
   outcome: string;
   created_at: number;
   expiration: string;
   order_type: string;
 };
 
-// AMM trades are on-chain and final — there are no resting open orders.
-// This hook returns an empty list. It is kept so the Orders UI tab compiles.
-// Phase 3 (optional orderbook) can re-populate this from a trade history indexer.
 export function useActiveOrders(
-  _ignored: unknown,
-  walletAddress: string | undefined,
+  clobClient: ClobClient | null,
+  walletAddress: string | undefined
 ) {
   return useQuery({
     queryKey: ["active-orders", walletAddress],
-    queryFn: async (): Promise<PolymarketOrder[]> => [],
-    enabled: !!walletAddress,
-    staleTime: 60_000,
+    queryFn: async (): Promise<PolymarketOrder[]> => {
+      if (!clobClient || !walletAddress) {
+        return [];
+      }
+
+      try {
+        const allOrders = await clobClient.getOpenOrders();
+
+        const userOrders = allOrders.filter((order: any) => {
+          const orderMaker = (order.maker_address || "").toLowerCase();
+          const userAddr = walletAddress.toLowerCase();
+          return orderMaker === userAddr;
+        });
+
+        // Include all non-terminal insert statuses:
+        // LIVE = resting on the book
+        // MATCHED = just placed and matched against a resting order (briefly pre-LIVE)
+        // DELAYED = marketable but subject to a matching delay (sports markets)
+        const OPEN_STATUSES = new Set(["LIVE", "MATCHED", "DELAYED"]);
+        const activeOrders = userOrders.filter((order: any) => {
+          return OPEN_STATUSES.has(order.status);
+        });
+
+        return activeOrders as PolymarketOrder[];
+      } catch (err) {
+        console.error("Error fetching open orders:", err);
+        return [];
+      }
+    },
+    enabled: !!clobClient && !!walletAddress,
+    staleTime: 2_000,
+    refetchInterval: 3_000,
+    refetchIntervalInBackground: true,
+    refetchOnWindowFocus: true,
   });
 }

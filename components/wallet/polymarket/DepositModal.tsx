@@ -26,7 +26,10 @@ import {
   ArrowUpDown,
   RefreshCw,
 } from 'lucide-react';
-import { usePolymarketWallet } from '@/providers/polymarket';
+import {
+  useTrading,
+  usePolymarketWallet,
+} from '@/providers/polymarket';
 import { useMultiChainTokenData } from '@/lib/hooks/useToken';
 import { getLifiDepositQuote } from '@/actions/lifiForTokenSwap';
 import Image from 'next/image';
@@ -240,10 +243,9 @@ export default function DepositModal({
   onOpenChange,
 }: DepositModalProps) {
   const { user, getAccessToken } = usePrivy();
+  const { safeAddress } = useTrading();
   const { publicClient, eoaAddress, switchToPolygon } =
     usePolymarketWallet();
-  // In the AMM model the user trades directly from their EOA — no Safe proxy needed.
-  const safeAddress = eoaAddress;
   const { wallets } = useWallets();
   const { ready: solanaReady, wallets: directSolanaWallets } =
     useSolanaWallets();

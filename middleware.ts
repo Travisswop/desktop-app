@@ -48,7 +48,6 @@ const cspConfig = {
     "'unsafe-inline'",
     "'unsafe-eval'",
     'https://app.apiswop.co',
-    'https://polymarket.apiswop.co',
     'https://challenges.cloudflare.com',
     'https://swopme.app',
     'https://privy.swopme.app',
@@ -76,7 +75,6 @@ const cspConfig = {
   connectSrc: [
     "'self'",
     'https://app.apiswop.co',
-    'https://polymarket.apiswop.co',
     'https://swopme.app',
     'https://privy.swopme.app',
     'https://auth.privy.io',

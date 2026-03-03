@@ -141,7 +141,7 @@ export default function ChatPage() {
                 Connection Issue
               </h2>
               <p className="mb-6 text-sm text-gray-600">
-                We&apos;re having trouble connecting to the chat server.
+                We're having trouble connecting to the chat server.
                 This could be due to:
               </p>
               <ul className="mb-6 text-xs text-gray-500 text-left space-y-2 max-w-xs mx-auto">
