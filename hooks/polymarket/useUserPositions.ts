@@ -41,7 +41,7 @@ export function useUserPositions(walletAddress: string | undefined) {
     queryFn: async (): Promise<PolymarketPosition[]> => {
       if (!walletAddress) return [];
 
-      const apiBase = process.env.NEXT_PUBLIC_POLYMARKET_API_URL || 'http://localhost:8080';
+      const apiBase = 'https://polymarket.apiswop.co';
       const response = await fetch(
         `${apiBase}/api/prediction-markets/positions?user=${walletAddress}`
       );

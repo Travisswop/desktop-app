@@ -7,7 +7,7 @@ export function useSafeAddress(eoaAddress: string | undefined) {
       if (!eoaAddress) return null;
 
       const apiBase =
-        process.env.NEXT_PUBLIC_POLYMARKET_API_URL || "http://localhost:8080";
+        "https://polymarket.apiswop.co";
       const response = await fetch(
         `${apiBase}/api/prediction-markets/safe-address?eoa=${eoaAddress}`
       );

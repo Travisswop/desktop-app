@@ -10,4 +10,4 @@ export const POLYGON_RPC_URL =
 
 // Polymarket backend base (standalone polymarket-backend service)
 export const POLYMARKET_API_BASE =
-  process.env.NEXT_PUBLIC_POLYMARKET_API_URL || 'http://localhost:8080';
+  'https://polymarket.apiswop.co';
