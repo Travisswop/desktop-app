@@ -49,6 +49,9 @@ export default function OrderPlacementModal({
   const { submitOrder, isSubmitting, orderError, txHash } = useTrading();
   const modalRef = useRef<HTMLDivElement>(null);
 
+  // Check if AMM contracts are configured
+  const isAMMConfigured = !!(process.env.NEXT_PUBLIC_AMM_ROUTER_ADDRESS);
+
   const isYes = selectedOutcome === 'yes';
   const activePrice = isYes ? yesPrice : noPrice;
   const activeShareBalance = isYes ? yesShares : noShares;
@@ -158,6 +161,14 @@ export default function OrderPlacementModal({
               </div>
             )}
 
+            {!isAMMConfigured && (
+              <div className="mb-4 bg-yellow-500/10 border border-yellow-500/30 rounded-xl p-3">
+                <p className="text-yellow-600 text-sm text-center">
+                  ⚠️ Trading is temporarily unavailable - AMM contracts are being deployed
+                </p>
+              </div>
+            )}
+
             {(localError || orderError) && (
               <div className="mb-4 bg-red-500/10 border border-red-500/30 rounded-xl p-3">
                 <p className="text-red-500 text-sm text-center">{localError || orderError?.message}</p>
@@ -241,14 +252,16 @@ export default function OrderPlacementModal({
 
             <button
               onClick={handlePlaceOrder}
-              disabled={isSubmitting || inputNum <= 0 || hasInsufficientBalance}
+              disabled={!isAMMConfigured || isSubmitting || inputNum <= 0 || hasInsufficientBalance}
               className={`w-full py-3.5 font-bold rounded-xl transition-all text-base ${
                 side === 'BUY'
                   ? 'bg-green-500 hover:bg-green-600 disabled:bg-green-500/30'
                   : 'bg-blue-500 hover:bg-blue-600 disabled:bg-blue-500/30'
               } disabled:cursor-not-allowed text-white`}
             >
-              {isSubmitting ? (
+              {!isAMMConfigured ? (
+                'Trading Unavailable'
+              ) : isSubmitting ? (
                 <span className="flex items-center justify-center gap-2">
                   <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24">
                     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
