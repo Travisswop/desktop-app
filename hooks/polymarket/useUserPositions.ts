@@ -28,6 +28,11 @@ export type PolymarketPosition = {
   oppositeAsset: string;
   endDate: string;
   negativeRisk: boolean;
+  // Normalized aliases added by the backend for cross-client compatibility
+  currentPrice: number;
+  pnl: number;
+  pnlPercent: number;
+  negRisk: boolean;
 };
 
 export function useUserPositions(walletAddress: string | undefined) {
@@ -36,9 +41,9 @@ export function useUserPositions(walletAddress: string | undefined) {
     queryFn: async (): Promise<PolymarketPosition[]> => {
       if (!walletAddress) return [];
 
-      const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+      const apiBase = process.env.NEXT_PUBLIC_POLYMARKET_API_URL || 'http://localhost:8080';
       const response = await fetch(
-        `${apiBase}/api/v5/prediction-markets/positions?user=${walletAddress}`
+        `${apiBase}/api/prediction-markets/positions?user=${walletAddress}`
       );
 
       if (!response.ok) {

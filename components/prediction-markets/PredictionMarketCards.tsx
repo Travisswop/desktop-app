@@ -28,7 +28,7 @@ export function PredictionMarketCards({ data, onBet }: PredictionMarketCardsProp
           <span className="text-gray-600"> of {data.total} total</span>
         )}
         {data.query && (
-          <span className="text-gray-600"> for "{data.query}"</span>
+          <span className="text-gray-600"> for &quot;{data.query}&quot;</span>
         )}
       </div>
 

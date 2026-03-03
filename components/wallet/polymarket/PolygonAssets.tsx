@@ -1,16 +1,16 @@
 'use client';
 
 import { useState } from 'react';
-import { useTrading } from '@/providers/polymarket';
+import { usePolymarketWallet } from '@/providers/polymarket';
 import { usePolygonBalances } from '@/hooks/polymarket';
 import { Plus, TrendingUp, RefreshCw } from 'lucide-react';
 import Card from './shared/Card';
 import DepositModal from './DepositModal';
 
 export default function PolygonAssets() {
-  const { safeAddress } = useTrading();
+  const { eoaAddress } = usePolymarketWallet();
   const { formattedUsdcBalance, usdcBalance, isLoading, isError } =
-    usePolygonBalances(safeAddress);
+    usePolygonBalances(eoaAddress);
   const [depositModalOpen, setDepositModalOpen] = useState(false);
 
   return (
@@ -74,7 +74,7 @@ export default function PolygonAssets() {
         </div>
 
         {/* Quick Stats */}
-        {safeAddress && !isLoading && !isError && (
+        {eoaAddress && !isLoading && !isError && (
           <div className="mt-4 grid grid-cols-2 gap-3">
             <div className="bg-gray-50 rounded-lg p-3 text-center">
               <p className="text-xs text-gray-500 mb-1">Available</p>
@@ -89,7 +89,7 @@ export default function PolygonAssets() {
           </div>
         )}
 
-        {!safeAddress && (
+        {!eoaAddress && (
           <p className="text-gray-500 text-sm mt-3 text-center">
             Initializing trading session...
           </p>

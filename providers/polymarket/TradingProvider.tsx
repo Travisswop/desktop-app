@@ -1,31 +1,22 @@
 "use client";
 
-import { createContext, useContext, ReactNode, useCallback } from "react";
-import type { ClobClient } from "@polymarket/clob-client";
-import type { RelayClient } from "@polymarket/builder-relayer-client";
+import { createContext, useContext, ReactNode } from "react";
 import { usePolymarketWallet } from "./PolymarketWalletContext";
-import { useClobClient } from "@/hooks/polymarket/useClobClient";
-import { useTradingSession } from "@/hooks/polymarket/useTradingSession";
-import { useSafeDeployment } from "@/hooks/polymarket/useSafeDeployment";
-import { useGeoblock, GeoblockStatus } from "@/hooks/polymarket/useGeoblock";
-import { useClobHeartbeat } from "@/hooks/polymarket/useClobHeartbeat";
-import { useUserOrdersChannel } from "@/hooks/polymarket/useUserOrdersChannel";
-import { TradingSession, SessionStep } from "@/lib/polymarket/session";
+import { useAMMOrder, type AMMOrderParams } from "@/hooks/polymarket/useAMMOrder";
+import { useUSDCApproval } from "@/hooks/polymarket/useUSDCApproval";
 
 interface TradingContextType {
-  tradingSession: TradingSession | null;
-  currentStep: SessionStep;
-  sessionError: Error | null;
-  isTradingSessionComplete: boolean | undefined;
-  initializeTradingSession: () => Promise<void>;
-  endTradingSession: () => void;
-  clobClient: ClobClient | null;
-  relayClient: RelayClient | null;
   eoaAddress: string | undefined;
-  safeAddress: string | undefined;
-  isGeoblocked: boolean;
-  isGeoblockLoading: boolean;
-  geoblockStatus: GeoblockStatus | null;
+  // AMM order execution
+  submitOrder: (params: AMMOrderParams) => Promise<{ success: boolean; hash: `0x${string}` }>;
+  isSubmitting: boolean;
+  orderError: Error | null;
+  txHash: `0x${string}` | null;
+  // USDC approval
+  approveUSDC: () => Promise<`0x${string}`>;
+  isApproving: boolean;
+  approvalError: Error | null;
+  checkIsApproved: (usdcAmount: number) => Promise<boolean>;
 }
 
 const TradingContext = createContext<TradingContextType | null>(null);
@@ -38,60 +29,33 @@ export function useTrading() {
 
 export function TradingProvider({ children }: { children: ReactNode }) {
   const { eoaAddress } = usePolymarketWallet();
-  const { derivedSafeAddressFromEoa } = useSafeDeployment(eoaAddress);
 
   const {
-    isBlocked: isGeoblocked,
-    isLoading: isGeoblockLoading,
-    geoblockStatus,
-  } = useGeoblock();
+    submitOrder,
+    isSubmitting,
+    txHash,
+    error: orderError,
+  } = useAMMOrder();
 
   const {
-    tradingSession,
-    currentStep,
-    sessionError,
-    isTradingSessionComplete,
-    initializeTradingSession: initSession,
-    endTradingSession,
-    relayClient,
-  } = useTradingSession();
-
-  const { clobClient } = useClobClient(
-    tradingSession,
-    isTradingSessionComplete
-  );
-
-  // Keep open limit orders alive — Polymarket cancels them after 10s without a heartbeat
-  useClobHeartbeat(clobClient);
-
-  // Real-time order/trade updates via user WebSocket channel
-  useUserOrdersChannel(tradingSession?.apiCredentials);
-
-  const initializeTradingSession = useCallback(async () => {
-    if (isGeoblocked) {
-      throw new Error(
-        "Trading is not available in your region. Polymarket is geoblocked in your location."
-      );
-    }
-    return initSession();
-  }, [isGeoblocked, initSession]);
+    approveUSDC,
+    isApproving,
+    error: approvalError,
+    isApproved: checkIsApproved,
+  } = useUSDCApproval();
 
   return (
     <TradingContext.Provider
       value={{
-        tradingSession,
-        currentStep,
-        sessionError,
-        isTradingSessionComplete,
-        initializeTradingSession,
-        endTradingSession,
-        clobClient,
-        relayClient,
         eoaAddress,
-        safeAddress: derivedSafeAddressFromEoa,
-        isGeoblocked,
-        isGeoblockLoading,
-        geoblockStatus,
+        submitOrder,
+        isSubmitting,
+        orderError,
+        txHash,
+        approveUSDC,
+        isApproving,
+        approvalError,
+        checkIsApproved,
       }}
     >
       {children}

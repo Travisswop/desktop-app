@@ -19,9 +19,11 @@ import { providers } from "ethers5";
 import { polygon } from "viem/chains";
 import { useWallets, usePrivy } from "@privy-io/react-auth";
 import { POLYGON_RPC_URL } from "@/constants/polymarket";
+import { useSafeAddress } from "@/hooks/polymarket/useSafeAddress";
 
 export interface PolymarketWalletContextType {
   eoaAddress: `0x${string}` | undefined;
+  safeAddress: string | null | undefined;
   walletClient: WalletClient | null;
   publicClient: PublicClient;
   ethersSigner: providers.JsonRpcSigner | null;
@@ -37,6 +39,7 @@ const publicClient = createPublicClient({
 
 const PolymarketWalletContext = createContext<PolymarketWalletContextType>({
   eoaAddress: undefined,
+  safeAddress: undefined,
   walletClient: null,
   publicClient,
   ethersSigner: null,
@@ -61,6 +64,8 @@ export function PolymarketWalletProvider({ children }: { children: ReactNode }) 
   const wallet = wallets.find((w) => w.address === user?.wallet?.address);
   const eoaAddress =
     authenticated && wallet ? (wallet.address as `0x${string}`) : undefined;
+
+  const { data: safeAddress } = useSafeAddress(eoaAddress);
 
   const switchToPolygon = async () => {
     if (!wallet || !ready || !authenticated) return;
@@ -111,6 +116,7 @@ export function PolymarketWalletProvider({ children }: { children: ReactNode }) 
     <PolymarketWalletContext.Provider
       value={{
         eoaAddress,
+        safeAddress,
         walletClient,
         publicClient,
         ethersSigner,

@@ -5,58 +5,47 @@ import { formatPrice } from '@/lib/polymarket/formatting';
 interface OutcomeButtonsProps {
   outcomes: string[];
   outcomePrices: number[];
-  tokenIds: string[];
   isClosed: boolean;
-  negRisk: boolean;
   marketQuestion: string;
+  marketId: `0x${string}`;
+  poolAddress: `0x${string}` | undefined;
   disabled?: boolean;
   onOutcomeClick: (
     marketTitle: string,
     outcome: string,
     price: number,
-    tokenId: string,
-    negRisk: boolean,
+    marketId: `0x${string}`,
+    poolAddress: `0x${string}` | undefined,
   ) => void;
 }
 
 export default function OutcomeButtons({
   outcomes,
   outcomePrices,
-  tokenIds,
   isClosed,
-  negRisk,
   marketQuestion,
+  marketId,
+  poolAddress,
   disabled = false,
   onOutcomeClick,
 }: OutcomeButtonsProps) {
   if (outcomes.length === 0) {
-    return (
-      <p className="text-gray-500 text-sm">No outcomes available</p>
-    );
+    return <p className="text-gray-500 text-sm">No outcomes available</p>;
   }
 
-  // For binary markets, show Yes/No side by side
+  // Binary market — YES / NO side by side
   if (outcomes.length === 2) {
     return (
       <div className="grid grid-cols-2 gap-2">
         {outcomes.map((outcome, index) => {
           const price = outcomePrices[index] || 0;
-          const tokenId = tokenIds[index];
           const isYes = outcome.toLowerCase() === 'yes';
 
           return (
             <button
-              key={tokenId || index}
-              onClick={() =>
-                onOutcomeClick(
-                  marketQuestion,
-                  outcome,
-                  price,
-                  tokenId,
-                  negRisk,
-                )
-              }
-              disabled={isClosed || disabled || !tokenId}
+              key={index}
+              onClick={() => onOutcomeClick(marketQuestion, outcome, price, marketId, poolAddress)}
+              disabled={isClosed || disabled}
               className={`py-2 px-3 rounded-lg font-medium text-sm transition-all ${
                 isClosed || disabled
                   ? 'bg-gray-100 text-gray-400 cursor-not-allowed border border-gray-200'
@@ -66,9 +55,7 @@ export default function OutcomeButtons({
               }`}
             >
               <span className="block text-xs mb-0.5">{outcome}</span>
-              <span className="block font-bold">
-                {price > 0 ? formatPrice(price) : '—'}
-              </span>
+              <span className="block font-bold">{price > 0 ? formatPrice(price) : '—'}</span>
             </button>
           );
         })}
@@ -76,26 +63,17 @@ export default function OutcomeButtons({
     );
   }
 
-  // For multi-outcome markets, show in a column
+  // Multi-outcome market
   return (
     <div className="space-y-2">
       {outcomes.map((outcome, index) => {
         const price = outcomePrices[index] || 0;
-        const tokenId = tokenIds[index];
 
         return (
           <button
-            key={tokenId || index}
-            onClick={() =>
-              onOutcomeClick(
-                marketQuestion,
-                outcome,
-                price,
-                tokenId,
-                negRisk,
-              )
-            }
-            disabled={isClosed || disabled || !tokenId}
+            key={index}
+            onClick={() => onOutcomeClick(marketQuestion, outcome, price, marketId, poolAddress)}
+            disabled={isClosed || disabled}
             className={`w-full py-2 px-3 rounded-lg font-medium text-sm transition-all flex items-center justify-between ${
               isClosed || disabled
                 ? 'bg-gray-100 text-gray-400 cursor-not-allowed border border-gray-200'
@@ -103,9 +81,7 @@ export default function OutcomeButtons({
             }`}
           >
             <span className="truncate">{outcome}</span>
-            <span className="font-bold ml-2">
-              {price > 0 ? formatPrice(price) : '—'}
-            </span>
+            <span className="font-bold ml-2">{price > 0 ? formatPrice(price) : '—'}</span>
           </button>
         );
       })}

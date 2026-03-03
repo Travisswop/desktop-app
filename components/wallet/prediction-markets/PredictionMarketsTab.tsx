@@ -48,7 +48,7 @@ export const PredictionMarketsTab: React.FC = () => {
               <h1 className="text-3xl font-bold mb-2">Prediction Markets</h1>
               <p className="text-green-50 max-w-2xl">
                 Trade on the outcomes of future events. Buy shares in outcomes you
-                believe will happen and earn profits when you're right.
+                believe will happen and earn profits when you&apos;re right.
               </p>
             </div>
             <BarChart3 className="w-16 h-16 text-green-200" />

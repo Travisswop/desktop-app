@@ -57,8 +57,8 @@ interface MarketCardProps {
     marketTitle: string,
     outcome: string,
     price: number,
-    tokenId: string,
-    negRisk: boolean,
+    marketId: `0x${string}`,
+    poolAddress: `0x${string}` | undefined,
   ) => void;
 }
 
@@ -76,22 +76,13 @@ export default function MarketCard({
   const sportsWarning = getSportsWarning(market.gameStartTime);
 
   const outcomes = market.outcomes ? JSON.parse(market.outcomes) : [];
-  const tokenIds = market.clobTokenIds
-    ? JSON.parse(market.clobTokenIds)
-    : [];
-  const negRisk = market.negRisk || false;
   const staticPrices: number[] = market.outcomePrices
     ? JSON.parse(market.outcomePrices).map(Number)
     : [];
-  const outcomePrices = tokenIds.map(
-    (tokenId: string, index: number) => {
-      return (
-        market.realtimePrices?.[tokenId]?.bidPrice ||
-        staticPrices[index] ||
-        0
-      );
-    },
-  );
+  const outcomePrices: number[] = staticPrices.length > 0 ? staticPrices : [0.5, 0.5];
+  // AMM market identifier (bytes32) and pool address come from the market object
+  const marketId = (market.ammMarketId || '0x' + '0'.repeat(64)) as `0x${string}`;
+  const poolAddress = market.ammPoolAddress as `0x${string}` | undefined;
 
   return (
     <Card hover className="p-4">
@@ -148,10 +139,10 @@ export default function MarketCard({
           <OutcomeButtons
             outcomes={outcomes}
             outcomePrices={outcomePrices}
-            tokenIds={tokenIds}
             isClosed={isClosed}
-            negRisk={negRisk}
             marketQuestion={market.question}
+            marketId={marketId}
+            poolAddress={poolAddress}
             disabled={disabled}
             onOutcomeClick={onOutcomeClick}
           />
