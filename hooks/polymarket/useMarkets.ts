@@ -1,8 +1,8 @@
-import { useQuery } from "@tanstack/react-query";
-import { useTrading } from "@/providers/polymarket";
-import { Side } from "@polymarket/clob-client";
 import type { CategoryId } from "@/constants/polymarket";
 import { getCategoryById, QUERY_STALE_TIMES } from "@/constants/polymarket";
+import { useTrading } from "@/providers/polymarket";
+import { Side } from "@polymarket/clob-client";
+import { useQuery } from "@tanstack/react-query";
 
 export type PolymarketMarket = {
   id: string;
@@ -57,8 +57,8 @@ export function useMarkets(options: UseMarketsOptions = {}) {
     queryKey: ["high-volume-markets", limit, categoryId, !!clobClient],
     queryFn: async (): Promise<PolymarketMarket[]> => {
       const category = getCategoryById(categoryId);
-      const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
-      let url = `${apiBase}/api/v5/prediction-markets/markets?limit=${limit}`;
+      const apiBase = "https://polymarket.apiswop.co";
+      let url = `${apiBase}/api/prediction-markets/markets?limit=${limit}`;
 
       if (category?.tagId) {
         url += `&tag_id=${category.tagId}`;
@@ -93,10 +93,10 @@ export function useMarkets(options: UseMarketsOptions = {}) {
             // Two batch requests: BUY side = best ask, SELL side = best bid
             const [bidPrices, askPrices] = await Promise.all([
               clobClient.getPrices(
-                allTokenIds.map((id) => ({ token_id: id, side: Side.SELL }))
+                allTokenIds.map((id) => ({ token_id: id, side: Side.SELL })),
               ),
               clobClient.getPrices(
-                allTokenIds.map((id) => ({ token_id: id, side: Side.BUY }))
+                allTokenIds.map((id) => ({ token_id: id, side: Side.BUY })),
               ),
             ]);
 
@@ -110,10 +110,10 @@ export function useMarkets(options: UseMarketsOptions = {}) {
 
                 for (const tokenId of tokenIds) {
                   const bidPrice = parseFloat(
-                    (bidPrices as Record<string, string>)[tokenId] ?? "0"
+                    (bidPrices as Record<string, string>)[tokenId] ?? "0",
                   );
                   const askPrice = parseFloat(
-                    (askPrices as Record<string, string>)[tokenId] ?? "0"
+                    (askPrices as Record<string, string>)[tokenId] ?? "0",
                   );
 
                   if (
