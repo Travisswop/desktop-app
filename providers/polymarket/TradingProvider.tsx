@@ -2,21 +2,19 @@
 
 import { createContext, useContext, ReactNode } from "react";
 import { usePolymarketWallet } from "./PolymarketWalletContext";
-import { useAMMOrder, type AMMOrderParams } from "@/hooks/polymarket/useAMMOrder";
-import { useUSDCApproval } from "@/hooks/polymarket/useUSDCApproval";
+import { useTradingSession, type TradingSessionStep } from "@/hooks/polymarket/useTradingSession";
+import type { ClobClient } from '@polymarket/clob-client';
 
 interface TradingContextType {
   eoaAddress: string | undefined;
-  // AMM order execution
-  submitOrder: (params: AMMOrderParams) => Promise<{ success: boolean; hash: `0x${string}` }>;
-  isSubmitting: boolean;
-  orderError: Error | null;
-  txHash: `0x${string}` | null;
-  // USDC approval
-  approveUSDC: () => Promise<`0x${string}`>;
-  isApproving: boolean;
-  approvalError: Error | null;
-  checkIsApproved: (usdcAmount: number) => Promise<boolean>;
+  // CLOB trading session
+  currentStep: TradingSessionStep;
+  sessionError: string | null;
+  clobClient: ClobClient | null;
+  isInitializing: boolean;
+  isTradingSessionComplete: boolean;
+  initializeTradingSession: () => Promise<void>;
+  endTradingSession: () => void;
 }
 
 const TradingContext = createContext<TradingContextType | null>(null);
@@ -31,31 +29,26 @@ export function TradingProvider({ children }: { children: ReactNode }) {
   const { eoaAddress } = usePolymarketWallet();
 
   const {
-    submitOrder,
-    isSubmitting,
-    txHash,
-    error: orderError,
-  } = useAMMOrder();
-
-  const {
-    approveUSDC,
-    isApproving,
-    error: approvalError,
-    isApproved: checkIsApproved,
-  } = useUSDCApproval();
+    currentStep,
+    sessionError,
+    clobClient,
+    isInitializing,
+    isTradingSessionComplete,
+    initializeTradingSession,
+    endTradingSession,
+  } = useTradingSession();
 
   return (
     <TradingContext.Provider
       value={{
         eoaAddress,
-        submitOrder,
-        isSubmitting,
-        orderError,
-        txHash,
-        approveUSDC,
-        isApproving,
-        approvalError,
-        checkIsApproved,
+        currentStep,
+        sessionError,
+        clobClient,
+        isInitializing,
+        isTradingSessionComplete,
+        initializeTradingSession,
+        endTradingSession,
       }}
     >
       {children}

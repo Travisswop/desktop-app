@@ -1,8 +1,6 @@
-// AMM hooks
-export { useAMMPool, useAMMQuote, type AMMPoolState } from './useAMMPool';
-export { useAMMOrder, type AMMOrderParams } from './useAMMOrder';
-export { useUSDCApproval } from './useUSDCApproval';
-export { useMarketResolution } from './useMarketResolution';
+// CLOB hooks
+export { useClobOrder, type ClobOrderParams } from './useClobOrder';
+export { useTradingSession, type TradingSessionStep } from './useTradingSession';
 
 // Market and position hooks
 export { useMarkets, type PolymarketMarket } from './useMarkets';
