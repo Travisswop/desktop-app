@@ -6,10 +6,8 @@ export function useSafeAddress(eoaAddress: string | undefined) {
     queryFn: async (): Promise<string | null> => {
       if (!eoaAddress) return null;
 
-      const apiBase =
-        "https://polymarket.apiswop.co";
       const response = await fetch(
-        `${apiBase}/api/prediction-markets/safe-address?eoa=${eoaAddress}`
+        `/api/polymarket/safe-address?eoa=${eoaAddress}`
       );
 
       if (!response.ok) {
