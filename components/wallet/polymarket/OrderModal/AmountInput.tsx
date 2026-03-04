@@ -45,7 +45,7 @@ export default function AmountInput({
     }
   };
 
-  const quickAmounts = [1, 20, 100];
+  const quickAmounts = [5, 10, 20, 100];
 
   return (
     <div className="space-y-4 mb-5">
@@ -85,8 +85,8 @@ export default function AmountInput({
             <span className="text-sm text-gray-600">Amount</span>
             <p className="text-xs text-gray-500">Balance ${balance.toFixed(2)} · Min ${minOrderAmount.toFixed(2)}</p>
           </div>
-          <div className="relative">
-            <span className="absolute left-0 top-1/2 -translate-y-1/2 text-3xl font-bold text-gray-900">$</span>
+          <div className="flex items-center gap-0.5">
+            <span className="text-3xl font-bold text-gray-900">$</span>
             <input
               type="text"
               inputMode="decimal"
@@ -94,13 +94,30 @@ export default function AmountInput({
               onChange={handleAmountChange}
               placeholder="0"
               disabled={isSubmitting}
-              className="w-24 bg-transparent text-3xl font-bold text-gray-900 text-right outline-none placeholder-gray-400"
+              className="w-20 bg-transparent text-3xl font-bold text-gray-900 text-left outline-none placeholder-gray-400"
             />
           </div>
         </div>
 
+        {/* Balance Slider */}
+        <div className="mt-3 px-0.5">
+          <input
+            type="range"
+            min={0}
+            max={balance > 0 ? balance : 100}
+            step={0.01}
+            value={Math.min(parseFloat(amount) || 0, balance > 0 ? balance : 100)}
+            onChange={(e) => {
+              const val = parseFloat(e.target.value);
+              onAmountChange(val === 0 ? "" : val.toFixed(2));
+            }}
+            disabled={isSubmitting}
+            className="w-full h-1 rounded-full appearance-none cursor-pointer bg-gray-300 accent-gray-900 disabled:cursor-not-allowed"
+          />
+        </div>
+
         {/* Quick Amount Buttons */}
-        <div className="flex gap-2 mt-3">
+        <div className="flex gap-2 mt-2">
           {quickAmounts.map((quickAmount) => (
             <button
               key={quickAmount}

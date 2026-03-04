@@ -28,6 +28,11 @@ export {
   getCategoryById,
   type CategoryId,
   type Category,
+  SPORT_SUBCATEGORIES,
+  DEFAULT_SPORT_SUBCATEGORY,
+  getSportSubcategoryById,
+  type SportSubcategoryId,
+  type SportSubcategory,
 } from "./categories";
 
 // Re-export query constants

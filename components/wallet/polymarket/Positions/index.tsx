@@ -6,16 +6,19 @@ import {
   useClobOrder,
   useRedeemPosition,
   useUserPositions,
+  useActiveOrders,
+  usePolygonBalances,
   PolymarketPosition,
 } from '@/hooks/polymarket';
 import { usePolymarketWallet } from '@/providers/polymarket';
 import { useTrading } from '@/providers/polymarket';
+import { ChevronRight } from 'lucide-react';
 
 import ErrorState from '../shared/ErrorState';
 import EmptyState from '../shared/EmptyState';
 import LoadingState from '../shared/LoadingState';
 import PositionCard from './PositionCard';
-import PositionFilters from './PositionFilters';
+import OrderPlacementModal from '../OrderModal';
 
 import { createPollingInterval } from '@/lib/polymarket/polling';
 import {
@@ -34,36 +37,28 @@ export default function UserPositions() {
     error,
   } = useUserPositions(safeAddress as string | undefined);
 
-  const [hideDust, setHideDust] = useState(true);
+  const { usdcBalance } = usePolygonBalances(safeAddress);
+
+  const { data: activeOrders = [] } = useActiveOrders(clobClient, eoaAddress);
+
   const [redeemingAsset, setRedeemingAsset] = useState<string | null>(null);
+  const [sellingAsset, setSellingAsset] = useState<string | null>(null);
+  const [buyMorePosition, setBuyMorePosition] = useState<PolymarketPosition | null>(null);
 
   const { redeemPosition, isRedeeming } = useRedeemPosition();
   const { submitOrder, isSubmitting } = useClobOrder(clobClient, eoaAddress);
-  const [sellingAsset, setSellingAsset] = useState<string | null>(null);
 
-  const [pendingVerification, setPendingVerification] = useState<
-    Map<string, number>
-  >(new Map());
+  const [pendingVerification, setPendingVerification] = useState<Map<string, number>>(new Map());
   const queryClient = useQueryClient();
 
   useEffect(() => {
     if (!positions || pendingVerification.size === 0) return;
-
     const stillPending = new Map<string, number>();
-
     pendingVerification.forEach((originalSize, asset) => {
-      const currentPosition = positions.find((p) => p.asset === asset);
-      const currentSize = currentPosition?.size || 0;
-      const sizeChanged = currentSize < originalSize;
-
-      if (!sizeChanged) {
-        stillPending.set(asset, originalSize);
-      }
+      const current = positions.find((p) => p.asset === asset);
+      if ((current?.size || 0) >= originalSize) stillPending.set(asset, originalSize);
     });
-
-    if (stillPending.size !== pendingVerification.size) {
-      setPendingVerification(stillPending);
-    }
+    if (stillPending.size !== pendingVerification.size) setPendingVerification(stillPending);
   }, [positions, pendingVerification]);
 
   const handleMarketSell = async (position: PolymarketPosition) => {
@@ -76,27 +71,15 @@ export default function UserPositions() {
         negRisk: position.negativeRisk,
         isMarketOrder: true,
       });
-
-      setPendingVerification((prev) =>
-        new Map(prev).set(position.asset, position.size),
-      );
-
+      setPendingVerification((prev) => new Map(prev).set(position.asset, position.size));
       queryClient.invalidateQueries({ queryKey: ['polymarket-positions'] });
-
       createPollingInterval(
-        () => {
-          queryClient.invalidateQueries({ queryKey: ['polymarket-positions'] });
-        },
+        () => queryClient.invalidateQueries({ queryKey: ['polymarket-positions'] }),
         POLLING_INTERVAL,
         POLLING_DURATION,
       );
-
       setTimeout(() => {
-        setPendingVerification((prev) => {
-          const next = new Map(prev);
-          next.delete(position.asset);
-          return next;
-        });
+        setPendingVerification((prev) => { const n = new Map(prev); n.delete(position.asset); return n; });
       }, POLLING_DURATION);
     } catch (err) {
       console.error('Failed to sell position:', err);
@@ -106,10 +89,7 @@ export default function UserPositions() {
   };
 
   const handleRedeem = async (position: PolymarketPosition) => {
-    if (!relayClient) {
-      return;
-    }
-
+    if (!relayClient) return;
     setRedeemingAsset(position.asset);
     try {
       await redeemPosition(relayClient, {
@@ -118,10 +98,8 @@ export default function UserPositions() {
         negativeRisk: position.negativeRisk,
         size: position.size,
       });
-
       queryClient.invalidateQueries({ queryKey: ['polymarket-positions'] });
       queryClient.invalidateQueries({ queryKey: ['usdcBalance'] });
-
       createPollingInterval(
         () => {
           queryClient.invalidateQueries({ queryKey: ['polymarket-positions'] });
@@ -139,23 +117,32 @@ export default function UserPositions() {
 
   const activePositions = useMemo(() => {
     if (!positions) return [];
+    return positions
+      .filter((p) => p.size >= DUST_THRESHOLD)
+      .filter((p) => p.currentValue >= DUST_THRESHOLD);
+  }, [positions]);
 
-    let filtered = positions.filter((p) => p.size >= DUST_THRESHOLD);
+  // ── Portfolio stats ──────────────────────────────────────────────────────
+  const stats = useMemo(() => {
+    if (!activePositions.length) return { portfolioPct: 0, lifetimeEarned: 0, inOrdersValue: 0 };
 
-    if (hideDust) {
-      filtered = filtered.filter((p) => p.currentValue >= DUST_THRESHOLD);
-    }
+    const totalInitial = activePositions.reduce((s, p) => s + (p.initialValue || p.avgPrice * p.size), 0);
+    const totalPnl = activePositions.reduce((s, p) => s + p.cashPnl, 0);
+    const portfolioPct = totalInitial > 0 ? (totalPnl / totalInitial) * 100 : 0;
+    const lifetimeEarned = activePositions.reduce((s, p) => s + p.cashPnl + p.realizedPnl, 0);
 
-    return filtered;
-  }, [positions, hideDust]);
+    const inOrdersValue = activeOrders
+      .filter((o) => o.side === 'BUY')
+      .reduce((s, o) => {
+        const remaining = parseFloat(o.original_size) - parseFloat(o.size_matched);
+        return s + remaining * parseFloat(o.price);
+      }, 0);
 
-  if (isLoading) {
-    return <LoadingState message="Loading positions..." />;
-  }
+    return { portfolioPct, lifetimeEarned, inOrdersValue };
+  }, [activePositions, activeOrders]);
 
-  if (error) {
-    return <ErrorState error={error} title="Error loading positions" />;
-  }
+  if (isLoading) return <LoadingState message="Loading positions..." />;
+  if (error) return <ErrorState error={error} title="Error loading positions" />;
 
   if (!positions || activePositions.length === 0) {
     return (
@@ -166,26 +153,53 @@ export default function UserPositions() {
     );
   }
 
+  const isPctPositive = stats.portfolioPct >= 0;
+
   return (
     <div className="space-y-4">
-      {/* Header with Position Count and Dust Toggle */}
-      <PositionFilters
-        positionCount={activePositions.length}
-        hideDust={hideDust}
-        onToggleHideDust={() => setHideDust(!hideDust)}
-      />
-
-      {/* Dust Warning Banner */}
-      {hideDust && positions && positions.length > activePositions.length && (
-        <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">
-          <p className="text-amber-700 text-sm">
-            Hiding {positions.length - activePositions.length} dust position(s)
-            (value &lt; ${DUST_THRESHOLD.toFixed(2)})
+      {/* ── Stats Row ──────────────────────────────────────────────────── */}
+      <div className="grid grid-cols-2 gap-3">
+        {/* Available */}
+        <div className="bg-gray-50 border border-gray-200 rounded-2xl p-4">
+          <div className="flex items-center gap-1.5 mb-1">
+            <span className="text-xs text-gray-500">Available</span>
+            <span className={`text-xs font-semibold px-1.5 py-0.5 rounded-full ${isPctPositive ? 'bg-green-100 text-green-600' : 'bg-red-100 text-red-600'}`}>
+              {isPctPositive ? '+' : ''}{stats.portfolioPct.toFixed(2)}%
+            </span>
+          </div>
+          <p className="text-xl font-bold text-gray-900">
+            ${usdcBalance.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
           </p>
+        </div>
+
+        {/* Lifetime Earned */}
+        <div className="bg-gray-50 border border-gray-200 rounded-2xl p-4">
+          <p className="text-xs text-gray-500 mb-1">Lifetime Earned</p>
+          <p className="text-xl font-bold text-gray-900">
+            ${stats.lifetimeEarned.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+          </p>
+        </div>
+      </div>
+
+      {/* ── In Orders ──────────────────────────────────────────────────── */}
+      {activeOrders.length > 0 && (
+        <div className="bg-gray-50 border border-gray-200 rounded-2xl px-4 py-3 flex items-center justify-between">
+          <div>
+            <p className="text-xs text-gray-400">Limit Orders</p>
+            <p className="text-sm font-semibold text-gray-900">In Orders</p>
+          </div>
+          <div className="flex items-center gap-1">
+            <span className="text-sm font-bold text-gray-900">
+              ${stats.inOrdersValue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+            </span>
+            <ChevronRight className="w-4 h-4 text-gray-400" />
+          </div>
         </div>
       )}
 
-      {/* Positions List */}
+      {/* ── Your Picks ─────────────────────────────────────────────────── */}
+      <h3 className="text-lg font-bold text-gray-900 pt-1">Your Picks</h3>
+
       <div className="space-y-3">
         {activePositions.map((position) => (
           <PositionCard
@@ -193,6 +207,7 @@ export default function UserPositions() {
             position={position}
             onRedeem={handleRedeem}
             onSell={handleMarketSell}
+            onBuyMore={(p) => setBuyMorePosition(p)}
             isSelling={sellingAsset === position.asset}
             isRedeeming={redeemingAsset === position.asset}
             isPendingVerification={pendingVerification.has(position.asset)}
@@ -202,6 +217,21 @@ export default function UserPositions() {
           />
         ))}
       </div>
+
+      {/* ── Buy More Modal ─────────────────────────────────────────────── */}
+      {buyMorePosition && (
+        <OrderPlacementModal
+          isOpen={!!buyMorePosition}
+          onClose={() => setBuyMorePosition(null)}
+          marketTitle={buyMorePosition.title}
+          outcome={buyMorePosition.outcome}
+          currentPrice={buyMorePosition.curPrice}
+          tokenId={buyMorePosition.asset}
+          negRisk={buyMorePosition.negativeRisk}
+          clobClient={clobClient}
+          balance={usdcBalance}
+        />
+      )}
     </div>
   );
 }

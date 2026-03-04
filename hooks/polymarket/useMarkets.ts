@@ -47,20 +47,24 @@ export type PolymarketMarket = {
 interface UseMarketsOptions {
   limit?: number;
   categoryId?: CategoryId;
+  /** Override the tag_id used for filtering (e.g. a sport subcategory tag) */
+  overrideTagId?: number | null;
 }
 
 export function useMarkets(options: UseMarketsOptions = {}) {
-  const { limit = 10, categoryId = "trending" } = options;
+  const { limit = 10, categoryId = "trending", overrideTagId } = options;
   const { clobClient } = useTrading();
 
   return useQuery({
-    queryKey: ["high-volume-markets", limit, categoryId, !!clobClient],
+    queryKey: ["high-volume-markets", limit, categoryId, overrideTagId, !!clobClient],
     queryFn: async (): Promise<PolymarketMarket[]> => {
       const category = getCategoryById(categoryId);
       let url = `/api/polymarket/markets?limit=${limit}`;
 
-      if (category?.tagId) {
-        url += `&tag_id=${category.tagId}`;
+      // overrideTagId (sport subcategory) takes priority over category-level tagId
+      const tagId = overrideTagId !== undefined ? overrideTagId : category?.tagId;
+      if (tagId) {
+        url += `&tag_id=${tagId}`;
       }
 
       const response = await fetch(url);

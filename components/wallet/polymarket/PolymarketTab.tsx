@@ -6,7 +6,6 @@ import { useEffect } from "react";
 import GeoBlockedBanner from "./GeoBlockedBanner";
 import MarketTabs from "./MarketTabs";
 import PolygonAssets from "./PolygonAssets";
-import SafeWalletCard from "./SafeWalletCard";
 
 export default function PolymarketTab() {
   const { authenticated, isReady } = usePolymarketWallet();
@@ -127,25 +126,15 @@ export default function PolymarketTab() {
   }
 
   return (
-    <div className="space-y-4 mt-4">
+    <div className="space-y-2 mt-4">
       {/* Geoblock Warning */}
       <GeoBlockedBanner />
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        {/* Left Column - Wallet & Assets */}
-        <div className="space-y-4">
-          {/* Safe Wallet Card with QR & Address */}
-          <SafeWalletCard />
+      {/* Predictions Balance */}
+      <PolygonAssets />
 
-          {/* Trading Balance with Deposit */}
-          <PolygonAssets />
-        </div>
-
-        {/* Right Column - Trading */}
-        <div className="lg:col-span-2">
-          <MarketTabs />
-        </div>
-      </div>
+      {/* Markets */}
+      <MarketTabs />
     </div>
   );
 }
