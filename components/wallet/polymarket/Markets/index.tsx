@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
 import { useTrading } from '@/providers/polymarket';
 import { useMarkets, usePolygonBalances, useUserPositions } from '@/hooks/polymarket';
 import {
@@ -18,6 +18,9 @@ import LoadingState from '../shared/LoadingState';
 import MarketCard from './MarketCard';
 import CategoryTabs from './CategoryTabs';
 import OrderPlacementModal from '../OrderModal';
+
+const PAGE_SIZE = 10;
+const PREFETCH_SIZE = 50;
 
 type SelectedMarket = {
   marketTitle: string;
@@ -39,6 +42,8 @@ export default function HighVolumeMarkets() {
   const [activeSportSub, setActiveSportSub] =
     useState<SportSubcategoryId>(DEFAULT_SPORT_SUBCATEGORY);
   const [selectedMarket, setSelectedMarket] = useState<SelectedMarket | null>(null);
+  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
+  const sentinelRef = useRef<HTMLDivElement>(null);
 
   const { clobClient, isGeoblocked, safeAddress } = useTrading();
   const { usdcBalance } = usePolygonBalances(safeAddress);
@@ -53,14 +58,47 @@ export default function HighVolumeMarkets() {
   }, [activeCategory, activeSportSub]);
 
   const {
-    data: markets,
+    data: allMarkets,
     isLoading,
     error,
   } = useMarkets({
-    limit: 10,
+    limit: PREFETCH_SIZE,
     categoryId: activeCategory,
     overrideTagId,
   });
+
+  // Slice to the currently visible window
+  const markets = useMemo(
+    () => (allMarkets ? allMarkets.slice(0, visibleCount) : []),
+    [allMarkets, visibleCount],
+  );
+
+  const hasMore = !!allMarkets && visibleCount < allMarkets.length;
+
+  // Reset visible count when the category / sport sub changes
+  useEffect(() => {
+    setVisibleCount(PAGE_SIZE);
+  }, [activeCategory, activeSportSub]);
+
+  // IntersectionObserver — load next page when sentinel enters viewport
+  useEffect(() => {
+    const sentinel = sentinelRef.current;
+    if (!sentinel || !hasMore) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting) {
+          setVisibleCount((prev) =>
+            Math.min(prev + PAGE_SIZE, allMarkets?.length ?? prev),
+          );
+        }
+      },
+      { threshold: 0.1 },
+    );
+
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, [hasMore, allMarkets?.length]);
 
   const category = getCategoryById(activeCategory);
   const categoryLabel = category?.label || 'Markets';
@@ -100,7 +138,7 @@ export default function HighVolumeMarkets() {
     tokenId: string,
     negRisk: boolean,
   ) => {
-    const market = markets?.find((m) => m.question === marketTitle);
+    const market = allMarkets?.find((m) => m.question === marketTitle);
     if (!market) return;
 
     const tokenIds = market.clobTokenIds
@@ -110,8 +148,22 @@ export default function HighVolumeMarkets() {
     const yesTokenId = tokenIds[0] || tokenId;
     const noTokenId = tokenIds[1] || '';
 
-    const yesPrice = market.realtimePrices?.[yesTokenId]?.bidPrice || price;
-    const noPrice = market.realtimePrices?.[noTokenId]?.bidPrice || (1 - price);
+    // staticPrices[0] = Yes price, staticPrices[1] = No price (correctly indexed)
+    const staticPrices: number[] = market.outcomePrices
+      ? JSON.parse(market.outcomePrices).map(Number)
+      : [];
+
+    // Use realtime prices first, then static prices, then infer from the
+    // clicked price (using the outcome name to derive the correct polarity).
+    const isYesClicked = outcome.toLowerCase() === 'yes';
+    const yesPrice =
+      market.realtimePrices?.[yesTokenId]?.bidPrice ??
+      staticPrices[0] ??
+      (isYesClicked ? price : 1 - price);
+    const noPrice =
+      market.realtimePrices?.[noTokenId]?.bidPrice ??
+      staticPrices[1] ??
+      (isYesClicked ? 1 - price : price);
 
     setSelectedMarket({
       marketTitle,
@@ -160,7 +212,7 @@ export default function HighVolumeMarkets() {
         <div className="flex items-center justify-between">
           <h3 className="text-lg font-bold text-gray-900">
             {sectionLabel}{' '}
-            {markets ? `(${markets.length})` : ''}
+            {allMarkets ? `(${markets.length} of ${allMarkets.length})` : ''}
           </h3>
           <p className="text-xs text-gray-500">Sorted by volume + liquidity</p>
         </div>
@@ -189,17 +241,37 @@ export default function HighVolumeMarkets() {
 
         {/* Market Cards */}
         {!isLoading && !error && markets && markets.length > 0 && (
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
-            {markets.map((market) => (
-              <MarketCard
-                key={market.id}
-                market={market}
-                disabled={isGeoblocked}
-                isSportsCategory={activeCategory === 'sports'}
-                onOutcomeClick={handleOutcomeClick}
-              />
-            ))}
-          </div>
+          <>
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+              {markets.map((market) => (
+                <MarketCard
+                  key={market.id}
+                  market={market}
+                  disabled={isGeoblocked}
+                  isSportsCategory={activeCategory === 'sports'}
+                  onOutcomeClick={handleOutcomeClick}
+                />
+              ))}
+            </div>
+
+            {/* Sentinel — triggers next page when scrolled into view */}
+            {hasMore && (
+              <div
+                ref={sentinelRef}
+                className="flex items-center justify-center py-4 gap-2 text-sm text-gray-400"
+              >
+                <div className="w-4 h-4 border-2 border-gray-300 border-t-gray-600 rounded-full animate-spin" />
+                Loading more markets...
+              </div>
+            )}
+
+            {/* End-of-list indicator */}
+            {!hasMore && markets.length > PAGE_SIZE && (
+              <p className="text-center text-xs text-gray-400 py-3">
+                All {allMarkets?.length} markets loaded
+              </p>
+            )}
+          </>
         )}
       </div>
 
