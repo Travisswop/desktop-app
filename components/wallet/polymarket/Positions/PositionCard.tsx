@@ -29,9 +29,15 @@ export default function PositionCard({
   canRedeem,
 }: PositionCardProps) {
   const isRedeemable = position.redeemable;
+
+  // Show the event title for binary Yes/No outcomes; show outcome name for others (e.g. team abbreviations)
+  const isBinaryOutcome =
+    position.outcome === 'Yes' || position.outcome === 'No';
+  const displayPick = isBinaryOutcome ? position.title : position.outcome;
+
   const costCents = Math.round(position.avgPrice * 100);
   const currentCents = Math.round(position.curPrice * 100);
-  const toWin = position.size; // shares × $1 max payout
+  const toWin = position.size;
   const cost = position.initialValue || position.avgPrice * position.size;
   const currentValue = position.currentValue;
   const pnl = position.cashPnl;
@@ -39,72 +45,87 @@ export default function PositionCard({
 
   const handleShare = () => {
     if (navigator.share) {
-      navigator.share({ title: position.title, url: `https://polymarket.com/event/${position.eventSlug}` });
+      navigator.share({
+        title: position.title,
+        url: `https://polymarket.com/event/${position.eventSlug}`,
+      });
     }
   };
 
   return (
     <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
-      {/* Header */}
-      <div className="flex items-center justify-between px-4 pt-3 pb-2">
-        <p className="text-sm text-gray-700">
+      {/* Header: "You picked [title/outcome]" */}
+      <div className="flex items-start justify-between px-4 pt-4 pb-3">
+        <p className="text-sm text-gray-700 leading-snug flex-1 pr-2">
           You picked{' '}
-          <span className="font-semibold text-green-600">{position.outcome}</span>
+          <span className="font-bold text-[#3B82F6] line-clamp-2">
+            {displayPick}
+          </span>
         </p>
         <button
           onClick={handleShare}
-          className="text-gray-400 hover:text-gray-600 transition-colors"
+          className="text-gray-400 hover:text-gray-600 transition-colors flex-shrink-0 mt-0.5"
           title="Share"
         >
           <Share2 className="w-4 h-4" />
         </button>
       </div>
 
-      <div className="border-t border-gray-100 mx-4" />
+      {/* Divider */}
+      <div className="border-t border-dashed border-gray-200 mx-4" />
 
-      {/* Stats */}
-      <div className="grid grid-cols-3 px-4 pt-3 pb-1">
+      {/* Stats row */}
+      <div className="grid grid-cols-3 gap-0 px-4 pt-3 pb-4">
+        {/* Cost */}
         <div>
-          <p className="text-xs text-gray-500">Cost {costCents}¢</p>
-          <p className="text-lg font-bold text-gray-900">
+          <p className="text-xs text-gray-400 mb-1">Cost {costCents}$</p>
+          <p className="text-xl font-bold text-gray-900">
             ${Math.round(cost)}
           </p>
         </div>
+
+        {/* Current */}
         <div>
-          <p className="text-xs text-gray-500">Current {currentCents}¢</p>
-          <div className="flex items-baseline gap-1">
-            <p className="text-lg font-bold text-green-500">
+          <p className="text-xs text-gray-400 mb-1">Current {currentCents}$</p>
+          <div className="flex items-baseline gap-1 flex-wrap">
+            <p className="text-xl font-bold text-green-500">
               ${Math.round(currentValue)}
             </p>
             {pnl !== 0 && (
-              <span className={`text-xs font-semibold ${isProfitable ? 'text-green-500' : 'text-red-500'}`}>
-                {isProfitable ? '+' : ''}${Math.round(Math.abs(pnl))}
+              <span
+                className={`text-xs font-semibold ${isProfitable ? 'text-green-500' : 'text-red-500'}`}
+              >
+                {isProfitable ? '+' : '-'}${Math.round(Math.abs(pnl))}
               </span>
             )}
           </div>
         </div>
+
+        {/* To win */}
         <div>
-          <p className="text-xs text-gray-500">To win</p>
-          <p className="text-lg font-bold text-gray-900">
+          <p className="text-xs text-gray-400 mb-1">To win</p>
+          <p className="text-xl font-bold text-gray-900">
             ${Math.round(toWin)}
           </p>
         </div>
       </div>
 
-      {/* Pending / Redeeming state */}
+      {/* Processing indicator */}
       {isPendingVerification && (
-        <p className="px-4 pb-1 text-xs text-amber-600 font-medium">Processing sale...</p>
+        <p className="px-4 pb-2 text-xs text-amber-600 font-medium">
+          Processing sale...
+        </p>
       )}
 
-      {/* Action Buttons */}
-      <div className="flex gap-2 px-4 pb-4 pt-2">
+      {/* Action buttons */}
+      <div className="flex gap-2 px-4 pb-4">
         {isRedeemable ? (
           <button
             onClick={() => onRedeem(position)}
             disabled={isRedeeming || !canRedeem}
             className="flex-1 py-2.5 bg-green-500 hover:bg-green-600 disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-semibold rounded-xl transition-colors"
           >
-            {isRedeeming ? 'Redeeming...' : 'Redeem $' + Math.round(toWin)}
+            {isRedeeming ? 'Redeeming...' : `Redeem $${Math.round(toWin)}`}
           </button>
         ) : (
           <>
@@ -117,7 +138,12 @@ export default function PositionCard({
             </button>
             <button
               onClick={() => onSell(position)}
-              disabled={isSelling || isPendingVerification || isSubmitting || !canSell}
+              disabled={
+                isSelling ||
+                isPendingVerification ||
+                isSubmitting ||
+                !canSell
+              }
               className="flex-1 py-2.5 bg-white hover:bg-gray-50 border border-gray-200 disabled:opacity-50 disabled:cursor-not-allowed text-gray-900 text-sm font-semibold rounded-xl transition-colors"
             >
               {isSelling ? 'Selling...' : 'Cash out'}
