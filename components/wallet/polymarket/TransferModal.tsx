@@ -344,7 +344,17 @@ function DepositTab({ open, onClose }: { open: boolean; onClose: () => void }) {
   const executeDirectTransfer = async () => {
     if (!eoaAddress || !safeAddress) throw new Error('Wallet not ready');
     await switchToPolygon();
-    const amountInWei = parseUnits(amount, USDC_E_DECIMALS);
+
+    // Safely coerce to string (balance fields can be numeric at runtime)
+    // and truncate to max USDC_E_DECIMALS places to prevent viem parseUnits errors
+    const amountStr = String(amount ?? '').trim();
+    const dotIdx = amountStr.indexOf('.');
+    const safeAmount =
+      dotIdx >= 0
+        ? `${amountStr.slice(0, dotIdx)}.${amountStr.slice(dotIdx + 1, dotIdx + 1 + USDC_E_DECIMALS)}`
+        : amountStr || '0';
+
+    const amountInWei = parseUnits(safeAmount, USDC_E_DECIMALS);
     const data = encodeFunctionData({
       abi: erc20Abi,
       functionName: 'transfer',
