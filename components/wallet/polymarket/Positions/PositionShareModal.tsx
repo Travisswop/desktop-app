@@ -96,7 +96,7 @@ export default function PositionShareModal({
         <div className="px-6 pb-5">
           {/* SWOP branding */}
           <div className="text-center mb-5">
-            <p className="text-4xl font-black tracking-[0.35em] text-gray-900 uppercase">
+            <p className="text-2xl font-black text-gray-900 uppercase">
               SWOP
             </p>
             <p className="text-sm text-gray-400 mt-1 line-clamp-2 leading-snug">
