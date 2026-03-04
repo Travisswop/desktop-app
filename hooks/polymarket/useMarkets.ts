@@ -57,8 +57,7 @@ export function useMarkets(options: UseMarketsOptions = {}) {
     queryKey: ["high-volume-markets", limit, categoryId, !!clobClient],
     queryFn: async (): Promise<PolymarketMarket[]> => {
       const category = getCategoryById(categoryId);
-      const apiBase = "https://polymarket.apiswop.co";
-      let url = `${apiBase}/api/prediction-markets/markets?limit=${limit}`;
+      let url = `/api/polymarket/markets?limit=${limit}`;
 
       if (category?.tagId) {
         url += `&tag_id=${category.tagId}`;
