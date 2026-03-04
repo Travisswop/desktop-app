@@ -94,6 +94,7 @@ const cspConfig = {
     'https://*.li.fi',
     'https://li.quest',
     'https://explorer-api.walletconnect.com',
+    'https://polymarket.apiswop.co',
   ],
   workerSrc: ["'self'"],
   manifestSrc: ["'self'"],
