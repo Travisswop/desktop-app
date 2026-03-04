@@ -1,7 +1,6 @@
-import { useCallback } from "react";
-import { ClobClient } from "@polymarket/clob-client";
-import { usePolymarketWallet } from "@/providers/polymarket";
-import { CLOB_API_URL, POLYGON_CHAIN_ID } from "@/constants/polymarket";
+import { useCallback } from 'react';
+import { usePolymarketWallet } from '@/providers/polymarket';
+import { pmApi } from '@/lib/polymarket/polymarketApi';
 
 export interface UserApiCredentials {
   key: string;
@@ -9,46 +8,49 @@ export interface UserApiCredentials {
   passphrase: string;
 }
 
-// This hook's sole purpose is to derive or create
-// the User API Credentials with a temporary ClobClient
+// Derives Polymarket L2 API credentials by signing an EIP-712 message via
+// the polymarket-backend — no SDK required on the client.
 
 export function useUserApiCredentials() {
-  const { eoaAddress, ethersSigner } = usePolymarketWallet();
+  const { eoaAddress, walletClient } = usePolymarketWallet();
 
-  // Creates temporary clobClient with ethers signer
   const createOrDeriveUserApiCredentials =
     useCallback(async (): Promise<UserApiCredentials> => {
-      if (!eoaAddress || !ethersSigner) throw new Error("Wallet not connected");
+      if (!eoaAddress || !walletClient)
+        throw new Error('Wallet not connected');
 
-      const tempClient = new ClobClient(
-        CLOB_API_URL,
-        POLYGON_CHAIN_ID,
-        ethersSigner
-      );
+      // 1. Fetch EIP-712 typed data from backend
+      const { typedData, timestamp, nonce } = await pmApi<{
+        typedData: {
+          domain: any;
+          types: any;
+          primaryType: string;
+          message: any;
+        };
+        timestamp: string;
+        nonce: number;
+      }>(`/session/credential-typed-data?eoaAddress=${eoaAddress}`);
 
-      try {
-        // Try to derive existing credentials first
-        const derivedCreds = await tempClient.deriveApiKey().catch(() => null);
+      // 2. Sign with wallet
+      const signature = await walletClient.signTypedData({
+        domain: typedData.domain,
+        types: typedData.types,
+        primaryType: typedData.primaryType as any,
+        message: typedData.message,
+      });
 
-        if (
-          derivedCreds?.key &&
-          derivedCreds?.secret &&
-          derivedCreds?.passphrase
-        ) {
-          console.log("Successfully derived existing User API Credentials");
-          return derivedCreds;
-        }
+      // 3. Derive credentials
+      const creds = await pmApi<UserApiCredentials>('/session/credentials', {
+        method: 'POST',
+        body: JSON.stringify({ eoaAddress, signature, timestamp, nonce }),
+      });
 
-        // Derive failed or returned invalid data - create new credentials
-        console.log("Creating new User API Credentials...");
-        const newCreds = await tempClient.createApiKey();
-        console.log("Successfully created new User API Credentials");
-        return newCreds;
-      } catch (err) {
-        console.error("Failed to get credentials:", err);
-        throw err;
+      if (!creds?.key || !creds?.secret || !creds?.passphrase) {
+        throw new Error('Failed to derive valid API credentials');
       }
-    }, [eoaAddress, ethersSigner]);
+
+      return creds;
+    }, [eoaAddress, walletClient]);
 
   return { createOrDeriveUserApiCredentials };
 }

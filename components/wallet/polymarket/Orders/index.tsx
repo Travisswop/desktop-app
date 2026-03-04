@@ -10,7 +10,7 @@ import LoadingState from '../shared/LoadingState';
 import OrderCard from './OrderCard';
 
 export default function ActiveOrders() {
-  const { clobClient, safeAddress } = useTrading();
+  const { safeAddress } = useTrading();
   const [cancellingOrderId, setCancellingOrderId] = useState<string | null>(
     null,
   );
@@ -19,9 +19,9 @@ export default function ActiveOrders() {
     data: orders,
     isLoading,
     error,
-  } = useActiveOrders(clobClient, safeAddress);
+  } = useActiveOrders(safeAddress);
 
-  const { cancelOrder } = useClobOrder(clobClient, safeAddress);
+  const { cancelOrder } = useClobOrder(safeAddress);
 
   const handleCancelOrder = async (orderId: string) => {
     setCancellingOrderId(orderId);

@@ -28,7 +28,7 @@ import {
 } from '@/constants/polymarket';
 
 export default function UserPositions() {
-  const { clobClient, relayClient, safeAddress } = useTrading();
+  const { isTradingSessionComplete, safeAddress } = useTrading();
   const { eoaAddress } = usePolymarketWallet();
 
   const {
@@ -39,16 +39,19 @@ export default function UserPositions() {
 
   const { usdcBalance } = usePolygonBalances(safeAddress);
 
-  const { data: activeOrders = [] } = useActiveOrders(clobClient, eoaAddress);
+  const { data: activeOrders = [] } = useActiveOrders(eoaAddress);
 
   const [redeemingAsset, setRedeemingAsset] = useState<string | null>(null);
   const [sellingAsset, setSellingAsset] = useState<string | null>(null);
-  const [buyMorePosition, setBuyMorePosition] = useState<PolymarketPosition | null>(null);
+  const [buyMorePosition, setBuyMorePosition] =
+    useState<PolymarketPosition | null>(null);
 
   const { redeemPosition, isRedeeming } = useRedeemPosition();
-  const { submitOrder, isSubmitting } = useClobOrder(clobClient, eoaAddress);
+  const { submitOrder, isSubmitting } = useClobOrder(eoaAddress);
 
-  const [pendingVerification, setPendingVerification] = useState<Map<string, number>>(new Map());
+  const [pendingVerification, setPendingVerification] = useState<
+    Map<string, number>
+  >(new Map());
   const queryClient = useQueryClient();
 
   useEffect(() => {
@@ -56,9 +59,11 @@ export default function UserPositions() {
     const stillPending = new Map<string, number>();
     pendingVerification.forEach((originalSize, asset) => {
       const current = positions.find((p) => p.asset === asset);
-      if ((current?.size || 0) >= originalSize) stillPending.set(asset, originalSize);
+      if ((current?.size || 0) >= originalSize)
+        stillPending.set(asset, originalSize);
     });
-    if (stillPending.size !== pendingVerification.size) setPendingVerification(stillPending);
+    if (stillPending.size !== pendingVerification.size)
+      setPendingVerification(stillPending);
   }, [positions, pendingVerification]);
 
   const handleMarketSell = async (position: PolymarketPosition) => {
@@ -71,15 +76,22 @@ export default function UserPositions() {
         negRisk: position.negativeRisk,
         isMarketOrder: true,
       });
-      setPendingVerification((prev) => new Map(prev).set(position.asset, position.size));
+      setPendingVerification((prev) =>
+        new Map(prev).set(position.asset, position.size),
+      );
       queryClient.invalidateQueries({ queryKey: ['polymarket-positions'] });
       createPollingInterval(
-        () => queryClient.invalidateQueries({ queryKey: ['polymarket-positions'] }),
+        () =>
+          queryClient.invalidateQueries({ queryKey: ['polymarket-positions'] }),
         POLLING_INTERVAL,
         POLLING_DURATION,
       );
       setTimeout(() => {
-        setPendingVerification((prev) => { const n = new Map(prev); n.delete(position.asset); return n; });
+        setPendingVerification((prev) => {
+          const n = new Map(prev);
+          n.delete(position.asset);
+          return n;
+        });
       }, POLLING_DURATION);
     } catch (err) {
       console.error('Failed to sell position:', err);
@@ -89,10 +101,10 @@ export default function UserPositions() {
   };
 
   const handleRedeem = async (position: PolymarketPosition) => {
-    if (!relayClient) return;
+    if (!safeAddress) return;
     setRedeemingAsset(position.asset);
     try {
-      await redeemPosition(relayClient, {
+      await redeemPosition(safeAddress, {
         conditionId: position.conditionId,
         outcomeIndex: position.outcomeIndex,
         negativeRisk: position.negativeRisk,
@@ -122,19 +134,27 @@ export default function UserPositions() {
       .filter((p) => p.currentValue >= DUST_THRESHOLD);
   }, [positions]);
 
-  // ── Portfolio stats ──────────────────────────────────────────────────────
   const stats = useMemo(() => {
-    if (!activePositions.length) return { portfolioPct: 0, lifetimeEarned: 0, inOrdersValue: 0 };
+    if (!activePositions.length)
+      return { portfolioPct: 0, lifetimeEarned: 0, inOrdersValue: 0 };
 
-    const totalInitial = activePositions.reduce((s, p) => s + (p.initialValue || p.avgPrice * p.size), 0);
+    const totalInitial = activePositions.reduce(
+      (s, p) => s + (p.initialValue || p.avgPrice * p.size),
+      0,
+    );
     const totalPnl = activePositions.reduce((s, p) => s + p.cashPnl, 0);
-    const portfolioPct = totalInitial > 0 ? (totalPnl / totalInitial) * 100 : 0;
-    const lifetimeEarned = activePositions.reduce((s, p) => s + p.cashPnl + p.realizedPnl, 0);
+    const portfolioPct =
+      totalInitial > 0 ? (totalPnl / totalInitial) * 100 : 0;
+    const lifetimeEarned = activePositions.reduce(
+      (s, p) => s + p.cashPnl + p.realizedPnl,
+      0,
+    );
 
     const inOrdersValue = activeOrders
       .filter((o) => o.side === 'BUY')
       .reduce((s, o) => {
-        const remaining = parseFloat(o.original_size) - parseFloat(o.size_matched);
+        const remaining =
+          parseFloat(o.original_size) - parseFloat(o.size_matched);
         return s + remaining * parseFloat(o.price);
       }, 0);
 
@@ -157,31 +177,39 @@ export default function UserPositions() {
 
   return (
     <div className="space-y-4">
-      {/* ── Stats Row ──────────────────────────────────────────────────── */}
+      {/* Stats Row */}
       <div className="grid grid-cols-2 gap-3">
-        {/* Available */}
         <div className="bg-gray-50 border border-gray-200 rounded-2xl p-4">
           <div className="flex items-center gap-1.5 mb-1">
             <span className="text-xs text-gray-500">Available</span>
-            <span className={`text-xs font-semibold px-1.5 py-0.5 rounded-full ${isPctPositive ? 'bg-green-100 text-green-600' : 'bg-red-100 text-red-600'}`}>
-              {isPctPositive ? '+' : ''}{stats.portfolioPct.toFixed(2)}%
+            <span
+              className={`text-xs font-semibold px-1.5 py-0.5 rounded-full ${isPctPositive ? 'bg-green-100 text-green-600' : 'bg-red-100 text-red-600'}`}
+            >
+              {isPctPositive ? '+' : ''}
+              {stats.portfolioPct.toFixed(2)}%
             </span>
           </div>
           <p className="text-xl font-bold text-gray-900">
-            ${usdcBalance.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+            $
+            {usdcBalance.toLocaleString('en-US', {
+              minimumFractionDigits: 2,
+              maximumFractionDigits: 2,
+            })}
           </p>
         </div>
 
-        {/* Lifetime Earned */}
         <div className="bg-gray-50 border border-gray-200 rounded-2xl p-4">
           <p className="text-xs text-gray-500 mb-1">Lifetime Earned</p>
           <p className="text-xl font-bold text-gray-900">
-            ${stats.lifetimeEarned.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+            $
+            {stats.lifetimeEarned.toLocaleString('en-US', {
+              minimumFractionDigits: 2,
+              maximumFractionDigits: 2,
+            })}
           </p>
         </div>
       </div>
 
-      {/* ── In Orders ──────────────────────────────────────────────────── */}
       {activeOrders.length > 0 && (
         <div className="bg-gray-50 border border-gray-200 rounded-2xl px-4 py-3 flex items-center justify-between">
           <div>
@@ -190,14 +218,17 @@ export default function UserPositions() {
           </div>
           <div className="flex items-center gap-1">
             <span className="text-sm font-bold text-gray-900">
-              ${stats.inOrdersValue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              $
+              {stats.inOrdersValue.toLocaleString('en-US', {
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2,
+              })}
             </span>
             <ChevronRight className="w-4 h-4 text-gray-400" />
           </div>
         </div>
       )}
 
-      {/* ── Your Picks ─────────────────────────────────────────────────── */}
       <h3 className="text-lg font-bold text-gray-900 pt-1">Your Picks</h3>
 
       <div className="space-y-3">
@@ -212,13 +243,12 @@ export default function UserPositions() {
             isRedeeming={redeemingAsset === position.asset}
             isPendingVerification={pendingVerification.has(position.asset)}
             isSubmitting={isSubmitting}
-            canSell={!!clobClient}
-            canRedeem={!!relayClient}
+            canSell={!!isTradingSessionComplete}
+            canRedeem={!!isTradingSessionComplete}
           />
         ))}
       </div>
 
-      {/* ── Buy More Modal ─────────────────────────────────────────────── */}
       {buyMorePosition && (
         <OrderPlacementModal
           isOpen={!!buyMorePosition}
@@ -228,7 +258,7 @@ export default function UserPositions() {
           currentPrice={buyMorePosition.curPrice}
           tokenId={buyMorePosition.asset}
           negRisk={buyMorePosition.negativeRisk}
-          clobClient={clobClient}
+          isTradingReady={!!isTradingSessionComplete}
           balance={usdcBalance}
         />
       )}

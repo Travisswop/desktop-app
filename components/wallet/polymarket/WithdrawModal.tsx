@@ -1,21 +1,12 @@
 'use client';
 
 import { useState, useCallback } from 'react';
-import {
-  erc20Abi,
-  parseUnits,
-  encodeFunctionData,
-} from 'viem';
-import {
-  OperationType,
-  type SafeTransaction,
-} from '@polymarket/builder-relayer-client';
+import { parseUnits } from 'viem';
 import { useQueryClient } from '@tanstack/react-query';
 import CustomModal from '@/components/modal/CustomModal';
 import { useTrading, usePolymarketWallet } from '@/providers/polymarket';
 import { usePolygonBalances } from '@/hooks/polymarket';
 import {
-  USDC_E_CONTRACT_ADDRESS,
   USDC_E_DECIMALS,
 } from '@/constants/polymarket';
 import {
@@ -29,25 +20,21 @@ import {
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { pmApi } from '@/lib/polymarket/polymarketApi';
 
 interface WithdrawModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }
 
-type WithdrawStep =
-  | 'amount'
-  | 'confirm'
-  | 'processing'
-  | 'success'
-  | 'error';
+type WithdrawStep = 'amount' | 'confirm' | 'processing' | 'success' | 'error';
 
 export default function WithdrawModal({
   open,
   onOpenChange,
 }: WithdrawModalProps) {
-  const { safeAddress, relayClient } = useTrading();
-  const { eoaAddress } = usePolymarketWallet();
+  const { safeAddress, isTradingSessionComplete } = useTrading();
+  const { eoaAddress, walletClient } = usePolymarketWallet();
   const { usdcBalance } = usePolygonBalances(safeAddress);
   const queryClient = useQueryClient();
 
@@ -59,12 +46,9 @@ export default function WithdrawModal({
 
   const destination = eoaAddress;
 
-  // --- Derived state ---
   const parsedAmount = parseFloat(amount) || 0;
-  const isAmountValid =
-    parsedAmount > 0 && parsedAmount <= usdcBalance;
+  const isAmountValid = parsedAmount > 0 && parsedAmount <= usdcBalance;
 
-  // --- Helpers ---
   const truncateAddress = (addr: string) =>
     `${addr.slice(0, 6)}...${addr.slice(-4)}`;
 
@@ -75,9 +59,7 @@ export default function WithdrawModal({
     setTimeout(() => setCopied(false), 2000);
   };
 
-  const handleMax = () => {
-    setAmount(usdcBalance.toFixed(6));
-  };
+  const handleMax = () => setAmount(usdcBalance.toFixed(6));
 
   const handleClose = () => {
     if (step === 'processing') return;
@@ -88,9 +70,8 @@ export default function WithdrawModal({
     onOpenChange(false);
   };
 
-  // --- Execute withdrawal via relayClient ---
   const executeWithdraw = useCallback(async () => {
-    if (!relayClient || !destination || !safeAddress) {
+    if (!safeAddress || !eoaAddress || !walletClient || !destination) {
       setError('Trading session not ready. Please try again.');
       setStep('error');
       return;
@@ -100,69 +81,64 @@ export default function WithdrawModal({
     setError(null);
 
     try {
-      const amountInWei = parseUnits(
-        parsedAmount.toFixed(USDC_E_DECIMALS),
-        USDC_E_DECIMALS,
-      );
+      // 1. Get SafeTx EIP-712 typed data + safeTxHash from backend
+      const params = new URLSearchParams({
+        safeAddress,
+        eoaAddress,
+        toAddress: destination,
+        amount: parsedAmount.toFixed(USDC_E_DECIMALS),
+      });
+      const typedDataRes = await pmApi<{
+        typedData: any;
+        safeTxHash: string;
+        nonce: string;
+        to: string;
+        data: string;
+        operation: number;
+      }>(`/positions/withdraw-typed-data?${params}`);
 
-      const data = encodeFunctionData({
-        abi: erc20Abi,
-        functionName: 'transfer',
-        args: [destination as `0x${string}`, amountInWei],
+      // 2. eth_sign the safeTxHash — backend uses splitAndPackSig (v +4)
+      const signature = await walletClient.signMessage({
+        message: { raw: typedDataRes.safeTxHash as `0x${string}` },
       });
 
-      const withdrawTx: SafeTransaction = {
-        to: USDC_E_CONTRACT_ADDRESS,
-        operation: OperationType.Call,
-        data,
-        value: '0',
-      };
-
-      const response = await relayClient.execute(
-        [withdrawTx],
-        `Withdraw ${parsedAmount.toFixed(2)} USDC.e to ${truncateAddress(destination)}`,
+      // 3. Submit signed withdrawal
+      const result = await pmApi<{ txId: string; success: boolean }>(
+        '/positions/withdraw',
+        {
+          method: 'POST',
+          body: JSON.stringify({
+            safeAddress,
+            eoaAddress,
+            signature,
+            nonce: typedDataRes.nonce,
+            to: typedDataRes.to,
+            data: typedDataRes.data,
+            operation: typedDataRes.operation,
+          }),
+        },
       );
 
-      const receipt = await response.wait();
-      setTxHash(
-        typeof receipt === 'string'
-          ? receipt
-          : (receipt as any)?.transactionHash ?? null,
-      );
+      setTxHash(result.txId ?? null);
       setStep('success');
 
-      // Invalidate balance cache so it refreshes
       setTimeout(() => {
-        queryClient.invalidateQueries({ queryKey: ['usdcBalance', safeAddress] });
+        queryClient.invalidateQueries({
+          queryKey: ['usdcBalance', safeAddress],
+        });
       }, 3000);
     } catch (err: any) {
-      const msg =
-        err?.message || err?.toString() || 'Withdrawal failed';
-      const isRejected =
-        msg.includes('rejected') ||
-        msg.includes('denied') ||
-        msg.includes('cancelled') ||
-        msg.includes('user rejected');
-
-      setError(
-        isRejected
-          ? 'Transaction was rejected.'
-          : `Withdrawal failed: ${msg}`,
+      const msg = err?.message || err?.toString() || 'Withdrawal failed';
+      const isRejected = ['rejected', 'denied', 'cancelled', 'user rejected'].some(
+        (s) => msg.includes(s),
       );
+      setError(isRejected ? 'Transaction was rejected.' : `Withdrawal failed: ${msg}`);
       setStep('error');
     }
-  }, [
-    relayClient,
-    destination,
-    safeAddress,
-    parsedAmount,
-    queryClient,
-  ]);
+  }, [safeAddress, eoaAddress, walletClient, destination, parsedAmount, queryClient]);
 
-  // --- Render helpers ---
   const renderAmountStep = () => (
     <div className="p-5 space-y-5">
-      {/* Available balance */}
       <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-xl p-4 border border-blue-100">
         <p className="text-xs text-gray-500 mb-1">Available to withdraw</p>
         <p className="text-2xl font-bold text-gray-900">
@@ -173,7 +149,6 @@ export default function WithdrawModal({
         </p>
       </div>
 
-      {/* Destination */}
       <div className="space-y-1">
         <label className="text-sm font-medium text-gray-700 flex items-center gap-1.5">
           <Wallet className="w-3.5 h-3.5" />
@@ -198,7 +173,6 @@ export default function WithdrawModal({
         </div>
       </div>
 
-      {/* Amount input */}
       <div className="space-y-1">
         <label className="text-sm font-medium text-gray-700">
           Amount (USDC.e)
@@ -231,14 +205,14 @@ export default function WithdrawModal({
 
       <Button
         onClick={() => setStep('confirm')}
-        disabled={!isAmountValid || !destination || !relayClient}
+        disabled={!isAmountValid || !destination || !isTradingSessionComplete}
         className="w-full bg-black text-white hover:bg-gray-800"
       >
         <ArrowDownToLine className="w-4 h-4 mr-2" />
         Review Withdrawal
       </Button>
 
-      {!relayClient && (
+      {!isTradingSessionComplete && (
         <p className="text-xs text-center text-amber-600">
           Trading session must be initialized to withdraw.
         </p>
@@ -249,42 +223,24 @@ export default function WithdrawModal({
   const renderConfirmStep = () => (
     <div className="p-5 space-y-4">
       <div className="space-y-3">
-        <div className="flex justify-between text-sm">
-          <span className="text-gray-500">You withdraw</span>
-          <span className="font-semibold text-gray-900">
-            {parsedAmount.toFixed(6)} USDC.e
-          </span>
-        </div>
-        <div className="flex justify-between text-sm">
-          <span className="text-gray-500">USD value</span>
-          <span className="font-semibold text-gray-900">
-            ≈ ${parsedAmount.toFixed(2)}
-          </span>
-        </div>
-        <div className="flex justify-between text-sm">
-          <span className="text-gray-500">From</span>
-          <span className="font-mono text-gray-700 text-xs">
-            {safeAddress ? truncateAddress(safeAddress) : '—'}{' '}
-            <span className="text-gray-400">(Safe)</span>
-          </span>
-        </div>
-        <div className="flex justify-between text-sm">
-          <span className="text-gray-500">To</span>
-          <span className="font-mono text-gray-700 text-xs">
-            {destination ? truncateAddress(destination) : '—'}{' '}
-            <span className="text-gray-400">(Privy wallet)</span>
-          </span>
-        </div>
-        <div className="flex justify-between text-sm">
-          <span className="text-gray-500">Network</span>
-          <span className="text-gray-700">Polygon</span>
-        </div>
-        <div className="flex justify-between text-sm">
-          <span className="text-gray-500">Gas fee</span>
-          <span className="text-green-600 font-medium">Sponsored</span>
-        </div>
+        {[
+          ['You withdraw', `${parsedAmount.toFixed(6)} USDC.e`],
+          ['USD value', `≈ $${parsedAmount.toFixed(2)}`],
+          ['From', `${safeAddress ? truncateAddress(safeAddress) : '—'} (Safe)`],
+          ['To', `${destination ? truncateAddress(destination) : '—'} (Privy wallet)`],
+          ['Network', 'Polygon'],
+          ['Gas fee', 'Sponsored'],
+        ].map(([label, value]) => (
+          <div key={label} className="flex justify-between text-sm">
+            <span className="text-gray-500">{label}</span>
+            <span
+              className={`font-semibold ${label === 'Gas fee' ? 'text-green-600' : 'text-gray-900'}`}
+            >
+              {value}
+            </span>
+          </div>
+        ))}
       </div>
-
       <div className="border-t border-gray-100 pt-4 flex gap-3">
         <Button
           variant="outline"

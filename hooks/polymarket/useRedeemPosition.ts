@@ -1,46 +1,41 @@
-import { useState, useCallback } from "react";
-import { RelayClient } from "@polymarket/builder-relayer-client";
-import { createRedeemTx, RedeemParams } from "@/lib/polymarket/redeem";
+import { useState, useCallback } from 'react';
+import { pmApi } from '@/lib/polymarket/polymarketApi';
+import type { RedeemParams } from '@/lib/polymarket/redeem';
 
 export function useRedeemPosition() {
   const [isRedeeming, setIsRedeeming] = useState(false);
   const [error, setError] = useState<Error | null>(null);
 
   const redeemPosition = useCallback(
-    async (
-      relayClient: RelayClient,
-      params: RedeemParams
-    ): Promise<boolean> => {
+    async (safeAddress: string, params: RedeemParams): Promise<boolean> => {
       setIsRedeeming(true);
       setError(null);
 
       try {
-        const redeemTx = createRedeemTx(params);
+        const result = await pmApi<{ success: boolean }>('/positions/redeem', {
+          method: 'POST',
+          body: JSON.stringify({
+            safeAddress,
+            conditionId: params.conditionId,
+            negRisk: params.negativeRisk ?? false,
+            outcomeIndex: params.outcomeIndex,
+            size: params.size ?? 0,
+          }),
+        });
 
-        // Using execute() method as per your existing pattern
-        const response = await relayClient.execute(
-          [redeemTx],
-          `Redeem position for condition ${params.conditionId}`
-        );
-
-        await response.wait();
-        return true;
+        return result.success;
       } catch (err) {
-        const error =
-          err instanceof Error ? err : new Error("Failed to redeem position");
-        setError(error);
-        console.error("Redeem error:", error);
-        throw error;
+        const e =
+          err instanceof Error ? err : new Error('Failed to redeem position');
+        setError(e);
+        console.error('Redeem error:', e);
+        throw e;
       } finally {
         setIsRedeeming(false);
       }
     },
-    []
+    [],
   );
 
-  return {
-    isRedeeming,
-    error,
-    redeemPosition,
-  };
+  return { isRedeeming, error, redeemPosition };
 }

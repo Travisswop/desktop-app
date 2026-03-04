@@ -24,10 +24,7 @@ import {
   createPublicClient,
   http,
 } from 'viem';
-import {
-  OperationType,
-  type SafeTransaction,
-} from '@polymarket/builder-relayer-client';
+import { pmApi } from '@/lib/polymarket/polymarketApi';
 import { polygon, mainnet, base } from 'viem/chains';
 import { useQueryClient } from '@tanstack/react-query';
 import Image from 'next/image';
@@ -715,8 +712,8 @@ function DepositTab({ open, onClose }: { open: boolean; onClose: () => void }) {
 // ─── Withdraw Tab ─────────────────────────────────────────────────────────────
 
 function WithdrawTab({ open, onClose }: { open: boolean; onClose: () => void }) {
-  const { safeAddress, relayClient } = useTrading();
-  const { eoaAddress } = usePolymarketWallet();
+  const { safeAddress, isTradingSessionComplete } = useTrading();
+  const { eoaAddress, walletClient } = usePolymarketWallet();
   const { usdcBalance } = usePolygonBalances(safeAddress);
   const queryClient = useQueryClient();
 
@@ -744,18 +741,51 @@ function WithdrawTab({ open, onClose }: { open: boolean; onClose: () => void }) 
   };
 
   const executeWithdraw = useCallback(async () => {
-    if (!relayClient || !destination || !safeAddress) {
+    if (!safeAddress || !eoaAddress || !walletClient || !destination) {
       setError('Trading session not ready.'); setStep('error'); return;
     }
     setStep('processing');
     setError(null);
     try {
-      const amountInWei = parseUnits(parsedAmount.toFixed(USDC_E_DECIMALS), USDC_E_DECIMALS);
-      const data = encodeFunctionData({ abi: erc20Abi, functionName: 'transfer', args: [destination as `0x${string}`, amountInWei] });
-      const withdrawTx: SafeTransaction = { to: USDC_E_CONTRACT_ADDRESS, operation: OperationType.Call, data, value: '0' };
-      const response = await relayClient.execute([withdrawTx], `Withdraw ${parsedAmount.toFixed(2)} USDC.e to ${truncateAddress(destination)}`);
-      const receipt = await response.wait();
-      setTxHash(typeof receipt === 'string' ? receipt : (receipt as any)?.transactionHash ?? null);
+      // 1. Get SafeTx EIP-712 typed data + safeTxHash from backend
+      const params = new URLSearchParams({
+        safeAddress,
+        eoaAddress,
+        toAddress: destination,
+        amount: parsedAmount.toFixed(USDC_E_DECIMALS),
+      });
+      const typedDataRes = await pmApi<{
+        typedData: any;
+        safeTxHash: string;
+        nonce: string;
+        to: string;
+        data: string;
+        operation: number;
+      }>(`/positions/withdraw-typed-data?${params}`);
+
+      // 2. eth_sign the safeTxHash — backend uses splitAndPackSig (v +4)
+      const signature = await walletClient.signMessage({
+        message: { raw: typedDataRes.safeTxHash as `0x${string}` },
+      });
+
+      // 3. Submit signed withdrawal
+      const result = await pmApi<{ txId: string; success: boolean }>(
+        '/positions/withdraw',
+        {
+          method: 'POST',
+          body: JSON.stringify({
+            safeAddress,
+            eoaAddress,
+            signature,
+            nonce: typedDataRes.nonce,
+            to: typedDataRes.to,
+            data: typedDataRes.data,
+            operation: typedDataRes.operation,
+          }),
+        },
+      );
+
+      setTxHash(result.txId ?? null);
       setStep('success');
       setTimeout(() => queryClient.invalidateQueries({ queryKey: ['usdcBalance', safeAddress] }), 3000);
     } catch (err: any) {
@@ -764,7 +794,7 @@ function WithdrawTab({ open, onClose }: { open: boolean; onClose: () => void }) 
       setError(isRejected ? 'Transaction was rejected.' : `Withdrawal failed: ${msg}`);
       setStep('error');
     }
-  }, [relayClient, destination, safeAddress, parsedAmount, queryClient]);
+  }, [safeAddress, eoaAddress, walletClient, destination, parsedAmount, queryClient]);
 
   if (step === 'processing') return (
     <div className="px-6 pb-6 py-8 flex flex-col items-center gap-4">
@@ -868,10 +898,10 @@ function WithdrawTab({ open, onClose }: { open: boolean; onClose: () => void }) 
         )}
       </div>
 
-      <Button onClick={() => setStep('confirm')} disabled={!isAmountValid || !destination || !relayClient} className="w-full bg-black text-white hover:bg-gray-800">
+      <Button onClick={() => setStep('confirm')} disabled={!isAmountValid || !destination || !isTradingSessionComplete} className="w-full bg-black text-white hover:bg-gray-800">
         <ArrowDownToLine className="w-4 h-4 mr-2" />Review Withdrawal
       </Button>
-      {!relayClient && <p className="text-xs text-center text-amber-600">Trading session must be initialized to withdraw.</p>}
+      {!isTradingSessionComplete && <p className="text-xs text-center text-amber-600">Trading session must be initialized to withdraw.</p>}
     </div>
   );
 }

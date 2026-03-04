@@ -1,8 +1,7 @@
-import type { CategoryId } from "@/constants/polymarket";
-import { getCategoryById, QUERY_STALE_TIMES } from "@/constants/polymarket";
-import { useTrading } from "@/providers/polymarket";
-import { Side } from "@polymarket/clob-client";
-import { useQuery } from "@tanstack/react-query";
+import type { CategoryId } from '@/constants/polymarket';
+import { getCategoryById, QUERY_STALE_TIMES } from '@/constants/polymarket';
+import { pmApi } from '@/lib/polymarket/polymarketApi';
+import { useQuery } from '@tanstack/react-query';
 
 export type PolymarketMarket = {
   id: string;
@@ -47,39 +46,32 @@ export type PolymarketMarket = {
 interface UseMarketsOptions {
   limit?: number;
   categoryId?: CategoryId;
-  /** Override the tag_id used for filtering (e.g. a sport subcategory tag) */
   overrideTagId?: number | null;
 }
 
 export function useMarkets(options: UseMarketsOptions = {}) {
-  const { limit = 10, categoryId = "trending", overrideTagId } = options;
-  const { clobClient } = useTrading();
+  const { limit = 10, categoryId = 'trending', overrideTagId } = options;
 
   return useQuery({
-    queryKey: ["high-volume-markets", limit, categoryId, overrideTagId, !!clobClient],
+    queryKey: ['high-volume-markets', limit, categoryId, overrideTagId],
     queryFn: async (): Promise<PolymarketMarket[]> => {
       const category = getCategoryById(categoryId);
       let url = `/api/polymarket/markets?limit=${limit}`;
 
-      // overrideTagId (sport subcategory) takes priority over category-level tagId
-      const tagId = overrideTagId !== undefined ? overrideTagId : category?.tagId;
+      const tagId =
+        overrideTagId !== undefined ? overrideTagId : category?.tagId;
       if (tagId) {
         url += `&tag_id=${tagId}`;
       }
 
       const response = await fetch(url);
-
-      if (!response.ok) {
-        throw new Error("Failed to fetch markets");
-      }
+      if (!response.ok) throw new Error('Failed to fetch markets');
 
       const markets: PolymarketMarket[] = await response.json();
 
-      // Fetch realtime prices using batch API — one POST /prices call per side
-      // instead of N×2 individual requests per market
-      if (clobClient && markets.length > 0) {
+      // Batch-fetch realtime bid/ask prices from polymarket-backend
+      if (markets.length > 0) {
         try {
-          // Collect all token IDs across every market
           const allTokenIds: string[] = [];
           for (const market of markets) {
             if (market.clobTokenIds) {
@@ -87,41 +79,33 @@ export function useMarkets(options: UseMarketsOptions = {}) {
                 const ids: string[] = JSON.parse(market.clobTokenIds);
                 allTokenIds.push(...ids);
               } catch {
-                // ignore malformed clobTokenIds
+                // ignore malformed
               }
             }
           }
 
           if (allTokenIds.length > 0) {
-            // Two batch requests: BUY side = best ask, SELL side = best bid
-            const [bidPrices, askPrices] = await Promise.all([
-              clobClient.getPrices(
-                allTokenIds.map((id) => ({ token_id: id, side: Side.SELL })),
-              ),
-              clobClient.getPrices(
-                allTokenIds.map((id) => ({ token_id: id, side: Side.BUY })),
-              ),
-            ]);
+            // Single call returns both bid and ask per token
+            const prices = await pmApi<
+              Record<string, { bid: number | null; ask: number | null }>
+            >('/prices', {
+              method: 'POST',
+              body: JSON.stringify({ tokenIds: allTokenIds }),
+            });
 
-            // Map prices back onto each market
             for (const market of markets) {
               if (!market.clobTokenIds) continue;
-
               try {
                 const tokenIds: string[] = JSON.parse(market.clobTokenIds);
                 const priceMap: Record<string, any> = {};
 
                 for (const tokenId of tokenIds) {
-                  const bidPrice = parseFloat(
-                    (bidPrices as Record<string, string>)[tokenId] ?? "0",
-                  );
-                  const askPrice = parseFloat(
-                    (askPrices as Record<string, string>)[tokenId] ?? "0",
-                  );
+                  const entry = prices[tokenId];
+                  if (!entry) continue;
+                  const bidPrice = entry.bid ?? 0;
+                  const askPrice = entry.ask ?? 0;
 
                   if (
-                    !isNaN(bidPrice) &&
-                    !isNaN(askPrice) &&
                     bidPrice > 0 &&
                     bidPrice < 1 &&
                     askPrice > 0 &&
@@ -138,22 +122,19 @@ export function useMarkets(options: UseMarketsOptions = {}) {
 
                 market.realtimePrices = priceMap;
               } catch {
-                // ignore malformed clobTokenIds on individual market
+                // ignore
               }
             }
           }
         } catch (error) {
-          console.warn("[Polymarket] Batch price fetch failed:", error);
+          console.warn('[Polymarket] Batch price fetch failed:', error);
         }
       }
 
       return markets;
     },
-    // Market metadata from Gamma API is stable — use the 5-minute constant.
-    // Real-time prices are fetched inside the same queryFn and will refresh
-    // on each refetch, but we don't need to hammer the Gamma API every 3s.
     staleTime: QUERY_STALE_TIMES.MARKETS,
-    refetchInterval: 60_000, // refresh market list every 60s
+    refetchInterval: 60_000,
     refetchIntervalInBackground: false,
     refetchOnWindowFocus: true,
   });

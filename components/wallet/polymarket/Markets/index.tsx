@@ -45,7 +45,7 @@ export default function HighVolumeMarkets() {
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
   const sentinelRef = useRef<HTMLDivElement>(null);
 
-  const { clobClient, isGeoblocked, safeAddress } = useTrading();
+  const { isTradingSessionComplete, isGeoblocked, safeAddress } = useTrading();
   const { usdcBalance } = usePolygonBalances(safeAddress);
   const { data: positions } = useUserPositions(safeAddress);
 
@@ -285,7 +285,7 @@ export default function HighVolumeMarkets() {
           currentPrice={selectedMarket.price}
           tokenId={selectedMarket.tokenId}
           negRisk={selectedMarket.negRisk}
-          clobClient={clobClient}
+          isTradingReady={!!isTradingSessionComplete}
           balance={usdcBalance}
           yesPrice={selectedMarket.yesPrice}
           noPrice={selectedMarket.noPrice}

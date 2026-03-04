@@ -12,8 +12,6 @@ import SharesInput from './SharesInput';
 import ToWinDisplay from './ToWinDisplay';
 import YoullReceiveDisplay from './YoullReceiveDisplay';
 
-import type { ClobClient } from '@polymarket/clob-client';
-
 function isValidTickPrice(price: number, tickSize: number): boolean {
   if (tickSize <= 0) return false;
   const multiplier = Math.round(price / tickSize);
@@ -29,7 +27,7 @@ type OrderPlacementModalProps = {
   currentPrice: number;
   tokenId: string;
   negRisk?: boolean;
-  clobClient: ClobClient | null;
+  isTradingReady: boolean;
   yesPrice?: number;
   noPrice?: number;
   yesTokenId?: string;
@@ -48,7 +46,7 @@ export default function OrderPlacementModal({
   currentPrice,
   tokenId,
   negRisk = false,
-  clobClient,
+  isTradingReady,
   yesPrice = currentPrice,
   noPrice = 1 - currentPrice,
   yesTokenId = tokenId,
@@ -60,12 +58,11 @@ export default function OrderPlacementModal({
 }: OrderPlacementModalProps) {
   const [inputValue, setInputValue] = useState<string>('');
   const [orderType, setOrderType] = useState<OrderVariant>('market');
-  // GTD expiration in hours from now (converted to UTC seconds on submit)
   const [gtdHours, setGtdHours] = useState<number>(24);
   const [side, setSide] = useState<'BUY' | 'SELL'>('BUY');
-  const [selectedOutcome, setSelectedOutcome] = useState<
-    'yes' | 'no'
-  >(outcome.toLowerCase() === 'no' ? 'no' : 'yes');
+  const [selectedOutcome, setSelectedOutcome] = useState<'yes' | 'no'>(
+    outcome.toLowerCase() === 'no' ? 'no' : 'yes',
+  );
   const [limitPrice, setLimitPrice] = useState<string>('');
   const [localError, setLocalError] = useState<string | null>(null);
   const [showSuccess, setShowSuccess] = useState(false);
@@ -88,23 +85,20 @@ export default function OrderPlacementModal({
     isSubmitting,
     error: orderError,
     orderId,
-  } = useClobOrder(clobClient, eoaAddress);
+  } = useClobOrder(eoaAddress);
 
   useEffect(() => {
     if (isOpen) {
       setInputValue('');
       setOrderType('market');
       setSide('BUY');
-      setSelectedOutcome(
-        outcome.toLowerCase() === 'no' ? 'no' : 'yes',
-      );
+      setSelectedOutcome(outcome.toLowerCase() === 'no' ? 'no' : 'yes');
       setLimitPrice('');
       setLocalError(null);
       setShowSuccess(false);
     }
   }, [isOpen, outcome]);
 
-  // Reset input when switching between buy/sell
   useEffect(() => {
     setInputValue('');
     setLocalError(null);
@@ -113,22 +107,17 @@ export default function OrderPlacementModal({
   useEffect(() => {
     if (orderId && isOpen) {
       setShowSuccess(true);
-      const timer = setTimeout(() => {
-        onClose();
-      }, 2000);
+      const timer = setTimeout(() => onClose(), 2000);
       return () => clearTimeout(timer);
     }
   }, [orderId, isOpen, onClose]);
 
   useEffect(() => {
     const handleEscape = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && isOpen) {
-        onClose();
-      }
+      if (e.key === 'Escape' && isOpen) onClose();
     };
     document.addEventListener('keydown', handleEscape);
-    return () =>
-      document.removeEventListener('keydown', handleEscape);
+    return () => document.removeEventListener('keydown', handleEscape);
   }, [isOpen, onClose]);
 
   useEffect(() => {
@@ -146,14 +135,10 @@ export default function OrderPlacementModal({
 
   const inputNum = parseFloat(inputValue) || 0;
   const limitPriceNum = parseFloat(limitPrice) || 0;
-  // Whether the current variant is a market-type or limit-type order
   const isMarketVariant = orderType === 'market' || orderType === 'fak';
   const isLimitVariant = orderType === 'limit' || orderType === 'gtd';
-
   const effectivePrice = isLimitVariant ? limitPriceNum : activePrice;
 
-  // For BUY: input is dollar amount, calculate shares
-  // For SELL: input is shares, calculate dollar amount to receive
   const shares =
     side === 'BUY'
       ? effectivePrice > 0
@@ -162,14 +147,10 @@ export default function OrderPlacementModal({
       : inputNum;
 
   const potentialWin = side === 'BUY' ? shares : 0;
-  const amountToReceive =
-    side === 'SELL' ? inputNum * effectivePrice : 0;
+  const amountToReceive = side === 'SELL' ? inputNum * effectivePrice : 0;
 
-  // For balance checks
   const hasInsufficientBalance =
-    side === 'BUY'
-      ? inputNum > balance
-      : inputNum > activeShareBalance;
+    side === 'BUY' ? inputNum > balance : inputNum > activeShareBalance;
 
   const handlePlaceOrder = async () => {
     if (side === 'BUY') {
@@ -189,14 +170,12 @@ export default function OrderPlacementModal({
         setLocalError('Limit price is required');
         return;
       }
-
       if (limitPriceNum < tickSize || limitPriceNum > 1 - tickSize) {
         setLocalError(
           `Price must be between ${(tickSize * 100).toFixed(0)}¢ and ${((1 - tickSize) * 100).toFixed(0)}¢`,
         );
         return;
       }
-
       if (!isValidTickPrice(limitPriceNum, tickSize)) {
         setLocalError(
           `Price must be a multiple of tick size (${(tickSize * 100).toFixed(0)}¢)`,
@@ -206,14 +185,8 @@ export default function OrderPlacementModal({
     }
 
     try {
-      // For market orders:
-      //   BUY: pass dollar amount directly (CLOB client expects USDC amount)
-      //   SELL: pass share amount
-      // For limit orders: always pass shares
       const orderSize =
         isMarketVariant && side === 'BUY' ? inputNum : shares;
-
-      // GTD expiration: current time + 60s security buffer + chosen hours
       const gtdExpiration =
         orderType === 'gtd'
           ? Math.floor(Date.now() / 1000) + 60 + gtdHours * 3600
@@ -234,15 +207,10 @@ export default function OrderPlacementModal({
     }
   };
 
-  const handleBackdropClick = (
-    e: React.MouseEvent<HTMLDivElement>,
-  ) => {
-    if (e.target === e.currentTarget) {
-      onClose();
-    }
+  const handleBackdropClick = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (e.target === e.currentTarget) onClose();
   };
 
-  // Buy mode: quick dollar amounts
   const handleQuickAmount = (quickAmount: number) => {
     setInputValue(quickAmount.toString());
     setLocalError(null);
@@ -255,10 +223,8 @@ export default function OrderPlacementModal({
     }
   };
 
-  // Sell mode: quick percentage of shares
   const handleQuickPercentage = (percentage: number) => {
-    const shareAmount = activeShareBalance * (percentage / 100);
-    setInputValue(shareAmount.toFixed(2));
+    setInputValue((activeShareBalance * (percentage / 100)).toFixed(2));
     setLocalError(null);
   };
 
@@ -279,7 +245,6 @@ export default function OrderPlacementModal({
           ref={modalRef}
           className="bg-white rounded-2xl w-full max-w-[360px] border border-gray-200 shadow-2xl overflow-hidden"
         >
-          {/* Header with Market Title */}
           <div className="px-4 pt-4 pb-2">
             <div className="flex items-start justify-between">
               <h3 className="text-sm font-medium text-gray-600 line-clamp-2 flex-1 pr-2">
@@ -306,9 +271,7 @@ export default function OrderPlacementModal({
             </div>
           </div>
 
-          {/* Main Content */}
           <div className="px-4 pb-4">
-            {/* Success Message */}
             {showSuccess && (
               <div className="mb-4 bg-green-500/10 border border-green-500/30 rounded-xl p-3">
                 <p className="text-green-600 font-medium text-sm text-center">
@@ -317,7 +280,6 @@ export default function OrderPlacementModal({
               </div>
             )}
 
-            {/* Error Message */}
             {(localError || orderError) && (
               <div className="mb-4 bg-red-500/10 border border-red-500/30 rounded-xl p-3">
                 <p className="text-red-500 text-sm text-center">
@@ -326,7 +288,6 @@ export default function OrderPlacementModal({
               </div>
             )}
 
-            {/* Buy/Sell Toggle with Order Type */}
             <BuySellToggle
               side={side}
               onSideChange={(newSide: 'BUY' | 'SELL') => {
@@ -340,7 +301,6 @@ export default function OrderPlacementModal({
               }}
             />
 
-            {/* GTD expiration selector */}
             {orderType === 'gtd' && (
               <div className="mb-3 flex items-center gap-2 text-sm">
                 <span className="text-gray-500 flex-shrink-0">Expires in</span>
@@ -358,7 +318,6 @@ export default function OrderPlacementModal({
               </div>
             )}
 
-            {/* Outcome Selector */}
             <OutcomeSelector
               selectedOutcome={selectedOutcome}
               onOutcomeChange={(newOutcome: 'yes' | 'no') => {
@@ -371,7 +330,6 @@ export default function OrderPlacementModal({
               side={side}
             />
 
-            {/* Buy Mode: Amount Input */}
             {side === 'BUY' && (
               <AmountInput
                 amount={inputValue}
@@ -395,7 +353,6 @@ export default function OrderPlacementModal({
               />
             )}
 
-            {/* Sell Mode: Shares Input */}
             {side === 'SELL' && (
               <SharesInput
                 shares={inputValue}
@@ -419,7 +376,6 @@ export default function OrderPlacementModal({
               />
             )}
 
-            {/* Buy Mode: To Win Display */}
             {side === 'BUY' && (
               <ToWinDisplay
                 potentialWin={potentialWin}
@@ -428,7 +384,6 @@ export default function OrderPlacementModal({
               />
             )}
 
-            {/* Sell Mode: You'll Receive Display */}
             {side === 'SELL' && (
               <YoullReceiveDisplay
                 amountToReceive={amountToReceive}
@@ -438,13 +393,12 @@ export default function OrderPlacementModal({
               />
             )}
 
-            {/* Place Order Button */}
             <button
               onClick={handlePlaceOrder}
               disabled={
                 isSubmitting ||
                 inputNum <= 0 ||
-                !clobClient ||
+                !isTradingReady ||
                 hasInsufficientBalance
               }
               className={`w-full py-3.5 font-bold rounded-xl transition-all text-base ${
@@ -455,10 +409,7 @@ export default function OrderPlacementModal({
             >
               {isSubmitting ? (
                 <span className="flex items-center justify-center gap-2">
-                  <svg
-                    className="animate-spin h-5 w-5"
-                    viewBox="0 0 24 24"
-                  >
+                  <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24">
                     <circle
                       className="opacity-25"
                       cx="12"
@@ -476,14 +427,14 @@ export default function OrderPlacementModal({
                   </svg>
                   Placing Order...
                 </span>
-              ) : !clobClient ? (
+              ) : !isTradingReady ? (
                 'Connect Wallet'
               ) : (
                 `${side === 'BUY' ? 'Buy' : 'Sell'} ${selectedOutcome === 'yes' ? 'Yes' : 'No'}`
               )}
             </button>
 
-            {!clobClient && (
+            {!isTradingReady && (
               <p className="text-xs text-gray-400 mt-2 text-center">
                 Initialize trading session to place orders
               </p>

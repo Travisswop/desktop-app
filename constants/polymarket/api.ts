@@ -16,3 +16,7 @@ export const POLYGON_RPC_URL =
 // Remote signing endpoint - handled by backend
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
 export const REMOTE_SIGNING_URL = () => `${API_BASE}/api/v5/prediction-markets/sign`;
+
+// Polymarket sidecar backend URL
+export const POLYMARKET_API_BASE =
+  process.env.NEXT_PUBLIC_POLYMARKET_API_URL || 'http://localhost:5000';

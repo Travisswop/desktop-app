@@ -1,5 +1,6 @@
-import { useQuery } from "@tanstack/react-query";
-import type { ClobClient } from "@polymarket/clob-client";
+import { useQuery } from '@tanstack/react-query';
+import { useTrading } from '@/providers/polymarket';
+import { pmApi } from '@/lib/polymarket/polymarketApi';
 
 export type PolymarketOrder = {
   id: string;
@@ -8,7 +9,7 @@ export type PolymarketOrder = {
   maker_address: string;
   market: string;
   asset_id: string;
-  side: "BUY" | "SELL";
+  side: 'BUY' | 'SELL';
   original_size: string;
   size_matched: string;
   price: string;
@@ -19,42 +20,32 @@ export type PolymarketOrder = {
   order_type: string;
 };
 
-export function useActiveOrders(
-  clobClient: ClobClient | null,
-  walletAddress: string | undefined
-) {
+const OPEN_STATUSES = new Set(['LIVE', 'MATCHED', 'DELAYED']);
+
+export function useActiveOrders(walletAddress: string | undefined) {
+  const { tradingSession } = useTrading();
+
   return useQuery({
-    queryKey: ["active-orders", walletAddress],
+    queryKey: [
+      'active-orders',
+      walletAddress,
+      tradingSession?.apiCredentials?.key,
+    ],
     queryFn: async (): Promise<PolymarketOrder[]> => {
-      if (!clobClient || !walletAddress) {
+      if (!tradingSession?.safeAddress || !tradingSession?.apiCredentials) {
         return [];
       }
 
-      try {
-        const allOrders = await clobClient.getOpenOrders();
+      const apiCreds = encodeURIComponent(
+        JSON.stringify(tradingSession.apiCredentials),
+      );
+      const { orders } = await pmApi<{ orders: PolymarketOrder[] }>(
+        `/orders/active?safeAddress=${tradingSession.safeAddress}&apiCreds=${apiCreds}`,
+      );
 
-        const userOrders = allOrders.filter((order: any) => {
-          const orderMaker = (order.maker_address || "").toLowerCase();
-          const userAddr = walletAddress.toLowerCase();
-          return orderMaker === userAddr;
-        });
-
-        // Include all non-terminal insert statuses:
-        // LIVE = resting on the book
-        // MATCHED = just placed and matched against a resting order (briefly pre-LIVE)
-        // DELAYED = marketable but subject to a matching delay (sports markets)
-        const OPEN_STATUSES = new Set(["LIVE", "MATCHED", "DELAYED"]);
-        const activeOrders = userOrders.filter((order: any) => {
-          return OPEN_STATUSES.has(order.status);
-        });
-
-        return activeOrders as PolymarketOrder[];
-      } catch (err) {
-        console.error("Error fetching open orders:", err);
-        return [];
-      }
+      return (orders || []).filter((o) => OPEN_STATUSES.has(o.status));
     },
-    enabled: !!clobClient && !!walletAddress,
+    enabled: !!walletAddress && !!tradingSession?.apiCredentials,
     staleTime: 2_000,
     refetchInterval: 3_000,
     refetchIntervalInBackground: true,
