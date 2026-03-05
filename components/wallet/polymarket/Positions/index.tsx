@@ -9,6 +9,7 @@ import {
   useActiveOrders,
   usePolygonBalances,
   PolymarketPosition,
+  type PolymarketMarket,
 } from '@/hooks/polymarket';
 import { usePolymarketWallet } from '@/providers/polymarket';
 import { useTrading } from '@/providers/polymarket';
@@ -19,6 +20,7 @@ import EmptyState from '../shared/EmptyState';
 import LoadingState from '../shared/LoadingState';
 import PositionCard from './PositionCard';
 import OrderPlacementModal from '../OrderModal';
+import MarketDetailModal from '../Markets/MarketDetailModal';
 
 import { createPollingInterval } from '@/lib/polymarket/polling';
 import {
@@ -26,6 +28,34 @@ import {
   POLLING_DURATION,
   POLLING_INTERVAL,
 } from '@/constants/polymarket';
+
+/** Build a synthetic PolymarketMarket from a position so the detail modal can render it. */
+function positionToMarket(position: PolymarketPosition): PolymarketMarket {
+  // outcomeIndex 0 = user holds the "Yes" / first outcome
+  const isYesPos = position.outcomeIndex === 0;
+
+  const yesTokenId = isYesPos ? position.asset : position.oppositeAsset;
+  const noTokenId = isYesPos ? position.oppositeAsset : position.asset;
+  const yesOutcomeName = isYesPos ? position.outcome : position.oppositeOutcome;
+  const noOutcomeName = isYesPos ? position.oppositeOutcome : position.outcome;
+  const yesPrice = isYesPos ? position.curPrice : 1 - position.curPrice;
+  const noPrice = isYesPos ? 1 - position.curPrice : position.curPrice;
+
+  return {
+    id: position.conditionId,
+    question: position.title,
+    slug: position.slug,
+    active: !position.redeemable,
+    closed: position.redeemable,
+    icon: position.icon,
+    eventSlug: position.eventSlug,
+    outcomes: JSON.stringify([yesOutcomeName, noOutcomeName]),
+    outcomePrices: JSON.stringify([String(yesPrice), String(noPrice)]),
+    clobTokenIds: JSON.stringify([yesTokenId, noTokenId]),
+    negRisk: position.negativeRisk,
+    endDateIso: position.endDate,
+  };
+}
 
 export default function UserPositions() {
   const { clobClient, relayClient, safeAddress } = useTrading();
@@ -44,6 +74,7 @@ export default function UserPositions() {
   const [redeemingAsset, setRedeemingAsset] = useState<string | null>(null);
   const [sellingAsset, setSellingAsset] = useState<string | null>(null);
   const [buyMorePosition, setBuyMorePosition] = useState<PolymarketPosition | null>(null);
+  const [detailPosition, setDetailPosition] = useState<PolymarketPosition | null>(null);
 
   const { redeemPosition, isRedeeming } = useRedeemPosition();
   const { submitOrder, isSubmitting } = useClobOrder(clobClient, eoaAddress);
@@ -214,6 +245,7 @@ export default function UserPositions() {
             isSubmitting={isSubmitting}
             canSell={!!clobClient}
             canRedeem={!!relayClient}
+            onTitleClick={() => setDetailPosition(position)}
           />
         ))}
       </div>
@@ -230,6 +262,19 @@ export default function UserPositions() {
           negRisk={buyMorePosition.negativeRisk}
           clobClient={clobClient}
           balance={usdcBalance}
+        />
+      )}
+
+      {/* ── Market Detail Modal (opened via title click) ──────────────── */}
+      {detailPosition && (
+        <MarketDetailModal
+          isOpen={!!detailPosition}
+          onClose={() => setDetailPosition(null)}
+          market={positionToMarket(detailPosition)}
+          clobClient={clobClient}
+          balance={usdcBalance}
+          yesShares={detailPosition.outcomeIndex === 0 ? detailPosition.size : 0}
+          noShares={detailPosition.outcomeIndex === 1 ? detailPosition.size : 0}
         />
       )}
     </div>

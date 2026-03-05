@@ -16,6 +16,8 @@ interface PositionCardProps {
   isSubmitting: boolean;
   canSell: boolean;
   canRedeem: boolean;
+  /** Called when the user taps the market title to open the detail modal */
+  onTitleClick?: () => void;
 }
 
 export default function PositionCard({
@@ -29,6 +31,7 @@ export default function PositionCard({
   isSubmitting,
   canSell,
   canRedeem,
+  onTitleClick,
 }: PositionCardProps) {
   const [shareOpen, setShareOpen] = useState(false);
 
@@ -54,9 +57,13 @@ export default function PositionCard({
         <div className="flex items-start justify-between px-4 pt-4 pb-3">
           <p className="text-sm text-gray-700 leading-snug flex-1 pr-2">
             You picked{' '}
-            <span className="font-bold text-[#3B82F6] line-clamp-2">
+            <button
+              onClick={onTitleClick}
+              disabled={!onTitleClick}
+              className="font-bold text-[#3B82F6] line-clamp-2 text-left hover:underline disabled:no-underline disabled:cursor-default transition-all"
+            >
               {displayPick}
-            </span>
+            </button>
           </p>
           <button
             onClick={() => setShareOpen(true)}

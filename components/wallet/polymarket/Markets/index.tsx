@@ -2,7 +2,7 @@
 
 import { useState, useMemo, useEffect, useRef } from 'react';
 import { useTrading } from '@/providers/polymarket';
-import { useMarkets, usePolygonBalances, useUserPositions } from '@/hooks/polymarket';
+import { useMarkets, usePolygonBalances, useUserPositions, type PolymarketMarket } from '@/hooks/polymarket';
 import {
   type CategoryId,
   type SportSubcategoryId,
@@ -18,6 +18,7 @@ import LoadingState from '../shared/LoadingState';
 import MarketCard from './MarketCard';
 import CategoryTabs from './CategoryTabs';
 import OrderPlacementModal from '../OrderModal';
+import MarketDetailModal from './MarketDetailModal';
 
 const PAGE_SIZE = 10;
 const PREFETCH_SIZE = 50;
@@ -42,6 +43,7 @@ export default function HighVolumeMarkets() {
   const [activeSportSub, setActiveSportSub] =
     useState<SportSubcategoryId>(DEFAULT_SPORT_SUBCATEGORY);
   const [selectedMarket, setSelectedMarket] = useState<SelectedMarket | null>(null);
+  const [detailMarket, setDetailMarket] = useState<PolymarketMarket | null>(null);
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
   const sentinelRef = useRef<HTMLDivElement>(null);
 
@@ -185,6 +187,18 @@ export default function HighVolumeMarkets() {
     setSelectedMarket(null);
   };
 
+  // Share balances for the detail modal market
+  const detailMarketShares = useMemo(() => {
+    if (!detailMarket || !positions) return { yesShares: 0, noShares: 0 };
+    const tIds = detailMarket.clobTokenIds
+      ? (JSON.parse(detailMarket.clobTokenIds) as string[])
+      : [];
+    return {
+      yesShares: positions.find((p) => p.asset === tIds[0])?.size || 0,
+      noShares: positions.find((p) => p.asset === tIds[1])?.size || 0,
+    };
+  }, [detailMarket, positions]);
+
   const handleCategoryChange = (categoryId: CategoryId) => {
     setActiveCategory(categoryId);
     // Reset sport subcategory when switching away from sports
@@ -250,6 +264,7 @@ export default function HighVolumeMarkets() {
                   disabled={isGeoblocked}
                   isSportsCategory={activeCategory === 'sports'}
                   onOutcomeClick={handleOutcomeClick}
+                  onTitleClick={() => setDetailMarket(market)}
                 />
               ))}
             </div>
@@ -275,7 +290,7 @@ export default function HighVolumeMarkets() {
         )}
       </div>
 
-      {/* Order Placement Modal */}
+      {/* Order Placement Modal (opened via outcome button click) */}
       {selectedMarket && (
         <OrderPlacementModal
           isOpen={isModalOpen}
@@ -294,6 +309,19 @@ export default function HighVolumeMarkets() {
           yesShares={yesShares}
           noShares={noShares}
           orderMinSize={selectedMarket.orderMinSize}
+        />
+      )}
+
+      {/* Market Detail Modal (opened via market title click) */}
+      {detailMarket && (
+        <MarketDetailModal
+          isOpen={!!detailMarket}
+          onClose={() => setDetailMarket(null)}
+          market={detailMarket}
+          clobClient={clobClient}
+          balance={usdcBalance}
+          yesShares={detailMarketShares.yesShares}
+          noShares={detailMarketShares.noShares}
         />
       )}
     </>

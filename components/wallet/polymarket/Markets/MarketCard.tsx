@@ -72,6 +72,8 @@ interface MarketCardProps {
     tokenId: string,
     negRisk: boolean,
   ) => void;
+  /** Called when the user clicks the market title to open the detail modal */
+  onTitleClick?: () => void;
 }
 
 export default function MarketCard({
@@ -79,6 +81,7 @@ export default function MarketCard({
   disabled = false,
   isSportsCategory = false,
   onOutcomeClick,
+  onTitleClick,
 }: MarketCardProps) {
   const volumeUSD = parseFloat(
     String(market.volume24hr || market.volume || '0'),
@@ -134,7 +137,10 @@ export default function MarketCard({
         <div className="flex-1 min-w-0">
           {/* Market Title + Badges */}
           <div className="flex items-start justify-between gap-2 mb-2">
-            <h4 className="font-semibold text-base text-gray-900 line-clamp-2 flex-1">
+            <h4
+              className={`font-semibold text-base text-gray-900 line-clamp-2 flex-1 ${onTitleClick ? 'cursor-pointer hover:text-blue-600 transition-colors' : ''}`}
+              onClick={onTitleClick}
+            >
               {market.question}
             </h4>
             <div className="flex flex-col items-end gap-1 shrink-0">
