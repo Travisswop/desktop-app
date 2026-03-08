@@ -35,7 +35,7 @@ export default function PositionCard({
 }: PositionCardProps) {
   const [shareOpen, setShareOpen] = useState(false);
 
-  const isRedeemable = position.redeemable;
+  const isRedeemable = position.redeemable && position.curPrice > 0;
 
   // Show the event title for binary Yes/No outcomes; show outcome name for others (e.g. team abbreviations)
   const isBinaryOutcome =
@@ -44,7 +44,7 @@ export default function PositionCard({
 
   const costCents = Math.round(position.avgPrice * 100);
   const currentCents = Math.round(position.curPrice * 100);
-  const toWin = position.size;
+  const toWin = position.size * position.curPrice;
   const cost = position.initialValue || position.avgPrice * position.size;
   const currentValue = position.currentValue;
   const pnl = position.cashPnl;
@@ -136,8 +136,8 @@ export default function PositionCard({
         )}
 
         {/* Action buttons */}
-        <div className="flex gap-2 px-4 pb-4">
-          {isRedeemable ? (
+        {isRedeemable ? (
+          <div className="flex gap-2 px-4 pb-4">
             <button
               onClick={() => onRedeem(position)}
               disabled={isRedeeming || !canRedeem}
@@ -145,30 +145,30 @@ export default function PositionCard({
             >
               {isRedeeming ? 'Redeeming...' : `Redeem $${Math.round(toWin)}`}
             </button>
-          ) : (
-            <>
-              <button
-                onClick={() => onBuyMore(position)}
-                disabled={isSubmitting || !canSell}
-                className="flex-1 py-2.5 bg-green-500 hover:bg-green-600 disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-semibold rounded-xl transition-colors"
-              >
-                Buy more {currentCents}%
-              </button>
-              <button
-                onClick={() => onSell(position)}
-                disabled={
-                  isSelling ||
-                  isPendingVerification ||
-                  isSubmitting ||
-                  !canSell
-                }
-                className="flex-1 py-2.5 bg-white hover:bg-gray-50 border border-gray-200 disabled:opacity-50 disabled:cursor-not-allowed text-gray-900 text-sm font-semibold rounded-xl transition-colors"
-              >
-                {isSelling ? 'Selling...' : 'Cash out'}
-              </button>
-            </>
-          )}
-        </div>
+          </div>
+        ) : !position.redeemable ? (
+          <div className="flex gap-2 px-4 pb-4">
+            <button
+              onClick={() => onBuyMore(position)}
+              disabled={isSubmitting || !canSell}
+              className="flex-1 py-2.5 bg-green-500 hover:bg-green-600 disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-semibold rounded-xl transition-colors"
+            >
+              Buy more {currentCents}%
+            </button>
+            <button
+              onClick={() => onSell(position)}
+              disabled={
+                isSelling ||
+                isPendingVerification ||
+                isSubmitting ||
+                !canSell
+              }
+              className="flex-1 py-2.5 bg-white hover:bg-gray-50 border border-gray-200 disabled:opacity-50 disabled:cursor-not-allowed text-gray-900 text-sm font-semibold rounded-xl transition-colors"
+            >
+              {isSelling ? 'Selling...' : 'Cash out'}
+            </button>
+          </div>
+        ) : null}
       </div>
 
       <PositionShareModal
