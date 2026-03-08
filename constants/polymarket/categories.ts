@@ -5,7 +5,6 @@ export type CategoryId =
   | 'crypto'
   | 'sports'
   | 'tech'
-  | 'culture'
   | 'geopolitics'
   | 'economy'
   | 'elections'
@@ -57,11 +56,6 @@ export const CATEGORIES: Category[] = [
     id: 'tech',
     label: 'Tech',
     tagId: 1401,
-  },
-  {
-    id: 'culture',
-    label: 'Culture',
-    tagId: 596,
   },
   {
     id: 'memes',
@@ -116,7 +110,7 @@ export const SPORT_SUBCATEGORIES: SportSubcategory[] = [
   { id: 'all', label: 'All Sports', tagId: null, emoji: '🏆' },
   { id: 'nfl', label: 'NFL', tagId: 450, emoji: '🏈' },
   { id: 'nba', label: 'NBA', tagId: 745, emoji: '🏀' },
-  { id: 'ncaab', label: 'NCAA', tagId: 1, emoji: '🥏' },
+  { id: 'ncaab', label: 'NCAAB', tagId: 100149, emoji: '🏐' },
   { id: 'soccer', label: 'Soccer', tagId: 100350, emoji: '⚽' },
   { id: 'mlb', label: 'MLB', tagId: 100381, emoji: '⚾' },
   { id: 'nhl', label: 'NHL', tagId: 899, emoji: '🏒' },

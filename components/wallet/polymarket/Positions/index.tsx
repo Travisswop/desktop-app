@@ -150,7 +150,7 @@ export default function UserPositions() {
     if (!positions) return [];
     return positions
       .filter((p) => p.size >= DUST_THRESHOLD)
-      .filter((p) => p.currentValue >= DUST_THRESHOLD);
+      .filter((p) => p.redeemable || p.currentValue >= DUST_THRESHOLD);
   }, [positions]);
 
   // ── Portfolio stats ──────────────────────────────────────────────────────
