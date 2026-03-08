@@ -31,22 +31,16 @@ export function useActiveOrders(
       }
 
       try {
+        // getOpenOrders() is authenticated — it already returns only the
+        // current user's orders, so no maker_address filter is needed.
         const allOrders = await clobClient.getOpenOrders();
 
-        const userOrders = allOrders.filter((order: any) => {
-          const orderMaker = (order.maker_address || "").toLowerCase();
-          const userAddr = walletAddress.toLowerCase();
-          return orderMaker === userAddr;
-        });
-
-        // Include all non-terminal insert statuses:
-        // LIVE = resting on the book
-        // MATCHED = just placed and matched against a resting order (briefly pre-LIVE)
-        // DELAYED = marketable but subject to a matching delay (sports markets)
-        const OPEN_STATUSES = new Set(["LIVE", "MATCHED", "DELAYED"]);
-        const activeOrders = userOrders.filter((order: any) => {
-          return OPEN_STATUSES.has(order.status);
-        });
+        // The CLOB API returns statuses in lowercase ("live", "matched",
+        // "delayed"). Normalise before comparing to avoid missing orders.
+        const OPEN_STATUSES = new Set(["live", "matched", "delayed"]);
+        const activeOrders = (allOrders as any[]).filter((order) =>
+          OPEN_STATUSES.has((order.status ?? "").toLowerCase())
+        );
 
         return activeOrders as PolymarketOrder[];
       } catch (err) {
