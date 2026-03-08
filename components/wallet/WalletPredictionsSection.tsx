@@ -5,6 +5,7 @@ import { useTrading, usePolymarketWallet } from '@/providers/polymarket';
 import SafeWalletCard from '@/components/wallet/polymarket/SafeWalletCard';
 import PolygonAssets from '@/components/wallet/polymarket/PolygonAssets';
 import UserPositions from '@/components/wallet/polymarket/Positions';
+import ActiveOrders from '@/components/wallet/polymarket/Orders';
 import HighVolumeMarkets from '@/components/wallet/polymarket/Markets';
 import GeoBlockedBanner from '@/components/wallet/polymarket/GeoBlockedBanner';
 
@@ -87,11 +88,12 @@ export default function WalletPredictionsSection() {
       <h2 className="text-xl font-bold text-gray-900">Predictions</h2>
       <GeoBlockedBanner />
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        {/* Left: Trading Wallet + Positions */}
+        {/* Left: Trading Wallet + Positions + Orders */}
         <div className="space-y-4">
           {/* <SafeWalletCard /> */}
           <PolygonAssets />
           <UserPositions />
+          <ActiveOrders />
         </div>
 
         {/* Right: Markets */}
