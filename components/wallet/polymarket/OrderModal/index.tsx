@@ -157,28 +157,43 @@ export default function OrderPlacementModal({
 
   const effectivePrice = isLimitVariant ? limitPriceNum : activePrice;
 
-  // For BUY: input is dollar amount, calculate shares
-  // For SELL: input is shares, calculate dollar amount to receive
+  // Limit BUY: inputNum is shares (shares-first input like Polymarket)
+  // Market BUY: inputNum is dollars — divide by price to get shares
+  // SELL (any):  inputNum is shares
   const shares =
     side === 'BUY'
-      ? effectivePrice > 0
-        ? inputNum / effectivePrice
-        : 0
+      ? isLimitVariant
+        ? inputNum
+        : effectivePrice > 0
+          ? inputNum / effectivePrice
+          : 0
       : inputNum;
+
+  // Limit BUY: cost = shares × price  |  Market / SELL: cost = inputNum
+  const totalCost =
+    side === 'BUY' && isLimitVariant ? shares * limitPriceNum : inputNum;
 
   const potentialWin = side === 'BUY' ? shares : 0;
   const amountToReceive =
     side === 'SELL' ? inputNum * effectivePrice : 0;
 
-  // For balance checks
   const hasInsufficientBalance =
-    side === 'BUY'
-      ? inputNum > balance
-      : inputNum > activeShareBalance;
+    side === 'BUY' ? totalCost > balance : inputNum > activeShareBalance;
+
+  const LIMIT_MIN_SHARES = orderMinSize;
 
   const handlePlaceOrder = async () => {
     if (side === 'BUY') {
-      if (inputNum < 1) {
+      if (isLimitVariant) {
+        if (inputNum < LIMIT_MIN_SHARES) {
+          setLocalError(`Minimum order is ${LIMIT_MIN_SHARES} shares`);
+          return;
+        }
+        if (totalCost < 1) {
+          setLocalError('Minimum order value is $1.00');
+          return;
+        }
+      } else if (inputNum < 1) {
         setLocalError('Minimum order amount is $1.00');
         return;
       }
@@ -211,10 +226,9 @@ export default function OrderPlacementModal({
     }
 
     try {
-      // For market orders:
-      //   BUY: pass dollar amount directly (CLOB client expects USDC amount)
-      //   SELL: pass share amount
-      // For limit orders: always pass shares
+      // Market BUY: pass dollar amount (CLOB converts internally)
+      // Limit BUY:  pass share count directly
+      // Any SELL:   pass share count
       const orderSize =
         isMarketVariant && side === 'BUY' ? inputNum : shares;
 
@@ -388,7 +402,15 @@ export default function OrderPlacementModal({
                 }}
                 balance={balance}
                 onQuickAmount={handleQuickAmount}
-                onMaxAmount={handleMaxAmount}
+                onMaxAmount={() => {
+                  if (isLimitVariant && limitPriceNum > 0) {
+                    const maxShares = Math.floor(balance / limitPriceNum);
+                    setInputValue(String(maxShares));
+                  } else if (balance > 0) {
+                    setInputValue(balance.toFixed(2));
+                  }
+                  setLocalError(null);
+                }}
                 isSubmitting={isSubmitting}
                 orderType={isLimitVariant ? 'limit' : 'market'}
                 limitPrice={limitPrice}
@@ -398,7 +420,8 @@ export default function OrderPlacementModal({
                 }}
                 tickSize={tickSize}
                 isLoadingTickSize={isLoadingTickSize}
-                minOrderAmount={1}
+                limitPriceDecimal={isLimitVariant ? limitPriceNum : undefined}
+                minOrderAmount={isLimitVariant ? LIMIT_MIN_SHARES : 1}
               />
             )}
 
@@ -431,7 +454,8 @@ export default function OrderPlacementModal({
               <ToWinDisplay
                 potentialWin={potentialWin}
                 avgPrice={effectivePrice}
-                amount={inputNum}
+                amount={isLimitVariant ? totalCost : inputNum}
+                totalCost={isLimitVariant ? totalCost : undefined}
               />
             )}
 

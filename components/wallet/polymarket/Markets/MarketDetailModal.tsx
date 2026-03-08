@@ -241,21 +241,44 @@ export default function MarketDetailModal({
   const isLimitVariant = orderType === 'limit' || orderType === 'gtd';
   const effectivePrice = isLimitVariant ? limitPriceNum : activePrice;
 
+  // Limit BUY: inputNum is shares (shares-first input like Polymarket)
+  // Market BUY: inputNum is dollars — divide by price to get shares
+  // SELL (any):  inputNum is shares
   const shares =
     side === 'BUY'
-      ? effectivePrice > 0
-        ? inputNum / effectivePrice
-        : 0
+      ? isLimitVariant
+        ? inputNum
+        : effectivePrice > 0
+          ? inputNum / effectivePrice
+          : 0
       : inputNum;
+
+  // Limit BUY: cost = shares × price  |  Market / SELL: cost = inputNum
+  const totalCost =
+    side === 'BUY' && isLimitVariant ? shares * limitPriceNum : inputNum;
+
   const potentialWin = side === 'BUY' ? shares : 0;
   const amountToReceive = side === 'SELL' ? inputNum * effectivePrice : 0;
   const hasInsufficientBalance =
-    side === 'BUY' ? inputNum > balance : inputNum > activeShareBalance;
+    side === 'BUY' ? totalCost > balance : inputNum > activeShareBalance;
+
+  const LIMIT_MIN_SHARES = market.orderMinSize ?? 5;
 
   const handlePlaceOrder = async () => {
-    if (side === 'BUY' && inputNum < 1) {
-      setLocalError('Minimum order amount is $1.00');
-      return;
+    if (side === 'BUY') {
+      if (isLimitVariant) {
+        if (inputNum < LIMIT_MIN_SHARES) {
+          setLocalError(`Minimum order is ${LIMIT_MIN_SHARES} shares`);
+          return;
+        }
+        if (totalCost < 1) {
+          setLocalError('Minimum order value is $1.00');
+          return;
+        }
+      } else if (inputNum < 1) {
+        setLocalError('Minimum order amount is $1.00');
+        return;
+      }
     }
     if (side === 'SELL' && inputNum < 1) {
       setLocalError('Minimum shares to sell: 1');
@@ -280,6 +303,9 @@ export default function MarketDetailModal({
       }
     }
     try {
+      // Market BUY: pass dollar amount (CLOB converts internally)
+      // Limit BUY:  pass share count directly
+      // Any SELL:   pass share count
       const orderSize = isMarketVariant && side === 'BUY' ? inputNum : shares;
       const gtdExpiration =
         orderType === 'gtd'
@@ -617,10 +643,14 @@ export default function MarketDetailModal({
                   setLocalError(null);
                 }}
                 onMaxAmount={() => {
-                  if (balance > 0) {
+                  if (isLimitVariant && limitPriceNum > 0) {
+                    // Max shares = how many whole shares the balance can buy
+                    const maxShares = Math.floor(balance / limitPriceNum);
+                    setInputValue(String(maxShares));
+                  } else if (balance > 0) {
                     setInputValue(balance.toFixed(2));
-                    setLocalError(null);
                   }
+                  setLocalError(null);
                 }}
                 isSubmitting={isSubmitting}
                 orderType={isLimitVariant ? 'limit' : 'market'}
@@ -631,7 +661,8 @@ export default function MarketDetailModal({
                 }}
                 tickSize={tickSize}
                 isLoadingTickSize={isLoadingTickSize}
-                minOrderAmount={1}
+                limitPriceDecimal={isLimitVariant ? limitPriceNum : undefined}
+                minOrderAmount={isLimitVariant ? LIMIT_MIN_SHARES : 1}
               />
             )}
 
@@ -672,7 +703,8 @@ export default function MarketDetailModal({
               <ToWinDisplay
                 potentialWin={potentialWin}
                 avgPrice={effectivePrice}
-                amount={inputNum}
+                amount={isLimitVariant ? totalCost : inputNum}
+                totalCost={isLimitVariant ? totalCost : undefined}
               />
             )}
 
