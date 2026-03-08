@@ -13,12 +13,12 @@ import {
 } from '@/hooks/polymarket';
 import { usePolymarketWallet } from '@/providers/polymarket';
 import { useTrading } from '@/providers/polymarket';
-import { ChevronRight } from 'lucide-react';
 
 import ErrorState from '../shared/ErrorState';
 import EmptyState from '../shared/EmptyState';
 import LoadingState from '../shared/LoadingState';
 import PositionCard from './PositionCard';
+import OrderCard from '../Orders/OrderCard';
 import OrderPlacementModal from '../OrderModal';
 import MarketDetailModal from '../Markets/MarketDetailModal';
 
@@ -69,15 +69,18 @@ export default function UserPositions() {
 
   const { usdcBalance } = usePolygonBalances(safeAddress);
 
-  const { data: activeOrders = [] } = useActiveOrders(clobClient, eoaAddress);
+  // Limit orders are placed from the Safe (proxy) wallet, so maker_address matches
+  // safeAddress — not eoaAddress.  Using eoaAddress here would always return [].
+  const { data: activeOrders = [] } = useActiveOrders(clobClient, safeAddress);
 
   const [redeemingAsset, setRedeemingAsset] = useState<string | null>(null);
   const [sellingAsset, setSellingAsset] = useState<string | null>(null);
+  const [cancellingOrderId, setCancellingOrderId] = useState<string | null>(null);
   const [buyMorePosition, setBuyMorePosition] = useState<PolymarketPosition | null>(null);
   const [detailPosition, setDetailPosition] = useState<PolymarketPosition | null>(null);
 
   const { redeemPosition, isRedeeming } = useRedeemPosition();
-  const { submitOrder, isSubmitting } = useClobOrder(clobClient, eoaAddress);
+  const { submitOrder, cancelOrder, isSubmitting } = useClobOrder(clobClient, eoaAddress);
 
   const [pendingVerification, setPendingVerification] = useState<Map<string, number>>(new Map());
   const queryClient = useQueryClient();
@@ -146,6 +149,17 @@ export default function UserPositions() {
     }
   };
 
+  const handleCancelOrder = async (orderId: string) => {
+    setCancellingOrderId(orderId);
+    try {
+      await cancelOrder(orderId);
+    } catch (err) {
+      console.error('Failed to cancel order:', err);
+    } finally {
+      setCancellingOrderId(null);
+    }
+  };
+
   const activePositions = useMemo(() => {
     if (!positions) return [];
     return positions
@@ -176,6 +190,40 @@ export default function UserPositions() {
   if (error) return <ErrorState error={error} title="Error loading positions" />;
 
   if (!positions || activePositions.length === 0) {
+    // If the user has pending limit orders but no filled positions, surface that
+    // context rather than showing a generic "no positions" message.
+    if (activeOrders.length > 0) {
+      const inOrdersValue = activeOrders
+        .filter((o) => o.side === 'BUY')
+        .reduce((s, o) => {
+          const remaining = parseFloat(o.original_size) - parseFloat(o.size_matched);
+          return s + remaining * parseFloat(o.price);
+        }, 0);
+
+      return (
+        <div className="space-y-4">
+          <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4">
+            <p className="text-sm font-semibold text-amber-800 mb-1">
+              {activeOrders.length} limit order{activeOrders.length > 1 ? 's' : ''} pending
+            </p>
+            <p className="text-xs text-amber-600">
+              ${inOrdersValue.toFixed(2)} waiting to be filled. Positions will appear here once your orders match.
+            </p>
+          </div>
+          <div className="space-y-3">
+            {activeOrders.map((order) => (
+              <OrderCard
+                key={order.id}
+                order={order}
+                onCancel={handleCancelOrder}
+                isCancelling={cancellingOrderId === order.id}
+              />
+            ))}
+          </div>
+        </div>
+      );
+    }
+
     return (
       <EmptyState
         title="No Open Positions"
@@ -212,18 +260,26 @@ export default function UserPositions() {
         </div>
       </div>
 
-      {/* ── In Orders ──────────────────────────────────────────────────── */}
+      {/* ── Pending Limit Orders ───────────────────────────────────────── */}
       {activeOrders.length > 0 && (
-        <div className="bg-gray-50 border border-gray-200 rounded-2xl px-4 py-3 flex items-center justify-between">
-          <div>
-            <p className="text-xs text-gray-400">Limit Orders</p>
-            <p className="text-sm font-semibold text-gray-900">In Orders</p>
-          </div>
-          <div className="flex items-center gap-1">
-            <span className="text-sm font-bold text-gray-900">
-              ${stats.inOrdersValue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+        <div className="space-y-2">
+          <div className="flex items-center justify-between">
+            <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wide">
+              Limit Orders
+            </h3>
+            <span className="text-xs text-gray-400">
+              ${stats.inOrdersValue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} pending
             </span>
-            <ChevronRight className="w-4 h-4 text-gray-400" />
+          </div>
+          <div className="space-y-3">
+            {activeOrders.map((order) => (
+              <OrderCard
+                key={order.id}
+                order={order}
+                onCancel={handleCancelOrder}
+                isCancelling={cancellingOrderId === order.id}
+              />
+            ))}
           </div>
         </div>
       )}
