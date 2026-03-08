@@ -40,7 +40,7 @@ export default function SharesInput({
 
   const handleLimitPriceChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value;
-    if (isValidDecimalInput(value)) {
+    if (isValidDecimalInput(value) && (value === '' || parseFloat(value) <= 99)) {
       onLimitPriceChange(value);
     }
   };
@@ -69,11 +69,11 @@ export default function SharesInput({
               inputMode="decimal"
               value={limitPrice}
               onChange={handleLimitPriceChange}
-              placeholder="0.00"
+              placeholder="50"
               disabled={isSubmitting}
-              className="w-full bg-transparent text-2xl font-bold text-gray-900 text-right outline-none placeholder-gray-400"
+              className="w-full bg-transparent text-2xl font-bold text-gray-900 text-left outline-none placeholder-gray-400 pr-8"
             />
-            <span className="absolute left-0 top-1/2 -translate-y-1/2 text-2xl font-bold text-gray-400">$</span>
+            <span className="absolute right-0 top-1/2 -translate-y-1/2 text-2xl font-bold text-gray-400">¢</span>
           </div>
         </div>
       )}
