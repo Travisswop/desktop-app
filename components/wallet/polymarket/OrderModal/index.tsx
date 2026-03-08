@@ -149,7 +149,8 @@ export default function OrderPlacementModal({
   if (!isOpen) return null;
 
   const inputNum = parseFloat(inputValue) || 0;
-  const limitPriceNum = parseFloat(limitPrice) || 0;
+  // limitPrice is entered by the user in cents (1–99); convert to decimal (0–1) for the API
+  const limitPriceNum = (parseFloat(limitPrice) || 0) / 100;
   // Whether the current variant is a market-type or limit-type order
   const isMarketVariant = orderType === 'market' || orderType === 'fak';
   const isLimitVariant = orderType === 'limit' || orderType === 'gtd';
