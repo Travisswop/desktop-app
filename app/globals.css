@@ -264,6 +264,25 @@ body {
   scrollbar-width: none;
 }
 
+/* Thin horizontal scrollbar for tab rows */
+.scrollbar-x {
+  scrollbar-width: thin;
+  scrollbar-color: #d1d5db transparent;
+}
+
+.scrollbar-x::-webkit-scrollbar {
+  height: 4px;
+}
+
+.scrollbar-x::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.scrollbar-x::-webkit-scrollbar-thumb {
+  background-color: #d1d5db;
+  border-radius: 2px;
+}
+
 /* remove water mark from tinymice editor  */
 .tox .tox-statusbar {
   align-items: center;

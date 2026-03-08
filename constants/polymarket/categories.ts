@@ -1,15 +1,15 @@
 export type CategoryId =
-  | "trending"
-  | "politics"
-  | "finance"
-  | "crypto"
-  | "sports"
-  | "tech"
-  | "culture"
-  | "geopolitics"
-  | "economy"
-  | "elections"
-  | "memes";
+  | 'trending'
+  | 'politics'
+  | 'finance'
+  | 'crypto'
+  | 'sports'
+  | 'tech'
+  | 'culture'
+  | 'geopolitics'
+  | 'economy'
+  | 'elections'
+  | 'memes';
 
 export interface Category {
   id: CategoryId;
@@ -19,83 +19,86 @@ export interface Category {
 
 export const CATEGORIES: Category[] = [
   {
-    id: "trending",
-    label: "Trending",
+    id: 'trending',
+    label: 'Trending',
     tagId: null,
   },
   {
-    id: "sports",
-    label: "Sports",
+    id: 'sports',
+    label: 'Sports',
     tagId: 100639,
   },
   {
-    id: "politics",
-    label: "Politics",
+    id: 'politics',
+    label: 'Politics',
     tagId: 2,
   },
   {
-    id: "elections",
-    label: "Elections",
+    id: 'elections',
+    label: 'Elections',
     tagId: 339,
   },
   {
-    id: "economy",
-    label: "Economy",
+    id: 'economy',
+    label: 'Economy',
     tagId: 100328,
   },
   {
-    id: "finance",
-    label: "Finance",
+    id: 'finance',
+    label: 'Finance',
     tagId: 120,
   },
   {
-    id: "crypto",
-    label: "Crypto",
+    id: 'crypto',
+    label: 'Crypto',
     tagId: 21,
   },
   {
-    id: "tech",
-    label: "Tech",
+    id: 'tech',
+    label: 'Tech',
     tagId: 1401,
   },
   {
-    id: "culture",
-    label: "Culture",
+    id: 'culture',
+    label: 'Culture',
     tagId: 596,
   },
   {
-    id: "memes",
-    label: "Memes",
+    id: 'memes',
+    label: 'Memes',
     tagId: 596,
   },
   {
-    id: "geopolitics",
-    label: "Geopolitics",
+    id: 'geopolitics',
+    label: 'Geopolitics',
     tagId: 100265,
   },
 ];
 
-export const DEFAULT_CATEGORY: CategoryId = "trending";
+export const DEFAULT_CATEGORY: CategoryId = 'trending';
 
-export function getCategoryById(id: CategoryId): Category | undefined {
+export function getCategoryById(
+  id: CategoryId,
+): Category | undefined {
   return CATEGORIES.find((c) => c.id === id);
 }
 
 // ─── Sports Subcategories ────────────────────────────────────────────────────
 
 export type SportSubcategoryId =
-  | "all"
-  | "nfl"
-  | "nba"
-  | "mlb"
-  | "nhl"
-  | "soccer"
-  | "tennis"
-  | "cricket"
-  | "esports"
-  | "mma"
-  | "ncaa"
-  | "wnba";
+  | 'all'
+  | 'nfl'
+  | 'nba'
+  | 'mlb'
+  | 'nhl'
+  | 'soccer'
+  | 'tennis'
+  | 'cricket'
+  | 'esports'
+  | 'mma'
+  | 'ncaa'
+  | 'ncaab'
+  | 'wnba';
 
 export interface SportSubcategory {
   id: SportSubcategoryId;
@@ -110,21 +113,20 @@ export interface SportSubcategory {
  * Sports parent tag is always 100639 (used as fallback for "All").
  */
 export const SPORT_SUBCATEGORIES: SportSubcategory[] = [
-  { id: "all",     label: "All Sports",  tagId: null,   emoji: "🏆" },
-  { id: "nfl",     label: "NFL",         tagId: 450,    emoji: "🏈" },
-  { id: "nba",     label: "NBA",         tagId: 745,    emoji: "🏀" },
-  { id: "soccer",  label: "Soccer",      tagId: 100350, emoji: "⚽" },
-  { id: "mlb",     label: "MLB",         tagId: 100381, emoji: "⚾" },
-  { id: "nhl",     label: "NHL",         tagId: 899,    emoji: "🏒" },
-  { id: "tennis",  label: "Tennis",      tagId: 864,    emoji: "🎾" },
-  { id: "mma",     label: "MMA / UFC",   tagId: 891,    emoji: "🥊" },
-  { id: "cricket", label: "Cricket",     tagId: 517,    emoji: "🏏" },
-  { id: "esports", label: "Esports",     tagId: 64,     emoji: "🎮" },
-  { id: "ncaa",    label: "NCAA",        tagId: 100149, emoji: "🎓" },
-  { id: "wnba",    label: "WNBA",        tagId: 100254, emoji: "🏀" },
+  { id: 'all', label: 'All Sports', tagId: null, emoji: '🏆' },
+  { id: 'nfl', label: 'NFL', tagId: 450, emoji: '🏈' },
+  { id: 'nba', label: 'NBA', tagId: 745, emoji: '🏀' },
+  { id: 'ncaab', label: 'NCAA', tagId: 1, emoji: '🥏' },
+  { id: 'soccer', label: 'Soccer', tagId: 100350, emoji: '⚽' },
+  { id: 'mlb', label: 'MLB', tagId: 100381, emoji: '⚾' },
+  { id: 'nhl', label: 'NHL', tagId: 899, emoji: '🏒' },
+  { id: 'tennis', label: 'Tennis', tagId: 864, emoji: '🎾' },
+  { id: 'mma', label: 'MMA / UFC', tagId: 100639, emoji: '🥊' },
+  { id: 'cricket', label: 'Cricket', tagId: 517, emoji: '🏏' },
+  { id: 'esports', label: 'Esports', tagId: 64, emoji: '🎮' },
 ];
 
-export const DEFAULT_SPORT_SUBCATEGORY: SportSubcategoryId = "all";
+export const DEFAULT_SPORT_SUBCATEGORY: SportSubcategoryId = 'all';
 
 export function getSportSubcategoryById(
   id: SportSubcategoryId,

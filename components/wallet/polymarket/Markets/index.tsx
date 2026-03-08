@@ -34,6 +34,8 @@ type SelectedMarket = {
   yesPrice: number;
   noPrice: number;
   orderMinSize: number;
+  yesOutcomeName: string;
+  noOutcomeName: string;
 };
 
 export default function HighVolumeMarkets() {
@@ -155,17 +157,24 @@ export default function HighVolumeMarkets() {
       ? JSON.parse(market.outcomePrices).map(Number)
       : [];
 
-    // Use realtime prices first, then static prices, then infer from the
-    // clicked price (using the outcome name to derive the correct polarity).
-    const isYesClicked = outcome.toLowerCase() === 'yes';
+    // Determine which outcome was clicked by matching the tokenId to position,
+    // not by checking the outcome name (which may be a team name, not "Yes"/"No").
+    const isFirstOutcome = tokenId === yesTokenId;
     const yesPrice =
       market.realtimePrices?.[yesTokenId]?.bidPrice ??
       staticPrices[0] ??
-      (isYesClicked ? price : 1 - price);
+      (isFirstOutcome ? price : 1 - price);
     const noPrice =
       market.realtimePrices?.[noTokenId]?.bidPrice ??
       staticPrices[1] ??
-      (isYesClicked ? 1 - price : price);
+      (isFirstOutcome ? 1 - price : price);
+
+    // Parse actual outcome names (e.g. team names for sports markets)
+    const outcomes: string[] = market.outcomes
+      ? JSON.parse(market.outcomes)
+      : ['Yes', 'No'];
+    const yesOutcomeName = outcomes[0] || 'Yes';
+    const noOutcomeName = outcomes[1] || 'No';
 
     setSelectedMarket({
       marketTitle,
@@ -178,6 +187,8 @@ export default function HighVolumeMarkets() {
       yesPrice,
       noPrice,
       orderMinSize: market.orderMinSize || 5,
+      yesOutcomeName,
+      noOutcomeName,
     });
     setIsModalOpen(true);
   };
@@ -309,6 +320,8 @@ export default function HighVolumeMarkets() {
           yesShares={yesShares}
           noShares={noShares}
           orderMinSize={selectedMarket.orderMinSize}
+          yesOutcomeName={selectedMarket.yesOutcomeName}
+          noOutcomeName={selectedMarket.noOutcomeName}
         />
       )}
 

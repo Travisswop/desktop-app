@@ -6,6 +6,8 @@ interface OutcomeSelectorProps {
   yesPrice: number;
   noPrice: number;
   side?: "BUY" | "SELL";
+  yesLabel?: string;
+  noLabel?: string;
 }
 
 export default function OutcomeSelector({
@@ -14,6 +16,8 @@ export default function OutcomeSelector({
   yesPrice,
   noPrice,
   side = "BUY",
+  yesLabel = "Yes",
+  noLabel = "No",
 }: OutcomeSelectorProps) {
   const formatPriceCents = (price: number) => {
     const cents = Math.round(price * 100);
@@ -45,13 +49,13 @@ export default function OutcomeSelector({
         onClick={() => onOutcomeChange("yes")}
         className={`flex-1 py-3 px-4 rounded-xl font-semibold text-sm transition-all ${getYesButtonStyle()}`}
       >
-        Yes {formatPriceCents(yesPrice)}
+        {yesLabel} {formatPriceCents(yesPrice)}
       </button>
       <button
         onClick={() => onOutcomeChange("no")}
         className={`flex-1 py-3 px-4 rounded-xl font-semibold text-sm transition-all ${getNoButtonStyle()}`}
       >
-        No {formatPriceCents(noPrice)}
+        {noLabel} {formatPriceCents(noPrice)}
       </button>
     </div>
   );

@@ -38,6 +38,8 @@ type OrderPlacementModalProps = {
   yesShares?: number;
   noShares?: number;
   orderMinSize?: number;
+  yesOutcomeName?: string;
+  noOutcomeName?: string;
 };
 
 export default function OrderPlacementModal({
@@ -57,6 +59,8 @@ export default function OrderPlacementModal({
   yesShares = 0,
   noShares = 0,
   orderMinSize = 5,
+  yesOutcomeName = 'Yes',
+  noOutcomeName = 'No',
 }: OrderPlacementModalProps) {
   const [inputValue, setInputValue] = useState<string>('');
   const [orderType, setOrderType] = useState<OrderVariant>('market');
@@ -65,7 +69,7 @@ export default function OrderPlacementModal({
   const [side, setSide] = useState<'BUY' | 'SELL'>('BUY');
   const [selectedOutcome, setSelectedOutcome] = useState<
     'yes' | 'no'
-  >(outcome.toLowerCase() === 'no' ? 'no' : 'yes');
+  >(noTokenId && tokenId === noTokenId ? 'no' : 'yes');
   const [limitPrice, setLimitPrice] = useState<string>('');
   const [localError, setLocalError] = useState<string | null>(null);
   const [showSuccess, setShowSuccess] = useState(false);
@@ -96,7 +100,7 @@ export default function OrderPlacementModal({
       setOrderType('market');
       setSide('BUY');
       setSelectedOutcome(
-        outcome.toLowerCase() === 'no' ? 'no' : 'yes',
+        noTokenId && tokenId === noTokenId ? 'no' : 'yes',
       );
       setLimitPrice('');
       setLocalError(null);
@@ -369,6 +373,8 @@ export default function OrderPlacementModal({
               yesPrice={yesPrice}
               noPrice={noPrice}
               side={side}
+              yesLabel={yesOutcomeName}
+              noLabel={noOutcomeName}
             />
 
             {/* Buy Mode: Amount Input */}
@@ -479,7 +485,7 @@ export default function OrderPlacementModal({
               ) : !clobClient ? (
                 'Connect Wallet'
               ) : (
-                `${side === 'BUY' ? 'Buy' : 'Sell'} ${selectedOutcome === 'yes' ? 'Yes' : 'No'}`
+                `${side === 'BUY' ? 'Buy' : 'Sell'} ${selectedOutcome === 'yes' ? yesOutcomeName : noOutcomeName}`
               )}
             </button>
 
