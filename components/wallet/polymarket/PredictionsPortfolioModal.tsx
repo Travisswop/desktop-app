@@ -93,12 +93,27 @@ export default function PredictionsPortfolioModal({
     if (stillPending.size !== pendingVerification.size) setPendingVerification(stillPending);
   }, [positions, pendingVerification]);
 
+  // All positions for stats (includes settled losses for accurate P&L history)
   const activePositions = useMemo(() => {
     if (!positions) return [];
     return positions
       .filter((p) => p.size >= DUST_THRESHOLD)
       .filter((p) => p.redeemable || p.currentValue >= DUST_THRESHOLD);
   }, [positions]);
+
+  // Split into actionable (wins to redeem + live markets) vs settled losses (curPrice=0)
+  const { actionablePositions, settledPositions } = useMemo(() => {
+    const actionable: typeof activePositions = [];
+    const settled: typeof activePositions = [];
+    activePositions.forEach((p) => {
+      if (p.redeemable && p.curPrice === 0) {
+        settled.push(p);
+      } else {
+        actionable.push(p);
+      }
+    });
+    return { actionablePositions: actionable, settledPositions: settled };
+  }, [activePositions]);
 
   const stats = useMemo(() => {
     const inOrdersValue = activeOrders
@@ -247,10 +262,16 @@ export default function PredictionsPortfolioModal({
               </div>
 
               <div className="bg-gray-50 rounded-2xl p-4">
-                <p className="text-xs text-gray-500 mb-1">Lifetime Earned</p>
-                <p className="text-xl font-bold text-gray-900">
-                  $
-                  {stats.lifetimeEarned.toLocaleString('en-US', {
+                <p className="text-xs text-gray-500 mb-1">
+                  {stats.lifetimeEarned >= 0 ? 'Lifetime Earned' : 'Lifetime P&L'}
+                </p>
+                <p
+                  className={`text-xl font-bold ${
+                    stats.lifetimeEarned >= 0 ? 'text-gray-900' : 'text-red-500'
+                  }`}
+                >
+                  {stats.lifetimeEarned < 0 ? '-' : ''}$
+                  {Math.abs(stats.lifetimeEarned).toLocaleString('en-US', {
                     minimumFractionDigits: 2,
                     maximumFractionDigits: 2,
                   })}
@@ -293,27 +314,53 @@ export default function PredictionsPortfolioModal({
             {/* Active Picks tab */}
             {activeTab === 'active' && (
               <div className="space-y-3">
-                {activePositions.length === 0 ? (
+                {actionablePositions.length === 0 && settledPositions.length === 0 ? (
                   <div className="text-center py-8">
                     <p className="text-gray-400 text-sm">No open positions.</p>
                   </div>
                 ) : (
-                  activePositions.map((position) => (
-                    <PositionCard
-                      key={`${position.conditionId}-${position.outcomeIndex}`}
-                      position={position}
-                      onRedeem={handleRedeem}
-                      onSell={handleMarketSell}
-                      onBuyMore={(p) => setBuyMorePosition(p)}
-                      isSelling={sellingAsset === position.asset}
-                      isRedeeming={redeemingAsset === position.asset}
-                      isPendingVerification={pendingVerification.has(position.asset)}
-                      isSubmitting={isSubmitting}
-                      canSell={!!clobClient}
-                      canRedeem={!!relayClient}
-                      onTitleClick={() => setDetailPosition(position)}
-                    />
-                  ))
+                  <>
+                    {actionablePositions.map((position) => (
+                      <PositionCard
+                        key={`${position.conditionId}-${position.outcomeIndex}`}
+                        position={position}
+                        onRedeem={handleRedeem}
+                        onSell={handleMarketSell}
+                        onBuyMore={(p) => setBuyMorePosition(p)}
+                        isSelling={sellingAsset === position.asset}
+                        isRedeeming={redeemingAsset === position.asset}
+                        isPendingVerification={pendingVerification.has(position.asset)}
+                        isSubmitting={isSubmitting}
+                        canSell={!!clobClient}
+                        canRedeem={!!relayClient}
+                        onTitleClick={() => setDetailPosition(position)}
+                      />
+                    ))}
+
+                    {settledPositions.length > 0 && (
+                      <>
+                        <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide pt-1">
+                          Settled ({settledPositions.length})
+                        </p>
+                        {settledPositions.map((position) => (
+                          <PositionCard
+                            key={`${position.conditionId}-${position.outcomeIndex}`}
+                            position={position}
+                            onRedeem={handleRedeem}
+                            onSell={handleMarketSell}
+                            onBuyMore={(p) => setBuyMorePosition(p)}
+                            isSelling={sellingAsset === position.asset}
+                            isRedeeming={redeemingAsset === position.asset}
+                            isPendingVerification={pendingVerification.has(position.asset)}
+                            isSubmitting={isSubmitting}
+                            canSell={!!clobClient}
+                            canRedeem={!!relayClient}
+                            onTitleClick={() => setDetailPosition(position)}
+                          />
+                        ))}
+                      </>
+                    )}
+                  </>
                 )}
               </div>
             )}
@@ -321,7 +368,13 @@ export default function PredictionsPortfolioModal({
             {/* Limit Orders tab */}
             {activeTab === 'orders' && (
               <div className="space-y-3">
-                {activeOrders.length === 0 ? (
+                {!clobClient ? (
+                  <div className="text-center py-8">
+                    <p className="text-gray-400 text-sm">
+                      Start trading to view your limit orders.
+                    </p>
+                  </div>
+                ) : activeOrders.length === 0 ? (
                   <div className="text-center py-8">
                     <p className="text-gray-400 text-sm">No open limit orders.</p>
                   </div>
@@ -341,7 +394,13 @@ export default function PredictionsPortfolioModal({
             {/* Order History tab */}
             {activeTab === 'history' && (
               <div className="space-y-3">
-                {orderHistory.length === 0 ? (
+                {!clobClient ? (
+                  <div className="text-center py-8">
+                    <p className="text-gray-400 text-sm">
+                      Start trading to view your order history.
+                    </p>
+                  </div>
+                ) : orderHistory.length === 0 ? (
                   <div className="text-center py-8">
                     <p className="text-gray-400 text-sm">No order history available.</p>
                   </div>
