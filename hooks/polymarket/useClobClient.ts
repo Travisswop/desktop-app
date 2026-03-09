@@ -32,6 +32,17 @@ export function useClobClient(
       return null;
     }
 
+    // Guard: all three credential fields must be non-empty strings.
+    // A missing `secret` causes postHeartbeat to crash inside buildPolyHmacSignature
+    // with "Cannot read properties of undefined (reading 'replace')".
+    const { key, secret, passphrase } = tradingSession.apiCredentials;
+    if (!key || !secret || !passphrase) {
+      console.warn(
+        "[Polymarket] API credentials are incomplete — skipping ClobClient creation.",
+      );
+      return null;
+    }
+
     // Builder config with remote server signing for order attribution
     const builderConfig = new BuilderConfig({
       remoteBuilderConfig: {
