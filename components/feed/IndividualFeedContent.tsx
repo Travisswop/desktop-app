@@ -252,9 +252,9 @@ const IndividualFeedContent = ({ feed, userId, token, onVoteSuccess }: any) => {
         </div>
         <div>
           {feed.repostedPostDetails.postType === "post" &&
-            feed.repostedPostDetails.content.post_content.length > 0 && (
+            feed.repostedPostDetails.content.quote && (
               <PostTypeMedia
-                mediaFiles={feed.repostedPostDetails.content.post_content}
+                mediaFiles={feed.repostedPostDetails.content.quote.post_content}
                 isFromRepost={true}
               />
             )}

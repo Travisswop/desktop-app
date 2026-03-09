@@ -135,7 +135,7 @@ const PostFeed = ({
             // If it's a GIF or another type, keep the original URL
             return file;
           }
-        })
+        }),
       );
       // console.log("updatedMediaFiles", updatedMediaFiles);
 
@@ -158,7 +158,7 @@ const PostFeed = ({
         setMediaFiles([]);
         setPostContent("");
         setIsPosting(true);
-        router.push("/?tab=feed");
+        router.push("/");
         closeModal();
       }
       if (data?.state === "not-allowed") {
@@ -256,7 +256,7 @@ const PostFeed = ({
             <p className="text-sm text-gray-700">
               {formatEns(
                 (primaryMicrositeDetails && primaryMicrositeDetails.ens) ||
-                  primaryMicrositeDetails?.ensData?.name
+                  primaryMicrositeDetails?.ensData?.name,
               )}
             </p>
           </div>

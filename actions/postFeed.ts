@@ -73,7 +73,7 @@ export async function postFeed(payload: any, token: string) {
   logger.log("🚀 ~ postFeed ~ payload:", payload);
   try {
     const response = await fetch(
-      `${process.env.NEXT_PUBLIC_API_URL}/api/v1/feed`,
+      `${process.env.NEXT_PUBLIC_API_URL}/api/v2/feed`,
       {
         method: "POST",
         headers: {
@@ -81,7 +81,7 @@ export async function postFeed(payload: any, token: string) {
           authorization: `Bearer ${token}`,
         },
         body: JSON.stringify(payload),
-      }
+      },
     );
     const data = await response.json();
     return data;
@@ -100,7 +100,7 @@ export async function postComment(payload: any, token: string) {
           authorization: `Bearer ${token}`,
         },
         body: JSON.stringify(payload),
-      }
+      },
     );
     const data = await response.json();
 
@@ -120,7 +120,7 @@ export async function deleteFeedComment(commentId: string, token: string) {
           "Content-Type": "application/json",
           authorization: `Bearer ${token}`,
         },
-      }
+      },
     );
     const data = await response.json();
     return data;
@@ -129,17 +129,21 @@ export async function deleteFeedComment(commentId: string, token: string) {
   }
 }
 
-export async function deleteFeed(postId: string, token: string) {
+export async function deleteFeed(
+  postId: string,
+  token: string,
+  userId: string,
+) {
   try {
     const response = await fetch(
-      `${process.env.NEXT_PUBLIC_API_URL}/api/v1/feed/${postId}`,
+      `${process.env.NEXT_PUBLIC_API_URL}/api/v2/feed/post/${postId}?userId=${userId}`,
       {
         method: "DELETE",
         headers: {
           "Content-Type": "application/json",
           authorization: `Bearer ${token}`,
         },
-      }
+      },
     );
     const data = await response.json();
     return data;
@@ -160,7 +164,7 @@ export async function postFeedLike(payload: any, token: string) {
           authorization: `Bearer ${token}`,
         },
         body: JSON.stringify(payload),
-      }
+      },
     );
     const data = await response.json();
     return data;
@@ -181,7 +185,7 @@ export async function addFeedLikePoints(payload: any, token: string) {
           authorization: `Bearer ${token}`,
         },
         body: JSON.stringify(payload),
-      }
+      },
     );
     const data = await response.json();
     return data;
@@ -201,7 +205,7 @@ export async function removeFeedLike(payload: any, token: string) {
           authorization: `Bearer ${token}`,
         },
         body: JSON.stringify(payload),
-      }
+      },
     );
     const data = await response.json();
     return data;
@@ -221,7 +225,7 @@ export async function isPostLiked(payload: any, token: string) {
           "Content-Type": "application/json",
           authorization: `Bearer ${token}`,
         },
-      }
+      },
     );
     const data = await response.json();
     return data;
@@ -242,7 +246,7 @@ export async function AddPollVote(payload: any, token: string) {
           authorization: `Bearer ${token}`,
         },
         body: JSON.stringify(payload),
-      }
+      },
     );
     const data = await response.json();
     return data;

@@ -13,17 +13,20 @@ import {
 import { useState } from "react";
 import { PrimaryButton } from "../ui/Button/PrimaryButton";
 import { Loader } from "lucide-react";
+import { logger } from "ethers5";
 
 interface DeleteFeedModalProps {
   postId: string;
   token: string;
   onDeleteSuccess: () => void;
+  userId: string;
 }
 
 export default function DeleteFeedModal({
   postId,
   token,
   onDeleteSuccess,
+  userId,
 }: DeleteFeedModalProps) {
   const { isOpen, onOpen, onOpenChange, onClose } = useDisclosure();
   const [deleteLoading, setDeleteLoading] = useState(false);
@@ -31,7 +34,8 @@ export default function DeleteFeedModal({
 
   const handlePostDelete = async () => {
     setDeleteLoading(true);
-    const deletePost = await deleteFeed(postId, token);
+    const deletePost = await deleteFeed(postId, token, userId);
+    logger.info("Delete post response:", deletePost);
     if (deletePost.state === "success") {
       setDeleteLoading(false);
       toast({

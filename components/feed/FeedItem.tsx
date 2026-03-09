@@ -84,7 +84,7 @@ const FeedItem = memo(
         e.stopPropagation();
         onRedeemModalOpen(feed.content);
       },
-      [onRedeemModalOpen, feed.content]
+      [onRedeemModalOpen, feed.content],
     );
 
     const profilePic =
@@ -319,6 +319,7 @@ const FeedItem = memo(
                         postId={feed._id}
                         token={accessToken}
                         onDeleteSuccess={onDeleteSuccess}
+                        userId={userId}
                       />
                     </div>
                   </PopoverContent>
@@ -330,6 +331,7 @@ const FeedItem = memo(
           {/* Post Media */}
           <div>
             {feed.postType === "post" &&
+              feed.content.post_content &&
               feed.content.post_content.length > 0 && (
                 <PostTypeMedia mediaFiles={feed.content.post_content} />
               )}
@@ -378,7 +380,7 @@ const FeedItem = memo(
         </div>
       </div>
     );
-  }
+  },
 );
 
 FeedItem.displayName = "FeedItem";
