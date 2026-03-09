@@ -8,12 +8,14 @@ interface OrderCardProps {
   order: PolymarketOrder;
   onCancel: (orderId: string) => void;
   isCancelling: boolean;
+  showCancel?: boolean;
 }
 
 export default function OrderCard({
   order,
   onCancel,
   isCancelling,
+  showCancel = true,
 }: OrderCardProps) {
   const isBuy = order.side === 'BUY';
   const price = parseFloat(order.price);
@@ -62,13 +64,15 @@ export default function OrderCard({
           </p>
         </div>
 
-        <button
-          onClick={() => onCancel(order.id)}
-          disabled={isCancelling}
-          className="px-3 py-1.5 bg-red-50 hover:bg-red-100 disabled:bg-gray-100 text-red-600 disabled:text-gray-400 text-sm font-medium rounded-lg border border-red-200 disabled:border-gray-200 transition-colors"
-        >
-          {isCancelling ? '...' : 'Cancel'}
-        </button>
+        {showCancel && (
+          <button
+            onClick={() => onCancel(order.id)}
+            disabled={isCancelling}
+            className="px-3 py-1.5 bg-red-50 hover:bg-red-100 disabled:bg-gray-100 text-red-600 disabled:text-gray-400 text-sm font-medium rounded-lg border border-red-200 disabled:border-gray-200 transition-colors"
+          >
+            {isCancelling ? '...' : 'Cancel'}
+          </button>
+        )}
       </div>
     </Card>
   );

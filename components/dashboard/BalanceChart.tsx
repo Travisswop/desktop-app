@@ -30,9 +30,14 @@ import { MoreHorizontal } from 'lucide-react';
 import { BiQrScan } from 'react-icons/bi';
 import { FaRegListAlt } from 'react-icons/fa';
 import CustomModal from '../modal/CustomModal';
-import WalletReceivePopup from '../wallet/WalletReceivePopup';
+import WalletReceiveCryptoPopup from '../wallet/WalletReceiveCryptoPopup';
 import WalletFundandSettingsPopup from '../wallet/WalletFundandSettingsPopup';
 import { useBalanceVisibilityStore } from '@/zustandStore/useBalanceVisibilityStore';
+import { useWallets } from '@privy-io/react-auth';
+import { useWallets as useSolanaWallets } from '@privy-io/react-auth/solana';
+import TransactionList from '../wallet/transaction/transaction-list';
+import { SUPPORTED_CHAINS } from '../wallet/constants';
+import { ChainType, TokenData } from '@/types/token';
 
 interface BalanceChartProps {
   userId?: string;
@@ -115,6 +120,18 @@ const BalanceChart: React.FC<BalanceChartProps> = ({
   // const [showBalance, setShowBalance] = useState(false);
   const [showPopup, setShowPopup] = useState(false);
   const [fundandSettings, setFundandSettings] = useState(false);
+  const [showTransactionList, setShowTransactionList] = useState(false);
+
+  const { wallets: ethWallets } = useWallets();
+  const { ready: solanaReady, wallets: solWallets } = useSolanaWallets();
+  const solWalletAddress = solanaReady ? (solWallets[0]?.address ?? '') : '';
+  const evmWalletAddress = useMemo(
+    () =>
+      ethWallets?.find(
+        (w) => w.walletClientType === 'privy' || w.connectorType === 'embedded',
+      )?.address ?? '',
+    [ethWallets],
+  );
   const showBalance = useBalanceVisibilityStore(
     (state) => state.showBalance,
   );
@@ -580,35 +597,36 @@ const BalanceChart: React.FC<BalanceChartProps> = ({
               <option value="all">All Time</option>
             </select>
           </div>
-          {false && (
-            <div className="flex items-center gap-1">
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-8 w-8"
-                onClick={onQRClick}
-              >
-                <BiQrScan className="h-4 w-4" />
-              </Button>
-              <Button variant="ghost" size="icon" className="h-8 w-8">
-                <BsBank2 className="h-4 w-4" />
-              </Button>
-              <Button variant="ghost" size="icon" className="h-8 w-8">
-                <FaRegListAlt className="h-4 w-4" />
-              </Button>
-            </div>
-          )}
+
+          <div className="flex items-center gap-1">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8"
+              onClick={() => setShowPopup(true)}
+            >
+              <BiQrScan className="h-4 w-4" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8"
+              onClick={() => setShowTransactionList(true)}
+            >
+              <FaRegListAlt className="h-4 w-4" />
+            </Button>
+          </div>
         </div>
       </div>
 
-      {/* Wallet Address Popup */}
+      {/* Wallet Receive Crypto Popup */}
       {showPopup && (
         <CustomModal
-          width="max-w-md"
+          width="max-w-lg"
           isOpen={showPopup}
           onCloseModal={setShowPopup}
         >
-          <WalletReceivePopup />
+          <WalletReceiveCryptoPopup />
         </CustomModal>
       )}
 
@@ -620,6 +638,25 @@ const BalanceChart: React.FC<BalanceChartProps> = ({
           onCloseModal={setFundandSettings}
         >
           <WalletFundandSettingsPopup />
+        </CustomModal>
+      )}
+
+      {/* Transaction List Popup */}
+      {showTransactionList && (
+        <CustomModal
+          width="max-w-lg"
+          isOpen={showTransactionList}
+          onCloseModal={setShowTransactionList}
+        >
+          <div className="p-4 h-[500px]">
+            <TransactionList
+              solWalletAddress={solWalletAddress}
+              evmWalletAddress={evmWalletAddress}
+              chains={SUPPORTED_CHAINS as ChainType[]}
+              tokens={tokens as unknown as TokenData[]}
+              newTransactions={[]}
+            />
+          </div>
         </CustomModal>
       )}
     </div>

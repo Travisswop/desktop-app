@@ -291,7 +291,6 @@
 
 import * as React from 'react';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
-import { Switch } from '@/components/ui/switch';
 import NFTImage from './nft-image';
 import {
   Carousel,
@@ -305,17 +304,9 @@ import {
   RefreshCw,
   Wifi,
   WifiOff,
-  MoreVertical,
 } from 'lucide-react';
 import { NFT } from '@/types/nft';
 import { Button } from '@/components/ui/button';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
-import CustomModal from '@/components/modal/CustomModal';
 
 interface NftListProps {
   onSelectNft: (nft: NFT) => void;
@@ -324,6 +315,7 @@ interface NftListProps {
   loading: boolean;
   error: Error | null;
   refetch?: () => void;
+  hiddenNfts?: Set<string>;
 }
 
 const ErrorAlert = ({
@@ -411,47 +403,8 @@ export default function NFTSlider({
   loading,
   error,
   refetch,
+  hiddenNfts = new Set(),
 }: NftListProps) {
-  const [isManageModalOpen, setIsManageModalOpen] =
-    React.useState(false);
-  const [hiddenNfts, setHiddenNfts] = React.useState<Set<string>>(
-    new Set(),
-  );
-
-  // console.log("nfts lists", nfts);
-
-  // Load hidden NFTs from localStorage on mount
-  React.useEffect(() => {
-    const stored = localStorage.getItem('hiddenNfts');
-    if (stored) {
-      try {
-        setHiddenNfts(new Set(JSON.parse(stored)));
-      } catch (e) {
-        console.error('Failed to load hidden NFTs:', e);
-      }
-    }
-  }, []);
-
-  // Save hidden NFTs to localStorage whenever it changes
-  React.useEffect(() => {
-    localStorage.setItem(
-      'hiddenNfts',
-      JSON.stringify([...hiddenNfts]),
-    );
-  }, [hiddenNfts]);
-
-  const toggleNftVisibility = (nftId: string) => {
-    setHiddenNfts((prev) => {
-      const newSet = new Set(prev);
-      if (newSet.has(nftId)) {
-        newSet.delete(nftId);
-      } else {
-        newSet.add(nftId);
-      }
-      return newSet;
-    });
-  };
-
   const getNftId = (nft: NFT) => `${nft.contract}-${nft.tokenId}`;
 
   const visibleNfts = nfts.filter(
@@ -505,48 +458,7 @@ export default function NFTSlider({
 
   return (
     <>
-      <div className="w-full border-none rounded-xl bg-white pt-3 px-5">
-        <div>
-          <div className="flex items-center justify-between">
-            <h2 className="text-lg font-semibold">My NFTs</h2>
-            <div className="flex items-center gap-1">
-              {refetch && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="p-0 h-8 w-8"
-                  onClick={() => {
-                    refetch();
-                  }}
-                  disabled={loading}
-                >
-                  <RefreshCw
-                    className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`}
-                  />
-                </Button>
-              )}
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="p-0 h-8 w-8"
-                  >
-                    <MoreVertical className="w-4 h-4" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                  <DropdownMenuItem
-                    className="cursor-pointer"
-                    onClick={() => setIsManageModalOpen(true)}
-                  >
-                    Manage NFTs
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            </div>
-          </div>
-        </div>
+      <div className="">
         <div>
           {loading && <LoadingSkeleton />}
 
@@ -654,59 +566,6 @@ export default function NFTSlider({
           )}
         </div>
       </div>
-
-      {/* Manage NFTs Modal */}
-      <CustomModal
-        isOpen={isManageModalOpen}
-        onClose={() => setIsManageModalOpen(false)}
-        title="Manage NFTs"
-        width="max-w-2xl"
-      >
-        <div className="p-4">
-          <p className="text-sm text-gray-600 mb-4">
-            Toggle NFTs to show or hide them from your collection
-          </p>
-          <div className="space-y-2 max-h-[60vh] overflow-y-auto">
-            {nfts.map((nft) => {
-              const nftId = getNftId(nft);
-              const isVisible = !hiddenNfts.has(nftId);
-
-              return (
-                <div
-                  key={nftId}
-                  className="flex items-center gap-4 p-3 rounded-lg border hover:bg-gray-50 transition-colors"
-                >
-                  <div className="relative w-16 h-16 flex-shrink-0 rounded-lg">
-                    <NFTImage
-                      src={nft.image}
-                      alt={nft.name}
-                      className="p-4"
-                      width={320}
-                      height={320}
-                    />
-                  </div>
-                  <div className="flex-grow min-w-0">
-                    <h4 className="font-medium truncate">
-                      {nft.name}
-                    </h4>
-                    {nft.collection?.collectionName &&
-                      nft.collection.collectionName !==
-                        'Unknown Collection' && (
-                        <p className="text-xs text-gray-500 truncate">
-                          {nft.collection.collectionName}
-                        </p>
-                      )}
-                  </div>
-                  <Switch
-                    checked={isVisible}
-                    onCheckedChange={() => toggleNftVisibility(nftId)}
-                  />
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      </CustomModal>
     </>
   );
 }
