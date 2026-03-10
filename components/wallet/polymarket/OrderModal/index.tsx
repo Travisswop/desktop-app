@@ -11,6 +11,9 @@ import AmountInput from './AmountInput';
 import SharesInput from './SharesInput';
 import ToWinDisplay from './ToWinDisplay';
 import YoullReceiveDisplay from './YoullReceiveDisplay';
+import OrderConfirmSheet, {
+  type PendingOrderData,
+} from '../shared/OrderConfirmSheet';
 
 import type { ClobClient } from '@polymarket/clob-client';
 
@@ -73,6 +76,8 @@ export default function OrderPlacementModal({
   const [limitPrice, setLimitPrice] = useState<string>('');
   const [localError, setLocalError] = useState<string | null>(null);
   const [showSuccess, setShowSuccess] = useState(false);
+  const [pendingOrder, setPendingOrder] =
+    useState<PendingOrderData | null>(null);
 
   const { eoaAddress } = usePolymarketWallet();
   const modalRef = useRef<HTMLDivElement>(null);
@@ -105,6 +110,7 @@ export default function OrderPlacementModal({
       setLimitPrice('');
       setLocalError(null);
       setShowSuccess(false);
+      setPendingOrder(null);
     }
   }, [isOpen, outcome]);
 
@@ -116,6 +122,7 @@ export default function OrderPlacementModal({
 
   useEffect(() => {
     if (orderId && isOpen) {
+      setPendingOrder(null);
       setShowSuccess(true);
       const timer = setTimeout(() => {
         onClose();
@@ -182,7 +189,7 @@ export default function OrderPlacementModal({
 
   const LIMIT_MIN_SHARES = orderMinSize;
 
-  const handlePlaceOrder = async () => {
+  const handlePlaceOrder = () => {
     if (side === 'BUY') {
       if (isLimitVariant) {
         if (inputNum < LIMIT_MIN_SHARES) {
@@ -225,28 +232,50 @@ export default function OrderPlacementModal({
       }
     }
 
+    // Market BUY: pass dollar amount (CLOB converts internally)
+    // Limit BUY:  pass share count directly
+    // Any SELL:   pass share count
+    const orderSize =
+      isMarketVariant && side === 'BUY' ? inputNum : shares;
+
+    // GTD expiration: current time + 60s security buffer + chosen hours
+    const gtdExpiration =
+      orderType === 'gtd'
+        ? Math.floor(Date.now() / 1000) + 60 + gtdHours * 3600
+        : undefined;
+
+    setPendingOrder({
+      // display
+      side,
+      outcomeName:
+        selectedOutcome === 'yes' ? yesOutcomeName : noOutcomeName,
+      cost: side === 'BUY' ? (isLimitVariant ? totalCost : inputNum) : inputNum,
+      potentialWin,
+      amountToReceive,
+      priceDecimal: effectivePrice,
+      // submit params
+      tokenId: activeTokenId,
+      size: orderSize,
+      price: isLimitVariant ? limitPriceNum : undefined,
+      negRisk,
+      isMarketOrder: isMarketVariant,
+      fillType: orderType === 'fak' ? 'FAK' : 'FOK',
+      expiration: gtdExpiration,
+    });
+  };
+
+  const handleConfirm = async () => {
+    if (!pendingOrder) return;
     try {
-      // Market BUY: pass dollar amount (CLOB converts internally)
-      // Limit BUY:  pass share count directly
-      // Any SELL:   pass share count
-      const orderSize =
-        isMarketVariant && side === 'BUY' ? inputNum : shares;
-
-      // GTD expiration: current time + 60s security buffer + chosen hours
-      const gtdExpiration =
-        orderType === 'gtd'
-          ? Math.floor(Date.now() / 1000) + 60 + gtdHours * 3600
-          : undefined;
-
       await submitOrder({
-        tokenId: activeTokenId,
-        size: orderSize,
-        price: isLimitVariant ? limitPriceNum : undefined,
-        side,
-        negRisk,
-        isMarketOrder: isMarketVariant,
-        fillType: orderType === 'fak' ? 'FAK' : 'FOK',
-        expiration: gtdExpiration,
+        tokenId: pendingOrder.tokenId,
+        size: pendingOrder.size,
+        price: pendingOrder.price,
+        side: pendingOrder.side,
+        negRisk: pendingOrder.negRisk,
+        isMarketOrder: pendingOrder.isMarketOrder,
+        fillType: pendingOrder.fillType,
+        expiration: pendingOrder.expiration,
       });
     } catch (err) {
       console.error('Error placing order:', err);
@@ -522,6 +551,18 @@ export default function OrderPlacementModal({
           </div>
         </div>
       </div>
+
+      {pendingOrder && (
+        <OrderConfirmSheet
+          isOpen={true}
+          onClose={() => setPendingOrder(null)}
+          onConfirm={handleConfirm}
+          isSubmitting={isSubmitting}
+          marketTitle={marketTitle}
+          order={pendingOrder}
+          error={orderError?.message}
+        />
+      )}
     </Portal>
   );
 }

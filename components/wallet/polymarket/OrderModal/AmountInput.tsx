@@ -1,6 +1,6 @@
-"use client";
+'use client';
 
-import { isValidDecimalInput } from "@/lib/polymarket/validation";
+import { isValidDecimalInput } from '@/lib/polymarket/validation';
 
 interface AmountInputProps {
   amount: string;
@@ -9,7 +9,7 @@ interface AmountInputProps {
   onQuickAmount: (amount: number) => void;
   onMaxAmount: () => void;
   isSubmitting: boolean;
-  orderType: "market" | "limit";
+  orderType: 'market' | 'limit';
   limitPrice: string;
   onLimitPriceChange: (value: string) => void;
   tickSize: number;
@@ -34,22 +34,29 @@ export default function AmountInput({
   minOrderAmount = 1,
   limitPriceDecimal = 0,
 }: AmountInputProps) {
-  const isLimitMode = orderType === "limit";
+  const isLimitMode = orderType === 'limit';
   const maxShares =
     isLimitMode && limitPriceDecimal > 0
       ? Math.floor(balance / limitPriceDecimal)
       : 0;
 
-  const handleAmountChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleAmountChange = (
+    e: React.ChangeEvent<HTMLInputElement>,
+  ) => {
     const value = e.target.value;
     if (isValidDecimalInput(value)) {
       onAmountChange(value);
     }
   };
 
-  const handleLimitPriceChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleLimitPriceChange = (
+    e: React.ChangeEvent<HTMLInputElement>,
+  ) => {
     const value = e.target.value;
-    if (isValidDecimalInput(value) && (value === "" || parseFloat(value) <= 99)) {
+    if (
+      isValidDecimalInput(value) &&
+      (value === '' || parseFloat(value) <= 99)
+    ) {
       onLimitPriceChange(value);
     }
   };
@@ -67,7 +74,9 @@ export default function AmountInput({
             <span className="text-sm text-gray-600">
               Limit Price
               {isLoadingTickSize && (
-                <span className="ml-2 text-xs text-gray-400">Loading...</span>
+                <span className="ml-2 text-xs text-gray-400">
+                  Loading...
+                </span>
               )}
             </span>
             <span className="text-xs text-gray-500">
@@ -98,7 +107,8 @@ export default function AmountInput({
             <div>
               <span className="text-sm text-gray-600">Shares</span>
               <p className="text-xs text-gray-500">
-                Balance ${balance.toFixed(2)} · Max ~{maxShares} shares
+                Balance ${balance.toFixed(2)} · Max ~{maxShares}{' '}
+                shares
               </p>
             </div>
             <input
@@ -119,10 +129,13 @@ export default function AmountInput({
               min={0}
               max={maxShares > 0 ? maxShares : 100}
               step={1}
-              value={Math.min(parseFloat(amount) || 0, maxShares > 0 ? maxShares : 100)}
+              value={Math.min(
+                parseFloat(amount) || 0,
+                maxShares > 0 ? maxShares : 100,
+              )}
               onChange={(e) => {
                 const val = parseFloat(e.target.value);
-                onAmountChange(val === 0 ? "" : String(val));
+                onAmountChange(val === 0 ? '' : String(val));
               }}
               disabled={isSubmitting}
               className="w-full h-1 rounded-full appearance-none cursor-pointer bg-gray-300 accent-gray-900 disabled:cursor-not-allowed"
@@ -157,11 +170,14 @@ export default function AmountInput({
             <div>
               <span className="text-sm text-gray-600">Amount</span>
               <p className="text-xs text-gray-500">
-                Balance ${balance.toFixed(2)} · Min ${minOrderAmount.toFixed(2)}
+                Balance ${balance.toFixed(2)} · Min $
+                {minOrderAmount.toFixed(2)}
               </p>
             </div>
             <div className="flex items-center gap-0.5 min-w-0">
-              <span className="text-3xl font-bold text-gray-900">$</span>
+              <span className="text-3xl font-bold text-gray-900">
+                $
+              </span>
               <input
                 type="text"
                 inputMode="decimal"
@@ -181,10 +197,13 @@ export default function AmountInput({
               min={0}
               max={balance > 0 ? balance : 100}
               step={0.01}
-              value={Math.min(parseFloat(amount) || 0, balance > 0 ? balance : 100)}
+              value={Math.min(
+                parseFloat(amount) || 0,
+                balance > 0 ? balance : 100,
+              )}
               onChange={(e) => {
                 const val = parseFloat(e.target.value);
-                onAmountChange(val === 0 ? "" : val.toFixed(2));
+                onAmountChange(val === 0 ? '' : val.toFixed(2));
               }}
               disabled={isSubmitting}
               className="w-full h-1 rounded-full appearance-none cursor-pointer bg-gray-300 accent-gray-900 disabled:cursor-not-allowed"
