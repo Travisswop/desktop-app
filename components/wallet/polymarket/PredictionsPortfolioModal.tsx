@@ -134,7 +134,16 @@ export default function PredictionsPortfolioModal({
       (s, p) => s + (p.initialValue || p.avgPrice * p.size),
       0,
     );
-    const totalPnl = activePositions.reduce((s, p) => s + p.cashPnl, 0);
+    // For settled winning positions the API zeros out curPrice, making cashPnl
+    // appear as a full loss. Apply the same effectiveCashPnl correction used in
+    // lifetimeEarned so that portfolioPct reflects actual performance.
+    const totalPnl = activePositions.reduce((s, p) => {
+      const effectiveCashPnl =
+        p.redeemable && p.curPrice === 0
+          ? p.size - (p.initialValue || p.avgPrice * p.size)
+          : p.cashPnl;
+      return s + effectiveCashPnl;
+    }, 0);
     const portfolioPct = totalInitial > 0 ? (totalPnl / totalInitial) * 100 : 0;
 
     // Lifetime P&L: use all positions returned by the API (not just display-filtered
