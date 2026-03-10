@@ -146,7 +146,7 @@ export default function MarketCard({
           </button>
 
           {/* Stats row */}
-          <div className="flex items-center gap-4">
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
             <div>
               <p className="text-[10px] text-gray-400 leading-none mb-0.5">24h Volume</p>
               <p className="text-xs font-semibold text-green-500">{formatVolume(volumeUSD)}</p>

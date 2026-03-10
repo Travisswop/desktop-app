@@ -5,6 +5,7 @@ import { X } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
 import Portal from './shared/Portal';
 import PositionCard from './Positions/PositionCard';
+import SettledCard from './Positions/SettledCard';
 import OrderCard from './Orders/OrderCard';
 import OrderPlacementModal from './OrderModal';
 import MarketDetailModal from './Markets/MarketDetailModal';
@@ -101,19 +102,23 @@ export default function PredictionsPortfolioModal({
       .filter((p) => p.redeemable || p.currentValue >= DUST_THRESHOLD);
   }, [positions]);
 
-  // Split into actionable (wins to redeem + live markets) vs settled losses (curPrice=0)
-  const { actionablePositions, settledPositions } = useMemo(() => {
-    const actionable: typeof activePositions = [];
-    const settled: typeof activePositions = [];
-    activePositions.forEach((p) => {
-      if (p.redeemable && p.curPrice === 0) {
-        settled.push(p);
-      } else {
-        actionable.push(p);
-      }
-    });
-    return { actionablePositions: actionable, settledPositions: settled };
-  }, [activePositions]);
+  // Active Picks: only live/open positions (not yet resolved)
+  const actionablePositions = useMemo(
+    () => activePositions.filter((p) => !p.redeemable),
+    [activePositions],
+  );
+
+  // Settled history: ALL resolved positions — winners (redeemable) + losers
+  // (redeemable=false, effectively worth nothing). Sourced from the full raw
+  // positions array so losers that were filtered from activePositions are included.
+  const settledHistory = useMemo(() => {
+    if (!positions) return [];
+    return positions.filter(
+      (p) =>
+        p.size >= DUST_THRESHOLD &&
+        (p.redeemable || p.curPrice < DUST_THRESHOLD),
+    );
+  }, [positions]);
 
   const stats = useMemo(() => {
     const inOrdersValue = activeOrders
@@ -324,53 +329,27 @@ export default function PredictionsPortfolioModal({
             {/* Active Picks tab */}
             {activeTab === 'active' && (
               <div className="space-y-3">
-                {actionablePositions.length === 0 && settledPositions.length === 0 ? (
+                {actionablePositions.length === 0 ? (
                   <div className="text-center py-8">
                     <p className="text-gray-400 text-sm">No open positions.</p>
                   </div>
                 ) : (
-                  <>
-                    {actionablePositions.map((position) => (
-                      <PositionCard
-                        key={`${position.conditionId}-${position.outcomeIndex}`}
-                        position={position}
-                        onRedeem={handleRedeem}
-                        onSell={handleMarketSell}
-                        onBuyMore={(p) => setBuyMorePosition(p)}
-                        isSelling={sellingAsset === position.asset}
-                        isRedeeming={redeemingAsset === position.asset}
-                        isPendingVerification={pendingVerification.has(position.asset)}
-                        isSubmitting={isSubmitting}
-                        canSell={!!clobClient}
-                        canRedeem={!!relayClient}
-                        onTitleClick={() => setDetailPosition(position)}
-                      />
-                    ))}
-
-                    {settledPositions.length > 0 && (
-                      <>
-                        <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide pt-1">
-                          Settled ({settledPositions.length})
-                        </p>
-                        {settledPositions.map((position) => (
-                          <PositionCard
-                            key={`${position.conditionId}-${position.outcomeIndex}`}
-                            position={position}
-                            onRedeem={handleRedeem}
-                            onSell={handleMarketSell}
-                            onBuyMore={(p) => setBuyMorePosition(p)}
-                            isSelling={sellingAsset === position.asset}
-                            isRedeeming={redeemingAsset === position.asset}
-                            isPendingVerification={pendingVerification.has(position.asset)}
-                            isSubmitting={isSubmitting}
-                            canSell={!!clobClient}
-                            canRedeem={!!relayClient}
-                            onTitleClick={() => setDetailPosition(position)}
-                          />
-                        ))}
-                      </>
-                    )}
-                  </>
+                  actionablePositions.map((position) => (
+                    <PositionCard
+                      key={`${position.conditionId}-${position.outcomeIndex}`}
+                      position={position}
+                      onRedeem={handleRedeem}
+                      onSell={handleMarketSell}
+                      onBuyMore={(p) => setBuyMorePosition(p)}
+                      isSelling={sellingAsset === position.asset}
+                      isRedeeming={redeemingAsset === position.asset}
+                      isPendingVerification={pendingVerification.has(position.asset)}
+                      isSubmitting={isSubmitting}
+                      canSell={!!clobClient}
+                      canRedeem={!!relayClient}
+                      onTitleClick={() => setDetailPosition(position)}
+                    />
+                  ))
                 )}
               </div>
             )}
@@ -404,26 +383,54 @@ export default function PredictionsPortfolioModal({
             {/* Order History tab */}
             {activeTab === 'history' && (
               <div className="space-y-3">
-                {!clobClient ? (
-                  <div className="text-center py-8">
-                    <p className="text-gray-400 text-sm">
-                      Start trading to view your order history.
+                {/* Settled positions — winners and losers */}
+                {settledHistory.length > 0 && (
+                  <>
+                    <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide pt-1">
+                      Settled ({settledHistory.length})
                     </p>
-                  </div>
-                ) : orderHistory.length === 0 ? (
-                  <div className="text-center py-8">
-                    <p className="text-gray-400 text-sm">No order history available.</p>
-                  </div>
+                    {settledHistory.map((position) => (
+                      <SettledCard
+                        key={`${position.conditionId}-${position.outcomeIndex}`}
+                        position={position}
+                        onRedeem={handleRedeem}
+                        isRedeeming={redeemingAsset === position.asset}
+                        canRedeem={!!relayClient}
+                      />
+                    ))}
+                  </>
+                )}
+
+                {/* Trade execution history */}
+                {!clobClient ? (
+                  settledHistory.length === 0 && (
+                    <div className="text-center py-8">
+                      <p className="text-gray-400 text-sm">No history available.</p>
+                    </div>
+                  )
+                ) : orderHistory.length > 0 ? (
+                  <>
+                    {settledHistory.length > 0 && (
+                      <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide pt-1">
+                        Trades
+                      </p>
+                    )}
+                    {orderHistory.map((order) => (
+                      <OrderCard
+                        key={order.id}
+                        order={order}
+                        onCancel={() => {}}
+                        isCancelling={false}
+                        showCancel={false}
+                      />
+                    ))}
+                  </>
                 ) : (
-                  orderHistory.map((order) => (
-                    <OrderCard
-                      key={order.id}
-                      order={order}
-                      onCancel={() => {}}
-                      isCancelling={false}
-                      showCancel={false}
-                    />
-                  ))
+                  settledHistory.length === 0 && (
+                    <div className="text-center py-8">
+                      <p className="text-gray-400 text-sm">No history available.</p>
+                    </div>
+                  )
                 )}
               </div>
             )}

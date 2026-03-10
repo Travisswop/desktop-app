@@ -311,9 +311,9 @@ export default function HighVolumeMarkets({
 
     return (
       <>
-        <div className="grid grid-cols-5 gap-4 items-start">
+        <div className="grid grid-cols-2 gap-4 items-start">
           {/* Left column */}
-          <div className="col-span-2 space-y-3 min-w-0">
+          <div className="space-y-3 min-w-0">
             {leftHeaderSlot}
             {searchBar}
             {categoryTabs}
@@ -334,7 +334,7 @@ export default function HighVolumeMarkets({
           </div>
 
           {/* Right column — scrollable */}
-          <div className="col-span-3 min-w-0 overflow-y-auto max-h-[720px] pr-1">
+          <div className="min-w-0 overflow-y-auto max-h-[720px] pr-1">
             {isLoading && <LoadingState message="" />}
             {!isLoading && !error && rightMarkets.length === 0 && markets.length > 0 && (
               <EmptyState title="" message="All markets shown on the left." />
