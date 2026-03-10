@@ -16,11 +16,25 @@ export default function SettledCard({
   canRedeem,
 }: SettledCardProps) {
   const won = position.redeemable;
-  const redeemValue = won ? position.size : 0;
   const cost = position.initialValue || position.avgPrice * position.size;
+
+  // Redemption value:
+  // Use currentValue when the price feed is still active (curPrice > 0) — the API
+  // computes this correctly for both standard and neg-risk markets.
+  // Fall back to size (token count × $1) only when curPrice has been zeroed out by
+  // the API after market settlement, which applies to standard binary markets.
+  const redeemValue = won
+    ? position.curPrice > 0
+      ? position.currentValue
+      : position.size
+    : 0;
+
+  // P&L = unrealised portion (redeemValue – cost) + any gains already realised by
+  // selling shares before settlement.
+  // For losers, cashPnl already encodes the full loss (currentValue – initialValue).
   const pnl = won
-    ? position.size - cost          // true profit at $1/share redemption
-    : -(cost);                      // lost the full cost
+    ? redeemValue - cost + position.realizedPnl
+    : position.cashPnl + position.realizedPnl;
 
   const isBinaryOutcome =
     position.outcome === 'Yes' || position.outcome === 'No';
