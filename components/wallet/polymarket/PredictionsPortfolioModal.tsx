@@ -19,11 +19,15 @@ import {
   type PolymarketPosition,
   type PolymarketMarket,
 } from '@/hooks/polymarket';
-import { usePolymarketWallet, useTrading } from '@/providers/polymarket';
+import {
+  usePolymarketWallet,
+  useTrading,
+} from '@/providers/polymarket';
 import {
   DUST_THRESHOLD,
   POLLING_DURATION,
   POLLING_INTERVAL,
+  USDC_E_DECIMALS,
 } from '@/constants/polymarket';
 import { createPollingInterval } from '@/lib/polymarket/polling';
 
@@ -34,14 +38,28 @@ interface PredictionsPortfolioModalProps {
   onClose: () => void;
 }
 
-function positionToMarket(position: PolymarketPosition): PolymarketMarket {
+function positionToMarket(
+  position: PolymarketPosition,
+): PolymarketMarket {
   const isYesPos = position.outcomeIndex === 0;
-  const yesTokenId = isYesPos ? position.asset : position.oppositeAsset;
-  const noTokenId = isYesPos ? position.oppositeAsset : position.asset;
-  const yesOutcomeName = isYesPos ? position.outcome : position.oppositeOutcome;
-  const noOutcomeName = isYesPos ? position.oppositeOutcome : position.outcome;
-  const yesPrice = isYesPos ? position.curPrice : 1 - position.curPrice;
-  const noPrice = isYesPos ? 1 - position.curPrice : position.curPrice;
+  const yesTokenId = isYesPos
+    ? position.asset
+    : position.oppositeAsset;
+  const noTokenId = isYesPos
+    ? position.oppositeAsset
+    : position.asset;
+  const yesOutcomeName = isYesPos
+    ? position.outcome
+    : position.oppositeOutcome;
+  const noOutcomeName = isYesPos
+    ? position.oppositeOutcome
+    : position.outcome;
+  const yesPrice = isYesPos
+    ? position.curPrice
+    : 1 - position.curPrice;
+  const noPrice = isYesPos
+    ? 1 - position.curPrice
+    : position.curPrice;
 
   return {
     id: position.conditionId,
@@ -52,7 +70,10 @@ function positionToMarket(position: PolymarketPosition): PolymarketMarket {
     icon: position.icon,
     eventSlug: position.eventSlug,
     outcomes: JSON.stringify([yesOutcomeName, noOutcomeName]),
-    outcomePrices: JSON.stringify([String(yesPrice), String(noPrice)]),
+    outcomePrices: JSON.stringify([
+      String(yesPrice),
+      String(noPrice),
+    ]),
     clobTokenIds: JSON.stringify([yesTokenId, noTokenId]),
     negRisk: position.negativeRisk,
     endDateIso: position.endDate,
@@ -64,24 +85,49 @@ export default function PredictionsPortfolioModal({
   onClose,
 }: PredictionsPortfolioModalProps) {
   const [activeTab, setActiveTab] = useState<TabId>('active');
-  const [redeemingAsset, setRedeemingAsset] = useState<string | null>(null);
-  const [sellingAsset, setSellingAsset] = useState<string | null>(null);
-  const [cancellingOrderId, setCancellingOrderId] = useState<string | null>(null);
-  const [buyMorePosition, setBuyMorePosition] = useState<PolymarketPosition | null>(null);
-  const [detailPosition, setDetailPosition] = useState<PolymarketPosition | null>(null);
-  const [pendingVerification, setPendingVerification] = useState<Map<string, number>>(new Map());
+  const [redeemingAsset, setRedeemingAsset] = useState<string | null>(
+    null,
+  );
+  const [sellingAsset, setSellingAsset] = useState<string | null>(
+    null,
+  );
+  const [cancellingOrderId, setCancellingOrderId] = useState<
+    string | null
+  >(null);
+  const [buyMorePosition, setBuyMorePosition] =
+    useState<PolymarketPosition | null>(null);
+  const [detailPosition, setDetailPosition] =
+    useState<PolymarketPosition | null>(null);
+  const [pendingVerification, setPendingVerification] = useState<
+    Map<string, number>
+  >(new Map());
 
   const { clobClient, relayClient, safeAddress } = useTrading();
   const { eoaAddress } = usePolymarketWallet();
   const queryClient = useQueryClient();
 
-  const { data: positions } = useUserPositions(safeAddress as string | undefined);
-  const { usdcBalance } = usePolygonBalances(safeAddress);
-  const { data: activeOrders = [] } = useActiveOrders(clobClient, safeAddress);
-  const { data: orderHistory = [] } = useOrderHistory(clobClient, safeAddress);
+  const supportAddress = '0x1C09D8CD54e4966b3d49c4E11892837410Dc146A';
+
+  const { data: positions } = useUserPositions(
+    supportAddress as string | undefined,
+  );
+  console.log('positions', positions);
+  const { usdcBalance } = usePolygonBalances(supportAddress);
+  const { data: activeOrders = [] } = useActiveOrders(
+    clobClient,
+    supportAddress,
+  );
+  console.log('activeOrders', activeOrders);
+  const { data: orderHistory = [] } = useOrderHistory(
+    clobClient,
+    supportAddress,
+  );
 
   const { redeemPosition } = useRedeemPosition();
-  const { submitOrder, cancelOrder, isSubmitting } = useClobOrder(clobClient, eoaAddress);
+  const { submitOrder, cancelOrder, isSubmitting } = useClobOrder(
+    clobClient,
+    eoaAddress,
+  );
 
   // Sync pending verification against latest positions
   useEffect(() => {
@@ -89,9 +135,11 @@ export default function PredictionsPortfolioModal({
     const stillPending = new Map<string, number>();
     pendingVerification.forEach((originalSize, asset) => {
       const current = positions.find((p) => p.asset === asset);
-      if ((current?.size || 0) >= originalSize) stillPending.set(asset, originalSize);
+      if ((current?.size || 0) >= originalSize)
+        stillPending.set(asset, originalSize);
     });
-    if (stillPending.size !== pendingVerification.size) setPendingVerification(stillPending);
+    if (stillPending.size !== pendingVerification.size)
+      setPendingVerification(stillPending);
   }, [positions, pendingVerification]);
 
   // All positions for stats (includes settled losses for accurate P&L history)
@@ -99,7 +147,9 @@ export default function PredictionsPortfolioModal({
     if (!positions) return [];
     return positions
       .filter((p) => p.size >= DUST_THRESHOLD)
-      .filter((p) => p.redeemable || p.currentValue >= DUST_THRESHOLD);
+      .filter(
+        (p) => p.redeemable || p.currentValue >= DUST_THRESHOLD,
+      );
   }, [positions]);
 
   // Active Picks: only live/open positions (not yet resolved)
@@ -124,11 +174,13 @@ export default function PredictionsPortfolioModal({
     const inOrdersValue = activeOrders
       .filter((o) => o.side === 'BUY')
       .reduce((s, o) => {
-        const remaining = parseFloat(o.original_size) - parseFloat(o.size_matched);
+        const remaining =
+          parseFloat(o.original_size) - parseFloat(o.size_matched);
         return s + remaining * parseFloat(o.price);
       }, 0);
 
-    if (!activePositions.length) return { portfolioPct: 0, lifetimeEarned: 0, inOrdersValue };
+    if (!activePositions.length)
+      return { portfolioPct: 0, lifetimeEarned: 0, inOrdersValue };
 
     const totalInitial = activePositions.reduce(
       (s, p) => s + (p.initialValue || p.avgPrice * p.size),
@@ -144,7 +196,8 @@ export default function PredictionsPortfolioModal({
           : p.cashPnl;
       return s + effectiveCashPnl;
     }, 0);
-    const portfolioPct = totalInitial > 0 ? (totalPnl / totalInitial) * 100 : 0;
+    const portfolioPct =
+      totalInitial > 0 ? (totalPnl / totalInitial) * 100 : 0;
 
     // Lifetime P&L: use all positions returned by the API (not just display-filtered
     // ones) so that settled losses are included. For settled winning positions where
@@ -173,10 +226,17 @@ export default function PredictionsPortfolioModal({
         negRisk: position.negativeRisk,
         isMarketOrder: true,
       });
-      setPendingVerification((prev) => new Map(prev).set(position.asset, position.size));
-      queryClient.invalidateQueries({ queryKey: ['polymarket-positions'] });
+      setPendingVerification((prev) =>
+        new Map(prev).set(position.asset, position.size),
+      );
+      queryClient.invalidateQueries({
+        queryKey: ['polymarket-positions'],
+      });
       createPollingInterval(
-        () => queryClient.invalidateQueries({ queryKey: ['polymarket-positions'] }),
+        () =>
+          queryClient.invalidateQueries({
+            queryKey: ['polymarket-positions'],
+          }),
         POLLING_INTERVAL,
         POLLING_DURATION,
       );
@@ -204,12 +264,35 @@ export default function PredictionsPortfolioModal({
         negativeRisk: position.negativeRisk,
         size: position.size,
       });
-      queryClient.invalidateQueries({ queryKey: ['polymarket-positions'] });
+
+      // Optimistically add the redeemed USDC to the displayed balance immediately.
+      // The on-chain redemption has already confirmed (redeemPosition awaits the tx),
+      // so this reflects reality. The subsequent polling will reconcile any drift.
+      const redeemValue =
+        position.curPrice > 0 ? position.currentValue : position.size;
+      queryClient.setQueryData<bigint>(
+        ['usdcBalance', supportAddress],
+        (prev) => {
+          if (prev === undefined) return prev;
+          const addedUnits = BigInt(
+            Math.floor(redeemValue * 10 ** USDC_E_DECIMALS),
+          );
+          return prev + addedUnits;
+        },
+      );
+
+      queryClient.invalidateQueries({
+        queryKey: ['polymarket-positions'],
+      });
       queryClient.invalidateQueries({ queryKey: ['usdcBalance'] });
       createPollingInterval(
         () => {
-          queryClient.invalidateQueries({ queryKey: ['polymarket-positions'] });
-          queryClient.invalidateQueries({ queryKey: ['usdcBalance'] });
+          queryClient.invalidateQueries({
+            queryKey: ['polymarket-positions'],
+          });
+          queryClient.invalidateQueries({
+            queryKey: ['usdcBalance'],
+          });
         },
         POLLING_INTERVAL,
         POLLING_DURATION,
@@ -246,7 +329,10 @@ export default function PredictionsPortfolioModal({
     <Portal>
       <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
         {/* Backdrop */}
-        <div className="absolute inset-0 bg-black/40" onClick={onClose} />
+        <div
+          className="absolute inset-0 bg-black/40"
+          onClick={onClose}
+        />
 
         {/* Modal */}
         <div className="relative bg-white rounded-2xl w-full max-w-sm max-h-[90vh] flex flex-col shadow-2xl">
@@ -264,7 +350,9 @@ export default function PredictionsPortfolioModal({
             <div className="grid grid-cols-2 gap-3">
               <div className="bg-gray-50 rounded-2xl p-4">
                 <div className="flex items-center gap-1.5 mb-1">
-                  <span className="text-xs text-gray-500">Available</span>
+                  <span className="text-xs text-gray-500">
+                    Available
+                  </span>
                   <span
                     className={`text-xs font-semibold px-1.5 py-0.5 rounded-full ${
                       isPctPositive
@@ -287,18 +375,25 @@ export default function PredictionsPortfolioModal({
 
               <div className="bg-gray-50 rounded-2xl p-4">
                 <p className="text-xs text-gray-500 mb-1">
-                  {stats.lifetimeEarned >= 0 ? 'Lifetime Earned' : 'Lifetime P&L'}
+                  {stats.lifetimeEarned >= 0
+                    ? 'Lifetime Earned'
+                    : 'Lifetime P&L'}
                 </p>
                 <p
                   className={`text-xl font-bold ${
-                    stats.lifetimeEarned >= 0 ? 'text-gray-900' : 'text-red-500'
+                    stats.lifetimeEarned >= 0
+                      ? 'text-gray-900'
+                      : 'text-red-500'
                   }`}
                 >
                   {stats.lifetimeEarned < 0 ? '-' : ''}$
-                  {Math.abs(stats.lifetimeEarned).toLocaleString('en-US', {
-                    minimumFractionDigits: 2,
-                    maximumFractionDigits: 2,
-                  })}
+                  {Math.abs(stats.lifetimeEarned).toLocaleString(
+                    'en-US',
+                    {
+                      minimumFractionDigits: 2,
+                      maximumFractionDigits: 2,
+                    },
+                  )}
                 </p>
               </div>
             </div>
@@ -307,7 +402,9 @@ export default function PredictionsPortfolioModal({
             <div className="bg-gray-50 rounded-2xl p-4 flex items-center justify-between">
               <div>
                 <p className="text-xs text-gray-500">Balance</p>
-                <p className="text-sm font-semibold text-gray-700">In Orders</p>
+                <p className="text-sm font-semibold text-gray-700">
+                  In Orders
+                </p>
               </div>
               <p className="text-xl font-bold text-gray-900">
                 $
@@ -340,7 +437,9 @@ export default function PredictionsPortfolioModal({
               <div className="space-y-3">
                 {actionablePositions.length === 0 ? (
                   <div className="text-center py-8">
-                    <p className="text-gray-400 text-sm">No open positions.</p>
+                    <p className="text-gray-400 text-sm">
+                      No open positions.
+                    </p>
                   </div>
                 ) : (
                   actionablePositions.map((position) => (
@@ -352,7 +451,9 @@ export default function PredictionsPortfolioModal({
                       onBuyMore={(p) => setBuyMorePosition(p)}
                       isSelling={sellingAsset === position.asset}
                       isRedeeming={redeemingAsset === position.asset}
-                      isPendingVerification={pendingVerification.has(position.asset)}
+                      isPendingVerification={pendingVerification.has(
+                        position.asset,
+                      )}
                       isSubmitting={isSubmitting}
                       canSell={!!clobClient}
                       canRedeem={!!relayClient}
@@ -374,7 +475,9 @@ export default function PredictionsPortfolioModal({
                   </div>
                 ) : activeOrders.length === 0 ? (
                   <div className="text-center py-8">
-                    <p className="text-gray-400 text-sm">No open limit orders.</p>
+                    <p className="text-gray-400 text-sm">
+                      No open limit orders.
+                    </p>
                   </div>
                 ) : (
                   activeOrders.map((order) => (
@@ -403,7 +506,9 @@ export default function PredictionsPortfolioModal({
                         key={`${position.conditionId}-${position.outcomeIndex}`}
                         position={position}
                         onRedeem={handleRedeem}
-                        isRedeeming={redeemingAsset === position.asset}
+                        isRedeeming={
+                          redeemingAsset === position.asset
+                        }
                         canRedeem={!!relayClient}
                       />
                     ))}
@@ -414,7 +519,9 @@ export default function PredictionsPortfolioModal({
                 {!clobClient ? (
                   settledHistory.length === 0 && (
                     <div className="text-center py-8">
-                      <p className="text-gray-400 text-sm">No history available.</p>
+                      <p className="text-gray-400 text-sm">
+                        No history available.
+                      </p>
                     </div>
                   )
                 ) : orderHistory.length > 0 ? (
@@ -437,7 +544,9 @@ export default function PredictionsPortfolioModal({
                 ) : (
                   settledHistory.length === 0 && (
                     <div className="text-center py-8">
-                      <p className="text-gray-400 text-sm">No history available.</p>
+                      <p className="text-gray-400 text-sm">
+                        No history available.
+                      </p>
                     </div>
                   )
                 )}
@@ -480,8 +589,16 @@ export default function PredictionsPortfolioModal({
           market={positionToMarket(detailPosition)}
           clobClient={clobClient}
           balance={usdcBalance}
-          yesShares={detailPosition.outcomeIndex === 0 ? detailPosition.size : 0}
-          noShares={detailPosition.outcomeIndex === 1 ? detailPosition.size : 0}
+          yesShares={
+            detailPosition.outcomeIndex === 0
+              ? detailPosition.size
+              : 0
+          }
+          noShares={
+            detailPosition.outcomeIndex === 1
+              ? detailPosition.size
+              : 0
+          }
         />
       )}
     </Portal>

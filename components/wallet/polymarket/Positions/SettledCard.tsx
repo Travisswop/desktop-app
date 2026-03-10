@@ -80,7 +80,7 @@ export default function SettledCard({
         {/* Cost */}
         <div className="flex-1">
           <p className="text-[10px] text-gray-400 mb-0.5">Invested</p>
-          <p className="text-sm font-bold text-gray-900">${Math.round(cost)}</p>
+          <p className="text-sm font-bold text-gray-900">${cost.toFixed(2)}</p>
         </div>
 
         {/* P&L */}
@@ -91,7 +91,7 @@ export default function SettledCard({
               pnl >= 0 ? 'text-green-600' : 'text-red-500'
             }`}
           >
-            {pnl >= 0 ? '+' : '-'}${Math.round(Math.abs(pnl))}
+            {pnl >= 0 ? '+' : '-'}${Math.abs(pnl).toFixed(2)}
           </p>
         </div>
 
@@ -102,7 +102,7 @@ export default function SettledCard({
             disabled={isRedeeming || !canRedeem}
             className="flex-shrink-0 px-4 py-2 bg-green-500 hover:bg-green-600 disabled:opacity-50 disabled:cursor-not-allowed text-white text-xs font-bold rounded-xl transition-colors"
           >
-            {isRedeeming ? '...' : `Redeem $${Math.round(redeemValue)}`}
+            {isRedeeming ? '...' : `Redeem $${redeemValue.toFixed(2)}`}
           </button>
         )}
       </div>
