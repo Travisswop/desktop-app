@@ -54,8 +54,9 @@ export default function AmountInput({
     }
   };
 
-  const quickMarketAmounts = [5, 10, 20, 100];
-  const quickShareAmounts = [1, 5, 10, 50];
+  // 3 quick amounts + Max button = 4 buttons total — fits comfortably in the modal
+  const quickMarketAmounts = [5, 10, 20];
+  const quickShareAmounts = [1, 5, 10];
 
   return (
     <div className="space-y-4 mb-5">
@@ -135,7 +136,7 @@ export default function AmountInput({
                 key={qty}
                 onClick={() => onQuickAmount(qty)}
                 disabled={isSubmitting}
-                className="flex-1 py-2 px-3 bg-white hover:bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-700 font-medium transition-colors disabled:opacity-50"
+                className="flex-1 py-2 px-2 bg-white hover:bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-700 font-medium transition-colors disabled:opacity-50"
               >
                 +{qty}
               </button>
@@ -143,7 +144,7 @@ export default function AmountInput({
             <button
               onClick={onMaxAmount}
               disabled={isSubmitting || maxShares <= 0}
-              className="py-2 px-4 bg-white hover:bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-700 font-medium transition-colors disabled:opacity-50"
+              className="flex-1 py-2 px-2 bg-white hover:bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-700 font-medium transition-colors disabled:opacity-50"
             >
               Max
             </button>
@@ -159,7 +160,7 @@ export default function AmountInput({
                 Balance ${balance.toFixed(2)} · Min ${minOrderAmount.toFixed(2)}
               </p>
             </div>
-            <div className="flex items-center gap-0.5">
+            <div className="flex items-center gap-0.5 min-w-0">
               <span className="text-3xl font-bold text-gray-900">$</span>
               <input
                 type="text"
@@ -168,7 +169,7 @@ export default function AmountInput({
                 onChange={handleAmountChange}
                 placeholder="0"
                 disabled={isSubmitting}
-                className="w-20 bg-transparent text-3xl font-bold text-gray-900 text-left outline-none placeholder-gray-400"
+                className="min-w-0 w-full max-w-[100px] bg-transparent text-3xl font-bold text-gray-900 text-left outline-none placeholder-gray-400"
               />
             </div>
           </div>
@@ -197,7 +198,7 @@ export default function AmountInput({
                 key={quickAmount}
                 onClick={() => onQuickAmount(quickAmount)}
                 disabled={isSubmitting}
-                className="flex-1 py-2 px-3 bg-white hover:bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-700 font-medium transition-colors disabled:opacity-50"
+                className="flex-1 py-2 px-2 bg-white hover:bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-700 font-medium transition-colors disabled:opacity-50"
               >
                 +${quickAmount}
               </button>
@@ -205,7 +206,7 @@ export default function AmountInput({
             <button
               onClick={onMaxAmount}
               disabled={isSubmitting || balance <= 0}
-              className="py-2 px-4 bg-white hover:bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-700 font-medium transition-colors disabled:opacity-50"
+              className="flex-1 py-2 px-2 bg-white hover:bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-700 font-medium transition-colors disabled:opacity-50"
             >
               Max
             </button>
