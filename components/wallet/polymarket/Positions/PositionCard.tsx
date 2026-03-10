@@ -35,7 +35,10 @@ export default function PositionCard({
 }: PositionCardProps) {
   const [shareOpen, setShareOpen] = useState(false);
 
-  const isRedeemable = position.redeemable && position.curPrice > 0;
+  // A position is redeemable whenever the API marks it as such.
+  // The curPrice feed may return 0 after market resolution even for winning
+  // positions, so we must not gate on curPrice > 0 here.
+  const isRedeemable = position.redeemable;
 
   // Show the event title for binary Yes/No outcomes; show outcome name for others (e.g. team abbreviations)
   const isBinaryOutcome =

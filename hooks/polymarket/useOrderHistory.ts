@@ -2,8 +2,6 @@ import { useQuery } from "@tanstack/react-query";
 import type { ClobClient } from "@polymarket/clob-client";
 import type { PolymarketOrder } from "./useActiveOrders";
 
-const CLOSED_STATUSES = new Set(["matched", "canceled", "cancelled"]);
-
 export function useOrderHistory(
   clobClient: ClobClient | null,
   walletAddress: string | undefined
@@ -13,15 +11,31 @@ export function useOrderHistory(
     queryFn: async (): Promise<PolymarketOrder[]> => {
       if (!clobClient || !walletAddress) return [];
       try {
-        // getOrders (if available) returns all orders including closed ones.
-        // Fall back to empty array if the method doesn't exist on this client version.
-        const allOrders =
-          typeof (clobClient as any).getOrders === "function"
-            ? await (clobClient as any).getOrders()
-            : [];
-        return (allOrders as any[]).filter((order: any) =>
-          CLOSED_STATUSES.has((order.status ?? "").toLowerCase())
-        ) as PolymarketOrder[];
+        // ClobClient v5 does not have getOrders(). Use getTrades() which returns
+        // the user's executed trade history from the /data/trades endpoint.
+        // only_first_page=true prevents paginating through every historical trade.
+        const trades = await clobClient.getTrades(undefined, true);
+        return (trades as any[]).map((trade: any) => ({
+          id: trade.id ?? "",
+          status: (trade.status ?? "confirmed").toLowerCase(),
+          owner: trade.owner ?? "",
+          maker_address: trade.maker_address ?? "",
+          market: trade.market ?? "",
+          asset_id: trade.asset_id ?? "",
+          side: trade.side as "BUY" | "SELL",
+          // A trade record represents a completed match — original_size and
+          // size_matched are both the trade size (100% filled by definition).
+          original_size: trade.size ?? "0",
+          size_matched: trade.size ?? "0",
+          price: trade.price ?? "0",
+          associate_trades: [],
+          outcome: trade.outcome ?? "",
+          created_at: trade.match_time
+            ? Math.floor(new Date(trade.match_time).getTime() / 1000)
+            : 0,
+          expiration: "",
+          order_type: "FOK",
+        })) as PolymarketOrder[];
       } catch {
         return [];
       }

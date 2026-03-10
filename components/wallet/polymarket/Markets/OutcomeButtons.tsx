@@ -1,7 +1,5 @@
 'use client';
 
-import { formatPrice } from '@/lib/polymarket/formatting';
-
 interface OutcomeButtonsProps {
   outcomes: string[];
   outcomePrices: number[];
@@ -19,6 +17,12 @@ interface OutcomeButtonsProps {
   ) => void;
 }
 
+/** Formats 0.55 → ".55", 1.0 → "1.0" */
+function compactPrice(price: number): string {
+  if (price <= 0) return '';
+  return price.toFixed(2).replace(/^0/, '');
+}
+
 export default function OutcomeButtons({
   outcomes,
   outcomePrices,
@@ -30,45 +34,39 @@ export default function OutcomeButtons({
   onOutcomeClick,
 }: OutcomeButtonsProps) {
   if (outcomes.length === 0) {
-    return (
-      <p className="text-gray-500 text-sm">No outcomes available</p>
-    );
+    return <p className="text-gray-400 text-xs">No outcomes</p>;
   }
 
-  // For binary markets, show Yes/No side by side
+  // Binary markets: two stacked solid buttons on the right
   if (outcomes.length === 2) {
     return (
-      <div className="grid grid-cols-2 gap-2">
+      <div className="flex flex-col gap-1.5 flex-shrink-0">
         {outcomes.map((outcome, index) => {
           const price = outcomePrices[index] || 0;
           const tokenId = tokenIds[index];
-          const isYes = outcome.toLowerCase() === 'yes';
+          const isYes =
+            outcome.toLowerCase() === 'yes' ||
+            (outcomes.length === 2 && index === 0);
 
           return (
             <button
               key={tokenId || index}
               onClick={() =>
-                onOutcomeClick(
-                  marketQuestion,
-                  outcome,
-                  price,
-                  tokenId,
-                  negRisk,
-                )
+                onOutcomeClick(marketQuestion, outcome, price, tokenId, negRisk)
               }
               disabled={isClosed || disabled || !tokenId}
-              className={`py-2 px-3 rounded-lg font-medium text-sm transition-all ${
+              className={`px-4 py-1.5 rounded-lg text-white text-xs font-bold whitespace-nowrap transition-all ${
                 isClosed || disabled
-                  ? 'bg-gray-100 text-gray-400 cursor-not-allowed border border-gray-200'
+                  ? 'bg-gray-300 cursor-not-allowed opacity-60'
                   : isYes
-                    ? 'bg-green-50 hover:bg-green-100 text-green-700 border border-green-200'
-                    : 'bg-red-50 hover:bg-red-100 text-red-700 border border-red-200'
+                    ? 'bg-green-500 hover:bg-green-600'
+                    : 'bg-red-500 hover:bg-red-600'
               }`}
             >
-              <span className="block text-xs mb-0.5">{outcome}</span>
-              <span className="block font-bold">
-                {price > 0 ? formatPrice(price) : '—'}
-              </span>
+              {outcome}
+              {price > 0 && (
+                <span className="ml-1 opacity-90">({compactPrice(price)})</span>
+              )}
             </button>
           );
         })}
@@ -76,10 +74,10 @@ export default function OutcomeButtons({
     );
   }
 
-  // For multi-outcome markets, show in a column
+  // Multi-outcome markets: solid dark buttons in a column
   return (
-    <div className="space-y-2">
-      {outcomes.map((outcome, index) => {
+    <div className="flex flex-col gap-1.5 flex-shrink-0 w-28">
+      {outcomes.slice(0, 4).map((outcome, index) => {
         const price = outcomePrices[index] || 0;
         const tokenId = tokenIds[index];
 
@@ -87,28 +85,29 @@ export default function OutcomeButtons({
           <button
             key={tokenId || index}
             onClick={() =>
-              onOutcomeClick(
-                marketQuestion,
-                outcome,
-                price,
-                tokenId,
-                negRisk,
-              )
+              onOutcomeClick(marketQuestion, outcome, price, tokenId, negRisk)
             }
             disabled={isClosed || disabled || !tokenId}
-            className={`w-full py-2 px-3 rounded-lg font-medium text-sm transition-all flex items-center justify-between ${
+            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center justify-between gap-1 ${
               isClosed || disabled
-                ? 'bg-gray-100 text-gray-400 cursor-not-allowed border border-gray-200'
-                : 'bg-gray-50 hover:bg-gray-100 text-gray-900 border border-gray-200'
+                ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
+                : 'bg-gray-800 hover:bg-gray-700 text-white'
             }`}
           >
             <span className="truncate">{outcome}</span>
-            <span className="font-bold ml-2">
-              {price > 0 ? formatPrice(price) : '—'}
-            </span>
+            {price > 0 && (
+              <span className="opacity-80 flex-shrink-0">
+                {compactPrice(price)}
+              </span>
+            )}
           </button>
         );
       })}
+      {outcomes.length > 4 && (
+        <p className="text-xs text-gray-400 text-center">
+          +{outcomes.length - 4} more
+        </p>
+      )}
     </div>
   );
 }

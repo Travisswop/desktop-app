@@ -131,13 +131,23 @@ export default function PredictionsPortfolioModal({
     );
     const totalPnl = activePositions.reduce((s, p) => s + p.cashPnl, 0);
     const portfolioPct = totalInitial > 0 ? (totalPnl / totalInitial) * 100 : 0;
-    const lifetimeEarned = activePositions.reduce(
-      (s, p) => s + p.cashPnl + p.realizedPnl,
-      0,
-    );
+
+    // Lifetime P&L: use all positions returned by the API (not just display-filtered
+    // ones) so that settled losses are included. For settled winning positions where
+    // the API returns curPrice=0 after resolution, cashPnl is incorrectly computed as
+    // (0 - initialValue) instead of (size - initialValue). Correct it by using the
+    // redemption value (size shares × $1 each) as the true current value.
+    const allApiPositions = positions || [];
+    const lifetimeEarned = allApiPositions.reduce((s, p) => {
+      const effectiveCashPnl =
+        p.redeemable && p.curPrice === 0
+          ? p.size - (p.initialValue || p.avgPrice * p.size)
+          : p.cashPnl;
+      return s + effectiveCashPnl + p.realizedPnl;
+    }, 0);
 
     return { portfolioPct, lifetimeEarned, inOrdersValue };
-  }, [activePositions, activeOrders]);
+  }, [positions, activePositions, activeOrders]);
 
   const handleMarketSell = async (position: PolymarketPosition) => {
     setSellingAsset(position.asset);
