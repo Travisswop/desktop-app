@@ -1,7 +1,7 @@
-"use client";
-import React, { Suspense, memo } from "react";
+'use client';
+import React, { Suspense, memo } from 'react';
 // import TabSwitcher from "@/components/feed/TabSwitcher";
-import FeedMain from "@/components/feed/FeedMain";
+import FeedMain from '@/components/feed/FeedMain';
 
 const FeedPage = memo(() => {
   return (
@@ -22,6 +22,6 @@ const FeedPage = memo(() => {
   );
 });
 
-FeedPage.displayName = "FeedPage";
+FeedPage.displayName = 'FeedPage';
 
 export default FeedPage;

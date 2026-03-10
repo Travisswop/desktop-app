@@ -1,13 +1,16 @@
 'use client';
 
-import { useEffect } from 'react';
-import { useTrading, usePolymarketWallet } from '@/providers/polymarket';
-import SafeWalletCard from '@/components/wallet/polymarket/SafeWalletCard';
-import PolygonAssets from '@/components/wallet/polymarket/PolygonAssets';
-import UserPositions from '@/components/wallet/polymarket/Positions';
-import ActiveOrders from '@/components/wallet/polymarket/Orders';
+import { useEffect, useState } from 'react';
+import {
+  useTrading,
+  usePolymarketWallet,
+} from '@/providers/polymarket';
+import { usePolygonBalances } from '@/hooks/polymarket';
+import { ArrowUpDown, LayoutList } from 'lucide-react';
 import HighVolumeMarkets from '@/components/wallet/polymarket/Markets';
 import GeoBlockedBanner from '@/components/wallet/polymarket/GeoBlockedBanner';
+import TransferModal from '@/components/wallet/polymarket/TransferModal';
+import PredictionsPortfolioModal from '@/components/wallet/polymarket/PredictionsPortfolioModal';
 
 export default function WalletPredictionsSection() {
   const { authenticated, isReady } = usePolymarketWallet();
@@ -17,7 +20,14 @@ export default function WalletPredictionsSection() {
     sessionError,
     isTradingSessionComplete,
     initializeTradingSession,
+    safeAddress,
   } = useTrading();
+
+  const { formattedUsdcBalance, isLoading: balanceLoading } =
+    usePolygonBalances(safeAddress);
+
+  const [transferModalOpen, setTransferModalOpen] = useState(false);
+  const [portfolioModalOpen, setPortfolioModalOpen] = useState(false);
 
   useEffect(() => {
     if (
@@ -44,8 +54,10 @@ export default function WalletPredictionsSection() {
 
   if (!isReady) {
     return (
-      <div className="mt-6">
-        <h2 className="text-xl font-bold text-gray-900 mb-4">Predictions</h2>
+      <div className="mt-6 max-w-[855px] w-full mx-auto">
+        <h2 className="text-xl font-bold text-gray-900 mb-4">
+          Predictions
+        </h2>
         <div className="flex items-center justify-center py-12">
           <div className="flex flex-col items-center gap-3">
             <div className="w-8 h-8 border-2 border-black border-t-transparent rounded-full animate-spin" />
@@ -60,8 +72,10 @@ export default function WalletPredictionsSection() {
 
   if (sessionError && !tradingSession) {
     return (
-      <div className="mt-6">
-        <h2 className="text-xl font-bold text-gray-900 mb-4">Predictions</h2>
+      <div className="mt-6 max-w-[855px] w-full mx-auto">
+        <h2 className="text-xl font-bold text-gray-900 mb-4">
+          Predictions
+        </h2>
         <div className="bg-white rounded-xl p-6 border border-red-100">
           <div className="flex flex-col items-center text-center max-w-sm mx-auto">
             <p className="text-gray-500 text-sm mb-4">
@@ -83,24 +97,55 @@ export default function WalletPredictionsSection() {
     );
   }
 
-  return (
-    <div className="mt-6 space-y-4">
-      <h2 className="text-xl font-bold text-gray-900">Predictions</h2>
-      <GeoBlockedBanner />
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        {/* Left: Trading Wallet + Positions + Orders */}
-        <div className="space-y-4">
-          {/* <SafeWalletCard /> */}
-          <PolygonAssets />
-          <UserPositions />
-          <ActiveOrders />
-        </div>
-
-        {/* Right: Markets */}
-        <div className="lg:col-span-2 min-w-0">
-          <HighVolumeMarkets />
+  /** Injected into the left column above the search bar */
+  const balanceHeader = (
+    <div className="flex items-center justify-between">
+      <div>
+        <p className="text-sm text-gray-500">Predictions Balance</p>
+        <div className="flex items-center gap-2 mt-0.5">
+          {balanceLoading ? (
+            <div className="w-28 h-8 bg-gray-200 animate-pulse rounded" />
+          ) : (
+            <>
+              <span className="text-2xl font-bold text-gray-900">
+                ${formattedUsdcBalance}
+              </span>
+              <button
+                onClick={() => setTransferModalOpen(true)}
+                className="text-gray-500 hover:text-gray-800 transition-colors"
+                title="Deposit / Withdraw"
+              >
+                <ArrowUpDown className="w-4 h-4" />
+              </button>
+            </>
+          )}
         </div>
       </div>
+
+      <button
+        onClick={() => setPortfolioModalOpen(true)}
+        className="w-9 h-9 flex items-center justify-center rounded-lg bg-gray-100 hover:bg-gray-200 transition-colors text-gray-600"
+        title="View portfolio details"
+      >
+        <LayoutList className="w-4 h-4" />
+      </button>
+    </div>
+  );
+
+  return (
+    <div className="mt-4 max-w-[855px] w-full mx-auto space-y-3 bg-white rounded-xl p-6">
+      <GeoBlockedBanner />
+
+      <HighVolumeMarkets splitLayout leftHeaderSlot={balanceHeader} />
+
+      <TransferModal
+        open={transferModalOpen}
+        onOpenChange={setTransferModalOpen}
+      />
+      <PredictionsPortfolioModal
+        isOpen={portfolioModalOpen}
+        onClose={() => setPortfolioModalOpen(false)}
+      />
     </div>
   );
 }

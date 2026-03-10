@@ -19,3 +19,4 @@ export { usePolygonBalances } from "./usePolygonBalances";
 export { useGeoblock, type GeoblockStatus } from "./useGeoblock";
 export { useTickSize } from "./useTickSize";
 export { useRedeemPosition } from "./useRedeemPosition";
+export { useOrderHistory } from "./useOrderHistory";

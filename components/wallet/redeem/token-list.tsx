@@ -1,20 +1,20 @@
-"use client";
+'use client';
 
-import { useEffect, useState, useCallback } from "react";
-import { Card, CardContent, CardHeader } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import toast from "react-hot-toast";
-import { RefreshCw, Copy, Plus, ChevronRight } from "lucide-react";
-import { cn } from "@/lib/utils";
-import Image from "next/image";
-import { usePrivy } from "@privy-io/react-auth";
+import { useEffect, useState, useCallback } from 'react';
+import { Card, CardContent, CardHeader } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import toast from 'react-hot-toast';
+import { RefreshCw, Copy, Plus, ChevronRight } from 'lucide-react';
+import { cn } from '@/lib/utils';
+import Image from 'next/image';
+import { usePrivy } from '@privy-io/react-auth';
 import {
   Carousel,
   CarouselContent,
   CarouselItem,
   CarouselNext,
-} from "@/components/ui/carousel";
-import RedeemModal from "../token/redeem-modal";
+} from '@/components/ui/carousel';
+import RedeemModal from '../token/redeem-modal';
 
 export interface RedemptionPool {
   pool_id: string;
@@ -65,7 +65,9 @@ const EmptyState = () => (
     <div className="w-16 h-16 mx-auto mb-4 bg-gray-100 rounded-full flex items-center justify-center">
       <Copy className="w-8 h-8 text-gray-400" />
     </div>
-    <p className="text-gray-600 font-medium mb-1">No Redemption Pools</p>
+    <p className="text-gray-600 font-medium mb-1">
+      No Redemption Pools
+    </p>
     <p className="text-sm text-gray-500">
       Create your first redemption pool to get started.
     </p>
@@ -103,18 +105,18 @@ export default function RedeemTokenList() {
             pool.token_decimals,
           ),
           total_redeemed_amount: fromTokenLamports(
-            pool.total_redeemed_amount || "0",
+            pool.total_redeemed_amount || '0',
             pool.token_decimals,
           ),
           redeemLink: `https://redeem.swopme.app/${pool.pool_id}`,
         }));
         setPools(items);
       } else {
-        toast.error("Failed to fetch redemption pools");
+        toast.error('Failed to fetch redemption pools');
       }
     } catch (error) {
-      console.error("Error fetching pools:", error);
-      toast.error("Failed to fetch redemption pools");
+      console.error('Error fetching pools:', error);
+      toast.error('Failed to fetch redemption pools');
     } finally {
       setLoading(false);
     }
@@ -129,14 +131,14 @@ export default function RedeemTokenList() {
   const copyToClipboard = async (link: string) => {
     try {
       await navigator.clipboard.writeText(link);
-      toast.success("Link copied to clipboard!");
+      toast.success('Link copied to clipboard!');
     } catch (error) {
-      toast.error("Failed to copy link");
+      toast.error('Failed to copy link');
     }
   };
 
   const truncateAddress = (address: string) => {
-    if (!address) return "";
+    if (!address) return '';
     return `${address.slice(0, 6)}...${address.slice(-6)}`;
   };
 
@@ -147,32 +149,7 @@ export default function RedeemTokenList() {
 
   return (
     <Card className="w-full border-none rounded-xl">
-      <CardHeader>
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <h2 className="text-lg font-semibold">Redemption Pools</h2>
-            <Button
-              onClick={handleRefresh}
-              variant="ghost"
-              size="sm"
-              className="p-0 h-8 w-8"
-              disabled={loading}
-            >
-              <RefreshCw className={cn("h-4 w-4", loading && "animate-spin")} />
-            </Button>
-          </div>
-          <div className="flex items-center gap-2">
-            <Button
-              variant="ghost"
-              size="sm"
-              className="p-0 h-8 w-8"
-              onClick={() => setOpen(true)}
-            >
-              <Plus className="h-full w-full" />
-            </Button>
-          </div>
-        </div>
-      </CardHeader>
+      <CardHeader></CardHeader>
 
       <CardContent>
         {loading && <CardSkeleton />}
@@ -183,7 +160,7 @@ export default function RedeemTokenList() {
           <div className="flex justify-center">
             <Card className="bg-white shadow-sm max-w-md w-full">
               <CardContent className="p-6">
-                <div className="flex items-start gap-4">
+                <div className="flex items-start gap-4 flex-col">
                   {/* Token Logo */}
                   <div className="flex-shrink-0">
                     <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center">
@@ -198,7 +175,7 @@ export default function RedeemTokenList() {
                   </div>
 
                   {/* Pool Details */}
-                  <div className="flex-1 space-y-2">
+                  <div className="space-y-2">
                     <div className="flex items-center gap-2">
                       <span className="text-sm font-medium text-gray-700">
                         Wallet Address:
@@ -213,7 +190,8 @@ export default function RedeemTokenList() {
                         Total Amount:
                       </span>
                       <span className="text-sm text-gray-600">
-                        {pools[0].total_amount} {pools[0].token_symbol}
+                        {pools[0].total_amount}{' '}
+                        {pools[0].token_symbol}
                       </span>
                     </div>
 
@@ -222,7 +200,8 @@ export default function RedeemTokenList() {
                         Tokens Per Wallet:
                       </span>
                       <span className="text-sm text-gray-600">
-                        {pools[0].tokens_per_wallet} {pools[0].token_symbol}
+                        {pools[0].tokens_per_wallet}{' '}
+                        {pools[0].token_symbol}
                       </span>
                     </div>
 
@@ -231,7 +210,8 @@ export default function RedeemTokenList() {
                         Remaining:
                       </span>
                       <span className="text-sm text-gray-600">
-                        {pools[0].remaining_amount} {pools[0].token_symbol}
+                        {pools[0].remaining_amount}{' '}
+                        {pools[0].token_symbol}
                       </span>
                     </div>
 
@@ -241,8 +221,8 @@ export default function RedeemTokenList() {
                       </span>
                       <span className="text-sm text-gray-600">
                         {pools[0].total_redemptions}(
-                        {pools[0].total_redeemed_amount} {pools[0].token_symbol}
-                        )
+                        {pools[0].total_redeemed_amount}{' '}
+                        {pools[0].token_symbol})
                       </span>
                     </div>
 
@@ -251,7 +231,9 @@ export default function RedeemTokenList() {
                         Created at:
                       </span>
                       <span className="text-sm text-gray-600">
-                        {new Date(pools[0].created_at).toLocaleDateString()}
+                        {new Date(
+                          pools[0].created_at,
+                        ).toLocaleDateString()}
                       </span>
                     </div>
 
@@ -260,7 +242,9 @@ export default function RedeemTokenList() {
                         Action:
                       </span>
                       <button
-                        onClick={() => copyToClipboard(pools[0].redeemLink)}
+                        onClick={() =>
+                          copyToClipboard(pools[0].redeemLink)
+                        }
                         className="inline-flex items-center gap-1 text-sm text-blue-600 hover:text-blue-700 transition-colors"
                       >
                         Copy
@@ -277,7 +261,7 @@ export default function RedeemTokenList() {
         {!loading && pools.length >= 2 && (
           <Carousel
             opts={{
-              align: "start",
+              align: 'start',
               loop: true,
             }}
             className="w-full"
@@ -329,7 +313,8 @@ export default function RedeemTokenList() {
                               Tokens Per Wallet:
                             </span>
                             <span className="text-sm text-gray-600">
-                              {pool.tokens_per_wallet} {pool.token_symbol}
+                              {pool.tokens_per_wallet}{' '}
+                              {pool.token_symbol}
                             </span>
                           </div>
 
@@ -338,7 +323,8 @@ export default function RedeemTokenList() {
                               Remaining:
                             </span>
                             <span className="text-sm text-gray-600">
-                              {pool.remaining_amount} {pool.token_symbol}
+                              {pool.remaining_amount}{' '}
+                              {pool.token_symbol}
                             </span>
                           </div>
 
@@ -348,7 +334,8 @@ export default function RedeemTokenList() {
                             </span>
                             <span className="text-sm text-gray-600">
                               {pool.total_redemptions}(
-                              {pool.total_redeemed_amount} {pool.token_symbol})
+                              {pool.total_redeemed_amount}{' '}
+                              {pool.token_symbol})
                             </span>
                           </div>
 
@@ -357,7 +344,9 @@ export default function RedeemTokenList() {
                               Created at:
                             </span>
                             <span className="text-sm text-gray-600">
-                              {new Date(pool.created_at).toLocaleDateString()}
+                              {new Date(
+                                pool.created_at,
+                              ).toLocaleDateString()}
                             </span>
                           </div>
 
@@ -366,7 +355,9 @@ export default function RedeemTokenList() {
                               Action:
                             </span>
                             <button
-                              onClick={() => copyToClipboard(pool.redeemLink)}
+                              onClick={() =>
+                                copyToClipboard(pool.redeemLink)
+                              }
                               className="inline-flex items-center gap-1 text-sm text-blue-600 hover:text-blue-700 transition-colors"
                             >
                               Copy

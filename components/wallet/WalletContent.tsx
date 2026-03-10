@@ -21,7 +21,7 @@ import { ethers } from 'ethers';
 import bs58 from 'bs58';
 import { useToast } from '@/hooks/use-toast';
 
-import { ChainType, TokenData } from '@/types/token';
+import { TokenData } from '@/types/token';
 import { NFT } from '@/types/nft';
 import { CHAIN_ID } from '@/types/wallet-types';
 import {
@@ -813,14 +813,13 @@ const WalletContentInner = () => {
   );
 
   return (
-    <div className="p-0">
-      {/* Assets Content */}
-      <div className="min-h-[400px]">
-        <TokenTicker />
-        {/* Balance Header + Portfolio - Side by Side */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-4">
-          {/* Left: Balance Chart */}
-          <div className="bg-white rounded-xl">
+    <div className="w-full">
+      <div className="max-w-[855px] w-full mx-auto">
+        {/* Assets Content */}
+        <div className="min-h-[400px]">
+          <TokenTicker />
+          {/* Balance Chart */}
+          <div className="bg-white rounded-xl my-4">
             <BalanceChart
               userId={user?._id}
               currency="$"
@@ -834,71 +833,72 @@ const WalletContentInner = () => {
               isButtonVisible={true}
             />
           </div>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            {/* Assets Card */}
+            <AssetsTab
+              tokens={tokens as unknown as TokenData[]}
+              tokenLoading={tokenLoading}
+              tokenError={tokenError}
+              nfts={nfts as unknown as NFT[]}
+              nftLoading={nftLoading}
+              nftError={nftError}
+              walletAddress={currentWalletAddress}
+              onSendClick={handleSendClick}
+              onNFTNext={handleNFTNext}
+              refetchNFTs={refetchNFTs}
+            />
 
-          {/* Right: Portfolio Breakdown */}
-          <div className="bg-white rounded-xl">
-            {tokenLoading ? (
-              <PortfolioChartSkeleton />
-            ) : portfolioSummary.assets.length > 0 ? (
-              <PortfolioChart
-                assets={portfolioSummary.assets}
-                balance={`$${portfolioSummary.formattedBalance}`}
-                title="Portfolio"
-                showViewButton={false}
-              />
-            ) : (
-              <PortfolioEmptyState />
-            )}
+            {/* Perps Card - Coming Soon */}
+            <div className="bg-white rounded-xl p-4 flex flex-col min-h-[380px]">
+              <div className="flex items-center justify-between mb-4">
+                <span className="font-semibold text-gray-700">
+                  Perps Balance
+                </span>
+              </div>
+              <div className="flex-1 flex flex-col items-center justify-center gap-2">
+                <p className="text-2xl font-semibold text-gray-300">
+                  Coming Soon
+                </p>
+                <p className="text-sm text-gray-400">
+                  Perpetuals trading is on its way
+                </p>
+              </div>
+            </div>
           </div>
         </div>
-        <AssetsTab
+
+        {/* All Modals */}
+        <WalletModals
+          sendFlow={sendFlow}
+          resetSendFlow={resetSendFlow}
           tokens={tokens as unknown as TokenData[]}
-          tokenLoading={tokenLoading}
-          tokenError={tokenError}
           nfts={nfts as unknown as NFT[]}
-          nftLoading={nftLoading}
-          nftError={nftError}
-          walletAddress={currentWalletAddress}
-          solWalletAddress={solWalletAddress}
-          evmWalletAddress={evmWalletAddress}
-          chains={SUPPORTED_CHAINS as ChainType[]}
-          onSendClick={handleSendClick}
-          onNFTNext={handleNFTNext}
-          refetchNFTs={refetchNFTs}
+          handleSendClick={handleSendClick}
+          handleNFTNext={handleNFTNext}
+          handleAmountConfirm={handleAmountConfirm}
+          handleRecipientSelect={handleRecipientSelect}
+          handleSendConfirm={handleSendConfirm}
+          network={sendFlow.network}
+          currentWalletAddress={currentWalletAddress}
+          sendLoading={sendLoading}
+          nativeTokenPrice={Number(nativeTokenPrice) || 0}
+          walletQRModalOpen={walletQRModalOpen}
+          setWalletQRModalOpen={setWalletQRModalOpen}
+          walletData={walletData || []}
+          setWalletShareAddress={setWalletShareAddress}
+          setWalletQRShareModalOpen={setWalletQRShareModalOpen}
+          walletQRShareModalOpen={walletQRShareModalOpen}
+          walletShareAddress={walletShareAddress}
+          setQrcodeShareUrl={setQrcodeShareUrl}
+          setQRCodeShareModalOpen={setQRCodeShareModalOpen}
+          QRCodeShareModalOpen={QRCodeShareModalOpen}
+          qrcodeShareUrl={qrcodeShareUrl}
+          setSendFlow={setSendFlow}
+          solBalance={solBalance}
         />
+
+        <Toaster />
       </div>
-
-      {/* All Modals */}
-      <WalletModals
-        sendFlow={sendFlow}
-        resetSendFlow={resetSendFlow}
-        tokens={tokens as unknown as TokenData[]}
-        nfts={nfts as unknown as NFT[]}
-        handleSendClick={handleSendClick}
-        handleNFTNext={handleNFTNext}
-        handleAmountConfirm={handleAmountConfirm}
-        handleRecipientSelect={handleRecipientSelect}
-        handleSendConfirm={handleSendConfirm}
-        network={sendFlow.network}
-        currentWalletAddress={currentWalletAddress}
-        sendLoading={sendLoading}
-        nativeTokenPrice={Number(nativeTokenPrice) || 0}
-        walletQRModalOpen={walletQRModalOpen}
-        setWalletQRModalOpen={setWalletQRModalOpen}
-        walletData={walletData || []}
-        setWalletShareAddress={setWalletShareAddress}
-        setWalletQRShareModalOpen={setWalletQRShareModalOpen}
-        walletQRShareModalOpen={walletQRShareModalOpen}
-        walletShareAddress={walletShareAddress}
-        setQrcodeShareUrl={setQrcodeShareUrl}
-        setQRCodeShareModalOpen={setQRCodeShareModalOpen}
-        QRCodeShareModalOpen={QRCodeShareModalOpen}
-        qrcodeShareUrl={qrcodeShareUrl}
-        setSendFlow={setSendFlow}
-        solBalance={solBalance}
-      />
-
-      <Toaster />
     </div>
   );
 };

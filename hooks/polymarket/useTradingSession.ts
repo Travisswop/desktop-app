@@ -43,6 +43,23 @@ export function useTradingSession() {
     }
 
     const stored = loadSession(eoaAddress);
+
+    // If the session claims to have credentials, verify they are actually complete.
+    // An incomplete secret causes postHeartbeat → buildPolyHmacSignature to throw
+    // "Cannot read properties of undefined (reading 'replace')" every 5 seconds.
+    if (stored?.hasApiCredentials) {
+      const creds = stored.apiCredentials;
+      if (!creds?.key || !creds?.secret || !creds?.passphrase) {
+        console.warn(
+          "[Polymarket] Stored session has incomplete API credentials — clearing session to force re-initialization.",
+        );
+        clearStoredSession(eoaAddress);
+        setTradingSession(null);
+        setCurrentStep("idle");
+        return;
+      }
+    }
+
     setTradingSession(stored);
 
     if (!stored) {
