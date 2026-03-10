@@ -15,23 +15,23 @@ export default function SettledCard({
   isRedeeming,
   canRedeem,
 }: SettledCardProps) {
-  const won = position.redeemable;
+  // A position is a WINNER only when the market is settled (redeemable=true)
+  // AND curPrice > 0 (winning outcome). redeemable=true alone just means the
+  // market has resolved — losing positions also have redeemable=true with curPrice=0.
+  const won = position.redeemable && position.curPrice > 0;
   const cost = position.initialValue || position.avgPrice * position.size;
 
-  // Redemption value:
-  // Use currentValue when the price feed is still active (curPrice > 0) — the API
-  // computes this correctly for both standard and neg-risk markets.
-  // Fall back to size (token count × $1) only when curPrice has been zeroed out by
-  // the API after market settlement, which applies to standard binary markets.
+  // Redemption value: only winners receive a payout.
+  // Use currentValue when curPrice is active; fall back to size×$1 for settled winners
+  // where the API has not yet zeroed the price (edge case). Losers get $0.
   const redeemValue = won
     ? position.curPrice > 0
       ? position.currentValue
       : position.size
     : 0;
 
-  // P&L = unrealised portion (redeemValue – cost) + any gains already realised by
-  // selling shares before settlement.
-  // For losers, cashPnl already encodes the full loss (currentValue – initialValue).
+  // P&L = redeemValue minus cost for winners, full loss (cashPnl) for losers.
+  // Add any realizedPnl from shares sold before settlement in both cases.
   const pnl = won
     ? redeemValue - cost + position.realizedPnl
     : position.cashPnl + position.realizedPnl;

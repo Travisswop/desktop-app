@@ -106,21 +106,17 @@ export default function PredictionsPortfolioModal({
   const { eoaAddress } = usePolymarketWallet();
   const queryClient = useQueryClient();
 
-  const supportAddress = '0x1C09D8CD54e4966b3d49c4E11892837410Dc146A';
-
   const { data: positions } = useUserPositions(
-    supportAddress as string | undefined,
+    safeAddress as string | undefined,
   );
-  console.log('positions', positions);
-  const { usdcBalance } = usePolygonBalances(supportAddress);
+  const { usdcBalance } = usePolygonBalances(safeAddress);
   const { data: activeOrders = [] } = useActiveOrders(
     clobClient,
-    supportAddress,
+    safeAddress,
   );
-  console.log('activeOrders', activeOrders);
   const { data: orderHistory = [] } = useOrderHistory(
     clobClient,
-    supportAddress,
+    safeAddress,
   );
 
   const { redeemPosition } = useRedeemPosition();
@@ -182,36 +178,26 @@ export default function PredictionsPortfolioModal({
     if (!activePositions.length)
       return { portfolioPct: 0, lifetimeEarned: 0, inOrdersValue };
 
-    const totalInitial = activePositions.reduce(
+    // portfolioPct reflects only open/live positions (not yet settled).
+    // Settled positions should not distort the current portfolio percentage.
+    const openPositions = activePositions.filter(
+      (p) => !p.redeemable,
+    );
+    const totalInitial = openPositions.reduce(
       (s, p) => s + (p.initialValue || p.avgPrice * p.size),
       0,
     );
-    // For settled winning positions the API zeros out curPrice, making cashPnl
-    // appear as a full loss. Apply the same effectiveCashPnl correction used in
-    // lifetimeEarned so that portfolioPct reflects actual performance.
-    const totalPnl = activePositions.reduce((s, p) => {
-      const effectiveCashPnl =
-        p.redeemable && p.curPrice === 0
-          ? p.size - (p.initialValue || p.avgPrice * p.size)
-          : p.cashPnl;
-      return s + effectiveCashPnl;
-    }, 0);
+    const totalPnl = openPositions.reduce((s, p) => s + p.cashPnl, 0);
     const portfolioPct =
       totalInitial > 0 ? (totalPnl / totalInitial) * 100 : 0;
 
-    // Lifetime P&L: use all positions returned by the API (not just display-filtered
-    // ones) so that settled losses are included. For settled winning positions where
-    // the API returns curPrice=0 after resolution, cashPnl is incorrectly computed as
-    // (0 - initialValue) instead of (size - initialValue). Correct it by using the
-    // redemption value (size shares × $1 each) as the true current value.
+    // Lifetime P&L: sum cashPnl + realizedPnl across all API positions.
+    // cashPnl already correctly reflects losses (negative) and open gains.
     const allApiPositions = positions || [];
-    const lifetimeEarned = allApiPositions.reduce((s, p) => {
-      const effectiveCashPnl =
-        p.redeemable && p.curPrice === 0
-          ? p.size - (p.initialValue || p.avgPrice * p.size)
-          : p.cashPnl;
-      return s + effectiveCashPnl + p.realizedPnl;
-    }, 0);
+    const lifetimeEarned = allApiPositions.reduce(
+      (s, p) => s + p.cashPnl + p.realizedPnl,
+      0,
+    );
 
     return { portfolioPct, lifetimeEarned, inOrdersValue };
   }, [positions, activePositions, activeOrders]);
@@ -271,7 +257,7 @@ export default function PredictionsPortfolioModal({
       const redeemValue =
         position.curPrice > 0 ? position.currentValue : position.size;
       queryClient.setQueryData<bigint>(
-        ['usdcBalance', supportAddress],
+        ['usdcBalance', safeAddress as string],
         (prev) => {
           if (prev === undefined) return prev;
           const addedUnits = BigInt(
@@ -406,13 +392,19 @@ export default function PredictionsPortfolioModal({
                   In Orders
                 </p>
               </div>
-              <p className="text-xl font-bold text-gray-900">
-                $
-                {stats.inOrdersValue.toLocaleString('en-US', {
-                  minimumFractionDigits: 2,
-                  maximumFractionDigits: 2,
-                })}
-              </p>
+              {clobClient ? (
+                <p className="text-xl font-bold text-gray-900">
+                  $
+                  {stats.inOrdersValue.toLocaleString('en-US', {
+                    minimumFractionDigits: 2,
+                    maximumFractionDigits: 2,
+                  })}
+                </p>
+              ) : (
+                <p className="text-sm text-gray-400 font-medium">
+                  Start trading to view
+                </p>
+              )}
             </div>
 
             {/* Tabs */}
