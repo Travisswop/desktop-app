@@ -167,6 +167,17 @@ export default function UserPositions() {
       .filter((p) => p.redeemable || p.currentValue >= DUST_THRESHOLD);
   }, [positions]);
 
+  // ── Market title lookup (asset_id → market question) ────────────────────
+  // Used to enrich O/U and spread outcome labels in OrderCard
+  const titleByAsset = useMemo(() => {
+    const map = new Map<string, string>();
+    (positions || []).forEach((p) => {
+      if (p.asset) map.set(p.asset, p.title);
+      if (p.oppositeAsset) map.set(p.oppositeAsset, p.title);
+    });
+    return map;
+  }, [positions]);
+
   // ── Portfolio stats ──────────────────────────────────────────────────────
   const stats = useMemo(() => {
     if (!activePositions.length) return { portfolioPct: 0, lifetimeEarned: 0, inOrdersValue: 0 };
@@ -217,6 +228,7 @@ export default function UserPositions() {
                 order={order}
                 onCancel={handleCancelOrder}
                 isCancelling={cancellingOrderId === order.id}
+                marketTitle={titleByAsset.get(order.asset_id)}
               />
             ))}
           </div>
@@ -278,6 +290,7 @@ export default function UserPositions() {
                 order={order}
                 onCancel={handleCancelOrder}
                 isCancelling={cancellingOrderId === order.id}
+                marketTitle={titleByAsset.get(order.asset_id)}
               />
             ))}
           </div>

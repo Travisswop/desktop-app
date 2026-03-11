@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { Share2 } from 'lucide-react';
 import type { PolymarketPosition } from '@/hooks/polymarket';
+import { getOutcomeDisplayLabel } from '@/lib/polymarket/formatting';
 import PositionShareModal from './PositionShareModal';
 
 interface PositionCardProps {
@@ -40,10 +41,13 @@ export default function PositionCard({
   // positions, so we must not gate on curPrice > 0 here.
   const isRedeemable = position.redeemable;
 
-  // Show the event title for binary Yes/No outcomes; show outcome name for others (e.g. team abbreviations)
+  // Show the event title for binary Yes/No outcomes.
+  // For O/U and spread outcomes, enrich the label with the threshold or spread line.
   const isBinaryOutcome =
     position.outcome === 'Yes' || position.outcome === 'No';
-  const displayPick = isBinaryOutcome ? position.title : position.outcome;
+  const displayPick = isBinaryOutcome
+    ? position.title
+    : getOutcomeDisplayLabel(position.outcome, position.title, position.outcomeIndex);
 
   const costCents = Math.round(position.avgPrice * 100);
   const currentCents = Math.round(position.curPrice * 100);
