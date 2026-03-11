@@ -36,7 +36,7 @@ export default function DeleteFeedModal({
     setDeleteLoading(true);
     const deletePost = await deleteFeed(postId, token, userId);
     logger.info("Delete post response:", deletePost);
-    if (deletePost.state === "success") {
+    if (deletePost.success) {
       setDeleteLoading(false);
       toast({
         title: "Success",

@@ -12,7 +12,6 @@ const FeedPage = async () => {
 
   const url = `${API_URL}/api/v2/feed/user/connect/${userId}?page=1&limit=5`;
   const newFeedData = await getUserFeed(url, accessToken);
-  console.log("newFeedDatass", newFeedData);
 
   return (
     <Suspense

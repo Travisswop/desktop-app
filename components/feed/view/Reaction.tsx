@@ -87,7 +87,7 @@ const Reaction = memo(
     const [animate, setAnimate] = useState(false); // Trigger for the animation
     const [smartsiteId, setSmartsiteId] = useState(""); // Trigger for the animation
     const [isCommentInputOpen, setIsCommentInputOpen] = useState(
-      isFromFeedDetails ? true : false
+      isFromFeedDetails ? true : false,
     );
     const [latestCommentCount, setLatestCommentCount] = useState(commentCount);
     const [isPopOpen, setIsPopOpen] = useState(false);
@@ -115,7 +115,7 @@ const Reaction = memo(
         reposts: formatCountReaction(repostCount),
         views: formatCountReaction(viewsCount),
       }),
-      [likeCount, latestCommentCount, repostCount, viewsCount]
+      [likeCount, latestCommentCount, repostCount, viewsCount],
     );
 
     // Memoized copy link handler
@@ -244,7 +244,7 @@ const Reaction = memo(
       // Check if the content length exceeds the max length
       if (value.length > MAX_LENGTH) {
         setRepostContentError(
-          `** Content cannot exceed ${MAX_LENGTH} characters.`
+          `** Content cannot exceed ${MAX_LENGTH} characters.`,
         );
       } else {
         setRepostContentError("");
@@ -566,7 +566,7 @@ const Reaction = memo(
                               <EmojiPicker
                                 onEmojiClick={(emojiObject) => {
                                   setPostContent(
-                                    (prev) => prev + emojiObject.emoji
+                                    (prev) => prev + emojiObject.emoji,
                                   );
                                 }}
                                 width={300}
@@ -628,7 +628,7 @@ const Reaction = memo(
       prevProps.commentId === nextProps.commentId &&
       prevProps.replyId === nextProps.replyId
     );
-  }
+  },
 );
 
 Reaction.displayName = "Reaction";

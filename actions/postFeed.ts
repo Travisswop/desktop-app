@@ -84,6 +84,7 @@ export async function postFeed(payload: any, token: string) {
       },
     );
     const data = await response.json();
+    revalidatePath("/");
     return data;
   } catch (error) {
     logger.error("Error from posting feed:", error);
