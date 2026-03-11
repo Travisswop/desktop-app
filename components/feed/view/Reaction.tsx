@@ -42,6 +42,8 @@ import { Loader } from "lucide-react";
 import repostImg from "@/public/images/custom-icons/feed_repost.png";
 import Image from "next/image";
 import { useRouter, useSearchParams } from "next/navigation";
+import CommentInput from "../comment/CommentInput";
+import dayjs from "dayjs";
 
 // Assuming FeedItemType is available or defined elsewhere
 interface FeedItemType {
@@ -504,17 +506,110 @@ const Reaction = memo(
         </div>
         {/* comment input field  */}
         {isCommentInputOpen && (
-          <CommentContent
-            postId={postId}
-            accessToken={accessToken}
-            latestCommentCount={latestCommentCount}
-            setLatestCommentCount={setLatestCommentCount}
-            onCommentSubmitted={(newTotalCommentCount: number) => {
-              onPostInteraction?.(postId, {
-                commentCount: newTotalCommentCount,
-              });
+          // <CommentContent
+          //   postId={postId}
+          //   accessToken={accessToken}
+          //   latestCommentCount={latestCommentCount}
+          //   setLatestCommentCount={setLatestCommentCount}
+          //   onCommentSubmitted={(newTotalCommentCount: number) => {
+          //     onPostInteraction?.(postId, {
+          //       commentCount: newTotalCommentCount,
+          //     });
+          //   }}
+          // />
+          <Modal
+            isOpen={isCommentInputOpen}
+            onOpenChange={(open) => setIsCommentInputOpen(open)}
+            placement="center"
+            backdrop="opaque"
+            classNames={{
+              base: "max-w-xl rounded-2xl",
+              backdrop: "bg-black/70",
+              body: "px-4 pb-4 pt-2",
+              header: "px-4 pt-4 pb-0 border-none",
             }}
-          />
+          >
+            <ModalContent>
+              {(onClose) => (
+                <>
+                  <ModalHeader>
+                    <span className="text-base font-bold">Reply</span>
+                  </ModalHeader>
+                  <ModalBody>
+                    {/* Original post preview */}
+                    {feed && (
+                      <div className="flex gap-3 mb-3">
+                        <div className="flex flex-col items-center shrink-0">
+                          <div className="w-9 h-9 rounded-full bg-gray-200 overflow-hidden">
+                            {feed.smartsiteData?.profilePic && (
+                              <Image
+                                src={feed.smartsiteData.profilePic}
+                                alt="avatar"
+                                width={36}
+                                height={36}
+                                className="w-full h-full object-cover"
+                              />
+                            )}
+                          </div>
+                          {/* Thread line */}
+                          <div className="w-0.5 flex-1 bg-gray-200 mt-1.5 rounded-full min-h-[32px]" />
+                        </div>
+                        <div className="flex-1 min-w-0 pb-2">
+                          <div className="flex items-center gap-1.5 mb-0.5">
+                            <span className="text-sm font-bold text-gray-900 truncate">
+                              {feed.smartsiteData?.name || "User"}
+                            </span>
+                            <span className="text-xs text-gray-400">
+                              · {dayjs(feed.createdAt).fromNow()}
+                            </span>
+                          </div>
+                          <p className="text-sm text-gray-500 line-clamp-2 leading-relaxed">
+                            {feed.content?.title || feed.content?.text || ""}
+                          </p>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Reply input row */}
+                    <div className="flex gap-3">
+                      <div className="w-9 h-9 rounded-full bg-gray-300 shrink-0 mt-1 overflow-hidden">
+                        {/* current user avatar — pull from user context if available */}
+                        {user?.primaryMicrositeData?.profilePic && (
+                          <Image
+                            src={user.primaryMicrositeData.profilePic}
+                            alt="you"
+                            width={36}
+                            height={36}
+                            className="w-full h-full object-cover"
+                          />
+                        )}
+                      </div>
+                      <div className="flex-1">
+                        <p className="text-xs text-gray-400 mb-1.5">
+                          Replying to{" "}
+                          <span className="text-blue-500 font-medium">
+                            @{feed?.smartsiteData?.name || "user"}
+                          </span>
+                        </p>
+                        <CommentInput
+                          postId={postId}
+                          accessToken={accessToken}
+                          latestCommentCount={latestCommentCount}
+                          setLatestCommentCount={setLatestCommentCount}
+                          onCommentSubmitted={(newTotal) => {
+                            onPostInteraction?.(postId, {
+                              commentCount: newTotal,
+                            });
+                            onClose(); // close modal after reply
+                          }}
+                        />
+                      </div>
+                    </div>
+                  </ModalBody>
+                </>
+              )}
+            </ModalContent>
+          </Modal>
         )}
         <Modal
           isOpen={isRepostModalOpen}
