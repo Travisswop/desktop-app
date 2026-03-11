@@ -1,6 +1,7 @@
 "use client";
 import EmojiPicker, { EmojiClickData } from "emoji-picker-react";
 import React, { useRef, useEffect } from "react";
+import { BsEmojiSmile } from "react-icons/bs";
 
 interface EmojiProps {
   showEmojiPicker: boolean;
@@ -15,13 +16,6 @@ const Emoji = ({
 }: EmojiProps) => {
   const pickerRef = useRef<HTMLDivElement>(null);
 
-  const handleEmojiClick = (emojiData: EmojiClickData) => {
-    onEmojiSelect(emojiData.emoji);
-    // Optionally close picker after selection:
-    // setShowEmojiPicker(false);
-  };
-
-  // Close picker when clicking outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (
@@ -33,7 +27,6 @@ const Emoji = ({
     };
 
     if (showEmojiPicker) {
-      // Add a small delay to prevent immediate closure when opening
       setTimeout(() => {
         document.addEventListener("mousedown", handleClickOutside);
       }, 0);
@@ -44,11 +37,35 @@ const Emoji = ({
     };
   }, [showEmojiPicker, setShowEmojiPicker]);
 
-  if (!showEmojiPicker) return null;
-
   return (
-    <div ref={pickerRef} onClick={(e) => e.stopPropagation()}>
-      <EmojiPicker onEmojiClick={handleEmojiClick} width="100%" />
+    <div className="relative flex items-center" ref={pickerRef}>
+      {/* ✅ Trigger button */}
+      <button
+        type="button"
+        onClick={(e) => {
+          e.stopPropagation();
+          setShowEmojiPicker(!showEmojiPicker);
+        }}
+        className=""
+      >
+        <BsEmojiSmile size={20} />
+      </button>
+
+      {/* ✅ Picker */}
+      {showEmojiPicker && (
+        <div
+          className="absolute bottom-8 left-0 z-[9999]"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <EmojiPicker
+            onEmojiClick={(emojiData: EmojiClickData) =>
+              onEmojiSelect(emojiData.emoji)
+            }
+            width={300}
+            height={350}
+          />
+        </div>
+      )}
     </div>
   );
 };

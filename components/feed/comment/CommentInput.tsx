@@ -34,6 +34,7 @@ export default function CommentInput({
   const [commentText, setCommentText] = useState("");
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const { user }: any = useUser();
 
   const handleChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
@@ -100,7 +101,7 @@ export default function CommentInput({
   };
 
   return (
-    <div className="w-full">
+    <div className="w-full h-full">
       <textarea
         rows={3}
         className={`bg-gray-100 rounded-lg p-3 w-full resize-none text-sm ${
@@ -137,7 +138,11 @@ export default function CommentInput({
         <div className="flex items-center gap-3">
           <CommentImagePicker />
           <CommentGifPickerContent />
-          <Emoji onEmojiSelect={handleEmojiSelect} />
+          <Emoji
+            showEmojiPicker={showEmojiPicker}
+            setShowEmojiPicker={setShowEmojiPicker}
+            onEmojiSelect={handleEmojiSelect}
+          />
         </div>
 
         <div className="flex items-center gap-2">

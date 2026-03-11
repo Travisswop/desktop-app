@@ -44,6 +44,7 @@ import Image from "next/image";
 import { useRouter, useSearchParams } from "next/navigation";
 import CommentInput from "../comment/CommentInput";
 import dayjs from "dayjs";
+import isUrl from "@/lib/isUrl";
 
 // Assuming FeedItemType is available or defined elsewhere
 interface FeedItemType {
@@ -88,6 +89,7 @@ const Reaction = memo(
     const [likeCount, setLikeCount] = useState(initialLikeCount);
     const [animate, setAnimate] = useState(false); // Trigger for the animation
     const [smartsiteId, setSmartsiteId] = useState(""); // Trigger for the animation
+    const [primarySmartsiteData, setPrimarySmartsiteData] = useState(null); // Store the primary smartsite data
     const [isCommentInputOpen, setIsCommentInputOpen] = useState(
       isFromFeedDetails ? true : false,
     );
@@ -107,7 +109,7 @@ const Reaction = memo(
     const searchParams = useSearchParams();
     const tab = searchParams && searchParams?.get("tab"); // "ledger"
 
-    console.log("tab", tab);
+    console.log("feed primarySmartsiteData", primarySmartsiteData);
 
     // Memoized formatted counts
     const formattedCounts = useMemo(
@@ -227,10 +229,19 @@ const Reaction = memo(
     }, [user]);
 
     useEffect(() => {
+      const primaryMicrositeData = user?.microsites?.find(
+        (site: any) => site._id === user.primaryMicrosite,
+      );
+      if (primaryMicrositeData) {
+        setPrimarySmartsiteData(primaryMicrositeData);
+      }
+    }, [user?.microsites, user?.primaryMicrosite]);
+
+    useEffect(() => {
       setLiked(isLiked);
     }, [isLiked]); // Depend on isLiked prop for initialization and external changes
 
-    // console.log("commentPostContent", commentPostContent);
+    console.log("user", user);
 
     const {
       isOpen: isRepostModalOpen,
@@ -525,7 +536,7 @@ const Reaction = memo(
             classNames={{
               base: "max-w-xl rounded-2xl",
               backdrop: "bg-black/70",
-              body: "px-4 pb-4 pt-2",
+              body: "px-4 pb-4 pt-2 gap-0",
               header: "px-4 pt-4 pb-0 border-none",
             }}
           >
@@ -533,17 +544,21 @@ const Reaction = memo(
               {(onClose) => (
                 <>
                   <ModalHeader>
-                    <span className="text-base font-bold">Reply</span>
+                    <span className="text-base font-bold">Send Reply</span>
                   </ModalHeader>
                   <ModalBody>
                     {/* Original post preview */}
                     {feed && (
-                      <div className="flex gap-3 mb-3">
-                        <div className="flex flex-col items-center shrink-0">
+                      <div className="flex gap-3">
+                        <div className="flex flex-col items-center">
                           <div className="w-9 h-9 rounded-full bg-gray-200 overflow-hidden">
-                            {feed.smartsiteData?.profilePic && (
+                            {feed.smartsiteDetails?.profilePic && (
                               <Image
-                                src={feed.smartsiteData.profilePic}
+                                src={
+                                  isUrl(feed.smartsiteDetails.profilePic)
+                                    ? feed.smartsiteDetails.profilePic
+                                    : `${process.env.NEXT_PUBLIC_APP_URL}/images/user_avator/${feed.smartsiteDetails.profilePic}@3x.png`
+                                }
                                 alt="avatar"
                                 width={36}
                                 height={36}
@@ -551,32 +566,54 @@ const Reaction = memo(
                               />
                             )}
                           </div>
-                          {/* Thread line */}
-                          <div className="w-0.5 flex-1 bg-gray-200 mt-1.5 rounded-full min-h-[32px]" />
                         </div>
-                        <div className="flex-1 min-w-0 pb-2">
-                          <div className="flex items-center gap-1.5 mb-0.5">
+
+                        <div className="flex-1 min-w-0 flex flex-col justify-center">
+                          <div className="flex items-center gap-1.5">
                             <span className="text-sm font-bold text-gray-900 truncate">
-                              {feed.smartsiteData?.name || "User"}
+                              {feed.smartsiteDetails?.name ||
+                                feed.smartsiteUserName ||
+                                "Unknown User"}
                             </span>
                             <span className="text-xs text-gray-400">
                               · {dayjs(feed.createdAt).fromNow()}
                             </span>
                           </div>
-                          <p className="text-sm text-gray-500 line-clamp-2 leading-relaxed">
-                            {feed.content?.title || feed.content?.text || ""}
-                          </p>
+                          {feed.content?.title && (
+                            <p className="text-sm text-gray-500 line-clamp-2 leading-relaxed">
+                              {feed.content.title}
+                            </p>
+                          )}
                         </div>
                       </div>
                     )}
+                    <div className="flex items-center gap-2">
+                      <div className="w-9 flex justify-center">
+                        <div className="w-0.5 bg-gray-200 mt-1.5 rounded-full min-h-[32px]" />
+                      </div>
+                      <p className="text-xs text-gray-400">
+                        Replying to{" "}
+                        <a
+                          href={`/sp/${feed?.smartsiteDetails?.ens || feed?.smartsiteUserName || "user"}`}
+                          target="_blank"
+                          className="text-blue-500 font-medium"
+                        >
+                          @{feed?.smartsiteDetails?.ens || "user"}
+                        </a>
+                      </p>
+                    </div>
 
                     {/* Reply input row */}
                     <div className="flex gap-3">
                       <div className="w-9 h-9 rounded-full bg-gray-300 shrink-0 mt-1 overflow-hidden">
                         {/* current user avatar — pull from user context if available */}
-                        {user?.primaryMicrositeData?.profilePic && (
+                        {primarySmartsiteData?.profilePic && (
                           <Image
-                            src={user.primaryMicrositeData.profilePic}
+                            src={
+                              isUrl(primarySmartsiteData.profilePic)
+                                ? primarySmartsiteData.profilePic
+                                : `${process.env.NEXT_PUBLIC_APP_URL}/images/user_avator/${primarySmartsiteData.profilePic}@3x.png`
+                            }
                             alt="you"
                             width={36}
                             height={36}
@@ -585,12 +622,6 @@ const Reaction = memo(
                         )}
                       </div>
                       <div className="flex-1">
-                        <p className="text-xs text-gray-400 mb-1.5">
-                          Replying to{" "}
-                          <span className="text-blue-500 font-medium">
-                            @{feed?.smartsiteData?.name || "user"}
-                          </span>
-                        </p>
                         <CommentInput
                           postId={postId}
                           accessToken={accessToken}
