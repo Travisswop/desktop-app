@@ -133,7 +133,7 @@ export default function WalletPredictionsSection() {
   );
 
   return (
-    <div className="mt-4 max-w-[855px] w-full mx-auto space-y-3 bg-white rounded-xl p-6">
+    <div className="mt-4 mb-20 max-w-[855px] w-full mx-auto space-y-3 bg-white rounded-xl p-6 drop-shadow-lg">
       <GeoBlockedBanner />
 
       <HighVolumeMarkets splitLayout leftHeaderSlot={balanceHeader} />

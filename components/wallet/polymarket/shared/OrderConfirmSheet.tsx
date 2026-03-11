@@ -106,13 +106,15 @@ export default function OrderConfirmSheet({
             <p className="text-2xl font-black tracking-tight text-gray-900 mb-1">
               SWOP
             </p>
-            <p className="text-sm text-gray-500 line-clamp-2">{marketTitle}</p>
+            <p className="text-sm text-gray-500 line-clamp-2">
+              {marketTitle}
+            </p>
           </div>
 
           {/* "You bought / sold [outcome]" */}
           <div className="flex items-center justify-center gap-2 mb-5 px-4">
             <span className="text-base text-gray-700">
-              {order.side === 'BUY' ? 'You bought' : 'You sold'}
+              {order.side === 'BUY' ? 'You buy' : 'You sell'}
             </span>
             <span className="inline-flex items-center bg-gray-100 border border-gray-200 rounded-full px-3 py-1">
               <span className="text-sm font-bold text-gray-900">
@@ -124,27 +126,14 @@ export default function OrderConfirmSheet({
           {/* Error */}
           {error && (
             <div className="mx-4 mb-3 bg-red-50 border border-red-200 rounded-xl p-3">
-              <p className="text-red-500 text-sm text-center">{error}</p>
+              <p className="text-red-500 text-sm text-center">
+                {error}
+              </p>
             </div>
           )}
 
           {/* Stats table */}
           <div className="mx-4 border border-gray-100 rounded-xl overflow-hidden mb-4">
-            {/* Loss row (max loss for BUY) */}
-            {order.side === 'BUY' && (
-              <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
-                <span className="text-sm text-gray-500">Loss</span>
-                <div className="flex items-center gap-2">
-                  <span className="text-sm font-semibold text-red-500">
-                    -${order.cost.toFixed(2)}
-                  </span>
-                  <span className="text-xs font-semibold bg-red-100 text-red-500 px-1.5 py-0.5 rounded-md">
-                    -100%
-                  </span>
-                </div>
-              </div>
-            )}
-
             {/* Cost */}
             <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
               <span className="text-sm text-gray-500">Cost</span>
@@ -168,7 +157,9 @@ export default function OrderConfirmSheet({
             {order.side === 'BUY' && (
               <div className="flex items-center justify-between px-4 py-3">
                 <div className="flex items-center gap-1">
-                  <span className="text-sm text-gray-500">To win</span>
+                  <span className="text-sm text-gray-500">
+                    To win
+                  </span>
                   <svg
                     className="w-3.5 h-3.5 text-gray-400"
                     fill="none"

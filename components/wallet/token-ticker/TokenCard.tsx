@@ -6,10 +6,10 @@ export interface TickerToken {
   id?: string;
   symbol: string;
   name: string;
-  image?: string;                      // CoinGecko image URL
-  currentPrice?: number;               // price as number
-  priceChangePercentage24h?: number;   // change % as number
-  sparklineData?: number[];            // 1-day historical prices
+  image?: string; // CoinGecko image URL
+  currentPrice?: number; // price as number
+  priceChangePercentage24h?: number; // change % as number
+  sparklineData?: number[]; // 1-day historical prices
 }
 
 interface TokenCardProps {
@@ -90,7 +90,9 @@ function Sparkline({
 
 export default function TokenCard({ token }: TokenCardProps) {
   const isPositive = (token.priceChangePercentage24h ?? 0) >= 0;
-  const change = Math.abs(token.priceChangePercentage24h ?? 0).toFixed(0);
+  const change = Math.abs(
+    token.priceChangePercentage24h ?? 0,
+  ).toFixed(0);
 
   const formattedPrice =
     token.currentPrice != null
@@ -101,7 +103,7 @@ export default function TokenCard({ token }: TokenCardProps) {
       : '—';
 
   return (
-    <div className="min-w-[160px] bg-white rounded-2xl border border-gray-100 shadow-sm flex-shrink-0 flex flex-col overflow-hidden">
+    <div className="min-w-[160px] bg-white rounded-2xl border border-gray-100 drop-shadow-lg flex-shrink-0 flex flex-col overflow-hidden">
       {/* ── Header: circle icon  +  name / price ── */}
       <div className="flex items-center gap-3 px-4 pt-4 pb-1">
         {/* Circle icon */}
@@ -133,7 +135,10 @@ export default function TokenCard({ token }: TokenCardProps) {
 
       {/* ── Sparkline — full width ── */}
       <div className="w-full h-[80px] mt-1">
-        <Sparkline data={token.sparklineData ?? []} symbol={token.symbol} />
+        <Sparkline
+          data={token.sparklineData ?? []}
+          symbol={token.symbol}
+        />
       </div>
 
       {/* ── Change badge — bottom-right ── */}

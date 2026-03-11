@@ -20,7 +20,9 @@ interface SportsTiming {
   detail: string;
 }
 
-function getSportsTiming(gameStartTime: string | undefined): SportsTiming | null {
+function getSportsTiming(
+  gameStartTime: string | undefined,
+): SportsTiming | null {
   if (!gameStartTime) return null;
 
   const startMs = new Date(gameStartTime).getTime();
@@ -42,7 +44,8 @@ function getSportsTiming(gameStartTime: string | undefined): SportsTiming | null
     return {
       status: 'imminent',
       label: `Starts in ~${mins} min`,
-      detail: 'Limit orders cancel at game start · Market orders have a 3 s delay',
+      detail:
+        'Limit orders cancel at game start · Market orders have a 3 s delay',
     };
   }
 
@@ -52,7 +55,8 @@ function getSportsTiming(gameStartTime: string | undefined): SportsTiming | null
       dateStyle: 'short',
       timeStyle: 'short',
     })}`,
-    detail: 'Limit orders cancel at game start · Market orders have a 3 s delay',
+    detail:
+      'Limit orders cancel at game start · Market orders have a 3 s delay',
   };
 }
 
@@ -115,8 +119,12 @@ export default function MarketCard({
             <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75" />
             <span className="relative inline-flex rounded-full h-2 w-2 bg-red-500" />
           </span>
-          <span className="text-red-700 text-xs font-bold tracking-wide">LIVE</span>
-          <span className="text-red-500 text-xs ml-auto truncate">{sportsTiming.detail}</span>
+          <span className="text-red-700 text-xs font-bold tracking-wide">
+            LIVE
+          </span>
+          <span className="text-red-500 text-xs ml-auto truncate">
+            {sportsTiming.detail}
+          </span>
         </div>
       )}
 
@@ -139,7 +147,9 @@ export default function MarketCard({
             onClick={onTitleClick}
             disabled={!onTitleClick}
             className={`text-sm font-semibold text-gray-900 line-clamp-2 leading-snug text-left w-full mb-1.5 ${
-              onTitleClick ? 'hover:text-blue-600 transition-colors' : 'cursor-default'
+              onTitleClick
+                ? 'hover:text-blue-600 transition-colors'
+                : 'cursor-default'
             }`}
           >
             {market.question}
@@ -148,16 +158,28 @@ export default function MarketCard({
           {/* Stats row */}
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
             <div>
-              <p className="text-[10px] text-gray-400 leading-none mb-0.5">24h Volume</p>
-              <p className="text-xs font-semibold text-green-500">{formatVolume(volumeUSD)}</p>
+              <p className="text-[10px] text-gray-400 leading-none mb-0.5">
+                24h Volume
+              </p>
+              <p className="text-xs font-semibold text-green-500">
+                {formatVolume(volumeUSD)}
+              </p>
             </div>
             <div>
-              <p className="text-[10px] text-gray-400 leading-none mb-0.5">Liquidity</p>
-              <p className="text-xs font-semibold text-green-500">{formatLiquidity(liquidityUSD)}</p>
+              <p className="text-[10px] text-gray-400 leading-none mb-0.5">
+                Liquidity
+              </p>
+              <p className="text-xs font-semibold text-green-500">
+                {formatLiquidity(liquidityUSD)}
+              </p>
             </div>
             <div>
-              <p className="text-[10px] text-gray-400 leading-none mb-0.5">Outcomes</p>
-              <p className="text-xs font-semibold text-gray-700">{outcomes.length}</p>
+              <p className="text-[10px] text-gray-400 leading-none mb-0.5">
+                Outcomes
+              </p>
+              <p className="text-xs font-semibold text-gray-700">
+                {outcomes.length}
+              </p>
             </div>
             {isClosed && (
               <span className="text-[10px] font-bold bg-gray-200 text-gray-500 px-1.5 py-0.5 rounded-full">

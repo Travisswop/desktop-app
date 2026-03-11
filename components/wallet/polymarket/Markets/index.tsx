@@ -3,7 +3,12 @@
 import { useState, useMemo, useEffect, useRef } from 'react';
 import { Search } from 'lucide-react';
 import { useTrading } from '@/providers/polymarket';
-import { useMarkets, usePolygonBalances, useUserPositions, type PolymarketMarket } from '@/hooks/polymarket';
+import {
+  useMarkets,
+  usePolygonBalances,
+  useUserPositions,
+  type PolymarketMarket,
+} from '@/hooks/polymarket';
 import {
   type CategoryId,
   type SportSubcategoryId,
@@ -57,8 +62,10 @@ export default function HighVolumeMarkets({
     useState<CategoryId>(DEFAULT_CATEGORY);
   const [activeSportSub, setActiveSportSub] =
     useState<SportSubcategoryId>(DEFAULT_SPORT_SUBCATEGORY);
-  const [selectedMarket, setSelectedMarket] = useState<SelectedMarket | null>(null);
-  const [detailMarket, setDetailMarket] = useState<PolymarketMarket | null>(null);
+  const [selectedMarket, setSelectedMarket] =
+    useState<SelectedMarket | null>(null);
+  const [detailMarket, setDetailMarket] =
+    useState<PolymarketMarket | null>(null);
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
   const [searchQuery, setSearchQuery] = useState('');
   const sentinelRef = useRef<HTMLDivElement>(null);
@@ -89,7 +96,7 @@ export default function HighVolumeMarkets({
     if (!searchQuery.trim()) return allMarkets;
     const q = searchQuery.toLowerCase();
     return allMarkets.filter((m) =>
-      m.question.toLowerCase().includes(q)
+      m.question.toLowerCase().includes(q),
     );
   }, [allMarkets, searchQuery]);
 
@@ -130,7 +137,8 @@ export default function HighVolumeMarkets({
   const categoryLabel = category?.label || 'Markets';
 
   const sectionLabel = useMemo(() => {
-    if (activeCategory !== 'sports') return `${categoryLabel} Markets`;
+    if (activeCategory !== 'sports')
+      return `${categoryLabel} Markets`;
     const sub = getSportSubcategoryById(activeSportSub);
     return sub?.id === 'all'
       ? 'Sports Markets'
@@ -142,8 +150,12 @@ export default function HighVolumeMarkets({
     if (!selectedMarket || !positions) {
       return { yesShares: 0, noShares: 0 };
     }
-    const yesPosition = positions.find((p) => p.asset === selectedMarket.yesTokenId);
-    const noPosition = positions.find((p) => p.asset === selectedMarket.noTokenId);
+    const yesPosition = positions.find(
+      (p) => p.asset === selectedMarket.yesTokenId,
+    );
+    const noPosition = positions.find(
+      (p) => p.asset === selectedMarket.noTokenId,
+    );
     return {
       yesShares: yesPosition?.size || 0,
       noShares: noPosition?.size || 0,
@@ -157,10 +169,14 @@ export default function HighVolumeMarkets({
     tokenId: string,
     negRisk: boolean,
   ) => {
-    const market = allMarkets?.find((m) => m.question === marketTitle);
+    const market = allMarkets?.find(
+      (m) => m.question === marketTitle,
+    );
     if (!market) return;
 
-    const tokenIds = market.clobTokenIds ? JSON.parse(market.clobTokenIds) : [];
+    const tokenIds = market.clobTokenIds
+      ? JSON.parse(market.clobTokenIds)
+      : [];
     const yesTokenId = tokenIds[0] || tokenId;
     const noTokenId = tokenIds[1] || '';
     const staticPrices: number[] = market.outcomePrices
@@ -177,7 +193,9 @@ export default function HighVolumeMarkets({
       staticPrices[1] ??
       (isFirstOutcome ? 1 - price : price);
 
-    const outcomes: string[] = market.outcomes ? JSON.parse(market.outcomes) : ['Yes', 'No'];
+    const outcomes: string[] = market.outcomes
+      ? JSON.parse(market.outcomes)
+      : ['Yes', 'No'];
 
     setSelectedMarket({
       marketTitle,
@@ -202,19 +220,22 @@ export default function HighVolumeMarkets({
   };
 
   const detailMarketShares = useMemo(() => {
-    if (!detailMarket || !positions) return { yesShares: 0, noShares: 0 };
+    if (!detailMarket || !positions)
+      return { yesShares: 0, noShares: 0 };
     const tIds = detailMarket.clobTokenIds
       ? (JSON.parse(detailMarket.clobTokenIds) as string[])
       : [];
     return {
-      yesShares: positions.find((p) => p.asset === tIds[0])?.size || 0,
+      yesShares:
+        positions.find((p) => p.asset === tIds[0])?.size || 0,
       noShares: positions.find((p) => p.asset === tIds[1])?.size || 0,
     };
   }, [detailMarket, positions]);
 
   const handleCategoryChange = (categoryId: CategoryId) => {
     setActiveCategory(categoryId);
-    if (categoryId !== 'sports') setActiveSportSub(DEFAULT_SPORT_SUBCATEGORY);
+    if (categoryId !== 'sports')
+      setActiveSportSub(DEFAULT_SPORT_SUBCATEGORY);
     setSearchQuery('');
   };
 
@@ -311,19 +332,80 @@ export default function HighVolumeMarkets({
 
     return (
       <>
-        <div className="grid grid-cols-2 gap-4 items-start">
+        {/* ── Mobile: single scrollable column ── */}
+        <div className="md:hidden space-y-3 min-w-0">
+          {leftHeaderSlot}
+          {searchBar}
+          {categoryTabs}
+
+          {isLoading && (
+            <LoadingState
+              message={`Loading ${sectionLabel.toLowerCase()}...`}
+            />
+          )}
+          {error && !isLoading && (
+            <ErrorState error={error} title="Error loading markets" />
+          )}
+          {!isLoading && !error && markets.length === 0 && (
+            <EmptyState
+              title="No Markets"
+              message={
+                searchQuery
+                  ? 'No results for your search.'
+                  : `No active ${sectionLabel.toLowerCase()} found.`
+              }
+            />
+          )}
+          {!isLoading && !error && markets.length > 0 && (
+            <div className="overflow-y-auto max-h-[calc(100vh-360px)] pr-1 space-y-3">
+              {markets.map(renderMarketCard)}
+
+              {hasMore && (
+                <div
+                  ref={sentinelRef}
+                  className="flex items-center justify-center py-4 gap-2 text-sm text-gray-400"
+                >
+                  <div className="w-4 h-4 border-2 border-gray-300 border-t-gray-600 rounded-full animate-spin" />
+                  Loading more markets...
+                </div>
+              )}
+
+              {!hasMore && markets.length > PAGE_SIZE && (
+                <p className="text-center text-xs text-gray-400 py-3">
+                  All {filteredMarkets.length} markets loaded
+                </p>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* ── Desktop: two-column split layout ── */}
+        <div className="hidden md:grid grid-cols-2 gap-4 items-start">
           {/* Left column */}
           <div className="space-y-3 min-w-0">
             {leftHeaderSlot}
             {searchBar}
             {categoryTabs}
 
-            {isLoading && <LoadingState message={`Loading ${sectionLabel.toLowerCase()}...`} />}
-            {error && !isLoading && <ErrorState error={error} title="Error loading markets" />}
+            {isLoading && (
+              <LoadingState
+                message={`Loading ${sectionLabel.toLowerCase()}...`}
+              />
+            )}
+            {error && !isLoading && (
+              <ErrorState
+                error={error}
+                title="Error loading markets"
+              />
+            )}
             {!isLoading && !error && leftMarkets.length === 0 && (
               <EmptyState
                 title="No Markets"
-                message={searchQuery ? 'No results for your search.' : `No active ${sectionLabel.toLowerCase()} found.`}
+                message={
+                  searchQuery
+                    ? 'No results for your search.'
+                    : `No active ${sectionLabel.toLowerCase()} found.`
+                }
               />
             )}
             {!isLoading && !error && leftMarkets.length > 0 && (
@@ -334,11 +416,17 @@ export default function HighVolumeMarkets({
           </div>
 
           {/* Right column — scrollable */}
-          <div className="min-w-0 overflow-y-auto max-h-[720px] pr-1">
+          <div className="min-w-0 overflow-y-auto max-h-[calc(100vh-360px)] pr-1">
             {isLoading && <LoadingState message="" />}
-            {!isLoading && !error && rightMarkets.length === 0 && markets.length > 0 && (
-              <EmptyState title="" message="All markets shown on the left." />
-            )}
+            {!isLoading &&
+              !error &&
+              rightMarkets.length === 0 &&
+              markets.length > 0 && (
+                <EmptyState
+                  title=""
+                  message="All markets shown on the left."
+                />
+              )}
             {!isLoading && !error && rightMarkets.length > 0 && (
               <div className="space-y-3">
                 {rightMarkets.map(renderMarketCard)}
@@ -383,19 +471,31 @@ export default function HighVolumeMarkets({
         <div className="flex items-center justify-between">
           <h3 className="text-lg font-bold text-gray-900">
             {sectionLabel}{' '}
-            {allMarkets ? `(${markets.length} of ${allMarkets.length})` : ''}
+            {allMarkets
+              ? `(${markets.length} of ${allMarkets.length})`
+              : ''}
           </h3>
-          <p className="text-xs text-gray-500">Sorted by volume + liquidity</p>
+          <p className="text-xs text-gray-500">
+            Sorted by volume + liquidity
+          </p>
         </div>
 
-        {isLoading && <LoadingState message={`Loading ${sectionLabel.toLowerCase()}...`} />}
-        {error && !isLoading && <ErrorState error={error} title="Error loading markets" />}
-        {!isLoading && !error && (!markets || markets.length === 0) && (
-          <EmptyState
-            title="No Markets Available"
-            message={`No active ${sectionLabel.toLowerCase()} found.`}
+        {isLoading && (
+          <LoadingState
+            message={`Loading ${sectionLabel.toLowerCase()}...`}
           />
         )}
+        {error && !isLoading && (
+          <ErrorState error={error} title="Error loading markets" />
+        )}
+        {!isLoading &&
+          !error &&
+          (!markets || markets.length === 0) && (
+            <EmptyState
+              title="No Markets Available"
+              message={`No active ${sectionLabel.toLowerCase()} found.`}
+            />
+          )}
 
         {!isLoading && !error && markets && markets.length > 0 && (
           <>
