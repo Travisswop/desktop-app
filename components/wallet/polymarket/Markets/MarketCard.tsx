@@ -3,8 +3,6 @@
 import type { PolymarketMarket } from '@/hooks/polymarket';
 
 import Card from '../shared/Card';
-import Badge from '../shared/Badge';
-import StatDisplay from '../shared/StatDisplay';
 import OutcomeButtons from './OutcomeButtons';
 
 import {
@@ -22,7 +20,9 @@ interface SportsTiming {
   detail: string;
 }
 
-function getSportsTiming(gameStartTime: string | undefined): SportsTiming | null {
+function getSportsTiming(
+  gameStartTime: string | undefined,
+): SportsTiming | null {
   if (!gameStartTime) return null;
 
   const startMs = new Date(gameStartTime).getTime();
@@ -44,7 +44,8 @@ function getSportsTiming(gameStartTime: string | undefined): SportsTiming | null
     return {
       status: 'imminent',
       label: `Starts in ~${mins} min`,
-      detail: 'Limit orders cancel at game start · Market orders have a 3 s delay',
+      detail:
+        'Limit orders cancel at game start · Market orders have a 3 s delay',
     };
   }
 
@@ -54,7 +55,8 @@ function getSportsTiming(gameStartTime: string | undefined): SportsTiming | null
       dateStyle: 'short',
       timeStyle: 'short',
     })}`,
-    detail: 'Limit orders cancel at game start · Market orders have a 3 s delay',
+    detail:
+      'Limit orders cancel at game start · Market orders have a 3 s delay',
   };
 }
 
@@ -106,113 +108,109 @@ export default function MarketCard({
       0,
   );
 
+  const icon = market.icon || market.eventIcon;
+
   return (
-    <Card hover className="p-4">
-      {/* Live match banner — shown only in sports context */}
+    <Card hover className="px-4 py-3">
+      {/* Live match banner — sports context only */}
       {isSportsCategory && isLive && (
-        <div className="flex items-center gap-2 mb-3 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
-          <span className="relative flex h-2.5 w-2.5">
+        <div className="flex items-center gap-2 mb-2.5 bg-red-50 border border-red-200 rounded-lg px-3 py-1.5">
+          <span className="relative flex h-2 w-2">
             <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75" />
-            <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-red-500" />
+            <span className="relative inline-flex rounded-full h-2 w-2 bg-red-500" />
           </span>
           <span className="text-red-700 text-xs font-bold tracking-wide">
-            LIVE MATCH
+            LIVE
           </span>
-          <span className="text-red-500 text-xs ml-auto">
+          <span className="text-red-500 text-xs ml-auto truncate">
             {sportsTiming.detail}
           </span>
         </div>
       )}
 
-      <div className="flex items-start gap-3">
-        {/* Market Icon */}
-        {(market.icon || market.eventIcon) && (
+      {/* Main row: icon | content | buttons */}
+      <div className="flex items-center gap-3">
+        {/* Icon */}
+        {icon ? (
           <img
-            src={market.icon || market.eventIcon}
+            src={icon}
             alt=""
-            className="w-12 h-12 rounded-lg flex-shrink-0 object-cover border border-gray-100"
+            className="w-10 h-10 rounded-lg flex-shrink-0 object-cover bg-gray-100"
           />
+        ) : (
+          <div className="w-10 h-10 rounded-lg flex-shrink-0 bg-gray-200" />
         )}
 
+        {/* Title + stats */}
         <div className="flex-1 min-w-0">
-          {/* Market Title + Badges */}
-          <div className="flex items-start justify-between gap-2 mb-2">
-            <h4
-              className={`font-semibold text-base text-gray-900 line-clamp-2 flex-1 ${onTitleClick ? 'cursor-pointer hover:text-blue-600 transition-colors' : ''}`}
-              onClick={onTitleClick}
-            >
-              {market.question}
-            </h4>
-            <div className="flex flex-col items-end gap-1 shrink-0">
-              {isClosed && <Badge variant="closed">Closed</Badge>}
-              {isSportsCategory && isLive && (
-                <span className="text-[10px] font-bold bg-red-500 text-white px-1.5 py-0.5 rounded-full">
-                  LIVE
-                </span>
-              )}
+          <button
+            onClick={onTitleClick}
+            disabled={!onTitleClick}
+            className={`text-sm font-semibold text-gray-900 line-clamp-2 leading-snug text-left w-full mb-1.5 ${
+              onTitleClick
+                ? 'hover:text-blue-600 transition-colors'
+                : 'cursor-default'
+            }`}
+          >
+            {market.question}
+          </button>
+
+          {/* Stats row */}
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+            <div>
+              <p className="text-[10px] text-gray-400 leading-none mb-0.5">
+                24h Volume
+              </p>
+              <p className="text-xs font-semibold text-green-500">
+                {formatVolume(volumeUSD)}
+              </p>
             </div>
-          </div>
-
-          {/* Market Stats */}
-          <div className="grid grid-cols-3 gap-3 text-sm mb-3">
-            <StatDisplay
-              label="24h Volume"
-              value={formatVolume(volumeUSD)}
-              highlight
-              highlightColor="green"
-            />
-            <StatDisplay
-              label="Liquidity"
-              value={formatLiquidity(liquidityUSD)}
-            />
-            <StatDisplay
-              label="Outcomes"
-              value={outcomes.length.toString()}
-            />
-          </div>
-
-          {/* Sports timing info (for non-live or non-sports markets) */}
-          {sportsTiming && !(isSportsCategory && isLive) && (
-            <div
-              className={`mb-3 rounded-lg px-3 py-2 border ${
-                sportsTiming.status === 'imminent'
-                  ? 'bg-orange-50 border-orange-200'
-                  : 'bg-amber-50 border-amber-200'
-              }`}
-            >
-              <p
-                className={`text-xs font-medium ${
+            <div>
+              <p className="text-[10px] text-gray-400 leading-none mb-0.5">
+                Liquidity
+              </p>
+              <p className="text-xs font-semibold text-green-500">
+                {formatLiquidity(liquidityUSD)}
+              </p>
+            </div>
+            <div>
+              <p className="text-[10px] text-gray-400 leading-none mb-0.5">
+                Outcomes
+              </p>
+              <p className="text-xs font-semibold text-gray-700">
+                {outcomes.length}
+              </p>
+            </div>
+            {isClosed && (
+              <span className="text-[10px] font-bold bg-gray-200 text-gray-500 px-1.5 py-0.5 rounded-full">
+                Closed
+              </span>
+            )}
+            {isSportsCategory && !isLive && sportsTiming && (
+              <span
+                className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full ${
                   sportsTiming.status === 'imminent'
-                    ? 'text-orange-700'
-                    : 'text-amber-700'
+                    ? 'bg-orange-100 text-orange-600'
+                    : 'bg-amber-100 text-amber-600'
                 }`}
               >
                 {sportsTiming.label}
-              </p>
-              <p
-                className={`text-xs ${
-                  sportsTiming.status === 'imminent'
-                    ? 'text-orange-600'
-                    : 'text-amber-600'
-                }`}
-              >
-                {sportsTiming.detail}
-              </p>
-            </div>
-          )}
-
-          {/* Outcome Buttons */}
-          <OutcomeButtons
-            outcomes={outcomes}
-            outcomePrices={outcomePrices}
-            tokenIds={tokenIds}
-            isClosed={isClosed}
-            negRisk={negRisk}
-            marketQuestion={market.question}
-            disabled={disabled}
-            onOutcomeClick={onOutcomeClick}
-          />
+              </span>
+            )}
+          </div>
         </div>
+
+        {/* Outcome buttons — stacked on the right */}
+        <OutcomeButtons
+          outcomes={outcomes}
+          outcomePrices={outcomePrices}
+          tokenIds={tokenIds}
+          isClosed={isClosed}
+          negRisk={negRisk}
+          marketQuestion={market.question}
+          disabled={disabled}
+          onOutcomeClick={onOutcomeClick}
+        />
       </div>
     </Card>
   );

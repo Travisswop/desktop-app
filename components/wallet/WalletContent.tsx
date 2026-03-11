@@ -819,7 +819,7 @@ const WalletContentInner = () => {
         <div className="min-h-[400px]">
           <TokenTicker />
           {/* Balance Chart */}
-          <div className="bg-white rounded-xl my-4">
+          <div className="bg-white rounded-xl my-4 drop-shadow-lg">
             <BalanceChart
               userId={user?._id}
               currency="$"
@@ -849,7 +849,7 @@ const WalletContentInner = () => {
             />
 
             {/* Perps Card - Coming Soon */}
-            <div className="bg-white rounded-xl p-4 flex flex-col min-h-[380px]">
+            <div className="bg-white rounded-xl p-4 flex flex-col min-h-[380px] drop-shadow-lg">
               <div className="flex items-center justify-between mb-4">
                 <span className="font-semibold text-gray-700">
                   Perps Balance

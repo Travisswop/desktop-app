@@ -47,7 +47,8 @@ export default function AssetsTab({
   refetchNFTs,
 }: AssetsTabProps) {
   const [activeTab, setActiveTab] = useState<AssetTabType>('assets');
-  const [selectedToken, setSelectedToken] = useState<TokenData | null>(null);
+  const [selectedToken, setSelectedToken] =
+    useState<TokenData | null>(null);
   const [manageTokensOpen, setManageTokensOpen] = useState(false);
   const [selectedNFT, setSelectedNFT] = useState<NFT | null>(null);
   const [isNFTModalOpen, setIsNFTModalOpen] = useState(false);
@@ -56,7 +57,9 @@ export default function AssetsTab({
   const [manageNFTModalOpen, setManageNFTModalOpen] = useState(false);
 
   // Hidden NFTs state — lifted from NFTSlider, persisted to localStorage
-  const [hiddenNfts, setHiddenNfts] = useState<Set<string>>(new Set());
+  const [hiddenNfts, setHiddenNfts] = useState<Set<string>>(
+    new Set(),
+  );
 
   const { showBalance, toggleBalance } = useBalanceVisibilityStore();
 
@@ -74,7 +77,10 @@ export default function AssetsTab({
 
   // Persist hidden NFTs whenever they change
   useEffect(() => {
-    localStorage.setItem(HIDDEN_NFTS_KEY, JSON.stringify([...hiddenNfts]));
+    localStorage.setItem(
+      HIDDEN_NFTS_KEY,
+      JSON.stringify([...hiddenNfts]),
+    );
   }, [hiddenNfts]);
 
   const toggleNftVisibility = useCallback((nftId: string) => {
@@ -99,10 +105,12 @@ export default function AssetsTab({
     if (dropdownOpen) {
       document.addEventListener('mousedown', handleClickOutside);
     }
-    return () => document.removeEventListener('mousedown', handleClickOutside);
+    return () =>
+      document.removeEventListener('mousedown', handleClickOutside);
   }, [dropdownOpen]);
 
-  const handleTokenSelect = (token: TokenData) => setSelectedToken(token);
+  const handleTokenSelect = (token: TokenData) =>
+    setSelectedToken(token);
   const handleBack = () => setSelectedToken(null);
   const handleSend = (token: TokenData) => {
     setSelectedToken(null);
@@ -170,7 +178,7 @@ export default function AssetsTab({
   ];
 
   return (
-    <div className="bg-white rounded-xl p-4">
+    <div className="bg-white rounded-xl p-4 drop-shadow-lg">
       {/* Header with tabs and dropdown */}
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-5">

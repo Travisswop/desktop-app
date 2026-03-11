@@ -1,18 +1,18 @@
-import WalletContent from "@/components/wallet/WalletContent";
-import WalletPredictionsSection from "@/components/wallet/WalletPredictionsSection";
-import { PolymarketProviders } from "@/providers/polymarket";
+import WalletContent from '@/components/wallet/WalletContent';
+import WalletPredictionsSection from '@/components/wallet/WalletPredictionsSection';
+import { PolymarketProviders } from '@/providers/polymarket';
 
-import { ReactQueryDevtools } from "@tanstack/react-query-devtools";
+import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
 
 const Wallet: React.FC = () => {
   return (
-    <>
+    <div>
       <WalletContent />
       <PolymarketProviders>
         <WalletPredictionsSection />
       </PolymarketProviders>
       <ReactQueryDevtools initialIsOpen={false} />
-    </>
+    </div>
   );
 };
 

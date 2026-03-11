@@ -35,7 +35,10 @@ export default function PositionCard({
 }: PositionCardProps) {
   const [shareOpen, setShareOpen] = useState(false);
 
-  const isRedeemable = position.redeemable && position.curPrice > 0;
+  // A position is redeemable whenever the API marks it as such.
+  // The curPrice feed may return 0 after market resolution even for winning
+  // positions, so we must not gate on curPrice > 0 here.
+  const isRedeemable = position.redeemable;
 
   // Show the event title for binary Yes/No outcomes; show outcome name for others (e.g. team abbreviations)
   const isBinaryOutcome =
@@ -48,6 +51,7 @@ export default function PositionCard({
   const cost = position.initialValue || position.avgPrice * position.size;
   const currentValue = position.currentValue;
   const pnl = position.cashPnl;
+  const pnlRounded = Math.round(Math.abs(pnl));
   const isProfitable = pnl >= 0;
 
   return (
@@ -93,27 +97,26 @@ export default function PositionCard({
         <div className="grid grid-cols-3 gap-0 px-4 pt-3 pb-4">
           {/* Cost */}
           <div>
-            <p className="text-xs text-gray-400 mb-1">Cost {costCents}$</p>
+            <p className="text-xs text-gray-400 mb-1">Cost {costCents}¢</p>
             <p className="text-xl font-bold text-gray-900">
-              ${Math.round(cost)}
+              ${cost.toFixed(2)}
             </p>
           </div>
 
           {/* Current */}
           <div>
             <p className="text-xs text-gray-400 mb-1">
-              Current {currentCents}$
+              Current {currentCents}¢
             </p>
             <div className="flex items-baseline gap-1 flex-wrap">
               <p className="text-xl font-bold text-green-500">
-                ${Math.round(currentValue)}
+                ${currentValue.toFixed(2)}
               </p>
-              {pnl !== 0 && (
+              {pnlRounded !== 0 && (
                 <span
                   className={`text-xs font-semibold ${isProfitable ? 'text-green-500' : 'text-red-500'}`}
                 >
-                  {isProfitable ? '+' : '-'}$
-                  {Math.round(Math.abs(pnl))}
+                  {isProfitable ? '+' : '-'}${pnlRounded}
                 </span>
               )}
             </div>
@@ -123,7 +126,7 @@ export default function PositionCard({
           <div>
             <p className="text-xs text-gray-400 mb-1">To win</p>
             <p className="text-xl font-bold text-gray-900">
-              ${Math.round(toWin)}
+              ${toWin.toFixed(2)}
             </p>
           </div>
         </div>

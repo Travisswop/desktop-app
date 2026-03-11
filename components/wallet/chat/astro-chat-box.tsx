@@ -18,16 +18,6 @@ import {
 import aiAgentService, {
   TransactionData,
 } from '@/services/aiAgentService';
-import {
-  isPredictionMarketsResponse,
-  isBetConfirmationResponse,
-} from '@/types/predictionMarkets';
-import {
-  PredictionMarketCards,
-  BetConfirmationCard,
-  BetAmountModal,
-} from '@/components/prediction-markets';
-import { type Currency } from '@/types/predictionMarkets';
 
 interface AstroMessage {
   id: string;
@@ -396,26 +386,6 @@ export default function AstroChatBox() {
     });
   };
 
-  // Handler for confirming the bet amount
-  const handleConfirmBetAmount = (
-    amount: number,
-    currency: Currency,
-  ) => {
-    if (!betModal) return;
-
-    // Send a natural language command to place a bet
-    const betCommand = `Place a bet of ${amount} ${currency} on ${betModal.betType} for market ${betModal.marketId}`;
-    sendMessage(betCommand);
-
-    // Close the modal
-    setBetModal(null);
-  };
-
-  // Handler for canceling the bet amount modal
-  const handleCancelBetAmount = () => {
-    setBetModal(null);
-  };
-
   // Handler for confirming a bet
   const handleConfirmBet = () => {
     // Send confirmation message
@@ -433,12 +403,6 @@ export default function AstroChatBox() {
 
     // Check if this message contains prediction market cards
     const executionResult = message.executionResult as any;
-    const hasPredictionCards =
-      executionResult?.displayType === 'cards' &&
-      isPredictionMarketsResponse(executionResult);
-    const hasBetCard =
-      executionResult?.displayType === 'bet_card' &&
-      isBetConfirmationResponse(executionResult);
 
     return (
       <div
@@ -450,14 +414,10 @@ export default function AstroChatBox() {
         <div
           className={`flex flex-col ${
             isAstro ? 'items-start' : 'items-end'
-          } ${hasPredictionCards || hasBetCard ? 'w-full' : ''}`}
+          }`}
         >
           <div
-            className={`${
-              hasPredictionCards || hasBetCard
-                ? 'w-full'
-                : 'max-w-xs lg:max-w-md'
-            } px-4 py-2 rounded-lg ${
+            className={`${'max-w-xs lg:max-w-md'} px-4 py-2 rounded-lg ${
               isAstro
                 ? 'bg-white rounded-bl-none shadow-small'
                 : 'bg-gray-300 text-black rounded-br-none'
@@ -471,28 +431,6 @@ export default function AstroChatBox() {
             <div className="text-sm whitespace-pre-wrap break-words">
               {message.content}
             </div>
-
-            {/* Render Prediction Market Cards */}
-            {hasPredictionCards && (
-              <div className="mt-4">
-                <PredictionMarketCards
-                  data={executionResult}
-                  onBet={handlePlaceBet}
-                />
-              </div>
-            )}
-
-            {/* Render Bet Confirmation Card */}
-            {hasBetCard && (
-              <div className="mt-4">
-                <BetConfirmationCard
-                  data={executionResult}
-                  onConfirm={handleConfirmBet}
-                  onCancel={handleCancelBet}
-                  isLoading={isTyping}
-                />
-              </div>
-            )}
 
             {/* Show action badge if present */}
             {message.action && message.action !== 'general_chat' && (
@@ -837,17 +775,6 @@ export default function AstroChatBox() {
           </p>
         )}
       </div>
-
-      {/* Bet Amount Modal */}
-      {betModal && (
-        <BetAmountModal
-          marketId={betModal.marketId}
-          marketQuestion={betModal.marketQuestion}
-          betType={betModal.betType}
-          onConfirm={handleConfirmBetAmount}
-          onCancel={handleCancelBetAmount}
-        />
-      )}
     </div>
   );
 }
