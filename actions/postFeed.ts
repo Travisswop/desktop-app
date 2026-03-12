@@ -93,7 +93,7 @@ export async function postFeed(payload: any, token: string) {
 export async function postComment(payload: any, token: string) {
   try {
     const response = await fetch(
-      `${process.env.NEXT_PUBLIC_API_URL}/api/v1/feed/comment`,
+      `${process.env.NEXT_PUBLIC_API_URL}/api/v2/feed/comment`,
       {
         method: "POST",
         headers: {

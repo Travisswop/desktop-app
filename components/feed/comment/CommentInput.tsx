@@ -30,7 +30,8 @@ export default function CommentInput({
   setLatestCommentCount,
   onCommentSubmitted,
 }: CommentInputProps) {
-  const { postContent, setPostContent } = useCommentContentStore();
+  const { postContent, setPostContent, removeContent } =
+    useCommentContentStore();
   const [commentText, setCommentText] = useState("");
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -65,39 +66,54 @@ export default function CommentInput({
 
     setIsLoading(true);
 
-    const contentPayload = {
-      postContent: [
+    try {
+      // Upload all media items (images get uploaded to Cloudinary, GIF urls stay as-is)
+      const uploadedMedia = await Promise.all(
+        postContent.map(async (item) => ({
+          type: item.type,
+          src: item.src.startsWith("data:image")
+            ? await sendCloudinaryImage(item.src)
+            : item.src, // GIFs are already URLs, no upload needed
+        })),
+      );
+
+      const commentres = await postComment(
+        // {
+        //   postId,
+        //   smartsiteId: user?.primaryMicrosite,
+        //   commentText,
+        //   commentMedia: { postContent: uploadedMedia },
+        // },
         {
-          type: postContent[0]?.type || "image",
-          src: postContent[0]?.src || "",
+          postId,
+          // parentCommentId: "",
+          userId: user?._id,
+          smartsiteId: user?.primaryMicrosite,
+          // smartsiteUserName: "john_doe",
+          // smartsiteEnsName: "johndoe.eth",
+          // smartsiteProfilePic: "https://example.com/profiles/johndoe.png",
+          title: commentText,
+          post_content: uploadedMedia,
+          // location: "Aftab nagar",
         },
-      ],
-    };
+        accessToken,
+      );
 
-    if (
-      postContent?.length > 0 &&
-      postContent[0].src.startsWith("data:image")
-    ) {
-      const imageUrl = await sendCloudinaryImage(postContent[0].src);
-      contentPayload.postContent[0].src = imageUrl;
+      console.log("Comment posted successfully:", commentres);
+      toast.success("Comment posted successfully!");
+
+      // Reset state after successful post
+      setPostContent([]);
+      setCommentText("");
+      const newTotal = latestCommentCount + 1;
+      setLatestCommentCount(newTotal);
+      onCommentSubmitted?.(newTotal);
+    } catch (error) {
+      console.error("Failed to post comment:", error);
+      toast.error("Failed to post comment. Please try again.");
+    } finally {
+      setIsLoading(false);
     }
-
-    await postComment(
-      {
-        postId,
-        smartsiteId: user?.primaryMicrosite,
-        commentText,
-        commentMedia: contentPayload,
-      },
-      accessToken,
-    );
-
-    setPostContent([]);
-    setCommentText("");
-    const newTotal = latestCommentCount + 1;
-    setLatestCommentCount(newTotal);
-    onCommentSubmitted?.(newTotal);
-    setIsLoading(false);
   };
 
   return (
@@ -117,20 +133,33 @@ export default function CommentInput({
       {error && <p className="text-red-500 text-xs mb-1">{error}</p>}
 
       {postContent.length > 0 && (
-        <div className="mb-2 relative w-max">
-          <Image
-            src={postContent[0].src}
-            alt="img/gif"
-            width={500}
-            height={500}
-            className="w-32 h-auto rounded-lg"
-          />
-          <button
-            onClick={() => setPostContent([])}
-            className="absolute top-0 -right-5"
-          >
-            <FaRegTimesCircle size={16} className="hover:scale-105" />
-          </button>
+        <div className="mb-2 flex flex-wrap gap-2">
+          {postContent.map((item, index) => (
+            <div key={index} className="relative">
+              <Image
+                src={item.src}
+                alt="img/gif"
+                width={96}
+                height={96}
+                className="w-24 h-24 object-cover rounded-lg"
+              />
+              <button
+                onClick={() => removeContent(index)}
+                className="absolute -top-1.5 -right-1.5 bg-white rounded-full shadow"
+                type="button"
+              >
+                <FaRegTimesCircle
+                  size={16}
+                  className="hover:scale-105 text-gray-600"
+                />
+              </button>
+            </div>
+          ))}
+          {postContent.length < 4 && (
+            <p className="text-xs text-gray-400 self-end pb-1">
+              {postContent.length}/4 media
+            </p>
+          )}
         </div>
       )}
 

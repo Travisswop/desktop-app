@@ -1,17 +1,30 @@
-// postStore.ts
+// CommentImgContent.ts
 import { create } from "zustand";
 
-type PostContentItem = {
-  type: string;
+interface ContentItem {
+  type: "image" | "gif" | "video";
   src: string;
-};
+}
 
-type PostStore = {
-  postContent: PostContentItem[];
-  setPostContent: (content: PostContentItem[]) => void;
-};
+interface CommentContentStore {
+  postContent: ContentItem[];
+  addContent: (item: ContentItem) => void;
+  removeContent: (index: number) => void;
+  setPostContent: (items: ContentItem[]) => void;
+}
 
-export const useCommentContentStore = create<PostStore>((set) => ({
-  postContent: [], // Initial state (empty array)
-  setPostContent: (content) => set({ postContent: content }), // Action to update state
+export const useCommentContentStore = create<CommentContentStore>((set) => ({
+  postContent: [],
+  addContent: (item) =>
+    set((state) => ({
+      postContent:
+        state.postContent.length < 4
+          ? [...state.postContent, item]
+          : state.postContent,
+    })),
+  removeContent: (index) =>
+    set((state) => ({
+      postContent: state.postContent.filter((_, i) => i !== index),
+    })),
+  setPostContent: (items) => set({ postContent: items }),
 }));
