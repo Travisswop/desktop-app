@@ -107,6 +107,8 @@ const CustomModal: React.FC<CustomModalProps> = ({
             }}
             className={`bg-white rounded-2xl shadow-lg w-full ${width} relative overflow-hidden`}
             onClick={(e) => e.stopPropagation()}
+            onMouseDown={(e) => e.stopPropagation()}
+            onMouseUp={(e) => e.stopPropagation()}
             style={{ maxHeight: '90vh' }}
           >
             {/* Header */}
