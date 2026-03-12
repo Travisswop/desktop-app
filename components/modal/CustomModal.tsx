@@ -26,6 +26,11 @@ const CustomModal: React.FC<CustomModalProps> = ({
   const modalRef = useRef<HTMLDivElement>(null);
   const [mouseDownOnBackdrop, setMouseDownOnBackdrop] =
     useState(false);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   // Lock body scroll when modal is open
   useEffect(() => {
@@ -75,6 +80,8 @@ const CustomModal: React.FC<CustomModalProps> = ({
     }
     setMouseDownOnBackdrop(false);
   };
+
+  if (!mounted) return null;
 
   return createPortal(
     <AnimatePresence>
