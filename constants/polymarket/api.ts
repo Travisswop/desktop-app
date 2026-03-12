@@ -18,8 +18,9 @@ const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
 
 // Dedicated Polymarket microservice base URL.
 // In development this runs on port 5000; in production set NEXT_PUBLIC_POLYMARKET_API_URL.
-export const POLYMARKET_BACKEND_URL =
-  process.env.NEXT_PUBLIC_POLYMARKET_API_URL || 'http://localhost:5000';
+export const POLYMARKET_BACKEND_URL = (
+  process.env.NEXT_PUBLIC_POLYMARKET_API_URL || 'http://localhost:5000'
+).replace(/\/$/, '');
 
 // Remote builder signing — handled by the polymarket-backend to keep builder secrets off the client.
 // NOTE: previously this pointed to the swop-app-backend which has no such route.
