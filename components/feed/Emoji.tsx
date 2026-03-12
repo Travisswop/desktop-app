@@ -38,7 +38,7 @@ const Emoji = ({
   }, [showEmojiPicker, setShowEmojiPicker]);
 
   return (
-    <div className="relative flex items-center" ref={pickerRef}>
+    <div className=" flex items-center" ref={pickerRef}>
       {/* ✅ Trigger button */}
       <button
         type="button"
@@ -54,7 +54,7 @@ const Emoji = ({
       {/* ✅ Picker */}
       {showEmojiPicker && (
         <div
-          className="absolute bottom-8 left-0 z-[9999]"
+          className="absolute top-full left-1/2 -translate-x-1/2 -translate-y-2 z-50"
           onClick={(e) => e.stopPropagation()}
         >
           <EmojiPicker

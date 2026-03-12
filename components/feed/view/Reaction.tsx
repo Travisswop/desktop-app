@@ -531,12 +531,12 @@ const Reaction = memo(
           <Modal
             isOpen={isCommentInputOpen}
             onOpenChange={(open) => setIsCommentInputOpen(open)}
-            placement="center"
+            placement="top"
             backdrop="opaque"
             classNames={{
-              base: "max-w-xl rounded-2xl",
+              base: "max-w-xl rounded-2xl overflow-visible",
               backdrop: "bg-black/70",
-              body: "px-4 pb-4 pt-2 gap-0",
+              body: "px-4 pb-4 pt-2 gap-0 overflow-visible relative",
               header: "px-4 pt-4 pb-0 border-none",
             }}
           >
