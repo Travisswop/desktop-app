@@ -9,6 +9,7 @@ export {
   POLYMARKET_PROFILE_URL,
   POLYGON_RPC_URL,
   REMOTE_SIGNING_URL,
+  POLYMARKET_BACKEND_URL,
 } from "./api";
 
 // Re-export token addresses and constants

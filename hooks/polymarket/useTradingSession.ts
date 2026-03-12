@@ -107,15 +107,12 @@ export function useTradingSession() {
 
       // Steps 3-4: Check and deploy Safe — skip entirely if already recorded in storage
       if (!storedSession?.isSafeDeployed) {
-        let isDeployed = await isSafeDeployed(
-          initializedRelayClient,
-          derivedSafeAddressFromEoa
-        );
+        let isDeployed = await isSafeDeployed(derivedSafeAddressFromEoa);
 
         if (!isDeployed) {
           setCurrentStep("deploying");
           try {
-            await deploySafe(initializedRelayClient);
+            await deploySafe();
           } catch (err) {
             // Safe may have been deployed in a previous attempt that failed to save session
             if (err instanceof Error && err.message === "safe already deployed!") {
@@ -151,7 +148,10 @@ export function useTradingSession() {
         if (approvalStatus.allApproved) {
           hasApprovals = true;
         } else {
-          hasApprovals = await setAllTokenApprovals(initializedRelayClient);
+          hasApprovals = await setAllTokenApprovals(
+            derivedSafeAddressFromEoa,
+            eoaAddress
+          );
         }
       }
 
