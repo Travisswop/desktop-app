@@ -1581,8 +1581,23 @@ export default function SwapTokenModal({
         }
       }
 
+      // Re-fetch a fresh Jupiter quote immediately before building the swap tx.
+      // The original quote may be stale (especially after ATA creation confirmation
+      // takes several seconds), causing Jupiter error 6025 (SlippageToleranceExceeded).
+      setSwapStatus('Refreshing price quote...');
+      let activeQuote = jupiterQuote;
+      try {
+        const freshQuote = await getJupiterQuote();
+        if (freshQuote) activeQuote = freshQuote;
+      } catch (quoteRefreshError) {
+        console.warn(
+          'Quote refresh failed, proceeding with original quote:',
+          quoteRefreshError,
+        );
+      }
+
       setSwapStatus('Preparing swap transaction...');
-      const swapData = await getJupiterSwapTransaction(jupiterQuote);
+      const swapData = await getJupiterSwapTransaction(activeQuote);
       if (!swapData?.swapTransaction)
         throw new Error(
           'No swap transaction received from Jupiter API',
@@ -1693,7 +1708,7 @@ export default function SwapTokenModal({
         );
       }
 
-      await saveSwapToDatabase(txId, jupiterQuote);
+      await saveSwapToDatabase(txId, activeQuote);
       setSwapStatus('Transaction confirmed');
     } catch (error: any) {
       setSwapError(
