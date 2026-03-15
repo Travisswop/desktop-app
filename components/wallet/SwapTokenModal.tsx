@@ -36,14 +36,12 @@ import {
   Connection,
   VersionedTransaction,
   PublicKey,
-  Transaction,
 } from '@solana/web3.js';
 import {
   getAccount,
   TOKEN_PROGRAM_ID,
   TOKEN_2022_PROGRAM_ID,
   getAssociatedTokenAddress,
-  createAssociatedTokenAccountInstruction,
 } from '@solana/spl-token';
 import { saveSwapTransaction } from '@/actions/saveTransactionData';
 import Cookies from 'js-cookie';
@@ -1538,70 +1536,44 @@ export default function SwapTokenModal({
         ],
       );
 
+      // Create missing token accounts via the backend so the platform signer wallet
+      // pays the ATA rent (~0.002 SOL each). This means users with zero SOL can
+      // still swap — no SOL is ever required from the user's wallet.
       if (!inputAccountInfo || !outputAccountInfo) {
         setSwapStatus('Creating token accounts...');
-        const transaction = new Transaction();
+        const apiUrl = process.env.NEXT_PUBLIC_API_URL;
+        const createAtaRequests: Promise<void>[] = [];
+
+        const createAta = async (mint: string) => {
+          const resp = await fetch(
+            `${apiUrl}/api/v5/wallet/ensure-user-token-account`,
+            {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                Authorization: `Bearer ${accessToken}`,
+              },
+              body: JSON.stringify({
+                userAddress: selectedSolanaWallet!.address,
+                mint,
+              }),
+            },
+          );
+          if (!resp.ok) {
+            const err = await resp.json().catch(() => ({}));
+            throw new Error(
+              err?.message || `Failed to create token account for mint ${mint}`,
+            );
+          }
+        };
+
         if (!inputAccountInfo)
-          transaction.add(
-            createAssociatedTokenAccountInstruction(
-              walletPubkey,
-              inputATA,
-              walletPubkey,
-              inputMintPubkey,
-              inputTokenProgram,
-            ),
-          );
+          createAtaRequests.push(createAta(inputMint));
         if (!outputAccountInfo)
-          transaction.add(
-            createAssociatedTokenAccountInstruction(
-              walletPubkey,
-              outputATA,
-              walletPubkey,
-              outputMintPubkey,
-              outputTokenProgram,
-            ),
-          );
+          createAtaRequests.push(createAta(outputMint));
 
         try {
-          const { blockhash } = await connection.getLatestBlockhash();
-          transaction.recentBlockhash = blockhash;
-          transaction.feePayer = walletPubkey;
-          const serializedTx = new Uint8Array(
-            transaction.serialize({
-              requireAllSignatures: false,
-              verifySignatures: false,
-            }),
-          );
-          await safeRefreshSession();
-
-          let ataSignature: string;
-          try {
-            const result = await signAndSendTransaction({
-              transaction: serializedTx,
-              wallet: selectedSolanaWallet,
-              options: { sponsor: true },
-            });
-            ataSignature = bs58.encode(result.signature);
-          } catch (sponsorError: any) {
-            const msg =
-              sponsorError?.message || sponsorError?.toString() || '';
-            const isAbort =
-              sponsorError?.name === 'AbortError' ||
-              msg.includes('aborted') ||
-              msg.includes('AbortError');
-            if (isAbort) {
-              await safeRefreshSession();
-              const result = await signAndSendTransaction({
-                transaction: serializedTx,
-                wallet: selectedSolanaWallet,
-              });
-              ataSignature = bs58.encode(result.signature);
-            } else throw sponsorError;
-          }
-          await connection.confirmTransaction(
-            ataSignature,
-            'confirmed',
-          );
+          await Promise.all(createAtaRequests);
         } catch (ataError: any) {
           throw new Error(
             `Failed to create token accounts: ${ataError.message || ataError}`,
