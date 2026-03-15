@@ -5,6 +5,7 @@ import {
   useTrading,
   usePolymarketWallet,
 } from '@/providers/polymarket';
+import { useUser } from '@/lib/UserContext';
 import { usePolygonBalances } from '@/hooks/polymarket';
 import { ArrowUpDown, LayoutList } from 'lucide-react';
 import HighVolumeMarkets from '@/components/wallet/polymarket/Markets';
@@ -14,6 +15,7 @@ import PredictionsPortfolioModal from '@/components/wallet/polymarket/Prediction
 
 export default function WalletPredictionsSection() {
   const { authenticated, isReady } = usePolymarketWallet();
+  const { accessToken, loading: userLoading } = useUser();
   const {
     tradingSession,
     currentStep,
@@ -33,6 +35,8 @@ export default function WalletPredictionsSection() {
     if (
       authenticated &&
       isReady &&
+      !userLoading &&
+      !!accessToken &&
       !tradingSession &&
       !isTradingSessionComplete &&
       currentStep === 'idle' &&
@@ -43,6 +47,8 @@ export default function WalletPredictionsSection() {
   }, [
     authenticated,
     isReady,
+    userLoading,
+    accessToken,
     tradingSession,
     isTradingSessionComplete,
     initializeTradingSession,
