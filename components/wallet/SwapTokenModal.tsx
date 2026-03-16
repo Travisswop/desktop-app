@@ -1562,7 +1562,8 @@ export default function SwapTokenModal({
           if (!resp.ok) {
             const err = await resp.json().catch(() => ({}));
             throw new Error(
-              err?.message || `Failed to create token account for mint ${mint}`,
+              err?.message ||
+                `Failed to create token account for mint ${mint}`,
             );
           }
         };
@@ -1582,8 +1583,9 @@ export default function SwapTokenModal({
       }
 
       // Re-fetch a fresh Jupiter quote immediately before building the swap tx.
-      // The original quote may be stale (especially after ATA creation confirmation
-      // takes several seconds), causing Jupiter error 6025 (SlippageToleranceExceeded).
+      // Stale quotes cause Jupiter error 6025 (SlippageToleranceExceeded).
+      // ATA creation is handled by Jupiter's own CreateIdempotent instruction inside
+      // the swap transaction, fully sponsored by Privy's React Hook (sponsor: true).
       setSwapStatus('Refreshing price quote...');
       let activeQuote = jupiterQuote;
       try {
@@ -1873,11 +1875,15 @@ export default function SwapTokenModal({
         if (gasField !== undefined) {
           const gasNum =
             typeof gasField === 'string'
-              ? parseInt(gasField, gasField.startsWith('0x') ? 16 : 10)
+              ? parseInt(
+                  gasField,
+                  gasField.startsWith('0x') ? 16 : 10,
+                )
               : Number(gasField);
           if (gasNum > EVM_MAX_GAS) {
             const capped = '0x' + EVM_MAX_GAS.toString(16);
-            if (rawTxReq.gasLimit !== undefined) rawTxReq.gasLimit = capped;
+            if (rawTxReq.gasLimit !== undefined)
+              rawTxReq.gasLimit = capped;
             if (rawTxReq.gas !== undefined) rawTxReq.gas = capped;
           }
         }

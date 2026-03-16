@@ -246,8 +246,9 @@ export class TransactionService {
       }
     }
 
-    // Set up transaction metadata (blockhash and fee payer will be set by Privy)
-    const { blockhash } = await connection.getLatestBlockhash();
+    // Use 'finalized' commitment so Privy's RPC node recognizes the blockhash
+    // during pre-flight simulation regardless of which RPC it uses internally.
+    const { blockhash } = await connection.getLatestBlockhash('finalized');
     tx.recentBlockhash = blockhash;
     tx.feePayer = new PublicKey(solanaWallet.address);
 
@@ -456,7 +457,9 @@ export class TransactionService {
       );
     }
 
-    const { blockhash } = await connection.getLatestBlockhash();
+    // Use 'finalized' commitment so Privy's RPC node recognizes the blockhash
+    // during pre-flight simulation regardless of which RPC it uses internally.
+    const { blockhash } = await connection.getLatestBlockhash('finalized');
     tx.recentBlockhash = blockhash;
     tx.feePayer = new PublicKey(solanaWallet.address);
 
