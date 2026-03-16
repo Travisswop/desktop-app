@@ -778,9 +778,40 @@ export default function DepositModal({
     // ATA (e.g. Solana USDC) that doesn't exist on-chain yet.
     const txBuffer = Buffer.from(rawTx, 'base64');
     const transaction = VersionedTransaction.deserialize(txBuffer);
-    const txAccountSet = new Set(
+
+    // Start with static account keys
+    const allTxAccounts = new Set<string>(
       transaction.message.staticAccountKeys.map((k) => k.toBase58()),
     );
+
+    // LiFi v0 transactions store most accounts in Address Lookup Tables (ALTs),
+    // not in staticAccountKeys. Resolve each ALT to get the full account list,
+    // otherwise we miss the user's USDC ATA and can't detect it needs creating.
+    if ('addressTableLookups' in transaction.message) {
+      const altLookups = (transaction.message as any).addressTableLookups as Array<{
+        accountKey: PublicKey;
+        writableIndexes: number[];
+        readonlyIndexes: number[];
+      }>;
+      for (const lookup of altLookups) {
+        try {
+          const { value: altAccount } =
+            await connection.getAddressLookupTable(lookup.accountKey);
+          if (altAccount) {
+            const allIndexes = [
+              ...lookup.writableIndexes,
+              ...lookup.readonlyIndexes,
+            ];
+            for (const idx of allIndexes) {
+              const addr = altAccount.state.addresses[idx];
+              if (addr) allTxAccounts.add(addr.toBase58());
+            }
+          }
+        } catch (altError) {
+          console.warn('Could not resolve ALT:', altError);
+        }
+      }
+    }
 
     // Common Solana mints LiFi routes through as intermediaries.
     // For SOL → Polygon USDC.e, LiFi swaps SOL → USDC on Solana first,
@@ -811,7 +842,7 @@ export default function DepositModal({
         );
 
         // Only act on ATAs the LiFi transaction actually references
-        if (!txAccountSet.has(ata.toBase58())) continue;
+        if (!allTxAccounts.has(ata.toBase58())) continue;
 
         const ataInfo = await connection.getAccountInfo(ata);
         if (!ataInfo) {
