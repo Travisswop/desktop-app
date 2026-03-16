@@ -153,7 +153,10 @@ const CHAIN_CONFIG: Record<
 const POLYGON_CHAIN_ID = '137';
 
 // Chain-specific viem chain configs for creating public clients
-const VIEM_CHAINS: Record<string, (typeof mainnet) | (typeof polygon) | (typeof base)> = {
+const VIEM_CHAINS: Record<
+  string,
+  typeof mainnet | typeof polygon | typeof base
+> = {
   '1': mainnet,
   '137': polygon,
   '8453': base,
@@ -767,65 +770,91 @@ export default function DepositModal({
       confirmTransactionInitialTimeout: 60000,
     });
 
-    // Ensure required token accounts (ATAs) exist before executing LiFi transaction.
-    // LiFi assumes ATAs already exist; for SOL swaps, the WSOL ATA is often missing.
     const walletPubkey = new PublicKey(selectedSolanaWallet.address);
-    const tokenAddress = getTokenAddressForLifi(selectedToken!);
-    const tokenMint = new PublicKey(tokenAddress);
+
+    // Decode the transaction early to inspect which accounts it references.
+    // This lets us detect and create any missing ATAs before execution, fixing
+    // the "InvalidAccountData" error when LiFi's TransferChecked references an
+    // ATA (e.g. Solana USDC) that doesn't exist on-chain yet.
+    const txBuffer = Buffer.from(rawTx, 'base64');
+    const transaction = VersionedTransaction.deserialize(txBuffer);
+    const txAccountSet = new Set(
+      transaction.message.staticAccountKeys.map((k) => k.toBase58()),
+    );
+
+    // Common Solana mints LiFi routes through as intermediaries.
+    // For SOL → Polygon USDC.e, LiFi swaps SOL → USDC on Solana first,
+    // so the user's Solana USDC ATA must exist before TransferChecked runs.
+    const solanaMints: { address: string; symbol: string }[] = [
+      { address: 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v', symbol: 'USDC' },
+      { address: 'Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB', symbol: 'USDT' },
+      { address: 'So11111111111111111111111111111111111111112', symbol: 'WSOL' },
+    ];
+    const sourceTokenAddress = getTokenAddressForLifi(selectedToken!);
+    if (
+      selectedToken!.symbol !== 'SOL' &&
+      !solanaMints.some((m) => m.address === sourceTokenAddress)
+    ) {
+      solanaMints.push({ address: sourceTokenAddress, symbol: selectedToken!.symbol });
+    }
 
     setDepositStatus('Checking token accounts...');
 
-    const ata = await getAssociatedTokenAddress(
-      tokenMint,
-      walletPubkey,
-      false,
-      TOKEN_PROGRAM_ID,
-    );
-
-    const ataInfo = await connection.getAccountInfo(ata);
-
-    if (!ataInfo) {
-      setDepositStatus('Creating token account...');
-
-      const createAtaTx = new Transaction().add(
-        createAssociatedTokenAccountInstruction(
+    for (const { address: mintAddr, symbol } of solanaMints) {
+      try {
+        const mintPubkey = new PublicKey(mintAddr);
+        const ata = await getAssociatedTokenAddress(
+          mintPubkey,
           walletPubkey,
-          ata,
-          walletPubkey,
-          tokenMint,
+          false,
           TOKEN_PROGRAM_ID,
-        ),
-      );
+        );
 
-      // Use 'finalized' blockhash for cross-RPC compatibility
-      const { blockhash: ataBlockhash } =
-        await connection.getLatestBlockhash('finalized');
-      createAtaTx.recentBlockhash = ataBlockhash;
-      createAtaTx.feePayer = walletPubkey;
+        // Only act on ATAs the LiFi transaction actually references
+        if (!txAccountSet.has(ata.toBase58())) continue;
 
-      const serializedAtaTx = new Uint8Array(
-        createAtaTx.serialize({
-          requireAllSignatures: false,
-          verifySignatures: false,
-        }),
-      );
+        const ataInfo = await connection.getAccountInfo(ata);
+        if (!ataInfo) {
+          setDepositStatus(`Creating ${symbol} token account...`);
 
-      await safeRefreshSession();
+          const createAtaTx = new Transaction().add(
+            createAssociatedTokenAccountInstruction(
+              walletPubkey,
+              ata,
+              walletPubkey,
+              mintPubkey,
+              TOKEN_PROGRAM_ID,
+            ),
+          );
 
-      // Sign directly — no sponsor, ATA creation is a simple user-pays tx
-      const ataResult = await signAndSendTransaction({
-        transaction: serializedAtaTx,
-        wallet: selectedSolanaWallet,
-      });
-      const ataSig = bs58.encode(ataResult.signature);
+          // Use 'finalized' blockhash for cross-RPC compatibility
+          const { blockhash: ataBlockhash } =
+            await connection.getLatestBlockhash('finalized');
+          createAtaTx.recentBlockhash = ataBlockhash;
+          createAtaTx.feePayer = walletPubkey;
 
-      await connection.confirmTransaction(ataSig, 'confirmed');
-      console.log('Token account created:', ata.toBase58());
+          const serializedAtaTx = new Uint8Array(
+            createAtaTx.serialize({
+              requireAllSignatures: false,
+              verifySignatures: false,
+            }),
+          );
+
+          await safeRefreshSession();
+
+          // Sign directly — no sponsor, ATA creation is a simple user-pays tx
+          const ataResult = await signAndSendTransaction({
+            transaction: serializedAtaTx,
+            wallet: selectedSolanaWallet,
+          });
+          const ataSig = bs58.encode(ataResult.signature);
+          await connection.confirmTransaction(ataSig, 'confirmed');
+          console.log(`Created ${symbol} token account:`, ata.toBase58());
+        }
+      } catch (ataError) {
+        console.warn(`Could not check/create ATA for ${symbol}:`, ataError);
+      }
     }
-
-    // Decode the transaction
-    const txBuffer = Buffer.from(rawTx, 'base64');
-    const transaction = VersionedTransaction.deserialize(txBuffer);
 
     // Use 'finalized' blockhash so Privy's simulation RPC recognizes it
     // regardless of which RPC node it uses internally.
@@ -1559,7 +1588,9 @@ export default function DepositModal({
   return (
     <CustomModal
       isOpen={open}
-      onClose={step !== 'processing' ? () => onOpenChange(false) : undefined}
+      onClose={
+        step !== 'processing' ? () => onOpenChange(false) : undefined
+      }
       title={modalTitle}
       width="max-w-md"
       removeCloseButton={step === 'processing'}
