@@ -59,7 +59,14 @@ import {
 import {
   Connection,
   VersionedTransaction,
+  PublicKey,
+  Transaction,
 } from '@solana/web3.js';
+import {
+  getAssociatedTokenAddress,
+  createAssociatedTokenAccountInstruction,
+  TOKEN_PROGRAM_ID,
+} from '@solana/spl-token';
 import bs58 from 'bs58';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -448,10 +455,66 @@ function DepositTab({ open, onClose }: { open: boolean; onClose: () => void }) {
     const solanaRpcUrl = process.env.NEXT_PUBLIC_SOLANA_RPC_URL;
     if (!solanaRpcUrl) throw new Error('No Solana RPC URL configured');
     const connection = new Connection(solanaRpcUrl, { commitment: 'confirmed', confirmTransactionInitialTimeout: 60000 });
+
+    const walletPubkey = new PublicKey(selectedSolanaWallet.address);
+
+    // Ensure common token ATAs exist before executing the LiFi transaction.
+    // LiFi routes SOL → USDC on Solana (via Jupiter) then bridges USDC to
+    // Polygon. The Token Program's TransferChecked instruction fails with
+    // InvalidAccountData if the user's USDC (or WSOL/USDT) ATA doesn't exist.
     setDepositStatus('Checking token accounts...');
+
+    const commonMints: { address: string; symbol: string }[] = [
+      { address: 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v', symbol: 'USDC' },
+      { address: 'Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB', symbol: 'USDT' },
+      { address: 'So11111111111111111111111111111111111111112', symbol: 'WSOL' },
+    ];
+    const sourceTokenAddress = getTokenAddressForLifi(selectedToken!);
+    if (
+      selectedToken!.symbol !== 'SOL' &&
+      !commonMints.some((m) => m.address === sourceTokenAddress)
+    ) {
+      commonMints.push({ address: sourceTokenAddress, symbol: selectedToken!.symbol });
+    }
+
+    let createdAnyAta = false;
+    for (const { address: mintAddr, symbol } of commonMints) {
+      try {
+        const mintPubkey = new PublicKey(mintAddr);
+        const ata = await getAssociatedTokenAddress(mintPubkey, walletPubkey, false, TOKEN_PROGRAM_ID);
+        const ataInfo = await connection.getAccountInfo(ata);
+        if (!ataInfo) {
+          setDepositStatus(`Creating ${symbol} token account...`);
+          const createAtaTx = new Transaction().add(
+            createAssociatedTokenAccountInstruction(walletPubkey, ata, walletPubkey, mintPubkey, TOKEN_PROGRAM_ID),
+          );
+          const { blockhash: ataBlockhash } = await connection.getLatestBlockhash('finalized');
+          createAtaTx.recentBlockhash = ataBlockhash;
+          createAtaTx.feePayer = walletPubkey;
+          const serializedAtaTx = new Uint8Array(
+            createAtaTx.serialize({ requireAllSignatures: false, verifySignatures: false }),
+          );
+          await safeRefreshSession();
+          const ataResult = await signAndSendTransaction({ transaction: serializedAtaTx, wallet: selectedSolanaWallet });
+          const ataSig = bs58.encode(ataResult.signature);
+          await connection.confirmTransaction(ataSig, 'finalized');
+          console.log(`Created ${symbol} token account:`, ata.toBase58());
+          createdAnyAta = true;
+        }
+      } catch (ataError) {
+        console.warn(`Could not check/create ATA for ${symbol}:`, ataError);
+      }
+    }
+
+    // If we created any ATAs, wait to ensure all RPC nodes (including Privy's
+    // simulation node) have propagated the finalized state.
+    if (createdAnyAta) {
+      await new Promise((resolve) => setTimeout(resolve, 3000));
+    }
+
     const txBuffer = Buffer.from(rawTx, 'base64');
     const transaction = VersionedTransaction.deserialize(txBuffer);
-    const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash('confirmed');
+    const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash('finalized');
     transaction.message.recentBlockhash = blockhash;
     setDepositStatus('Waiting for signature...');
     await safeRefreshSession();
