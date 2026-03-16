@@ -772,51 +772,15 @@ export default function DepositModal({
 
     const walletPubkey = new PublicKey(selectedSolanaWallet.address);
 
-    // Decode the transaction early to inspect which accounts it references.
-    // This lets us detect and create any missing ATAs before execution, fixing
-    // the "InvalidAccountData" error when LiFi's TransferChecked references an
-    // ATA (e.g. Solana USDC) that doesn't exist on-chain yet.
-    const txBuffer = Buffer.from(rawTx, 'base64');
-    const transaction = VersionedTransaction.deserialize(txBuffer);
+    // Ensure common token ATAs exist before executing the LiFi transaction.
+    // LiFi routes SOL → USDC on Solana (via Jupiter) then bridges USDC to
+    // Polygon. The Token Program's TransferChecked instruction fails with
+    // InvalidAccountData if the user's USDC (or WSOL/USDT) ATA doesn't exist.
+    // We check all common mints unconditionally — simpler and more reliable
+    // than trying to resolve Address Lookup Tables from the v0 transaction.
+    setDepositStatus('Checking token accounts...');
 
-    // Start with static account keys
-    const allTxAccounts = new Set<string>(
-      transaction.message.staticAccountKeys.map((k) => k.toBase58()),
-    );
-
-    // LiFi v0 transactions store most accounts in Address Lookup Tables (ALTs),
-    // not in staticAccountKeys. Resolve each ALT to get the full account list,
-    // otherwise we miss the user's USDC ATA and can't detect it needs creating.
-    if ('addressTableLookups' in transaction.message) {
-      const altLookups = (transaction.message as any).addressTableLookups as Array<{
-        accountKey: PublicKey;
-        writableIndexes: number[];
-        readonlyIndexes: number[];
-      }>;
-      for (const lookup of altLookups) {
-        try {
-          const { value: altAccount } =
-            await connection.getAddressLookupTable(lookup.accountKey);
-          if (altAccount) {
-            const allIndexes = [
-              ...lookup.writableIndexes,
-              ...lookup.readonlyIndexes,
-            ];
-            for (const idx of allIndexes) {
-              const addr = altAccount.state.addresses[idx];
-              if (addr) allTxAccounts.add(addr.toBase58());
-            }
-          }
-        } catch (altError) {
-          console.warn('Could not resolve ALT:', altError);
-        }
-      }
-    }
-
-    // Common Solana mints LiFi routes through as intermediaries.
-    // For SOL → Polygon USDC.e, LiFi swaps SOL → USDC on Solana first,
-    // so the user's Solana USDC ATA must exist before TransferChecked runs.
-    const solanaMints: { address: string; symbol: string }[] = [
+    const commonMints: { address: string; symbol: string }[] = [
       { address: 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v', symbol: 'USDC' },
       { address: 'Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB', symbol: 'USDT' },
       { address: 'So11111111111111111111111111111111111111112', symbol: 'WSOL' },
@@ -824,14 +788,13 @@ export default function DepositModal({
     const sourceTokenAddress = getTokenAddressForLifi(selectedToken!);
     if (
       selectedToken!.symbol !== 'SOL' &&
-      !solanaMints.some((m) => m.address === sourceTokenAddress)
+      !commonMints.some((m) => m.address === sourceTokenAddress)
     ) {
-      solanaMints.push({ address: sourceTokenAddress, symbol: selectedToken!.symbol });
+      commonMints.push({ address: sourceTokenAddress, symbol: selectedToken!.symbol });
     }
 
-    setDepositStatus('Checking token accounts...');
-
-    for (const { address: mintAddr, symbol } of solanaMints) {
+    let createdAnyAta = false;
+    for (const { address: mintAddr, symbol } of commonMints) {
       try {
         const mintPubkey = new PublicKey(mintAddr);
         const ata = await getAssociatedTokenAddress(
@@ -840,9 +803,6 @@ export default function DepositModal({
           false,
           TOKEN_PROGRAM_ID,
         );
-
-        // Only act on ATAs the LiFi transaction actually references
-        if (!allTxAccounts.has(ata.toBase58())) continue;
 
         const ataInfo = await connection.getAccountInfo(ata);
         if (!ataInfo) {
@@ -879,13 +839,24 @@ export default function DepositModal({
             wallet: selectedSolanaWallet,
           });
           const ataSig = bs58.encode(ataResult.signature);
-          await connection.confirmTransaction(ataSig, 'confirmed');
+          await connection.confirmTransaction(ataSig, 'finalized');
           console.log(`Created ${symbol} token account:`, ata.toBase58());
+          createdAnyAta = true;
         }
       } catch (ataError) {
         console.warn(`Could not check/create ATA for ${symbol}:`, ataError);
       }
     }
+
+    // If we created any ATAs, wait a moment to ensure all RPC nodes (including
+    // Privy's simulation node) have propagated the confirmed state.
+    if (createdAnyAta) {
+      await new Promise((resolve) => setTimeout(resolve, 3000));
+    }
+
+    // Decode the LiFi transaction
+    const txBuffer = Buffer.from(rawTx, 'base64');
+    const transaction = VersionedTransaction.deserialize(txBuffer);
 
     // Use 'finalized' blockhash so Privy's simulation RPC recognizes it
     // regardless of which RPC node it uses internally.
