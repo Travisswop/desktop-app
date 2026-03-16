@@ -775,63 +775,53 @@ export default function DepositModal({
 
     setDepositStatus('Checking token accounts...');
 
-    // const ata = await getAssociatedTokenAddress(
-    //   tokenMint,
-    //   walletPubkey,
-    //   false,
-    //   TOKEN_PROGRAM_ID,
-    // );
+    const ata = await getAssociatedTokenAddress(
+      tokenMint,
+      walletPubkey,
+      false,
+      TOKEN_PROGRAM_ID,
+    );
 
-    // const ataInfo = await connection.getAccountInfo(ata);
+    const ataInfo = await connection.getAccountInfo(ata);
 
-    // if (!ataInfo) {
-    //   setDepositStatus('Creating token account...');
+    if (!ataInfo) {
+      setDepositStatus('Creating token account...');
 
-    //   const createAtaTx = new Transaction().add(
-    //     createAssociatedTokenAccountInstruction(
-    //       walletPubkey,
-    //       ata,
-    //       walletPubkey,
-    //       tokenMint,
-    //       TOKEN_PROGRAM_ID,
-    //     ),
-    //   );
+      const createAtaTx = new Transaction().add(
+        createAssociatedTokenAccountInstruction(
+          walletPubkey,
+          ata,
+          walletPubkey,
+          tokenMint,
+          TOKEN_PROGRAM_ID,
+        ),
+      );
 
-    //   const { blockhash: ataBlockhash } =
-    //     await connection.getLatestBlockhash('confirmed');
-    //   createAtaTx.recentBlockhash = ataBlockhash;
-    //   createAtaTx.feePayer = walletPubkey;
+      // Use 'finalized' blockhash for cross-RPC compatibility
+      const { blockhash: ataBlockhash } =
+        await connection.getLatestBlockhash('finalized');
+      createAtaTx.recentBlockhash = ataBlockhash;
+      createAtaTx.feePayer = walletPubkey;
 
-    //   const serializedAtaTx = new Uint8Array(
-    //     createAtaTx.serialize({
-    //       requireAllSignatures: false,
-    //       verifySignatures: false,
-    //     }),
-    //   );
+      const serializedAtaTx = new Uint8Array(
+        createAtaTx.serialize({
+          requireAllSignatures: false,
+          verifySignatures: false,
+        }),
+      );
 
-    //   await safeRefreshSession();
+      await safeRefreshSession();
 
-    //   let ataSig: string;
-    //   try {
-    //     const ataResult = await signAndSendTransaction({
-    //       transaction: serializedAtaTx,
-    //       wallet: selectedSolanaWallet,
-    //       options: { sponsor: true },
-    //     });
-    //     ataSig = bs58.encode(ataResult.signature);
-    //   } catch (ataError: any) {
-    //     console.log('fallback to non-sponsored', ataError);
-    //     // Fallback to non-sponsored if sponsorship fails
-    //     const ataResult = await signAndSendTransaction({
-    //       transaction: serializedAtaTx,
-    //       wallet: selectedSolanaWallet,
-    //     });
-    //     ataSig = bs58.encode(ataResult.signature);
-    //   }
+      // Sign directly — no sponsor, ATA creation is a simple user-pays tx
+      const ataResult = await signAndSendTransaction({
+        transaction: serializedAtaTx,
+        wallet: selectedSolanaWallet,
+      });
+      const ataSig = bs58.encode(ataResult.signature);
 
-    //   await connection.confirmTransaction(ataSig, 'confirmed');
-    //   console.log('ATA created:', ata.toBase58());
-    // }
+      await connection.confirmTransaction(ataSig, 'confirmed');
+      console.log('Token account created:', ata.toBase58());
+    }
 
     // Decode the transaction
     const txBuffer = Buffer.from(rawTx, 'base64');
