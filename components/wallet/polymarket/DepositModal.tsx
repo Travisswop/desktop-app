@@ -837,9 +837,10 @@ export default function DepositModal({
     const txBuffer = Buffer.from(rawTx, 'base64');
     const transaction = VersionedTransaction.deserialize(txBuffer);
 
-    // Get fresh blockhash
+    // Use 'finalized' blockhash so Privy's simulation RPC recognizes it
+    // regardless of which RPC node it uses internally.
     const { blockhash, lastValidBlockHeight } =
-      await connection.getLatestBlockhash('confirmed');
+      await connection.getLatestBlockhash('finalized');
     transaction.message.recentBlockhash = blockhash;
 
     setDepositStatus('Waiting for signature...');
@@ -852,71 +853,16 @@ export default function DepositModal({
     );
     let signatureString: string;
 
-    // LiFi bridge transactions on Solana are often too large for sponsorship
-    // (sponsorship wraps the tx with extra data, exceeding the 1232-byte limit).
-    // Try sponsored first; fall back to non-sponsored on size or abort errors.
-    try {
-      const result = await signAndSendTransaction({
-        transaction: serializedTransaction,
-        wallet: selectedSolanaWallet,
-        options: {
-          sponsor: true,
-        },
-      });
-      signatureString = bs58.encode(result.signature);
-    } catch (sponsorError: any) {
-      console.warn('Sponsored Solana tx failed:', sponsorError);
-      const errorMessage =
-        sponsorError?.message || sponsorError?.toString() || '';
-
-      // Don't retry if user rejected
-      const isUserRejection =
-        errorMessage.includes('rejected') ||
-        errorMessage.includes('denied') ||
-        errorMessage.includes('cancelled') ||
-        errorMessage.includes('user rejected');
-      if (isUserRejection) {
-        throw sponsorError;
-      }
-
-      const isAbortError =
-        sponsorError?.name === 'AbortError' ||
-        errorMessage.includes('aborted') ||
-        errorMessage.includes('AbortError');
-      const isTooLarge =
-        errorMessage.includes('too large') ||
-        errorMessage.includes('Transaction too large');
-
-      if (isAbortError || isTooLarge) {
-        console.warn(
-          `Sponsored transaction failed (${isTooLarge ? 'too large' : 'aborted'}), retrying without sponsorship...`,
-        );
-        setDepositStatus('Retrying transaction...');
-        await safeRefreshSession();
-        const result = await signAndSendTransaction({
-          transaction: serializedTransaction,
-          wallet: selectedSolanaWallet,
-        });
-        signatureString = bs58.encode(result.signature);
-      } else {
-        // For any other sponsorship error, also try without sponsorship
-        console.warn(
-          'Sponsored transaction failed with unexpected error, retrying without sponsorship...',
-        );
-        setDepositStatus('Retrying transaction...');
-        await safeRefreshSession();
-        try {
-          const result = await signAndSendTransaction({
-            transaction: serializedTransaction,
-            wallet: selectedSolanaWallet,
-          });
-          signatureString = bs58.encode(result.signature);
-        } catch (fallbackError) {
-          // If fallback also fails, throw the original error for clarity
-          throw sponsorError;
-        }
-      }
-    }
+    // LiFi bridge transactions on Solana cannot use Privy gas sponsorship.
+    // Sponsorship replaces the fee payer with Privy's sponsor account, but the
+    // user's wallet is also a required signer for the System Program SOL transfer
+    // instruction inside the LiFi transaction. Changing the fee payer breaks
+    // those account references and causes simulation failures. Sign directly.
+    const result = await signAndSendTransaction({
+      transaction: serializedTransaction,
+      wallet: selectedSolanaWallet,
+    });
+    signatureString = bs58.encode(result.signature);
 
     setDepositStatus('Waiting for confirmation...');
 
