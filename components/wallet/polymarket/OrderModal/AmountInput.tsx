@@ -1,5 +1,7 @@
 'use client';
 
+import { useEffect } from 'react';
+
 import { isValidDecimalInput } from '@/lib/polymarket/validation';
 
 interface AmountInputProps {
@@ -39,6 +41,19 @@ export default function AmountInput({
     isLimitMode && limitPriceDecimal > 0
       ? Math.floor(balance / limitPriceDecimal)
       : 0;
+
+  // When the limit price changes, maxShares changes. If the current share
+  // amount now exceeds the new max, clamp it so the slider and input stay
+  // in sync and the user can't silently end up with an over-budget order.
+  useEffect(() => {
+    if (!isLimitMode || maxShares <= 0) return;
+    const current = parseFloat(amount) || 0;
+    if (current > maxShares) {
+      onAmountChange(String(maxShares));
+    }
+    // Only re-run when maxShares or isLimitMode changes — not on every keystroke.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [maxShares, isLimitMode]);
 
   const handleAmountChange = (
     e: React.ChangeEvent<HTMLInputElement>,
@@ -122,23 +137,20 @@ export default function AmountInput({
             />
           </div>
 
-          {/* Slider scaled to max shares */}
+          {/* Slider scaled to max shares — disabled until a valid price is entered */}
           <div className="mt-3 px-0.5">
             <input
               type="range"
               min={0}
               max={maxShares > 0 ? maxShares : 100}
               step={1}
-              value={Math.min(
-                parseFloat(amount) || 0,
-                maxShares > 0 ? maxShares : 100,
-              )}
+              value={parseFloat(amount) || 0}
               onChange={(e) => {
                 const val = parseFloat(e.target.value);
                 onAmountChange(val === 0 ? '' : String(val));
               }}
-              disabled={isSubmitting}
-              className="w-full h-1 rounded-full appearance-none cursor-pointer bg-gray-300 accent-gray-900 disabled:cursor-not-allowed"
+              disabled={isSubmitting || maxShares <= 0}
+              className="w-full h-1 rounded-full appearance-none cursor-pointer bg-gray-300 accent-gray-900 disabled:cursor-not-allowed disabled:opacity-40"
             />
           </div>
 
