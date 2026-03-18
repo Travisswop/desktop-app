@@ -56,6 +56,7 @@ import {
   getAssociatedTokenAddress,
   createAssociatedTokenAccountInstruction,
   TOKEN_PROGRAM_ID,
+  TOKEN_2022_PROGRAM_ID,
 } from '@solana/spl-token';
 import bs58 from 'bs58';
 
@@ -797,11 +798,21 @@ export default function DepositModal({
     for (const { address: mintAddr, symbol } of commonMints) {
       try {
         const mintPubkey = new PublicKey(mintAddr);
+
+        // Detect whether this mint uses the legacy Token program or Token-2022.
+        // Token-2022 mints (e.g. TSLAX) are owned by TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb.
+        // Using the wrong program ID causes "IncorrectProgramId" during ATA creation.
+        const mintInfo = await connection.getAccountInfo(mintPubkey);
+        const tokenProgramId =
+          mintInfo?.owner.equals(TOKEN_2022_PROGRAM_ID)
+            ? TOKEN_2022_PROGRAM_ID
+            : TOKEN_PROGRAM_ID;
+
         const ata = await getAssociatedTokenAddress(
           mintPubkey,
           walletPubkey,
           false,
-          TOKEN_PROGRAM_ID,
+          tokenProgramId,
         );
 
         const ataInfo = await connection.getAccountInfo(ata);
@@ -814,7 +825,7 @@ export default function DepositModal({
               ata,
               walletPubkey,
               mintPubkey,
-              TOKEN_PROGRAM_ID,
+              tokenProgramId,
             ),
           );
 
