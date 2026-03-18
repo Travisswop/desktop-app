@@ -773,6 +773,36 @@ export default function DepositModal({
 
     const walletPubkey = new PublicKey(selectedSolanaWallet.address);
 
+    // Guard: LiFi does not support Token-2022 mints as the source token.
+    // Its internally-built transaction includes an ATA creation instruction that
+    // always uses the legacy Token Program (TokenkegQfez...). For Token-2022 mints
+    // the Associated Token Program rejects that with "IncorrectProgramId" because
+    // it calls the legacy Token Program to get account size, which refuses the
+    // Token-2022 mint. There is no way to patch a VersionedTransaction with
+    // Address Lookup Tables to fix this mid-flight, so we block early and ask the
+    // user to swap to SOL/USDC first via the built-in Jupiter swap feature.
+    if (selectedToken!.symbol !== 'SOL') {
+      const sourceTokenAddress = getTokenAddressForLifi(selectedToken!);
+      try {
+        const sourceMintInfo = await connection.getAccountInfo(
+          new PublicKey(sourceTokenAddress),
+        );
+        const isToken2022 =
+          sourceMintInfo?.owner?.toBase58() ===
+          TOKEN_2022_PROGRAM_ID.toBase58();
+        if (isToken2022) {
+          throw new Error(
+            `${selectedToken!.symbol} is a Token-2022 token and cannot be bridged directly. ` +
+            `Please swap ${selectedToken!.symbol} to SOL or USDC first using the Swap feature, then deposit.`,
+          );
+        }
+      } catch (err: any) {
+        // Re-throw our own descriptive error; swallow RPC lookup failures.
+        if (err.message?.includes('Token-2022')) throw err;
+        console.warn('Could not check source mint program:', err);
+      }
+    }
+
     // Ensure common token ATAs exist before executing the LiFi transaction.
     // LiFi routes SOL → USDC on Solana (via Jupiter) then bridges USDC to
     // Polygon. The Token Program's TransferChecked instruction fails with
@@ -800,11 +830,11 @@ export default function DepositModal({
         const mintPubkey = new PublicKey(mintAddr);
 
         // Detect whether this mint uses the legacy Token program or Token-2022.
-        // Token-2022 mints (e.g. TSLAX) are owned by TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb.
-        // Using the wrong program ID causes "IncorrectProgramId" during ATA creation.
+        // Token-2022 mints are owned by TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb.
+        // Use toBase58() comparison to avoid TypeError if mintInfo is null.
         const mintInfo = await connection.getAccountInfo(mintPubkey);
         const tokenProgramId =
-          mintInfo?.owner.equals(TOKEN_2022_PROGRAM_ID)
+          mintInfo?.owner?.toBase58() === TOKEN_2022_PROGRAM_ID.toBase58()
             ? TOKEN_2022_PROGRAM_ID
             : TOKEN_PROGRAM_ID;
 
