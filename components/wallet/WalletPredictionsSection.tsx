@@ -14,7 +14,7 @@ import TransferModal from '@/components/wallet/polymarket/TransferModal';
 import PredictionsPortfolioModal from '@/components/wallet/polymarket/PredictionsPortfolioModal';
 
 export default function WalletPredictionsSection() {
-  const { authenticated, isReady } = usePolymarketWallet();
+  const { authenticated, isReady, isInitializing, hasWallet } = usePolymarketWallet();
   const { accessToken, loading: userLoading } = useUser();
   const {
     tradingSession,
@@ -58,7 +58,7 @@ export default function WalletPredictionsSection() {
 
   if (!authenticated) return null;
 
-  if (!isReady) {
+  if (isInitializing) {
     return (
       <div className="mt-6 max-w-[855px] w-full mx-auto">
         <h2 className="text-xl font-bold text-gray-900 mb-4">
@@ -71,6 +71,36 @@ export default function WalletPredictionsSection() {
               Loading markets...
             </p>
           </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (!hasWallet) {
+    return (
+      <div className="mt-6 max-w-[855px] w-full mx-auto">
+        <h2 className="text-xl font-bold text-gray-900 mb-4">
+          Predictions
+        </h2>
+        <div className="bg-white rounded-xl p-6 border border-gray-100">
+          <p className="text-center text-gray-500 text-sm">
+            Connect an EVM wallet to access Predictions.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!isReady) {
+    return (
+      <div className="mt-6 max-w-[855px] w-full mx-auto">
+        <h2 className="text-xl font-bold text-gray-900 mb-4">
+          Predictions
+        </h2>
+        <div className="bg-white rounded-xl p-6 border border-gray-100">
+          <p className="text-center text-gray-500 text-sm">
+            Wallet found but could not initialize. Please refresh.
+          </p>
         </div>
       </div>
     );
