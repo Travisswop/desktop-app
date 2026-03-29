@@ -26,6 +26,8 @@ export interface PolymarketWalletContextType {
   publicClient: PublicClient;
   ethersSigner: providers.JsonRpcSigner | null;
   isReady: boolean;
+  isInitializing: boolean;
+  hasWallet: boolean;
   authenticated: boolean;
   switchToPolygon: () => Promise<void>;
 }
@@ -41,6 +43,8 @@ const PolymarketWalletContext = createContext<PolymarketWalletContextType>({
   publicClient,
   ethersSigner: null,
   isReady: false,
+  isInitializing: true,
+  hasWallet: false,
   authenticated: false,
   switchToPolygon: async () => {},
 });
@@ -53,14 +57,20 @@ export function PolymarketWalletProvider({ children }: { children: ReactNode }) 
   const [walletClient, setWalletClient] = useState<WalletClient | null>(null);
   const [ethersSigner, setEthersSigner] =
     useState<providers.JsonRpcSigner | null>(null);
+  const [isInitializing, setIsInitializing] = useState(true);
 
   const { wallets, ready } = useWallets();
   const { authenticated, user } = usePrivy();
 
-  // Find the user's primary wallet
-  const wallet = wallets.find((w) => w.address === user?.wallet?.address);
+  // Find the user's primary EVM wallet — prefer embedded wallet, fall back to any EVM wallet
+  const wallet =
+    wallets.find((w) => w.address === user?.wallet?.address) ??
+    wallets.find((w) => w.walletClientType !== "solana");
+
   const eoaAddress =
     authenticated && wallet ? (wallet.address as `0x${string}`) : undefined;
+
+  const hasWallet = !!wallet && !!eoaAddress;
 
   const switchToPolygon = async () => {
     if (!wallet || !ready || !authenticated) return;
@@ -77,10 +87,15 @@ export function PolymarketWalletProvider({ children }: { children: ReactNode }) 
   };
 
   useEffect(() => {
+    // Wait until Privy has finished loading wallets
+    if (!ready) return;
+
     async function init() {
-      if (!wallet || !ready || !eoaAddress) {
+      if (!wallet || !eoaAddress) {
+        // No EVM wallet available — stop initializing, no error
         setWalletClient(null);
         setEthersSigner(null);
+        setIsInitializing(false);
         return;
       }
 
@@ -101,6 +116,8 @@ export function PolymarketWalletProvider({ children }: { children: ReactNode }) 
         console.error("Failed to initialize Polymarket wallet client:", err);
         setWalletClient(null);
         setEthersSigner(null);
+      } finally {
+        setIsInitializing(false);
       }
     }
 
@@ -115,6 +132,8 @@ export function PolymarketWalletProvider({ children }: { children: ReactNode }) 
         publicClient,
         ethersSigner,
         isReady: ready && authenticated && !!walletClient,
+        isInitializing: !ready || isInitializing,
+        hasWallet,
         authenticated,
         switchToPolygon,
       }}

@@ -128,8 +128,8 @@ export default function MarketCard({
         </div>
       )}
 
-      {/* Main row: icon | content | buttons */}
-      <div className="flex items-center gap-3">
+      {/* Top row: icon + title (full width so text has room to breathe) */}
+      <div className="flex items-start gap-3 mb-2">
         {/* Icon */}
         {icon ? (
           <img
@@ -141,66 +141,67 @@ export default function MarketCard({
           <div className="w-10 h-10 rounded-lg flex-shrink-0 bg-gray-200" />
         )}
 
-        {/* Title + stats */}
-        <div className="flex-1 min-w-0">
-          <button
-            onClick={onTitleClick}
-            disabled={!onTitleClick}
-            className={`text-sm font-semibold text-gray-900 line-clamp-2 leading-snug text-left w-full mb-1.5 ${
-              onTitleClick
-                ? 'hover:text-blue-600 transition-colors'
-                : 'cursor-default'
-            }`}
-          >
-            {market.question}
-          </button>
+        {/* Title */}
+        <button
+          onClick={onTitleClick}
+          disabled={!onTitleClick}
+          className={`flex-1 min-w-0 text-sm font-semibold text-gray-900 line-clamp-2 leading-snug text-left ${
+            onTitleClick
+              ? 'hover:text-blue-600 transition-colors'
+              : 'cursor-default'
+          }`}
+        >
+          {market.question}
+        </button>
+      </div>
 
-          {/* Stats row */}
-          <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-            <div>
-              <p className="text-[10px] text-gray-400 leading-none mb-0.5">
-                24h Volume
-              </p>
-              <p className="text-xs font-semibold text-green-500">
-                {formatVolume(volumeUSD)}
-              </p>
-            </div>
-            <div>
-              <p className="text-[10px] text-gray-400 leading-none mb-0.5">
-                Liquidity
-              </p>
-              <p className="text-xs font-semibold text-green-500">
-                {formatLiquidity(liquidityUSD)}
-              </p>
-            </div>
-            <div>
-              <p className="text-[10px] text-gray-400 leading-none mb-0.5">
-                Outcomes
-              </p>
-              <p className="text-xs font-semibold text-gray-700">
-                {outcomes.length}
-              </p>
-            </div>
-            {isClosed && (
-              <span className="text-[10px] font-bold bg-gray-200 text-gray-500 px-1.5 py-0.5 rounded-full">
-                Closed
-              </span>
-            )}
-            {isSportsCategory && !isLive && sportsTiming && (
-              <span
-                className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full ${
-                  sportsTiming.status === 'imminent'
-                    ? 'bg-orange-100 text-orange-600'
-                    : 'bg-amber-100 text-amber-600'
-                }`}
-              >
-                {sportsTiming.label}
-              </span>
-            )}
+      {/* Bottom row: stats (left) + outcome buttons (right) */}
+      <div className="flex items-center gap-3">
+        {/* Stats */}
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 flex-1 min-w-0">
+          <div>
+            <p className="text-[10px] text-gray-400 leading-none mb-0.5">
+              24h Volume
+            </p>
+            <p className="text-xs font-semibold text-green-500">
+              {formatVolume(volumeUSD)}
+            </p>
           </div>
+          <div>
+            <p className="text-[10px] text-gray-400 leading-none mb-0.5">
+              Liquidity
+            </p>
+            <p className="text-xs font-semibold text-green-500">
+              {formatLiquidity(liquidityUSD)}
+            </p>
+          </div>
+          <div>
+            <p className="text-[10px] text-gray-400 leading-none mb-0.5">
+              Outcomes
+            </p>
+            <p className="text-xs font-semibold text-gray-700">
+              {outcomes.length}
+            </p>
+          </div>
+          {isClosed && (
+            <span className="text-[10px] font-bold bg-gray-200 text-gray-500 px-1.5 py-0.5 rounded-full">
+              Closed
+            </span>
+          )}
+          {isSportsCategory && !isLive && sportsTiming && (
+            <span
+              className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full ${
+                sportsTiming.status === 'imminent'
+                  ? 'bg-orange-100 text-orange-600'
+                  : 'bg-amber-100 text-amber-600'
+              }`}
+            >
+              {sportsTiming.label}
+            </span>
+          )}
         </div>
 
-        {/* Outcome buttons — stacked on the right */}
+        {/* Outcome buttons */}
         <OutcomeButtons
           outcomes={outcomes}
           outcomePrices={outcomePrices}

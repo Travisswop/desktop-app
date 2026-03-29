@@ -1,5 +1,6 @@
 'use client';
 import React, { useRef, useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { X } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -25,6 +26,11 @@ const CustomModal: React.FC<CustomModalProps> = ({
   const modalRef = useRef<HTMLDivElement>(null);
   const [mouseDownOnBackdrop, setMouseDownOnBackdrop] =
     useState(false);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   // Lock body scroll when modal is open
   useEffect(() => {
@@ -75,7 +81,9 @@ const CustomModal: React.FC<CustomModalProps> = ({
     setMouseDownOnBackdrop(false);
   };
 
-  return (
+  if (!mounted) return null;
+
+  return createPortal(
     <AnimatePresence>
       {isOpen && (
         <motion.div
@@ -99,6 +107,8 @@ const CustomModal: React.FC<CustomModalProps> = ({
             }}
             className={`bg-white rounded-2xl shadow-lg w-full ${width} relative overflow-hidden`}
             onClick={(e) => e.stopPropagation()}
+            onMouseDown={(e) => e.stopPropagation()}
+            onMouseUp={(e) => e.stopPropagation()}
             style={{ maxHeight: '90vh' }}
           >
             {/* Header */}
@@ -136,7 +146,8 @@ const CustomModal: React.FC<CustomModalProps> = ({
           </motion.div>
         </motion.div>
       )}
-    </AnimatePresence>
+    </AnimatePresence>,
+    document.body,
   );
 };
 

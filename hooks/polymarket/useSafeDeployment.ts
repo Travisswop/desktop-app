@@ -1,22 +1,38 @@
 import { useCallback, useMemo } from "react";
-import {
-  RelayClient,
-  RelayerTransactionState,
-} from "@polymarket/builder-relayer-client";
+import { useUser } from "@/lib/UserContext";
 import { usePolymarketWallet } from "@/providers/polymarket";
 import { deriveSafe } from "@polymarket/builder-relayer-client/dist/builder/derive";
 import { getContractConfig } from "@polymarket/builder-relayer-client/dist/config";
 import { POLYGON_CHAIN_ID } from "@/constants/polymarket";
+import {
+  getDeployTypedData,
+  submitDeploySignature,
+} from "@/lib/polymarket/backend-session";
 
-// This hook is responsible for deploying the Safe wallet and offers two additional helper functions
-// to check if the Safe is already deployed and what the deterministic address is for the Safe
-
+/**
+ * Manages Safe wallet deployment for Polymarket trading.
+ *
+ * Replaces the previous relayClient.deploy() SDK pattern with an explicit
+ * two-step flow routed through the polymarket-backend:
+ *   1. GET /session/deploy-typed-data  — backend returns the EIP-712 payload
+ *   2. Wallet signs the CreateProxy typed data (one prompt, first time only)
+ *   3. POST /session/deploy-safe       — backend submits to Polymarket relayer
+ *
+ * The backend checks on-chain state before returning typed data, so if the
+ * Safe is already deployed the request short-circuits with no signing prompt.
+ *
+ * ⚠️  PROTOCOL REQUIREMENT — The CreateProxy EIP-712 signature MUST come from
+ *     the Safe owner's EOA.  Polymarket's relayer verifies this on-chain.
+ *     This signing step cannot be moved server-side and is a first-time-only
+ *     operation (once deployed, the Safe persists forever on Polygon).
+ */
 export function useSafeDeployment(eoaAddress?: string) {
-  const { publicClient } = usePolymarketWallet();
+  const { publicClient, walletClient } = usePolymarketWallet();
+  const { accessToken } = useUser();
 
-  // This function derives the Safe address from the EOA address
+  // Deterministic Safe address derived from EOA — pure computation, no signing
   const derivedSafeAddressFromEoa = useMemo(() => {
-    if (!eoaAddress || !publicClient || !POLYGON_CHAIN_ID) return undefined;
+    if (!eoaAddress || !POLYGON_CHAIN_ID) return undefined;
 
     try {
       const config = getContractConfig(POLYGON_CHAIN_ID);
@@ -25,61 +41,75 @@ export function useSafeDeployment(eoaAddress?: string) {
       console.error("Error deriving Safe address:", err);
       return undefined;
     }
-  }, [eoaAddress, publicClient]);
+  }, [eoaAddress]);
 
-  // This function checks if the Safe is deployed by querying the relay client or RPC
+  /**
+   * Checks whether the Safe is deployed by querying the polymarket-backend
+   * (which falls back to RPC if the relayer check fails).
+   */
   const isSafeDeployed = useCallback(
-    async (relayClient: RelayClient, safeAddr: string): Promise<boolean> => {
+    async (safeAddr: string): Promise<boolean> => {
       try {
-        // Try relayClient first (getDeployed is a public method)
-        const deployed = await relayClient.getDeployed(safeAddr);
-        return deployed;
-      } catch (err) {
-        console.warn("API check failed, falling back to RPC", err);
-
-        // Fallback to RPC
+        // Try RPC via public client (no auth required)
         const code = await publicClient?.getCode({
           address: safeAddr as `0x${string}`,
         });
         return !!code && code !== "0x";
+      } catch (err) {
+        console.warn("RPC code-check failed for Safe:", err);
+        return false;
       }
     },
     [publicClient]
   );
 
-  // This function deploys the Safe using the relayClient
-  const deploySafe = useCallback(
-    async (relayClient: RelayClient): Promise<string> => {
-      try {
-        // Prompts signer for a signature
-        const response = await relayClient.deploy();
+  /**
+   * Deploys the Safe via the polymarket-backend two-step flow.
+   * Returns early without signing if the Safe is already deployed.
+   *
+   * ⚠️  One signing prompt on first call — see module docstring.
+   */
+  const deploySafe = useCallback(async (): Promise<string> => {
+    if (!eoaAddress || !walletClient) {
+      throw new Error("Wallet not connected");
+    }
 
-        // pollUntilState(txId, successStates, failState?, maxPolls?, pollFrequencyMs?)
-        // 20 polls × 3000ms = 60 seconds max wait
-        const result = await relayClient.pollUntilState(
-          response.transactionID,
-          [
-            RelayerTransactionState.STATE_MINED,
-            RelayerTransactionState.STATE_CONFIRMED,
-          ],
-          RelayerTransactionState.STATE_FAILED,
-          20,
-          3000
-        );
+    if (!accessToken) {
+      throw new Error("Not authenticated — cannot reach polymarket backend");
+    }
 
-        if (!result) {
-          throw new Error("Safe deployment failed");
-        }
+    // Get typed data from backend (backend checks deployed status first)
+    const deployData = await getDeployTypedData(eoaAddress, accessToken);
 
-        return result.proxyAddress;
-      } catch (err) {
-        const error =
-          err instanceof Error ? err : new Error("Failed to deploy Safe");
-        throw error;
-      }
-    },
-    []
-  );
+    // Sign the CreateProxy EIP-712 message.
+    // ⚠️  CLIENT-SIDE SIGNING REQUIRED — Polymarket's relayer verifies this
+    // signature against the Safe owner's EOA (eoaAddress). Cannot be server-side.
+    const signature = await walletClient.signTypedData({
+      account: eoaAddress as `0x${string}`,
+      domain: deployData.typedData.domain as Parameters<
+        typeof walletClient.signTypedData
+      >[0]["domain"],
+      types: deployData.typedData.types as Parameters<
+        typeof walletClient.signTypedData
+      >[0]["types"],
+      primaryType: "CreateProxy",
+      message: deployData.typedData.message as Parameters<
+        typeof walletClient.signTypedData
+      >[0]["message"],
+    });
+
+    const result = await submitDeploySignature(
+      eoaAddress,
+      signature,
+      accessToken
+    );
+
+    if (!result.deployed) {
+      throw new Error("Safe deployment failed");
+    }
+
+    return result.safeAddress;
+  }, [eoaAddress, walletClient, accessToken]);
 
   return {
     derivedSafeAddressFromEoa,

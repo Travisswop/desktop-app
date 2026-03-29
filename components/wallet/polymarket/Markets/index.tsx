@@ -26,8 +26,6 @@ import CategoryTabs from './CategoryTabs';
 import OrderPlacementModal from '../OrderModal';
 import MarketDetailModal from './MarketDetailModal';
 
-const PAGE_SIZE = 10;
-const PREFETCH_SIZE = 50;
 /** How many markets appear in the left column when splitLayout is enabled */
 const LEFT_COLUMN_COUNT = 3;
 
@@ -66,7 +64,6 @@ export default function HighVolumeMarkets({
     useState<SelectedMarket | null>(null);
   const [detailMarket, setDetailMarket] =
     useState<PolymarketMarket | null>(null);
-  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
   const [searchQuery, setSearchQuery] = useState('');
   const sentinelRef = useRef<HTMLDivElement>(null);
 
@@ -81,18 +78,25 @@ export default function HighVolumeMarkets({
   }, [activeCategory, activeSportSub]);
 
   const {
-    data: allMarkets,
+    data,
     isLoading,
     error,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
   } = useMarkets({
-    limit: PREFETCH_SIZE,
     categoryId: activeCategory,
     overrideTagId,
   });
 
-  // Filter by search query
+  // Flatten all pages into a single list
+  const allMarkets = useMemo(
+    () => data?.pages.flat() ?? [],
+    [data],
+  );
+
+  // Filter by search query (client-side across all loaded markets)
   const filteredMarkets = useMemo(() => {
-    if (!allMarkets) return [];
     if (!searchQuery.trim()) return allMarkets;
     const q = searchQuery.toLowerCase();
     return allMarkets.filter((m) =>
@@ -100,30 +104,20 @@ export default function HighVolumeMarkets({
     );
   }, [allMarkets, searchQuery]);
 
-  // Slice to the currently visible window
-  const markets = useMemo(
-    () => filteredMarkets.slice(0, visibleCount),
-    [filteredMarkets, visibleCount],
-  );
-
-  const hasMore = visibleCount < filteredMarkets.length;
-
-  // Reset visible count when category / sport sub / search changes
+  // Reset pagination when category / sport sub / search changes
   useEffect(() => {
-    setVisibleCount(PAGE_SIZE);
+    // No visibleCount to reset — server pagination handles it
   }, [activeCategory, activeSportSub, searchQuery]);
 
-  // IntersectionObserver — load next page when sentinel enters viewport
+  // IntersectionObserver — fetch next page when sentinel enters viewport
   useEffect(() => {
     const sentinel = sentinelRef.current;
-    if (!sentinel || !hasMore) return;
+    if (!sentinel || !hasNextPage || isFetchingNextPage) return;
 
     const observer = new IntersectionObserver(
       (entries) => {
         if (entries[0].isIntersecting) {
-          setVisibleCount((prev) =>
-            Math.min(prev + PAGE_SIZE, filteredMarkets.length),
-          );
+          fetchNextPage();
         }
       },
       { threshold: 0.1 },
@@ -131,7 +125,7 @@ export default function HighVolumeMarkets({
 
     observer.observe(sentinel);
     return () => observer.disconnect();
-  }, [hasMore, filteredMarkets.length]);
+  }, [hasNextPage, isFetchingNextPage, fetchNextPage]);
 
   const category = getCategoryById(activeCategory);
   const categoryLabel = category?.label || 'Markets';
@@ -275,6 +269,20 @@ export default function HighVolumeMarkets({
     />
   );
 
+  const loadMoreSentinel = (hasNextPage || isFetchingNextPage) ? (
+    <div
+      ref={sentinelRef}
+      className="flex items-center justify-center py-4 gap-2 text-sm text-gray-400"
+    >
+      <div className="w-4 h-4 border-2 border-gray-300 border-t-gray-600 rounded-full animate-spin" />
+      Loading more markets...
+    </div>
+  ) : allMarkets.length > 0 ? (
+    <p className="text-center text-xs text-gray-400 py-3">
+      All {allMarkets.length} markets loaded
+    </p>
+  ) : null;
+
   const renderMarketCard = (market: PolymarketMarket) => (
     <MarketCard
       key={market.id}
@@ -327,8 +335,8 @@ export default function HighVolumeMarkets({
   // ─── Split layout ────────────────────────────────────────────────────────────
 
   if (splitLayout) {
-    const leftMarkets = markets.slice(0, LEFT_COLUMN_COUNT);
-    const rightMarkets = markets.slice(LEFT_COLUMN_COUNT);
+    const leftMarkets = filteredMarkets.slice(0, LEFT_COLUMN_COUNT);
+    const rightMarkets = filteredMarkets.slice(LEFT_COLUMN_COUNT);
 
     return (
       <>
@@ -346,7 +354,7 @@ export default function HighVolumeMarkets({
           {error && !isLoading && (
             <ErrorState error={error} title="Error loading markets" />
           )}
-          {!isLoading && !error && markets.length === 0 && (
+          {!isLoading && !error && filteredMarkets.length === 0 && (
             <EmptyState
               title="No Markets"
               message={
@@ -356,25 +364,10 @@ export default function HighVolumeMarkets({
               }
             />
           )}
-          {!isLoading && !error && markets.length > 0 && (
+          {!isLoading && !error && filteredMarkets.length > 0 && (
             <div className="overflow-y-auto max-h-[calc(100vh-360px)] pr-1 space-y-3">
-              {markets.map(renderMarketCard)}
-
-              {hasMore && (
-                <div
-                  ref={sentinelRef}
-                  className="flex items-center justify-center py-4 gap-2 text-sm text-gray-400"
-                >
-                  <div className="w-4 h-4 border-2 border-gray-300 border-t-gray-600 rounded-full animate-spin" />
-                  Loading more markets...
-                </div>
-              )}
-
-              {!hasMore && markets.length > PAGE_SIZE && (
-                <p className="text-center text-xs text-gray-400 py-3">
-                  All {filteredMarkets.length} markets loaded
-                </p>
-              )}
+              {filteredMarkets.map(renderMarketCard)}
+              {loadMoreSentinel}
             </div>
           )}
         </div>
@@ -421,7 +414,7 @@ export default function HighVolumeMarkets({
             {!isLoading &&
               !error &&
               rightMarkets.length === 0 &&
-              markets.length > 0 && (
+              filteredMarkets.length > 0 && (
                 <EmptyState
                   title=""
                   message="All markets shown on the left."
@@ -430,22 +423,7 @@ export default function HighVolumeMarkets({
             {!isLoading && !error && rightMarkets.length > 0 && (
               <div className="space-y-3">
                 {rightMarkets.map(renderMarketCard)}
-
-                {hasMore && (
-                  <div
-                    ref={sentinelRef}
-                    className="flex items-center justify-center py-4 gap-2 text-sm text-gray-400"
-                  >
-                    <div className="w-4 h-4 border-2 border-gray-300 border-t-gray-600 rounded-full animate-spin" />
-                    Loading more markets...
-                  </div>
-                )}
-
-                {!hasMore && rightMarkets.length > PAGE_SIZE && (
-                  <p className="text-center text-xs text-gray-400 py-3">
-                    All {filteredMarkets.length} markets loaded
-                  </p>
-                )}
+                {loadMoreSentinel}
               </div>
             )}
           </div>
@@ -471,8 +449,8 @@ export default function HighVolumeMarkets({
         <div className="flex items-center justify-between">
           <h3 className="text-lg font-bold text-gray-900">
             {sectionLabel}{' '}
-            {allMarkets
-              ? `(${markets.length} of ${allMarkets.length})`
+            {allMarkets.length > 0
+              ? `(${filteredMarkets.length}${hasNextPage ? '+' : ''})`
               : ''}
           </h3>
           <p className="text-xs text-gray-500">
@@ -490,34 +468,20 @@ export default function HighVolumeMarkets({
         )}
         {!isLoading &&
           !error &&
-          (!markets || markets.length === 0) && (
+          (!filteredMarkets || filteredMarkets.length === 0) && (
             <EmptyState
               title="No Markets Available"
               message={`No active ${sectionLabel.toLowerCase()} found.`}
             />
           )}
 
-        {!isLoading && !error && markets && markets.length > 0 && (
+        {!isLoading && !error && filteredMarkets && filteredMarkets.length > 0 && (
           <>
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
-              {markets.map(renderMarketCard)}
+              {filteredMarkets.map(renderMarketCard)}
             </div>
 
-            {hasMore && (
-              <div
-                ref={sentinelRef}
-                className="flex items-center justify-center py-4 gap-2 text-sm text-gray-400"
-              >
-                <div className="w-4 h-4 border-2 border-gray-300 border-t-gray-600 rounded-full animate-spin" />
-                Loading more markets...
-              </div>
-            )}
-
-            {!hasMore && markets.length > PAGE_SIZE && (
-              <p className="text-center text-xs text-gray-400 py-3">
-                All {allMarkets?.length} markets loaded
-              </p>
-            )}
+            {loadMoreSentinel}
           </>
         )}
       </div>

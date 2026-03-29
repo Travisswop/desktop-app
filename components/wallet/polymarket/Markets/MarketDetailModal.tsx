@@ -271,10 +271,6 @@ export default function MarketDetailModal({
           setLocalError(`Minimum order is ${LIMIT_MIN_SHARES} shares`);
           return;
         }
-        if (totalCost < 1) {
-          setLocalError('Minimum order value is $1.00');
-          return;
-        }
       } else if (inputNum < 1) {
         setLocalError('Minimum order amount is $1.00');
         return;

@@ -1,6 +1,7 @@
 'use client';
 
 import type { PolymarketOrder } from '@/hooks/polymarket';
+import { getOutcomeDisplayLabel } from '@/lib/polymarket/formatting';
 import Card from '../shared/Card';
 import Badge from '../shared/Badge';
 
@@ -9,6 +10,8 @@ interface OrderCardProps {
   onCancel: (orderId: string) => void;
   isCancelling: boolean;
   showCancel?: boolean;
+  /** Full market question — used to enrich O/U and spread outcome labels */
+  marketTitle?: string;
 }
 
 export default function OrderCard({
@@ -16,6 +19,7 @@ export default function OrderCard({
   onCancel,
   isCancelling,
   showCancel = true,
+  marketTitle,
 }: OrderCardProps) {
   const isBuy = order.side === 'BUY';
   const price = parseFloat(order.price);
@@ -32,7 +36,11 @@ export default function OrderCard({
             <Badge variant={isBuy ? 'success' : 'error'}>
               {isBuy ? 'BUY' : 'SELL'}
             </Badge>
-            <span className="text-sm text-gray-600">{order.outcome}</span>
+            <span className="text-sm text-gray-600">
+              {marketTitle
+                ? getOutcomeDisplayLabel(order.outcome, marketTitle)
+                : order.outcome}
+            </span>
           </div>
 
           <div className="grid grid-cols-3 gap-3 text-sm mb-3">

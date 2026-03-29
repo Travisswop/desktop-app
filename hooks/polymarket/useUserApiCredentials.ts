@@ -1,7 +1,11 @@
 import { useCallback } from "react";
-import { ClobClient } from "@polymarket/clob-client";
+import { useUser } from "@/lib/UserContext";
 import { usePolymarketWallet } from "@/providers/polymarket";
-import { CLOB_API_URL, POLYGON_CHAIN_ID } from "@/constants/polymarket";
+import {
+  fetchCachedCredentials,
+  getCredentialTypedData,
+  deriveAndCacheCredentials,
+} from "@/lib/polymarket/backend-session";
 
 export interface UserApiCredentials {
   key: string;
@@ -9,46 +13,91 @@ export interface UserApiCredentials {
   passphrase: string;
 }
 
-// This hook's sole purpose is to derive or create
-// the User API Credentials with a temporary ClobClient
-
+/**
+ * Provides createOrDeriveUserApiCredentials — the single entry-point for
+ * obtaining Polymarket L2 API credentials.
+ *
+ * Flow on every call:
+ *   1. Check the polymarket-backend's server-side credential cache.
+ *      → Zero signing prompts on all subsequent logins (new browser, incognito, etc.)
+ *   2. Cache miss: fetch the ClobAuth EIP-712 typed data from the backend,
+ *      sign it with the connected Privy wallet (one prompt, first time only),
+ *      then POST the signature to the backend which derives and caches the creds.
+ *
+ * Why server-side cache?
+ *   Previously credentials were stored only in localStorage, so clearing
+ *   browser data triggered a re-signing prompt on every login. Server-side
+ *   caching means the prompt fires at most once per EOA per server restart.
+ *
+ * ⚠️  The ClobAuth EIP-712 signature CANNOT be produced server-side — Polymarket's
+ *     CLOB API verifies it against the user's EOA address. When the cache is
+ *     empty (first use or after a server restart), a single signing prompt is
+ *     unavoidable and is a Polymarket protocol requirement.
+ */
 export function useUserApiCredentials() {
-  const { eoaAddress, ethersSigner } = usePolymarketWallet();
+  const { eoaAddress, walletClient } = usePolymarketWallet();
+  const { accessToken } = useUser();
 
-  // Creates temporary clobClient with ethers signer
   const createOrDeriveUserApiCredentials =
     useCallback(async (): Promise<UserApiCredentials> => {
-      if (!eoaAddress || !ethersSigner) throw new Error("Wallet not connected");
+      if (!eoaAddress || !walletClient) {
+        throw new Error("Wallet not connected");
+      }
 
-      const tempClient = new ClobClient(
-        CLOB_API_URL,
-        POLYGON_CHAIN_ID,
-        ethersSigner
+      if (!accessToken) {
+        throw new Error("Not authenticated — cannot reach polymarket backend");
+      }
+
+      // ── Step 1: Check the server-side cache (no signing required) ──────────
+      const cached = await fetchCachedCredentials(eoaAddress, accessToken);
+      if (cached) {
+        console.log("[Polymarket] Restored API credentials from server cache");
+        return cached;
+      }
+
+      // ── Step 2: Cache miss — get typed data and prompt user to sign once ───
+      console.log(
+        "[Polymarket] No cached credentials — requesting signature for credential derivation"
       );
 
-      try {
-        // Try to derive existing credentials first
-        const derivedCreds = await tempClient.deriveApiKey().catch(() => null);
+      const { typedData, timestamp, nonce } = await getCredentialTypedData(
+        eoaAddress,
+        accessToken
+      );
 
-        if (
-          derivedCreds?.key &&
-          derivedCreds?.secret &&
-          derivedCreds?.passphrase
-        ) {
-          console.log("Successfully derived existing User API Credentials");
-          return derivedCreds;
-        }
+      // Sign the ClobAuth EIP-712 message with the connected Privy wallet.
+      // This is the ONLY signing prompt in the credential flow. Polymarket's
+      // CLOB API requires a signature from the user's EOA to derive credentials;
+      // this cannot be performed server-side.
+      const signature = await walletClient.signTypedData({
+        account: eoaAddress,
+        domain: typedData.domain as Parameters<
+          typeof walletClient.signTypedData
+        >[0]["domain"],
+        types: typedData.types as Parameters<
+          typeof walletClient.signTypedData
+        >[0]["types"],
+        primaryType: "ClobAuth",
+        message: typedData.message as Parameters<
+          typeof walletClient.signTypedData
+        >[0]["message"],
+      });
 
-        // Derive failed or returned invalid data - create new credentials
-        console.log("Creating new User API Credentials...");
-        const newCreds = await tempClient.createApiKey();
-        console.log("Successfully created new User API Credentials");
-        return newCreds;
-      } catch (err) {
-        console.error("Failed to get credentials:", err);
-        throw err;
-      }
-    }, [eoaAddress, ethersSigner]);
+      // ── Step 3: Derive credentials via backend — result is cached server-side
+      const creds = await deriveAndCacheCredentials(
+        eoaAddress,
+        signature,
+        timestamp,
+        nonce,
+        accessToken
+      );
+
+      console.log(
+        "[Polymarket] API credentials derived and cached on server — future logins will skip signing"
+      );
+
+      return creds;
+    }, [eoaAddress, walletClient, accessToken]);
 
   return { createOrDeriveUserApiCredentials };
 }

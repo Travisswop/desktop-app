@@ -56,6 +56,7 @@ import {
   getAssociatedTokenAddress,
   createAssociatedTokenAccountInstruction,
   TOKEN_PROGRAM_ID,
+  TOKEN_2022_PROGRAM_ID,
 } from '@solana/spl-token';
 import bs58 from 'bs58';
 
@@ -153,7 +154,10 @@ const CHAIN_CONFIG: Record<
 const POLYGON_CHAIN_ID = '137';
 
 // Chain-specific viem chain configs for creating public clients
-const VIEM_CHAINS: Record<string, (typeof mainnet) | (typeof polygon) | (typeof base)> = {
+const VIEM_CHAINS: Record<
+  string,
+  typeof mainnet | typeof polygon | typeof base
+> = {
   '1': mainnet,
   '137': polygon,
   '8453': base,
@@ -767,79 +771,138 @@ export default function DepositModal({
       confirmTransactionInitialTimeout: 60000,
     });
 
-    // Ensure required token accounts (ATAs) exist before executing LiFi transaction.
-    // LiFi assumes ATAs already exist; for SOL swaps, the WSOL ATA is often missing.
     const walletPubkey = new PublicKey(selectedSolanaWallet.address);
-    const tokenAddress = getTokenAddressForLifi(selectedToken!);
-    const tokenMint = new PublicKey(tokenAddress);
 
+    // Guard: LiFi does not support Token-2022 mints as the source token.
+    // Its internally-built transaction includes an ATA creation instruction that
+    // always uses the legacy Token Program (TokenkegQfez...). For Token-2022 mints
+    // the Associated Token Program rejects that with "IncorrectProgramId" because
+    // it calls the legacy Token Program to get account size, which refuses the
+    // Token-2022 mint. There is no way to patch a VersionedTransaction with
+    // Address Lookup Tables to fix this mid-flight, so we block early and ask the
+    // user to swap to SOL/USDC first via the built-in Jupiter swap feature.
+    if (selectedToken!.symbol !== 'SOL') {
+      const sourceTokenAddress = getTokenAddressForLifi(selectedToken!);
+      try {
+        const sourceMintInfo = await connection.getAccountInfo(
+          new PublicKey(sourceTokenAddress),
+        );
+        const isToken2022 =
+          sourceMintInfo?.owner?.toBase58() ===
+          TOKEN_2022_PROGRAM_ID.toBase58();
+        if (isToken2022) {
+          throw new Error(
+            `${selectedToken!.symbol} is a Token-2022 token and cannot be bridged directly. ` +
+            `Please swap ${selectedToken!.symbol} to SOL or USDC first using the Swap feature, then deposit.`,
+          );
+        }
+      } catch (err: any) {
+        // Re-throw our own descriptive error; swallow RPC lookup failures.
+        if (err.message?.includes('Token-2022')) throw err;
+        console.warn('Could not check source mint program:', err);
+      }
+    }
+
+    // Ensure common token ATAs exist before executing the LiFi transaction.
+    // LiFi routes SOL → USDC on Solana (via Jupiter) then bridges USDC to
+    // Polygon. The Token Program's TransferChecked instruction fails with
+    // InvalidAccountData if the user's USDC (or WSOL/USDT) ATA doesn't exist.
+    // We check all common mints unconditionally — simpler and more reliable
+    // than trying to resolve Address Lookup Tables from the v0 transaction.
     setDepositStatus('Checking token accounts...');
 
-    // const ata = await getAssociatedTokenAddress(
-    //   tokenMint,
-    //   walletPubkey,
-    //   false,
-    //   TOKEN_PROGRAM_ID,
-    // );
+    const commonMints: { address: string; symbol: string }[] = [
+      { address: 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v', symbol: 'USDC' },
+      { address: 'Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB', symbol: 'USDT' },
+      { address: 'So11111111111111111111111111111111111111112', symbol: 'WSOL' },
+    ];
+    const sourceTokenAddress = getTokenAddressForLifi(selectedToken!);
+    if (
+      selectedToken!.symbol !== 'SOL' &&
+      !commonMints.some((m) => m.address === sourceTokenAddress)
+    ) {
+      commonMints.push({ address: sourceTokenAddress, symbol: selectedToken!.symbol });
+    }
 
-    // const ataInfo = await connection.getAccountInfo(ata);
+    let createdAnyAta = false;
+    for (const { address: mintAddr, symbol } of commonMints) {
+      try {
+        const mintPubkey = new PublicKey(mintAddr);
 
-    // if (!ataInfo) {
-    //   setDepositStatus('Creating token account...');
+        // Detect whether this mint uses the legacy Token program or Token-2022.
+        // Token-2022 mints are owned by TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb.
+        // Use toBase58() comparison to avoid TypeError if mintInfo is null.
+        const mintInfo = await connection.getAccountInfo(mintPubkey);
+        const tokenProgramId =
+          mintInfo?.owner?.toBase58() === TOKEN_2022_PROGRAM_ID.toBase58()
+            ? TOKEN_2022_PROGRAM_ID
+            : TOKEN_PROGRAM_ID;
 
-    //   const createAtaTx = new Transaction().add(
-    //     createAssociatedTokenAccountInstruction(
-    //       walletPubkey,
-    //       ata,
-    //       walletPubkey,
-    //       tokenMint,
-    //       TOKEN_PROGRAM_ID,
-    //     ),
-    //   );
+        const ata = await getAssociatedTokenAddress(
+          mintPubkey,
+          walletPubkey,
+          false,
+          tokenProgramId,
+        );
 
-    //   const { blockhash: ataBlockhash } =
-    //     await connection.getLatestBlockhash('confirmed');
-    //   createAtaTx.recentBlockhash = ataBlockhash;
-    //   createAtaTx.feePayer = walletPubkey;
+        const ataInfo = await connection.getAccountInfo(ata);
+        if (!ataInfo) {
+          setDepositStatus(`Creating ${symbol} token account...`);
 
-    //   const serializedAtaTx = new Uint8Array(
-    //     createAtaTx.serialize({
-    //       requireAllSignatures: false,
-    //       verifySignatures: false,
-    //     }),
-    //   );
+          const createAtaTx = new Transaction().add(
+            createAssociatedTokenAccountInstruction(
+              walletPubkey,
+              ata,
+              walletPubkey,
+              mintPubkey,
+              tokenProgramId,
+            ),
+          );
 
-    //   await safeRefreshSession();
+          // Use 'finalized' blockhash for cross-RPC compatibility
+          const { blockhash: ataBlockhash } =
+            await connection.getLatestBlockhash('finalized');
+          createAtaTx.recentBlockhash = ataBlockhash;
+          createAtaTx.feePayer = walletPubkey;
 
-    //   let ataSig: string;
-    //   try {
-    //     const ataResult = await signAndSendTransaction({
-    //       transaction: serializedAtaTx,
-    //       wallet: selectedSolanaWallet,
-    //       options: { sponsor: true },
-    //     });
-    //     ataSig = bs58.encode(ataResult.signature);
-    //   } catch (ataError: any) {
-    //     console.log('fallback to non-sponsored', ataError);
-    //     // Fallback to non-sponsored if sponsorship fails
-    //     const ataResult = await signAndSendTransaction({
-    //       transaction: serializedAtaTx,
-    //       wallet: selectedSolanaWallet,
-    //     });
-    //     ataSig = bs58.encode(ataResult.signature);
-    //   }
+          const serializedAtaTx = new Uint8Array(
+            createAtaTx.serialize({
+              requireAllSignatures: false,
+              verifySignatures: false,
+            }),
+          );
 
-    //   await connection.confirmTransaction(ataSig, 'confirmed');
-    //   console.log('ATA created:', ata.toBase58());
-    // }
+          await safeRefreshSession();
 
-    // Decode the transaction
+          // Sign directly — no sponsor, ATA creation is a simple user-pays tx
+          const ataResult = await signAndSendTransaction({
+            transaction: serializedAtaTx,
+            wallet: selectedSolanaWallet,
+          });
+          const ataSig = bs58.encode(ataResult.signature);
+          await connection.confirmTransaction(ataSig, 'finalized');
+          console.log(`Created ${symbol} token account:`, ata.toBase58());
+          createdAnyAta = true;
+        }
+      } catch (ataError) {
+        console.warn(`Could not check/create ATA for ${symbol}:`, ataError);
+      }
+    }
+
+    // If we created any ATAs, wait a moment to ensure all RPC nodes (including
+    // Privy's simulation node) have propagated the confirmed state.
+    if (createdAnyAta) {
+      await new Promise((resolve) => setTimeout(resolve, 3000));
+    }
+
+    // Decode the LiFi transaction
     const txBuffer = Buffer.from(rawTx, 'base64');
     const transaction = VersionedTransaction.deserialize(txBuffer);
 
-    // Get fresh blockhash
+    // Use 'finalized' blockhash so Privy's simulation RPC recognizes it
+    // regardless of which RPC node it uses internally.
     const { blockhash, lastValidBlockHeight } =
-      await connection.getLatestBlockhash('confirmed');
+      await connection.getLatestBlockhash('finalized');
     transaction.message.recentBlockhash = blockhash;
 
     setDepositStatus('Waiting for signature...');
@@ -852,71 +915,16 @@ export default function DepositModal({
     );
     let signatureString: string;
 
-    // LiFi bridge transactions on Solana are often too large for sponsorship
-    // (sponsorship wraps the tx with extra data, exceeding the 1232-byte limit).
-    // Try sponsored first; fall back to non-sponsored on size or abort errors.
-    try {
-      const result = await signAndSendTransaction({
-        transaction: serializedTransaction,
-        wallet: selectedSolanaWallet,
-        options: {
-          sponsor: true,
-        },
-      });
-      signatureString = bs58.encode(result.signature);
-    } catch (sponsorError: any) {
-      console.warn('Sponsored Solana tx failed:', sponsorError);
-      const errorMessage =
-        sponsorError?.message || sponsorError?.toString() || '';
-
-      // Don't retry if user rejected
-      const isUserRejection =
-        errorMessage.includes('rejected') ||
-        errorMessage.includes('denied') ||
-        errorMessage.includes('cancelled') ||
-        errorMessage.includes('user rejected');
-      if (isUserRejection) {
-        throw sponsorError;
-      }
-
-      const isAbortError =
-        sponsorError?.name === 'AbortError' ||
-        errorMessage.includes('aborted') ||
-        errorMessage.includes('AbortError');
-      const isTooLarge =
-        errorMessage.includes('too large') ||
-        errorMessage.includes('Transaction too large');
-
-      if (isAbortError || isTooLarge) {
-        console.warn(
-          `Sponsored transaction failed (${isTooLarge ? 'too large' : 'aborted'}), retrying without sponsorship...`,
-        );
-        setDepositStatus('Retrying transaction...');
-        await safeRefreshSession();
-        const result = await signAndSendTransaction({
-          transaction: serializedTransaction,
-          wallet: selectedSolanaWallet,
-        });
-        signatureString = bs58.encode(result.signature);
-      } else {
-        // For any other sponsorship error, also try without sponsorship
-        console.warn(
-          'Sponsored transaction failed with unexpected error, retrying without sponsorship...',
-        );
-        setDepositStatus('Retrying transaction...');
-        await safeRefreshSession();
-        try {
-          const result = await signAndSendTransaction({
-            transaction: serializedTransaction,
-            wallet: selectedSolanaWallet,
-          });
-          signatureString = bs58.encode(result.signature);
-        } catch (fallbackError) {
-          // If fallback also fails, throw the original error for clarity
-          throw sponsorError;
-        }
-      }
-    }
+    // LiFi bridge transactions on Solana cannot use Privy gas sponsorship.
+    // Sponsorship replaces the fee payer with Privy's sponsor account, but the
+    // user's wallet is also a required signer for the System Program SOL transfer
+    // instruction inside the LiFi transaction. Changing the fee payer breaks
+    // those account references and causes simulation failures. Sign directly.
+    const result = await signAndSendTransaction({
+      transaction: serializedTransaction,
+      wallet: selectedSolanaWallet,
+    });
+    signatureString = bs58.encode(result.signature);
 
     setDepositStatus('Waiting for confirmation...');
 
@@ -1623,7 +1631,9 @@ export default function DepositModal({
   return (
     <CustomModal
       isOpen={open}
-      onClose={step !== 'processing' ? () => onOpenChange(false) : undefined}
+      onClose={
+        step !== 'processing' ? () => onOpenChange(false) : undefined
+      }
       title={modalTitle}
       width="max-w-md"
       removeCloseButton={step === 'processing'}
