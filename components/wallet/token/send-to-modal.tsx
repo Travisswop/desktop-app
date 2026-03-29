@@ -201,9 +201,12 @@ export default function SendToModal({
         transaction: serializedSetupTx,
         wallet: solanaWallet,
       });
-      await connection.confirmTransaction(
-        bs58.encode(setupResult.signature),
-      );
+      const setupBlockhash = await connection.getLatestBlockhash();
+      await connection.confirmTransaction({
+        signature: bs58.encode(setupResult.signature),
+        blockhash: setupBlockhash.blockhash,
+        lastValidBlockHeight: setupBlockhash.lastValidBlockHeight,
+      });
       await new Promise((resolve) => setTimeout(resolve, 2000));
     } catch (error: any) {
       await deleteRedeemLink(user?.id || '', data.poolId);
@@ -250,7 +253,12 @@ export default function SendToModal({
           signAndSendTransaction, // signAndSendTransactionFn with sponsor support
         );
 
-      await connection.confirmTransaction(txSignature);
+      const transferBlockhash = await connection.getLatestBlockhash();
+      await connection.confirmTransaction({
+        signature: txSignature,
+        blockhash: transferBlockhash.blockhash,
+        lastValidBlockHeight: transferBlockhash.lastValidBlockHeight,
+      });
 
       // Update final step to completed
       updateStep(2, 'completed');
