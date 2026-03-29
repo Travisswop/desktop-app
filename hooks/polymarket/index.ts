@@ -20,3 +20,4 @@ export { useGeoblock, type GeoblockStatus } from "./useGeoblock";
 export { useTickSize } from "./useTickSize";
 export { useRedeemPosition } from "./useRedeemPosition";
 export { useOrderHistory } from "./useOrderHistory";
+export { useTradeActivity, type TradeActivity, type ActivityType, type TradeActivityParams } from "./useTradeActivity";

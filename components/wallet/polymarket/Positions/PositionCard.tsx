@@ -102,7 +102,7 @@ export default function PositionCard({
           {/* AVG → NOW */}
           <div>
             <p className="text-xs text-gray-400 mb-0.5">AVG→NOW</p>
-            <p className="text-sm font-bold text-gray-900">{avgCents}¢ → {nowCents}¢</p>
+            <p className="text-xs font-bold text-gray-900 whitespace-nowrap">{avgCents}¢ → {nowCents}¢</p>
           </div>
 
           {/* TRADED */}
