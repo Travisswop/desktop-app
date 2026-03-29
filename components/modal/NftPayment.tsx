@@ -7,6 +7,7 @@ import { useMultiChainTokenData } from '@/lib/hooks/useToken';
 import TokenSelector from '@/app/(public-profile)/sp/[username]/cart/TokenSelector';
 import PaymentShipping from '@/app/(public-profile)/sp/[username]/cart/Shipping';
 import { ChainType } from '@/types/nft';
+import CustomModal from './CustomModal';
 
 const chains: ChainType[] = ['ETHEREUM', 'POLYGON', 'BASE', 'SOLANA'];
 
@@ -124,7 +125,7 @@ export default function NftPaymentModal({
         (account: any) =>
           account.type === 'wallet' &&
           account.walletClientType === 'privy' &&
-          account.chainType === 'solana'
+          account.chainType === 'solana',
       );
 
       if (!hasExistingSolanaWallet) {
@@ -137,7 +138,7 @@ export default function NftPaymentModal({
   const { tokens } = useMultiChainTokenData(
     solWalletAddress,
     evmWalletAddress,
-    chains
+    chains,
   );
 
   useEffect(() => {
@@ -156,31 +157,28 @@ export default function NftPaymentModal({
     <>
       {isOpen && (
         <>
-          <Modal isOpen={isOpen} onOpenChange={onOpenChange}>
-            <ModalContent>
-              <div className="w-full">
-                <ModalBody className="text-center">
-                  {selectedToken ? (
-                    <PaymentShipping
-                      subtotal={currentSubtotal}
-                      selectedToken={selectedToken}
-                      setSelectedToken={setSelectedToken}
-                      amontOfToken={amontOfToken}
-                      walletData={walletData}
-                      customerInfo={currentCustomerInfo}
-                      cartItems={currentCartItems}
-                      orderId={currentOrderId}
-                    />
-                  ) : (
-                    <TokenSelector
-                      assets={tokens}
-                      setSelectedToken={setSelectedToken}
-                    />
-                  )}
-                </ModalBody>
-              </div>
-            </ModalContent>
-          </Modal>
+          <CustomModal
+            isOpen={isOpen}
+            onCloseModal={() => onOpenChange(false)}
+          >
+            {selectedToken ? (
+              <PaymentShipping
+                subtotal={currentSubtotal}
+                selectedToken={selectedToken}
+                setSelectedToken={setSelectedToken}
+                amontOfToken={amontOfToken}
+                walletData={walletData}
+                customerInfo={currentCustomerInfo}
+                cartItems={currentCartItems}
+                orderId={currentOrderId}
+              />
+            ) : (
+              <TokenSelector
+                assets={tokens}
+                setSelectedToken={setSelectedToken}
+              />
+            )}
+          </CustomModal>
         </>
       )}
     </>
