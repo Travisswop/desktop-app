@@ -34,3 +34,6 @@ export {
 
 // Polling utilities
 export { createPollingInterval } from "./polling";
+
+// Error formatting
+export { formatPolymarketError } from "./errors";

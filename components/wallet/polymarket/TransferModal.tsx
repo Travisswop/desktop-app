@@ -50,6 +50,7 @@ import {
   usePolymarketWallet,
 } from '@/providers/polymarket';
 import { useMultiChainTokenData } from '@/lib/hooks/useToken';
+import { formatPolymarketError } from '@/lib/polymarket';
 import { getLifiDepositQuote } from '@/actions/lifiForTokenSwap';
 import { usePolygonBalances } from '@/hooks/polymarket';
 import {
@@ -432,7 +433,7 @@ function DepositTab({
       if (!result.success) throw new Error(result.error);
       setLifiQuote(result.data);
     } catch (err: any) {
-      setQuoteError(err.message || 'Failed to get quote');
+      setQuoteError(formatPolymarketError(err));
     } finally {
       setIsQuoteLoading(false);
     }
@@ -809,19 +810,7 @@ function DepositTab({
       setStep('success');
     } catch (err: any) {
       isTransactionInProgress.current = false;
-      const raw = err.message || 'Failed to complete deposit';
-      let msg = raw;
-      if (
-        ['rejected', 'denied', 'user rejected'].some((s) =>
-          raw.includes(s),
-        )
-      )
-        msg = 'Transaction was rejected. Please try again.';
-      else if (raw.includes('insufficient funds'))
-        msg = 'Insufficient funds for gas fees.';
-      else if (raw.includes('timeout'))
-        msg = 'Transaction timed out.';
-      setError(msg);
+      setError(formatPolymarketError(err));
       setStep('error');
     }
   };

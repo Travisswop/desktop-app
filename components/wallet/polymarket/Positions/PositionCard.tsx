@@ -49,22 +49,22 @@ export default function PositionCard({
     ? position.title
     : getOutcomeDisplayLabel(position.outcome, position.title, position.outcomeIndex);
 
-  const costCents = Math.round(position.avgPrice * 100);
-  const currentCents = Math.round(position.curPrice * 100);
-  const toWin = position.size * position.curPrice;
-  const cost = position.initialValue || position.avgPrice * position.size;
-  const currentValue = position.currentValue;
+  const avgCents = (position.avgPrice * 100).toFixed(1);
+  const nowCents = (position.curPrice * 100).toFixed(1);
+  const traded = position.initialValue || position.size * position.avgPrice;
+  const toWin = position.size; // shares × $1.00 = max payout
+  const value = position.currentValue; // shares × curPrice
   const pnl = position.cashPnl;
-  const pnlRounded = Math.round(Math.abs(pnl));
+  const pnlPct = position.percentPnl;
   const isProfitable = pnl >= 0;
 
   return (
     <>
       <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
-        {/* Header: "You picked [title/outcome]" */}
+        {/* Header: "[N] shares · [title/outcome]" */}
         <div className="flex items-start justify-between px-4 pt-4 pb-3">
           <p className="text-sm text-gray-700 leading-snug flex-1 pr-2">
-            You picked{' '}
+            <span className="font-bold text-gray-900">{position.size} shares</span>{' '}
             <button
               onClick={onTitleClick}
               disabled={!onTitleClick}
@@ -97,40 +97,46 @@ export default function PositionCard({
         {/* Divider */}
         <div className="border-t border-dashed border-gray-200 mx-4" />
 
-        {/* Stats row */}
-        <div className="grid grid-cols-3 gap-0 px-4 pt-3 pb-4">
-          {/* Cost */}
+        {/* Stats grid: 3 cols × 2 rows */}
+        <div className="grid grid-cols-3 gap-x-0 gap-y-3 px-4 pt-3 pb-4">
+          {/* AVG */}
           <div>
-            <p className="text-xs text-gray-400 mb-1">Cost {costCents}¢</p>
-            <p className="text-xl font-bold text-gray-900">
-              ${cost.toFixed(2)}
-            </p>
+            <p className="text-xs text-gray-400 mb-0.5">AVG</p>
+            <p className="text-base font-bold text-gray-900">{avgCents}¢</p>
           </div>
 
-          {/* Current */}
+          {/* NOW */}
           <div>
-            <p className="text-xs text-gray-400 mb-1">
-              Current {currentCents}¢
-            </p>
-            <div className="flex items-baseline gap-1 flex-wrap">
-              <p className="text-xl font-bold text-green-500">
-                ${currentValue.toFixed(2)}
-              </p>
-              {pnlRounded !== 0 && (
-                <span
-                  className={`text-xs font-semibold ${isProfitable ? 'text-green-500' : 'text-red-500'}`}
-                >
-                  {isProfitable ? '+' : '-'}${pnlRounded}
-                </span>
-              )}
-            </div>
+            <p className="text-xs text-gray-400 mb-0.5">NOW</p>
+            <p className="text-base font-bold text-gray-900">{nowCents}¢</p>
           </div>
 
-          {/* To win */}
+          {/* TRADED */}
           <div>
-            <p className="text-xs text-gray-400 mb-1">To win</p>
-            <p className="text-xl font-bold text-gray-900">
-              ${toWin.toFixed(2)}
+            <p className="text-xs text-gray-400 mb-0.5">TRADED</p>
+            <p className="text-base font-bold text-gray-900">${traded.toFixed(2)}</p>
+          </div>
+
+          {/* TO WIN */}
+          <div>
+            <p className="text-xs text-gray-400 mb-0.5">TO WIN</p>
+            <p className="text-base font-bold text-gray-900">${toWin.toFixed(2)}</p>
+          </div>
+
+          {/* VALUE */}
+          <div>
+            <p className="text-xs text-gray-400 mb-0.5">VALUE</p>
+            <p className="text-base font-bold text-gray-900">${value.toFixed(2)}</p>
+          </div>
+
+          {/* P&L */}
+          <div>
+            <p className="text-xs text-gray-400 mb-0.5">P&amp;L</p>
+            <p className={`text-base font-bold ${isProfitable ? 'text-green-500' : 'text-red-500'}`}>
+              {isProfitable ? '+' : ''}{pnl.toFixed(2)}
+            </p>
+            <p className={`text-xs font-medium ${isProfitable ? 'text-green-500' : 'text-red-500'}`}>
+              {isProfitable ? '+' : ''}{pnlPct.toFixed(1)}%
             </p>
           </div>
         </div>
@@ -160,7 +166,7 @@ export default function PositionCard({
               disabled={isSubmitting || !canSell}
               className="flex-1 py-2.5 bg-green-500 hover:bg-green-600 disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-semibold rounded-xl transition-colors"
             >
-              Buy more {currentCents}%
+              Buy more {nowCents}¢
             </button>
             <button
               onClick={() => onSell(position)}
