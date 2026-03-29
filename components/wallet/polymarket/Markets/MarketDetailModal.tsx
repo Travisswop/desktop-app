@@ -93,6 +93,8 @@ type MarketDetailModalProps = {
   balance?: number;
   yesShares?: number;
   noShares?: number;
+  initialOutcome?: 'yes' | 'no';
+  initialAmount?: string;
 };
 
 export default function MarketDetailModal({
@@ -103,6 +105,8 @@ export default function MarketDetailModal({
   balance = 0,
   yesShares = 0,
   noShares = 0,
+  initialOutcome,
+  initialAmount,
 }: MarketDetailModalProps) {
   // ── Derived market data ───────────────────────────────────────────────────
   const outcomes = useMemo(
@@ -190,18 +194,18 @@ export default function MarketDetailModal({
     orderId,
   } = useClobOrder(clobClient, eoaAddress);
 
-  // Reset state whenever the modal opens
+  // Reset state whenever the modal opens; pre-fill from position if provided
   useEffect(() => {
     if (isOpen) {
-      setInputValue('');
+      setInputValue(initialAmount ?? '');
       setOrderType('market');
       setSide('BUY');
-      setSelectedOutcome('yes');
+      setSelectedOutcome(initialOutcome ?? 'yes');
       setLimitPrice('');
       setLocalError(null);
       setShowSuccess(false);
     }
-  }, [isOpen]);
+  }, [isOpen, initialOutcome, initialAmount]);
 
   useEffect(() => {
     setInputValue('');

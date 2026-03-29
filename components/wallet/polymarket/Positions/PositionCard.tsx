@@ -97,46 +97,32 @@ export default function PositionCard({
         {/* Divider */}
         <div className="border-t border-dashed border-gray-200 mx-4" />
 
-        {/* Stats grid: 3 cols × 2 rows */}
-        <div className="grid grid-cols-3 gap-x-0 gap-y-3 px-4 pt-3 pb-4">
-          {/* AVG */}
+        {/* Stats grid: 4 cols */}
+        <div className="grid grid-cols-4 gap-x-2 px-4 pt-3 pb-4">
+          {/* AVG → NOW */}
           <div>
-            <p className="text-xs text-gray-400 mb-0.5">AVG</p>
-            <p className="text-base font-bold text-gray-900">{avgCents}¢</p>
-          </div>
-
-          {/* NOW */}
-          <div>
-            <p className="text-xs text-gray-400 mb-0.5">NOW</p>
-            <p className="text-base font-bold text-gray-900">{nowCents}¢</p>
+            <p className="text-xs text-gray-400 mb-0.5">AVG→NOW</p>
+            <p className="text-sm font-bold text-gray-900">{avgCents}¢ → {nowCents}¢</p>
           </div>
 
           {/* TRADED */}
           <div>
             <p className="text-xs text-gray-400 mb-0.5">TRADED</p>
-            <p className="text-base font-bold text-gray-900">${traded.toFixed(2)}</p>
+            <p className="text-sm font-bold text-gray-900">${traded.toFixed(2)}</p>
           </div>
 
           {/* TO WIN */}
           <div>
             <p className="text-xs text-gray-400 mb-0.5">TO WIN</p>
-            <p className="text-base font-bold text-gray-900">${toWin.toFixed(2)}</p>
+            <p className="text-sm font-bold text-gray-900">${toWin.toFixed(2)}</p>
           </div>
 
-          {/* VALUE */}
+          {/* VALUE + P&L */}
           <div>
             <p className="text-xs text-gray-400 mb-0.5">VALUE</p>
-            <p className="text-base font-bold text-gray-900">${value.toFixed(2)}</p>
-          </div>
-
-          {/* P&L */}
-          <div>
-            <p className="text-xs text-gray-400 mb-0.5">P&amp;L</p>
-            <p className={`text-base font-bold ${isProfitable ? 'text-green-500' : 'text-red-500'}`}>
-              {isProfitable ? '+' : ''}{pnl.toFixed(2)}
-            </p>
-            <p className={`text-xs font-medium ${isProfitable ? 'text-green-500' : 'text-red-500'}`}>
-              {isProfitable ? '+' : ''}{pnlPct.toFixed(1)}%
+            <p className="text-sm font-bold text-gray-900">${value.toFixed(2)}</p>
+            <p className={`text-xs font-medium mt-0.5 ${isProfitable ? 'text-green-500' : 'text-red-500'}`}>
+              {isProfitable ? '+' : '-'}${Math.abs(pnl).toFixed(2)} ({Math.abs(pnlPct).toFixed(1)}%)
             </p>
           </div>
         </div>

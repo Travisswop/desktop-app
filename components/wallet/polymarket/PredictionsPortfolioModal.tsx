@@ -321,7 +321,7 @@ export default function PredictionsPortfolioModal({
         />
 
         {/* Modal */}
-        <div className="relative bg-white rounded-2xl w-full max-w-sm max-h-[90vh] flex flex-col shadow-2xl">
+        <div className="relative bg-white rounded-2xl w-full max-w-md max-h-[90vh] flex flex-col shadow-2xl">
           {/* Close button */}
           <button
             onClick={onClose}
@@ -591,6 +591,8 @@ export default function PredictionsPortfolioModal({
               ? detailPosition.size
               : 0
           }
+          initialOutcome={detailPosition.outcomeIndex === 0 ? 'yes' : 'no'}
+          initialAmount={(detailPosition.initialValue || detailPosition.size * detailPosition.avgPrice).toFixed(2)}
         />
       )}
     </Portal>
