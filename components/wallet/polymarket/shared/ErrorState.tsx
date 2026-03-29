@@ -1,3 +1,5 @@
+import { formatPolymarketError } from '@/lib/polymarket';
+
 interface ErrorStateProps {
   error: Error | unknown;
   title?: string;
@@ -5,10 +7,9 @@ interface ErrorStateProps {
 
 export default function ErrorState({
   error,
-  title = 'Error',
+  title = 'Something went wrong',
 }: ErrorStateProps) {
-  const errorMessage =
-    error instanceof Error ? error.message : 'An unexpected error occurred';
+  const errorMessage = formatPolymarketError(error);
 
   return (
     <div className="bg-red-50 rounded-lg p-6 border border-red-200">

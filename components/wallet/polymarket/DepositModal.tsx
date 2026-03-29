@@ -31,6 +31,7 @@ import {
   usePolymarketWallet,
 } from '@/providers/polymarket';
 import { useMultiChainTokenData } from '@/lib/hooks/useToken';
+import { formatPolymarketError } from '@/lib/polymarket';
 import { getLifiDepositQuote } from '@/actions/lifiForTokenSwap';
 import Image from 'next/image';
 import {
@@ -478,7 +479,7 @@ export default function DepositModal({
       setLifiQuote(result.data);
     } catch (err: any) {
       console.error('Error getting LiFi quote:', err);
-      setQuoteError(err.message || 'Failed to get quote');
+      setQuoteError(formatPolymarketError(err));
     } finally {
       setIsQuoteLoading(false);
     }
@@ -1007,24 +1008,7 @@ export default function DepositModal({
       // Transaction failed - clear the in-progress flag and show error
       isTransactionInProgress.current = false;
 
-      // Parse user-friendly error messages
-      const rawMessage = err.message || 'Failed to complete deposit';
-      let userMessage = rawMessage;
-      if (
-        rawMessage.includes('rejected') ||
-        rawMessage.includes('denied') ||
-        rawMessage.includes('user rejected')
-      ) {
-        userMessage = 'Transaction was rejected. Please try again.';
-      } else if (rawMessage.includes('insufficient funds')) {
-        userMessage =
-          'Insufficient funds for gas fees. Please add funds to your wallet.';
-      } else if (rawMessage.includes('timeout')) {
-        userMessage =
-          'Transaction timed out. Please check your wallet and try again.';
-      }
-
-      setError(userMessage);
+      setError(formatPolymarketError(err));
       setStep('error');
     }
   };

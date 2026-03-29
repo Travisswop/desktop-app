@@ -7,6 +7,7 @@ import {
 } from '@/providers/polymarket';
 import { useUser } from '@/lib/UserContext';
 import { usePolygonBalances } from '@/hooks/polymarket';
+import { formatPolymarketError } from '@/lib/polymarket';
 import { ArrowUpDown, LayoutList } from 'lucide-react';
 import HighVolumeMarkets from '@/components/wallet/polymarket/Markets';
 import GeoBlockedBanner from '@/components/wallet/polymarket/GeoBlockedBanner';
@@ -115,10 +116,7 @@ export default function WalletPredictionsSection() {
         <div className="bg-white rounded-xl p-6 border border-red-100">
           <div className="flex flex-col items-center text-center max-w-sm mx-auto">
             <p className="text-gray-500 text-sm mb-4">
-              {sessionError.message.includes('401') ||
-              sessionError.message.includes('invalid authorization')
-                ? 'Unable to connect to the trading service. Please try again.'
-                : sessionError.message}
+              {formatPolymarketError(sessionError)}
             </p>
             <button
               onClick={() => initializeTradingSession()}

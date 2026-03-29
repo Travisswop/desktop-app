@@ -1,6 +1,7 @@
 'use client';
 
 import { usePolymarketWallet } from '@/providers/polymarket';
+import { formatPolymarketError } from '@/lib/polymarket';
 
 import SessionInfo from './SessionInfo';
 import SessionStatus from './SessionStatus';
@@ -45,10 +46,10 @@ export default function TradingSession({
 
       {error && (
         <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-4">
-          <p className="text-sm text-red-700 font-medium mb-1">Error</p>
-          <pre className="text-xs text-red-600 whitespace-pre-wrap">
-            {error.message}
-          </pre>
+          <p className="text-sm text-red-700 font-medium mb-1">Something went wrong</p>
+          <p className="text-xs text-red-600">
+            {formatPolymarketError(error)}
+          </p>
         </div>
       )}
 
