@@ -1,6 +1,11 @@
 'use client';
-import { DotLottieReact } from '@lottiefiles/dotlottie-react';
+import dynamic from 'next/dynamic';
 import { Modal, ModalBody, ModalContent } from '@nextui-org/react';
+
+const DotLottieReact = dynamic(
+  () => import('@lottiefiles/dotlottie-react').then((m) => ({ default: m.DotLottieReact })),
+  { ssr: false, loading: () => <div className="size-36" /> }
+);
 
 export interface ModelInfo {
   success: boolean;

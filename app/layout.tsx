@@ -5,10 +5,6 @@ import { UserProvider } from '@/lib/UserContext';
 import { Figtree, Inter } from 'next/font/google';
 import { Toaster } from 'react-hot-toast';
 import { Toaster as SonnerToaster } from 'sonner';
-import { SocketChatProvider } from '@/lib/context/NewSocketChatContext';
-import { NotificationProvider } from '@/lib/context/NotificationContext';
-import { WalletProvider } from '@/providers/SyncedWalletProvider';
-import { LiFiWalletProvider } from '@/providers/WalletManagementProvider';
 import { Metadata } from 'next';
 
 const figtree = Figtree({
@@ -65,15 +61,9 @@ export default function RootLayout({
         <SonnerToaster position="top-right" richColors />
 
         <PrivyProvider>
-          <WalletProvider>
-            <LiFiWalletProvider>
-              <UserProvider>
-                <NotificationProvider>
-                  <SocketChatProvider>{children}</SocketChatProvider>
-                </NotificationProvider>
-              </UserProvider>
-            </LiFiWalletProvider>
-          </WalletProvider>
+          <UserProvider>
+            {children}
+          </UserProvider>
         </PrivyProvider>
       </body>
     </html>

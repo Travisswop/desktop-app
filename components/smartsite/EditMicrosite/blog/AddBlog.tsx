@@ -8,7 +8,7 @@ import { postBlog } from "@/actions/blog";
 import { FaTimes } from "react-icons/fa";
 import { sendCloudinaryImage } from "@/lib/SendCloudinaryImage";
 import AnimateButton from "@/components/ui/Button/AnimateButton";
-import { Editor } from "@tinymce/tinymce-react";
+import dynamic from "next/dynamic";
 import toast from "react-hot-toast";
 import { Tooltip } from "@nextui-org/react";
 import { MdInfoOutline } from "react-icons/md";
@@ -35,6 +35,9 @@ const AddBlog = ({ onCloseModal }: any) => {
   // const [editorState, setEditorState] = React.useState(() =>
   //   EditorState.createEmpty()
   // );
+  const Editor = dynamic(() => import("@tinymce/tinymce-react"), {
+  ssr: false,
+});
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [inputError, setInputError] = useState<any>({});
   const [imageFile, setImageFile] = useState<any>(null);

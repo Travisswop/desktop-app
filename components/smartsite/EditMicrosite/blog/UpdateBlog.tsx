@@ -12,13 +12,13 @@ import { MdDelete, MdInfoOutline } from "react-icons/md";
 // import { sendCloudinaryImage } from "@/util/SendCloudinaryImage";
 // import "react-quill/dist/quill.snow.css"; // Add this line if not already present
 // import ReactQuill from "react-quill";
+import dynamic from "next/dynamic";
 import Image from "next/image";
 import CustomFileInput from "@/components/CustomFileInput";
 // import { icon } from "@/util/data/smartsiteIconData";
 import { deleteBlog, updateBlog } from "@/actions/blog";
 import { sendCloudinaryImage } from "@/lib/SendCloudinaryImage";
 import AnimateButton from "@/components/ui/Button/AnimateButton";
-import { Editor } from "@tinymce/tinymce-react";
 import { Tooltip } from "@nextui-org/react";
 import toast from "react-hot-toast";
 import { useUser } from "@/lib/UserContext";
@@ -32,6 +32,10 @@ const UpdateBlog = ({ iconDataObj, isOn, setOff }: any) => {
   const [imageFile, setImageFile] = useState<any>(null);
   const [fileError, setFileError] = useState<string>("");
   const [isDeleteLoading, setIsDeleteLoading] = useState<boolean>(false);
+
+  const Editor = dynamic(() => import("@tinymce/tinymce-react"), {
+  ssr: false,
+});
 
   const modalRef = useRef<HTMLDivElement>(null);
   const closeModal = () => {

@@ -1,7 +1,7 @@
-// app/layout.tsx or _app.tsx or your root component
 "use client";
 
 import { useBalanceVisibilityStore } from "@/zustandStore/useBalanceVisibilityStore";
+import { LiFiWalletProvider } from "@/providers/WalletManagementProvider";
 import { ReactNode, useEffect } from "react";
 
 interface WalletLayoutProps {
@@ -17,5 +17,5 @@ export default function WalletLayout({ children }: WalletLayoutProps) {
     initializeFromCookie();
   }, [initializeFromCookie]);
 
-  return <div>{children}</div>;
+  return <LiFiWalletProvider>{children}</LiFiWalletProvider>;
 }

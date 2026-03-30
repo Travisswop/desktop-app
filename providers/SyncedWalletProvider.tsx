@@ -1,11 +1,5 @@
 'use client';
 
-import {
-  convertExtendedChain,
-  isExtendedChain,
-  useSyncWagmiConfig,
-} from '@lifi/wallet-management';
-import { useAvailableChains } from '@lifi/widget';
 import { WagmiProvider } from '@privy-io/wagmi';
 import {
   QueryClientProvider,
@@ -16,8 +10,6 @@ import { type Chain, mainnet } from 'viem/chains';
 import { SolanaProvider } from './SolanaProvider';
 import { createConfig } from '@privy-io/wagmi';
 import { http } from 'viem';
-import { usePrivy } from '@privy-io/react-auth';
-import { useEffect } from 'react';
 
 // Create a wagmi config
 const wagmiConfig = createConfig({
@@ -32,15 +24,6 @@ const queryClient = new QueryClient();
 
 // Inner component that uses hooks that require QueryClientProvider
 const InnerWalletProvider: FC<PropsWithChildren> = ({ children }) => {
-  const { chains } = useAvailableChains();
-  const { ready, authenticated } = usePrivy();
-
-  const supportedChains: Chain[] = (chains?.map((chain) =>
-    isExtendedChain(chain) ? convertExtendedChain(chain) : chain
-  ) as [Chain, ...Chain[]]) || [mainnet];
-
-  useSyncWagmiConfig(wagmiConfig, [], chains);
-
   return (
     <SolanaProvider>
       <WagmiProvider config={wagmiConfig} reconnectOnMount={false}>

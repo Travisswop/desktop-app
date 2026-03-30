@@ -494,7 +494,6 @@ async function verifyAndCacheToken(
       appId: process.env.NEXT_PUBLIC_PRIVY_APP_ID!,
       appSecret: process.env.PRIVY_APP_SECRET!,
     });
-    console.log('new privy', newPrivy);
 
     const verificationResult = await verifyTokenWithRetry(
       newPrivy,
