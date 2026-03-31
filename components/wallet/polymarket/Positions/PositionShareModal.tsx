@@ -1,6 +1,7 @@
 'use client';
 
-import { X, Info } from 'lucide-react';
+import { useRef, useState } from 'react';
+import { X, Info, Download } from 'lucide-react';
 import type { PolymarketPosition } from '@/hooks/polymarket';
 
 interface PositionShareModalProps {
@@ -18,11 +19,30 @@ function toAmericanOdds(price: number): string {
   return `+${Math.round(((1 - price) / price) * 100)}`;
 }
 
+async function captureTicket(el: HTMLElement): Promise<Blob> {
+  const html2canvas = (await import('html2canvas')).default;
+  const canvas = await html2canvas(el, {
+    backgroundColor: '#ffffff',
+    scale: 3,
+    useCORS: true,
+    logging: false,
+  });
+  return new Promise((resolve, reject) => {
+    canvas.toBlob((blob) => {
+      if (blob) resolve(blob);
+      else reject(new Error('Failed to capture ticket'));
+    }, 'image/png');
+  });
+}
+
 export default function PositionShareModal({
   position,
   isOpen,
   onClose,
 }: PositionShareModalProps) {
+  const ticketRef = useRef<HTMLDivElement>(null);
+  const [isCapturing, setIsCapturing] = useState(false);
+
   if (!isOpen) return null;
 
   const pnl = position.cashPnl;
@@ -33,7 +53,56 @@ export default function PositionShareModal({
   const avgOdds = toAmericanOdds(position.avgPrice);
   const curOdds = toAmericanOdds(position.curPrice);
 
-  const handleShareX = () => {
+  const getBlob = async (): Promise<Blob | null> => {
+    if (!ticketRef.current) return null;
+    setIsCapturing(true);
+    try {
+      return await captureTicket(ticketRef.current);
+    } finally {
+      setIsCapturing(false);
+    }
+  };
+
+  const handleNativeShare = async () => {
+    const blob = await getBlob();
+    if (!blob) return;
+    const file = new File([blob], 'swop-pick.png', { type: 'image/png' });
+    const shareText = `I picked ${position.outcome} on "${position.title}" — ${isProfitable ? `up +$${Math.abs(pnl).toFixed(2)}` : `down -$${Math.abs(pnl).toFixed(2)}`} via @swop_id`;
+
+    if (navigator.canShare?.({ files: [file] })) {
+      await navigator.share({
+        title: position.title,
+        text: shareText,
+        files: [file],
+      });
+    } else if (navigator.share) {
+      // Fallback: share without image
+      await navigator.share({
+        title: position.title,
+        text: shareText,
+        url: `https://polymarket.com/event/${position.eventSlug}`,
+      });
+    } else {
+      // Last resort: download image
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'swop-pick.png';
+      a.click();
+      URL.revokeObjectURL(url);
+    }
+  };
+
+  const handleShareX = async () => {
+    const blob = await getBlob();
+    if (blob) {
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'swop-pick.png';
+      a.click();
+      URL.revokeObjectURL(url);
+    }
     const text = `I picked ${position.outcome} on "${position.title}" — ${isProfitable ? `up +$${Math.abs(pnl).toFixed(2)}` : `down -$${Math.abs(pnl).toFixed(2)}`} via @swop_id`;
     window.open(
       `https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}`,
@@ -41,14 +110,17 @@ export default function PositionShareModal({
     );
   };
 
-  const handleNativeShare = () => {
-    if (navigator.share) {
-      navigator.share({
-        title: position.title,
-        text: `${position.outcome} — ${isProfitable ? '+' : '-'}$${Math.abs(pnl).toFixed(2)} via Swop`,
-        url: `https://polymarket.com/event/${position.eventSlug}`,
-      });
-    }
+  const handleShareInstagram = async () => {
+    const blob = await getBlob();
+    if (!blob) return;
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'swop-pick.png';
+    a.click();
+    URL.revokeObjectURL(url);
+    // Open Instagram after download so user can attach manually
+    setTimeout(() => window.open('https://www.instagram.com/', '_blank'), 400);
   };
 
   return (
@@ -71,7 +143,6 @@ export default function PositionShareModal({
 
           {/* Diamond icon + label */}
           <div className="flex items-center gap-1.5">
-            {/* Polymarket-style diamond */}
             <svg
               width="14"
               height="14"
@@ -92,8 +163,8 @@ export default function PositionShareModal({
           </div>
         </div>
 
-        {/* Main content */}
-        <div className="px-6 pb-5">
+        {/* ── Ticket (captured as image) ── */}
+        <div ref={ticketRef} className="bg-white px-6 pb-5">
           {/* SWOP branding */}
           <div className="text-center mb-5">
             <p className="text-2xl font-black text-gray-900 uppercase">
@@ -131,7 +202,6 @@ export default function PositionShareModal({
 
           {/* Stats */}
           <div className="space-y-3">
-            {/* Loss / Gain */}
             <div className="flex items-center justify-between">
               <span className="text-sm text-gray-400">{pnlLabel}</span>
               <div className="flex items-center gap-2">
@@ -154,7 +224,6 @@ export default function PositionShareModal({
               </div>
             </div>
 
-            {/* Cost */}
             <div className="flex items-center justify-between">
               <span className="text-sm text-gray-400">Cost</span>
               <span className="text-sm font-semibold text-gray-900">
@@ -162,7 +231,6 @@ export default function PositionShareModal({
               </span>
             </div>
 
-            {/* Odds */}
             <div className="flex items-center justify-between">
               <span className="text-sm text-gray-400">Odds</span>
               <span className="text-sm font-semibold text-gray-900">
@@ -172,7 +240,6 @@ export default function PositionShareModal({
               </span>
             </div>
 
-            {/* To win */}
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-1">
                 <span className="text-sm text-gray-400">To win</span>
@@ -194,10 +261,11 @@ export default function PositionShareModal({
 
         {/* Share buttons */}
         <div className="px-6 py-5 flex items-center justify-center gap-6">
-          {/* Instagram */}
+          {/* Instagram — downloads image then opens Instagram */}
           <button
-            onClick={() => window.open('https://www.instagram.com/', '_blank')}
-            className="w-12 h-12 bg-gray-100 hover:bg-gray-200 rounded-full flex items-center justify-center transition-colors"
+            onClick={handleShareInstagram}
+            disabled={isCapturing}
+            className="w-12 h-12 bg-gray-100 hover:bg-gray-200 disabled:opacity-50 rounded-full flex items-center justify-center transition-colors"
             title="Share on Instagram"
           >
             <svg
@@ -209,10 +277,11 @@ export default function PositionShareModal({
             </svg>
           </button>
 
-          {/* X (Twitter) */}
+          {/* X — downloads image + opens tweet */}
           <button
             onClick={handleShareX}
-            className="w-12 h-12 bg-gray-100 hover:bg-gray-200 rounded-full flex items-center justify-center transition-colors"
+            disabled={isCapturing}
+            className="w-12 h-12 bg-gray-100 hover:bg-gray-200 disabled:opacity-50 rounded-full flex items-center justify-center transition-colors"
             title="Share on X"
           >
             <svg
@@ -224,25 +293,33 @@ export default function PositionShareModal({
             </svg>
           </button>
 
-          {/* Native share / upload */}
+          {/* Native share (with image file) */}
           <button
             onClick={handleNativeShare}
-            className="w-12 h-12 bg-gray-100 hover:bg-gray-200 rounded-full flex items-center justify-center transition-colors"
+            disabled={isCapturing}
+            className="w-12 h-12 bg-gray-100 hover:bg-gray-200 disabled:opacity-50 rounded-full flex items-center justify-center transition-colors"
             title="Share"
           >
-            <svg
-              viewBox="0 0 24 24"
-              className="w-5 h-5 text-gray-700"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <path d="M4 12v8a2 2 0 002 2h12a2 2 0 002-2v-8" />
-              <polyline points="16 6 12 2 8 6" />
-              <line x1="12" y1="2" x2="12" y2="15" />
-            </svg>
+            {isCapturing ? (
+              <svg className="animate-spin w-5 h-5 text-gray-500" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+              </svg>
+            ) : (
+              <svg
+                viewBox="0 0 24 24"
+                className="w-5 h-5 text-gray-700"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <path d="M4 12v8a2 2 0 002 2h12a2 2 0 002-2v-8" />
+                <polyline points="16 6 12 2 8 6" />
+                <line x1="12" y1="2" x2="12" y2="15" />
+              </svg>
+            )}
           </button>
         </div>
       </div>

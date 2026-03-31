@@ -21,6 +21,20 @@ interface CommentInputProps {
   onCommentSubmitted?: (newTotalCommentCount: number) => void;
 }
 
+const getFirstDuplicate = (s: string) => {
+  const splitValues = s.split("");
+  let duplicateStr = null;
+  let initialStr = splitValues[0];
+  for (let i = 1; i < splitValues.length; i++) {
+    if (splitValues[i] === initialStr) {
+      return (duplicateStr = splitValues[i]);
+    } else {
+      initialStr = splitValues[i];
+    }
+  }
+  return duplicateStr;
+};
+
 const MAX_LENGTH = 280;
 
 export default function CommentInput({

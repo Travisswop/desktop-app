@@ -7,6 +7,7 @@ import Portal from './shared/Portal';
 import PositionCard from './Positions/PositionCard';
 import SettledCard from './Positions/SettledCard';
 import OrderCard from './Orders/OrderCard';
+import TradeHistory from './Orders/TradeHistory';
 import OrderPlacementModal from './OrderModal';
 import MarketDetailModal from './Markets/MarketDetailModal';
 import {
@@ -14,7 +15,6 @@ import {
   useRedeemPosition,
   useUserPositions,
   useActiveOrders,
-  useOrderHistory,
   usePolygonBalances,
   type PolymarketPosition,
   type PolymarketMarket,
@@ -114,11 +114,6 @@ export default function PredictionsPortfolioModal({
     clobClient,
     safeAddress,
   );
-  const { data: orderHistory = [] } = useOrderHistory(
-    clobClient,
-    safeAddress,
-  );
-
   const { redeemPosition } = useRedeemPosition();
   const { submitOrder, cancelOrder, isSubmitting } = useClobOrder(
     clobClient,
@@ -321,7 +316,7 @@ export default function PredictionsPortfolioModal({
         />
 
         {/* Modal */}
-        <div className="relative bg-white rounded-2xl w-full max-w-sm max-h-[90vh] flex flex-col shadow-2xl">
+        <div className="relative bg-white rounded-2xl w-full max-w-md max-h-[90vh] flex flex-col shadow-2xl">
           {/* Close button */}
           <button
             onClick={onClose}
@@ -504,44 +499,15 @@ export default function PredictionsPortfolioModal({
                         canRedeem={!!relayClient}
                       />
                     ))}
+                    <div className="border-t border-gray-100 pt-1" />
                   </>
                 )}
 
-                {/* Trade execution history */}
-                {!clobClient ? (
-                  settledHistory.length === 0 && (
-                    <div className="text-center py-8">
-                      <p className="text-gray-400 text-sm">
-                        No history available.
-                      </p>
-                    </div>
-                  )
-                ) : orderHistory.length > 0 ? (
-                  <>
-                    {settledHistory.length > 0 && (
-                      <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide pt-1">
-                        Trades
-                      </p>
-                    )}
-                    {orderHistory.map((order) => (
-                      <OrderCard
-                        key={order.id}
-                        order={order}
-                        onCancel={() => {}}
-                        isCancelling={false}
-                        showCancel={false}
-                      />
-                    ))}
-                  </>
-                ) : (
-                  settledHistory.length === 0 && (
-                    <div className="text-center py-8">
-                      <p className="text-gray-400 text-sm">
-                        No history available.
-                      </p>
-                    </div>
-                  )
-                )}
+                {/* Trade execution history from Data API */}
+                <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide">
+                  Trades
+                </p>
+                <TradeHistory walletAddress={safeAddress ?? undefined} />
               </div>
             )}
           </div>
@@ -591,6 +557,8 @@ export default function PredictionsPortfolioModal({
               ? detailPosition.size
               : 0
           }
+          initialOutcome={detailPosition.outcomeIndex === 0 ? 'yes' : 'no'}
+          initialAmount={(detailPosition.initialValue || detailPosition.size * detailPosition.avgPrice).toFixed(2)}
         />
       )}
     </Portal>

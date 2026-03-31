@@ -248,7 +248,8 @@ export class TransactionService {
 
     // Use 'finalized' commitment so Privy's RPC node recognizes the blockhash
     // during pre-flight simulation regardless of which RPC it uses internally.
-    const { blockhash } = await connection.getLatestBlockhash('finalized');
+    const { blockhash } =
+      await connection.getLatestBlockhash('finalized');
     tx.recentBlockhash = blockhash;
     tx.feePayer = new PublicKey(solanaWallet.address);
 
@@ -459,7 +460,8 @@ export class TransactionService {
 
     // Use 'finalized' commitment so Privy's RPC node recognizes the blockhash
     // during pre-flight simulation regardless of which RPC it uses internally.
-    const { blockhash } = await connection.getLatestBlockhash('finalized');
+    const { blockhash } =
+      await connection.getLatestBlockhash('finalized');
     tx.recentBlockhash = blockhash;
     tx.feePayer = new PublicKey(solanaWallet.address);
 
@@ -711,7 +713,10 @@ export class TransactionService {
         }),
       );
 
-      const { blockhash } = await connection.getLatestBlockhash();
+      // Use 'finalized' commitment so Privy's RPC node recognizes the blockhash
+      // during pre-flight simulation regardless of which RPC it uses internally.
+      const { blockhash } =
+        await connection.getLatestBlockhash('finalized');
       tx.recentBlockhash = blockhash;
       tx.feePayer = new PublicKey(solanaWallet.address);
 
@@ -726,7 +731,6 @@ export class TransactionService {
         const result = await signAndSendTransactionFn({
           transaction: serializedTx,
           wallet: solanaWallet,
-          options: { sponsor: true },
         });
         return bs58.encode(result.signature);
       } else if (signTransactionFn) {
@@ -785,20 +789,8 @@ export class TransactionService {
       const tx = new SolanaTransaction();
 
       // Create recipient token account if needed
+      // createAssociatedTokenAccountInstruction charges the payer for ATA rent automatically
       if (!(await connection.getAccountInfo(toTokenAccount))) {
-        const rentExemptMinimum =
-          await connection.getMinimumBalanceForRentExemption(
-            165, // Token account size (for SPL Token 2022 compatibility)
-          );
-
-        tx.add(
-          SystemProgram.transfer({
-            fromPubkey: new PublicKey(solanaWallet.address),
-            toPubkey: new PublicKey(config.tempAddress),
-            lamports: rentExemptMinimum,
-          }),
-        );
-
         tx.add(
           createAssociatedTokenAccountInstruction(
             new PublicKey(solanaWallet.address),
@@ -838,7 +830,10 @@ export class TransactionService {
         );
       }
 
-      const { blockhash } = await connection.getLatestBlockhash();
+      // Use 'finalized' commitment so Privy's RPC node recognizes the blockhash
+      // during pre-flight simulation regardless of which RPC it uses internally.
+      const { blockhash } =
+        await connection.getLatestBlockhash('finalized');
       tx.recentBlockhash = blockhash;
       tx.feePayer = new PublicKey(solanaWallet.address);
 
@@ -853,7 +848,6 @@ export class TransactionService {
         const result = await signAndSendTransactionFn({
           transaction: serializedTx,
           wallet: solanaWallet,
-          options: { sponsor: true },
         });
         return bs58.encode(result.signature);
       } else if (signTransactionFn) {
