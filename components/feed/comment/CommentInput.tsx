@@ -12,6 +12,7 @@ import toast from "react-hot-toast";
 import CommentImagePicker from "./SelectImage";
 import CommentGifPickerContent from "./GifPicker";
 import Emoji from "../Emoji";
+import CommentEmoji from "../CommentEmoji";
 
 interface CommentInputProps {
   postId: string;
@@ -181,7 +182,7 @@ export default function CommentInput({
         <div className="flex items-center gap-3">
           <CommentImagePicker />
           <CommentGifPickerContent />
-          <Emoji
+          <CommentEmoji
             showEmojiPicker={showEmojiPicker}
             setShowEmojiPicker={setShowEmojiPicker}
             onEmojiSelect={handleEmojiSelect}

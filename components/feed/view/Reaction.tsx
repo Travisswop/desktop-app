@@ -557,7 +557,7 @@ const Reaction = memo(
                                 src={
                                   isUrl(feed.smartsiteDetails.profilePic)
                                     ? feed.smartsiteDetails.profilePic
-                                    : `${process.env.NEXT_PUBLIC_APP_URL}/images/user_avator/${feed.smartsiteDetails.profilePic}@3x.png`
+                                    : `/images/user_avator/${feed.smartsiteDetails.profilePic}@3x.png`
                                 }
                                 alt="avatar"
                                 width={36}
@@ -612,7 +612,7 @@ const Reaction = memo(
                             src={
                               isUrl(primarySmartsiteData.profilePic)
                                 ? primarySmartsiteData.profilePic
-                                : `${process.env.NEXT_PUBLIC_APP_URL}/images/user_avator/${primarySmartsiteData.profilePic}@3x.png`
+                                : `/images/user_avator/${primarySmartsiteData.profilePic}@3x.png`
                             }
                             alt="you"
                             width={36}

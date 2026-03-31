@@ -1,6 +1,7 @@
 "use client";
 import EmojiPicker, { EmojiClickData } from "emoji-picker-react";
 import React, { useRef, useEffect } from "react";
+import { BsEmojiSmile } from "react-icons/bs";
 
 interface EmojiProps {
   showEmojiPicker: boolean;
@@ -8,7 +9,7 @@ interface EmojiProps {
   onEmojiSelect: (emoji: string) => void;
 }
 
-const Emoji = ({
+const CommentEmoji = ({
   onEmojiSelect,
   showEmojiPicker,
   setShowEmojiPicker,
@@ -16,8 +17,6 @@ const Emoji = ({
   const pickerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (!showEmojiPicker) return;
-
     const handleClickOutside = (event: MouseEvent) => {
       if (
         pickerRef.current &&
@@ -27,22 +26,42 @@ const Emoji = ({
       }
     };
 
-    document.addEventListener("mousedown", handleClickOutside, true);
-    return () =>
-      document.removeEventListener("mousedown", handleClickOutside, true);
+    if (showEmojiPicker) {
+      setTimeout(() => {
+        document.addEventListener("mousedown", handleClickOutside);
+      }, 0);
+    }
+
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
   }, [showEmojiPicker, setShowEmojiPicker]);
 
   return (
-    // relative here so absolute picker anchors correctly
-    <div className="h-full flex items-center" ref={pickerRef}>
+    <div className=" flex items-center" ref={pickerRef}>
+      {/* ✅ Trigger button */}
+      <button
+        type="button"
+        onClick={(e) => {
+          e.stopPropagation();
+          setShowEmojiPicker(!showEmojiPicker);
+        }}
+        className=""
+      >
+        <BsEmojiSmile size={20} />
+      </button>
+
+      {/* ✅ Picker */}
       {showEmojiPicker && (
-        // adjust positioning as needed — bottom-full places it above the button
-        <div className="h-full w-full lg:w-[80%] mx-auto">
+        <div
+          className="absolute top-full left-1/2 -translate-x-1/2 -translate-y-2 z-50"
+          onClick={(e) => e.stopPropagation()}
+        >
           <EmojiPicker
             onEmojiClick={(emojiData: EmojiClickData) =>
               onEmojiSelect(emojiData.emoji)
             }
-            width="100%"
+            width={300}
             height={350}
           />
         </div>
@@ -51,4 +70,4 @@ const Emoji = ({
   );
 };
 
-export default Emoji;
+export default CommentEmoji;

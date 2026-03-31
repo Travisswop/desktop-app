@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "NODE_OPTIONS='--max-old-space-size=8192' next dev --turbopack",
+    "dev": "next dev --turbopack",
     "dev:webpack": "NODE_OPTIONS='--max-old-space-size=8192' next dev",
     "build": "NODE_OPTIONS='--max-old-space-size=4096' next build",
     "analyze": "ANALYZE=true NODE_OPTIONS='--max-old-space-size=4096' next build",

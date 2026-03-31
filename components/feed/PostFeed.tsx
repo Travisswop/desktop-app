@@ -1,5 +1,5 @@
 "use client";
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { MdOutlineLocationOn } from "react-icons/md";
 import Emoji from "./Emoji";
 import GifPickerContent from "./GifPicker";
@@ -43,6 +43,7 @@ const PostFeed = ({
   setIsPostLoading: any;
 }) => {
   const { user }: any = useUser();
+  const pickerRef = useRef<HTMLDivElement>(null);
   const router = useRouter();
   const { closeModal } = useModalStore();
   const [postLoading, setPostLoading] = useState<boolean>(false);
@@ -239,7 +240,7 @@ const PostFeed = ({
   };
 
   return (
-    <div className="p-6">
+    <div className="p-6 pt-2">
       <div className="flex flex-col gap-2">
         <div className="flex items-start gap-2">
           <UserImageAvatar
@@ -283,7 +284,10 @@ const PostFeed = ({
           {mediaFiles.length > 0 && (
             <div className="mt-4 w-full flex justify-center">
               {mediaFiles.length === 1 && (
-                <div className="relative overflow-hidden rounded-2xl w-1/2">
+                <div
+                  ref={pickerRef}
+                  className="relative overflow-hidden rounded-2xl w-1/2"
+                >
                   <button
                     onClick={() => handleRemoveMedia(0)}
                     className="absolute top-2 right-2 bg-black p-1 rounded-full"
@@ -311,7 +315,10 @@ const PostFeed = ({
 
               {/* Display for 2 media items */}
               {mediaFiles.length === 2 && (
-                <div className="w-full grid grid-cols-2 gap-1 overflow-hidden h-[9rem]">
+                <div
+                  ref={pickerRef}
+                  className="w-full grid grid-cols-2 gap-1 overflow-hidden h-[9rem]"
+                >
                   {mediaFiles.map((file, index) => (
                     <div
                       key={index}
@@ -345,7 +352,10 @@ const PostFeed = ({
 
               {/* Display for 3 media items */}
               {mediaFiles.length === 3 && (
-                <div className="w-full grid grid-cols-3 gap-1 overflow-hidden relative h-[8rem]">
+                <div
+                  ref={pickerRef}
+                  className="w-full grid grid-cols-3 gap-1 overflow-hidden relative h-[8rem]"
+                >
                   {mediaFiles.map((file, index) => (
                     <div
                       key={index}
@@ -379,7 +389,10 @@ const PostFeed = ({
 
               {/* Display for 4 media items */}
               {mediaFiles.length === 4 && (
-                <div className="grid w-full grid-cols-2 gap-1 overflow-hidden h-[18rem]">
+                <div
+                  ref={pickerRef}
+                  className="grid w-full grid-cols-2 gap-1 overflow-hidden h-[18rem]"
+                >
                   {mediaFiles.map((file, index) => (
                     <div
                       key={index}
@@ -512,6 +525,7 @@ const PostFeed = ({
                   setFileError={setFileError}
                   showGifPicker={showGifPicker}
                   setShowGifPicker={setShowGifPicker}
+                  pickerRef={pickerRef}
                 />
               </div>
             )}

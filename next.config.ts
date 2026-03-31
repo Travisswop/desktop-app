@@ -124,6 +124,7 @@ const nextConfig: NextConfig = {
       { protocol: "https", hostname: "**.twitter.com" },
       { protocol: "https", hostname: "**.twimg.com" },
       { protocol: "https", hostname: "**.githubusercontent.com" },
+      { protocol: "https", hostname: "media.tenor.com" },
     ],
   },
 
