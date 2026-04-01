@@ -90,9 +90,7 @@ const Reaction = memo(
     const [animate, setAnimate] = useState(false); // Trigger for the animation
     const [smartsiteId, setSmartsiteId] = useState(""); // Trigger for the animation
     const [primarySmartsiteData, setPrimarySmartsiteData] = useState(null); // Store the primary smartsite data
-    const [isCommentInputOpen, setIsCommentInputOpen] = useState(
-      isFromFeedDetails ? true : false,
-    );
+    const [isCommentInputOpen, setIsCommentInputOpen] = useState(false);
     const [latestCommentCount, setLatestCommentCount] = useState(commentCount);
     const [isPopOpen, setIsPopOpen] = useState(false);
     const [isRepostPopOpen, setIsRepostPopOpen] = useState(false);

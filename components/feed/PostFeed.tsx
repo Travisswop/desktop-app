@@ -58,7 +58,8 @@ const PostFeed = ({
   const [mintData, setMintData] = useState([]);
   const [selectedMintForPost, setSelectedMintForPost] = useState<any>(null);
 
-  // console.log("selectedMintForPost", selectedMintForPost);
+  console.log("selectedMintForPost", selectedMintForPost);
+  console.log("mintData", mintData);
 
   console.log("userbb", user);
 

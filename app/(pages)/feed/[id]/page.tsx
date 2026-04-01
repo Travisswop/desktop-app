@@ -16,10 +16,15 @@ export async function generateMetadata(
   parent: ResolvingMetadata,
 ): Promise<Metadata> {
   const { id } = await params;
-  const url = `${process.env.NEXT_PUBLIC_API_URL}/api/v1/feed/${id}`;
+  const cookieStore = cookies();
+  const userId = (await cookieStore).get("user-id")?.value;
+  const url = `${process.env.NEXT_PUBLIC_API_URL}/api/v2/feed/${id}?userId=${userId}`;
+  console.log("url hole", url);
 
   try {
     const responseData = await getFeedDetails(url);
+    console.log("responseData", responseData);
+
     let feed = responseData?.data;
 
     // Handle repost
@@ -179,12 +184,12 @@ const FeedDetailsPage = async ({
   const userId = (await cookieStore).get("user-id")?.value;
 
   const url = userId
-    ? `${process.env.NEXT_PUBLIC_API_URL}/api/v1/feed/${id}?userId=${userId}`
-    : `${process.env.NEXT_PUBLIC_API_URL}/api/v1/feed/${id}`;
+    ? `${process.env.NEXT_PUBLIC_API_URL}/api/v2/feed/${id}?userId=${userId}`
+    : `${process.env.NEXT_PUBLIC_API_URL}/api/v2/feed/${id}`;
 
   const feedData = await getFeedDetails(url);
 
-  // console.log("feed data", feedData);
+  console.log("feed data", feedData);
 
   return (
     <div className="relative flex flex-col items-center">

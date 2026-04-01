@@ -62,13 +62,10 @@ const CommentGifPickerContent = () => {
       </button>
 
       {showPicker && (
-        <div
-          ref={pickerRef}
-          className="absolute top-full mt-2 left-0 z-[9999]" // ← opens upward
-        >
+        <div ref={pickerRef} className="absolute top-full mt-2 left-0 z-[9999]">
           <GifPicker
             onGifClick={handleGifClick}
-            tenorApiKey={"AIzaSyA-Xn0TwTUBNXY4EBbDCmnAs7o1XYIoZgU"}
+            tenorApiKey={process.env.NEXT_PUBLIC_TENOR_API_KEY || ""}
           />
         </div>
       )}

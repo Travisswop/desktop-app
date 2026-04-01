@@ -20,6 +20,7 @@ import tipImg from "@/public/images/tip.png";
 import TipContentModal from "./TipContent";
 import { formatEns } from "@/lib/formatEnsName";
 import { makeLinksClickable } from "@/lib/makeLinksClickable";
+import { useRouter } from "next/navigation";
 // Assuming FeedItemType is (or will be) available globally or can be imported.
 // For now, using 'any' as a placeholder if FeedItemType is not directly accessible here.
 // Ideally, import FeedItemType from where it's defined (e.g., Feed.tsx or a types file).
@@ -102,6 +103,8 @@ const FeedItem = memo(
       setIsTipModalOpen(true);
     };
 
+    const router = useRouter();
+
     return (
       <div className="flex gap-2 border-b border-gray-200 pb-4">
         <Link
@@ -131,7 +134,10 @@ const FeedItem = memo(
 
         <div className="flex-1">
           {/* User and Feed Info */}
-          <div className="w-full flex items-start justify-between">
+          <div
+            onClick={() => router.push(`/feed/${feed._id}`)}
+            className="w-full flex items-start justify-between cursor-pointer"
+          >
             <div className="w-full">
               <div className="flex items-center gap-1">
                 <div className="flex items-center gap-1">
