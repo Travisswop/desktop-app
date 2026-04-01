@@ -64,7 +64,7 @@ const CommentGifPickerContent = () => {
       {showPicker && (
         <div
           ref={pickerRef}
-          className="absolute bottom-full mb-2 left-0 z-[9999]" // ← opens upward
+          className="absolute top-full mt-2 left-0 z-[9999]" // ← opens upward
         >
           <GifPicker
             onGifClick={handleGifClick}
