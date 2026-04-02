@@ -115,6 +115,8 @@ const nextConfig: NextConfig = {
     // breakage as new tokens appear in LiFi routes.
     remotePatterns: [
       { protocol: "https", hostname: "**" },
+      // Explicitly allow the internal asset host used in dev/preview
+      { protocol: "http", hostname: "172.86.93.253" },
     ],
   },
 

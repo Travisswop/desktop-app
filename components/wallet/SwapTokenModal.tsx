@@ -317,6 +317,9 @@ const tokenCategoryAddresses: Record<TokenCategory, Set<string>> = {
     '0x60a3E35Cc302bFA44Cb288Bc5a4F316Fdb1adb42',
     '0x043eB4B75d0805c43D7C834902E335621983Cf03',
     '0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174',
+    // Polygon native stables
+    '0xc2132D05D31c914a87C6611C10748AEb04B58e8F', // USDT (Polygon)
+    '0x8f3Cf7ad23Cd3CaDbD9735AFf958023239c6A063', // DAI (Polygon)
     // Arbitrum native USDC
     '0xaf88d065e77c8cC2239327C5EDb3A432268e5831',
     // Arbitrum bridged USDC.e
@@ -331,6 +334,52 @@ const tokenCategoryAddresses: Record<TokenCategory, Set<string>> = {
   ]),
 };
 
+// Fallback tokens per chain (used when API returns no tokens for a chain/category)
+const FALLBACK_CHAIN_TOKENS: Record<string, any[]> = {
+  // Polygon stables
+  '137': [
+    {
+      symbol: 'USDC',
+      name: 'USD Coin',
+      address: '0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174',
+      decimals: 6,
+      chain: 'POLYGON',
+      chainId: '137',
+      network: 'polygon',
+      logoURI: 'https://raw.githubusercontent.com/trustwallet/assets/master/blockchains/polygon/assets/0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174/logo.png',
+    },
+    {
+      symbol: 'USDT',
+      name: 'Tether USD',
+      address: '0xc2132D05D31c914a87C6611C10748AEb04B58e8F',
+      decimals: 6,
+      chain: 'POLYGON',
+      chainId: '137',
+      network: 'polygon',
+      logoURI: 'https://raw.githubusercontent.com/trustwallet/assets/master/blockchains/polygon/assets/0xc2132D05D31c914a87C6611C10748AEb04B58e8F/logo.png',
+    },
+    {
+      symbol: 'DAI',
+      name: 'Dai Stablecoin',
+      address: '0x8f3Cf7ad23Cd3CaDbD9735AFf958023239c6A063',
+      decimals: 18,
+      chain: 'POLYGON',
+      chainId: '137',
+      network: 'polygon',
+      logoURI: 'https://raw.githubusercontent.com/trustwallet/assets/master/blockchains/polygon/assets/0x8f3Cf7ad23Cd3CaDbD9735AFf958023239c6A063/logo.png',
+    },
+  ],
+};
+
+// Lowercased lookup tables for case-insensitive matching of token addresses/ids
+const tokenCategoryAddressesLower: Record<TokenCategory, Set<string>> =
+  Object.fromEntries(
+    Object.entries(tokenCategoryAddresses).map(([cat, set]) => [
+      cat,
+      new Set(Array.from(set).map((v) => v.toLowerCase())),
+    ]),
+  ) as Record<TokenCategory, Set<string>>;
+
 /** Bucket a flat token array into the 4 categories – mirrors RN filterTokensByCategory */
 function filterTokensByCategory(
   tokenArray: any[],
@@ -344,24 +393,28 @@ function filterTokensByCategory(
 
   tokenArray.forEach((token) => {
     // FIX: Use address OR id – Solana tokens from Jupiter use `id`, EVM use `address`
-    const identifier = token.address || token.id;
+    const identifier = (token.address || token.id || '').toLowerCase();
     if (!identifier) return;
 
-    let network: string;
-    const cid = token.chainId?.toString();
-    if (cid === '1') network = 'ethereum';
-    else if (cid === '137') network = 'polygon';
-    else if (cid === '8453') network = 'base';
-    else if (cid === '42161') network = 'arbitrum';
-    // FIX: Solana tokens from Jupiter have no chainId OR chainId = 1151111081099710
-    else if (!cid || cid === '1151111081099710') network = 'solana';
-    else return; // skip unknown chains
+    // Normalize chainId: prefer explicit chainId, else derive from chain/network string
+    const derivedChainId =
+      token.chainId?.toString() ?? getChainId(token.chain ?? token.network ?? '');
+    const network = getNetworkByChainId(derivedChainId);
+    if (!network) return; // skip unknown chains
 
+    let matched = false;
     for (const cat of TOKEN_CATEGORIES) {
-      if (tokenCategoryAddresses[cat].has(identifier)) {
+      if (tokenCategoryAddressesLower[cat].has(identifier)) {
         result[cat].push({ ...token, network, isVerified: true });
+        matched = true;
         break;
       }
+    }
+
+    // If token isn't in curated lists, still surface it under "crypto" so the
+    // receive drawer isn't empty for supported chains.
+    if (!matched) {
+      result.crypto.push({ ...token, network, isVerified: false });
     }
   });
 
@@ -481,6 +534,13 @@ function TokenRow({
   token: any;
   onClick: () => void;
 }) {
+  const toBase64 = (str: string) => {
+    if (typeof window === 'undefined') {
+      return Buffer.from(str, 'utf-8').toString('base64');
+    }
+    return btoa(unescape(encodeURIComponent(str)));
+  };
+
   const getInitialSVG = (t: any) => {
     const initials = (t.symbol || '??').slice(0, 2).toUpperCase();
     const colors = [
@@ -492,7 +552,7 @@ function TokenRow({
     ];
     const colorIndex = (t.symbol?.length ?? 0) % colors.length;
     const svg = `<svg width="36" height="36" viewBox="0 0 36 36" xmlns="http://www.w3.org/2000/svg"><rect width="36" height="36" fill="${colors[colorIndex]}" rx="18"/><text x="18" y="24" text-anchor="middle" fill="white" font-size="14" font-weight="bold">${initials}</text></svg>`;
-    return `data:image/svg+xml;base64,${typeof btoa !== 'undefined' ? btoa(svg) : Buffer.from(svg).toString('base64')}`;
+    return `data:image/svg+xml;base64,${toBase64(svg)}`;
   };
 
   const imgSrc =
@@ -903,15 +963,17 @@ export default function SwapTokenModal({
             fetchTokensFromLiFi('42161', '').catch(() => []),
           ]);
 
+        const toArr = (v: any) => (Array.isArray(v) ? v : []);
+
         // FIX: Merge user tokens (which have balance) + fetched tokens.
         // Deduplicate using `address || id` to preserve Solana tokens that use `id`.
         const merged = [
           ...tokens,
-          ...ethTokens,
-          ...polygonTokens,
-          ...baseTokens,
-          ...solanaTokens,
-          ...arbitrumTokens,
+          ...toArr(ethTokens),
+          ...toArr(polygonTokens),
+          ...toArr(baseTokens),
+          ...toArr(solanaTokens),
+          ...toArr(arbitrumTokens),
         ];
         const seen = new Set<string>();
         const deduped = merged.filter((t) => {
@@ -983,21 +1045,57 @@ export default function SwapTokenModal({
     }
 
     const categoryTokens = targetList[currentCategory] ?? [];
+    const resolveNetwork = (t: any) => {
+      const cid = t.chainId?.toString() ?? getChainId(t.chain ?? t.network ?? '');
+      return getNetworkByChainId(cid);
+    };
 
-    // Specific chain selected → filter and show flat
+    // Specific chain selected → filter and show flat (show all tokens, even zero balance)
     if (selectedReceiveChain !== 'all') {
       const network = getNetworkByChainId(selectedReceiveChain);
-      const filtered = categoryTokens.filter(
-        (t) => t.network === network,
+      const tokensOnChain = tempTokens.filter(
+        (t) => (t.network ?? resolveNetwork(t)) === network,
       );
-      return { grouped: false, tokens: filtered };
+      // Prefer curated category ordering; if empty fall back to all tokens on chain.
+      const preferred = categoryTokens.filter(
+        (t) => (t.network ?? resolveNetwork(t)) === network,
+      );
+      if (process.env.NODE_ENV !== 'production') {
+        console.log('Receive drawer debug', {
+          selectedChain: selectedReceiveChain,
+          network,
+          category: currentCategory,
+          preferredCount: preferred.length,
+          tokensOnChainCount: tokensOnChain.length,
+          categoryTokensCount: categoryTokens.length,
+        });
+      }
+      let finalList = preferred.length > 0 ? preferred : tokensOnChain;
+
+      // Fallback: inject curated stable tokens for this chain if still empty
+      if (finalList.length === 0 && currentCategory === 'stable') {
+        const fallback = FALLBACK_CHAIN_TOKENS[selectedReceiveChain];
+        if (fallback?.length) {
+          finalList = fallback;
+          if (process.env.NODE_ENV !== 'production') {
+            console.log('Receive drawer fallback injected', {
+              chain: selectedReceiveChain,
+              count: fallback.length,
+            });
+          }
+        }
+      }
+
+      return { grouped: false, tokens: finalList };
     }
 
     // "All" chains selected → group by network (matches RN stable grouping,
     // extended to all categories so users can see which chain each token is on)
     const groupMap: Record<string, any[]> = {};
-    categoryTokens.forEach((token) => {
-      const net = token.network ?? 'unknown';
+    const tokensToGroup = categoryTokens.length > 0 ? categoryTokens : tempTokens;
+
+    tokensToGroup.forEach((token) => {
+      const net = token.network ?? resolveNetwork(token) ?? 'unknown';
       if (!groupMap[net]) groupMap[net] = [];
       groupMap[net].push(token);
     });
@@ -1157,15 +1255,18 @@ export default function SwapTokenModal({
   }, [searchParams, tempTokens, tokens]);
 
   // ── Pay-token drawer helpers ──────────────────────────────────────────────────
+  const tokenChainId = (t: any) =>
+    t.chainId?.toString() ?? getChainId(t.chain ?? t.network ?? '');
+
   const filterTokensByPayChain = (toks: any[], cId: string) =>
     cId === 'all'
       ? toks
-      : toks.filter((t) => getChainId(t.chain) === cId);
+      : toks.filter((t) => tokenChainId(t) === cId);
 
   const handlePayChainSelect = (cId: string) => {
     setSelectedPayChain(cId);
     setSearchQuery('');
-    setAvailableTokens(filterTokensByPayChain(tokens, cId));
+    setAvailableTokens(filterTokensByPayChain(tempTokens, cId));
   };
 
   const handlePayTokenSearch = (query: string) => {
@@ -1173,8 +1274,8 @@ export default function SwapTokenModal({
     try {
       const base =
         selectedPayChain !== 'all'
-          ? filterTokensByPayChain(tokens, selectedPayChain)
-          : tokens;
+          ? filterTokensByPayChain(tempTokens, selectedPayChain)
+          : tempTokens;
       setAvailableTokens(
         base.filter(
           (t) =>
@@ -1190,11 +1291,11 @@ export default function SwapTokenModal({
   useEffect(() => {
     if (openDrawer && selecting === 'pay') {
       setAvailableTokens(
-        filterTokensByPayChain(tokens, selectedPayChain),
+        filterTokensByPayChain(tempTokens, selectedPayChain),
       );
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [openDrawer, selecting, tokens, selectedPayChain]);
+  }, [openDrawer, selecting, tempTokens, selectedPayChain]);
 
   // ── Quote fetching helpers ────────────────────────────────────────────────────
 
@@ -1297,7 +1398,11 @@ export default function SwapTokenModal({
       else if (payToken?.address) fromTokenAddress = payToken.address;
       else throw new Error('Invalid Solana token');
     } else {
-      if (payToken?.symbol === 'ETH' || payToken?.symbol === 'POL')
+      if (
+        payToken?.symbol === 'ETH' ||
+        payToken?.symbol === 'POL' ||
+        payToken?.symbol === 'MATIC'
+      )
         fromTokenAddress =
           '0x0000000000000000000000000000000000000000';
       else if (payToken?.address) fromTokenAddress = payToken.address;
@@ -1336,8 +1441,8 @@ export default function SwapTokenModal({
       fromAmount,
       slippage: slippage / 100,
     });
-    if (!result.success)
-      throw new Error(result.error || 'Failed to get LiFi quote');
+    if (!result || !result.success)
+      throw new Error(result?.error || 'Failed to get LiFi quote');
     return result.data;
   };
 
