@@ -13,7 +13,12 @@ export const EVM_CHAIN_CONFIG = {
     id: 8453,
     network: 'base-mainnet',
     apiKey: process.env.NEXT_PUBLIC_ALCHEMY_BASE_API_KEY,
-  }
+  },
+  ARBITRUM: {
+    id: 42161,
+    network: 'arb-mainnet',
+    apiKey: process.env.NEXT_PUBLIC_ALCHEMY_ARBITRUM_API_KEY,
+  },
 } as const;
 
 export const CHAINS = {
@@ -68,5 +73,18 @@ export const CHAINS = {
       color: '#66F9A1',
     },
     type: 'solana',
+  },
+  ARBITRUM: {
+    chainId: 42161,
+    transactionApiUrl: 'https://api.etherscan.io/v2',
+    accessToken: process.env.NEXT_PUBLIC_ETHERSCAN_API_KEY_TOKEN,
+    rpcUrl: process.env.NEXT_PUBLIC_ALCHEMY_ARBITRUM_URL,
+    nativeToken: {
+      uuid: 'ethereum', // Arbitrum uses ETH as native gas token
+      symbol: 'ETH',
+      name: 'Ethereum',
+      decimals: 18,
+    },
+    type: 'evm',
   },
 } as const;

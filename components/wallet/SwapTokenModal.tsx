@@ -33,6 +33,13 @@ import {
   useSignAndSendTransaction,
 } from '@privy-io/react-auth/solana';
 import {
+  createPublicClient,
+  encodeFunctionData,
+  erc20Abi,
+  http,
+} from 'viem';
+import { arbitrum, base, bsc, mainnet, polygon } from 'viem/chains';
+import {
   Connection,
   VersionedTransaction,
   PublicKey,
@@ -64,7 +71,7 @@ const getChainIcon = (chainName: string) => {
     ETHEREUM: '/images/IconShop/eTH@3x.png',
     BSC: '/images/IconShop/binance-smart-chain.png',
     POLYGON: '/images/IconShop/polygon@3x.png',
-    ARBITRUM: '/images/IconShop/arbitrum.png',
+    ARBITRUM: '/assets/icons/arbitrum.png',
     BASE: '/assets/icons/base.png',
   };
   return chainIcons[chainName.toUpperCase()] || null;
@@ -104,6 +111,36 @@ const getExplorerUrl = (chainId: string, txHash: string): string => {
     '8453': `https://basescan.org/tx/${txHash}`,
   };
   return explorerUrls[chainId] || `https://etherscan.io/tx/${txHash}`;
+};
+
+const getViemChain = (chainId: number) => {
+  switch (chainId) {
+    case 1:
+      return mainnet;
+    case 56:
+      return bsc;
+    case 137:
+      return polygon;
+    case 42161:
+      return arbitrum;
+    case 8453:
+      return base;
+    default:
+      return null;
+  }
+};
+
+const isNativeEvmToken = (token?: any) => {
+  const sym = token?.symbol?.toUpperCase();
+  const addr = token?.address?.toLowerCase();
+  return (
+    sym === 'ETH' ||
+    sym === 'POL' ||
+    sym === 'MATIC' ||
+    sym === 'BNB' ||
+    sym === 'AVAX' ||
+    addr === '0x0000000000000000000000000000000000000000'
+  );
 };
 
 const sanitizeImageUrl = (url: string | undefined): string => {
@@ -280,6 +317,12 @@ const tokenCategoryAddresses: Record<TokenCategory, Set<string>> = {
     '0x60a3E35Cc302bFA44Cb288Bc5a4F316Fdb1adb42',
     '0x043eB4B75d0805c43D7C834902E335621983Cf03',
     '0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174',
+    // Arbitrum native USDC
+    '0xaf88d065e77c8cC2239327C5EDb3A432268e5831',
+    // Arbitrum bridged USDC.e
+    '0xFF970A61A04b1cA14834A43f5dE4533eBDDB5CC8',
+    // Arbitrum USDT
+    '0xFd086bC7CD5C481DCC9C85ebE478A1C0b69FCbb9',
     'Crn4x1Y2HUKko7ox2EZMT6N2t2ZyH7eKtwkBGVnhEq1g',
     'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v',
     'Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB',
@@ -309,6 +352,7 @@ function filterTokensByCategory(
     if (cid === '1') network = 'ethereum';
     else if (cid === '137') network = 'polygon';
     else if (cid === '8453') network = 'base';
+    else if (cid === '42161') network = 'arbitrum';
     // FIX: Solana tokens from Jupiter have no chainId OR chainId = 1151111081099710
     else if (!cid || cid === '1151111081099710') network = 'solana';
     else return; // skip unknown chains
@@ -366,6 +410,11 @@ const ALL_CHAINS = [
     name: 'BASE',
     icon: '/assets/icons/base.png',
   },
+  {
+    id: '42161',
+    name: 'ARB',
+    icon: '/assets/icons/arbitrum.png',
+  },
 ];
 
 const PAY_CHAINS = [
@@ -386,6 +435,11 @@ const PAY_CHAINS = [
     name: 'BASE',
     icon: 'https://www.base.org/document/safari-pinned-tab.svg',
   },
+  {
+    id: '42161',
+    name: 'ARB',
+    icon: '/assets/icons/arbitrum.png',
+  },
 ];
 
 const CATEGORY_LABELS: Record<TokenCategory, string> = {
@@ -401,6 +455,7 @@ const NETWORK_DISPLAY_ORDER = [
   'ethereum',
   'polygon',
   'base',
+  'arbitrum',
   'bsc',
 ];
 
@@ -500,19 +555,19 @@ function TokenRow({
         <p className="text-xs text-gray-400 truncate">{token.name}</p>
       </div>
 
-      {/* Right side: price + balance */}
-      <div className="flex flex-col items-end flex-shrink-0 gap-0.5">
-        {priceStr && (
-          <span className="text-sm text-gray-500">
-            ${parseFloat(priceStr).toFixed(2)}
-          </span>
-        )}
-        {hasBalance && (
+      {/* Right side: only show value when user actually holds the token */}
+      {hasBalance && (
+        <div className="flex flex-col items-end flex-shrink-0 gap-0.5">
+          {priceStr && (
+            <span className="text-sm text-gray-500">
+              ${(parseFloat(token.balance) * parseFloat(priceStr)).toFixed(2)}
+            </span>
+          )}
           <span className="text-xs font-medium text-gray-700">
             {parseFloat(token.balance).toFixed(4)}
           </span>
-        )}
-      </div>
+        </div>
+      )}
     </button>
   );
 }
@@ -551,13 +606,22 @@ function NetworkHeader({ network }: { network: string }) {
 export default function SwapTokenModal({
   tokens,
   token,
+  defaultReceiveToken,
+  defaultReceiveChainId,
+  onSwapComplete,
 }: {
   tokens: any[];
   token?: any;
+  /** Pre-select the receive token (e.g. Arbitrum USDC for perps deposit) */
+  defaultReceiveToken?: any;
+  /** Chain ID string for the pre-selected receive token (e.g. "42161") */
+  defaultReceiveChainId?: string;
+  /** Called after a swap tx is submitted successfully */
+  onSwapComplete?: (txHash: string) => void;
 }) {
   // ── Core swap state ──────────────────────────────────────────────────────────
   const [payToken, setPayToken] = useState<any>(token || null);
-  const [receiveToken, setReceiveToken] = useState<any>(null);
+  const [receiveToken, setReceiveToken] = useState<any>(defaultReceiveToken || null);
   const [payAmount, setPayAmount] = useState('');
   const [receiveAmount, setReceiveAmount] = useState('');
   const [openDrawer, setOpenDrawer] = useState(false);
@@ -573,7 +637,7 @@ export default function SwapTokenModal({
   // Quote & swap
   const [isCalculating, setIsCalculating] = useState(false);
   const [chainId, setChainId] = useState('1151111081099710');
-  const [receiverChainId, setReceiverChainId] = useState('137');
+  const [receiverChainId, setReceiverChainId] = useState(defaultReceiveChainId || '137');
   const [quote, setQuote] = useState<any>(null);
   const [jupiterQuote, setJupiterQuote] = useState<any>(null);
   const [swapError, setSwapError] = useState<string | null>(null);
@@ -766,12 +830,69 @@ export default function SwapTokenModal({
     [payToken, receiveToken, receiverChainId],
   );
 
+  const toHex = (value: bigint) => `0x${value.toString(16)}`;
+
+  const ensureEvmAllowance = useCallback(
+    async (
+      params: {
+        tokenAddress: string;
+        owner: string;
+        spender: string;
+        amountWei: string; // decimal string in smallest units
+        chainId: number;
+        provider: any; // EIP-1193 provider
+        walletClientType?: string;
+        switchChain?: (chainId: number) => Promise<void>;
+      },
+    ) => {
+      const { tokenAddress, owner, spender, amountWei, chainId, provider, walletClientType, switchChain } = params;
+
+      // Native tokens (ETH/MATIC/BNB/…) require no allowance.
+      if (!tokenAddress || tokenAddress === '0x0000000000000000000000000000000000000000') return;
+
+      const chain = getViemChain(chainId);
+      if (!chain) throw new Error('Unsupported EVM chain');
+
+      const client = createPublicClient({ chain, transport: http() });
+      const allowance = await client.readContract({
+        address: tokenAddress as `0x${string}`,
+        abi: erc20Abi,
+        functionName: 'allowance',
+        args: [owner as `0x${string}`, spender as `0x${string}`],
+      });
+
+      if (allowance >= BigInt(amountWei)) return; // Already approved
+
+      if (walletClientType !== 'privy' && switchChain) {
+        await switchChain(chainId);
+      }
+
+      const approveData = encodeFunctionData({
+        abi: erc20Abi,
+        functionName: 'approve',
+        args: [spender as `0x${string}`, BigInt(amountWei)],
+      });
+
+      await provider.request({
+        method: 'eth_sendTransaction',
+        params: [
+          {
+            from: owner,
+            to: tokenAddress,
+            data: approveData,
+          },
+        ],
+      });
+    },
+    [],
+  );
+
   // ── Load & bucket all receive tokens on mount ─────────────────────────────────
   useEffect(() => {
     const loadReceiveTokens = async () => {
       setReceiveDrawerLoading(true);
       try {
-        const [ethTokens, polygonTokens, baseTokens, solanaTokens] =
+        const [ethTokens, polygonTokens, baseTokens, solanaTokens, arbitrumTokens] =
           await Promise.all([
             fetchTokensFromLiFi('1', '').catch(() => []),
             fetchTokensFromLiFi('137', '').catch(() => []),
@@ -779,6 +900,7 @@ export default function SwapTokenModal({
             fetchTokensFromLiFi('1151111081099710', '').catch(
               () => [],
             ),
+            fetchTokensFromLiFi('42161', '').catch(() => []),
           ]);
 
         // FIX: Merge user tokens (which have balance) + fetched tokens.
@@ -789,6 +911,7 @@ export default function SwapTokenModal({
           ...polygonTokens,
           ...baseTokens,
           ...solanaTokens,
+          ...arbitrumTokens,
         ];
         const seen = new Set<string>();
         const deduped = merged.filter((t) => {
@@ -1712,6 +1835,7 @@ export default function SwapTokenModal({
 
       await saveSwapToDatabase(txId, activeQuote);
       setSwapStatus('Transaction confirmed');
+      onSwapComplete?.(txId);
     } catch (error: any) {
       setSwapError(
         formatUserFriendlyError(
@@ -1866,6 +1990,35 @@ export default function SwapTokenModal({
           return;
         }
 
+        // --- New: ensure ERC20 allowance for LiFi contract before sending main tx ---
+        const isNative = isNativeEvmToken(payToken);
+        const spender = (quote as any)?.estimate?.approvalAddress || (quote as any)?.approvalAddress;
+        const tokenAddr = payToken?.address;
+        const amountRaw = (quote as any)?.estimate?.fromAmount || (quote as any)?.fromAmount;
+
+        if (!isNative && spender && tokenAddr && amountRaw) {
+          try {
+            await ensureEvmAllowance({
+              tokenAddress: tokenAddr,
+              owner: wallet.address as string,
+              spender,
+              amountWei: amountRaw.toString(),
+              chainId: fromChainId,
+              provider,
+              walletClientType: wallet.walletClientType,
+              switchChain: wallet.switchChain?.bind(wallet),
+            });
+          } catch (allowErr: any) {
+            setSwapError(
+              formatUserFriendlyError(
+                allowErr?.message || 'Token approval failed',
+              ),
+            );
+            setIsSwapping(false);
+            return;
+          }
+        }
+
         setSwapStatus('Waiting for confirmation...');
         // LiFi can return an inflated gas limit that exceeds the chain's block
         // gas cap (Polygon cap: ~30M). Clamp it to a safe ceiling.
@@ -1894,6 +2047,7 @@ export default function SwapTokenModal({
         setTxHash(txHashResult);
         setSwapStatus('Swap completed successfully!');
         await saveSwapToDatabase(txHashResult, quote);
+        onSwapComplete?.(txHashResult);
       }
     } catch (error: any) {
       const friendlyError = formatUserFriendlyError(
@@ -2313,15 +2467,7 @@ export default function SwapTokenModal({
                       />
                       {(() => {
                         const chainName =
-                          receiverChainId === '1151111081099710'
-                            ? 'SOLANA'
-                            : receiverChainId === '1'
-                              ? 'ETHEREUM'
-                              : receiverChainId === '137'
-                                ? 'POLYGON'
-                                : receiverChainId === '8453'
-                                  ? 'BASE'
-                                  : receiveToken.chain || 'SOLANA';
+                          getNetworkByChainId(receiverChainId).toUpperCase();
                         return (
                           <div className="absolute -bottom-1 -right-1 rounded-full flex items-center justify-center w-4 h-4">
                             <Image

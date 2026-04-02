@@ -72,6 +72,10 @@ import {
 // Tab Components
 import { AssetsTab } from './tabs';
 
+// Perps
+import { PerpsCard, PerpsPanel, DepositModal } from './perps';
+import SwapTokenModal from './SwapTokenModal';
+
 // Utilities
 import Cookies from 'js-cookie';
 import { calculateTransactionAmount } from '@/lib/utils/transactionUtils';
@@ -94,6 +98,7 @@ const TOKEN_COLORS: Record<string, string> = {
   XRP: '#06b6d4',
   MATIC: '#8b5cf6',
   POL: '#8b5cf6',
+  ARB: '#12aaff',
   default: '#6b7280',
 };
 
@@ -178,6 +183,9 @@ const WalletContentInner = () => {
     useState(false);
 
   const [walletSetting, setWalletSetting] = useState(false);
+  const [perpsPanelOpen, setPerpsPanelOpen] = useState(false);
+  const [perpsDepositOpen, setPerpsDepositOpen] = useState(false);
+  const [arbitrumBridgeOpen, setArbitrumBridgeOpen] = useState(false);
 
   // Ref to track wallet creation attempts
   const walletCreationAttempted = useRef(false);
@@ -848,22 +856,12 @@ const WalletContentInner = () => {
               refetchNFTs={refetchNFTs}
             />
 
-            {/* Perps Card - Coming Soon */}
-            <div className="bg-white rounded-xl p-4 flex flex-col min-h-[380px] drop-shadow-lg">
-              <div className="flex items-center justify-between mb-4">
-                <span className="font-semibold text-gray-700">
-                  Perps Balance
-                </span>
-              </div>
-              <div className="flex-1 flex flex-col items-center justify-center gap-2">
-                <p className="text-2xl font-semibold text-gray-300">
-                  Coming Soon
-                </p>
-                <p className="text-sm text-gray-400">
-                  Perpetuals trading is on its way
-                </p>
-              </div>
-            </div>
+            {/* Perps Card — Hyperliquid */}
+            <PerpsCard
+              masterAddress={evmWalletAddress ?? undefined}
+              onOpenTrading={() => setPerpsPanelOpen(true)}
+              onOpenDeposit={() => setPerpsDepositOpen(true)}
+            />
           </div>
         </div>
 
@@ -896,6 +894,66 @@ const WalletContentInner = () => {
           setSendFlow={setSendFlow}
           solBalance={solBalance}
         />
+
+        {/* Perps full-screen panel */}
+        {perpsPanelOpen && (
+          <PerpsPanel
+            masterAddress={evmWalletAddress ?? undefined}
+            onClose={() => setPerpsPanelOpen(false)}
+            onOpenDeposit={() => setPerpsDepositOpen(true)}
+          />
+        )}
+
+        {/* Perps Deposit Modal — rendered at root so fixed positioning is unobstructed */}
+        <DepositModal
+          isOpen={perpsDepositOpen}
+          onClose={() => setPerpsDepositOpen(false)}
+          masterAddress={evmWalletAddress ?? null}
+          onBridgeToArbitrum={() => {
+            setPerpsDepositOpen(false);
+            setArbitrumBridgeOpen(true);
+          }}
+        />
+
+        {/* Arbitrum Bridge Modal — uses existing SwapTokenModal pre-set to Arbitrum USDC */}
+        {arbitrumBridgeOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center">
+            <div
+              className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+              onClick={() => setArbitrumBridgeOpen(false)}
+            />
+            <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-lg mx-4 p-4 max-h-[90vh] overflow-y-auto">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-lg font-bold text-gray-800">
+                  Bridge to Arbitrum USDC
+                </h2>
+                <button
+                  onClick={() => setArbitrumBridgeOpen(false)}
+                  className="text-gray-400 hover:text-gray-600 text-2xl leading-none"
+                >
+                  ×
+                </button>
+              </div>
+              <SwapTokenModal
+                tokens={tokens}
+                defaultReceiveToken={{
+                  symbol: 'USDC',
+                  name: 'USD Coin',
+                  address: '0xaf88d065e77c8cC2239327C5EDb3A432268e5831',
+                  decimals: 6,
+                  chain: 'ARBITRUM',
+                  chainId: 42161,
+                  logoURI: 'https://raw.githubusercontent.com/trustwallet/assets/master/blockchains/arbitrum/assets/0xaf88d065e77c8cC2239327C5EDb3A432268e5831/logo.png',
+                }}
+                defaultReceiveChainId="42161"
+                onSwapComplete={() => {
+                  setArbitrumBridgeOpen(false);
+                  setPerpsDepositOpen(true);
+                }}
+              />
+            </div>
+          </div>
+        )}
 
         <Toaster />
       </div>

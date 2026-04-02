@@ -90,10 +90,7 @@ export default function HighVolumeMarkets({
   });
 
   // Flatten all pages into a single list
-  const allMarkets = useMemo(
-    () => data?.pages.flat() ?? [],
-    [data],
-  );
+  const allMarkets = useMemo(() => data?.pages.flat() ?? [], [data]);
 
   // Filter by search query (client-side across all loaded markets)
   const filteredMarkets = useMemo(() => {
@@ -269,19 +266,20 @@ export default function HighVolumeMarkets({
     />
   );
 
-  const loadMoreSentinel = (hasNextPage || isFetchingNextPage) ? (
-    <div
-      ref={sentinelRef}
-      className="flex items-center justify-center py-4 gap-2 text-sm text-gray-400"
-    >
-      <div className="w-4 h-4 border-2 border-gray-300 border-t-gray-600 rounded-full animate-spin" />
-      Loading more markets...
-    </div>
-  ) : allMarkets.length > 0 ? (
-    <p className="text-center text-xs text-gray-400 py-3">
-      All {allMarkets.length} markets loaded
-    </p>
-  ) : null;
+  const loadMoreSentinel =
+    hasNextPage || isFetchingNextPage ? (
+      <div
+        ref={sentinelRef}
+        className="flex items-center justify-center py-4 gap-2 text-sm text-gray-400"
+      >
+        <div className="w-4 h-4 border-2 border-gray-300 border-t-gray-600 rounded-full animate-spin" />
+        Loading more markets...
+      </div>
+    ) : allMarkets.length > 0 ? (
+      <p className="text-center text-xs text-gray-400 py-3">
+        All {allMarkets.length} markets loaded
+      </p>
+    ) : null;
 
   const renderMarketCard = (market: PolymarketMarket) => (
     <MarketCard
@@ -409,7 +407,7 @@ export default function HighVolumeMarkets({
           </div>
 
           {/* Right column — scrollable */}
-          <div className="min-w-0 overflow-y-auto max-h-[calc(100vh-360px)] pr-1">
+          <div className="min-w-0 overflow-y-auto max-h-[calc(100vh-102px)] pr-1">
             {isLoading && <LoadingState message="" />}
             {!isLoading &&
               !error &&
@@ -475,15 +473,18 @@ export default function HighVolumeMarkets({
             />
           )}
 
-        {!isLoading && !error && filteredMarkets && filteredMarkets.length > 0 && (
-          <>
-            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
-              {filteredMarkets.map(renderMarketCard)}
-            </div>
+        {!isLoading &&
+          !error &&
+          filteredMarkets &&
+          filteredMarkets.length > 0 && (
+            <>
+              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+                {filteredMarkets.map(renderMarketCard)}
+              </div>
 
-            {loadMoreSentinel}
-          </>
-        )}
+              {loadMoreSentinel}
+            </>
+          )}
       </div>
 
       {modals}

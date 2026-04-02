@@ -2,16 +2,30 @@
 
 import { LiFiWidget, WidgetConfig } from '@lifi/widget';
 import { WidgetEvent, useWidgetEvents } from '@lifi/widget';
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ChainId } from '@lifi/widget';
+import { EVM } from '@lifi/sdk';
 import { useWallets } from '@privy-io/react-auth';
 import { useWallets as useSolanaWallets } from '@privy-io/react-auth/solana';
 import { useWallet } from '@solana/wallet-adapter-react';
+import { createWalletClient, custom } from 'viem';
+import { mainnet, polygon, base, arbitrum, optimism, bsc } from 'viem/chains';
 import { PrivySolanaSync } from './PrivySolanaSync';
 import { PrivyWalletAdapter } from './PrivyWalletAdapter'; // Import your adapter
 import { PrivyTransactionSignerProvider } from './PrivyTransactionSigner';
 import SwapModal from './swapModal/SwapModal';
 import { useSwapStore } from '@/zustandStore/tokenSwapProps';
+
+// Map numeric chainId → viem Chain object so wallet clients are properly typed.
+// Add chains here whenever new networks are supported.
+const VIEM_CHAIN_MAP: Record<number, Parameters<typeof createWalletClient>[0]['chain']> = {
+  [mainnet.id]:   mainnet,
+  [polygon.id]:   polygon,
+  [base.id]:      base,
+  [arbitrum.id]:  arbitrum,
+  [optimism.id]:  optimism,
+  [bsc.id]:       bsc,
+};
 
 const defaultConfig = {
   variant: 'compact',
@@ -116,6 +130,12 @@ export default function LiFiModal({
   const [privyAdapter, setPrivyAdapter] =
     useState<PrivyWalletAdapter | null>(null);
 
+  // Tracks the chainId last set by switchEvmChain so getEvmWalletClient
+  // can include the correct chain object on every wallet client it returns.
+  // LiFi always calls switchChain(id) before getWalletClient(), so this ref
+  // is always populated by the time a transaction is sent.
+  const activeEvmChainIdRef = useRef<number>(ChainId.ETH);
+
   const widgetEvents = useWidgetEvents();
 
   // Find Ethereum and Solana wallets
@@ -125,6 +145,50 @@ export default function LiFiModal({
       wallet.chainId &&
       wallet.chainId.includes('eip155:'),
   );
+
+  // ─── Custom EVM provider for LiFi SDK ──────────────────────────────────
+  // Bypasses wagmi's connector chain-switching entirely.
+  // Privy's EIP-1193 provider natively supports all EVM chains, so
+  // signTypedData (used for EIP-2612 permits) always uses the correct domain.
+  const getEvmWalletClient = useCallback(async () => {
+    // Prefer external wallet (MetaMask/Rabby) for master-account bridging;
+    // fall back to Privy embedded EVM wallet.
+    const evmWallet =
+      wallets.find((w) => w.walletClientType !== 'privy') ??
+      wallets.find((w) => w.chainId?.includes('eip155:'));
+    if (!evmWallet) throw new Error('No EVM wallet connected');
+    const provider = await evmWallet.getEthereumProvider();
+    // chain MUST be set — viem's sendTransaction (used for approve) asserts
+    // that the wallet client has a chain or throws "No chain was provided".
+    // activeEvmChainIdRef is kept in sync by switchEvmChain which LiFi always
+    // calls before requesting a wallet client for a new chain.
+    const chain = VIEM_CHAIN_MAP[activeEvmChainIdRef.current] ?? VIEM_CHAIN_MAP[ChainId.ETH];
+    return createWalletClient({
+      account: evmWallet.address as `0x${string}`,
+      chain,
+      transport: custom(provider),
+    });
+  }, [wallets]);
+
+  const switchEvmChain = useCallback(async (chainId: number) => {
+    const evmWallet =
+      wallets.find((w) => w.walletClientType !== 'privy') ??
+      wallets.find((w) => w.chainId?.includes('eip155:'));
+    if (!evmWallet) throw new Error('No EVM wallet connected');
+    // For external wallets, explicitly request the chain switch so
+    // MetaMask/Rabby shows the correct network before signing permits.
+    if (evmWallet.walletClientType !== 'privy') {
+      await evmWallet.switchChain(chainId);
+    }
+    // Persist so getEvmWalletClient returns a client on the correct chain.
+    activeEvmChainIdRef.current = chainId;
+    const provider = await evmWallet.getEthereumProvider();
+    return createWalletClient({
+      account: evmWallet.address as `0x${string}`,
+      chain: VIEM_CHAIN_MAP[chainId],
+      transport: custom(provider),
+    });
+  }, [wallets]);
 
   const solWallet =
     solWallets && solWallets.length > 0 ? solWallets[0] : null;
@@ -254,8 +318,15 @@ export default function LiFiModal({
       ...defaultConfig,
       integrator,
       sdkConfig: {
+        // Provide private RPC URLs for all chains LiFi can route through.
+        // Without these, the LiFi SDK falls back to public RPCs which are
+        // rate-limited and can return stale nonces, causing permit failures.
         rpcUrls: {
-          [ChainId.SOL]: [process.env.NEXT_PUBLIC_SOLANA_RPC_URL],
+          [ChainId.ETH]: [process.env.NEXT_PUBLIC_ALCHEMY_ETH_URL!].filter(Boolean),
+          [ChainId.POL]: [process.env.NEXT_PUBLIC_ALCHEMY_POLYGON_URL!].filter(Boolean),
+          [ChainId.BAS]: [process.env.NEXT_PUBLIC_ALCHEMY_BASE_URL!].filter(Boolean),
+          [ChainId.ARB]: [process.env.NEXT_PUBLIC_ALCHEMY_ARBITRUM_URL!].filter(Boolean),
+          [ChainId.SOL]: [process.env.NEXT_PUBLIC_SOLANA_RPC_URL!].filter(Boolean),
         },
       },
     };
@@ -331,7 +402,14 @@ export default function LiFiModal({
         },
       };
     }
-    // For Ethereum wallet
+    // For Ethereum wallet — inject a custom EVM provider so LiFi's SDK uses
+    // Privy's EIP-1193 provider directly for ALL signing operations.
+    // Also set disableMessageSigning=true because Privy embedded wallets are
+    // EIP-7702 smart accounts: their eth_signTypedData_v4 signs with a session
+    // sub-key, so ecrecover on-chain returns the sub-key address, not the
+    // account address → EIP2612: invalid signature.
+    // disableMessageSigning forces LiFi to use the standard approve+transferFrom
+    // flow instead of EIP-2612 native permits or Permit2.
     else if (ethWallet) {
       return {
         ...baseConfig,
@@ -340,16 +418,31 @@ export default function LiFiModal({
           allow: [
             ChainId.ETH,
             ChainId.POL,
-            ChainId.BSC,
+            ChainId.BAS,
             ChainId.ARB,
             ChainId.OPT,
+          ],
+        },
+        sdkConfig: {
+          ...baseConfig.sdkConfig,
+          executionOptions: {
+            // Disable EIP-2612 native permits and Permit2 message signing.
+            // This is the official LiFi flag for smart contract wallets that
+            // cannot produce a raw ECDSA signature compatible with ecrecover.
+            disableMessageSigning: true,
+          },
+          providers: [
+            EVM({
+              getWalletClient: getEvmWalletClient,
+              switchChain: switchEvmChain,
+            }),
           ],
         },
       };
     }
 
     return baseConfig;
-  }, [preferSolana, solWallet, ethWallet, integrator, privyAdapter]);
+  }, [preferSolana, solWallet, ethWallet, integrator, privyAdapter, getEvmWalletClient, switchEvmChain]);
 
   // Log debug information
   useEffect(() => {

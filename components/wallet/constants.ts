@@ -6,6 +6,7 @@ export const SUPPORTED_CHAINS: ChainType[] = [
   'POLYGON',
   'BASE',
   'SOLANA',
+  'ARBITRUM',
 ] as const;
 
 // export const SUPPORTED_CHAINS_TRANSACTIONS: ChainType[] = [

@@ -3,6 +3,7 @@ export type ChainType =
   | 'POLYGON'
   | 'BASE'
   | 'SOLANA'
+  | 'ARBITRUM'
 export type EVMChain = Exclude<ChainType, 'SOLANA'>;
 
 export interface MarketData {
@@ -43,7 +44,7 @@ export interface TokenData {
   chainId?: number;
   address: string | null;
   logoURI: string;
-  chain: 'ETHEREUM' | 'POLYGON' | 'BASE' | 'SOLANA';
+  chain: 'ETHEREUM' | 'POLYGON' | 'BASE' | 'SOLANA' | 'ARBITRUM';
   marketData: MarketData;
   sparklineData: Array<{ timestamp: number; value: number }>;
   timeSeriesData: {

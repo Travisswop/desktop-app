@@ -47,8 +47,15 @@ const apps: AppIcon[] = [
     borderColor: 'border-blue-700',
     imageUrl: '/assets/icons/base.png',
   },
+  {
+    network: 'ARBITRUM',
+    name: 'Arbitrum',
+    gradient: 'bg-gradient-to-br from-blue-300 to-sky-700',
+    borderColor: 'border-sky-500',
+    imageUrl: '/assets/icons/arbitrum.png',
+  },
 ];
-type Network = 'ETHEREUM' | 'POLYGON' | 'BASE' | 'SOLANA';
+type Network = 'ETHEREUM' | 'POLYGON' | 'BASE' | 'SOLANA' | 'ARBITRUM';
 interface NetworkProps {
   network: string;
   setNetwork: (network: Network) => void;
